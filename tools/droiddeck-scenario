@@ -18,7 +18,9 @@ A scenario is JSON (stdlib only, no YAML):
     }
 
 A list step is a droiddeckctl command line; its JSON answer becomes "last". An assert step checks
-a dotted path in the last answer ("equals", "in", "contains", "exists", "not"); {"sleep": s},
+a dotted path in the last answer ("equals", "in", "contains", "exists", "not", "min", "max");
+{"metric": "name", "from": "dotted.path"} records a number from the last answer, and the report
+gives each metric's per-run values with their min, median and max; {"sleep": s},
 {"screenshot": "name"} and {"record": "name", "seconds": s} do what they say. ${var} is replaced
 from "vars" and --var KEY=VALUE. setup and teardown run once; steps run "repeat" times (or
 --repeat), each preceded by "before" (a failure there fails the run) and followed by "after"
@@ -39,6 +41,7 @@ import importlib.util
 import json
 import os
 import re
+import statistics
 import sys
 import time
 from pathlib import Path
@@ -98,6 +101,28 @@ def check(step: dict, last: dict) -> None:
         raise StepFailed(f"{path} is {value!r}, expected it to contain {step['contains']!r}")
     if step.get("exists") is True and value is None:
         raise StepFailed(f"{path} is missing")
+    for bound, fails in (("min", lambda v, b: v < b), ("max", lambda v, b: v > b)):
+        if bound in step:
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise StepFailed(f"{path} is {value!r}, expected a number")
+            if fails(value, step[bound]):
+                raise StepFailed(f"{path} is {value!r}, expected {'at least' if bound == 'min' else 'at most'} {step[bound]!r}")
+
+
+def metric(step: dict, last: dict) -> float:
+    value = lookup(last, step["from"])
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise StepFailed(f"metric {step['metric']}: {step['from']} is {value!r}, expected a number")
+    return value
+
+
+def summarize(runs: list) -> dict:
+    values: dict[str, list] = {}
+    for run in runs:
+        for name, value in run.get("metrics", {}).items():
+            values.setdefault(name, []).append(value)
+    return {name: {"values": found, "min": min(found), "median": statistics.median(found), "max": max(found)}
+            for name, found in sorted(values.items())}
 
 
 class Runner:
@@ -115,7 +140,7 @@ class Runner:
         except ctl.ControlError as exc:
             raise StepFailed(f"droiddeckctl {' '.join(map(str, words))}: {exc.code}: {exc}") from exc
 
-    def run_steps(self, steps: list, folder: Path, log: list) -> None:
+    def run_steps(self, steps: list, folder: Path, log: list, metrics: dict | None = None) -> None:
         last: dict = {}
         for index, step in enumerate(steps):
             started = time.monotonic()
@@ -126,6 +151,10 @@ class Runner:
                     entry["result"] = last
                 elif "assert" in step:
                     check(step, last)
+                elif "metric" in step:
+                    entry["result"] = metric(step, last)
+                    if metrics is not None:
+                        metrics[step["metric"]] = entry["result"]
                 elif "sleep" in step:
                     time.sleep(float(step["sleep"]))
                 elif "screenshot" in step:
@@ -201,9 +230,9 @@ def main(argv: list[str] | None = None) -> int:
             folder.mkdir(mode=0o700)
             log: list = []
             started = time.monotonic()
-            result = {"run": run, "folder": str(folder)}
+            result = {"run": run, "folder": str(folder), "metrics": {}}
             try:
-                runner.run_steps(scenario.get("before", []) + scenario.get("steps", []), folder, log)
+                runner.run_steps(scenario.get("before", []) + scenario.get("steps", []), folder, log, result["metrics"])
                 result["ok"] = True
             except StepFailed as exc:
                 result["ok"] = False
@@ -234,7 +263,8 @@ def main(argv: list[str] | None = None) -> int:
         write_json(out / "setup.json", setup_log + teardown_log)
 
     passed = sum(1 for r in report["runs"] if r["ok"])
-    report.update({"ok": status == 0, "passed": passed, "failed": len(report["runs"]) - passed})
+    report.update({"ok": status == 0, "passed": passed, "failed": len(report["runs"]) - passed,
+                   "metrics": summarize([r for r in report["runs"] if r["ok"]])})
     write_json(out / "report.json", report)
     print(json.dumps(report, indent=2, sort_keys=True))
     return status

@@ -1,0 +1,43 @@
+{
+  "name": "slay-the-spire-2",
+  "vars": {
+    "appId": 2868840,
+    "settleSeconds": 25,
+    "paceSeconds": 30,
+    "minFps": 30,
+    "maxP99Ms": 50
+  },
+  "repeat": 3,
+  "setup": [
+    ["wake"],
+    ["wait", "cool", "--below", "38", "--timeout", "900"]
+  ],
+  "before": [
+    ["start", "steam", "--wait", "--reuse", "--timeout", "240"]
+  ],
+  "steps": [
+    ["thermal"],
+    {"metric": "startBatteryC", "from": "batteryC"},
+    ["launch", "${appId}", "--wait", "--timeout", "300"],
+    {"assert": "focus.focusedApp", "equals": "${appId}"},
+    {"assert": "focus.focusableApps", "contains": "${appId}"},
+    {"sleep": "${settleSeconds}"},
+    {"screenshot": "menu"},
+    ["pacing", "--seconds", "${paceSeconds}"],
+    {"metric": "fpsOnScreen", "from": "fpsOnScreen"},
+    {"metric": "p99Ms", "from": "p99Ms"},
+    {"metric": "offCadencePercent", "from": "offCadencePercent"},
+    {"assert": "fpsOnScreen", "min": "${minFps}"},
+    {"assert": "p99Ms", "max": "${maxP99Ms}"},
+    ["thermal"],
+    {"metric": "endBatteryC", "from": "batteryC"},
+    ["quit", "${appId}", "--timeout", "30"],
+    {"assert": "remaining", "equals": []}
+  ],
+  "after": [
+    ["quit", "${appId}", "--timeout", "30"]
+  ],
+  "teardown": [
+    ["stop", "--timeout", "120"]
+  ]
+}
