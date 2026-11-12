@@ -260,6 +260,7 @@ public final class LinuxRuntimeInstaller {
                     && !SessionPrefs.allowStockProot(context))
                 throw new IOException("Cannot download proot");
             if (!AddonPack.DIRECTAUDIO.await(context, () -> true, packProgress(listener, downloading))) throw new IOException("Cannot download DirectAudio");
+            com.droiddeck.launcher.telemetry.Timeline.mark("setup.runtime.download");
             boolean ok = Downloader.downloadFile(release.url, archive, true, release.sha256, (fraction) -> {
                 if (listener != null) {
                     listener.onProgress(Step.DOWNLOADING, downloading,
@@ -272,6 +273,7 @@ public final class LinuxRuntimeInstaller {
                 return false;
             }
 
+            com.droiddeck.launcher.telemetry.Timeline.mark("setup.runtime.verify");
             if (listener != null) listener.onProgress(Step.VERIFYING, context.getString(R.string.rtinst_verifying), -1);
             String actual = Hashes.sha256(archive);
             if (!release.sha256.equalsIgnoreCase(actual)) {
@@ -284,11 +286,13 @@ public final class LinuxRuntimeInstaller {
             File old = new File(root.getParentFile(), LinuxRuntime.DIR + ".old");
             recoverInterruptedSwap(root, staging, old);
             if (!discard(staging, null) || !staging.mkdirs()) return false;
+            com.droiddeck.launcher.telemetry.Timeline.mark("setup.runtime.extract");
             if (listener != null) listener.onProgress(context.getString(R.string.rtinst_extracting), -1);
             if (!extract(context, archive, staging, root, listener)) {
                 RuntimeFileTree.delete(staging, null);
                 return false;
             }
+            com.droiddeck.launcher.telemetry.Timeline.mark("setup.runtime.extracted");
             FileUtils.writeString(new File(staging, VERSION_FILE), release.version);
 
             if (!discard(old, null)) {

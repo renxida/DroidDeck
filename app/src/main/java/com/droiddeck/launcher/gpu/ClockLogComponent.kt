@@ -42,6 +42,8 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
         try {
             FileWriter(logFile, true).use { w ->
                 w.write("== clocks: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.HARDWARE}), every ${PERIOD_MS / 1000}s\n")
+                val startMs = System.currentTimeMillis()
+                w.write("start: wall_ms=$startMs tz_offset_min=${java.util.TimeZone.getDefault().getOffset(startMs) / 60_000}\n")
                 w.write("cpu policies: ${policies.joinToString { p -> p.name + " " + (File(p, "related_cpus").readTextOrNull()?.trim() ?: "?") }}\n")
                 for (source in gpuCandidates) {
                     val f = File(source)
