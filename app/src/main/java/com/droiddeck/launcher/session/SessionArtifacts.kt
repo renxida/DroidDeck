@@ -543,6 +543,7 @@ object SessionArtifacts {
                             "session died of a crash, the entry is in there unless the device rebooted.\n" +
                             (if (newest) exitReasons(context) else "")
                     )
+                    if (newest) classifyAbandoned(context, dir, recoveryNote)
                     if (newest && lastExitForMemory(context)) killedForMemory = true
                 }
                 if (recoveryPreviouslyAttempted && !runtimeCaptured.exists() &&
@@ -616,6 +617,38 @@ object SessionArtifacts {
         // the notice for the launcher to show.
         if (killedForMemory) SessionPrefs.setMemoryKillNotice(context, true)
         return killedForMemory
+    }
+
+    internal fun eventTimes(events: File): Pair<Long?, Long?> {
+        if (!events.isFile) return null to null
+        val pattern = Regex(""""t":(\d+)""")
+        var first: Long? = null
+        var last: Long? = null
+        events.useLines { lines ->
+            lines.forEach { line ->
+                val t = pattern.find(line)?.groupValues?.get(1)?.toLongOrNull() ?: return@forEach
+                if (first == null) first = t
+                last = t
+            }
+        }
+        return first to last
+    }
+
+    private fun classifyAbandoned(context: Context, dir: File, note: File) {
+        runCatching {
+            val (started, last) = eventTimes(File(dir, "events.jsonl"))
+            val exits = if (android.os.Build.VERSION.SDK_INT < 30) emptyList<ExitCause.AppExit>() else
+                context.getSystemService(android.app.ActivityManager::class.java)
+                    ?.getHistoricalProcessExitReasons(context.packageName, 0, 5).orEmpty()
+                    .filter { it.processName == context.packageName }
+                    .map { ExitCause.AppExit(it.timestamp, it.reason, it.status, it.description) }
+            val boot = System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()
+            val verdict = ExitCause.ofAbandoned(started, last, boot, exits)
+            val line = ExitCause.line("app", verdict)
+            Log.i(TAG, line)
+            note.appendText(line + "\n")
+            SessionEvents.record("exit.classified", ExitCause.fields("app", verdict), dir)
+        }.onFailure { Log.w(TAG, "classifying how $dir ended", it) }
     }
 
     /** Android's newest record for this app's main process says it was killed for memory. */
