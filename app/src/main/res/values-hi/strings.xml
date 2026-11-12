@@ -7,13 +7,11 @@
         <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>पहली बार चलाने पर डेस्कटॉप सेट हो जाता है। इसमें कुछ मिनट लग सकते हैं।</item>
         <item>डिफ़ॉल्ट रूप से, ऐप से बाहर जाने पर सेशन रुक जाता है; वापस आने पर यह वहीं से शुरू होता है जहां छोड़ा था।</item>
         <item>टच टचपैड की तरह काम करता है: पॉइंटर घुमाने के लिए ड्रैग करें, क्लिक के लिए टैप करें।</item>
         <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
     </string-array>
     <string name="session_channel">सेशन</string>
-    <string name="session_channel_description">Steam या डेस्कटॉप सेशन खुला होने पर दिखता है</string>
     <string name="session_notification">Steam चल रहा है</string>
     <string name="session_notification_downloads">Steam डाउनलोड जारी है</string>
     <string name="session_notification_paused">सेशन रुका हुआ है - तैयार होने पर फिर से शुरू करें पर टैप करें</string>
@@ -282,10 +280,8 @@
     <string name="common_delete_named">%1$s हटाएं</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">रनटाइम ड्राइवर</string>
-    <string name="comp_runtime_driver_hint">Steam, गेम और डेस्कटॉप में उपयोग होता है। अगले सेशन से लागू होता है।</string>
     <string name="comp_import_turnip">Turnip zip इंपोर्ट करें…</string>
     <string name="comp_display_driver">डिस्प्ले ड्राइवर</string>
-    <string name="comp_display_driver_hint">दोनों मोड में स्क्रीन पर फ़्रेम बनाता है। लागू करने के लिए ऐप रीस्टार्ट करें।</string>
     <string name="comp_import_adrenotools">AdrenoTools zip इंपोर्ट करें…</string>
     <string name="comp_never">कभी नहीं</string>
     <string name="comp_nightlies_checked">Nightlies की जांच %1$s को हुई</string>
@@ -347,7 +343,6 @@
     <string name="comp_applies_next_game">अगली बार गेम शुरू होने पर लागू होता है</string>
     <string name="comp_import_zip">.zip इंपोर्ट करें</string>
     <string name="comp_reading">Proton पढ़े जा रहे हैं…</string>
-    <string name="comp_no_proton">अभी कोई Proton इंस्टॉल नहीं है। इसका ARM64 Proton डाउनलोड करने के लिए Steam एक बार शुरू करें, या Setup से GE-Proton, CachyOS या DroidDeck-Proton जोड़ें।</string>
     <string name="comp_original">ओरिजिनल · %1$s</string>
     <string name="comp_this_build">%1$s · यह बिल्ड</string>
     <string name="comp_earlier_build">%1$s · पहले का बिल्ड</string>
@@ -417,7 +412,6 @@
     <string name="perf_zram_client">गेम चलते समय Steam को कंप्रेस करें</string>
     <string name="perf_zram_client_hint">गेम शुरू होने के 20 s बाद, Steam क्लाइंट को zRAM में कंप्रेस किया जाता है ताकि गेम को ज़्यादा मेमोरी मिले, और गेम बंद होने पर वापस पढ़ा जाता है। अगर गेम शुरू होने के कुछ देर बाद सेशन बंद हो जाता है तो इसे बंद करें। ऊपर दी गई RAM सीमा पार होने पर भी Steam कंप्रेस होता है।</string>
     <string name="perf_ram_cap">RAM सीमा</string>
-    <string name="perf_ram_cap_hint">Steam क्लाइंट चलते समय लागू होती है, Steam मोड में या डेस्कटॉप से। जब सेशन इससे ज़्यादा इस्तेमाल करता है, तो Steam और फिर सेशन की दूसरी समर्थित प्रोसेस zRAM में कंप्रेस होती हैं। यह सॉफ़्ट सीमा है: कुछ बंद नहीं होता, लेकिन पेज वापस आते समय गेम अटक सकते हैं।</string>
     <string name="perf_ram_cap_unavailable">zRAM स्वैप चाहिए, जो इस डिवाइस में नहीं है।</string>
     <string name="perf_vram_cap">VRAM सीमा</string>
     <string name="perf_vram_cap_hint">मेमोरी का उपयोग कम करने के लिए Direct3D 9 से 12 गेम को यह वीडियो मेमोरी बजट बताता है। गेम इसे पार कर सकते हैं; यह GPU पेजिंग नहीं जोड़ता और मेमोरी खत्म होने से क्रैश रोकने की गारंटी नहीं देता। अगले सत्र से लागू होगा।</string>
@@ -650,7 +644,6 @@
     <string name="setup_reset_settings_hint">हर सेटिंग को डिफ़ॉल्ट मान पर लौटाएँ</string>
     <string name="setup_reset_settings_button">रीसेट करें</string>
     <string name="setup_reset_settings_title">सभी सेटिंग रीसेट करें?</string>
-    <string name="setup_reset_settings_body">डिस्प्ले, परफ़ॉर्मेंस, कंट्रोलर, थीम, भाषा और लॉन्चर की सेटिंग डिफ़ॉल्ट पर लौट जाएँगी। आपके गेम, Steam लॉगिन, स्टोर खाते, डाउनलोड किए गए ड्राइवर और स्टोरेज फ़ोल्डर बने रहेंगे।</string>
     <string name="setup_reset_settings_profiles">गेम प्रोफ़ाइल भी रीसेट करें (हर गेम के लिए Proton, FEX, कॉम्पोनेंट और रनटाइम एनवायरनमेंट, और डिफ़ॉल्ट प्रोफ़ाइल का एनवायरनमेंट)</string>
     <string name="setup_reset_settings_session_running">सेटिंग रीसेट करने से पहले सेशन रोकें।</string>
     <string name="setup_reset_settings_partial">सेटिंग रीसेट हुईं, पर सभी नहीं। विवरण लॉग में हैं।</string>
@@ -669,7 +662,6 @@
     <string name="setup_launcher_orientation_auto">डिवाइस रोटेशन के अनुसार</string>
     <string name="setup_orientation_portrait">पोर्ट्रेट</string>
     <string name="setup_session_orientation">सेशन ओरिएंटेशन</string>
-    <string name="setup_session_orientation_hint">Steam, गेम, डेस्कटॉप और कंट्रोलर एडिटर पर लागू होता है। रिज़ॉल्यूशन प्रीसेट सेशन के साथ घूमते हैं; कस्टम चौड़ाई और ऊंचाई जैसी डाली गई वैसी ही रहती हैं।</string>
     <string name="setup_orientation_auto">ऑटोमैटिक लैंडस्केप</string>
     <string name="setup_orientation_landscape">लैंडस्केप</string>
     <string name="setup_orientation_reverse">उलटा लैंडस्केप</string>
@@ -813,7 +805,6 @@
     <string name="gpu_ubwc_title">UBWC कम्पैटिबिलिटी</string>
     <string name="gpu_ubwc_hint">अगर Steam या Android में धारियां या झिलमिलाहट दिखे तो चालू या बंद आज़माएं। Kestrel रीस्टार्ट करने के बाद दोनों ड्राइवर पर लागू होता है।</string>
     <string name="gpu_ubwc_restart">लागू करने के लिए Kestrel रीस्टार्ट करें।</string>
-    <string name="gpu_runtime_hint">गेम और डेस्कटॉप में उपयोग होता है।</string>
     <string name="gpu_runtime_default">रनटाइम डिफ़ॉल्ट</string>
     <string name="gpu_auto_by_gpu">ऑटो - GPU के हिसाब से चुना गया</string>
     <string name="load_runtime">Linux रनटाइम</string>
@@ -911,7 +902,6 @@
     <string name="load_compat_wait">कम्पैटिबिलिटी सेटअप पूरा होने का इंतज़ार</string>
     <string name="load_compat_hint">सेटअप पूरा होते ही आपका सेशन शुरू होगा।</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">डेस्कटॉप ऐप इंस्टॉल खत्म होने का इंतज़ार करें</string>
     <string name="main_wait_install_game">गेम लॉन्च करने से पहले इंस्टॉल खत्म होने का इंतज़ार करें</string>
     <string name="main_saves_close_session">पहले Steam सेशन बंद करें, ताकि गेम इंपोर्ट के ऊपर सेव न कर सके</string>
     <string name="main_saves_importing">%1$s में इंपोर्ट हो रहा है</string>
@@ -947,7 +937,6 @@
     <string name="main_remove_runtime_title">Linux रनटाइम हटाएं</string>
     <string name="main_remove_runtime_text">यह रनटाइम, इसके भीतर का Steam क्लाइंट, और वहां इंस्टॉल हर गेम हटा देता है।</string>
     <string name="runtime_actions_title">Linux रनटाइम</string>
-    <string name="runtime_actions_text">रिपेयर रनटाइम की सिस्टम फ़ाइलें फिर से इंस्टॉल करता है और Steam, आपके गेम और सेटिंग रखता है। डेस्कटॉप जैसी अतिरिक्त चीज़ें अगली बार इस्तेमाल करने पर फिर से इंस्टॉल होती हैं। हटाएं सब कुछ डिलीट करता है।</string>
     <string name="runtime_repair">रनटाइम रिपेयर करें</string>
     <string name="main_applied">लागू हुआ: %1$s</string>
     <string name="comp_busy_importing">इंपोर्ट हो रहा है</string>
@@ -1955,7 +1944,6 @@
     <string name="storage_leftover_confirm">Wine प्रीफ़िक्स और शेडर कैश साफ़ करता है (%1$s)। पहले ज़रूरी सेव की कॉपी बना लें; Steam Cloud सेव आपके खाते में रहते हैं।</string>
     <string name="storage_data_other">रखा गया</string>
     <string name="storage_data_other_title">गैर-Steam गेम और साझा Steam प्रीफ़िक्स</string>
-    <string name="storage_data_other_detail">स्टोर से या हाथ से जोड़े गेम के प्रीफ़िक्स</string>
     <string name="storage_components_packages">डाउनलोड किए पैकेज</string>
     <string name="storage_components_originals">रखे गए मूल</string>
     <string name="storage_components_none">कोई कॉम्पोनेंट पैकेज डाउनलोड नहीं है।</string>

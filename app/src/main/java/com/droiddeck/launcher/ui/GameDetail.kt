@@ -209,7 +209,7 @@ private fun GameStatusLine(game: Library.SteamGame, inSteam: Boolean) {
     val line = (state + listOfNotNull(size?.let { formatBytes(it) })).filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
     val muted = colors.onBackground.copy(alpha = 0.78f)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        SourceBadge(librarySource(game))
+        if (game.library == Library.ADDED) SourceBadge(Library.ADDED)
         Text(line, fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         if (inSteam) {
             Text("·", fontSize = 12.sp, color = muted.copy(alpha = 0.5f))

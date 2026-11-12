@@ -7,13 +7,11 @@
         <item>Kontrolleren din vises som en Xbox 360-kontroller. Hvis ikke, bruk skjermkontrollene.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Første gang settes skrivebordet opp. Dette kan ta noen minutter.</item>
         <item>Som standard settes sesjonen på pause når du lukker appen, og fortsetter der du slapp når du kommer tilbake.</item>
         <item>Berøring fungerer som styreflate: dra for å flytte pekeren, trykk for å klikke.</item>
         <item>Kontrolleren din vises som en Xbox 360-kontroller. Hvis ikke, bruk skjermkontrollene.</item>
     </string-array>
     <string name="session_channel">Sesjon</string>
-    <string name="session_channel_description">Vises mens en Steam- eller skrivebordssesjon er åpen</string>
     <string name="session_notification">Steam kjører</string>
     <string name="session_notification_downloads">Steam-nedlasting aktiv</string>
     <string name="session_notification_paused">Sesjonen er pauset – trykk på Gjenoppta når du er klar</string>
@@ -282,10 +280,8 @@
     <string name="common_delete_named">Slett %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Kjøretidsdriver</string>
-    <string name="comp_runtime_driver_hint">Brukes av Steam, spill og skrivebordet. Gjelder fra neste sesjon.</string>
     <string name="comp_import_turnip">Importer Turnip-zip…</string>
     <string name="comp_display_driver">Skjermdriver</string>
-    <string name="comp_display_driver_hint">Tegner bilder til skjermen i begge moduser. Start appen på nytt for å bruke dette.</string>
     <string name="comp_import_adrenotools">Importer en AdrenoTools-zip…</string>
     <string name="comp_never">aldri</string>
     <string name="comp_nightlies_checked">Nightlies sjekket %1$s</string>
@@ -347,7 +343,6 @@
     <string name="comp_applies_next_game">Gjelder neste gang et spill starter</string>
     <string name="comp_import_zip">Importer .zip</string>
     <string name="comp_reading">Leser Protoner…</string>
-    <string name="comp_no_proton">Ingen Proton installert ennå. Start Steam én gang for å laste ned dens ARM64-Proton, eller legg til GE-Proton, CachyOS eller DroidDeck-Proton fra Oppsett.</string>
     <string name="comp_original">Original · %1$s</string>
     <string name="comp_this_build">%1$s · denne builden</string>
     <string name="comp_earlier_build">%1$s · tidligere build</string>
@@ -417,7 +412,6 @@
     <string name="perf_zram_client">Komprimer Steam mens et spill kjører</string>
     <string name="perf_zram_client_hint">20 s etter at et spill starter, komprimeres Steam-klienten til zRAM for å gi spillet mer minne, og leses inn igjen når spillet lukkes. Slå av hvis sesjonen lukkes kort tid etter at spill starter. En RAM-grense ovenfor komprimerer fortsatt Steam når sesjonen går over den.</string>
     <string name="perf_ram_cap">RAM-grense</string>
-    <string name="perf_ram_cap_hint">Gjelder mens Steam-klienten kjører, i Steam-modus eller fra skrivebordet. Når sesjonen bruker mer enn dette, komprimeres Steam og deretter sesjonens andre støttede prosesser til zRAM. En myk grense: ingenting lukkes, men spill kan hakke mens sider hentes tilbake.</string>
     <string name="perf_ram_cap_unavailable">Krever zRAM-swap, som denne enheten ikke har.</string>
     <string name="perf_vram_cap">VRAM-grense</string>
     <string name="perf_vram_cap_hint">Rapporterer dette videominnebudsjettet til Direct3D 9 til 12-spill for å redusere minnebruken. Spill kan overskride det; dette legger ikke til GPU-sideveksling og garanterer ikke beskyttelse mot krasj ved minnemangel. Gjelder fra neste økt.</string>
@@ -650,7 +644,6 @@
     <string name="setup_reset_settings_hint">Sett hver innstilling tilbake til standardverdien</string>
     <string name="setup_reset_settings_button">Tilbakestill</string>
     <string name="setup_reset_settings_title">Tilbakestille alle innstillinger?</string>
-    <string name="setup_reset_settings_body">Innstillinger for bilde, ytelse, kontroller, tema, språk og launcher går tilbake til standard. Spillene dine, Steam-påloggingen, butikkontoene, nedlastede drivere og lagringsmappene beholdes.</string>
     <string name="setup_reset_settings_profiles">Tilbakestill også spillprofiler (Proton, FEX, komponenter og kjøretidsmiljø per spill, samt kjøretidsmiljøet for Standard-profilen)</string>
     <string name="setup_reset_settings_session_running">Stopp økten før du tilbakestiller innstillinger.</string>
     <string name="setup_reset_settings_partial">Innstillingene ble tilbakestilt, men ikke alle. Detaljene står i loggen.</string>
@@ -669,7 +662,6 @@
     <string name="setup_launcher_orientation_auto">Følg enhetens rotasjon</string>
     <string name="setup_orientation_portrait">Stående</string>
     <string name="setup_session_orientation">Retning for sesjonen</string>
-    <string name="setup_session_orientation_hint">Gjelder Steam, spill, skrivebordet og kontrollerredigeringen. Forhåndsinnstilte oppløsninger roterer med sesjonen; egendefinert bredde og høyde forblir som angitt.</string>
     <string name="setup_orientation_auto">Automatisk liggende</string>
     <string name="setup_orientation_landscape">Liggende</string>
     <string name="setup_orientation_reverse">Omvendt liggende</string>
@@ -813,7 +805,6 @@
     <string name="gpu_ubwc_title">UBWC-kompatibilitet</string>
     <string name="gpu_ubwc_hint">Prøv På eller Av hvis Steam eller Android viser striper eller flimring. Gjelder begge driverne etter at Kestrel startes på nytt.</string>
     <string name="gpu_ubwc_restart">Start Kestrel på nytt for å bruke endringen.</string>
-    <string name="gpu_runtime_hint">Brukes av spill og skrivebordet.</string>
     <string name="gpu_runtime_default">Kjøretidsstandard</string>
     <string name="gpu_auto_by_gpu">Auto – valgt etter GPU</string>
     <string name="load_runtime">Linux-kjøretid</string>
@@ -911,7 +902,6 @@
     <string name="load_compat_wait">Venter på at kompatibilitetsoppsettet skal bli ferdig</string>
     <string name="load_compat_hint">Sesjonen starter når oppsettet er ferdig.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Vent til installasjonen av skrivebordsappen er ferdig</string>
     <string name="main_wait_install_game">Vent til installasjonen er ferdig før du starter et spill</string>
     <string name="main_saves_close_session">Lukk Steam-sesjonen først, så spillet ikke kan lagre over importen</string>
     <string name="main_saves_importing">Importerer til %1$s</string>
@@ -947,7 +937,6 @@
     <string name="main_remove_runtime_title">Fjern Linux-kjøretid</string>
     <string name="main_remove_runtime_text">Dette sletter kjøretiden, Steam-klienten inni den, og hvert spill installert der.</string>
     <string name="runtime_actions_title">Linux-kjøretid</string>
-    <string name="runtime_actions_text">Reparer installerer kjøretidens systemfiler på nytt og beholder Steam, spillene og innstillingene dine. Tillegg som skrivebordet installeres igjen neste gang du bruker dem. Fjern sletter alt.</string>
     <string name="runtime_repair">Reparer kjøretid</string>
     <string name="main_applied">Brukt: %1$s</string>
     <string name="comp_busy_importing">Importerer</string>
@@ -1955,7 +1944,6 @@
     <string name="storage_leftover_confirm">Rydder Wine-prefikset og shadercachen (%1$s). Ta først en kopi av lagringene du trenger; Steam Cloud-lagringer blir på kontoen.</string>
     <string name="storage_data_other">Beholdes</string>
     <string name="storage_data_other_title">Ikke-Steam-spill og delt Steam-prefiks</string>
-    <string name="storage_data_other_detail">Prefikser for spill lagt til via butikker eller manuelt</string>
     <string name="storage_components_packages">Nedlastede pakker</string>
     <string name="storage_components_originals">Beholdte originaler</string>
     <string name="storage_components_none">Ingen komponentpakker lastet ned.</string>

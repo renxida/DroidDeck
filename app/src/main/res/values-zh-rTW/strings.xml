@@ -7,13 +7,11 @@
         <item>你的控制器會被識別為 Xbox 360 手把。沒有控制器時，可使用螢幕控制。</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>首次執行會設定桌面。這可能需要幾分鐘。</item>
         <item>預設情況下，離開應用程式會暫停工作階段；返回時會從上次中斷處繼續。</item>
         <item>觸控會像觸控板一樣運作：拖曳移動指標，輕觸即點擊。</item>
         <item>你的控制器會被識別為 Xbox 360 手把。沒有控制器時，可使用螢幕控制。</item>
     </string-array>
     <string name="session_channel">工作階段</string>
-    <string name="session_channel_description">在 Steam 或桌面工作階段開啟時顯示</string>
     <string name="session_notification">Steam 正在執行</string>
     <string name="session_notification_downloads">Steam 正在下載</string>
     <string name="session_notification_paused">工作階段已暫停 - 準備好後點擊繼續</string>
@@ -280,10 +278,8 @@
     <string name="common_delete_named">刪除 %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">執行環境驅動程式</string>
-    <string name="comp_runtime_driver_hint">供 Steam、遊戲和桌面使用。下次工作階段生效。</string>
     <string name="comp_import_turnip">匯入 Turnip zip…</string>
     <string name="comp_display_driver">顯示驅動程式</string>
-    <string name="comp_display_driver_hint">在兩種模式下都負責將畫面輸出到螢幕。重新啟動應用程式後生效。</string>
     <string name="comp_import_adrenotools">匯入 AdrenoTools zip…</string>
     <string name="comp_never">從未</string>
     <string name="comp_nightlies_checked">Nightlies 檢查時間：%1$s</string>
@@ -345,7 +341,6 @@
     <string name="comp_applies_next_game">下次啟動遊戲時生效</string>
     <string name="comp_import_zip">匯入 .zip</string>
     <string name="comp_reading">正在讀取 Proton…</string>
-    <string name="comp_no_proton">尚未安裝 Proton。請啟動一次 Steam 以下載其 ARM64 Proton，或從「設定」中新增 GE-Proton 或 CachyOS。</string>
     <string name="comp_original">原始 · %1$s</string>
     <string name="comp_this_build">%1$s · 目前組建</string>
     <string name="comp_earlier_build">%1$s · 較早組建</string>
@@ -415,7 +410,6 @@
     <string name="perf_zram_client">遊戲執行時壓縮 Steam</string>
     <string name="perf_zram_client_hint">遊戲啟動 20 秒後，Steam 用戶端會被壓縮到 zRAM，為遊戲騰出更多記憶體，並在遊戲關閉時讀回。如果工作階段在遊戲啟動後不久就關閉，請關閉此選項。若超過上方的 RAM 上限，工作階段仍會壓縮 Steam。</string>
     <string name="perf_ram_cap">RAM 上限</string>
-    <string name="perf_ram_cap_hint">在 Steam 用戶端執行時生效，無論是 Steam 模式或從桌面啟動。當工作階段的用量超過此值時，會先將 Steam、再將工作階段中其他受支援的程序壓縮到 zRAM。這是軟性上限：不會關閉任何程式，但在分頁讀回時遊戲可能會卡頓。</string>
     <string name="perf_ram_cap_unavailable">需要 zRAM 交換空間，但這部裝置沒有。</string>
     <string name="perf_vram_cap">VRAM 上限</string>
     <string name="perf_vram_cap_hint">向 Direct3D 9 至 12 遊戲回報此顯示記憶體預算，以促使遊戲減少記憶體使用量。遊戲可能超出預算；此功能不提供 GPU 分頁，也不保證避免記憶體不足造成的當機。下次工作階段生效。</string>
@@ -647,7 +641,6 @@
     <string name="setup_reset_settings_hint">將所有設定還原為預設值</string>
     <string name="setup_reset_settings_button">重設</string>
     <string name="setup_reset_settings_title">要重設所有設定嗎？</string>
-    <string name="setup_reset_settings_body">顯示、效能、控制器、佈景主題、語言和啟動器設定將還原為預設值。你的遊戲、Steam 登入、商店帳戶、已下載的驅動程式和儲存資料夾都會保留。</string>
     <string name="setup_reset_settings_profiles">同時重設遊戲設定檔（每個遊戲的 Proton、FEX、元件和環境，以及預設設定檔的環境）</string>
     <string name="setup_reset_settings_session_running">請先停止工作階段再重設設定。</string>
     <string name="setup_reset_settings_partial">設定已重設，但部分項目無法重設。詳細資訊請查看日誌。</string>
@@ -666,7 +659,6 @@
     <string name="setup_launcher_orientation_auto">跟隨裝置旋轉</string>
     <string name="setup_orientation_portrait">直向</string>
     <string name="setup_session_orientation">工作階段方向</string>
-    <string name="setup_session_orientation_hint">套用至 Steam、遊戲、桌面和控制器編輯器。解析度預設會隨工作階段旋轉；自訂的寬度和高度則維持輸入值。</string>
     <string name="setup_orientation_auto">自動橫向</string>
     <string name="setup_orientation_landscape">橫向</string>
     <string name="setup_orientation_reverse">反向橫向</string>
@@ -810,7 +802,6 @@
     <string name="gpu_ubwc_title">UBWC 相容性</string>
     <string name="gpu_ubwc_hint">如果 Steam 或 Android 出現條紋或閃爍，請試試開啟或關閉。重新啟動 Kestrel 後會套用到兩種驅動程式。</string>
     <string name="gpu_ubwc_restart">重新啟動 Kestrel 以套用。</string>
-    <string name="gpu_runtime_hint">供遊戲和桌面使用。</string>
     <string name="gpu_runtime_default">執行環境預設</string>
     <string name="gpu_auto_by_gpu">自動 - 按 GPU 選擇</string>
     <string name="load_runtime">Linux 執行環境</string>
@@ -908,7 +899,6 @@
     <string name="load_compat_wait">正在等待相容性設定完成</string>
     <string name="load_compat_hint">設定完成後，工作階段就會啟動。</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">請等待桌面應用程式安裝完成</string>
     <string name="main_wait_install_game">請等待安裝完成後再啟動遊戲</string>
     <string name="main_saves_close_session">請先關閉 Steam 工作階段，以免遊戲存檔覆蓋匯入的內容</string>
     <string name="main_saves_importing">正在匯入到 %1$s</string>
@@ -940,7 +930,6 @@
     <string name="main_remove_runtime_title">移除 Linux 執行環境</string>
     <string name="main_remove_runtime_text">這會刪除執行環境、其中的 Steam 用戶端，以及安裝在其中的所有遊戲。</string>
     <string name="runtime_actions_title">Linux 執行環境</string>
-    <string name="runtime_actions_text">「修復」會重新安裝執行環境的系統檔案，並保留 Steam、遊戲和設定。桌面等額外元件會在下次使用時重新安裝。「移除」會刪除所有內容。</string>
     <string name="runtime_repair">修復執行環境</string>
     <string name="main_applied">已套用：%1$s</string>
     <string name="comp_busy_importing">正在匯入</string>
@@ -1933,7 +1922,6 @@
     <string name="storage_leftover_confirm">刪除其 Wine 前綴與著色器快取（%1$s）。請先備份需要的存檔；Steam 雲端存檔仍留在你的帳號中。</string>
     <string name="storage_data_other">保留</string>
     <string name="storage_data_other_title">非 Steam 遊戲與 Steam 的共用前綴</string>
-    <string name="storage_data_other_detail">從商店或手動新增的遊戲的前綴</string>
     <string name="storage_components_packages">已下載的套件</string>
     <string name="storage_components_originals">已儲存的原始檔案</string>
     <string name="storage_components_none">沒有已下載的元件套件。</string>

@@ -7,13 +7,11 @@
         <item>Il tuo controller viene visto come un pad Xbox 360. In alternativa, usa i controlli su schermo.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Al primo avvio viene configurato il desktop. Potrebbero volerci alcuni minuti.</item>
         <item>Per impostazione predefinita, uscire dall\'app mette in pausa la sessione; al tuo ritorno riprende da dove si era interrotta.</item>
         <item>Il touchscreen funziona come un touchpad: trascina per spostare il puntatore, tocca per fare clic.</item>
         <item>Il tuo controller viene visto come un pad Xbox 360. In alternativa, usa i controlli su schermo.</item>
     </string-array>
     <string name="session_channel">Sessione</string>
-    <string name="session_channel_description">Visibile mentre è aperta una sessione Steam o desktop</string>
     <string name="session_notification">Steam è in esecuzione</string>
     <string name="session_notification_downloads">Download di Steam in corso</string>
     <string name="session_notification_paused">Sessione in pausa - tocca Riprendi quando sei pronto</string>
@@ -284,10 +282,8 @@
     <string name="common_delete_named">Elimina %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Driver di runtime</string>
-    <string name="comp_runtime_driver_hint">Usato da Steam, dai giochi e dal desktop. Si applica dalla prossima sessione.</string>
     <string name="comp_import_turnip">Importa zip Turnip…</string>
     <string name="comp_display_driver">Driver di visualizzazione</string>
-    <string name="comp_display_driver_hint">Disegna i frame sullo schermo in entrambe le modalità. Riavvia l\'app per applicare.</string>
     <string name="comp_import_adrenotools">Importa uno zip AdrenoTools…</string>
     <string name="comp_never">mai</string>
     <string name="comp_nightlies_checked">Nightlies controllate: %1$s</string>
@@ -349,7 +345,6 @@
     <string name="comp_applies_next_game">Si applica al prossimo avvio di un gioco</string>
     <string name="comp_import_zip">Importa .zip</string>
     <string name="comp_reading">Lettura delle versioni di Proton…</string>
-    <string name="comp_no_proton">Nessun Proton ancora installato. Avvia Steam una volta per scaricare il suo Proton ARM64, oppure aggiungi GE-Proton, CachyOS o DroidDeck-Proton da Configurazione.</string>
     <string name="comp_original">Originale · %1$s</string>
     <string name="comp_this_build">%1$s · questa build</string>
     <string name="comp_earlier_build">%1$s · build precedente</string>
@@ -419,7 +414,6 @@
     <string name="perf_zram_client">Comprimi Steam durante il gioco</string>
     <string name="perf_zram_client_hint">20 s dopo l\'avvio di un gioco, il client Steam viene compresso in zRAM per lasciare più memoria al gioco e viene riletto quando il gioco si chiude. Disattivalo se la sessione si chiude poco dopo l\'avvio dei giochi. Un limite di RAM impostato sopra comprime comunque Steam quando la sessione lo supera.</string>
     <string name="perf_ram_cap">Limite RAM</string>
-    <string name="perf_ram_cap_hint">Si applica mentre il client Steam è in esecuzione, in modalità Steam o dal desktop. Quando la sessione usa più di questo valore, Steam e poi gli altri processi supportati della sessione vengono compressi in zRAM. È un limite morbido: non viene chiuso nulla, ma i giochi possono scattare mentre le pagine vengono recuperate.</string>
     <string name="perf_ram_cap_unavailable">Richiede lo swap zRAM, che questo dispositivo non ha.</string>
     <string name="perf_vram_cap">Limite VRAM</string>
     <string name="perf_vram_cap_hint">La memoria video che DXVK comunica ai giochi Direct3D, così usano meno texture. Le impostazioni DXVK del gioco hanno comunque la priorità. Si applica dalla prossima sessione.</string>
@@ -664,7 +658,6 @@
     <string name="setup_launcher_orientation_auto">Segui la rotazione del dispositivo</string>
     <string name="setup_orientation_portrait">Verticale</string>
     <string name="setup_session_orientation">Orientamento della sessione</string>
-    <string name="setup_session_orientation_hint">Si applica a Steam, ai giochi, al desktop e all\'editor del controller. I preset di risoluzione ruotano con la sessione; larghezza e altezza personalizzate restano come inserite.</string>
     <string name="setup_orientation_auto">Orizzontale automatico</string>
     <string name="setup_orientation_landscape">Orizzontale</string>
     <string name="setup_orientation_reverse">Orizzontale invertito</string>
@@ -808,7 +801,6 @@
     <string name="gpu_ubwc_title">Compatibilità UBWC</string>
     <string name="gpu_ubwc_hint">Prova Attivo o Disattivo se Steam o Android mostrano strisce o sfarfallii. Si applica a entrambi i driver dopo il riavvio di Kestrel.</string>
     <string name="gpu_ubwc_restart">Riavvia Kestrel per applicare.</string>
-    <string name="gpu_runtime_hint">Usato dai giochi e dal desktop.</string>
     <string name="gpu_runtime_default">Runtime predefinito</string>
     <string name="gpu_auto_by_gpu">Auto - scelto in base alla GPU</string>
     <string name="load_runtime">Runtime Linux</string>
@@ -906,7 +898,6 @@
     <string name="load_compat_wait">In attesa del completamento della configurazione di compatibilità</string>
     <string name="load_compat_hint">La sessione si avvierà al termine della configurazione.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Attendi la fine dell\'installazione dell\'app desktop</string>
     <string name="main_wait_install_game">Attendi la fine dell\'installazione prima di avviare un gioco</string>
     <string name="main_saves_close_session">Chiudi prima la sessione Steam, così il gioco non potrà sovrascrivere i dati importati</string>
     <string name="main_saves_importing">Importazione in %1$s</string>
@@ -946,7 +937,6 @@
     <string name="main_remove_runtime_title">Rimuovi runtime Linux</string>
     <string name="main_remove_runtime_text">Verranno eliminati il runtime, il client Steam al suo interno e tutti i giochi installati lì.</string>
     <string name="runtime_actions_title">Runtime Linux</string>
-    <string name="runtime_actions_text">Ripara reinstalla i file di sistema del runtime e mantiene Steam, i tuoi giochi e le impostazioni. Gli extra come il desktop si reinstallano al prossimo utilizzo. Rimuovi elimina tutto.</string>
     <string name="runtime_repair">Ripara runtime</string>
     <string name="main_applied">Applicato: %1$s</string>
     <string name="comp_busy_importing">Importazione</string>
@@ -1828,7 +1818,6 @@
     <string name="drawer_component_choose_download">Scegli una versione da scaricare</string>
     <string name="setup_reset_settings">Ripristina tutte le impostazioni</string>
     <string name="setup_reset_settings_title">Ripristinare tutte le impostazioni?</string>
-    <string name="setup_reset_settings_body">Le impostazioni di schermo, prestazioni, controller, tema, lingua e launcher tornano ai valori predefiniti. Giochi, accesso a Steam, account degli store, driver scaricati e cartelle di archiviazione vengono mantenuti.</string>
     <string name="setup_reset_settings_button">Ripristina</string>
     <string name="setup_reset_settings_hint">Riporta ogni impostazione al valore predefinito</string>
     <string name="setup_reset_settings_partial">Le impostazioni sono state ripristinate, ma alcune parti no. I dettagli sono nei log.</string>
@@ -1984,7 +1973,6 @@
     <string name="storage_leftover_confirm">Elimina il suo prefisso Wine e la cache shader (%1$s). Fai prima una copia dei salvataggi che ti servono; quelli di Steam Cloud restano nel tuo account.</string>
     <string name="storage_data_other">Conservati</string>
     <string name="storage_data_other_title">Giochi non Steam e prefisso condiviso di Steam</string>
-    <string name="storage_data_other_detail">Prefissi di giochi aggiunti dagli store o a mano</string>
     <string name="storage_components_packages">Pacchetti scaricati</string>
     <string name="storage_components_originals">Originali conservati</string>
     <string name="storage_components_none">Nessun pacchetto di componenti scaricato.</string>

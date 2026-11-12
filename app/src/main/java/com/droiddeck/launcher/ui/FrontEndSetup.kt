@@ -372,6 +372,7 @@ internal fun SetupPanel(
                             )
                         }
                         val all = listOf(gpuCheck, runtimeCheck, limitCheck, accountCheck)
+                        val shownChecks = all.filterIndexed { i, _ -> checks[i] && i != 1 }
                         ReadinessCard(
                             passing, checks.size,
                             listOfNotNull(
@@ -380,9 +381,9 @@ internal fun SetupPanel(
                                 stringResource(R.string.setup_ready_limit_off).takeIf { !limitBlocks },
                                 s.offlineAccount?.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.setup_ready_signed_in, it) },
                             ).joinToString(" · "),
-                            open = showChecks, onDetails = { showChecks = !showChecks },
+                            open = showChecks && shownChecks.isNotEmpty(), onDetails = { showChecks = !showChecks },
+                            details = shownChecks.isNotEmpty(),
                         ) {
-                            val shownChecks = all.filterIndexed { i, _ -> checks[i] }
                             shownChecks.forEachIndexed { i, check -> check(i < shownChecks.lastIndex) }
                         }
                         val needsAttention = all.filterIndexed { i, _ -> !checks[i] && i != 1 }
@@ -662,7 +663,7 @@ internal fun SetupPanel(
 @Composable
 internal fun ReadinessCard(
     passing: Int, total: Int, line: String, open: Boolean, onDetails: () -> Unit, title: String? = null, ready: Boolean = passing == total,
-    checks: @Composable () -> Unit,
+    details: Boolean = passing > 0, checks: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -686,7 +687,7 @@ internal fun ReadinessCard(
                 )
                 if (line.isNotEmpty()) Text(line, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            if (passing > 0) SecondaryButton(stringResource(if (open) R.string.common_hide else R.string.setup_details), compact = true, onClick = onDetails)
+            if (details) SecondaryButton(stringResource(if (open) R.string.common_hide else R.string.setup_details), compact = true, onClick = onDetails)
         }
         AnimatedVisibility(open, enter = expandVertically(Motion.sp(1f)) + fadeIn(Motion.sp(1f)), exit = shrinkVertically(Motion.sp(1f)) + fadeOut(Motion.sp(1f))) {
             Column(Modifier.fillMaxWidth()) {

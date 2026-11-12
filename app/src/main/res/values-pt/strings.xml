@@ -7,13 +7,11 @@
         <item>Seu controle aparece como um controle de Xbox 360. Sem controle, use os controles na tela.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Na primeira execução, a área de trabalho é preparada. Isso pode levar alguns minutos.</item>
         <item>Por padrão, sair do app pausa a sessão; ela continua de onde parou quando você voltar.</item>
         <item>O toque funciona como um touchpad: arraste para mover o ponteiro, toque para clicar.</item>
         <item>Seu controle aparece como um controle de Xbox 360. Sem controle, use os controles na tela.</item>
     </string-array>
     <string name="session_channel">Sessão</string>
-    <string name="session_channel_description">Aparece enquanto uma sessão da Steam ou da área de trabalho está aberta</string>
     <string name="session_notification">A Steam está em execução</string>
     <string name="session_notification_downloads">Download da Steam em andamento</string>
     <string name="session_notification_paused">Sessão pausada - toque em Retomar quando quiser</string>
@@ -284,10 +282,8 @@
     <string name="common_delete_named">Excluir %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Driver do runtime</string>
-    <string name="comp_runtime_driver_hint">Usado pela Steam, pelos jogos e pela área de trabalho. Vale a partir da próxima sessão.</string>
     <string name="comp_import_turnip">Importar zip do Turnip…</string>
     <string name="comp_display_driver">Driver de exibição</string>
-    <string name="comp_display_driver_hint">Desenha os quadros na tela nos dois modos. Reinicie o app para aplicar.</string>
     <string name="comp_import_adrenotools">Importar um zip do AdrenoTools…</string>
     <string name="comp_never">nunca</string>
     <string name="comp_nightlies_checked">Nightlies verificadas: %1$s</string>
@@ -349,7 +345,6 @@
     <string name="comp_applies_next_game">Vale a partir da próxima vez que um jogo iniciar</string>
     <string name="comp_import_zip">Importar .zip</string>
     <string name="comp_reading">Lendo as versões do Proton…</string>
-    <string name="comp_no_proton">Nenhum Proton instalado ainda. Inicie a Steam uma vez para baixar o Proton ARM64 dela, ou adicione o GE-Proton, CachyOS ou DroidDeck-Proton em Configuração.</string>
     <string name="comp_original">Original · %1$s</string>
     <string name="comp_this_build">%1$s · esta versão</string>
     <string name="comp_earlier_build">%1$s · versão anterior</string>
@@ -419,7 +414,6 @@
     <string name="perf_zram_client">Comprimir a Steam durante o jogo</string>
     <string name="perf_zram_client_hint">20 s após o início de um jogo, o cliente Steam é comprimido na zRAM para deixar mais memória ao jogo, e é lido de volta quando o jogo fecha. Desative se a sessão fechar logo após os jogos iniciarem. Um limite de RAM acima ainda comprime a Steam quando a sessão o ultrapassa.</string>
     <string name="perf_ram_cap">Limite de RAM</string>
-    <string name="perf_ram_cap_hint">Vale enquanto o cliente Steam está em execução, no modo Steam ou pela área de trabalho. Quando a sessão usa mais que isso, a Steam e depois os outros processos compatíveis da sessão são comprimidos na zRAM. Um limite flexível: nada é fechado, mas os jogos podem travar enquanto as páginas voltam.</string>
     <string name="perf_ram_cap_unavailable">Requer swap em zRAM, que este dispositivo não tem.</string>
     <string name="perf_vram_cap">Limite de VRAM</string>
     <string name="perf_vram_cap_hint">Informa este orçamento de memória de vídeo aos jogos Direct3D 9 a 12 para reduzir o uso de memória. Os jogos podem excedê-lo; isso não adiciona paginação de GPU nem garante proteção contra falhas por falta de memória. Entra em vigor na próxima sessão.</string>
@@ -664,7 +658,6 @@
     <string name="setup_launcher_orientation_auto">Seguir a rotação do dispositivo</string>
     <string name="setup_orientation_portrait">Retrato</string>
     <string name="setup_session_orientation">Orientação da sessão</string>
-    <string name="setup_session_orientation_hint">Vale para a Steam, os jogos, a área de trabalho e o editor de controle. As predefinições de resolução giram com a sessão; largura e altura personalizadas ficam como foram digitadas.</string>
     <string name="setup_orientation_auto">Paisagem automática</string>
     <string name="setup_orientation_landscape">Paisagem</string>
     <string name="setup_orientation_reverse">Paisagem invertida</string>
@@ -808,7 +801,6 @@
     <string name="gpu_ubwc_title">Compatibilidade com UBWC</string>
     <string name="gpu_ubwc_hint">Experimente Ativado ou Desativado se a Steam ou o Android mostrarem listras ou cintilação. Vale para os dois drivers após reiniciar o Kestrel.</string>
     <string name="gpu_ubwc_restart">Reinicie o Kestrel para aplicar.</string>
-    <string name="gpu_runtime_hint">Usado pelos jogos e pela área de trabalho.</string>
     <string name="gpu_runtime_default">Padrão do runtime</string>
     <string name="gpu_auto_by_gpu">Automático - escolhido pela GPU</string>
     <string name="load_runtime">Runtime do Linux</string>
@@ -906,7 +898,6 @@
     <string name="load_compat_wait">Aguardando a configuração de compatibilidade terminar</string>
     <string name="load_compat_hint">Sua sessão vai começar quando a configuração terminar.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Aguarde a instalação do app de área de trabalho terminar</string>
     <string name="main_wait_install_game">Aguarde a instalação terminar antes de iniciar um jogo</string>
     <string name="main_saves_close_session">Feche a sessão do Steam primeiro, para que o jogo não salve por cima da importação</string>
     <string name="main_saves_importing">Importando para %1$s</string>
@@ -946,7 +937,6 @@
     <string name="main_remove_runtime_title">Remover runtime Linux</string>
     <string name="main_remove_runtime_text">Isso exclui o runtime, o cliente Steam dentro dele e todos os jogos instalados nele.</string>
     <string name="runtime_actions_title">Runtime do Linux</string>
-    <string name="runtime_actions_text">Reparar reinstala os arquivos de sistema do runtime e mantém a Steam, seus jogos e configurações. Extras como a área de trabalho são instalados de novo quando você os usar. Remover apaga tudo.</string>
     <string name="runtime_repair">Reparar runtime</string>
     <string name="main_applied">Aplicado: %1$s</string>
     <string name="comp_busy_importing">Importando</string>
@@ -1828,7 +1818,6 @@
     <string name="drawer_component_choose_download">Escolha uma versão para baixar</string>
     <string name="setup_reset_settings">Redefinir todas as configurações</string>
     <string name="setup_reset_settings_title">Redefinir todas as configurações?</string>
-    <string name="setup_reset_settings_body">As configurações de tela, desempenho, controle, tema, idioma e inicializador voltam ao padrão. Seus jogos, o login da Steam, as contas das lojas, os drivers baixados e as pastas de armazenamento são mantidos.</string>
     <string name="setup_reset_settings_button">Redefinir</string>
     <string name="setup_reset_settings_hint">Volta todas as configurações ao padrão</string>
     <string name="setup_reset_settings_partial">As configurações foram redefinidas, mas algumas partes não puderam ser. Os detalhes estão nos registros.</string>
@@ -1984,7 +1973,6 @@
     <string name="storage_leftover_confirm">Apaga o prefixo Wine e o cache de shaders dele (%1$s). Faça antes uma cópia dos saves que precisar; os do Steam Cloud ficam na sua conta.</string>
     <string name="storage_data_other">Mantidos</string>
     <string name="storage_data_other_title">Jogos não Steam e prefixo compartilhado da Steam</string>
-    <string name="storage_data_other_detail">Prefixos de jogos adicionados pelas lojas ou à mão</string>
     <string name="storage_components_packages">Pacotes baixados</string>
     <string name="storage_components_originals">Originais mantidos</string>
     <string name="storage_components_none">Nenhum pacote de componentes baixado.</string>

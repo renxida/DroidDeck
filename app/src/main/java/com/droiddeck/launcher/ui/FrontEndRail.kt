@@ -192,7 +192,8 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     else -> R.string.rail_setup to Icons.Outlined.Tune
 }
 
-internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
+internal fun setupNeedsAttention(s: FrontEndState): Boolean = s.removalPending ||
+    (s.installed != null && s.available != null && s.available != s.installed) ||
     PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
 
 @Composable
