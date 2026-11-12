@@ -399,6 +399,17 @@ def parse_memory(text: str) -> dict:
         values = [r[key] for r in rows if key in r]
         if values:
             out[f"{key}_{agg.__name__}"] = agg(values)
+    # Leak check: the game's resident plus swapped memory, from its first sample after 5 minutes in game to its last.
+    game = [r for r in rows if r.get("game_mb", 0) > 0 and "game_swap_mb" in r]
+    if game:
+        start = game[0]["t_wall_ms"] + 5 * 60_000
+        settled = [r for r in game if r["t_wall_ms"] >= start]
+        if len(settled) >= 2:
+            first, last = settled[0], settled[-1]
+            minutes = (last["t_wall_ms"] - first["t_wall_ms"]) / 60_000
+            growth = (last["game_mb"] + last["game_swap_mb"]) - (first["game_mb"] + first["game_swap_mb"])
+            if minutes > 0:
+                out["game_growth_mb_per_10min"] = round(growth / minutes * 10)
     return out
 
 
@@ -612,6 +623,7 @@ def _metrics(s: dict) -> list[tuple[str, object, bool]]:
         ("battery start C", ck.get("battery_start"), False),
         ("battery max C", ck.get("battery_max"), False),
         ("game memory max MB", mem.get("game_mb_max"), False),
+        ("game memory growth MB/10 min", mem.get("game_growth_mb_per_10min"), False),
         ("app memory max MB", mem.get("app_mb_max"), False),
         ("available min MB", mem.get("available_mb_min"), True),
         ("abnormal exits", len(s["crashes"]["abnormal"]), False),
