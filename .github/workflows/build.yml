@@ -359,6 +359,8 @@ jobs:
           submodules: recursive
 
       - name: Check human authorship
+        # Upstream's rule; forks build their own changes, including AI-assisted ones.
+        if: ${{ !github.event.repository.fork }}
         env:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}

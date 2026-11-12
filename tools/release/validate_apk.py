@@ -49,6 +49,11 @@ def trusted_list_violation(repo, pr, sha):
     return []
 
 
+def authorship_check_skipped():
+    """Forks may opt out of upstream's human-authorship rule for their own builds."""
+    return os.environ.get("DROIDDECK_SKIP_AUTHORSHIP") == "1"
+
+
 def main():
     with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as source:
         event = json.load(source)
@@ -95,6 +100,10 @@ def main():
         commits, errors = check_revision(sha)
         if pr:
             errors.extend(event_violations({"pull_request": pr}))
+        if authorship_check_skipped():
+            print("Skipping the human-authorship check (DROIDDECK_SKIP_AUTHORSHIP=1)")
+            errors = []
+        if pr:
             errors.extend(trusted_list_violation(repo, pr, sha))
         if errors:
             raise RuntimeError("\n".join(errors))

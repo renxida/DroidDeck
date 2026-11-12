@@ -35,6 +35,8 @@ jobs:
       - name: Validate source and APK compilation
         env:
           GH_TOKEN: ${{ github.token }}
+          # Forks build their own changes, including AI-assisted ones; upstream keeps the check.
+          DROIDDECK_SKIP_AUTHORSHIP: ${{ github.event.repository.fork && '1' || '' }}
         run: |
           gh auth setup-git
           python3 tools/release/validate_apk.py

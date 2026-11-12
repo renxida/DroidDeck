@@ -80,6 +80,15 @@ class ValidateApkTest(unittest.TestCase):
             self.validate(body="Co-authored-by: Claude <claude@example.org>")
         self.assertEqual(self.statuses[-1]["state"], "failure")
 
+    def test_a_fork_can_skip_the_authorship_check(self):
+        with patch.dict(os.environ, {"DROIDDECK_SKIP_AUTHORSHIP": "1"}):
+            self.validate(message="Change\n\nCo-authored-by: OpenAI Codex <codex@openai.com>")
+        self.assertEqual(self.statuses[-1]["state"], "success")
+
+    def test_skipping_authorship_still_guards_the_trusted_list(self):
+        with patch.dict(os.environ, {"DROIDDECK_SKIP_AUTHORSHIP": "1"}), self.assertRaisesRegex(RuntimeError, "Only a maintainer"):
+            self.validate(filename=".github/trusted-test-builds.txt")
+
     def test_pending_or_failed_compilation_never_passes(self):
         for result in ("pending", "failure"):
             self.validate(result=result)
