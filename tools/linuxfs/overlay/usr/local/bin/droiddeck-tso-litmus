@@ -1,0 +1,429 @@
+#!/usr/bin/python3
+"""Run the .NET memory-ordering litmus test once per FEX TSO setting.
+
+Each run goes through droiddeck-proton-run, so through the compatibility tool, droiddeck-game-env and Proton as a
+game launch does, on the .NET runtime an installed game ships (Slay the Spire 2 first). Results land in
+$BL_DEBUG_DIR/tso-litmus/: one JSON-lines file and one output log per setting, and results.json.
+"""
+import json
+import math
+import os
+import re
+import runpy
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+BIN_DIR = os.path.dirname(os.path.abspath(__file__))
+HOME = os.environ.get("HOME") or "/root"
+STEAM_ROOT = os.path.join(HOME, ".local", "share", "Steam")
+LITMUS_DIR = "/usr/local/lib/droiddeck-tso-litmus"
+PROGRAM = "tso-litmus"
+PROTON_RUN = os.path.join(BIN_DIR, "droiddeck-proton-run")
+WORK = os.path.join(HOME, ".cache", "droiddeck", "tso-litmus")
+STS2 = "2868840"
+TSO_NAMES = ("FEX_TSOENABLED", "FEX_VECTORTSOENABLED", "FEX_MEMCPYSETTSOENABLED", "FEX_HALFBARRIERTSOENABLED")
+GC_NAME = "DOTNET_gcConcurrent"
+FALLBACK_FEX = {"FEX_TSOENABLED": "1", "FEX_VECTORTSOENABLED": "1", "FEX_MEMCPYSETTSOENABLED": "1",
+                "FEX_HALFBARRIERTSOENABLED": "1", "FEX_X87REDUCEDPRECISION": "0"}
+RUNTIME_MARKERS = ("coreclr.dll", "hostfxr.dll", "hostpolicy.dll", "system.private.corelib.dll")
+# The .NET runtime pack's own files; a game's assemblies (GodotSharp.dll, its own code) stay out, so
+# droiddeck-game-env's per-engine fixes see a bare .NET app.
+RUNTIME_FILE = re.compile(r"(hostfxr|hostpolicy|coreclr|clrjit|clrgc\w*|mscor\w*|netstandard|mscorlib|windowsbase"
+                          r"|system\..+|microsoft\..+|api-ms-win-.+|ucrtbase|msquic)\.dll$", re.I)
+DEFAULT_SECONDS = 60
+
+
+def say(message):
+    print("tso-litmus: " + message, file=sys.stderr, flush=True)
+
+
+def dotnet_fex():
+    try:
+        found = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-env")).get("DOTNET_FEX")
+        if isinstance(found, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in found.items()):
+            return dict(found)
+    except Exception as error:  # an unreadable game-env must not stop the test
+        say("droiddeck-game-env not readable (%s); using the built-in FEX names" % error)
+    return dict(FALLBACK_FEX)
+
+
+def configs(base):
+    full = {name: value for name, value in base.items() if name != GC_NAME}
+    full.update({name: "1" for name in TSO_NAMES})
+    full[GC_NAME] = "1"
+
+    def variant(**changes):
+        result = dict(full)
+        result.update(changes)
+        return result
+
+    return [
+        ("full-tso", full),
+        ("memcpy-tso-off", variant(FEX_MEMCPYSETTSOENABLED="0")),
+        ("vector-tso-off", variant(FEX_VECTORTSOENABLED="0")),
+        ("both-off", variant(FEX_MEMCPYSETTSOENABLED="0", FEX_VECTORTSOENABLED="0")),
+        ("both-off-gc-blocking", variant(FEX_MEMCPYSETTSOENABLED="0", FEX_VECTORTSOENABLED="0", **{GC_NAME: "0"})),
+    ]
+
+
+def read_text(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as source:
+            return source.read()
+    except OSError:
+        return None
+
+
+def libraries(root):
+    try:
+        return runpy.run_path(PROTON_RUN)["libraries"](root)
+    except Exception as error:
+        say("Steam libraries not readable through droiddeck-proton-run (%s)" % error)
+        return [root] if os.path.isdir(os.path.join(root, "steamapps")) else []
+
+
+def installed_games(library):
+    steamapps = os.path.join(library, "steamapps")
+    try:
+        names = sorted(os.listdir(steamapps))
+    except OSError:
+        return []
+    games = []
+    for name in names:
+        match = re.fullmatch(r"appmanifest_(\d+)\.acf", name)
+        if not match:
+            continue
+        found = re.search(r'"installdir"\s+"([^"]+)"', read_text(os.path.join(steamapps, name)) or "")
+        if found:
+            games.append((match.group(1), os.path.join(steamapps, "common", found.group(1))))
+    return games
+
+
+def runtime_dir(install, depth=3):
+    """The folder under a game that holds a self-contained .NET runtime (hostfxr next to coreclr)."""
+    try:
+        entries = sorted(os.scandir(install), key=lambda e: e.name)
+    except OSError:
+        return None
+    names = {entry.name.lower() for entry in entries if entry.is_file()}
+    if all(marker in names for marker in RUNTIME_MARKERS):
+        return install
+    if depth == 0:
+        return None
+    for entry in entries:
+        if entry.is_dir(follow_symlinks=False):
+            found = runtime_dir(entry.path, depth - 1)
+            if found:
+                return found
+    return None
+
+
+def runtime_version(folder):
+    try:
+        names = sorted(n for n in os.listdir(folder) if n.lower().endswith(".runtimeconfig.json"))
+    except OSError:
+        return None
+    for name in names:
+        try:
+            with open(os.path.join(folder, name), encoding="utf-8") as source:
+                options = json.load(source).get("runtimeOptions", {})
+        except (OSError, ValueError, AttributeError):
+            continue
+        frameworks = options.get("includedFrameworks") or options.get("frameworks") or \
+            ([options["framework"]] if isinstance(options.get("framework"), dict) else [])
+        for framework in frameworks if isinstance(frameworks, list) else []:
+            if isinstance(framework, dict) and framework.get("name") == "Microsoft.NETCore.App" \
+                    and isinstance(framework.get("version"), str):
+                return framework["version"]
+    return None
+
+
+def find_runtime(root):
+    """(appid, library, runtime folder, version) of an installed game that ships .NET, Slay the Spire 2 first."""
+    candidates = []
+    for library in libraries(root):
+        for appid, install in installed_games(library):
+            candidates.append((appid != STS2, appid, library, install))
+    for _, appid, library, install in sorted(candidates):
+        folder = runtime_dir(install)
+        if folder:
+            return appid, library, folder, runtime_version(folder)
+    return None
+
+
+def prepare(folder, version, litmus_dir, farm):
+    """An app folder for the test: the game's runtime files linked in, the test's own two files copied, and a
+    self-contained runtimeconfig so the apphost loads the hostfxr beside it."""
+    shutil.rmtree(farm, ignore_errors=True)
+    os.makedirs(farm)
+    linked = 0
+    for name in sorted(os.listdir(folder)):
+        source = os.path.join(folder, name)
+        if not RUNTIME_FILE.fullmatch(name) or not os.path.isfile(source):
+            continue
+        target = os.path.join(farm, name)
+        try:
+            os.symlink(source, target)
+        except OSError:
+            shutil.copyfile(source, target)
+        linked += 1
+    for name in (PROGRAM + ".exe", PROGRAM + ".dll"):
+        shutil.copyfile(os.path.join(litmus_dir, name), os.path.join(farm, name))
+    options = {"tfm": "net9.0", "configProperties": {
+        "System.Globalization.Invariant": True,
+        "System.GC.Server": False,
+        "System.Runtime.TieredPGO": False,
+    }}
+    if version:
+        options["includedFrameworks"] = [{"name": "Microsoft.NETCore.App", "version": version}]
+    with open(os.path.join(farm, PROGRAM + ".runtimeconfig.json"), "w", encoding="utf-8") as out:
+        json.dump({"runtimeOptions": options}, out, indent=2)
+    return linked
+
+
+def windows_path(path):
+    return "Z:" + path.replace("/", "\\")
+
+
+def command(farm, appid, compatdata, seconds, name, out):
+    return [PROTON_RUN, "--prefix", appid, "--compatdata", compatdata, "--",
+            os.path.join(farm, PROGRAM + ".exe"), "--seconds", str(seconds), "--config", name, "--out", windows_path(out)]
+
+
+def environment(base, settings):
+    env = dict(base)
+    env.update(settings)
+    env["DROIDDECK_KEEP_ENV"] = " ".join(sorted(settings))
+    return env
+
+
+def records(path):
+    found = []
+    for line in (read_text(path) or "").splitlines():
+        line = line.strip()
+        if line.startswith("tso-litmus-json: "):
+            line = line[len("tso-litmus-json: "):]
+        if not line.startswith("{"):
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(record, dict):
+            found.append(record)
+    return found
+
+
+CRASH_SIGNS = ("Fatal error", "Internal CLR error", "0x80131506", "Unhandled exception", "Process terminated",
+               "Unhandled JIT SIGBUS", "Access violation")
+
+
+def summarize(items, code=0, log=""):
+    env = next((r for r in items if r.get("kind") == "env"), None)
+    done = next((r for r in items if r.get("kind") == "done"), None)
+    tests = [r for r in items if r.get("kind") == "test"]
+    benches = {r.get("name"): r.get("value") for r in items if r.get("kind") == "bench" and isinstance(r.get("value"), (int, float))}
+    failed = {r["name"]: r.get("failures", 0) for r in tests if r.get("failures", 0)}
+    rates = [v for v in benches.values() if v > 0]
+    signs = sorted({sign for sign in CRASH_SIGNS if sign in (log or "")})
+    return {
+        "started": env is not None,
+        "finished": done is not None,
+        "exit": code,
+        "crashed": env is not None and done is None,
+        "crash_signs": signs,
+        "failures": sum(failed.values()),
+        "failed": failed,
+        "unexpected": sorted(r["name"] for r in tests if r.get("failures", 0) and r.get("needs") == "none"),
+        "allowed": {r["name"]: r.get("observed", 0) for r in tests if r.get("expect") == "allowed"},
+        "tests": {r["name"]: {k: r.get(k) for k in ("samples", "observed", "failures", "fresh", "needs", "note", "detail")} for r in tests},
+        "benches": benches,
+        "throughput": math.exp(sum(math.log(v) for v in rates) / len(rates)) if rates else 0.0,
+        "seen": (env or {}).get("env", {}),
+        "erms": (env or {}).get("erms"),
+        "gc_concurrent": (env or {}).get("gc_concurrent"),
+        "runtime": (env or {}).get("version"),
+        "wine": (env or {}).get("wine"),
+        "cpus": (env or {}).get("cpus"),
+    }
+
+
+def mismatches(settings, seen):
+    return sorted(name for name, value in settings.items()
+                  if (name.startswith("FEX_") or name == GC_NAME) and seen.get(name) != value)
+
+
+def config_line(name, summary, baseline=None, wanted=None):
+    if not summary["started"]:
+        state, why = "no-start", "exit %s" % summary["exit"]
+    elif summary["crashed"]:
+        state, why = "CRASHED", "exit %s%s" % (summary["exit"], "; " + ", ".join(summary["crash_signs"]) if summary["crash_signs"] else "")
+    else:
+        state, why = "finished", None
+    parts = ["config=%s" % name, "failures=%d" % summary["failures"], "state=%s" % state]
+    throughput = summary["throughput"]
+    text = "throughput=%.1fMB/s" % throughput
+    if baseline and throughput:
+        text += " (x%.2f vs full-tso)" % (throughput / baseline)
+    parts.append(text)
+    if summary["erms"] is not None:
+        parts.append("erms=%s" % ("yes" if summary["erms"] else "no"))
+    if summary["gc_concurrent"] is not None:
+        parts.append("gc=%s" % ("concurrent" if summary["gc_concurrent"] else "blocking"))
+    churn = summary["tests"].get("refs-gen2-churn-background", {}).get("detail") or {}
+    if "background_gcs" in churn:
+        parts.append("bgc=%s" % churn["background_gcs"])
+    if summary["failed"]:
+        parts.append("failed=" + ",".join("%s:%d" % item for item in sorted(summary["failed"].items())))
+    if summary["unexpected"]:
+        parts.append("UNEXPECTED=" + ",".join(summary["unexpected"]))
+    if summary["allowed"]:
+        parts.append("allowed=" + ",".join("%s:%d" % item for item in sorted(summary["allowed"].items())))
+    if wanted is not None and summary["started"]:
+        wrong = mismatches(wanted, summary["seen"])
+        parts.append("applied=" + ("yes" if not wrong else "NO(" + ",".join("%s=%s" % (n, summary["seen"].get(n, "unset")) for n in wrong) + ")"))
+    if why:
+        parts.append("(%s)" % why)
+    return " ".join(parts)
+
+
+def stop_group(process):
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(process.pid, sig)
+        except OSError:
+            return
+        try:
+            process.wait(10)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+
+
+def run_one(name, settings, cmd, outdir, seconds):
+    out = os.path.join(outdir, name + ".jsonl")
+    log_path = os.path.join(outdir, name + ".log")
+    for stale in (out, log_path):
+        try:
+            os.unlink(stale)
+        except OSError:
+            pass
+    say("config=%s starting: %s" % (name, " ".join("%s=%s" % item for item in sorted(settings.items()))))
+    started = time.monotonic()
+    with open(log_path, "wb") as log:
+        try:
+            process = subprocess.Popen(cmd, env=environment(os.environ, settings), stdin=subprocess.DEVNULL,
+                                       stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        except OSError as error:
+            say("config=%s could not start %s (%s)" % (name, cmd[0], error))
+            return summarize([], -1)
+        try:
+            code = process.wait(timeout=seconds * 2 + 300)
+        except subprocess.TimeoutExpired:
+            say("config=%s timed out after %d s; stopping it" % (name, time.monotonic() - started))
+            stop_group(process)
+            code = "timeout"
+    log_text = read_text(log_path) or ""
+    items = records(out) or records(log_path)
+    summary = summarize(items, code, log_text)
+    summary["wall_seconds"] = round(time.monotonic() - started, 1)
+    for line in log_text.splitlines():
+        if line.startswith(("tso-litmus: test=", "tso-litmus: done", "droiddeck-game-env: kept")):
+            say("config=%s %s" % (name, line.split(": ", 1)[1]))
+    return summary
+
+
+def speed_lines(results):
+    names = []
+    for _, summary in results:
+        names += [n for n in summary["benches"] if n not in names]
+    lines = []
+    for bench in names:
+        values = [(name, summary["benches"].get(bench)) for name, summary in results]
+        base = next((v for _, v in values if v), None)
+        lines.append("speed %s: %s" % (bench, " ".join(
+            "%s=%s" % (name, ("%.0f" % v + ("(x%.2f)" % (v / base) if base else "")) if v else "-") for name, v in values)))
+    return lines
+
+
+def check(path):
+    summary = summarize(records(path))
+    say(config_line("check", summary))
+    if not summary["finished"]:
+        say("no completed run in %s" % path)
+        return 1
+    if summary["failures"]:
+        say("forbidden outcomes on a machine that orders memory itself: the checks are wrong")
+        return 1
+    return 0
+
+
+def main(argv):
+    seconds = DEFAULT_SECONDS
+    try:
+        seconds = max(5, int(os.environ.get("DROIDDECK_TSO_LITMUS_SECONDS", DEFAULT_SECONDS)))
+    except ValueError:
+        pass
+    only = None
+    while argv:
+        option = argv.pop(0)
+        if option == "--check" and argv:
+            return check(argv.pop(0))
+        if option == "--seconds" and argv and argv[0].isdigit():
+            seconds = max(5, int(argv.pop(0)))
+        elif option == "--configs" and argv:
+            only = set(argv.pop(0).split(","))
+        else:
+            say("usage: droiddeck-tso-litmus [--seconds N] [--configs a,b] | --check RESULTS.jsonl")
+            return 2
+    outdir = os.path.join(os.environ.get("BL_DEBUG_DIR") or WORK, "tso-litmus")
+    os.makedirs(outdir, exist_ok=True)
+    if not all(os.path.isfile(os.path.join(LITMUS_DIR, PROGRAM + ext)) for ext in (".exe", ".dll")):
+        say("the test program is missing from %s; this build was made without it" % LITMUS_DIR)
+        return 1
+    root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or STEAM_ROOT
+    found = find_runtime(root)
+    if found is None:
+        say("no installed game ships a .NET runtime (coreclr.dll with hostfxr.dll); install Slay the Spire 2 and run again")
+        return 1
+    appid, library, folder, version = found
+    if version and not version.startswith("9."):
+        say("the game's runtime is .NET %s; the test is built for .NET 9 and may not start" % version)
+    farm = os.path.join(WORK, "app")
+    try:
+        linked = prepare(folder, version, LITMUS_DIR, farm)
+    except OSError as error:
+        say("could not prepare %s (%s)" % (farm, error))
+        return 1
+    compatdata = os.path.join(library, "steamapps", "compatdata", appid)
+    plan = [(name, settings) for name, settings in configs(dotnet_fex()) if only is None or name in only]
+    say("start: runtime %s (.NET %s, app %s, %d files) prefix %s; %d settings x %d s; results in %s"
+        % (folder, version or "unknown", appid, linked, compatdata, len(plan), seconds, outdir))
+    results = []
+    for name, settings in plan:
+        summary = run_one(name, settings, command(farm, appid, compatdata, seconds, name, os.path.join(outdir, name + ".jsonl")),
+                          outdir, seconds)
+        summary["settings"] = settings
+        results.append((name, summary))
+        baseline = results[0][1]["throughput"] or None
+        say(config_line(name, summary, baseline, settings))
+    for line in speed_lines(results):
+        say(line)
+    verdicts = []
+    for name, summary in results:
+        safe = summary["finished"] and not summary["failures"]
+        verdicts.append("%s=%s" % (name, "ok" if safe else ("FAILED" if summary["started"] else "no-run")))
+    say("verdict: " + " ".join(verdicts))
+    report = {"version": 1, "app": appid, "runtime_dir": folder, "runtime_version": version, "seconds": seconds,
+              "configs": [dict(summary, name=name) for name, summary in results]}
+    with open(os.path.join(outdir, "results.json"), "w", encoding="utf-8") as out:
+        json.dump(report, out, indent=2, sort_keys=True)
+    say("done: results in %s" % os.path.join(outdir, "results.json"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

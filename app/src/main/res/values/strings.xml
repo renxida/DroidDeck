@@ -708,6 +708,10 @@
     <string name="setup_reset_settings">Reset all settings</string>
     <string name="setup_reset_settings_hint">Puts every setting back to its default</string>
     <string name="setup_reset_settings_button">Reset</string>
+    <string name="setup_tso_litmus">Advanced: run memory-ordering test</string>
+    <string name="setup_tso_litmus_hint">Runs a .NET test under five FEX memory-ordering settings, about 10 minutes, then the session ends. Needs Slay the Spire 2 (or another .NET game) installed. Results go to the session logs.</string>
+    <string name="setup_tso_litmus_button">Run</string>
+    <string name="setup_tso_litmus_busy">Stop the running session first.</string>
     <string name="setup_reset_settings_title">Reset all settings?</string>
     <string name="setup_reset_settings_body">Display, performance, controller, theme, language and launcher settings go back to their defaults. Your games, Steam sign-in, downloaded drivers and storage folders are kept.</string>
     <string name="setup_reset_settings_profiles">Also reset game profiles (each game\'s Proton, FEX, components and environment, and the Default profile\'s environment)</string>
