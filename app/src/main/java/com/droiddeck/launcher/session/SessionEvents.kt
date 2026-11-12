@@ -36,6 +36,7 @@ object SessionEvents {
             SessionState.suspended = false
         }
         record("session.created", mapOf("mode" to mode), dir)
+        com.droiddeck.launcher.telemetry.Timeline.flushInto(dir)
     }
 
     fun transition(
@@ -52,12 +53,12 @@ object SessionEvents {
         record(event, fields)
     }
 
-    fun record(event: String, fields: Map<String, Any?> = emptyMap(), directory: File? = null) {
+    fun record(event: String, fields: Map<String, Any?> = emptyMap(), directory: File? = null, at: Long? = null) {
         val dir = directory ?: SessionState.logDirectory ?: SessionPaths.current() ?: return
         val target = if (directory == null) SessionState.eventsFile ?: File(dir, "events.jsonl")
             else File(dir, "events.jsonl")
         val payload = JSONObject()
-            .put("t", System.currentTimeMillis())
+            .put("t", at ?: System.currentTimeMillis())
             .put("event", event)
             .put("sessionId", dir.name)
         fields.forEach { (key, value) -> payload.put(key, value ?: JSONObject.NULL) }
