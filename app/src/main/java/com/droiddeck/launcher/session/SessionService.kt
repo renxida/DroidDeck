@@ -373,6 +373,8 @@ class SessionService : Service() {
             GraphicsReport.finish(dir)
             SessionArtifacts.collect(this, dir, "session stopped", steamArch)
         } finally {
+            runCatching { com.droiddeck.launcher.telemetry.TelemetryUploader.sessionEnded(this, dir) }
+                .onFailure { Log.w(TAG, "telemetry upload", it) }
             SessionPaths.release(this, dir)
         }
     }
@@ -543,6 +545,15 @@ class SessionService : Service() {
             guest.add("BL_VENC_SOCKET=" + encoder.socket.absolutePath)
         }
         com.droiddeck.launcher.gpu.ClockLogComponent(File(sessionDir, "clocks.log")).let {
+            it.attach(this)
+            components.add(it)
+        }
+        com.droiddeck.launcher.telemetry.FrameLogComponent(
+            File(sessionDir, com.droiddeck.launcher.telemetry.FrameLogComponent.FILE),
+            File(LinuxRuntime.rootDir(this), com.droiddeck.launcher.hud.HudFrames.PATH),
+            if (steamHere) listOf("arm64", "x86_64").map { File(SessionPrefs.steamRoot(this, it), "logs/connection_log.txt") } else emptyList(),
+            listOf(File(sessionDir, "session.log"), com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this)),
+        ) { exit -> if (exit.abnormal) com.droiddeck.launcher.telemetry.TelemetryUploader.uploadNow(this, sessionDir) }.let {
             it.attach(this)
             components.add(it)
         }
@@ -806,9 +817,12 @@ class SessionService : Service() {
         SessionEvents.record("session.logs_ready", mapOf("logDir" to sessionDir.path))
         if (EnhancedDiagnostics.isActive(this, sessionDir)) SessionEvents.record("diagnostics.enhanced", mapOf("schema" to 1))
         DeviceReport.write(this, File(sessionDir, "device.txt"), SessionState.mode)
+        com.droiddeck.launcher.telemetry.BuildInfo.write(this, sessionDir)
+        com.droiddeck.launcher.telemetry.Timeline.flushInto(sessionDir)
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"))
-        MemoryLog.start()
+        MemoryLog.start(File(sessionDir, "memory.csv"))
+        com.droiddeck.launcher.telemetry.TelemetryUploader.sessionStarted(this, sessionDir)
         return sessionDir
     }
 
