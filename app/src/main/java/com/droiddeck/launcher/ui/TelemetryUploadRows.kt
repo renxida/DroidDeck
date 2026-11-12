@@ -36,7 +36,7 @@ internal fun TelemetryUploadRows(host: MenuHost) {
         stringResource(R.string.setup_telemetry_upload_hint), enabled) {
         TelemetryUploadSettings.setEnabled(ctx, it)
         enabled = it
-        if (it) com.droiddeck.launcher.telemetry.TelemetryUploader.flushPending(ctx)
+        if (it) com.droiddeck.launcher.telemetry.TelemetryUploader.settingsChanged(ctx)
     }
     if (!enabled) return
     val colors = MaterialTheme.colorScheme
@@ -59,7 +59,7 @@ internal fun TelemetryUploadRows(host: MenuHost) {
                 tokenInput = ""
                 hasToken = TelemetryUploadSettings.hasToken(ctx)
                 message = ctx.getString(if (repoOk && tokenOk) R.string.setup_telemetry_saved else R.string.setup_telemetry_invalid)
-                if (repoOk && tokenOk) com.droiddeck.launcher.telemetry.TelemetryUploader.flushPending(ctx)
+                if (repoOk && tokenOk) com.droiddeck.launcher.telemetry.TelemetryUploader.settingsChanged(ctx)
             }
             SecondaryButton(stringResource(R.string.setup_telemetry_forget), enabled = hasToken, compact = true, modifier = Modifier.weight(1f)) {
                 TelemetryUploadSettings.clearToken(ctx)

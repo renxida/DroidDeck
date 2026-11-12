@@ -97,6 +97,21 @@ object TelemetryUploader {
         }, CHECKPOINT_MS, CHECKPOINT_MS, TimeUnit.MILLISECONDS)
     }
 
+    /** Upload was switched on or given a token while a session runs: start its checkpoints and send one now. */
+    fun settingsChanged(context: Context) {
+        val app = context.applicationContext
+        if (!TelemetryUploadSettings.active(app)) return
+        flushPending(app)
+        val dir = com.droiddeck.launcher.session.SessionPaths.current() ?: return
+        if (checkpoint != null) return
+        sessionStarted(app, dir)
+        Log.i(TAG, "upload switched on mid-session: checkpoints started")
+        executor.execute {
+            runCatching { entryFor(app, dir, create = true)?.let { upload(app, it, complete = false, kind = "switched on mid-session") } }
+                .onFailure { Log.w(TAG, "mid-session upload: ${it.javaClass.simpleName}") }
+        }
+    }
+
     /** Builds the final bundle before the session folder can be released (a logs-off folder is deleted), then uploads it. */
     fun sessionEnded(context: Context, dir: File) {
         val app = context.applicationContext

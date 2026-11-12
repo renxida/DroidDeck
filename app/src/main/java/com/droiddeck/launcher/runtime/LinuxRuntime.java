@@ -210,10 +210,15 @@ public final class LinuxRuntime {
         bind(cmd, "/proc/self/fd/1:/dev/stdout");
         bind(cmd, "/proc/self/fd/2:/dev/stderr");
         bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/fs/selinux");
-        // A kernel that refuses to list /sys/class/thermal (Pixel 10, Android 17) made mangoapp abort
-        // at start ("filesystem_error ... Permission denied: '/sys/class/thermal/'") until its
-        // wrapper gave up: it lists the directory for CPU temperatures. Empty there instead.
-        if (new File("/sys/class/thermal").list() == null) bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/class/thermal");
+        // A kernel that refuses to list these (Pixel 10, Android 17) made mangoapp abort at start
+        // ("filesystem_error ... Permission denied: '/sys/class/drm'") and restart in a loop: it
+        // lists them for GPU, temperature and battery readings. Empty there instead.
+        for (String sys : new String[]{"/sys/class/thermal", "/sys/class/drm", "/sys/class/hwmon", "/sys/class/power_supply"}) {
+            if (new File(sys).list() == null) {
+                bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":" + sys);
+                android.util.Log.i("LinuxRuntime", "unlistable " + sys + ": bound empty for mangoapp");
+            }
+        }
         bind(cmd, context.getFilesDir().getPath());
         bind(cmd, context.getCacheDir().getPath());
         bind(cmd, liveDir(context).getPath());
