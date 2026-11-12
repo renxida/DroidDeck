@@ -219,6 +219,8 @@ TOOLS_JS = r"""
 """
 TOOL_CHECK_SECONDS = 60
 TOOL_RETRY_SECONDS = 300
+GAME_EXIT_CHECK_SECONDS = 5
+REQUEST_FILES = {"request.json", "games.json"}
 TOUR_JS = r"""
 (() => {
   let key = 140014 * 8;
@@ -466,7 +468,9 @@ class Closed(Exception):
 
 
 def say(message):
-    print("droiddeck-steam-compat: %s" % message, flush=True)
+    now = time.time()
+    print("droiddeck-steam-compat: %s.%03d %s" % (time.strftime("%H:%M:%S", time.localtime(now)), int(now * 1000) % 1000, message),
+          flush=True)
 
 
 def called(event, name):
@@ -708,9 +712,16 @@ class Watcher:
         return self.fd
 
     def changed(self):
+        """The names of the watched files (or directories) that changed; empty when nothing did."""
         if self.fd < 0:
             stamp = self.snapshot()
-            moved, self.stamp = stamp != self.stamp, stamp
+            moved = set()
+            for i, f in enumerate(self.files):
+                if stamp[2 * i] != self.stamp[2 * i]:
+                    moved.add(os.path.basename(f))
+                elif stamp[2 * i + 1] != self.stamp[2 * i + 1]:
+                    moved.add(os.path.dirname(f) + "/")
+            self.stamp = stamp
             return moved
         names = set()
         try:
@@ -727,7 +738,7 @@ class Watcher:
             pass
         appeared = self.watch_new_dirs() if self.missing else False
         wanted = {os.path.basename(f) for f in self.files}
-        return appeared or any(n in wanted or n.startswith("appmanifest_") for n in names)
+        return {n for n in names if n in wanted or n.startswith("appmanifest_")} | ({"new directory"} if appeared else set())
 
 
 class XMessage(ctypes.Structure):
@@ -813,6 +824,8 @@ class Helper:
         self.frame_limit_retry = 0
         self.windows = {}
         self.windows_retry = 0
+        self.deferred = 0
+        self.deferred_checked = 0.0
 
     def sync_controls(self):
         try:
@@ -1074,6 +1087,31 @@ class Helper:
                 state.pop("pending", None)
             COMPAT["write_json"](state_file, state)
 
+    def reconcile_or_defer(self, why, explicit):
+        """Reconcile now, or, for Steam's own file writes while a game runs, count it and reconcile once the game exits."""
+        if not explicit and COMPAT["game_running"]():
+            self.deferred += 1
+            self.deferred_checked = time.monotonic()
+            say("reconcile deferred while a game runs (%s; %d deferred so far)" % (why, self.deferred))
+            return
+        if self.deferred:
+            say("reconcile for %s also covers %d deferred during the game" % (why, self.deferred))
+            self.deferred = 0
+        self.reconcile()
+
+    def reconcile_after_game(self):
+        if not self.deferred:
+            return
+        now = time.monotonic()
+        if now - self.deferred_checked < GAME_EXIT_CHECK_SECONDS:
+            return
+        self.deferred_checked = now
+        if COMPAT["game_running"]():
+            return
+        say("game exited; one reconcile for %d deferred during the game" % self.deferred)
+        self.deferred = 0
+        self.reconcile()
+
     def ensure_tools(self):
         now = time.monotonic()
         if self.tools_checked is not None and now - self.tools_checked < TOOL_CHECK_SECONDS:
@@ -1142,17 +1180,19 @@ class Helper:
             ready = [self.page.ws] if queued else select.select(sources, [], [], 0.25)[0]
             if self.chooser is not None and self.chooser[1].stdout in ready:
                 self.chooser_done()
-            due = False
-            if self.page.ws in ready:
-                due = any(called(e, BINDING) for e in self.drain())
-            if (watcher in ready or watcher.fileno() < 0) and watcher.changed():
-                due = True
-            if due:
+            why = set()
+            if self.page.ws in ready and any(called(e, BINDING) for e in self.drain()):
+                why.add("Steam menu change")
+            if watcher in ready or watcher.fileno() < 0:
+                why.update(watcher.changed() or ())
+            if why:
                 time.sleep(0.3)
                 if watcher.fileno() >= 0 and select.select([watcher], [], [], 0)[0]:
-                    watcher.changed()
+                    why.update(watcher.changed() or ())
                 self.drain()
-                self.reconcile()
+                self.reconcile_or_defer(", ".join(sorted(why)), bool(why & (REQUEST_FILES | {"Steam menu change"})))
+            else:
+                self.reconcile_after_game()
             self.ensure_tools()
 
 
