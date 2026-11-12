@@ -69,6 +69,8 @@ fun PcKeyboard(
     sendKey: (Int, Boolean) -> Unit,
     onAndroidKeyboard: () -> Unit,
     onClose: () -> Unit,
+    onPaste: () -> Unit = {},
+    onSignIn: () -> Unit = {},
 ) {
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
@@ -122,6 +124,10 @@ fun PcKeyboard(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(24.dp)) {
                     Text(stringResource(R.string.drawer_pc_keyboard), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
                     Spacer(Modifier.weight(1f))
+                    HeaderButton(stringResource(R.string.pckb_paste), onPaste)
+                    Spacer(Modifier.width(8.dp))
+                    HeaderButton(stringResource(R.string.pckb_sign_in), onSignIn)
+                    Spacer(Modifier.width(8.dp))
                     HeaderButton(stringResource(R.string.pckb_android), onAndroidKeyboard)
                     Spacer(Modifier.width(8.dp))
                     HeaderButton(stringResource(R.string.pckb_hide), onClose)
