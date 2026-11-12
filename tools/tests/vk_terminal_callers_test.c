@@ -134,7 +134,7 @@ static struct wl_resource *expected_release;
 static void wl_buffer_send_release(struct wl_resource *b) { assert(b && b == expected_release); ++releases; }
 static struct wl_client *wl_resource_get_client(struct wl_resource *r) { return NULL; }
 static struct client_info *client_info_of(struct wl_client *c) { return NULL; }
-struct dmabuf_buffer { int unused; };
+struct dmabuf_buffer { struct vkp_image *img; };
 static struct dmabuf_buffer dmabuf_fixture;
 static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer) {
     assert(buffer);
@@ -200,6 +200,81 @@ static void assert_stopped(void) {
     assert(operations == before && destroys == before_destroys);
 }
 
+static void enable_flight(void) {
+    g_flight_ok = 1;
+    for (int s = 0; s < FLIGHT; ++s) {
+        g_fcmds[s] = (VkCommandBuffer)(uintptr_t)(50 + s);
+        g_ffences[s] = (VkFence)(uintptr_t)(60 + s);
+    }
+}
+
+static struct vkp_image *client_image(uintptr_t handle) {
+    struct vkp_image *img = calloc(1, sizeof(*img)); assert(img);
+    *img = (struct vkp_image){.image = (VkImage)handle, .w = 64, .h = 64, .in_general = 1};
+    return img;
+}
+
+static int render_image(struct vkp_image *img) {
+    struct vkp_draw d = {img, 0, 0, 64, 64, 0, 0, 64, 64, 0};
+    return vkp_render(64, 64, &d, 1);
+}
+
+/* Plain frames return after present; a slot's fence is waited for only when the
+ * slot comes round again, or when something the frame read is about to change. */
+static void two_in_flight(void) {
+    setup(0); enable_flight();
+    struct vkp_image *a = client_image(70), *b = client_image(71), *c = client_image(72);
+    assert(render_image(a) == 0 && submits == 1 && waits == 0 && a->frame_use == 1);
+    assert(render_image(b) == 0 && submits == 2 && waits == 0 && b->frame_use == 2);
+    assert(g_fserial[0] == 1 && g_fserial[1] == 2);
+    assert(render_image(c) == 0 && submits == 3 && waits == 1 && c->frame_use == 3);
+    assert(g_fserial[0] == 3 && g_fserial[1] == 2);
+    vkp_image_settle(a); /* its frame already finished */
+    assert(waits == 1);
+    struct wl_resource dmabuf = {.dmabuf = 1};
+    dmabuf_fixture.img = b; expected_release = &dmabuf;
+    send_buffer_release(&dmabuf);
+    assert(waits == 2 && releases == 1 && !g_fserial[1] && g_fserial[0] == 3);
+    uint8_t bytes[64 * 64 * 4], data[64 * 4];
+    c->map = bytes; c->row_pitch = 64 * 4;
+    vkp_image_upload_shm(c, data, 64 * 4);
+    assert(waits == 3 && !g_fserial[0]);
+    assert(render_image(a) == 0 && waits == 3);
+    assert(render_image(b) == 0 && waits == 3);
+    assert(render_image(c) == 0 && waits == 4);
+    /* Frame generation keeps one frame in flight and drains the slots first. */
+    generated = g_swap_extra = 1;
+    assert(render_image(a) == 0 && g_dev_state == 1);
+    assert(waits == 4 + 2 + 1 && !g_fserial[0] && !g_fserial[1] && presented_notifications == 1);
+    generated = g_swap_extra = 0;
+    assert(render_image(b) == 0 && waits == 7 && g_fserial[g_fnext ? 0 : 1]);
+    vkp_wait_idle();
+    assert(!g_fserial[0] && !g_fserial[1]);
+    vkp_image_destroy(a); vkp_image_destroy(b); vkp_image_destroy(c);
+    assert(waits == 7);
+    free(g_images);
+}
+
+static void two_in_flight_terminal(VkResult result) {
+    setup(0); enable_flight();
+    struct vkp_image *a = client_image(70), *b = client_image(71);
+    assert(render_image(a) == 0 && render_image(b) == 0 && waits == 0);
+    fence_answer = result;
+    assert(render_image(a) == -1 && waits == 1 && submits == 2);
+    if (result == VK_ERROR_DEVICE_LOST) {
+        assert(vkp_device_lost() && !g_fserial[0] && lost_notifications == 1);
+        vkp_image_settle(b); /* no GPU call after device loss */
+        assert(!g_fserial[1] && waits == 1);
+    } else {
+        assert(g_dev_state == -3 && g_fserial[0] && g_fserial[1]);
+        unsigned before = destroys;
+        vkp_image_destroy(b);
+        assert(destroys == before && waits == 1); /* pending reads keep the image */
+        free(g_images);
+    }
+    assert_stopped();
+}
+
 static void acquire_failure(int later, VkResult result) {
     setup(later ? 1 : 0);
     fail_acquire_at = later ? 2 : 1; acquire_answer = result;
@@ -261,6 +336,9 @@ int main(int argc, char **argv) {
     else if (!strcmp(name, "later-surface-lost")) acquire_failure(1, VK_ERROR_SURFACE_LOST_KHR);
     else if (!strcmp(name, "shm-timeout")) upload_timeout(0);
     else if (!strcmp(name, "pixel-timeout")) upload_timeout(1);
+    else if (!strcmp(name, "two-in-flight")) two_in_flight();
+    else if (!strcmp(name, "two-in-flight-device-lost")) two_in_flight_terminal(VK_ERROR_DEVICE_LOST);
+    else if (!strcmp(name, "two-in-flight-timeout")) two_in_flight_terminal(VK_TIMEOUT);
     else if (!strcmp(name, "pass-terminal")) { setup(0); g_dev_state = -3; assert_stopped(); free(g_images); }
     else if (!strcmp(name, "normal") || !strcmp(name, "framegen")) {
         int extra = !strcmp(name, "framegen"); setup(extra);

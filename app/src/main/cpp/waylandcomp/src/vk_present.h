@@ -49,6 +49,9 @@ struct vkp_image *vkp_image_create_shm(int w, int h);
 struct AHardwareBuffer;
 struct vkp_image *vkp_image_from_ahb(struct AHardwareBuffer *ahb);
 void vkp_wait_idle(void);
+/* Wait for screen frames still pending on the GPU: all of them, or those that read img. */
+void vkp_frames_settle(void);
+void vkp_image_settle(struct vkp_image *img);
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride);
 
 int vkp_image_width(const struct vkp_image *img);
