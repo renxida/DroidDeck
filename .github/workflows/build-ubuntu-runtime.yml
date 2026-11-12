@@ -89,7 +89,6 @@ jobs:
           prerelease=false
           case $TAG in *-rc*) prerelease=true ;; esac
           gh release create "$TAG" --latest=false --prerelease="$prerelease" --title "$TAG" \
-            --notes "Ubuntu 26.04 LTS arm64 runtime for DroidDeck ($GITHUB_REPOSITORY tools/ubuntu, $GITHUB_SHA): size $(stat -c %s "out/$TAG.tar.zst"), sha256 $(cat "out/$TAG.sha256"). $TAG-desktop.tar.zst is the Kubuntu Plasma desktop built on top of it, holding only what the runtime does not already have: size $(stat -c %s "out/$TAG-desktop.tar.zst"), sha256 $(cat "out/$TAG-desktop.sha256"). The .packages.txt files list every installed package and version." \
-            "out/$TAG.tar.zst" "out/$TAG.sha256" "out/$TAG.packages.txt" \
-            "out/$TAG-desktop.tar.zst" "out/$TAG-desktop.sha256" "out/$TAG-desktop.packages.txt" out/debs/*.deb
+            --notes "Ubuntu 26.04 LTS arm64 runtime for DroidDeck ($GITHUB_REPOSITORY tools/ubuntu, $GITHUB_SHA): size $(stat -c %s "out/$TAG.tar.zst"), sha256 $(cat "out/$TAG.sha256"). The .packages.txt file lists every installed package and version." \
+            "out/$TAG.tar.zst" "out/$TAG.sha256" "out/$TAG.packages.txt" out/debs/*.deb
           gh release edit "$TAG" --latest=false --prerelease="$prerelease"

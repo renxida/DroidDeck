@@ -41,7 +41,6 @@ internal class HopOrigin(
 )
 
 internal const val HOP_SURFACE_GAMES = "games"
-internal const val HOP_SURFACE_DESKTOP = "desktop"
 internal const val HOP_SURFACE_SHEET = "sheet"
 
 internal object Hops {

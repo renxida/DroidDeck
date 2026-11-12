@@ -46,7 +46,6 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
 import androidx.compose.material.icons.outlined.SportsEsports
@@ -119,7 +118,6 @@ internal fun BottomBar(
 
 internal fun navigationKeys(s: FrontEndState) = buildList {
     add("steam"); add("games")
-    add("desktop")
     add("components")
     add("setup")
 }
@@ -190,7 +188,6 @@ internal fun SideRail(
 internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
-    "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
     else -> R.string.rail_setup to Icons.Outlined.Tune
 }

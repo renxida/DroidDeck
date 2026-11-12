@@ -176,7 +176,7 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
 
 def confirm_start(adb: str, serial: str, request: dict, previous: dict) -> dict:
     deadline = time.monotonic() + 95
-    expected_mode = {"steam": "steam", "desktop": "lxqt", "run": "run"}[request["mode"]]
+    expected_mode = request["mode"]
     while True:
         state = get_state(adb, serial)
         session = state.get("session", {})
@@ -612,17 +612,15 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
 
     if command == "start":
         request = {"mode": args.mode}
-        if args.mode == "steam":
-            if args.ui == "desktop":
-                request["steamUi"] = "desktop"
-            if args.url:
-                if not args.url.startswith("steam://"):
-                    raise ControlError("Steam URL must start with steam://", "INVALID_STEAM_URL")
-                request["steamUrl"] = args.url
+        if args.ui == "desktop":
+            request["steamUi"] = "desktop"
+        if args.url:
+            if not args.url.startswith("steam://"):
+                raise ControlError("Steam URL must start with steam://", "INVALID_STEAM_URL")
+            request["steamUrl"] = args.url
         if args.reuse:
             current = get_state(adb, serial)["session"]
-            wanted = {"steam": "steam", "desktop": "lxqt"}[args.mode]
-            if current.get("running") and current.get("mode") == wanted and current.get("phase") not in {"STOPPING", "FAILED"}:
+            if current.get("running") and current.get("mode") == args.mode and current.get("phase") not in {"STOPPING", "FAILED"}:
                 state = wait_for_phase(adb, serial, "READY", args.timeout) if args.wait else get_state(adb, serial)
                 return add_serial(dict(state, reused=True), serial)
         started = start_session(adb, serial, request)
@@ -894,8 +892,8 @@ def build_parser() -> argparse.ArgumentParser:
     state = commands.add_parser("state", help="print machine-readable session state")
     state.add_argument("--json", action="store_true", help="accepted for explicit machine-readable usage")
 
-    start = commands.add_parser("start", help="start Steam or the desktop")
-    start.add_argument("mode", choices=["steam", "desktop"])
+    start = commands.add_parser("start", help="start Steam")
+    start.add_argument("mode", choices=["steam"])
     start.add_argument("--ui", choices=["bigpicture", "desktop"], default="bigpicture")
     start.add_argument("--url", help="steam:// URL to pass to the client")
     start.add_argument("--wait", action="store_true", help="wait for READY after starting")
@@ -1060,7 +1058,7 @@ def build_parser() -> argparse.ArgumentParser:
 EXIT_ADB = {"ADB_NOT_FOUND", "ADB_FAILED", "INVALID_PROVIDER_RESPONSE"}
 EXIT_SESSION = {
     "SESSION_ACTIVE", "NO_ACTIVE_SESSION", "SESSION_NOT_SUSPENDED", "SESSION_FAILED", "GUEST_EXIT",
-    "GUEST_START_FAILED", "RUNTIME_INSTALL_FAILED", "DESKTOP_INSTALL_FAILED", "ACTIVITY_START_FAILED",
+    "GUEST_START_FAILED", "RUNTIME_INSTALL_FAILED", "ACTIVITY_START_FAILED",
     "NO_STEAM_SESSION", "SESSION_NOT_READY", "AGENT_UNAVAILABLE", "LAUNCH_REJECTED", "NO_PAD", "NO_FRAMES",
 }
 EXIT_TIMEOUT = {"TIMEOUT", "ARTIFACT_TIMEOUT"}

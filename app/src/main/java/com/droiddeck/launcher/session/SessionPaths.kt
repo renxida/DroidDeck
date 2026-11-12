@@ -76,7 +76,6 @@ object SessionPaths {
         SessionService.MODE_RUN -> com.droiddeck.launcher.frontend.Library.nameForProgram(program)
             ?: program?.substringAfterLast('/')
             ?: mode
-        SessionService.MODE_DESKTOP -> "desktop"
         else -> mode
     }
 

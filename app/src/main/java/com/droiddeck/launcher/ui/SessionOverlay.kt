@@ -199,7 +199,6 @@ private class DrawerFocus {
 
 class DrawerActions(
     val steam: Boolean,
-    val desktop: Boolean,
     val direct: Boolean = false,
     val title: String? = null,
     val hudOn: Boolean,
@@ -233,7 +232,6 @@ class DrawerActions(
     val gameSwapAvailable: Boolean = false,
     val onGameOnBottom: (Boolean) -> Unit = {},
     val dashboardAvailable: Boolean = false,
-    val desktopAvailable: Boolean = false,
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
@@ -540,7 +538,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
-                                InputQuickSettings(host, desktop = a.desktop, onChanged = a.onInputSelection, onEdit = a.onInputSettings) { key -> focus.track(page, key) }
+                                InputQuickSettings(host, onChanged = a.onInputSelection, onEdit = a.onInputSettings) { key -> focus.track(page, key) }
                             }
                             SettingsGroup(stringResource(R.string.input_device_settings)) {
                                 a.padType?.let { type ->
@@ -974,17 +972,16 @@ private fun ScreenEffectsGroup(
     }
 }
 
-internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boolean, desktop: Boolean): List<SecondScreenMode> =
+internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boolean): List<SecondScreenMode> =
     (if (none) listOf(SecondScreenMode.NONE) else emptyList()) + listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
         (if (deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) + listOf(SecondScreenMode.CUSTOM_CONTROLS) +
-        (if (dashboard) listOf(SecondScreenMode.DASHBOARD) else emptyList()) +
-        (if (desktop) listOf(SecondScreenMode.DESKTOP) else emptyList())
+        (if (dashboard) listOf(SecondScreenMode.DASHBOARD) else emptyList())
 
 @Composable
 private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val modes = secondScreenModes(a.secondScreenNone, com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable, a.desktopAvailable)
+    val modes = secondScreenModes(a.secondScreenNone, com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable)
     SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
         Text(stringResource(R.string.input_second_mode_hint), Modifier.padding(14.dp),
             style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)

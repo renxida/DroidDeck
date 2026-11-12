@@ -67,15 +67,13 @@ class SessionSecondScreenTest {
         SessionState.deckPad = previousDeckPad
     }
 
-    @Test fun desktopMenuOffersTheExistingTrackpadAndTerminal() = checkModes(steam = false)
+    @Test fun directGameMenuOffersTheExistingTrackpadAndTerminal() = checkModes(steam = false)
 
     @Test fun steamMenuKeepsTheExistingTrackpadAndTerminal() = checkModes(steam = true)
 
-    @Test fun desktopQuickMenuChangesTheRunningDesktopLayout() = checkQuickSelection(steam = false, desktop = true, direct = true)
+    @Test fun steamQuickMenuChangesTheRunningLayout() = checkQuickSelection(steam = true, direct = false)
 
-    @Test fun steamQuickMenuLeavesTheDesktopSelectionAlone() = checkQuickSelection(steam = true, desktop = false, direct = false)
-
-    @Test fun directGameQuickMenuLeavesTheDesktopSelectionAlone() = checkQuickSelection(steam = false, desktop = false, direct = true)
+    @Test fun directGameQuickMenuChangesTheRunningLayout() = checkQuickSelection(steam = false, direct = true)
 
     @Test fun closingTheDockedDrawerKeepsTheSelectedControlsPanel() {
         SessionState.mode = SessionService.MODE_STEAM
@@ -93,8 +91,8 @@ class SessionSecondScreenTest {
         assertEquals(SecondScreenMode.CUSTOM_CONTROLS, selected)
     }
 
-    @Test fun desktopWithoutASecondDisplayFallsBackToController() {
-        SessionState.mode = SessionService.MODE_DESKTOP
+    @Test fun directGameWithoutASecondDisplayFallsBackToController() {
+        SessionState.mode = SessionService.MODE_RUN
         var page = SessionDrawerPage.SECOND_SCREEN
         compose.setContent {
             DroidDeckTheme {
@@ -211,7 +209,7 @@ class SessionSecondScreenTest {
         val device = InputDeviceBuilder.newBuilder().setId(42).setName("Second screen test pad")
             .setDescriptor("second-screen-pad").setExternal(true).setSources(InputDevice.SOURCE_GAMEPAD).build()
         shadowOf(context.getSystemService(InputManager::class.java)).addInputDevice(device)
-        for (mode in listOf(SessionService.MODE_DESKTOP, SessionService.MODE_STEAM)) {
+        for (mode in listOf(SessionService.MODE_RUN, SessionService.MODE_STEAM)) {
             SessionState.mode = mode
             val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
             fun <T> state(name: String): MutableState<T> = ReflectionHelpers.getField(activity, "$name\$delegate")
@@ -290,8 +288,8 @@ class SessionSecondScreenTest {
         compose.onNodeWithText(context.getString(R.string.mode_mic)).assertDoesNotExist()
     }
 
-    private fun checkQuickSelection(steam: Boolean, desktop: Boolean, direct: Boolean) {
-        SessionState.mode = if (desktop) SessionService.MODE_DESKTOP else if (steam) SessionService.MODE_STEAM else SessionService.MODE_RUN
+    private fun checkQuickSelection(steam: Boolean, direct: Boolean) {
+        SessionState.mode = if (steam) SessionService.MODE_STEAM else SessionService.MODE_RUN
         val original = InputLibraries.update(context) { it.chooseLayout("desktop", InputRole.SECONDARY, InputLibraries.DECK) }
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
@@ -303,7 +301,7 @@ class SessionSecondScreenTest {
             compose.setContent {
                 DroidDeckTheme {
                     SessionDrawer(open.value, SessionDrawerPage.CONTROLLER, false, {},
-                        actions(steam, emptyList(), desktop = desktop, direct = direct,
+                        actions(steam, emptyList(), direct = direct,
                             onInputSelection = { panel.refreshControls() }, onClose = { open.value = false }))
                 }
             }
@@ -316,9 +314,8 @@ class SessionSecondScreenTest {
                 SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.Role, androidx.compose.ui.semantics.Role.Button)).performClick()
             compose.runOnIdle {
                 val updated = InputLibraries.read(context)
-                assertEquals("desktop", updated.selection(desktop).profile)
-                assertEquals(InputLibraries.TRACKPAD, updated.activeLayout(desktop, InputRole.SECONDARY)?.id)
-                assertEquals(original.selection(!desktop), updated.selection(!desktop))
+                assertEquals("desktop", updated.selection(false).profile)
+                assertEquals(InputLibraries.TRACKPAD, updated.activeLayout(false, InputRole.SECONDARY)?.id)
                 assertEquals(original.profiles, updated.profiles)
                 val controls = descendants(panel.window!!.decorView).filterIsInstance<InputSurfaceView>().single()
                 val pads = descendants(controls).mapNotNull { it.tag as? InputSurfaceElement }.filter { it.kind == InputElementKind.TRACKPAD }.toList()
@@ -328,7 +325,7 @@ class SessionSecondScreenTest {
     }
 
     private fun checkModes(steam: Boolean) {
-        SessionState.mode = if (steam) SessionService.MODE_STEAM else SessionService.MODE_DESKTOP
+        SessionState.mode = if (steam) SessionService.MODE_STEAM else SessionService.MODE_RUN
         val selected = mutableListOf<SecondScreenMode>()
         val displays = listOf(SecondScreenDisplay(1, "Bottom screen"))
         compose.setContent {
@@ -351,10 +348,10 @@ class SessionSecondScreenTest {
 
     private fun actions(steam: Boolean, displays: List<SecondScreenDisplay>,
         micAvailable: Boolean = false, micEnabled: Boolean = false, onMic: (Boolean) -> Unit = {},
-        desktop: Boolean = !steam, direct: Boolean = false, onInputSelection: (InputRole?) -> Unit = {},
+        direct: Boolean = false, onInputSelection: (InputRole?) -> Unit = {},
         onClose: () -> Unit = {},
         select: (SecondScreenMode) -> Unit = {}) =
-        DrawerActions(steam = steam, desktop = desktop, direct = direct, onInputSelection = onInputSelection,
+        DrawerActions(steam = steam, direct = direct, onInputSelection = onInputSelection,
             hudOn = false,
             micAvailable = micAvailable, micEnabled = micEnabled, onMicEnabled = onMic,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",

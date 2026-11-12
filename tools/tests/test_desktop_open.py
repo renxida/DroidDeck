@@ -5,8 +5,6 @@ import runpy
 import shutil
 import struct
 import tempfile
-import threading
-import time
 import unittest
 from unittest import mock
 import zlib
@@ -58,78 +56,11 @@ class KindTest(Temp):
         self.assertEqual(OPEN["interpreter"](str(self.write("b", b"echo\n"))), ["/bin/bash"])
 
 
-class PlacementTest(Temp):
-    def setUp(self):
-        super().setUp()
-        self.gpu = self.write("droiddeck-gpu", b"#!/bin/sh\n", 0o755)
-        patcher = mock.patch.dict(OPEN, {"GPU": str(self.gpu), "unattended": lambda env: False})
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        self.desktop = {"BL_DESKTOP": "1"}
-
-    def placed(self, what, mode, env=None):
-        return OPEN["placed"](["cmd"], what, mode, self.desktop if env is None else env)
-
-    def test_programs_from_the_desktop_go_to_the_gpu(self):
-        for what in ("windows", "elf", "x86 script", "folder"):
-            with self.subTest(what):
-                self.assertEqual(self.placed(what, "run"), [str(self.gpu), "cmd"])
-
-    def test_a_plain_script_and_a_window_stay_on_the_desktop(self):
-        self.assertEqual(self.placed("script", "run"), ["cmd"])
-        self.assertEqual(self.placed("windows", "window"), ["cmd"])
-
-    def test_away_from_the_desktop_nothing_moves(self):
-        self.assertEqual(self.placed("windows", "run", {}), ["cmd"])
-        self.assertEqual(self.placed("windows", "run", dict(self.desktop, GAMESCOPE_WAYLAND_DISPLAY="x")), ["cmd"])
-
-    def test_konsole_takes_what_asks_for_a_terminal(self):
-        with mock.patch.object(OPEN["shutil"], "which", return_value="/usr/bin/konsole"):
-            self.assertEqual(self.placed("script", "terminal"), ["konsole", "--hold", "-e", "cmd"])
-            self.assertEqual(self.placed("windows", "terminal"), [str(self.gpu), "cmd"])
-
-    def test_an_exec_stays_where_its_output_is_read(self):
-        self.assertEqual(self.placed("elf", "exec"), ["cmd"])
-        self.assertEqual(self.placed("windows", "exec"), [str(self.gpu), "cmd"])
-        with mock.patch.dict(OPEN, {"unattended": lambda env: True}):
-            self.assertEqual(self.placed("elf", "exec"), [str(self.gpu), "cmd"])
-
-
-class UnattendedTest(Temp):
-    def with_stdout(self, path, env):
-        saved = os.dup(1)
-        try:
-            with open(path, "w") as target:
-                os.dup2(target.fileno(), 1)
-                return OPEN["unattended"](env)
-        finally:
-            os.dup2(saved, 1)
-            os.close(saved)
-
-    def test_only_output_nobody_reads_counts(self):
-        log = self.write("session/desktop.log", b"")
-        env = {"BL_DEBUG_DIR": str(log.parent)}
-        self.assertTrue(self.with_stdout(os.devnull, env))
-        self.assertTrue(self.with_stdout(str(log), env))
-        self.assertFalse(self.with_stdout(str(self.tmp / "out.txt"), env))
-        self.assertFalse(self.with_stdout(str(log), {}))
-        read, write = os.pipe()
-        saved = os.dup(1)
-        try:
-            os.dup2(write, 1)
-            self.assertFalse(OPEN["unattended"](env))
-        finally:
-            os.dup2(saved, 1)
-            for fd in (saved, read, write):
-                os.close(fd)
-
-
 class CommandTest(Temp):
     def test_each_kind_gets_its_runner(self):
         exe, script = str(self.tmp / "a.exe"), str(self.tmp / "go.sh")
         self.write("go.sh", b"#!/bin/sh\n")
         self.assertEqual(OPEN["command"](exe, ["-x"], "windows"), ([OPEN["PROTON_RUN"], exe, "-x"], str(self.tmp)))
-        self.assertEqual(OPEN["command"](exe, [], "windows", True)[0], [OPEN["PROTON_RUN"], "--window", exe])
         self.assertEqual(OPEN["command"](script, ["1"], "script")[0], ["/bin/sh", script, "1"])
         self.assertEqual(OPEN["command"](script, [], "x86 script")[0],
                          [OPEN["FEX"], "run", "--mode", "on", "--for", str(self.tmp), "--", "/bin/sh", script])
@@ -148,161 +79,18 @@ class CommandTest(Temp):
             self.assertEqual(OPEN["runnable"](str(program)), str(program))
 
 
-class InstallTest(Temp):
-    def test_the_run_entries_and_defaults_are_written_once(self):
-        OPEN["install"](str(self.tmp))
-        entry = (self.tmp / "droiddeck-open.desktop").read_text()
-        self.assertIn("Exec=/usr/local/bin/droiddeck-open %f", entry)
-        self.assertIn("application/x-ms-dos-executable", entry)
-        self.assertIn("Exec=/usr/local/bin/droiddeck-open --terminal %f",
-                      (self.tmp / "droiddeck-open-terminal.desktop").read_text())
-        defaults = (self.tmp / "mimeapps.list").read_text()
-        self.assertIn("application/x-shellscript=droiddeck-open.desktop\n", defaults)
-        self.assertIn("application/x-msi=droiddeck-open.desktop;droiddeck-open-window.desktop;\n", defaults)
-        stamp = (self.tmp / "mimeapps.list").stat().st_mtime_ns
-        time.sleep(0.01)
-        OPEN["install"](str(self.tmp))
-        self.assertEqual((self.tmp / "mimeapps.list").stat().st_mtime_ns, stamp)
-
-
-class ImportTest(Temp):
-    def test_the_app_copies_in_what_the_desktop_cannot_run(self):
-        launch = self.tmp / "launch"
-        launch.mkdir()
-        folder = self.tmp / "imported/game"
-        folder.mkdir(parents=True)
-        (folder / "entry").write_text("start.sh")
-
-        def app():
-            request = launch / "desktop-import-0123456789abcdef.request"
-            while not request.exists():
-                time.sleep(0.05)
-            text = request.read_text()
-            request.unlink()
-            self.assertEqual(text, "id=0123456789abcdef\nkind=folder\npath=/root/Storage/Game/start.sh\n")
-            (launch / "desktop-import-0123456789abcdef.result").write_text("ok %s\n" % folder)
-
-        worker = threading.Thread(target=app)
-        worker.start()
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}), mock.patch.dict(OPEN, {"notify": lambda *a: None}):
-            self.assertEqual(OPEN["imported"]("folder", "/root/Storage/Game/start.sh", "0123456789abcdef", "Game"), str(folder))
-        worker.join()
-        self.assertEqual(list(launch.iterdir()), [])
-
-    def test_the_apps_answer_is_the_error(self):
-        launch = self.tmp / "launch"
-        launch.mkdir()
-        (launch / "desktop-import-0123456789abcdef.result").write_text("error Not enough space\n")
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}), mock.patch.dict(OPEN, {"notify": lambda *a: None}):
-            with self.assertRaisesRegex(RuntimeError, "^Not enough space$"):
-                OPEN["imported"]("folder", "/x/start.sh", "0123456789abcdef", "x")
-
-    def test_outside_a_session_it_says_how_to_add_one(self):
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": ""}):
-            with self.assertRaisesRegex(RuntimeError, "Add an app"):
-                OPEN["imported"]("folder", "/x/start.sh", "0123456789abcdef", "x")
-
-    def test_an_earlier_import_is_found_by_its_key(self):
-        self.write("apps/game/desktop-import", "fedcba9876543210\n/root/Storage/Game/start.sh")
-        self.write("apps/game/entry", "start.sh")
-        imports = {"folder": (str(self.tmp / "apps"), "entry")}
-        with mock.patch.dict(OPEN, {"IMPORTS": imports}):
-            self.assertIsNone(OPEN["import_of"]("0123456789abcdef", "folder"))
-            self.assertEqual(OPEN["import_of"]("fedcba9876543210", "folder"), str(self.tmp / "apps/game"))
-
-
-class GameFolderTest(Temp):
-    def setUp(self):
-        super().setUp()
-        self.storage = self.tmp / "storage"
-        patcher = mock.patch.dict(OPEN, {"noexec": lambda path: True, "storage_root": lambda folder: str(self.storage)})
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def folder(self, path):
-        return OPEN["game_folder"](str(self.storage / path))
-
-    def test_a_native_games_folder_on_noexec_storage_is_copied_in(self):
-        self.write("storage/Download/Game/start.sh", b"#!/bin/sh\n./bin/game.aarch64\n")
-        self.write("storage/Download/Game/bin/game.aarch64", elf(183))
-        self.write("storage/Download/Godot/Game.arm64", elf(183))
-        self.write("storage/Download/Godot/libgodot.so", elf(183))
-        self.write("storage/MyGame/start.sh", b"./game\n")
-        self.write("storage/MyGame/game", elf(183))
-        self.assertEqual(self.folder("Download/Game/start.sh"), str(self.storage / "Download/Game"))
-        self.assertEqual(self.folder("Download/Godot/Game.arm64"), str(self.storage / "Download/Godot"))
-        self.assertEqual(self.folder("MyGame/start.sh"), str(self.storage / "MyGame"))
-
-    def test_x86_games_run_where_they_lie(self):
-        self.write("storage/Download/Game/start.sh", b"#!/bin/sh\n./bin/game.x86_64\n")
-        self.write("storage/Download/Game/bin/game.x86_64", elf(62))
-        self.write("storage/Download/Unity/Game.x86_64", elf(62))
-        self.write("storage/Download/Unity/UnityPlayer.so", elf(62))
-        self.write("storage/Download/Old/game", elf(3))
-        for path in ("Download/Game/start.sh", "Download/Unity/Game.x86_64", "Download/Old/game"):
-            with self.subTest(path):
-                self.assertIsNone(self.folder(path))
-
-    def test_what_runs_where_it_lies_is_left_there(self):
-        self.write("storage/Download/Scripts/hello.sh", b"echo hi\n")
-        self.write("storage/Download/Tool/tool", elf(183))
-        self.write("storage/Download/start.sh", b"./Tool/tool\n")
-        self.write("storage/start.sh", b"./Download/Tool/tool\n")
-        self.write("storage/Download/Deep/a/b/c/d/lib.so", elf(183))
-        self.write("storage/Download/Deep/start.sh", b"echo\n")
-        for path in ("Download/Scripts/hello.sh", "Download/Tool/tool", "Download/start.sh", "start.sh", "Download/Deep/start.sh"):
-            with self.subTest(path):
-                self.assertIsNone(self.folder(path))
-        self.write("internal/Game/start.sh", b"./game\n")
-        self.write("internal/Game/game", elf(183))
-        with mock.patch.dict(OPEN, {"noexec": lambda path: False}):
-            self.assertIsNone(OPEN["game_folder"](str(self.tmp / "internal/Game/start.sh")))
-
-    def test_the_app_copies_the_folder_in_once(self):
-        script = self.write("storage/Download/Game/start.sh", b"./game\n")
-        launch = self.tmp / "launch"
-        launch.mkdir()
-        copy = self.tmp / "apps/game"
-        copy.mkdir(parents=True)
-        (copy / "entry").write_text("start.sh")
-        requests = []
-
-        def app():
-            while not requests:
-                for request in launch.glob("desktop-import-*.request"):
-                    requests.append(request.read_text())
-                    request.unlink()
-                    (launch / request.name.replace(".request", ".result")).write_text("ok %s\n" % copy)
-                time.sleep(0.05)
-
-        worker = threading.Thread(target=app)
-        worker.start()
-        imports = {what: (str(self.tmp / "none"), made) for what, (_, made) in OPEN["IMPORTS"].items()}
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}), \
-                mock.patch.dict(OPEN, {"CACHE": str(self.tmp / "cache"), "IMPORTS": imports, "notify": lambda *a: None}):
-            self.assertEqual(OPEN["command"](str(script), ["-x"], "folder"), ([OPEN["SCRIPT_RUN"], str(copy), "-x"], str(script.parent)))
-        worker.join()
-        self.assertRegex(requests[0], "^id=[0-9a-f]{16}\nkind=folder\npath=%s\n$" % script)
-
-
 class ExecTest(Temp):
     def setUp(self):
         super().setUp()
         self.storage = self.tmp / "storage"
         self.write("storage/Download/Game/start.sh", b"#!/bin/sh\n./game.x86_64\n", 0o755)
         self.write("storage/Download/Game/game.x86_64", elf(62), 0o755)
-        self.write("storage/Download/Game/helper.bin", elf(183), 0o755)
-        self.write("storage/Download/Game/libhelper.so", elf(183))
-        self.copied = []
-        env = {k: v for k, v in os.environ.items() if k not in ("BL_DESKTOP", "BL_BINFMT", "GAMESCOPE_WAYLAND_DISPLAY")}
-        for patcher in (mock.patch.dict(OPEN, {"noexec": lambda path: True, "storage_root": lambda folder: str(self.storage),
-                                               "copied_in": lambda path: self.copied.append(path) or "/opt/droiddeck-apps/game",
-                                               "steam_title": lambda path: None, "notify": lambda *a: None,
+        env = {k: v for k, v in os.environ.items() if k != "BL_BINFMT"}
+        for patcher in (mock.patch.dict(OPEN, {"noexec": lambda path: True, "steam_title": lambda path: None,
                                                "CACHE": str(self.tmp / "cache")}),
                         mock.patch.dict(os.environ, env, clear=True),
                         mock.patch.object(OPEN["os"], "chdir"),
-                        mock.patch.object(OPEN["os"], "execv", side_effect=self.execv),
-                        mock.patch.object(OPEN["subprocess"], "call", side_effect=self.call)):
+                        mock.patch.object(OPEN["os"], "execv", side_effect=self.execv)):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.ran = []
@@ -310,10 +98,6 @@ class ExecTest(Temp):
     def execv(self, program, cmd):
         self.ran.append(cmd)
         raise SystemExit(0)
-
-    def call(self, cmd, *args, **kwargs):
-        self.ran.append(cmd)
-        return 0
 
     def open(self, *argv, env=None):
         os.environ.update(env or {})
@@ -326,25 +110,14 @@ class ExecTest(Temp):
         for env in ({}, {"BL_BINFMT": "1"}):
             with self.subTest(env=env):
                 self.assertEqual(self.open("--exec", program, "-x", env=env), [OPEN["FEX"], "run", "--mode", "auto", "--", program, "-x"])
-        self.assertEqual(self.copied, [])
 
     def test_an_in_place_hand_off_keeps_the_callers_working_folder(self):
         program = str(self.storage / "Download/Game/game.x86_64")
         with mock.patch("os.chdir") as chdir:
             self.open("--exec", program, env={"BL_BINFMT": "1"})
             chdir.assert_not_called()
-            self.open("--exec", str(self.storage / "Download/Game/helper.bin"))
+            self.open("--exec", str(self.write("storage/Download/Game/setup.exe", b"MZ")))
             chdir.assert_called_once()
-
-    def test_a_native_program_a_running_program_starts_still_gets_its_folder_copied_in(self):
-        program = str(self.storage / "Download/Game/helper.bin")
-        self.assertEqual(self.open("--exec", program, "-y"), [OPEN["SCRIPT_RUN"], "/opt/droiddeck-apps/game", "-y"])
-        self.assertEqual(self.copied, [program])
-
-    def test_opening_an_x86_program_from_the_desktop_still_copies_its_folder_in(self):
-        program = str(self.storage / "Download/Game/game.x86_64")
-        self.assertEqual(self.open(program, env={"BL_DESKTOP": "1"}), [OPEN["SCRIPT_RUN"], "/opt/droiddeck-apps/game"])
-        self.assertEqual(self.copied, [program])
 
 
 def appinfo(apps):
@@ -576,23 +349,14 @@ class ProtonRunTest(Temp):
         target = RUN["locate"](program, str(self.root))
         appid = zlib.crc32(('"%s"winemine' % program).encode()) | 0x80000000
         self.assertEqual((target.appid, target.kind), (str(appid), "own"))
-        env = RUN["environment"]({}, target, "/tool", str(self.root), window=True)
-        self.assertEqual((env["SteamAppId"], env["STEAM_COMPAT_APP_ID"], env["SteamGameId"], env["PROTON_USE_WINED3D"]),
-                         ("0", "0", str(appid << 32 | 0x02000000), "1"))
+        env = RUN["environment"]({}, target, "/tool", str(self.root))
+        self.assertEqual((env["SteamAppId"], env["STEAM_COMPAT_APP_ID"], env["SteamGameId"]),
+                         ("0", "0", str(appid << 32 | 0x02000000)))
         self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], str(self.root / ("steamapps/compatdata/%d" % appid)))
-
-    def test_a_window_draws_with_the_desktops_software_gl(self):
-        target = RUN["Target"]("2596113170", "/c", "/i", str(self.root), "fixed")
-        session = {"MESA_LOADER_DRIVER_OVERRIDE": "zink", "GALLIUM_DRIVER": "zink", "LIBGL_KOPPER_DRI2": "true"}
-        env = RUN["environment"](session, target, "/tool", str(self.root), window=True)
-        self.assertEqual((env["LIBGL_ALWAYS_SOFTWARE"], env["GALLIUM_DRIVER"]), ("1", "llvmpipe"))
-        self.assertNotIn("MESA_LOADER_DRIVER_OVERRIDE", env)
-        self.assertNotIn("LIBGL_KOPPER_DRI2", env)
-        self.assertEqual(RUN["environment"](session, target, "/tool", str(self.root))["GALLIUM_DRIVER"], "zink")
 
     def test_a_steam_game_keeps_its_own_id(self):
         target = RUN["Target"]("413150", "/c", "/i", str(self.root), "steam")
-        env = RUN["environment"]({"PROTON_USE_WINED3D": "0"}, target, "/tool", str(self.root), window=True)
+        env = RUN["environment"]({"PROTON_USE_WINED3D": "0"}, target, "/tool", str(self.root))
         self.assertEqual((env["SteamAppId"], env["SteamGameId"], env["PROTON_USE_WINED3D"]), ("413150", "413150", "0"))
 
     def test_an_installer_package_goes_to_msiexec(self):
@@ -619,7 +383,7 @@ class ProtonRunTest(Temp):
         own = str(self.write("Download/Stardew Valley.exe", b"MZ"))
         self.assertFalse(RUN["steam_launches"](RUN["locate"](own, root), own, root))
 
-    def test_the_desktop_hands_a_steam_game_to_steam(self):
+    def test_a_steam_games_windows_program_goes_to_steam(self):
         self.write("Steam/appcache/appinfo.vdf", appinfo({413150: STARDEW}))
         program = str(self.game("413150", "Stardew Valley", "Stardew Valley.exe"))
         with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
@@ -627,22 +391,7 @@ class ProtonRunTest(Temp):
             appid = OPEN["steam_title"](program)
             self.assertEqual(appid, "413150")
             self.assertEqual(OPEN["command"](program, [], "steam", appid=appid)[0], [OPEN["STEAM_LAUNCH"], "desktop", "413150"])
-            self.assertEqual(OPEN["placed"](["launch"], "steam", "run", {"BL_DESKTOP": "1"}), ["launch"])
             self.assertIsNone(OPEN["steam_title"](str(self.write("Download/winemine.exe", b"MZ"))))
-
-    def test_a_linux_steam_games_program_goes_to_steam_too(self):
-        self.write("Steam/appcache/appinfo.vdf", appinfo({413150: STARDEW}))
-        program = self.game("413150", "Stardew Valley", "StardewValley")
-        program.write_bytes(elf(62))
-        self.write("Steam/steamapps/common/Stardew Valley/lib64/libSDL2.so", elf(62))
-        ran = []
-        with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
-                mock.patch.dict(OPEN, {"PROTON_RUN": str(BIN / "droiddeck-proton-run"), "noexec": lambda path: True,
-                                       "placed": lambda cmd, *a: cmd, "say": lambda *a: None}), \
-                mock.patch.object(OPEN["subprocess"], "call", lambda cmd: ran.append(cmd) or 0), contextlib.chdir(self.tmp):
-            self.assertEqual(OPEN["main"]([str(program)]), 0)
-            self.assertIsNone(OPEN["game_folder"](str(program)))
-        self.assertEqual(ran, [[OPEN["STEAM_LAUNCH"], "desktop", "413150"]])
 
     def test_the_tool_is_started_as_steam_starts_it(self):
         program = self.game("413150", "Stardew Valley", "Stardew Valley.exe")

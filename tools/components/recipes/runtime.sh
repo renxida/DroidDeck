@@ -69,9 +69,4 @@ for f in NOTICE GPL-2 GPL-3 LGPL-2.1 7zip-License 7zip-unRarLicense; do
 done
 rm -rf msi-pkgs
 ls -l "$T"
-install -Dm644 tools/linuxfs/desktop/droiddeck-desktop "$D/usr/local/bin/droiddeck-desktop"
-install -Dm644 tools/linuxfs/desktop/droiddeck-gpu "$D/usr/local/bin/droiddeck-gpu"
-install -Dm644 tools/linuxfs/desktop/droiddeck-desktop-gpu "$D/usr/local/bin/droiddeck-desktop-gpu"
-install -Dm644 tools/linuxfs/desktop/kwin_wayland_wrapper "$D/usr/local/bin/kwin_wayland_wrapper"
-install -Dm644 tools/linuxfs/desktop/firefox-droiddeck.js "$D/usr/lib/firefox/defaults/pref/droiddeck.js"
 ls -lR "$D"

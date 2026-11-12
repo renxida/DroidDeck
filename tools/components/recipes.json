@@ -5,7 +5,6 @@
       "tools/components/recipes/runtime.sh",
       "tools/quest",
       "tools/linuxfs/overlay",
-      "tools/linuxfs/desktop",
       "tools/gamescope/release.env",
       "tools/wlroots/release.env",
       "tools/mangoapp",

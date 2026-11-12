@@ -123,7 +123,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
         }
     }
 
-    enum class Topic { RUNTIME, SESSION, DESKTOP, STEAM, STEAM_STARTING, OTHER }
+    enum class Topic { RUNTIME, SESSION, STEAM, STEAM_STARTING, OTHER }
 
     companion object {
         internal fun topicOf(scriptStep: String, steam: Boolean): Topic {
@@ -131,7 +131,6 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
             return when {
                 "linux runtime" in t -> Topic.RUNTIME
                 "starting the session" in t -> Topic.SESSION
-                !steam && "desktop" in t -> Topic.DESKTOP
                 steam && "starting the steam client" in t -> Topic.STEAM_STARTING
                 steam && ("steam" in t || "client" in t || "proton" in t || "library" in t || "compatibility" in t) -> Topic.STEAM
                 else -> Topic.OTHER

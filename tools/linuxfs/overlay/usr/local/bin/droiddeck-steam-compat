@@ -219,33 +219,6 @@ TOOLS_JS = r"""
 """
 TOOL_CHECK_SECONDS = 60
 TOOL_RETRY_SECONDS = 300
-SWITCH_BINDING = "droiddeckSwitchToDesktop"
-SWITCH_JS = r"""
-(() => {
-  if (window.__droiddeckSwitch) return "present";
-  const name = new TextEncoder().encode("SteamOSManager.SwitchToDesktop#");
-  const send = WebSocket.prototype.send;
-  const asks = (data) => {
-    const bytes = data instanceof ArrayBuffer ? new Uint8Array(data)
-      : ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : null;
-    if (!bytes) return false;
-    const end = Math.min(bytes.length, 256) - name.length;
-    for (let i = 8; i <= end; i++) {
-      let j = 0;
-      while (j < name.length && bytes[i + j] === name[j]) j++;
-      if (j === name.length) return true;
-    }
-    return false;
-  };
-  WebSocket.prototype.send = function (data) {
-    if (typeof window.__BINDING__ === "function" && asks(data)) window.__BINDING__("");
-    return send.call(this, data);
-  };
-  window.__droiddeckSwitch = true;
-  return "installed";
-})()
-""".replace("__BINDING__", SWITCH_BINDING)
-SESSION_SELECT = "/usr/bin/steamos-session-select"
 TOUR_JS = r"""
 (() => {
   let key = 140014 * 8;
@@ -498,14 +471,6 @@ def say(message):
 
 def called(event, name):
     return event.get("method") == "Runtime.bindingCalled" and event.get("params", {}).get("name") == name
-
-
-def switch_to_desktop():
-    say("Switch to Desktop: asking for the desktop")
-    try:
-        subprocess.call([SESSION_SELECT, "plasma"])
-    except OSError as e:
-        say("Switch to Desktop failed: %s" % e)
 
 
 def connect(port, timeout=5):
@@ -831,10 +796,9 @@ def window_action(action):
 
 
 class Helper:
-    def __init__(self, steam_root, port, steamos=False, files_only=False):
+    def __init__(self, steam_root, port, files_only=False):
         self.steam_root = steam_root
         self.port = port
-        self.steamos = steamos
         self.files_only = files_only
         self.page = None
         self.known = set()
@@ -1005,9 +969,6 @@ class Helper:
                 page.evaluate(TOUR_JS)
             except RuntimeError:
                 pass
-            if not self.steamos:
-                page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
-                page.evaluate(SWITCH_JS)
             page.compat("get(0)")
         except Exception:
             page.ws.close()
@@ -1140,8 +1101,6 @@ class Helper:
 
     def drain(self):
         events = self.page.drain()
-        if any(called(e, SWITCH_BINDING) for e in events):
-            switch_to_desktop()
         for e in events:
             if called(e, BRIGHTNESS_BINDING):
                 brightness_request(e.get("params", {}).get("payload"))
@@ -1253,8 +1212,7 @@ def main():
     watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json"),
                        os.path.join(steam_root, "appcache", "appinfo.vdf")] +
                       [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
-    steamos = os.environ.get("BL_STEAMDECK") == "1" and os.environ.get("BL_STEAM_UI") != "desktop"
-    helper = Helper(steam_root, port, steamos)
+    helper = Helper(steam_root, port)
     failures = 0
     last = None
     while True:

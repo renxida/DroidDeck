@@ -41,7 +41,7 @@ public final class TurnipDriver {
 
     public static final String HELP_TEXT =
             "The driver the app's compositor puts frames on the screen with - the last step of every "
-            + "session, Steam or desktop. AdrenoTools zips only (vulkan.adXXXX.so): a \"-Linux\" Turnip "
+            + "session, Steam or not. AdrenoTools zips only (vulkan.adXXXX.so): a \"-Linux\" Turnip "
             + "belongs in the Linux runtime list above and is refused here. The compositor loads its "
             + "driver once per app process, so a change takes effect after the app is fully closed and "
             + "started again.";

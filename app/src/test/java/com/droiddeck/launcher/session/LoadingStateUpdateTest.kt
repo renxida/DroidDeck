@@ -68,14 +68,6 @@ class LoadingStateUpdateTest {
         assertEquals("Downloading the Steam client · a_all", state.step)
     }
 
-    @Test fun desktopStartupDoesNotConsumeSteamApplyingMessages() {
-        val state = read(
-            "== STEP 12:00:01 starting the desktop", "Installing update...", steam = false,
-        )
-        assertEquals("starting the desktop", state.step)
-        assertEquals(LoadingState.Topic.DESKTOP, state.topic)
-    }
-
     @Test fun anExistingLoadingStateFollowsUpdatesAcrossPolls() {
         val context = RuntimeEnvironment.getApplication()
         val log = log("Downloading update (100 of 100 KB)")

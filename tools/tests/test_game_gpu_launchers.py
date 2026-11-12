@@ -1,5 +1,4 @@
 import os
-import runpy
 import shutil
 import subprocess
 import sys
@@ -70,18 +69,6 @@ class GameGpuLaunchersTest(unittest.TestCase):
         self.assertEqual(127, result.returncode)
         self.assertEqual(2, subprocess.run([sys.executable, str(BIN / "droiddeck-game-gpu")], capture_output=True,
                                            timeout=30).returncode)
-
-    def test_a_snap_gets_the_game_setting_unless_it_is_chromium(self):
-        try:
-            snap_run = runpy.run_path(str(BIN / "droiddeck-snap-run"))
-        except ImportError:
-            self.skipTest("PyYAML is not installed")
-        gpu = snap_run["game_gpu"]
-        snap = self.app / "files"
-        self.assertEqual({"KEEP": "1"}, gpu(dict(SESSION, KEEP="1"), str(snap)))
-        self.assertEqual({"TU_DEBUG": "nolrz"}, gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"}, str(snap)))
-        self.chromium()
-        self.assertEqual({"TU_DEBUG": "sysmem"}, gpu(dict(SESSION), str(snap)))
 
 
 if __name__ == "__main__":

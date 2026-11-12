@@ -14,8 +14,6 @@ BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(HOME, ".local", "share", "droiddeck-compat", "state.json")
 EXTRA_LIBRARIES = ("/mnt/droiddeck", "/mnt/droiddeck-sd")
 SYSTEM_TOOLS = ("/usr/share/steam/compatibilitytools.d", "/usr/local/share/steam/compatibilitytools.d")
-DESKTOP_GL = {"LIBGL_ALWAYS_SOFTWARE": "1", "GALLIUM_DRIVER": "llvmpipe"}
-NOT_DESKTOP_GL = ("MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_KOPPER_DRI2")
 VERB = "waitforexitandrun"
 VERBS = (VERB, "run")
 SHORTCUT_BIT = 0x80000000
@@ -403,7 +401,7 @@ def steam_launches(target, program, root):
     return os.path.relpath(program, target.install).replace(os.sep, "/").lower() in entry.get("launch", ())
 
 
-def environment(env, target, tool_folder, root, window=False, game_id=None):
+def environment(env, target, tool_folder, root, game_id=None):
     env = dict(env)
     steamapps = [os.path.join(lib, "steamapps") for lib in libraries(root)]
     env.update({
@@ -423,11 +421,6 @@ def environment(env, target, tool_folder, root, window=False, game_id=None):
         env.update(SteamAppId="0", STEAM_COMPAT_APP_ID="0", SteamGameId=game, SteamOverlayGameId=game)
     if game_id:
         env.update(SteamGameId=game_id, SteamOverlayGameId=game_id)
-    if window:
-        env.setdefault("PROTON_USE_WINED3D", "1")
-        env.update(DESKTOP_GL)
-        for name in NOT_DESKTOP_GL:
-            env.pop(name, None)
     return env
 
 
@@ -449,7 +442,6 @@ def arguments(program, args, desktop=None, compatdata=None):
 
 
 def main(argv):
-    window = False
     prefix = None
     compatdata = None
     verb = VERB
@@ -458,9 +450,7 @@ def main(argv):
     app, start, options = None, None, None
     while argv and argv[0].startswith("--"):
         option = argv.pop(0)
-        if option == "--window":
-            window = True
-        elif option == "--prefix" and argv and prefix_id(argv[0]):
+        if option == "--prefix" and argv and prefix_id(argv[0]):
             prefix = argv.pop(0)
         elif option == "--compatdata" and argv and os.path.isabs(argv[0]):
             compatdata = argv.pop(0)
@@ -487,7 +477,7 @@ def main(argv):
         say("%s is not an app id" % app)
         return 2
     if not argv and app is None:
-        say("usage: droiddeck-proton-run [--window] [--prefix ID [--compatdata DIR]] [--verb run] [--game-id ID] [--desktop WxH] PROGRAM [ARGS...]")
+        say("usage: droiddeck-proton-run [--prefix ID [--compatdata DIR]] [--verb run] [--game-id ID] [--desktop WxH] PROGRAM [ARGS...]")
         return 2
     root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or STEAM_ROOT
     if options is None:
@@ -522,7 +512,7 @@ def main(argv):
         return 69
     folder, command = available[name]
     os.makedirs(target.compatdata, exist_ok=True)
-    env = environment(os.environ, target, folder, root, window, game_id)
+    env = environment(os.environ, target, folder, root, game_id)
     env.update(extra)
     say("%s with %s (%s), %s prefix %s%s" % (program, name, why, target.kind, target.compatdata,
                                               ", without the Steam client" if app is not None else ""))

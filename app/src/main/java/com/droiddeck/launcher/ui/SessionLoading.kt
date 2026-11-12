@@ -129,14 +129,13 @@ private fun loadStages(steam: Boolean): List<LoadStage> = if (steam) listOf(
     LoadStage(R.string.load_opening_steam, R.string.load_opening_steam_detail),
 ) else listOf(
     LoadStage(R.string.load_runtime, R.string.load_runtime_detail),
-    LoadStage(R.string.load_desktop, R.string.load_desktop_detail),
+    LoadStage(R.string.load_session, R.string.load_session_detail),
     LoadStage(R.string.load_opening, R.string.load_opening_detail),
 )
 
 private fun stageOf(topic: LoadingState.Topic, steam: Boolean): Int = when (topic) {
     LoadingState.Topic.RUNTIME -> 0
     LoadingState.Topic.SESSION -> 1
-    LoadingState.Topic.DESKTOP -> if (steam) -1 else 1
     LoadingState.Topic.STEAM_STARTING -> if (steam) 3 else -1
     LoadingState.Topic.STEAM -> if (steam) 2 else -1
     LoadingState.Topic.OTHER -> -1

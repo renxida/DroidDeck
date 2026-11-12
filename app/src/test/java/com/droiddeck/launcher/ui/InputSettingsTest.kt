@@ -51,26 +51,23 @@ class InputSettingsTest {
         }
     }
 
-    @Test fun steamAndDesktopQuickSettingsOpenTheSameInputLibrary() {
-        val mode = mutableStateOf(SessionService.MODE_STEAM)
+    @Test fun steamQuickSettingsOpenTheInputLibrary() {
         var opened = 0
         compose.setContent { DroidDeckTheme {
-            ModeSheetRows(ModeSettings(mode = mode.value, resolution = "auto", hdr = false, hdrReason = null,
+            ModeSheetRows(ModeSettings(mode = SessionService.MODE_STEAM, resolution = "auto", hdr = false, hdrReason = null,
                 touchMode = "auto", suspendPolicy = "auto", oscMode = "auto", directAudio = null, mic = null),
                 ModeSettingsActions(onResolution = {}, onHdr = {}, onTouch = {}, onSuspendPolicy = {}, onOsc = {},
                     onInputSettings = { opened++ }, onDirectAudio = {}, onMic = {}, onDismiss = {}), SheetTab.CONTROLS)
         } }
         compose.onNodeWithTag("input-profile-expand").performClick()
         compose.onNodeWithText(context.getString(R.string.ctrl_edit)).performClick()
-        compose.runOnIdle { assertEquals(1, opened); mode.value = SessionService.MODE_DESKTOP }
-        compose.onNodeWithText(context.getString(R.string.ctrl_edit)).performClick()
-        compose.runOnIdle { assertEquals(2, opened) }
+        compose.runOnIdle { assertEquals(1, opened) }
     }
 
     @Test fun quickMenuCombinesPartsWithoutChangingTheSavedProfile() {
         val original = InputLibraries.read(context)
         compose.setContent { DroidDeckTheme {
-            androidx.compose.foundation.layout.Column { InputQuickSettings(rememberMenuHost(), desktop = true) }
+            androidx.compose.foundation.layout.Column { InputQuickSettings(rememberMenuHost()) }
         } }
         compose.onNodeWithTag("setting-input-profile").assertExists()
         compose.onNodeWithTag("setting-input-part-PHYSICAL").assertDoesNotExist()
@@ -78,21 +75,20 @@ class InputSettingsTest {
         compose.onNodeWithTag("setting-input-part-PHYSICAL").assertExists()
         compose.onNodeWithTag("setting-input-part-PRIMARY").assertExists()
         compose.onNodeWithTag("setting-input-part-SECONDARY").performClick()
-        compose.onNodeWithText("Deck grips + trackpads").performScrollTo().performClick()
+        compose.onNodeWithText("Trackpad + keyboard").performScrollTo().performClick()
         compose.runOnIdle {
             val changed = InputLibraries.read(context)
-            assertEquals(InputStockLayouts.DECK, changed.activePart(true, InputRole.SECONDARY).bindings)
+            assertEquals(InputStockLayouts.TRACKPAD, changed.activePart(false, InputRole.SECONDARY).bindings)
             assertEquals(original.profiles, changed.profiles)
-            assertEquals(original.compileActive(false), changed.compileActive(false))
         }
         compose.onNodeWithText(context.getString(R.string.input_save_combination)).performClick()
         compose.onNode(hasSetTextAction()).performTextInput("Reading")
         compose.onNodeWithText(context.getString(R.string.gesture_save_changes)).performClick()
         compose.runOnIdle {
             val saved = InputLibraries.read(context)
-            assertEquals("Reading", saved.profile(saved.activeId(true)).name)
-            assertTrue(saved.selection(true).parts.isEmpty())
-            assertEquals(original.profile("desktop"), saved.profile("desktop"))
+            assertEquals("Reading", saved.profile(saved.activeId(false)).name)
+            assertTrue(saved.selection(false).parts.isEmpty())
+            assertEquals(original.profile(original.steam), saved.profile(original.steam))
         }
     }
 

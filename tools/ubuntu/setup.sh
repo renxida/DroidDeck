@@ -4,7 +4,6 @@ umask 022
 here=$(cd "$(dirname "$0")" && pwd)
 debs=${1:?directory with the DroidDeck-built .deb files}
 runtime_id=${2:?runtime id}
-stage=${3:?runtime or desktop}
 export DEBIAN_FRONTEND=noninteractive DROIDDECK_APT_RESTORING=1 LANG=C.UTF-8 LC_ALL=C.UTF-8
 repo=/var/lib/droiddeck/apt
 
@@ -91,17 +90,8 @@ divert_to() {
   ln -sf "$target" "$path"
 }
 
-record_apt_state() {
-  mkdir -p /usr/share/droiddeck/apt
-  apt-mark showmanual > /usr/share/droiddeck/apt/system-manual.txt
-  for f in /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/keyrings/* /etc/apt/trusted.gpg.d/* /usr/share/keyrings/*; do
-    [ -f "$f" ] && echo "$f $(sha256sum "$f" | cut -d' ' -f1)"
-  done > /usr/share/droiddeck/apt/system-sources.txt
-}
-
 finish() {
   sed -i 's/^Types: deb deb-src$/Types: deb/' /etc/apt/sources.list.d/ubuntu.sources
-  record_apt_state
   apt-get clean
   rm -rf /var/lib/apt/lists/* /var/cache/apt/*.bin /var/log/apt/* /var/log/dpkg.log /var/tmp/*
   find /tmp -mindepth 1 -maxdepth 1 ! -name droiddeck -exec rm -rf {} +
@@ -109,77 +99,44 @@ finish() {
   : > /etc/machine-id
 }
 
-if [ "$stage" = runtime ]; then
-  printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
-  chmod 755 /usr/sbin/policy-rc.d
-  cp -r "$here/apt/." /etc/apt/
-  sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
-  echo 'man-db man-db/auto-update boolean false' | debconf-set-selections
-  apt-get update
-  apt-get -y full-upgrade
-
-  mkdir -p "$repo"
-  cp "$debs"/*.deb "$repo/"
-  apt-get install -y --no-install-recommends apt-utils ca-certificates
-  (cd "$repo" && apt-ftparchive packages . > Packages && apt-ftparchive release . > Release)
-  echo "deb [trusted=yes lang=none] file:$repo ./" > /etc/apt/sources.list.d/droiddeck.list
-  built=$(for deb in "$repo"/*.deb; do dpkg-deb -f "$deb" Package; done | sort -u | paste -sd' ')
-  printf 'Package: %s\nPin: version /\\+droiddeck/\nPin-Priority: 1001\n' "$built" > /etc/apt/preferences.d/droiddeck-built
-  apt-get update
-
-  grep -v '^$' "$here/packages-runtime.txt" | xargs apt-get install -y --no-install-recommends
-  install_held
-  build_package droiddeck-runtime "$here/overlay-runtime" "$here/protected-runtime.txt" "DroidDeck's Ubuntu runtime"
-
-  update-alternatives --install /usr/bin/sudo sudo /usr/local/bin/sudo 1000
-  update-alternatives --set sudo /usr/local/bin/sudo
-  divert_to /usr/bin/su /usr/local/bin/su droiddeck-runtime
-  multiarch=/usr/lib/aarch64-linux-gnu
-  ln -sf liblua5.4.so.0 "$multiarch/liblua.so.5.4"
-  divert_to "$multiarch/gamescope/libVkLayer_FROG_gamescope_wsi_aarch64.so" ../../libVkLayer_FROG_gamescope_wsi_aarch64.so droiddeck-runtime
-  install_turnip
-
-  mkdir -p /usr/share/droiddeck/apt /etc/droiddeck/proc /etc/droiddeck/empty /root/Desktop
-  cp -r "$here/proc/." /etc/droiddeck/proc/
-  echo "$runtime_id" > /usr/share/droiddeck/apt/runtime-id
-
-  echo "LANG=C.UTF-8" > /etc/default/locale
-  printf 'DroidDeck\n' > /etc/hostname
-  . /etc/os-release
-  printf 'NAME="%s"\nVERSION="%s"\nID=%s\nID_LIKE=debian\nPRETTY_NAME="%s"\nVERSION_ID="%s"\nVERSION_CODENAME=%s\nUBUNTU_CODENAME=%s\nHOME_URL="https://github.com/Droid-Deck/DroidDeck"\nSUPPORT_URL="https://github.com/Droid-Deck/DroidDeck/issues"\nBUG_REPORT_URL="https://github.com/Droid-Deck/DroidDeck/issues"\nLOGO=distributor-logo-steamdeck\nVARIANT="DroidDeck"\nVARIANT_ID=droiddeck\n' \
-    "$NAME" "$VERSION" "$ID" "$PRETTY_NAME" "$VERSION_ID" "$VERSION_CODENAME" "$UBUNTU_CODENAME" > /etc/os-release.droiddeck
-  dpkg-divert --package droiddeck-runtime --rename --divert /usr/lib/os-release.distrib --add /usr/lib/os-release
-  mv /etc/os-release.droiddeck /usr/lib/os-release
-  ln -sf ../usr/lib/os-release /etc/os-release
-  finish
-  exit 0
-fi
-
-[ "$stage" = desktop ] || { echo "unknown stage $stage" >&2; exit 1; }
+printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+chmod 755 /usr/sbin/policy-rc.d
+cp -r "$here/apt/." /etc/apt/
 sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
-install -d -m 0755 /etc/apt/keyrings
-install -m 0644 "$here/mozilla.asc" /etc/apt/keyrings/packages.mozilla.org.asc
-cat > /etc/apt/sources.list.d/mozilla.sources <<'EOF'
-Types: deb
-URIs: https://packages.mozilla.org/apt
-Suites: mozilla
-Components: main
-Signed-By: /etc/apt/keyrings/packages.mozilla.org.asc
-EOF
-cat > /etc/apt/preferences.d/mozilla <<'EOF'
-Package: firefox* thunderbird*
-Pin: origin packages.mozilla.org
-Pin-Priority: 1000
-EOF
+echo 'man-db man-db/auto-update boolean false' | debconf-set-selections
 apt-get update
-[[ $(apt-cache policy firefox) == *packages.mozilla.org* ]] || { echo "packages.mozilla.org is unreachable" >&2; exit 1; }
+apt-get -y full-upgrade
 
-grep -v '^$' "$here/packages-desktop.txt" | xargs apt-get install -y firefox
+mkdir -p "$repo"
+cp "$debs"/*.deb "$repo/"
+apt-get install -y --no-install-recommends apt-utils ca-certificates
+(cd "$repo" && apt-ftparchive packages . > Packages && apt-ftparchive release . > Release)
+echo "deb [trusted=yes lang=none] file:$repo ./" > /etc/apt/sources.list.d/droiddeck.list
+built=$(for deb in "$repo"/*.deb; do dpkg-deb -f "$deb" Package; done | sort -u | paste -sd' ')
+printf 'Package: %s\nPin: version /\\+droiddeck/\nPin-Priority: 1001\n' "$built" > /etc/apt/preferences.d/droiddeck-built
+apt-get update
+
+grep -v '^$' "$here/packages-runtime.txt" | xargs apt-get install -y --no-install-recommends
 install_held
-build_package droiddeck-desktop "$here/overlay-desktop" "$here/protected-desktop.txt" "DroidDeck's Plasma desktop"
+build_package droiddeck-runtime "$here/overlay-runtime" "$here/protected-runtime.txt" "DroidDeck's Ubuntu runtime"
 
-divert_to /usr/bin/pkexec /usr/local/bin/pkexec droiddeck-desktop
-divert_to /usr/lib/snapd/snap-confine /usr/local/bin/droiddeck-snap-confine droiddeck-desktop
-mkdir -p /snap/bin /var/lib/snapd/desktop/applications
-rm -rf /etc/skel/Desktop
+update-alternatives --install /usr/bin/sudo sudo /usr/local/bin/sudo 1000
+update-alternatives --set sudo /usr/local/bin/sudo
+divert_to /usr/bin/su /usr/local/bin/su droiddeck-runtime
+multiarch=/usr/lib/aarch64-linux-gnu
+ln -sf liblua5.4.so.0 "$multiarch/liblua.so.5.4"
+divert_to "$multiarch/gamescope/libVkLayer_FROG_gamescope_wsi_aarch64.so" ../../libVkLayer_FROG_gamescope_wsi_aarch64.so droiddeck-runtime
+install_turnip
+
+mkdir -p /etc/droiddeck/proc /etc/droiddeck/empty /root/Desktop
+cp -r "$here/proc/." /etc/droiddeck/proc/
+
+echo "LANG=C.UTF-8" > /etc/default/locale
+printf 'DroidDeck\n' > /etc/hostname
+. /etc/os-release
+printf 'NAME="%s"\nVERSION="%s"\nID=%s\nID_LIKE=debian\nPRETTY_NAME="%s"\nVERSION_ID="%s"\nVERSION_CODENAME=%s\nUBUNTU_CODENAME=%s\nHOME_URL="https://github.com/Droid-Deck/DroidDeck"\nSUPPORT_URL="https://github.com/Droid-Deck/DroidDeck/issues"\nBUG_REPORT_URL="https://github.com/Droid-Deck/DroidDeck/issues"\nLOGO=distributor-logo-steamdeck\nVARIANT="DroidDeck"\nVARIANT_ID=droiddeck\n' \
+  "$NAME" "$VERSION" "$ID" "$PRETTY_NAME" "$VERSION_ID" "$VERSION_CODENAME" "$UBUNTU_CODENAME" > /etc/os-release.droiddeck
+dpkg-divert --package droiddeck-runtime --rename --divert /usr/lib/os-release.distrib --add /usr/lib/os-release
+mv /etc/os-release.droiddeck /usr/lib/os-release
+ln -sf ../usr/lib/os-release /etc/os-release
 finish

@@ -265,9 +265,5 @@ object Library {
     }
 
     fun nameForProgram(program: String?): String? =
-        if (program == com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER) {
-            com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { appNames[it] ?: it.substringAfterLast('/') }
-        } else com.droiddeck.launcher.session.NoSteamLaunch.nameFor(program, com.droiddeck.launcher.session.SessionState.programArgs)
-
-    val appNames = java.util.concurrent.ConcurrentHashMap<String, String>()
+        com.droiddeck.launcher.session.NoSteamLaunch.nameFor(program, com.droiddeck.launcher.session.SessionState.programArgs)
 }

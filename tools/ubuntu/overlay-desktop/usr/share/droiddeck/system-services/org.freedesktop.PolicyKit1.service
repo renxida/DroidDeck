@@ -1,3 +1,0 @@
-[D-BUS Service]
-Name=org.freedesktop.PolicyKit1
-Exec=/usr/local/bin/droiddeck-polkitd

@@ -14,7 +14,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.animation.Crossfade
@@ -32,50 +31,31 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -84,14 +64,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.runtime.UserApps
-import com.droiddeck.launcher.store.UserAppsState
 import java.io.File
 
 
@@ -237,113 +212,7 @@ private fun Content(
         LibraryPage(s, a, selected, onSelect, modifier)
         return
     }
-    if (selected == "desktop") {
-        DesktopPage(s, a, modifier, onSelect)
-        return
-    }
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {
-        when {
-            selected.startsWith("user:") -> {
-                val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
-                if (app == null) Note(stringResource(R.string.user_apps_gone)) else UserAppPage(app, s, a, onSelect)
-            }
-            else -> Note(stringResource(R.string.content_page_gone))
-        }
-    }
-}
-
-@Composable
-private fun UserAppIcon(app: UserApps.App, size: Int) {
-    val shape = RoundedCornerShape((size / 5).dp)
-    if (app.icon != null) AsyncImage(
-        model = app.icon, contentDescription = app.name, contentScale = ContentScale.Fit,
-        modifier = Modifier.size(size.dp).clip(shape),
-    )
-    else Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.size(size.dp).clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Icon(Icons.Outlined.Terminal, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size((size / 2).dp))
-    }
-}
-
-@Composable
-private fun UserAppsProgress() {
-    val colors = MaterialTheme.colorScheme
-    val working = UserAppsState.working
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        if (working != null) {
-            val stage = UserAppsState.stage ?: stringResource(R.string.user_apps_starting)
-            val percent = UserAppsState.percent
-            Text(
-                if (percent >= 0) stringResource(R.string.user_apps_progress_percent, working, stage, percent) else stringResource(R.string.user_apps_progress, working, stage),
-                fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            if (percent >= 0) LinearProgressIndicator(progress = { percent / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp))
-            else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
-        } else UserAppsState.lastError?.let { Note(it) }
-    }
-}
-
-@Composable
-private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions, onSelect: (String) -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val ctx = LocalContext.current
-    val narrow = LocalNarrowPane.current
-    var editing by rememberSaveable(app.key) { mutableStateOf(false) }
-    Rise(1) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.padding(top = 12.dp, bottom = 12.dp),
-        ) {
-            UserAppIcon(app, 52)
-            Column {
-                Text(app.name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                Text(stringResource(R.string.user_apps_kind_script), fontSize = 14.sp, color = colors.onSurfaceVariant)
-            }
-        }
-    }
-    Rise(3) {
-        Actions {
-            PrimaryButton(stringResource(R.string.user_apps_open, app.name), enabled = !s.busy, main = true) { a.onUserApp(app) }
-            BusyChip(s)
-            SecondaryButton(stringResource(R.string.user_apps_edit), enabled = UserAppsState.working == null) { editing = true }
-            RemoveAppButton(app, enabled = !s.busy && !s.sessionRunning && UserAppsState.working == null) {
-                UserAppsState.remove(ctx, app); onSelect("desktop")
-            }
-            if (s.sessionRunning) ActionChip(stringResource(R.string.user_apps_stop_session), ok = false)
-        }
-    }
-    if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(4) { UserAppsProgress() }
-    if (editing) EditAppDialog(app, onDismiss = { editing = false }) { name, icon, fex -> UserAppsState.edit(ctx, app, name, icon, fex) }
-    val detail = app.detail
-    if (detail != null) Rise(4) {
-        Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-            Note(stringResource(if (app.copied) R.string.user_apps_script_copied else R.string.user_apps_script_linked, detail))
-        }
-    }
-}
-
-@Composable
-private fun RemoveAppButton(app: UserApps.App, enabled: Boolean, onRemove: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val label = stringResource(R.string.user_apps_remove)
-    val title = stringResource(R.string.flathub_remove_title, app.name)
-    val keep = stringResource(R.string.flathub_keep)
-    var at by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
-    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
-        SecondaryButton(label, enabled = enabled) {
-            val from = at ?: return@SecondaryButton
-            Steps.ask(StepAsk(
-                anchor = from, side = StepSide.Right, accent = colors.error, pillCorner = 12.dp, items = 2,
-                handle = { Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.error, maxLines = 1) },
-            ) {
-                StepTitle(title)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.stepItem(1)) {
-                    StepChoice(keep, enabled = open, modifier = Modifier.focusRequester(first)) { Steps.fold() }
-                    StepChoice(label, danger = true, enabled = open) { Steps.fold(); onRemove() }
-                }
-            })
-        }
+        Note(stringResource(R.string.content_page_gone))
     }
 }

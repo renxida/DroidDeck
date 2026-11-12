@@ -49,7 +49,7 @@ class NavigationSelectionTest {
             DroidDeckTheme {
                 SideRail(FrontEndState(
                     installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
-                    desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
+                    offlineAccount = null, offline = false, frameGenLabel = "",
                     logsEnabled = false, steamGames = emptyList(), running = null,
                 ), selected.value, { selected.value = it }, {}, actions, Modifier.size(300.dp, 600.dp))
             }
@@ -89,8 +89,8 @@ class NavigationSelectionTest {
     }
 
     private val actions = FrontEndActions(
-        onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {},
-        onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
+        onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {},
+        onResume = {}, onSteamSettings = {},
         onRuntime = {}, onFrameGenPick = {},
         onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
         onFiles = {}, onLogs = {}, onOffline = {},

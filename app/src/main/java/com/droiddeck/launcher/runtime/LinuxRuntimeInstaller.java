@@ -71,7 +71,6 @@ public final class LinuxRuntimeInstaller {
         volatile int percent = -1;
         volatile boolean ok;
         final boolean removal;
-        boolean maintenance;
         Job(boolean removal, String stage) { this.removal = removal; this.stage = stage; }
     }
 
@@ -126,7 +125,7 @@ public final class LinuxRuntimeInstaller {
         Job job;
         boolean owner;
         synchronized (JOB_LOCK) {
-            if (running != null && (running.removal || running.maintenance)) return false;
+            if (running != null && running.removal) return false;
             owner = running == null;
             if (owner) { running = new Job(false, context.getString(R.string.user_apps_starting)); removalError = null; }
             job = running;
@@ -147,13 +146,11 @@ public final class LinuxRuntimeInstaller {
                     for (ProgressListener l : job.listeners) l.onProgress(step, stage, percent);
                 }
             };
-            boolean desktop = DesktopCatalog.INSTANCE.desktopInstalled(app);
             if (packsOnly(app, release, progress)) {
                 job.ok = true;
                 return true;
             }
             job.ok = installOnce(app, release, progress);
-            if (job.ok && desktop) keepDesktop(app, progress);
             return job.ok;
         } finally {
             synchronized (JOB_LOCK) {
@@ -163,31 +160,9 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
-    private static void keepDesktop(Context context, ProgressListener progress) {
-        String problem;
-        try {
-            problem = DesktopCatalog.INSTANCE.install(context, DesktopCatalog.INSTANCE.desktopEntry(context), progress);
-        } catch (RuntimeException e) {
-            problem = e.toString();
-        }
-        if (problem == null) {
-            Log.i(TAG, "desktop installed again for the new runtime");
-            return;
-        }
-        Log.w(TAG, "desktop not installed again for the new runtime: " + problem);
-        boolean started = false;
-        for (DesktopCatalog.Entry entry : DesktopCatalog.INSTANCE.interrupted(context)) {
-            if (DesktopCatalog.DESKTOP_ID.equals(entry.getId())) started = true;
-        }
-        if (!started) return;
-        String undone = DesktopCatalog.INSTANCE.removeDesktop(context, progress);
-        if (undone == null) Log.i(TAG, "rolled back the partial desktop install");
-        else Log.w(TAG, "could not roll back the partial desktop install: " + undone);
-    }
-
     public static boolean isInstalling() {
         synchronized (JOB_LOCK) {
-            return running != null && !running.removal && !running.maintenance;
+            return running != null && !running.removal;
         }
     }
 
@@ -197,52 +172,6 @@ public final class LinuxRuntimeInstaller {
 
     public static boolean isRemoving() {
         synchronized (JOB_LOCK) { return running != null && running.removal; }
-    }
-
-    public static boolean isMaintaining() {
-        synchronized (JOB_LOCK) { return running != null && running.maintenance; }
-    }
-
-    public static Maintenance beginMaintenance(Context context, String stage) {
-        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning()) return null;
-        com.droiddeck.launcher.session.SessionPhase phase = com.droiddeck.launcher.session.SessionState.INSTANCE.getPhase();
-        if (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED) return null;
-        synchronized (JOB_LOCK) {
-            if (running != null) return null;
-            removalError = null;
-            running = new Job(false, stage);
-            running.maintenance = true;
-            return new Maintenance(running);
-        }
-    }
-
-    public interface MaintenanceWork { String run(ProgressListener listener); }
-
-    public static final class Maintenance {
-        private final Job job;
-        private final java.util.concurrent.atomic.AtomicBoolean started = new java.util.concurrent.atomic.AtomicBoolean();
-        private Maintenance(Job job) { this.job = job; }
-        public boolean run(ProgressListener listener, MaintenanceWork work) {
-            if (!started.compareAndSet(false, true)) return join(job, listener);
-            if (listener != null) job.listeners.add(listener);
-            try {
-                removalError = work.run((stage, percent) -> {
-                    job.stage = stage;
-                    job.percent = percent;
-                    for (ProgressListener l : job.listeners) l.onProgress(stage, percent);
-                });
-                job.ok = removalError == null;
-                return job.ok;
-            } catch (Exception e) {
-                removalError = e.getMessage();
-                Log.e(TAG, "maintenance", e);
-                return false;
-            } finally {
-                synchronized (JOB_LOCK) { running = null; }
-                job.done.countDown();
-                if (listener != null) job.listeners.remove(listener);
-            }
-        }
     }
 
     public static String removalError() { return removalError; }

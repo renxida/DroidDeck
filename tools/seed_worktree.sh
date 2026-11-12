@@ -10,7 +10,6 @@ paths=(
     app/build/packs app/build/localPackAssets app/build/packs-local-aside app/build/quest-inputs
     app/build/rustJniLibs app/build/vkbridgeJniLibs
     app/src/main/assets/directaudio app/src/main/assets/droiddeck-esync app/src/main/assets/linuxfs
-    app/src/main/assets/desktop-removal
     app/src/main/jniLibs/arm64-v8a
     app/src/main/rust/stores/target
 )

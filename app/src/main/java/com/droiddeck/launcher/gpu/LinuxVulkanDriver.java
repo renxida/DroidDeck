@@ -15,7 +15,7 @@ public final class LinuxVulkanDriver {
     public static final String ENV = "BL_VK_DRIVER";
 
     public static final String HELP_TEXT =
-            "The driver the Steam client, the games it launches and the desktop's programs render on, "
+            "The driver the Steam client, the games it launches and other Windows programs render on, "
             + "inside the Linux runtime. Imported \"-Linux\" Turnip zips only: these are Linux processes "
             + "and cannot load an Android or Wayland driver. Frames still reach the screen through the "
             + "display driver below. Takes effect at the next session start.";

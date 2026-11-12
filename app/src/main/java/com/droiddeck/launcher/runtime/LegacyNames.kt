@@ -10,18 +10,15 @@ object LegacyNames {
     private const val TAG = "LegacyNames"
     const val SESSION_SCRIPT = "/usr/local/bin/bannerlator-session"
     val SCRIPTS = listOf(
-        "bwrap", "desktop-games", "game-env", "login1", "netmanager", "proton-extra", "script-run",
+        "bwrap", "game-env", "login1", "netmanager", "proton-extra",
         "seed-redists", "session", "steam-games", "steam-install", "steam-launch",
-        "steam-library", "steam-shim", "steam-shortcuts",
+        "steam-library", "steam-shortcuts",
     )
     private val LINKED_DIRS = listOf("etc/bannerlator" to "etc/droiddeck", "usr/local/share/bannerlator" to "usr/local/share/droiddeck")
     private val MOVED_FILES = listOf(
         "etc/bannerlator-net" to "etc/droiddeck-net",
         "etc/bannerlator-network.json" to "etc/droiddeck-network.json",
         "etc/bannerlator-wifi-scan-request" to "etc/droiddeck-wifi-scan-request",
-    )
-    private val MENU_REWRITES = listOf(
-        Triple("usr/local/share/applications", "/usr/local/bin/bannerlator-", "/usr/local/bin/droiddeck-"),
     )
 
     @JvmStatic
@@ -36,7 +33,6 @@ object LegacyNames {
         migrateEtc(root)
         for ((old, new) in MOVED_FILES) move(File(root, old), File(root, new))
         linkScripts(root)
-        rewriteMenuEntries(root)
     }
 
     private fun isLink(f: File) = Files.isSymbolicLink(f.toPath())
@@ -90,21 +86,6 @@ object LegacyNames {
                 continue
             }
             replaceWithLink(legacy, target)
-        }
-    }
-
-    private fun rewriteMenuEntries(root: File) {
-        for ((dir, old, new) in MENU_REWRITES) {
-            val entries = File(root, dir).listFiles { f -> f.isFile && f.name.startsWith("droiddeck-") && f.name.endsWith(".desktop") } ?: continue
-            for (entry in entries) {
-                val text = FileUtils.readString(entry) ?: continue
-                if (!text.contains(old)) continue
-                val staged = File(entry.parentFile, entry.name + ".staged")
-                if (!FileUtils.writeString(staged, text.replace(old, new)) || !staged.renameTo(entry)) {
-                    staged.delete()
-                    Log.w(TAG, "could not rewrite $entry")
-                }
-            }
         }
     }
 }

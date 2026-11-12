@@ -223,7 +223,6 @@ object BwrapSpawner {
         val driver = runtimeLib(rootfs, "libvulkan_freedreno.so")
         if (driver == null || !File("/dev/kgsl-3d0").exists()) return null
         if (env.containsKey("VK_ICD_FILENAMES") || env.containsKey("VK_DRIVER_FILES")) return null
-        if (env["BL_DESKTOP"] == "1" && env["GAMESCOPE_WAYLAND_DISPLAY"] == null) return null
         val binds = arrayListOf(Bind(driver.canonicalPath, "$GPU_DIR/libvulkan_freedreno.so"))
         for (name in GPU_LIBS) {
             val f = runtimeLib(rootfs, name) ?: continue

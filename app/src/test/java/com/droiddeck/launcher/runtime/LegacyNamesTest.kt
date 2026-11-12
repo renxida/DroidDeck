@@ -46,27 +46,24 @@ class LegacyNamesTest {
     @Test fun oldScriptsBecomeLinksToTheNewOnes() {
         write("usr/local/bin/bannerlator-session", "old")
         write("usr/local/bin/droiddeck-session", "new")
-        write("usr/local/bin/bannerlator-script-run", "old")
-        write("usr/local/bin/droiddeck-script-run", "new")
+        write("usr/local/bin/bannerlator-steam-launch", "old")
+        write("usr/local/bin/droiddeck-steam-launch", "new")
         write("usr/local/bin/droiddeck-bwrap", "new")
         LegacyNames.migrateRootfs(root)
         assertEquals("droiddeck-session", link("usr/local/bin/bannerlator-session"))
         assertEquals("new", File(root, "usr/local/bin/bannerlator-session").readText())
-        assertEquals("droiddeck-script-run", link("usr/local/bin/bannerlator-script-run"))
+        assertEquals("droiddeck-steam-launch", link("usr/local/bin/bannerlator-steam-launch"))
         assertFalse(isLink("usr/local/bin/bannerlator-bwrap"))
         LegacyNames.migrateRootfs(root)
         assertEquals("new", File(root, "usr/local/bin/bannerlator-session").readText())
         assertFalse(File(root, "usr/local/bin/bannerlator-session.link").exists())
     }
 
-    @Test fun generatedFilesMoveOnceAndMenuEntriesPointAtTheNewScripts() {
+    @Test fun generatedFilesMoveOnce() {
         write("etc/bannerlator-net", "wlan0")
         write("etc/bannerlator-network.json", "{}")
         write("etc/droiddeck-network.json", "{\"new\":1}")
         write("usr/local/share/bannerlator/system-bus.conf", "<busconfig/>")
-        write("usr/local/share/applications/droiddeck-app-game.desktop",
-            "[Desktop Entry]\nExec=/usr/local/bin/bannerlator-script-run /opt/droiddeck-apps/game\n")
-        write("usr/local/share/applications/firefox.desktop", "Exec=/usr/local/bin/bannerlator-steam-launch\n")
         LegacyNames.migrateRootfs(root)
         assertEquals("wlan0", File(root, "etc/droiddeck-net").readText())
         assertFalse(File(root, "etc/bannerlator-net").exists())
@@ -74,9 +71,5 @@ class LegacyNamesTest {
         assertFalse(File(root, "etc/bannerlator-network.json").exists())
         assertEquals("<busconfig/>", File(root, "usr/local/share/droiddeck/system-bus.conf").readText())
         assertEquals("droiddeck", link("usr/local/share/bannerlator"))
-        assertEquals("[Desktop Entry]\nExec=/usr/local/bin/droiddeck-script-run /opt/droiddeck-apps/game\n",
-            File(root, "usr/local/share/applications/droiddeck-app-game.desktop").readText())
-        assertEquals("Exec=/usr/local/bin/bannerlator-steam-launch\n",
-            File(root, "usr/local/share/applications/firefox.desktop").readText())
     }
 }

@@ -21,7 +21,6 @@ def load(name):
 
 
 library = load("droiddeck-steam-library")
-desktop = load("droiddeck-desktop-games")
 COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
 
 
@@ -147,34 +146,6 @@ class CompatLibrariesTest(unittest.TestCase):
     def test_missing_list_still_reads_the_client_library(self):
         (self.steam / "steamapps/libraryfolders.vdf").unlink()
         self.assertEqual(str(self.steam), COMPAT["libraries"](str(self.steam))[0])
-
-
-class DesktopGamesTest(unittest.TestCase):
-    def test_games_in_registered_libraries_get_entries(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            steam, pc = root / "Steam", root / "Games/PC"
-            manifest(steam / "steamapps", 40, name="Internal")
-            manifest(pc / "steamapps", 50, name="Outside")
-            (steam / "steamapps/libraryfolders.vdf").write_text('"libraryfolders"\n{\n' + entry(0, steam) + entry(1, pc) + "}\n")
-            with patch.object(desktop, "STEAM_ROOT", str(steam)), patch.object(desktop, "APPS_DIR", str(root / "apps")), \
-                 patch.object(desktop, "LIBRARIES", ((str(steam), "Steam Games"), (str(root / "card"), "SD Games"))):
-                self.assertEqual({40: "Internal", 50: "Outside"}, desktop.write_entries())
-
-    def test_runtimes_and_compatibility_tools_get_none(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            steam = root / "Steam"
-            manifest(steam / "steamapps", 40, name="Game")
-            manifest(steam / "steamapps", 1628350, name="Steam Linux Runtime 3.0 (sniper)", installdir="SteamLinuxRuntime_sniper")
-            manifest(steam / "steamapps", 1826330, name="Proton EasyAntiCheat Runtime", installdir="Proton EasyAntiCheat Runtime")
-            manifest(steam / "steamapps", 1161040, name="Proton BattlEye Runtime", installdir="Proton BattlEye Runtime")
-            manifest(steam / "steamapps", 5000, name="Some Proton", installdir="Some Proton")
-            (steam / "steamapps/common/Some Proton").mkdir(parents=True)
-            (steam / "steamapps/common/Some Proton/toolmanifest.vdf").write_text('"manifest"\n{\n}\n')
-            with patch.object(desktop, "STEAM_ROOT", str(steam)), patch.object(desktop, "APPS_DIR", str(root / "apps")), \
-                 patch.object(desktop, "LIBRARIES", ((str(steam), "Steam Games"),)):
-                self.assertEqual({40: "Game"}, desktop.write_entries())
 
 
 if __name__ == "__main__":

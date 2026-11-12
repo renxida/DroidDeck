@@ -69,7 +69,6 @@ class AgentStartActivity : Activity() {
         val requestedMode = request.optString("mode")
         val sessionMode = when (requestedMode) {
             "steam" -> SessionService.MODE_STEAM
-            "desktop" -> SessionService.MODE_DESKTOP
             "run" -> SessionService.MODE_RUN
             else -> {
                 Log.e(TAG, "invalid agent session mode: $requestedMode")

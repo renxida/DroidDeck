@@ -200,27 +200,19 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
             when (page) {
                 InputPage.HOME -> {
                     SettingsGroup(stringResource(R.string.input_default_profiles)) {
-                        ChoiceRow(host, "auto-desktop", stringResource(R.string.input_desktop_mode), null,
-                            library.profiles.map { it.id to it.name }, library.desktop) { id -> update { it.copy(desktop = id) } }
                         ChoiceRow(host, "auto-game", stringResource(R.string.input_game_mode), null,
                             library.profiles.map { it.id to it.name }, library.steam) { id -> update { it.copy(steam = id) } }
-                        for (desktop in listOf(true, false)) {
-                            val selection = library.selection(desktop)
-                            if (selection.profile != InputProfiles.AUTO || selection.parts.isNotEmpty()) InputHint(stringResource(R.string.input_quick_override_hint,
-                                stringResource(if (desktop) R.string.input_desktop_mode else R.string.input_game_mode)))
-                        }
+                        val selection = library.selection(false)
+                        if (selection.profile != InputProfiles.AUTO || selection.parts.isNotEmpty()) InputHint(stringResource(R.string.input_quick_override_hint,
+                            stringResource(R.string.input_game_mode)))
                     }
                     if (InputLibraries.hasPendingScreenKeyMigration(context)) InputHint(stringResource(R.string.input_import_failed))
                     if (InputLibraries.hasLibraryRecovery(context)) InputHint(stringResource(R.string.input_library_recovered))
                     if (library.profiles.any { it.id.startsWith("migrated.screenkeys.") }) Text(stringResource(R.string.input_imported_keys_hint),
                         Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     SettingsGroup(stringResource(R.string.input_profiles)) {
-                        for (p in library.profiles) InputNavigationRow(p.name, when {
-                            p.id == library.steam && p.id == library.desktop -> stringResource(R.string.input_default_both)
-                            p.id == library.steam -> stringResource(R.string.input_default_game)
-                            p.id == library.desktop -> stringResource(R.string.input_default_desktop)
-                            else -> null
-                        }, Modifier.testTag("input-profile-${p.id}")) { profileId = p.id; go(InputPage.PROFILE) }
+                        for (p in library.profiles) InputNavigationRow(p.name,
+                            if (p.id == library.steam) stringResource(R.string.input_default_game) else null, Modifier.testTag("input-profile-${p.id}")) { profileId = p.id; go(InputPage.PROFILE) }
                         PadTextButton(onClick = { newProfile(false) }, modifier = Modifier.padding(8.dp)) { Text(stringResource(R.string.input_new_profile)) }
                     }
                     SettingsGroup(stringResource(R.string.input_device_settings)) {

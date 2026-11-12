@@ -16,11 +16,10 @@ object SteamLaunchOptions {
     fun current(context: Context, appId: Int): String? =
         SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: steam(SessionPrefs.activeSteamRoot(context), appId)
 
-    enum class Saved { YES, NO, DESKTOP }
+    enum class Saved { YES, NO }
 
     fun set(context: Context, appId: Int, options: String, shown: String): Saved {
         val value = options.trim()
-        if (SessionState.running && SessionState.mode == SessionService.MODE_DESKTOP) return Saved.DESKTOP
         if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) {
             val live = SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: return Saved.NO
             if (live.trim() != shown.trim()) return Saved.NO

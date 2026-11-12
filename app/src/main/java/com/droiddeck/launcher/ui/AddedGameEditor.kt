@@ -292,7 +292,6 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
                 val saved = withContext(Dispatchers.IO) { SteamLaunchOptions.set(app, appId, value, before) }
                 error = when (saved) {
                     SteamLaunchOptions.Saved.YES -> null
-                    SteamLaunchOptions.Saved.DESKTOP -> R.string.edit_launch_options_desktop
                     SteamLaunchOptions.Saved.NO -> R.string.edit_launch_options_not_saved
                 }
                 if (saved == SteamLaunchOptions.Saved.YES) {

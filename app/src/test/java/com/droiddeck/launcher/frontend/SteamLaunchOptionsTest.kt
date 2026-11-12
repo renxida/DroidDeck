@@ -147,15 +147,6 @@ class SteamLaunchOptionsTest {
         assertEquals("-dx12", SteamLaunchOptions.launchOptions(config.readText(), 1790600))
     }
 
-    @Test fun aDesktopSessionLeavesTheFileToItsClient() {
-        val config = sessionConfig()
-        val before = config.readText()
-        SessionState.running = true
-        SessionState.mode = SessionService.MODE_DESKTOP
-        assertEquals(SteamLaunchOptions.Saved.DESKTOP, SteamLaunchOptions.set(app, 1790600, "-dx12", shown = "-dx11"))
-        assertEquals(before, config.readText())
-    }
-
     @Test fun nothingIsWrittenWithoutASignedInAccountsConfig() {
         assertFalse(SteamLaunchOptions.write(tmp.newFolder("NoSteam"), 1790600, "-dx11"))
         val home = steamHome()

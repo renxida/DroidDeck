@@ -11,7 +11,7 @@ if [ "${BL_RAISE_NOFILE:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ]; then
   unset bl_nofile_was
 fi
 export HOME=${HOME:-/root}
-mode=${1:-desktop}
+mode=${1:-steam}
 shift || true
 step() { echo "== STEP $(date -u +%H:%M:%S.%3N) $*"; }
 steam_setup_failed() {
@@ -108,7 +108,7 @@ prepare_locale() {
 
 clear_stale_tmp() {
   local running names=() n
-  running=$(pgrep -af 'steamwebhelper|steamrtarm64/steam|steamrt64/steam|--type=|dbus-run-session|dbus-daemon.*--session|dbus-launch|kwin|plasmashell' 2>/dev/null)
+  running=$(pgrep -af 'steamwebhelper|steamrtarm64/steam|steamrt64/steam|--type=|dbus-run-session|dbus-daemon.*--session|dbus-launch' 2>/dev/null)
   case $running in
     *steamwebhelper* | *steamrtarm64/steam* | *steamrt64/steam*) ;;
     *) names+=(-o -name 'mangohud.????????' -o -name '.com.valvesoftware.Steam.??????'
@@ -118,10 +118,6 @@ clear_stale_tmp() {
   case $running in
     *dbus-run-session* | *dbus-daemon*--session* | *dbus-launch*) ;;
     *) names+=(-o \( -type s -name 'dbus-??????????' \)) ;;
-  esac
-  case $running in
-    *kwin* | *plasmashell*) ;;
-    *) names+=(-o \( -type d -empty -name 'plasma-csd-generator.??????' \)) ;;
   esac
   [ ${#names[@]} -gt 0 ] || return 0
   n=$(find /tmp -mindepth 1 -maxdepth 1 \( "${names[@]:1}" \) -print -exec rm -rf {} + 2>/dev/null | wc -l)
@@ -399,10 +395,6 @@ export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
 rm -f "${XDG_RUNTIME_DIR:-/run/droiddeck}/droiddeck-remote-play"
-if [ "$mode" = lxqt ] || [ "$mode" = desktop ]; then
-  /usr/local/bin/droiddeck-desktop-bookmarks || true
-  /usr/local/bin/droiddeck-downloads || true
-fi
 
 client_single_core_matches() {
   local wanted=$1 task key cpus
@@ -464,31 +456,6 @@ if [ -z "${BL_INSIDE:-}" ]; then
     wayland-info >/dev/null 2>&1 && break
     sleep 0.1
   done
-  if [ "$mode" = lxqt ]; then
-    step "starting the desktop"
-    start_agent --no-focus
-    [ -x /usr/local/bin/droiddeck-desktop ] || { echo "== the desktop package is not installed"; exit 66; }
-    if command -v dbus-daemon >/dev/null 2>&1 && command -v droiddeck-netmanager >/dev/null 2>&1; then
-      write_system_bus_config
-      dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork --nopidfile &
-      for _ in $(seq 1 50); do
-        [ -S /run/dbus/system_bus_socket ] && break
-        nap 0.1
-      done
-      if [ -S /run/dbus/system_bus_socket ]; then
-        droiddeck-login1 --with-netmanager &
-        echo "== desktop: system bus up, network and power services running"
-      else
-        echo "== desktop: the system bus did not come up"
-      fi
-    fi
-    cores=$(program_cores)
-    if [ -n "$cores" ]; then
-      echo "== desktop cores: $cores (the desktop and every program started from it)"
-      taskset -cp "$cores" $$ >/dev/null 2>&1 || echo "== desktop cores: not allowed right now, every core"
-    fi
-    exec /usr/local/bin/droiddeck-desktop
-  fi
   width=${BL_WIDTH:-1280}
   height=${BL_HEIGHT:-720}
   nested=$width
@@ -599,16 +566,13 @@ reap_orphans() {
   done
 }
 
-if [ "${BL_DESKTOP:-}" != 1 ] && [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard ]; then
+if [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard ]; then
   /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
 fi
 
-[ "${BL_DESKTOP:-}" = 1 ] || start_agent
+start_agent
 
 case $mode in
-  desktop)
-    exec pcmanfm
-    ;;
   run)
     target=${1:?program path}
     shift
@@ -991,7 +955,7 @@ case $mode in
           step "zRAM: done ($(bl_zram_usage "${_pids[@]}"))"
         }
         bl_game_focused() {
-          if [ "${BL_DESKTOP:-}" = 1 ] || [ -z "${BL_LAUNCH_DIR:-}" ]; then
+          if [ -z "${BL_LAUNCH_DIR:-}" ]; then
             return 0
           fi
           local id
@@ -1068,8 +1032,8 @@ case $mode in
         done
       ) &
     fi
-    if [ "${BL_LAUNCHER_CORES:-1}" != 0 ] && [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ] \
-       && [ "${BL_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
+    if [ "${BL_LAUNCHER_CORES:-1}" != 0 ] && [ -n "${BL_LAUNCH_DIR:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ] \
+       && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
       /usr/local/bin/droiddeck-launcher-cores "$BL_LAUNCH_DIR/agent/focus.json" 2>&1 &
     fi
 
@@ -1078,7 +1042,7 @@ case $mode in
     droiddeck-steam-library "$steam_root" || true
     step "setting up the ARM64 Proton compatibility tool"
     steam-compatibility "$steam_root" || true
-    if [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
+    if [ "${BL_STEAM_UI:-}" != desktop ]; then
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
     fi
     if [ -n "${BL_ADDED_GAMES:-}" ]; then
@@ -1096,7 +1060,7 @@ case $mode in
       step "pointing the x86-64 client's Windows titles at $_bl_x64_tool"
       BL_COMPAT_TOOL=$_bl_x64_tool steam-compatibility "$steam_root" --x64 || true
     fi
-    if [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
+    if [ "${BL_STEAM_UI:-}" != desktop ]; then
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
     fi
     droiddeck-seed-redists "$steam_root" || true
@@ -1151,7 +1115,7 @@ case $mode in
         ) &
       fi
     fi
-    [ -z "${BL_DESKTOP:-}" ] && (
+    (
       stretch=0 restore=0
       [ "${BL_STRETCHED:-0}" = 1 ] && stretch=1
       [ "${BL_RESTORE_ON_RESUME:-1}" = 1 ] && restore=1
@@ -1246,7 +1210,7 @@ case $mode in
         echo "== steam: the game took focus while waiting; not launching again"
       fi
     }
-    if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then
+    if [ -n "${BL_LAUNCH_DIR:-}" ]; then
       _bl_held=
       _bl_uninstall=
       _bl_rest=()
@@ -1370,10 +1334,6 @@ case $mode in
     # none); only the system-PowerVR path (BL_STEAM_GL_PRESENT=1) changes them.
     _bl_cef=(-cef-force-gpu "${bl_steam_presentation[@]}" -cef-use-gl=angle "-cef-use-angle=${bl_steam_angle:-vulkan}")
     [ "${steam_cef_gpu:-1}" = 1 ] || _bl_cef=(-cef-disable-gpu)
-    if [ "${BL_DESKTOP:-}" = 1 ] && [ "${BL_STEAM_UI:-}" = desktop ]; then
-      _bl_cef=(-cef-disable-gpu)
-      _bl_ui=(-nobigpicture)
-    fi
     if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
       # On the GPU the Steam UI held about 400 MB through the bridge (Mali-G76 MC4, 3 GB of RAM); with
       # a game loading beside it, Android's low-memory killer took the whole session down.
@@ -1756,7 +1716,7 @@ case $mode in
         echo "== steam: client branch on disk was '$(cat "$steam_beta" 2>/dev/null)', set to '$steam_channel' to match -clientbeta"
         echo "$steam_channel" > "$steam_beta"
       fi
-      if [ -z "${_bl_counted:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then
+      if [ -z "${_bl_counted:-}" ]; then
         echo start >> "$steam_root/package/droiddeck-unconfirmed"
         _bl_counted=1
       fi
@@ -1865,15 +1825,9 @@ case $mode in
       kill "$games_watcher" 2>/dev/null || true
       wait "$games_watcher" 2>/dev/null || true
     fi
-    if [ -n "${BL_DESKTOP:-}" ]; then
-      _bl_jobs=$(jobs -p)
-      [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
-      echo "== steam: the client on the desktop has exited"
-    else
-      _bl_jobs=$(jobs -p)
-      [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
-      reap_orphans
-    fi
+    _bl_jobs=$(jobs -p)
+    [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
+    reap_orphans
     if [ -n "${BL_STEAM_EXIT_FILE:-}" ]; then
       printf '%s\n' "$rc" > "$BL_STEAM_EXIT_FILE"
     fi

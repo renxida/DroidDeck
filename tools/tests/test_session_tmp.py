@@ -12,11 +12,9 @@ SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/d
 STEAM = ["mangohud.Ab3dE6gH", ".com.valvesoftware.Steam.x1Y2z3/", "steam_chrome_shmem_uid10480_0", "steamADfAnd/"]
 CHROMIUM = ["scoped_dir3yu9Xt/SingletonSocket"]
 BUS = ["dbus-1zWfOP1IaR="]
-KDE = ["plasma-csd-generator.BVWIWA/"]
-STALE = STEAM + CHROMIUM + BUS + KDE
+STALE = STEAM + CHROMIUM + BUS
 KEPT = ["droiddeck-mangohud.conf", ".X11-unix/", "steamworks", "steamABCDEF/inside", "notes.txt",
-        "mangohud.conf", ".wine-10480/", "dbus-1zWfOP1IaR.log", "dbus-notasocket",
-        "plasma-csd-generator.CQGZSw/kept"]
+        "mangohud.conf", ".wine-10480/", "dbus-1zWfOP1IaR.log", "dbus-notasocket"]
 
 
 def sweep_function(tmp):
@@ -56,7 +54,7 @@ class SessionTmpTest(unittest.TestCase):
         return os.path.lexists(self.tmp / name.rstrip("=").split("/")[0])
 
     def test_what_killed_sessions_left_goes_and_nothing_else(self):
-        self.assertEqual("== /tmp: cleared 7 entries earlier sessions left\n", self.sweep())
+        self.assertEqual("== /tmp: cleared 6 entries earlier sessions left\n", self.sweep())
         for name in STALE:
             self.assertFalse(self.exists(name), name)
         for name in KEPT:
@@ -78,9 +76,6 @@ class SessionTmpTest(unittest.TestCase):
 
     def test_the_system_bus_is_not_a_session_bus(self):
         self.kept_while("55 dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork\n", [])
-
-    def test_a_running_desktop_keeps_its_decorations(self):
-        self.kept_while("44 kwin_wayland --xwayland\n", KDE)
 
     def test_a_clean_tmp_says_nothing(self):
         self.sweep()

@@ -101,7 +101,6 @@ filenames overlap. The upgraded CLI refuses to overwrite those files to preserve
 tools/droiddeckctl state
 tools/droiddeckctl start steam --wait
 tools/droiddeckctl start steam --wait --reuse
-tools/droiddeckctl start desktop
 tools/droiddeckctl run /usr/bin/foo -- arg1 arg2
 tools/droiddeckctl wait ready|idle|failed
 tools/droiddeckctl stop

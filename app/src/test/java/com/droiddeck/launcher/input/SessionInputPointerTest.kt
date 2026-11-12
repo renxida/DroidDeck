@@ -39,7 +39,7 @@ class SessionInputPointerTest {
         output = ReflectionHelpers.getField(activity, "inputOutput")
         ReflectionHelpers.setField(activity, "surfaceView", SurfaceView(activity).apply { layout(0, 0, 1000, 600) })
         SessionState.outputSize = 1600 to 900
-        SessionState.mode = SessionService.MODE_DESKTOP
+        SessionState.mode = SessionService.MODE_RUN
         InputProfiles.resetAll(activity)
         InputProfiles.select(activity, InputProfile.DESKTOP)
         refresh()
@@ -56,7 +56,7 @@ class SessionInputPointerTest {
         SessionState.mode = previousMode
     }
 
-    @Test fun desktopMouseButtonsKeepTheVisibleCursorAndDeliverImmediately() {
+    @Test fun mouseButtonsKeepTheVisibleCursorAndDeliverImmediately() {
         state<Offset>("cursorPos").value = Offset(500f, 300f)
         state<Boolean>("cursorVisible").value = true
         output.button(272, true)
@@ -145,19 +145,6 @@ class SessionInputPointerTest {
         held.set(64, 29, false)
         assertEquals(listOf(29 to 1, 29 to 0), CompositorShadow.keys)
         assertEquals(listOf(Triple(4, 1, 0)), CompositorShadow.events)
-    }
-
-    @Test fun desktopRightCtrlUsesUpstreamAliasWithoutReleasingTheProfileHold() {
-        fun hardwareCtrl(down: Boolean) = ReflectionHelpers.callInstanceMethod<Unit>(activity, "sendGuestKey",
-            ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 97),
-            ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, down),
-            ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 8))
-        output.key(29, true)
-        hardwareCtrl(true)
-        hardwareCtrl(false)
-        assertEquals(listOf(29 to 1), CompositorShadow.keys)
-        output.key(29, false)
-        assertEquals(listOf(29 to 1, 29 to 0), CompositorShadow.keys)
     }
 
     @Test fun routedMouseUsesRawBackendAndKeepsSharedButtonOwnership() {

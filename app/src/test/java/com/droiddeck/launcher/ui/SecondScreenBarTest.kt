@@ -134,20 +134,18 @@ class SecondScreenBarTest {
     }
 
     @Test fun nonSteamSessionsHideSteamAndQuickAccess() {
-        for (mode in listOf(SessionService.MODE_DESKTOP, SessionService.MODE_RUN)) {
-            SessionState.mode = mode
-            SessionState.deckPad = true
-            val panel = presentation()
-            try {
-                panel.show()
-                for (panelMode in listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.DECK_CONTROLS)) {
-                    panel.showMode(panelMode)
-                    val bar = panel.barModel(panelMode)!!
-                    assertNull(bar.onSteam); assertNull(bar.onQam)
-                    assertNotNull(bar.onClose); assertNotNull(bar.onMenu)
-                }
-            } finally { panel.closeControls() }
-        }
+        SessionState.mode = SessionService.MODE_RUN
+        SessionState.deckPad = true
+        val panel = presentation()
+        try {
+            panel.show()
+            for (panelMode in listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.DECK_CONTROLS)) {
+                panel.showMode(panelMode)
+                val bar = panel.barModel(panelMode)!!
+                assertNull(bar.onSteam); assertNull(bar.onQam)
+                assertNotNull(bar.onClose); assertNotNull(bar.onMenu)
+            }
+        } finally { panel.closeControls() }
         val stock = InputLibraries.read(context).layouts.filter { it.id == InputLibraries.DECK || it.id == InputLibraries.TRACKPAD }
         assertTrue(stock.all { layout -> layout.elements.none { it.id.startsWith("command:") } })
     }
@@ -214,7 +212,7 @@ class SecondScreenBarTest {
     }
 
     @Test fun swappedTopScreenDeckPanelHasTabs() {
-        SessionState.mode = SessionService.MODE_DESKTOP
+        SessionState.mode = SessionService.MODE_RUN
         SessionState.deckPad = true
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         ReflectionHelpers.getField<MutableState<SecondScreenMode>>(activity, "secondScreenMode\$delegate").value = SecondScreenMode.DECK_CONTROLS

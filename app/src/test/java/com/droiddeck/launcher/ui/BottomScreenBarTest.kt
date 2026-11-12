@@ -23,7 +23,7 @@ class BottomScreenBarTest {
     private val context = RuntimeEnvironment.getApplication()
 
     @After fun reset() {
-        SessionState.mode = SessionService.MODE_DESKTOP
+        SessionState.mode = SessionService.MODE_RUN
     }
 
     @Test fun steamSessionsGetSteamAndQuickAccess() {
@@ -40,7 +40,7 @@ class BottomScreenBarTest {
     }
 
     @Test fun otherSessionsLeaveSteamOut() {
-        SessionState.mode = SessionService.MODE_DESKTOP
+        SessionState.mode = SessionService.MODE_RUN
         val model = sessionBarModel("Trackpad", {}, {}, {}, {})
         assertNull(model.onSteam)
         assertNull(model.onQam)

@@ -158,18 +158,16 @@ echo "restored:$_bl_unpack"
         script = '''
 %s
 check() {
-  BL_DESKTOP=$1 BL_LAUNCH_DIR=$2 _bl_apps=$3
+  BL_LAUNCH_DIR=$1 _bl_apps=$2
   if bl_game_focused; then echo yes; else echo no; fi
 }
-check "" "$dir" " 413150"
-check "" "$dir" " 1245620"
+check "$dir" " 413150"
+check "$dir" " 1245620"
 printf '%%s\\n' '{"focusedApp": 999}' > "$dir/agent/focus.json"
-check "" "$dir" " 413150"
+check "$dir" " 413150"
 printf '%%s\\n' '{"focusedApp": 769}' > "$dir/agent/focus.json"
-check "" "$dir" " 413150"
-rm -f "$dir/agent/focus.json"
-check 1 "$dir" " 413150"
-check "" "" " 413150"
+check "$dir" " 413150"
+check "" " 413150"
 ''' % focus
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -178,7 +176,7 @@ check "" "" " 413150"
         (launch / 'agent' / 'focus.json').write_text('{"t": 1, "focusedApp": 413150}\n')
         result = run_bash('dir=%s\n%s' % (launch, script))
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(['yes', 'no', 'no', 'no', 'yes', 'yes'], result.stdout.splitlines())
+        self.assertEqual(['yes', 'no', 'no', 'no', 'yes'], result.stdout.splitlines())
 
     @staticmethod
     def write_cmd(root, pid, args):

@@ -109,21 +109,12 @@ object SessionPrefs {
         prefs(context).edit().remove("dualScreenLauncher").putString("dualScreenMode", launcher).putString("dualScreenSessionMode", mode).apply()
     }
 
-    fun secondScreenPanel(context: Context, desktop: Boolean): String? = prefs(context).let {
-        it.getString(secondScreenPanelKey(desktop), null) ?: if (desktop) null else it.getString("secondScreenPanel", null)?.takeIf { id -> id != "custom-controls" }
+    fun secondScreenPanel(context: Context): String? = prefs(context).let {
+        it.getString("secondScreenPanel.game", null) ?: it.getString("secondScreenPanel", null)?.takeIf { id -> id != "custom-controls" }
     }
 
-    fun setSecondScreenPanel(context: Context, desktop: Boolean, mode: String) {
-        prefs(context).edit().putString(secondScreenPanelKey(desktop), mode).apply()
-    }
-
-    private fun secondScreenPanelKey(desktop: Boolean) = if (desktop) "secondScreenPanel.desktop" else "secondScreenPanel.game"
-
-    /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */
-    fun bottomDesktopDirectTouch(context: Context): Boolean = prefs(context).getBoolean("bottomDesktopDirectTouch", false)
-
-    fun setBottomDesktopDirectTouch(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("bottomDesktopDirectTouch", on).apply()
+    fun setSecondScreenPanel(context: Context, mode: String) {
+        prefs(context).edit().putString("secondScreenPanel.game", mode).apply()
     }
 
     fun statsStrip(context: Context): String? = prefs(context).getString("statsStrip", null)
@@ -1031,7 +1022,6 @@ object SessionPrefs {
 
     const val STARTUP_OFF = ""
     const val STARTUP_STEAM = "steam"
-    const val STARTUP_DESKTOP = "desktop"
 
     fun startupSession(context: Context): String {
         val p = prefs(context)
@@ -1372,11 +1362,6 @@ object SessionPrefs {
     }
 
     fun prefMode(mode: String): String = if (mode == SessionService.MODE_RUN) SessionService.MODE_STEAM else mode
-
-    fun displayMode(context: Context, mode: String, program: String?): String =
-        if (mode == SessionService.MODE_RUN && com.droiddeck.launcher.runtime.UserApps.launches(program) &&
-            resolutionChosen(context, SessionService.MODE_DESKTOP)) SessionService.MODE_DESKTOP
-        else prefMode(mode)
 
     fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", true)
 

@@ -63,7 +63,7 @@ class SessionKeyboardPadTest {
     }
 
     @Test fun steamsKeyboardLeavesThePadAloneOutsideSteam() {
-        SessionState.mode = SessionService.MODE_DESKTOP
+        SessionState.mode = SessionService.MODE_RUN
         SessionPrefs.setOscMode(activity, SessionPrefs.OSC_ALWAYS)
         steamKeyboard(true)
         update()

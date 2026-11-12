@@ -23,9 +23,7 @@ import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.SessionActivity
-import com.droiddeck.launcher.session.BottomDesktop
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 
 class SecondScreenPresentation(
@@ -187,8 +185,7 @@ class SecondScreenPresentation(
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD ||
-            currentMode == SecondScreenMode.DESKTOP
+        val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD
         val back = event.keyCode == KeyEvent.KEYCODE_BACK && currentMode == SecondScreenMode.DASHBOARD
         val forward = menuShown || !ownKeys || back || PadBridge.isControllerKeyEvent(event)
         if (forward && sessionActivity.dispatchKeyEvent(event)) return true
@@ -245,7 +242,6 @@ class SecondScreenPresentation(
         val mode = when {
             requested == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad -> SecondScreenMode.NONE
             requested == SecondScreenMode.DASHBOARD && dashboard == null -> SecondScreenMode.NONE
-            requested == SecondScreenMode.DESKTOP && !BottomDesktop.available() -> SecondScreenMode.NONE
             else -> requested
         }
         if (mode == SecondScreenMode.NONE) return
@@ -263,16 +259,12 @@ class SecondScreenPresentation(
                 attachKeyboard()
             }
             SecondScreenMode.DASHBOARD -> renderDashboard()
-            SecondScreenMode.DESKTOP -> {
-                root.addView(BottomDesktopPanel(context, onClose, onMenu,
-                    (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap), weightParams())
-            }
             SecondScreenMode.NONE -> Unit
         }
     }
 
     private fun panelLayout(mode: SecondScreenMode) = com.droiddeck.launcher.input.InputLibraries.read(context)
-        .panelLayout(SessionState.mode == SessionService.MODE_DESKTOP, mode.panel(context))
+        .panelLayout(false, mode.panel(context))
 
     private fun bar(mode: SecondScreenMode) {
         val first = barModel(mode) ?: return

@@ -1,8 +1,0 @@
-[Module-bluedevil]
-autoload=false
-
-[Module-kded_bolt]
-autoload=false
-
-[Module-smart]
-autoload=false

@@ -93,8 +93,6 @@ class FrontEndState(
     val busy: Boolean,
     val stage: String,
     val percent: Int,
-    val desktopInstalled: Boolean,
-    val desktopPresent: Boolean = desktopInstalled,
     val offlineAccount: String?,
     val offline: Boolean,
     val frameGenLabel: String,
@@ -186,13 +184,9 @@ class FrontEndActions(
     val onSgdbKey: (String) -> Unit = {},
     val onStopGameFileSync: () -> Unit = {},
     val onCopyGameLink: (Library.SteamGame) -> Unit = {},
-    val onDesktop: () -> Unit,
-    val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
     val onResume: () -> Unit,
     val onSteamSettings: () -> Unit,
-    val onDesktopSettings: () -> Unit,
     val modeSheet: @Composable (mode: String, tab: String, extras: SheetExtras) -> Unit = { _, _, _ -> },
-    val onRemoveDesktop: () -> Unit = {},
     val onRuntime: () -> Unit,
     val onVkBridge: (Boolean) -> Unit = {},
     val onVenus: (Boolean) -> Unit = {},
@@ -500,12 +494,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     remember(density) { Hops.density = density; true }
-    BackHandler(
-        enabled = !processSettingsPageVisible && (s.pageKey == null || page == null) &&
-            (selected.startsWith("user:")),
-    ) {
-        selected = "desktop"
-    }
     LaunchedEffect(s.steamGames.isEmpty()) {
         if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.appId(selected) != null) selected = "games"
     }
@@ -516,7 +504,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         s.pageKey == "performance" -> "steam"
         s.pageKey == "controller-mapping" -> "setup"
         selected.startsWith("app:") -> "games"
-        selected.startsWith("user:") -> "desktop"
         else -> s.pageKey ?: selected
     }
     val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
@@ -729,9 +716,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
     }
     val hasBackTarget = (s.pageKey != null && page != null) ||
-        (s.pageKey == null && Hops.origin?.page == selected) ||
-        ((s.pageKey == null || page == null) &&
-            (selected.startsWith("user:")))
+        (s.pageKey == null && Hops.origin?.page == selected)
     BackHandler(enabled = !processSettingsPageVisible && !hasBackTarget) {
         if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
         runCatching { frontFocus.railFor(railSelection).requestFocus() }

@@ -13,22 +13,19 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
     TERMINAL("terminal", R.string.second_mode_terminal),
     DECK_CONTROLS("deck-controls", R.string.second_mode_deck_controls, InputStockLayouts.DECK),
     CUSTOM_CONTROLS("custom-controls", R.string.input_profile_controls_mode),
-    DASHBOARD("dashboard", R.string.second_mode_dashboard),
-    DESKTOP("desktop", R.string.second_mode_desktop);
+    DASHBOARD("dashboard", R.string.second_mode_dashboard);
 
     val controls: Boolean get() = this == CUSTOM_CONTROLS || bindings != null
 
     fun panel(context: Context): String? = if (this == DECK_CONTROLS) SessionPrefs.deckPanel(context).bindings else bindings
 
     companion object {
-        fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false, desktopSession: Boolean = false): SecondScreenMode {
+        fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false): SecondScreenMode {
             entries.firstOrNull {
-                it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD || dashboard) &&
-                    (it != DESKTOP || bottomDesktop)
+                it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD || dashboard)
             }?.let { return it }
             val picked = entries.any { it != NONE && it.id == remembered }
             return when {
-                desktopSession -> KEYBOARD_TRACKPAD
                 deckPad -> DECK_CONTROLS
                 dashboard && !picked -> DASHBOARD
                 else -> KEYBOARD_TRACKPAD

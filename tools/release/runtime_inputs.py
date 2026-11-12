@@ -1,5 +1,4 @@
 import hashlib
-import gzip
 import importlib.util
 import json
 from pathlib import Path
@@ -22,7 +21,7 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
-                'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
+                'tools/release/runtime_inputs.py',
                 'tools/quest', 'tools/gpuload',
                 'app/src/main/cpp/venc/venc_proto.h',
                 'app/src/main/cpp/adrenotools/src/hook/kgsl.h',
@@ -50,7 +49,7 @@ def sources(root):
 
 def outputs(root):
     result = {}
-    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal', 'hybris']:
+    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'hybris']:
         base = root / 'app/src/main/assets' / tree
         for path in base.rglob('*'):
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
@@ -94,9 +93,6 @@ def required():
     paths += ['assets/droiddeck-esync/index.json', 'assets/droiddeck-esync/index.json.sig',
               'lib/arm64-v8a/libproot.so', 'lib/arm64-v8a/libproot-loader.so',
               'lib/arm64-v8a/libdirectaudiorelay.so', 'assets/pulseaudio.tzst']
-    paths += ['assets/desktop-removal/' + name for name in
-              ['lxqt-r1.tsv.gzip', 'kde-remove.tsv.gzip', 'kde-keep.txt.gzip',
-               'emulators-keep.txt.gzip', 'versions.txt', 'sources.json']]
     paths += ['assets/hybris/runtime.tzst', 'assets/hybris/version.txt']
     return paths
 
@@ -120,12 +116,6 @@ def record(root=ROOT):
     if missing:
         raise ValueError('Missing runtime inputs:\n' + '\n'.join(missing))
     verify_powervr(root)
-    for name, path in paths.items():
-        if name.startswith('assets/desktop-removal/') and name.endswith('.gzip'):
-            try:
-                gzip.decompress((root / path).read_bytes())
-            except (OSError, EOFError) as error:
-                raise ValueError('Invalid desktop removal inventory: ' + name) from error
     process = subprocess.Popen(['zstd', '-dc', str(root / paths['assets/pulseaudio.tzst'])], stdout=subprocess.PIPE)
     try:
         with tarfile.open(fileobj=process.stdout, mode='r|') as archive:

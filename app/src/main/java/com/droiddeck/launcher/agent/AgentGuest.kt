@@ -22,8 +22,6 @@ object AgentGuest {
         private set
     var steamKeyboard by mutableStateOf(false)
         private set
-    var desktopTextField by mutableStateOf(false)
-        private set
     var keyboardRequests by mutableIntStateOf(0)
         private set
     var keyboardDismissals by mutableIntStateOf(0)
@@ -44,7 +42,7 @@ object AgentGuest {
             observer?.stopWatching()
             observer = null
             lastFocusKey = null
-            main.post { steamKeyboard = false; desktopTextField = false }
+            main.post { steamKeyboard = false }
             val dir = dir(context)
             dir.deleteRecursively()
             dir.mkdirs()
@@ -60,7 +58,6 @@ object AgentGuest {
                         }
                         "focus.json" -> readJson(File(dir, path))?.let(::recordFocus)
                         "keyboard.json" -> readJson(File(dir, path))?.let { recordKeyboard(this, it) }
-                        "ime.json" -> readJson(File(dir, path))?.let { recordTextField(this, it) }
                         "wine-ime.json" -> readJson(File(dir, path))?.let { recordGameTextField(this, it) }
                         "keyboard-request.json" -> readJson(File(dir, path))?.let { recordKeyboardRequest(this) }
                         "keyboard-dismiss.json" -> readJson(File(dir, path))?.let { recordKeyboardDismiss(this) }
@@ -74,7 +71,7 @@ object AgentGuest {
         synchronized(lock) {
             observer?.stopWatching()
             observer = null
-            main.post { steamKeyboard = false; desktopTextField = false }
+            main.post { steamKeyboard = false }
         }
     }
 
@@ -121,15 +118,6 @@ object AgentGuest {
             main.post { steamKeyboard = showing }
         }
         SessionEvents.record("keyboard.changed", mapOf("steamKeyboard" to showing, "seq" to snapshot.optInt("seq")))
-    }
-
-    private fun recordTextField(source: FileObserver, snapshot: JSONObject) {
-        val focused = snapshot.optBoolean("textField")
-        synchronized(lock) {
-            if (source !== observer) return
-            main.post { desktopTextField = focused }
-        }
-        SessionEvents.record("ime.changed", mapOf("textField" to focused, "seq" to snapshot.optInt("seq")))
     }
 
     private fun recordGameTextField(source: FileObserver, snapshot: JSONObject) {

@@ -22,7 +22,7 @@ class RuntimeInstallService : Service() {
         if (intent?.action == ACTION_PACKAGE) return holdPackage(startId)
         val removal = intent?.action == ACTION_REMOVE
         val release = intent?.let(::releaseFrom)
-        startForeground(NOTIFICATION_ID, notification(getString(if (LinuxRuntimeInstaller.isMaintaining()) R.string.desktop_removing else if (removal) R.string.rtinst_removing else R.string.user_apps_starting), -1))
+        startForeground(NOTIFICATION_ID, notification(getString(if (removal) R.string.rtinst_removing else R.string.user_apps_starting), -1))
         if (release == null && !removal) {
             stopSelf(startId)
             return START_NOT_STICKY
@@ -79,7 +79,7 @@ class RuntimeInstallService : Service() {
             PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_session)
-            .setContentTitle(title ?: getString(if (LinuxRuntimeInstaller.isMaintaining()) R.string.desktop_removing else if (LinuxRuntimeInstaller.isRemoving()) R.string.rtinst_title_removing else R.string.rtinst_title_installing))
+            .setContentTitle(title ?: getString(if (LinuxRuntimeInstaller.isRemoving()) R.string.rtinst_title_removing else R.string.rtinst_title_installing))
             .setContentText(stage)
             .setProgress(100, percent.coerceIn(0, 100), percent < 0)
             .setContentIntent(open)

@@ -47,7 +47,6 @@ import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
-import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.text.SimpleDateFormat
@@ -325,10 +324,6 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
         }
-        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
-            stopSelf(startId)
-            return START_NOT_STICKY
-        }
         startForeground(NOTIFICATION_ID, buildNotification())
         if (SessionState.running) return START_NOT_STICKY
         if (SessionState.stopRequested) {
@@ -381,7 +376,7 @@ class SessionService : Service() {
             stopSession(0)
             return START_NOT_STICKY
         }
-        if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) RivalClients.stopBeforeSession(this)
+        if (SessionState.mode == MODE_STEAM) RivalClients.stopBeforeSession(this)
         SessionState.firstFrameSeen = false
         SessionState.guestPid = -1
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
@@ -547,7 +542,7 @@ class SessionService : Service() {
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
-        val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
+        val steamHere = SessionState.mode == MODE_STEAM
         runCatching { ComponentsManager.republish(this) }
             .onSuccess { if (it) Log.i(TAG, "component selections published for the installed Proton builds") }
             .onFailure { Log.w(TAG, "component selections", it) }
@@ -632,7 +627,6 @@ class SessionService : Service() {
             add("-c")
             add("cd \"\$HOME\" && exec /bin/bash -i")
         }
-        val desktopGuest = ArrayList(guest)
         guest.add(LinuxRuntime.SESSION_SCRIPT)
         guest.add(SessionState.mode)
         if (SessionState.mode == MODE_STEAM) SessionState.steamUrl?.takeIf { it.startsWith("steam://") }?.let {
@@ -705,7 +699,7 @@ class SessionService : Service() {
                 .forEach { (k, v) -> env[k] = v }
         } else prootEnv
 
-        // The terminal and the bottom desktop run the way the session does: without proot when it does
+        // The terminal runs the way the session does: without proot when it does
         val terminalCommand = if (nativeUserland) {
             com.droiddeck.launcher.runtime.NativeGuest.command(root, shellGuest.first(), shellGuest.drop(1))
         } else {
@@ -718,17 +712,9 @@ class SessionService : Service() {
         }
         if (gen == sessionGen && SessionState.running) {
             SessionTerminal.prepare(terminalCommand, terminalHostEnvironment.map { (key, value) -> "$key=$value" }.toTypedArray(), root, gen)
-            val (fastPathName, _) = ProotFastPath.hostEnv("")
-            BottomDesktop.prepare(desktopGuest, binds, sessionRoot,
-                prootEnv.asArray().filterNot { it.startsWith("$fastPathName=") }.toTypedArray(), root, sessionDir, gen, nativeUserland,
-            ) { gen == sessionGen && SessionState.running }
         }
 
-        if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) OfflineMode.apply(this, root)
-        if (SessionState.mode == MODE_DESKTOP) {
-            runCatching { com.droiddeck.launcher.runtime.DesktopLanguage.ensure(this, com.droiddeck.launcher.core.AppLanguage.effective(this)) }
-                .onFailure { Log.w(TAG, "desktop language pack: $it") }
-        }
+        if (SessionState.mode == MODE_STEAM) OfflineMode.apply(this, root)
 
         val networkLink = LinuxNetworkLinkComponent(this, root)
         networkLink.attach(this)
@@ -795,8 +781,7 @@ class SessionService : Service() {
             suspendController = SessionSuspendController(
                 sessionRoot = { sessionPid },
                 helperRoots = {
-                    components.mapNotNull { it.suspendPid().takeIf { pid -> pid > 1 } } +
-                        listOfNotNull(BottomDesktop.suspendPid.takeIf { it > 1 })
+                    components.mapNotNull { it.suspendPid().takeIf { pid -> pid > 1 } }
                 },
                 suspendAudio = {
                     if (!pulse.setSinkSuspended(true)) Log.w(TAG, "could not suspend audio sink")
@@ -872,13 +857,7 @@ class SessionService : Service() {
         guest.add("USER=root")
         guest.add("PATH=" + LinuxRuntime.GUEST_PATH)
         guest.add("TERM=xterm-256color")
-        if (SessionState.mode == MODE_DESKTOP) {
-            val appLocale = com.droiddeck.launcher.core.AppLanguage.effective(this)
-            guest.add("LANG=" + DesktopLocale.lang(appLocale))
-            DesktopLocale.language(appLocale)?.let { guest.add("LANGUAGE=$it") }
-        } else {
-            guest.add("LANG=C.UTF-8")
-        }
+        guest.add("LANG=C.UTF-8")
         guest.add("BL_STEAM_LANGUAGE=" + SteamLanguage.forLocale(
             com.droiddeck.launcher.core.AppLanguage.effective(this),
             com.droiddeck.launcher.core.AppLanguage.system(this).country,
@@ -1013,7 +992,7 @@ class SessionService : Service() {
 
     private fun startAudio(guest: MutableList<String>, sessionDir: File, directAudioPack: Boolean): PulseAudioComponent {
         val wantsDirectAudio = directAudioPack &&
-            (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || noSteamGame()) &&
+            (SessionState.mode == MODE_STEAM || noSteamGame()) &&
             SessionPrefs.directAudio(this)
         val wantsMic = SessionPrefs.micEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -1217,7 +1196,6 @@ class SessionService : Service() {
                 Log.w(TAG, "added games: ${root.host} is not a readable folder this session")
             }
         }
-        binds.addAll(com.droiddeck.launcher.runtime.UserApps.binds(this))
         val libraries = ArrayList<Pair<String, String>>()
         if (storageDiagnosticLibrary != null && library != null) libraries.add(SecondaryLibrary.CARD_GUESTS[0] to library.label)
         val gamesLibraries = GameStorage.gamesFolderLibraries(this)
@@ -1284,9 +1262,7 @@ class SessionService : Service() {
             }
         }
         val x64Libraries = org.json.JSONArray()
-        val x64Here = SessionPrefs.steamClientArch(this) == "x86_64" ||
-            (SessionState.mode == MODE_DESKTOP &&
-                com.droiddeck.launcher.storage.SteamStorage.x64ClientPresent(SessionPrefs.steamRoot(this, "x86_64")))
+        val x64Here = SessionPrefs.steamClientArch(this) == "x86_64"
         if (storageDiagnosticLibrary != null && library != null && x64Here) {
             val x64 = File(library.path, GameStorage.X64_CARD_DIR)
             val problem = GameStorage.prepare(this, x64.path)
@@ -1657,31 +1633,21 @@ class SessionService : Service() {
                     }
                     return
                 }
-                if (path != null && path.startsWith("desktop-import-") && path.endsWith(".request")) {
-                    val request = File(dir, path)
-                    val text = runCatching { request.readText() }.getOrNull() ?: return
-                    request.delete()
-                    importForDesktop(dir, text)
-                    return
-                }
                 if (path != "steam-launch") return
                 val file = File(dir, path)
                 val text = try { file.readText() } catch (e: Exception) { return }
                 file.delete()
                 var ui = "desktop"
                 var url = ""
-                var session = MODE_STEAM
                 text.lineSequence().forEach { line ->
                     when {
                         line.startsWith("ui=") -> ui = line.removePrefix("ui=").trim()
                         line.startsWith("url=") -> url = line.removePrefix("url=").trim()
-                        line.startsWith("session=") && line.removePrefix("session=").trim() == "desktop" -> session = MODE_DESKTOP
                     }
                 }
-                Log.i(TAG, "launch request from the session: " + (if (session == MODE_DESKTOP) "the desktop with " else "") +
-                    "Steam $ui" + (if (url.isNotEmpty()) " $url" else ""))
+                Log.i(TAG, "launch request from the session: Steam $ui" + (if (url.isNotEmpty()) " $url" else ""))
                 val next = Intent(this@SessionService, com.droiddeck.launcher.SessionActivity::class.java)
-                    .putExtra(EXTRA_MODE, session)
+                    .putExtra(EXTRA_MODE, MODE_STEAM)
                     .putExtra(EXTRA_STEAM_UI, ui)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (url.isNotEmpty()) next.putExtra(EXTRA_STEAM_URL, url)
@@ -1691,38 +1657,6 @@ class SessionService : Service() {
         }
         watcher.startWatching()
         launchWatcher = watcher
-    }
-
-    private val desktopImports = java.util.concurrent.ConcurrentHashMap<String, Any>()
-
-    private fun importForDesktop(dir: File, text: String) {
-        val fields = text.lineSequence().mapNotNull { line ->
-            line.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1].trim() }
-        }.toMap()
-        val key = fields["id"]?.takeIf { it.matches(Regex("[0-9a-f]{16}")) } ?: return
-        val guestPath = fields["path"]?.takeIf { it.startsWith("/") && !it.contains("/../") } ?: return
-        if (fields["kind"] != "folder") return
-        val binds = LinuxRuntime.lastBinds(this).map { BwrapSpawner.Bind.parse(it) }
-        val file = File(BwrapSpawner.hostPath(binds, LinuxRuntime.rootDir(this).path, guestPath))
-        val context = applicationContext
-        val lock = desktopImports.computeIfAbsent(key) { Any() }
-        Thread({
-            fun imported() = UserApps.desktopImport(context, key)?.let { "ok $it" }
-            val request = UserApps.Request(file, file.parentFile?.name, null, mapOf(UserApps.DESKTOP_IMPORT to "$key\n$guestPath"))
-            val answer = synchronized(lock) {
-                try {
-                    imported() ?: UserApps.add(context, request) { _, _ -> }?.let { "error $it" }
-                        ?: imported() ?: "error " + context.getString(R.string.user_apps_failed)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Desktop import of $guestPath", e)
-                    "error " + (e.message ?: context.getString(R.string.user_apps_failed))
-                }
-            }
-            Log.i(TAG, "Desktop import of $guestPath: $answer")
-            val result = File(dir, "desktop-import-$key.result")
-            val partial = File(dir, result.name + ".tmp")
-            runCatching { partial.writeText(answer.replace('\n', ' ') + "\n"); partial.renameTo(result) }
-        }, "desktop-import").start()
     }
 
     @Volatile private var syncWatcher: android.os.FileObserver? = null
@@ -2034,7 +1968,6 @@ class SessionService : Service() {
             auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
         }
         SessionTerminal.clear(sessionGen)
-        BottomDesktop.stop(this, stoppedGen)
         val controller = suspendController
         suspendController = null
         if (ended != null) {
@@ -2053,7 +1986,7 @@ class SessionService : Service() {
         }
         FakeInputWriter.releaseAllRingSlots()
         com.droiddeck.launcher.input.SteamTouchDevice.release()
-        val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
+        val steamClientMayRun = SessionState.mode == MODE_STEAM
         val finishAfterTeardown: () -> Unit = {
             if (prootPid > 1 || auxiliary.isNotEmpty()) {
                 Thread({
@@ -2364,7 +2297,6 @@ class SessionService : Service() {
 
         const val EXTRA_MODE = "mode"
         const val MODE_STEAM = "steam"
-        const val MODE_DESKTOP = "lxqt"
         const val MODE_RUN = "run"
         const val EXTRA_PROGRAM = "program"
         private const val RUN_STATUS = "run-status"

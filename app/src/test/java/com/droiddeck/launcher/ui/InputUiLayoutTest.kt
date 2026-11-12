@@ -91,12 +91,12 @@ class InputUiLayoutTest {
                     FocusGlideHost {
                         SetupPanel(FrontEndState(
                             installed = null, ready = false, available = null, busy = false, stage = "", percent = -1,
-                            desktopInstalled = false, offlineAccount = null, offline = false, frameGenLabel = "",
+                            offlineAccount = null, offline = false, frameGenLabel = "",
                             logsEnabled = false, steamGames = emptyList(), running = null,
                             controller = ControllerPrefs.read(context),
                         ), FrontEndActions(
-                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {},
-                            onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
+                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {},
+                            onResume = {}, onSteamSettings = {},
                             onRuntime = {}, onFrameGenPick = {},
                             onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
                             onFiles = {}, onLogs = {}, onOffline = {},

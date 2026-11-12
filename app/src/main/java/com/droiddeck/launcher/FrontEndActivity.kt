@@ -33,7 +33,7 @@ import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.runtime.LinuxRuntime
-import com.droiddeck.launcher.runtime.DesktopCatalog
+import com.droiddeck.launcher.runtime.PackageCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.exposeTestTags
@@ -146,8 +146,6 @@ class FrontEndActivity : ComponentActivity() {
     }
     private var pkgStage by PackageOperation.stage
     private var pkgPercent by PackageOperation.percent
-    private var desktopInstalled by mutableStateOf(false)
-    private var desktopPresent by mutableStateOf(false)
     private var offlineAccount by mutableStateOf<String?>(null)
     private var offline by mutableStateOf(false)
     private var showPerformance by mutableStateOf(false)
@@ -964,7 +962,6 @@ class FrontEndActivity : ComponentActivity() {
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
                         busy = busy, stage = stage, percent = percent,
-                        desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
                         offlineAccount = offlineAccount, offline = offline,
                         frameGenLabel = frameGenLabel, logsEnabled = logsEnabled,
                         enhancedDiagnosticsArmed = enhancedDiagnosticsArmed,
@@ -1060,21 +1057,8 @@ class FrontEndActivity : ComponentActivity() {
                                 ClipData.newPlainText(g.name, com.droiddeck.launcher.frontend.GameLaunchLink.uri(g.gameIdString)))
                             android.widget.Toast.makeText(this, R.string.game_link_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
-                        onDesktop = {
-                            startSession(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
-                        },
-                        onUserApp = { app ->
-                            app.args.firstOrNull()?.let { Library.appNames[it] = app.name }
-                            startActivity(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-                                .putExtra(SessionService.EXTRA_PROGRAM, app.program)
-                                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
-                        },
                         onResume = { startActivity(Intent(this, SessionActivity::class.java)) },
                         onSteamSettings = { loadModeSettings(SessionService.MODE_STEAM) },
-                        onRemoveDesktop = { removeDesktop() },
-                        onDesktopSettings = { loadModeSettings(SessionService.MODE_DESKTOP) },
                         modeSheet = { mode, tab, extras -> ModeSheetHost(mode, tab, extras) },
                         onRuntime = { onRuntimeButton() },
                         onVkBridge = { on ->
@@ -1485,8 +1469,6 @@ class FrontEndActivity : ComponentActivity() {
         if (isFinishing || isDestroyed) return
         when (SessionPrefs.startupSession(this)) {
             SessionPrefs.STARTUP_STEAM -> startSteamSession()
-            SessionPrefs.STARTUP_DESKTOP -> startSession(Intent(this, SessionActivity::class.java)
-                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
         }
     }
 
@@ -1860,14 +1842,14 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun resumeInterruptedPackages() {
         if (runtimeChangesBlocked()) return
-        val first = DesktopCatalog.interrupted(this).firstOrNull()
+        val first = PackageCatalog.interrupted(this).firstOrNull()
         if (first == null) {
-            Thread({ DesktopCatalog.pruneDownloads(this) }, "prune-pkg").start()
+            Thread({ PackageCatalog.pruneDownloads(this) }, "prune-pkg").start()
             return
         }
         pkgStage = getString(R.string.deskpkg_installing, first.name); pkgPercent = -1
         Thread({
-            val problem = DesktopCatalog.resumeInterrupted(this) { stage, percent ->
+            val problem = PackageCatalog.resumeInterrupted(this) { stage, percent ->
                 ui.post { pkgStage = stage; pkgPercent = percent }
             }
             ui.post {
@@ -2304,8 +2286,6 @@ class FrontEndActivity : ComponentActivity() {
         if (!busy && LinuxRuntimeInstaller.isBusy()) followRuntimeOperation { LinuxRuntimeInstaller.attach(it) }
         if (showComponents) drivers.refreshDrivers()
         addedGamesArt = SessionPrefs.addedGamesArt(this)
-        desktopInstalled = DesktopCatalog.desktopInstalled(this)
-        desktopPresent = DesktopCatalog.desktopPresent(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
@@ -2332,7 +2312,6 @@ class FrontEndActivity : ComponentActivity() {
         memoryHud = SessionPrefs.memoryHud(this)
         backgroundAppLimit = SessionPrefs.backgroundAppLimit(this)
         runningLabel = if (SessionState.running) when (SessionState.mode) {
-            SessionService.MODE_DESKTOP -> getString(R.string.rail_desktop)
             SessionService.MODE_RUN -> Library.nameForProgram(SessionState.program)
                 ?: SessionState.program?.substringAfterLast('/')?.substringBefore('.') ?: getString(R.string.main_running_program)
             else -> "Steam"
@@ -2476,16 +2455,7 @@ class FrontEndActivity : ComponentActivity() {
         busy || LinuxRuntimeInstaller.isBusy() || SessionState.running ||
             SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
             protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null || componentsQueueBusy ||
-            components.compBusy != null || saveBusy != null || com.droiddeck.launcher.store.UserAppsState.working != null
-
-    private fun removeDesktop() {
-        if (runtimeChangesBlocked()) return
-        val operation = LinuxRuntimeInstaller.beginMaintenance(this, getString(R.string.desktop_removing)) ?: return
-        com.droiddeck.launcher.runtime.RuntimeInstallService.keepRemovalAlive(this)
-        followRuntimeOperation { listener ->
-            operation.run(listener) { progress -> DesktopCatalog.removeDesktop(this, progress) }
-        }
-    }
+            components.compBusy != null || saveBusy != null
 
     private fun resetSettings(gameProfiles: Boolean) {
         if (SessionState.running) return
@@ -2519,7 +2489,7 @@ class FrontEndActivity : ComponentActivity() {
     private fun followRuntimeOperation(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
         busy = true
         failed = false
-        stage = getString(if (LinuxRuntimeInstaller.isMaintaining()) R.string.desktop_removing else if (LinuxRuntimeInstaller.isRemoving()) R.string.main_removing_runtime else R.string.store_starting)
+        stage = getString(if (LinuxRuntimeInstaller.isRemoving()) R.string.main_removing_runtime else R.string.store_starting)
         percent = -1
         Thread({
             val ok = run(LinuxRuntimeInstaller.ProgressListener { s, p ->

@@ -1,6 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Avahi SSH Server Browser
-Exec=/usr/bin/bssh
-Icon=network-wired
-NoDisplay=true

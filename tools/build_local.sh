@@ -157,12 +157,6 @@ docker run --rm --platform "${docker_platform}" \
         for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
             [ -f "$f" ] && put "$f" "$d/${f#tools/linuxfs/overlay/}"
         done
-        put tools/linuxfs/desktop/droiddeck-desktop "$d/usr/local/bin/droiddeck-desktop"
-        put tools/linuxfs/desktop/droiddeck-gpu "$d/usr/local/bin/droiddeck-gpu"
-        put tools/linuxfs/desktop/droiddeck-desktop-gpu "$d/usr/local/bin/droiddeck-desktop-gpu"
-        put tools/linuxfs/desktop/kwin_wayland_wrapper "$d/usr/local/bin/kwin_wayland_wrapper"
-        put tools/linuxfs/desktop/firefox-droiddeck.js \
-            "$d/usr/lib/firefox/defaults/pref/droiddeck.js"
 
         READELF=aarch64-linux-gnu-readelf bash tools/linuxfs/check-preloads.sh "$d"
     '

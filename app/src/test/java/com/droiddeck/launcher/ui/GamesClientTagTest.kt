@@ -50,11 +50,11 @@ class GamesClientTagTest {
                     FocusGlideHost {
                         LibraryPage(FrontEndState(
                             installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
-                            desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
+                            offlineAccount = null, offline = false, frameGenLabel = "",
                             logsEnabled = false, steamGames = games, steamGamesX64 = x64, running = null,
                         ), FrontEndActions(
-                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {},
-                            onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
+                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {},
+                            onResume = {}, onSteamSettings = {},
                             onRuntime = {}, onFrameGenPick = {},
                             onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
                             onFiles = {}, onLogs = {}, onOffline = {},
