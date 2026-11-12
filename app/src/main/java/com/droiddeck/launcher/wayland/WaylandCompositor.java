@@ -306,6 +306,9 @@ public final class WaylandCompositor {
 
     public static native void nativeSetRenderOnCommit(boolean on);
 
+    /** 0 one frame in flight, 1 two screen frames in flight, 2 fenced layer blits. */
+    public static native void nativeSetPresentMode(int mode);
+
     public static native void nativeSetGpuTurbo(boolean on);
 
     public static native int nativeRaisePriority(int tid, int nice);

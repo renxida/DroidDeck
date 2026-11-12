@@ -407,6 +407,7 @@ internal fun SetupPanel(
                         }
                         SteamIntegrationGroup(s.integration, s.integrationFocus, a.onIntegration, a.onIntegrationAppInfo, a.onIntegrationLocation)
                         ComponentsLink(a)
+                        ExperimentsGroup(host)
                         val look: @Composable () -> Unit = {
                             SettingsGroup(stringResource(R.string.setup_group_look)) {
                                 SettingsRow(stringResource(R.string.setup_theme), stringResource(R.string.setup_theme_hint)) {

@@ -51,6 +51,8 @@ struct vkp_image *vkp_image_from_ahb(struct AHardwareBuffer *ahb);
 void vkp_wait_idle(void);
 /* Wait for every screen frame still pending on the GPU. */
 void vkp_frames_settle(void);
+/* 0 one frame in flight and CPU-waited layer blits, 1 two screen frames in flight, 2 fenced layer blits. */
+void vkp_set_present_mode(int mode);
 /* Wait for pending screen frames that read img and pending layer blits that read or write img. */
 void vkp_image_settle(struct vkp_image *img);
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride);

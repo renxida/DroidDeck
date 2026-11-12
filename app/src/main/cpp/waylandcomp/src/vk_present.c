@@ -118,6 +118,8 @@ static uint64_t g_fserial[FLIGHT];
 static uint64_t g_frame_serial;
 static int g_fnext;
 static int g_flight_ok;
+/* Settings > Advanced > Experiments: 0 one frame in flight and CPU-waited layer blits, 1 two-frames, 2 layer-fence. */
+static int g_present_mode;
 #define SCENE_FMT VK_FORMAT_R8G8B8A8_UNORM
 static VkPhysicalDeviceMemoryProperties g_memprops;
 
@@ -224,6 +226,15 @@ static void frames_idle(void) {
 }
 
 void vkp_frames_settle(void) { settle_frames(UINT64_MAX); }
+
+void vkp_set_present_mode(int mode) {
+    if (mode < 0 || mode > 2) mode = 0;
+    if (mode != g_present_mode)
+        droiddeck_log("perf", "present mode: %s", mode == 1 ? "experiment two-frames (two screen frames in flight)"
+                                                : mode == 2 ? "experiment layer-fence (layer blits handed over with their fence)"
+                                                            : "one frame in flight, layer blits waited for on the CPU");
+    g_present_mode = mode;
+}
 
 
 static void blit_forget(struct vkp_image *dst) {
@@ -815,8 +826,9 @@ static int dev_init(void) {
         else if (!sync_fd_exportable()) why = "the driver cannot export a semaphore as a sync fd";
         g_layer_fence = !why;
         if (why) droiddeck_log("perf", "layer acquire fence: fallback: %s; layer blits are waited for on the CPU", why);
-        else droiddeck_log("perf", "layer acquire fence: sync fd (layer blits are handed to the display with their "
-                                   "completion fence instead of a CPU wait)");
+        else droiddeck_log("perf", "layer acquire fence: sync fd %s (layer blits are handed to the display with their "
+                                   "completion fence instead of a CPU wait)",
+                           g_present_mode == 2 ? "on" : "available, off until experiment layer-fence is chosen");
     }
     if (want_hdr_md)
         g_set_hdr_metadata = (PFN_vkSetHdrMetadataEXT)g_vk.GetDeviceProcAddr(g_dev, "vkSetHdrMetadataEXT");
@@ -844,8 +856,9 @@ static int dev_init(void) {
             if (g_vk.CreateFence(g_dev, &fci, NULL, &g_ffences[s]) != VK_SUCCESS) why = "no fence for a second frame";
         g_flight_ok = !why;
         if (why) droiddeck_log("perf", "present: one-in-flight (fallback: %s)", why);
-        else droiddeck_log("perf", "present: two-in-flight (screen frames return after present; frames with screen "
-                                   "effects, frame generation or HDR keep one in flight)");
+        else droiddeck_log("perf", "present: two-in-flight %s (screen frames return after present; frames with screen "
+                                   "effects, frame generation or HDR keep one in flight)",
+                           g_present_mode == 1 ? "on" : "available, off until experiment two-frames is chosen");
     }
 
     vkp_effects_bind_device(g_dev, g_pd, &g_memprops);
@@ -2149,10 +2162,10 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
 
     const int fx = !g_plain_frame && vkp_effects_active();
     const int fg = !g_plain_frame && vkp_framegen_active();
-    const int two = g_flight_ok && !fx && !fg && !hf;
+    const int two = g_flight_ok && g_present_mode == 1 && !fx && !fg && !hf;
     const int slot = two ? g_fnext : 0;
     if (two ? settle_slot(slot) != 0 : settle_frames(UINT64_MAX) != 0) return -1;
-    if (g_flight_ok && !two) {
+    if (g_flight_ok && g_present_mode == 1 && !two) {
         static unsigned said;
         const unsigned why = fg ? 1u : fx ? 2u : 4u;
         if (!(said & why)) {
@@ -2545,8 +2558,8 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd, in
         if (wait_fd >= 0) close(wait_fd);
         return -1;
     }
-    const int fenced = done_fd && g_layer_fence && blit_slot_ready(dst) == 0;
-    if (fenced && blit_wait(dst) != 0) {
+    const int fenced = done_fd && g_present_mode == 2 && g_layer_fence && blit_slot_ready(dst) == 0;
+    if (blit_wait(dst) != 0) {
         if (wait_fd >= 0) close(wait_fd);
         return -1;
     }

@@ -497,7 +497,10 @@ class SessionService : Service() {
         VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
 
+        val experiments = Experiments.beginSession(this)
         val sessionDir = openSessionFolder()
+        Log.i(TAG, "experiments: " + Experiments.line(experiments))
+        SessionEvents.record("session.experiments", mapOf("on" to Experiments.line(experiments)))
         try {
             GameEnvironmentStore.publish(this)
         } catch (e: Exception) {
@@ -565,6 +568,7 @@ class SessionService : Service() {
             components.add(it)
         }
 
+        Experiments.env(experiments).forEach { (name, value) -> guest.add("$name=$value") }
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
         if (SessionState.followScreen || size.first < size.second ||
@@ -827,8 +831,10 @@ class SessionService : Service() {
         SessionLogCapture.start(File(sessionDir, "app.log"))
         lastPressureAt = 0L
         MemoryLog.start(File(sessionDir, "memory.csv"))
-        AppCaches.drop(this, "session_start")
-        startLmkWatch()
+        if (Experiments.on(this, Experiments.MEMORY)) {
+            AppCaches.drop(this, "session_start")
+            startLmkWatch()
+        }
         com.droiddeck.launcher.telemetry.TelemetryUploader.sessionStarted(this, sessionDir)
         return sessionDir
     }
@@ -1873,6 +1879,7 @@ class SessionService : Service() {
                 releaseLocks()
                 MemoryLog.stop()
                 stopLmkWatch()
+                Experiments.endSession()
                 com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
                 if (status == 0) {
                     SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
@@ -2045,7 +2052,8 @@ class SessionService : Service() {
         )
         Log.i(TAG, "DROIDDECK_MEMORY_PRESSURE " + fields.entries.joinToString(" ") { "${it.key}=${it.value ?: "-"}" })
         SessionEvents.record("memory.trim", fields)
-        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE) AppCaches.drop(this, "trim_$level")
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE && Experiments.on(this, Experiments.MEMORY))
+            AppCaches.drop(this, "trim_$level")
     }
 
     private fun startLmkWatch() {

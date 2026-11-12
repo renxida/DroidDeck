@@ -1,0 +1,108 @@
+package com.droiddeck.launcher.session
+
+import android.content.Context
+import android.util.Log
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
+
+/**
+ * Settings > Advanced > Experiments. Each id is the perf/ branch the change came from and reaches the
+ * guest as DROIDDECK_EXP_<ID>=1. All are off on a fresh install. Game-level parts follow the saved
+ * switches at each game launch; Steam-side and app-side parts follow the switches the session started with.
+ */
+object Experiments {
+    private const val TAG = "Experiments"
+
+    const val GODOT_RENDER = "godot-render"
+    const val WARMUP = "warmup"
+    const val LAUNCH = "all"
+    const val COMPAT_QUIET = "compat-quiet"
+    const val MEMORY = "memory"
+    const val ADPF_ALL = "adpf-all"
+    const val TWO_FRAMES = "two-frames"
+    const val LAYER_FENCE = "layer-fence"
+    const val SCHED = "sched"
+    const val FEX_CODEGEN = "fex-codegen"
+    const val FEX_MEMCPY_TSO = "fex-memcpy-tso"
+    const val FEX_VECTOR_TSO = "fex-vector-tso"
+    const val FEX_TSO = "fex-tso"
+    const val FEX_FAST = "fex-fast"
+
+    class Switch(val id: String, @StringRes val label: Int)
+
+    val toggles = listOf(
+        Switch(GODOT_RENDER, R.string.exp_godot_render),
+        Switch(WARMUP, R.string.exp_warmup),
+        Switch(LAUNCH, R.string.exp_launch),
+        Switch(COMPAT_QUIET, R.string.exp_compat_quiet),
+        Switch(MEMORY, R.string.exp_memory),
+        Switch(ADPF_ALL, R.string.exp_adpf_all),
+        Switch(SCHED, R.string.exp_sched),
+        Switch(FEX_CODEGEN, R.string.exp_fex_codegen),
+    )
+
+    /** At most one of each group is on. */
+    val present = listOf(Switch(TWO_FRAMES, R.string.exp_two_frames), Switch(LAYER_FENCE, R.string.exp_layer_fence))
+    val fexOrder = listOf(
+        Switch(FEX_MEMCPY_TSO, R.string.exp_fex_memcpy_tso),
+        Switch(FEX_VECTOR_TSO, R.string.exp_fex_vector_tso),
+        Switch(FEX_TSO, R.string.exp_fex_tso),
+        Switch(FEX_FAST, R.string.exp_fex_fast),
+    )
+    private val groups = listOf(present.map { it.id }, fexOrder.map { it.id })
+
+    /** The order the guest's droiddeck-game-env lists them in. */
+    val ids = listOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, LAYER_FENCE,
+        SCHED, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST)
+
+    /** "Turn all safe ones on": everything but the FEX memory-ordering choice, layer-fence and the frame cap. */
+    val safe = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, FEX_CODEGEN)
+
+    fun envName(id: String) = "DROIDDECK_EXP_" + id.uppercase().replace('-', '_')
+
+    fun env(on: Set<String>): Map<String, String> = ids.filter { it in on }.associate { envName(it) to "1" }
+
+    fun line(on: Set<String>): String = ids.filter { it in on }.joinToString(",").ifEmpty { "none" }
+
+    /** [on] with [id] switched; turning one of a group on turns the rest of its group off. */
+    fun with(on: Set<String>, id: String, value: Boolean): Set<String> {
+        require(id in ids)
+        if (!value) return on - id
+        return on - groups.firstOrNull { id in it }.orEmpty().toSet() + id
+    }
+
+    /** [on] with every safe one turned on; two-frames replaces layer-fence. */
+    fun safeOn(on: Set<String>): Set<String> = ids.filter { it in safe }.fold(on) { acc, id -> with(acc, id, true) }
+
+    fun presentMode(on: Set<String>): Int = when {
+        TWO_FRAMES in on -> 1
+        LAYER_FENCE in on -> 2
+        else -> 0
+    }
+
+    private fun prefs(context: Context) = context.getSharedPreferences("experiments", Context.MODE_PRIVATE)
+
+    fun enabled(context: Context): Set<String> =
+        prefs(context).getStringSet("on", null).orEmpty().filterTo(LinkedHashSet()) { it in ids }
+
+    fun set(context: Context, on: Set<String>) {
+        val kept = on.filterTo(LinkedHashSet()) { it in ids }
+        prefs(context).edit().putStringSet("on", kept).apply()
+        Log.i(TAG, "saved: ${line(kept)}" + (session?.let { "; this session started with: ${line(it)}" } ?: ""))
+        runCatching { GameEnvironmentStore.publish(context) }
+            .onFailure { Log.e(TAG, "Could not update game environment", it) }
+    }
+
+    fun setOne(context: Context, id: String, value: Boolean) = set(context, with(enabled(context), id, value))
+
+    /** The switches the running session started with. */
+    @Volatile var session: Set<String>? = null
+        private set
+
+    fun beginSession(context: Context): Set<String> = enabled(context).also { session = it }
+
+    fun endSession() { session = null }
+
+    /** For the app-side parts: the session's switches while one runs, the saved ones otherwise. */
+    fun on(context: Context, id: String): Boolean = id in (session ?: enabled(context))
+}

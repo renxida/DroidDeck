@@ -611,6 +611,11 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetRenderOnCommit(JN
 }
 
 JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetPresentMode(JNIEnv *env, jclass clazz, jint mode) {
+    vkp_set_present_mode(mode);
+}
+
+JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetFpsLimit(JNIEnv *env, jclass clazz, jint fps) {
     g_fps_limit = fps > 0 ? fps : 0;
     g_release_unpaced = fps < 0;

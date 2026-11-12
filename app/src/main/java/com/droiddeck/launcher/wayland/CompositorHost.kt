@@ -5,6 +5,7 @@ import android.os.HandlerThread
 import android.os.Process
 import android.view.Choreographer
 import android.view.Surface
+import com.droiddeck.launcher.session.Experiments
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 
@@ -52,6 +53,7 @@ object CompositorHost {
     ): Boolean {
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
+        WaylandCompositor.nativeSetPresentMode(Experiments.run { presentMode(session ?: enabled(context)) })
         pace(refreshHz, fpsLimit)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {

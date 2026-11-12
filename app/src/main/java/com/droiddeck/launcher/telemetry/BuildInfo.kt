@@ -44,6 +44,9 @@ object BuildInfo {
         k("android", "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
         k("gpu", runCatching { com.droiddeck.launcher.gpu.GpuInfo.detect().let { "${it.name} (${it.family.label})" } }.getOrNull())
         k("gpu_driver_mode", runCatching { com.droiddeck.launcher.session.SessionPrefs.gpuDriverMode(context) }.getOrNull())
+        k("experiments", runCatching {
+            com.droiddeck.launcher.session.Experiments.run { line(session ?: enabled(context)) }
+        }.getOrNull())
         com.droiddeck.launcher.gpu.VulkanInfo.cachedOrNull()?.let { v ->
             k("vulkan_device", v["device"])
             k("vulkan_api", v["api"])

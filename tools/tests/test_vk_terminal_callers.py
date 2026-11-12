@@ -153,6 +153,9 @@ int __android_log_print(int, const char *, const char *, ...);
     def test_layer_blit_fence_timeout(self):
         self.run_scenario('layer-fence-timeout')
 
+    def test_without_an_experiment_frames_and_layer_blits_are_waited_for(self):
+        self.run_scenario('present-mode-off')
+
 
 if __name__ == '__main__':
     unittest.main()

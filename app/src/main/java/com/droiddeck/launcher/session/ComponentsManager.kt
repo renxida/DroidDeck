@@ -582,7 +582,8 @@ object ComponentsManager {
                 File(base, "files").walkTopDown().filter { it.isFile }.map { it.relativeTo(base).invariantSeparatorsPath }
                     .filter { owned(comp, it) }.associateWith { File(base, it) }
             }
-            val sums = digests(key, unpacked, files)
+            val sums = if (Experiments.on(context, Experiments.LAUNCH)) digests(key, unpacked, files)
+                else files.mapValues { Hashes.sha256(it.value) }
             for (rel in managed(comp) - files.keys) {
                 lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
                     .append('\t').append(rel).append("\t-\t-\n")

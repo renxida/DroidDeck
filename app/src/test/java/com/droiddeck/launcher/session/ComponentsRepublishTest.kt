@@ -75,6 +75,7 @@ class ComponentsRepublishTest {
     }
 
     @Test fun storedDigestsAreReusedUntilTheFileChanges() {
+        Experiments.set(context, setOf(Experiments.LAUNCH))
         proton("DroidDeck-Proton 11-11.8", "DroidDeck-Proton-11-11.8")
         packageFile()
         ComponentsManager.setGameComponent(context, scope, "fex", fex)
@@ -92,6 +93,16 @@ class ComponentsRepublishTest {
         stored.appendText(" changed")
         proton("DroidDeck-Proton 11-11.10", "DroidDeck-Proton-11-11.10")
         assertTrue(ComponentsManager.republish(context))
+        assertEquals(setOf(Hashes.sha256(stored)), scopedSums())
+    }
+
+    @Test fun withoutTheLaunchExperimentNoDigestsAreStored() {
+        Experiments.set(context, emptySet())
+        proton("DroidDeck-Proton 11-11.8", "DroidDeck-Proton-11-11.8")
+        packageFile()
+        ComponentsManager.setGameComponent(context, scope, "fex", fex)
+        assertFalse(File(launchState().parentFile, "store/${fex.removeSuffix(".wcp")}/.sha256").exists())
+        val stored = File(LinuxRuntime.rootDir(context), rows().first { it[0] == scope && it[4] == dll }[6].removePrefix("/"))
         assertEquals(setOf(Hashes.sha256(stored)), scopedSums())
     }
 

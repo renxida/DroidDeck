@@ -233,7 +233,7 @@ static void assert_stopped(void) {
 }
 
 static void enable_flight(void) {
-    g_flight_ok = 1;
+    g_flight_ok = 1; g_present_mode = 1;
     for (int s = 0; s < FLIGHT; ++s) {
         g_fcmds[s] = (VkCommandBuffer)(uintptr_t)(50 + s);
         g_ffences[s] = (VkFence)(uintptr_t)(60 + s);
@@ -312,7 +312,7 @@ static void enable_layer_fence(void) {
     g_vk.DestroyFence = destroy_fence; g_vk.FreeCommandBuffers = free_cmds;
     g_get_sem_fd = get_sem_fd; g_import_sem_fd = import_sem_fd;
     g_wait_sem = (VkSemaphore)(uintptr_t)41;
-    g_layer_fence = 1; export_answer = VK_SUCCESS;
+    g_layer_fence = 1; g_present_mode = 2; export_answer = VK_SUCCESS;
 }
 
 static struct vkp_image *layer_slot(uintptr_t handle) {
@@ -358,6 +358,20 @@ static void layer_fence(void) {
     assert(!b->blit_serial);
     assert(vkp_blit_image(&src, b, -1, &done) == 0 && done == -1 && waits == 6 && last_fence == g_fence);
     free(client); vkp_image_destroy(b); free(g_images);
+}
+
+/* With neither experiment chosen, each frame and each layer blit is waited for on the CPU, as on main. */
+static void present_mode_off(void) {
+    setup(0); enable_flight(); enable_layer_fence(); vkp_set_present_mode(0);
+    struct vkp_image *a = client_image(70), *b = client_image(71);
+    assert(render_image(a) == 0 && waits == 1 && !a->frame_use);
+    assert(render_image(b) == 0 && waits == 2 && !g_fserial[0] && !g_fserial[1]);
+    struct vkp_image src = {.image = (VkImage)(uintptr_t)72, .w = 4, .h = 4, .dmabuf = 1};
+    struct vkp_image *slot = layer_slot(73);
+    int done = 0;
+    assert(vkp_blit_image(&src, slot, -1, &done) == 0 && done == -1 && waits == 3);
+    assert(last_fence == g_fence && !last_signal && !slot->blit_serial && slot_objects == 0);
+    vkp_image_destroy(a); vkp_image_destroy(b); vkp_image_destroy(slot); free(g_images);
 }
 
 static void layer_fence_terminal(VkResult result) {
@@ -449,6 +463,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(name, "two-in-flight-device-lost")) two_in_flight_terminal(VK_ERROR_DEVICE_LOST);
     else if (!strcmp(name, "two-in-flight-timeout")) two_in_flight_terminal(VK_TIMEOUT);
     else if (!strcmp(name, "layer-fence")) layer_fence();
+    else if (!strcmp(name, "present-mode-off")) present_mode_off();
     else if (!strcmp(name, "layer-fence-device-lost")) layer_fence_terminal(VK_ERROR_DEVICE_LOST);
     else if (!strcmp(name, "layer-fence-timeout")) layer_fence_terminal(VK_TIMEOUT);
     else if (!strcmp(name, "pass-terminal")) { setup(0); g_dev_state = -3; assert_stopped(); free(g_images); }

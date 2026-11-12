@@ -93,7 +93,8 @@ object GameEnvironmentStore {
         config: GameEnvironment.Config = read(context),
         gameDebugLogsOverride: Boolean? = null,
     ) {
-        val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
+        val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) +
+            Experiments.env(Experiments.enabled(context)) + config.shared)
         val json = encode(resolved)
         val dxvk = TextureFiltering.dxvkOptions(
             SessionPrefs.textureAnisotropy(context), SessionPrefs.textureLodBias(context),
