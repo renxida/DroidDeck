@@ -96,7 +96,7 @@ internal object CrashEvidence {
                         val line = reader.readLine() ?: break
                         if (first) { first = false; continue }
                         val wanted = keepNext || GameExitWatch.isCrashLine(line) || line.startsWith("DROIDDECK_TIMELINE event=game_") ||
-                            line.startsWith("DROIDDECK_DIAGNOSTICS event=game_")
+                            line.startsWith("DROIDDECK_DIAGNOSTICS event=game_") || line.startsWith("DROIDDECK_GAME_EXIT ")
                         keepNext = line.contains("droiddeck-fex: SIG")
                         if (!wanted) continue
                         val kept = "$label: ${line.take(1000)}"
