@@ -7,13 +7,11 @@
         <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>První spuštění připraví Plochu. Může to trvat několik minut.</item>
         <item>Ve výchozím nastavení se po opuštění aplikace relace pozastaví; po návratu pokračuje, kde skončila.</item>
         <item>Dotyk funguje jako touchpad: tažením posouváte kurzor, dotykem klikáte.</item>
         <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
     </string-array>
     <string name="session_channel">Relace</string>
-    <string name="session_channel_description">Zobrazuje se, když je otevřená relace Steamu nebo Plochy</string>
     <string name="session_notification">Steam běží</string>
     <string name="session_notification_downloads">Probíhá stahování Steamu</string>
     <string name="session_notification_paused">Relace pozastavena – klepnutím na Obnovit pokračujte</string>
@@ -286,10 +284,8 @@
     <string name="common_delete_named">Smazat %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Ovladač runtime</string>
-    <string name="comp_runtime_driver_hint">Používá Steam, hry i Plocha. Použije se od příští relace.</string>
     <string name="comp_import_turnip">Importovat zip Turnip…</string>
     <string name="comp_display_driver">Ovladač displeje</string>
-    <string name="comp_display_driver_hint">Vykresluje snímky na obrazovku v obou režimech. Pro použití restartujte aplikaci.</string>
     <string name="comp_import_adrenotools">Importovat zip AdrenoTools…</string>
     <string name="comp_never">nikdy</string>
     <string name="comp_nightlies_checked">Nightlies zkontrolovány %1$s</string>
@@ -351,7 +347,6 @@
     <string name="comp_applies_next_game">Použije se při dalším spuštění hry</string>
     <string name="comp_import_zip">Importovat .zip</string>
     <string name="comp_reading">Čtení Protonů…</string>
-    <string name="comp_no_proton">Zatím není nainstalován žádný Proton. Jednou spusťte Steam a stáhněte jeho Proton pro ARM64, nebo přidejte GE-Proton, CachyOS nebo DroidDeck-Proton v Nastavení.</string>
     <string name="comp_original">Originál · %1$s</string>
     <string name="comp_this_build">%1$s · toto sestavení</string>
     <string name="comp_earlier_build">%1$s · dřívější sestavení</string>
@@ -421,7 +416,6 @@
     <string name="perf_zram_client">Komprimovat Steam během hry</string>
     <string name="perf_zram_client_hint">20 s po spuštění hry se klient Steam zkomprimuje do zRAM, aby hře zbylo více paměti, a po zavření hry se načte zpět. Vypněte, pokud se relace krátce po spuštění her zavírá. Limit RAM výše stále komprimuje Steam, když ho relace překročí.</string>
     <string name="perf_ram_cap">Limit RAM</string>
-    <string name="perf_ram_cap_hint">Platí, když běží klient Steam, v režimu Steam nebo z Plochy. Když relace použije víc, zkomprimuje se do zRAM Steam a poté další podporované procesy relace. Měkký limit: nic se nezavře, ale hry mohou trhat, než se stránky načtou zpět.</string>
     <string name="perf_ram_cap_unavailable">Vyžaduje swap zRAM, který toto zařízení nemá.</string>
     <string name="perf_vram_cap">Limit VRAM</string>
     <string name="perf_vram_cap_hint">Hlásí hrám s Direct3D 9 až 12 tento rozpočet videopaměti, aby snížily její využití. Hry jej mohou překročit; nepřidává stránkování GPU ani nezaručuje ochranu před pády kvůli nedostatku paměti. Platí od příští relace.</string>
@@ -656,7 +650,6 @@
     <string name="setup_reset_settings_hint">Vrátí každé nastavení na výchozí hodnotu</string>
     <string name="setup_reset_settings_button">Obnovit</string>
     <string name="setup_reset_settings_title">Obnovit všechna nastavení?</string>
-    <string name="setup_reset_settings_body">Nastavení obrazu, výkonu, ovladače, motivu, jazyka a spouštěče se vrátí na výchozí hodnoty. Hry, přihlášení ke Steamu, účty obchodů, stažené ovladače a složky úložiště zůstanou.</string>
     <string name="setup_reset_settings_profiles">Obnovit i profily her (Proton, FEX, komponenty a prostředí pro každou hru a prostředí profilu Výchozí)</string>
     <string name="setup_reset_settings_session_running">Před obnovením nastavení zastav relaci.</string>
     <string name="setup_reset_settings_partial">Nastavení byla obnovena, ale ne všechna. Podrobnosti jsou v logech.</string>
@@ -675,7 +668,6 @@
     <string name="setup_launcher_orientation_auto">Podle otočení zařízení</string>
     <string name="setup_orientation_portrait">Na výšku</string>
     <string name="setup_session_orientation">Orientace relace</string>
-    <string name="setup_session_orientation_hint">Platí pro Steam, hry, Plochu a editor ovladače. Předvolby rozlišení se otáčejí s relací; vlastní šířka a výška zůstávají, jak jsou zadány.</string>
     <string name="setup_orientation_auto">Automaticky na šířku</string>
     <string name="setup_orientation_landscape">Na šířku</string>
     <string name="setup_orientation_reverse">Na šířku obráceně</string>
@@ -819,7 +811,6 @@
     <string name="gpu_ubwc_title">Kompatibilita UBWC</string>
     <string name="gpu_ubwc_hint">Pokud Steam nebo Android zobrazuje pruhy nebo blikání, zkuste Zapnuto nebo Vypnuto. Platí pro oba ovladače po restartu Kestrel.</string>
     <string name="gpu_ubwc_restart">Pro použití restartujte Kestrel.</string>
-    <string name="gpu_runtime_hint">Používají hry a desktop.</string>
     <string name="gpu_runtime_default">Výchozí runtime</string>
     <string name="gpu_auto_by_gpu">Automaticky - podle GPU</string>
     <string name="load_runtime">Linuxový runtime</string>
@@ -917,7 +908,6 @@
     <string name="load_compat_wait">Čekání na dokončení nastavení kompatibility</string>
     <string name="load_compat_hint">Relace se spustí po dokončení nastavení.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Počkejte, až skončí instalace plochy</string>
     <string name="main_wait_install_game">Před spuštěním hry počkejte, až skončí instalace</string>
     <string name="main_saves_close_session">Nejprve zavřete relaci Steamu, aby hra svým uložením nepřepsala import.</string>
     <string name="main_saves_importing">Importování do %1$s</string>
@@ -961,7 +951,6 @@
     <string name="main_remove_runtime_title">Odstranit runtime Linuxu</string>
     <string name="main_remove_runtime_text">Tím se odstraní runtime, klient Steam v něm a všechny hry v něm nainstalované.</string>
     <string name="runtime_actions_title">Běhové prostředí Linuxu</string>
-    <string name="runtime_actions_text">Oprava znovu nainstaluje systémové soubory prostředí a zachová Steam, vaše hry a nastavení. Doplňky, jako je Plocha, se znovu nainstalují při dalším použití. Odebrání smaže vše.</string>
     <string name="runtime_repair">Opravit prostředí</string>
     <string name="main_applied">Použito: %1$s</string>
     <string name="comp_busy_importing">Importování</string>
@@ -2013,7 +2002,6 @@
     <string name="storage_leftover_confirm">Vymaže Wine prefix a mezipaměť shaderů (%1$s). Nejdřív si udělej kopii uložených pozic, které potřebuješ; uložené pozice ve Steam Cloud zůstanou na účtu.</string>
     <string name="storage_data_other">Zachováno</string>
     <string name="storage_data_other_title">Hry mimo Steam a sdílený prefix Steamu</string>
-    <string name="storage_data_other_detail">Prefixy her přidaných přes obchody nebo ručně</string>
     <string name="storage_components_packages">Stažené balíky</string>
     <string name="storage_components_originals">Zachované originály</string>
     <string name="storage_components_none">Nejsou stažené žádné balíky komponent.</string>

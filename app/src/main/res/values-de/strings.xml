@@ -7,13 +7,11 @@
         <item>Dein Controller erscheint als Xbox-360-Pad. Ansonsten nutze die Bildschirmsteuerung.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Beim ersten Start wird der Desktop eingerichtet. Das kann ein paar Minuten dauern.</item>
         <item>Standardmäßig wird die Sitzung pausiert, wenn du die App verlässt, und macht bei deiner Rückkehr dort weiter, wo sie aufgehört hat.</item>
         <item>Touch funktioniert wie ein Touchpad: Ziehen bewegt den Zeiger, Tippen klickt.</item>
         <item>Dein Controller erscheint als Xbox-360-Pad. Ansonsten nutze die Bildschirmsteuerung.</item>
     </string-array>
     <string name="session_channel">Sitzung</string>
-    <string name="session_channel_description">Wird angezeigt, solange eine Steam- oder Desktop-Sitzung geöffnet ist</string>
     <string name="session_notification">Steam läuft</string>
     <string name="session_notification_downloads">Steam-Download aktiv</string>
     <string name="session_notification_paused">Sitzung pausiert – tippe auf „Fortsetzen“, wenn du bereit bist</string>
@@ -282,10 +280,8 @@
     <string name="common_delete_named">%1$s löschen</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Laufzeittreiber</string>
-    <string name="comp_runtime_driver_hint">Wird von Steam, Spielen und dem Desktop genutzt. Gilt ab der nächsten Sitzung.</string>
     <string name="comp_import_turnip">Turnip-ZIP importieren…</string>
     <string name="comp_display_driver">Anzeigetreiber</string>
-    <string name="comp_display_driver_hint">Bringt in beiden Modi die Frames auf den Bildschirm. Starte die App neu, um dies anzuwenden.</string>
     <string name="comp_import_adrenotools">AdrenoTools-ZIP importieren…</string>
     <string name="comp_never">nie</string>
     <string name="comp_nightlies_checked">Nightlies geprüft: %1$s</string>
@@ -347,7 +343,6 @@
     <string name="comp_applies_next_game">Gilt ab dem nächsten Spielstart</string>
     <string name="comp_import_zip">.zip importieren</string>
     <string name="comp_reading">Protons werden gelesen…</string>
-    <string name="comp_no_proton">Noch kein Proton installiert. Starte Steam einmal, um sein ARM64-Proton herunterzuladen, oder füge GE-Proton, CachyOS oder DroidDeck-Proton unter „Einrichtung“ hinzu.</string>
     <string name="comp_original">Original · %1$s</string>
     <string name="comp_this_build">%1$s · dieser Build</string>
     <string name="comp_earlier_build">%1$s · früherer Build</string>
@@ -417,7 +412,6 @@
     <string name="perf_zram_client">Steam komprimieren, während ein Spiel läuft</string>
     <string name="perf_zram_client_hint">20 s nach dem Spielstart wird der Steam-Client in zRAM komprimiert, um dem Spiel mehr Speicher zu lassen, und beim Beenden des Spiels zurückgelesen. Schalte dies aus, wenn sich die Sitzung kurz nach dem Spielstart schließt. Ein RAM-Limit oben komprimiert Steam weiterhin, wenn die Sitzung es überschreitet.</string>
     <string name="perf_ram_cap">RAM-Limit</string>
-    <string name="perf_ram_cap_hint">Gilt, solange der Steam-Client läuft, im Steam-Modus oder vom Desktop aus. Verbraucht die Sitzung mehr als diesen Wert, werden Steam und danach die übrigen unterstützten Prozesse der Sitzung in zRAM komprimiert. Ein weiches Limit: Nichts wird geschlossen, aber Spiele können ruckeln, während Seiten zurückgeladen werden.</string>
     <string name="perf_ram_cap_unavailable">Benötigt zRAM-Swap, den dieses Gerät nicht hat.</string>
     <string name="perf_vram_cap">VRAM-Limit</string>
     <string name="perf_vram_cap_hint">Meldet Direct3D-9-bis-12-Spielen dieses Videospeicherbudget, um den Speicherverbrauch zu senken. Spiele können es überschreiten; dies fügt kein GPU-Paging hinzu und garantiert keinen Schutz vor Abstürzen durch Speichermangel. Gilt ab der nächsten Sitzung.</string>
@@ -661,7 +655,6 @@
     <string name="setup_launcher_orientation_auto">Gerätedrehung folgen</string>
     <string name="setup_orientation_portrait">Hochformat</string>
     <string name="setup_session_orientation">Sitzungsausrichtung</string>
-    <string name="setup_session_orientation_hint">Gilt für Steam, Spiele, Desktop und den Controller-Editor. Auflösungsvoreinstellungen drehen sich mit der Sitzung; eigene Breite und Höhe bleiben wie eingegeben.</string>
     <string name="setup_orientation_auto">Automatisch Querformat</string>
     <string name="setup_orientation_landscape">Querformat</string>
     <string name="setup_orientation_reverse">Umgekehrtes Querformat</string>
@@ -805,7 +798,6 @@
     <string name="gpu_ubwc_title">UBWC-Kompatibilität</string>
     <string name="gpu_ubwc_hint">Probiere An oder Aus, wenn Steam oder Android Streifen oder Flackern zeigt. Gilt für beide Treiber nach einem Neustart von Kestrel.</string>
     <string name="gpu_ubwc_restart">Starte Kestrel neu, um dies anzuwenden.</string>
-    <string name="gpu_runtime_hint">Wird von Spielen und dem Desktop genutzt.</string>
     <string name="gpu_runtime_default">Laufzeit-Standard</string>
     <string name="gpu_auto_by_gpu">Auto - nach GPU gewählt</string>
     <string name="load_runtime">Linux-Laufzeit</string>
@@ -903,7 +895,6 @@
     <string name="load_compat_wait">Warte auf Abschluss der Kompatibilitätseinrichtung</string>
     <string name="load_compat_hint">Deine Sitzung startet, sobald die Einrichtung abgeschlossen ist.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Warte, bis die Installation der Desktop-App abgeschlossen ist</string>
     <string name="main_wait_install_game">Warte, bis die Installation abgeschlossen ist, bevor du ein Spiel startest</string>
     <string name="main_saves_close_session">Schließe zuerst die Steam-Sitzung, damit das Spiel den Import nicht überschreiben kann</string>
     <string name="main_saves_importing">Import in %1$s</string>
@@ -939,7 +930,6 @@
     <string name="main_remove_runtime_title">Linux-Laufzeit entfernen</string>
     <string name="main_remove_runtime_text">Dadurch werden die Laufzeit, der Steam-Client darin und alle dort installierten Spiele gelöscht.</string>
     <string name="runtime_actions_title">Linux-Laufzeit</string>
-    <string name="runtime_actions_text">Reparieren installiert die Systemdateien der Laufzeit neu und behält Steam, deine Spiele und Einstellungen. Extras wie der Desktop werden bei der nächsten Nutzung erneut installiert. Entfernen löscht alles.</string>
     <string name="runtime_repair">Laufzeit reparieren</string>
     <string name="main_applied">Angewendet: %1$s</string>
     <string name="comp_busy_importing">Importieren</string>
@@ -1806,7 +1796,6 @@
     <string name="drawer_component_choose_download">Version zum Herunterladen wählen</string>
     <string name="setup_reset_settings">Alle Einstellungen zurücksetzen</string>
     <string name="setup_reset_settings_title">Alle Einstellungen zurücksetzen?</string>
-    <string name="setup_reset_settings_body">Anzeige-, Leistungs-, Controller-, Design-, Sprach- und Launcher-Einstellungen werden auf ihre Standardwerte zurückgesetzt. Deine Spiele, die Steam-Anmeldung, Shop-Konten, heruntergeladene Treiber und Speicherordner bleiben erhalten.</string>
     <string name="setup_reset_settings_button">Zurücksetzen</string>
     <string name="setup_reset_settings_hint">Setzt jede Einstellung auf den Standardwert zurück</string>
     <string name="setup_reset_settings_partial">Die Einstellungen wurden zurückgesetzt, aber einige Teile konnten nicht zurückgesetzt werden. Details stehen in den Protokollen.</string>
@@ -1955,7 +1944,6 @@
     <string name="storage_leftover_confirm">Löscht Wine-Präfix und Shader-Cache (%1$s). Sichere vorher benötigte Speicherstände; Steam-Cloud-Speicherstände bleiben im Konto.</string>
     <string name="storage_data_other">Behalten</string>
     <string name="storage_data_other_title">Gemeinsame Präfixe von Nicht-Steam-Spielen und Steam</string>
-    <string name="storage_data_other_detail">Präfixe von Spielen aus Stores oder manuell hinzugefügter Spiele</string>
     <string name="storage_components_packages">Geladene Pakete</string>
     <string name="storage_components_originals">Gesicherte Originale</string>
     <string name="storage_components_none">Keine geladenen Komponentenpakete.</string>

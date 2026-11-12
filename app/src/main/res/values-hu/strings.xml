@@ -7,13 +7,11 @@
         <item>A kontroller Xbox 360 kontrollerként jelenik meg. Egyébként használja a képernyőn lévő vezérlőket.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Az első indítás beállítja az asztalt. Ez néhány percet vehet igénybe.</item>
         <item>Alapértelmezés szerint az alkalmazás elhagyása szünetelteti a munkamenetet; visszatéréskor ott folytatja, ahol abbahagyta.</item>
         <item>Az érintés érintőpadként működik: húzással mozgathatja a kurzort, koppintással kattinthat.</item>
         <item>A kontroller Xbox 360 kontrollerként jelenik meg. Egyébként használja a képernyőn lévő vezérlőket.</item>
     </string-array>
     <string name="session_channel">Munkamenet</string>
-    <string name="session_channel_description">Megjelenik, amíg egy Steam- vagy asztali munkamenet aktív</string>
     <string name="session_notification">A Steam fut</string>
     <string name="session_notification_downloads">Steam-letöltés folyamatban</string>
     <string name="session_notification_paused">A munkamenet szünetel – koppintson a Folytatásra, ha készen áll</string>
@@ -282,10 +280,8 @@
     <string name="common_delete_named">%1$s törlése</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Futtatókörnyezet-illesztőprogram</string>
-    <string name="comp_runtime_driver_hint">A Steam, a játékok és az asztal használja. A következő munkamenettől érvényes.</string>
     <string name="comp_import_turnip">Turnip zip importálása…</string>
     <string name="comp_display_driver">Megjelenítő-illesztőprogram</string>
-    <string name="comp_display_driver_hint">Mindkét módban ez rajzolja a képkockákat a képernyőre. Indítsa újra az alkalmazást az érvényesítéshez.</string>
     <string name="comp_import_adrenotools">AdrenoTools zip importálása…</string>
     <string name="comp_never">soha</string>
     <string name="comp_nightlies_checked">Nightlies ellenőrizve: %1$s</string>
@@ -347,7 +343,6 @@
     <string name="comp_applies_next_game">A következő játékindítástól érvényes</string>
     <string name="comp_import_zip">.zip importálása</string>
     <string name="comp_reading">Protonok beolvasása…</string>
-    <string name="comp_no_proton">Még nincs telepítve Proton. Indítsa el egyszer a Steamet az ARM64 Protonjának letöltéséhez, vagy adjon hozzá GE-Protont, CachyOS-t vagy Kestrel-Protont a Beállításból.</string>
     <string name="comp_original">Eredeti · %1$s</string>
     <string name="comp_this_build">%1$s · ez a build</string>
     <string name="comp_earlier_build">%1$s · korábbi build</string>
@@ -417,7 +412,6 @@
     <string name="perf_zram_client">A Steam tömörítése játék közben</string>
     <string name="perf_zram_client_hint">20 mp-cel a játék indulása után a Steam-kliens a zRAM-ba tömörül, hogy több memória maradjon a játéknak, és a játék bezárásakor visszaolvasódik. Kapcsolja ki, ha a munkamenet röviddel a játékok indulása után bezárul. A fenti RAM-korlát akkor is tömöríti a Steamet, ha a munkamenet túllépi.</string>
     <string name="perf_ram_cap">RAM-korlát</string>
-    <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>
     <string name="perf_ram_cap_unavailable">zRAM swap szükséges, amely ezen az eszközön nincs.</string>
     <string name="perf_vram_cap">VRAM-korlát</string>
     <string name="perf_vram_cap_hint">Ezt a videomemória-keretet jelzi a Direct3D 9–12 játékoknak a memóriahasználat csökkentésére. A játékok túlléphetik; nem biztosít GPU-lapozást, és nem garantál védelmet a memóriahiány miatti összeomlás ellen. A következő munkamenettől érvényes.</string>
@@ -650,7 +644,6 @@
     <string name="setup_reset_settings_hint">Minden beállítást visszaállít az alapértékre</string>
     <string name="setup_reset_settings_button">Visszaállítás</string>
     <string name="setup_reset_settings_title">Visszaállítod az összes beállítást?</string>
-    <string name="setup_reset_settings_body">A kép, a teljesítmény, a kontroller, a téma, a nyelv és az indítóalkalmazás beállításai visszaállnak az alapértékre. A játékaid, a Steam-bejelentkezés, az áruházi fiókok, a letöltött illesztőprogramok és a tárhelymappák megmaradnak.</string>
     <string name="setup_reset_settings_profiles">A játékprofilok visszaállítása is (Proton, FEX, összetevők és futtatókörnyezet játékonként, valamint az Alapértelmezett profil környezete)</string>
     <string name="setup_reset_settings_session_running">A beállítások visszaállítása előtt állítsd le a munkamenetet.</string>
     <string name="setup_reset_settings_partial">A beállítások visszaálltak, de nem mindegyik. A részletek a naplókban vannak.</string>
@@ -669,7 +662,6 @@
     <string name="setup_launcher_orientation_auto">Az eszköz elforgatásának követése</string>
     <string name="setup_orientation_portrait">Álló</string>
     <string name="setup_session_orientation">Munkamenet tájolása</string>
-    <string name="setup_session_orientation_hint">A Steamre, a játékokra, az asztalra és a kontrollerszerkesztőre vonatkozik. A felbontás-előbeállítások a munkamenettel együtt forognak; az egyéni szélesség és magasság a megadott módon marad.</string>
     <string name="setup_orientation_auto">Automatikus fekvő</string>
     <string name="setup_orientation_landscape">Fekvő</string>
     <string name="setup_orientation_reverse">Fordított fekvő</string>
@@ -813,7 +805,6 @@
     <string name="gpu_ubwc_title">UBWC-kompatibilitás</string>
     <string name="gpu_ubwc_hint">Próbálja a Be vagy Ki beállítást, ha a Steam vagy az Android csíkokat vagy villódzást mutat. A Kestrel újraindítása után mindkét illesztőprogramra érvényes.</string>
     <string name="gpu_ubwc_restart">Indítsa újra a Kestrelet az alkalmazáshoz.</string>
-    <string name="gpu_runtime_hint">A játékok és az asztal használja.</string>
     <string name="gpu_runtime_default">Futtatókörnyezet alapértelmezése</string>
     <string name="gpu_auto_by_gpu">Automatikus – GPU szerint kiválasztva</string>
     <string name="load_runtime">Linux futtatókörnyezet</string>
@@ -911,7 +902,6 @@
     <string name="load_compat_wait">Várakozás a kompatibilitási beállítás befejezésére</string>
     <string name="load_compat_hint">A munkamenet a beállítás befejezése után indul.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Várja meg az asztali alkalmazás telepítésének befejezését</string>
     <string name="main_wait_install_game">Várja meg a telepítés befejezését, mielőtt elindít egy játékot</string>
     <string name="main_saves_close_session">Előbb zárja be a Steam-munkamenetet, hogy a játék ne írhassa felül az importált mentést</string>
     <string name="main_saves_importing">Importálás ide: %1$s</string>
@@ -947,7 +937,6 @@
     <string name="main_remove_runtime_title">Linux futtatókörnyezet eltávolítása</string>
     <string name="main_remove_runtime_text">Ez törli a futtatókörnyezetet, a benne lévő Steam-klienst és az összes ott telepített játékot.</string>
     <string name="runtime_actions_title">Linux futtatókörnyezet</string>
-    <string name="runtime_actions_text">A javítás újratelepíti a futtatókörnyezet rendszerfájljait, a Steam, a játékok és a beállítások megmaradnak. Az extrák, például az asztal, a következő használatkor újra települnek. Az eltávolítás mindent töröl.</string>
     <string name="runtime_repair">Futtatókörnyezet javítása</string>
     <string name="main_applied">Alkalmazva: %1$s</string>
     <string name="comp_busy_importing">Importálás</string>
@@ -1955,7 +1944,6 @@
     <string name="storage_leftover_confirm">Törli a Wine prefixet és a shader-gyorsítótárat (%1$s). Előbb készíts másolatot a szükséges mentésekről; a Steam Cloud mentések a fiókodban maradnak.</string>
     <string name="storage_data_other">Megtartva</string>
     <string name="storage_data_other_title">Nem Steam-es játékok és a megosztott Steam prefix</string>
-    <string name="storage_data_other_detail">Áruházból vagy kézzel hozzáadott játékok prefixei</string>
     <string name="storage_components_packages">Letöltött csomagok</string>
     <string name="storage_components_originals">Megtartott eredetiek</string>
     <string name="storage_components_none">Nincs letöltött összetevő-csomag.</string>

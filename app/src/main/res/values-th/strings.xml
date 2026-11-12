@@ -7,13 +7,11 @@
         <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>การเริ่มใช้งานครั้งแรกจะตั้งค่าเดสก์ท็อป ซึ่งอาจใช้เวลาสักครู่</item>
         <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุดเซสชันไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
         <item>การสัมผัสหน้าจอทำงานเหมือนทัชแพด ลากเพื่อเลื่อนตัวชี้ แตะเพื่อคลิก</item>
         <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
     </string-array>
     <string name="session_channel">เซสชัน</string>
-    <string name="session_channel_description">แสดงขณะมีเซสชัน Steam หรือเดสก์ท็อปเปิดอยู่</string>
     <string name="session_notification">Steam กำลังทำงาน</string>
     <string name="session_notification_downloads">กำลังดาวน์โหลดใน Steam</string>
     <string name="session_notification_paused">หยุดเซสชันไว้ชั่วคราว - แตะดำเนินการต่อเมื่อพร้อม</string>
@@ -280,10 +278,8 @@
     <string name="common_delete_named">ลบ %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">ไดรเวอร์รันไทม์</string>
-    <string name="comp_runtime_driver_hint">ใช้โดย Steam เกม และเดสก์ท็อป จะมีผลในเซสชันถัดไป</string>
     <string name="comp_import_turnip">นำเข้า Turnip zip…</string>
     <string name="comp_display_driver">ไดรเวอร์แสดงผล</string>
-    <string name="comp_display_driver_hint">วาดเฟรมบนหน้าจอในทั้งสองโหมด รีสตาร์ทแอปเพื่อให้มีผล</string>
     <string name="comp_import_adrenotools">นำเข้า AdrenoTools zip…</string>
     <string name="comp_never">ไม่เคย</string>
     <string name="comp_nightlies_checked">ตรวจสอบ Nightlies ครั้งล่าสุด %1$s</string>
@@ -345,7 +341,6 @@
     <string name="comp_applies_next_game">จะมีผลในครั้งถัดไปที่เกมเริ่มทำงาน</string>
     <string name="comp_import_zip">นำเข้า .zip</string>
     <string name="comp_reading">กำลังอ่าน Proton…</string>
-    <string name="comp_no_proton">ยังไม่มี Proton ติดตั้งอยู่ เริ่ม Steam สักครั้งเพื่อดาวน์โหลด Proton ARM64 ของมัน หรือเพิ่ม GE-Proton, CachyOS หรือ DroidDeck-Proton จากการตั้งค่า</string>
     <string name="comp_original">ต้นฉบับ · %1$s</string>
     <string name="comp_this_build">%1$s · บิลด์นี้</string>
     <string name="comp_earlier_build">%1$s · บิลด์ก่อนหน้า</string>
@@ -415,7 +410,6 @@
     <string name="perf_zram_client">บีบอัด Steam ขณะเล่นเกม</string>
     <string name="perf_zram_client_hint">20 วินาทีหลังเกมเริ่ม ไคลเอนต์ Steam จะถูกบีบอัดลงใน zRAM เพื่อเหลือหน่วยความจำให้เกมมากขึ้น และอ่านกลับเมื่อปิดเกม ปิดตัวเลือกนี้หากเซสชันปิดไปไม่นานหลังเริ่มเกม ขีดจำกัด RAM ด้านบนยังคงบีบอัด Steam เมื่อเซสชันใช้เกินขีดจำกัด</string>
     <string name="perf_ram_cap">ขีดจำกัด RAM</string>
-    <string name="perf_ram_cap_hint">มีผลขณะไคลเอนต์ Steam ทำงาน ทั้งในโหมด Steam หรือจากเดสก์ท็อป เมื่อเซสชันใช้เกินค่านี้ Steam และโปรเซสอื่นที่รองรับของเซสชันจะถูกบีบอัดลงใน zRAM ตามลำดับ เป็นขีดจำกัดแบบอ่อน: ไม่มีอะไรถูกปิด แต่เกมอาจกระตุกขณะดึงหน้าหน่วยความจำกลับมา</string>
     <string name="perf_ram_cap_unavailable">ต้องใช้ zRAM swap ซึ่งอุปกรณ์นี้ไม่มี</string>
     <string name="perf_vram_cap">ขีดจำกัด VRAM</string>
     <string name="perf_vram_cap_hint">แจ้งงบประมาณหน่วยความจำวิดีโอนี้ให้เกม Direct3D 9 ถึง 12 เพื่อลดการใช้หน่วยความจำ เกมอาจใช้เกินงบได้ ฟีเจอร์นี้ไม่ได้เพิ่มการสลับหน้าหน่วยความจำ GPU และไม่รับประกันว่าจะป้องกันการแครชเมื่อหน่วยความจำหมด มีผลในเซสชันถัดไป</string>
@@ -647,7 +641,6 @@
     <string name="setup_reset_settings_hint">คืนค่าทุกการตั้งค่าเป็นค่าเริ่มต้น</string>
     <string name="setup_reset_settings_button">รีเซ็ต</string>
     <string name="setup_reset_settings_title">รีเซ็ตการตั้งค่าทั้งหมดหรือไม่</string>
-    <string name="setup_reset_settings_body">การตั้งค่าจอ ประสิทธิภาพ คอนโทรลเลอร์ ธีม ภาษา และตัวเปิดแอปจะกลับเป็นค่าเริ่มต้น เกม การเข้าสู่ระบบ Steam บัญชีสโตร์ ไดรเวอร์ที่ดาวน์โหลด และโฟลเดอร์จัดเก็บจะยังอยู่</string>
     <string name="setup_reset_settings_profiles">รีเซ็ตโปรไฟล์เกมด้วย (Proton, FEX, คอมโพเนนต์ และสภาพแวดล้อมรันไทม์ของแต่ละเกม รวมถึงสภาพแวดล้อมของโปรไฟล์ค่าเริ่มต้น)</string>
     <string name="setup_reset_settings_session_running">หยุดเซสชันก่อนรีเซ็ตการตั้งค่า</string>
     <string name="setup_reset_settings_partial">รีเซ็ตการตั้งค่าแล้ว แต่ไม่ทั้งหมด รายละเอียดอยู่ในล็อก</string>
@@ -666,7 +659,6 @@
     <string name="setup_launcher_orientation_auto">หมุนตามอุปกรณ์</string>
     <string name="setup_orientation_portrait">แนวตั้ง</string>
     <string name="setup_session_orientation">การวางแนวของเซสชัน</string>
-    <string name="setup_session_orientation_hint">มีผลกับ Steam เกม เดสก์ท็อป และตัวแก้ไขคอนโทรลเลอร์ ค่าความละเอียดที่ตั้งไว้ล่วงหน้าจะหมุนตามเซสชัน ส่วนความกว้างและความสูงที่กำหนดเองจะคงตามที่ป้อนไว้</string>
     <string name="setup_orientation_auto">แนวนอนอัตโนมัติ</string>
     <string name="setup_orientation_landscape">แนวนอน</string>
     <string name="setup_orientation_reverse">แนวนอนกลับด้าน</string>
@@ -810,7 +802,6 @@
     <string name="gpu_ubwc_title">ความเข้ากันได้ของ UBWC</string>
     <string name="gpu_ubwc_hint">ลองเปิดหรือปิดหาก Steam หรือ Android แสดงเป็นแถบลายหรือกะพริบ มีผลกับไดรเวอร์ทั้งสองหลังรีสตาร์ท Kestrel</string>
     <string name="gpu_ubwc_restart">รีสตาร์ท Kestrel เพื่อใช้การเปลี่ยนแปลง</string>
-    <string name="gpu_runtime_hint">ใช้โดยเกมและเดสก์ท็อป</string>
     <string name="gpu_runtime_default">ค่าเริ่มต้นของรันไทม์</string>
     <string name="gpu_auto_by_gpu">อัตโนมัติ - เลือกตาม GPU</string>
     <string name="load_runtime">รันไทม์ Linux</string>
@@ -908,7 +899,6 @@
     <string name="load_compat_wait">กำลังรอให้การตั้งค่าความเข้ากันได้เสร็จสิ้น</string>
     <string name="load_compat_hint">เซสชันของคุณจะเริ่มเมื่อการตั้งค่าเสร็จสิ้น</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">รอให้การติดตั้งแอปเดสก์ท็อปเสร็จสิ้น</string>
     <string name="main_wait_install_game">รอให้การติดตั้งเสร็จสิ้นก่อนเปิดเกม</string>
     <string name="main_saves_close_session">ปิดเซสชัน Steam ก่อน เพื่อไม่ให้เกมบันทึกทับการนำเข้า</string>
     <string name="main_saves_importing">กำลังนำเข้าสู่ %1$s</string>
@@ -940,7 +930,6 @@
     <string name="main_remove_runtime_title">ลบรันไทม์ Linux</string>
     <string name="main_remove_runtime_text">การลบนี้จะลบรันไทม์ ไคลเอนต์ Steam ภายใน และเกมทุกเกมที่ติดตั้งอยู่ในนั้น</string>
     <string name="runtime_actions_title">รันไทม์ Linux</string>
-    <string name="runtime_actions_text">ซ่อมแซมจะติดตั้งไฟล์ระบบของรันไทม์ใหม่โดยเก็บ Steam เกม และการตั้งค่าของคุณไว้ ส่วนเสริมอย่างเดสก์ท็อปจะติดตั้งใหม่เมื่อคุณใช้งานครั้งถัดไป ลบจะลบทุกอย่าง</string>
     <string name="runtime_repair">ซ่อมแซมรันไทม์</string>
     <string name="main_applied">นำมาใช้แล้ว: %1$s</string>
     <string name="comp_busy_importing">กำลังนำเข้า</string>
@@ -1933,7 +1922,6 @@
     <string name="storage_leftover_confirm">ลบ Prefix ของ Wine และแคชเชเดอร์ (%1$s) สำรองเซฟที่สำคัญไว้ก่อน เซฟ Steam Cloud ยังอยู่ในบัญชีของคุณ</string>
     <string name="storage_data_other">เก็บไว้</string>
     <string name="storage_data_other_title">เกมนอก Steam และ Prefix Steam ที่ใช้ร่วมกัน</string>
-    <string name="storage_data_other_detail">Prefix ของเกมจากสโตร์หรือที่เพิ่มเอง</string>
     <string name="storage_components_packages">แพ็กเกจที่ดาวน์โหลด</string>
     <string name="storage_components_originals">ต้นฉบับที่เก็บไว้</string>
     <string name="storage_components_none">ยังไม่มีแพ็กเกจคอมโพเนนต์ที่ดาวน์โหลด</string>

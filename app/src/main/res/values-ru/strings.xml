@@ -7,13 +7,11 @@
         <item>Ваш контроллер отображается как геймпад Xbox 360. Если контроллера нет, используйте экранные элементы управления.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>При первом запуске будет настроен рабочий стол. Это может занять несколько минут.</item>
         <item>По умолчанию при выходе из приложения сессия приостанавливается; при возвращении работа возобновляется с того же места.</item>
         <item>Сенсорный ввод работает как тачпад: перетаскивайте для перемещения курсора, нажимайте для клика.</item>
         <item>Ваш контроллер отображается как геймпад Xbox 360. Если контроллера нет, используйте экранные элементы управления.</item>
     </string-array>
     <string name="session_channel">Сессия</string>
-    <string name="session_channel_description">Отображается, пока открыта сессия Steam или рабочего стола</string>
     <string name="session_notification">Steam запущен</string>
     <string name="session_notification_downloads">Идет загрузка в Steam</string>
     <string name="session_notification_paused">Сессия приостановлена — нажмите «Продолжить»</string>
@@ -305,10 +303,8 @@
     <string name="common_delete_named">Удалить %1$s</string>
     <string name="common_size_mb">%1$.1f МБ</string>
     <string name="comp_runtime_driver">Драйвер среды выполнения</string>
-    <string name="comp_runtime_driver_hint">Используется Steam, играми и рабочим столом. Вступит в силу в следующей сессии.</string>
     <string name="comp_import_turnip">Импорт Turnip zip…</string>
     <string name="comp_display_driver">Драйвер дисплея</string>
-    <string name="comp_display_driver_hint">Отвечает за вывод изображения на экран в обоих режимах. Вступит в силу после перезапуска приложения.</string>
     <string name="comp_import_adrenotools">Импорт AdrenoTools zip…</string>
     <string name="comp_never">никогда</string>
     <string name="comp_nightlies_checked">Nightlies проверены: %1$s</string>
@@ -370,7 +366,6 @@
     <string name="comp_applies_next_game">Вступит в силу при следующем запуске игры</string>
     <string name="comp_import_zip">Импорт .zip</string>
     <string name="comp_reading">Чтение Proton…</string>
-    <string name="comp_no_proton">Proton еще не установлен. Запустите Steam один раз, чтобы скачать ARM64 Proton, или добавьте GE-Proton, CachyOS или DroidDeck-Proton на странице «Настройка».</string>
     <string name="comp_original">Оригинал · %1$s</string>
     <string name="comp_this_build">%1$s · текущая сборка</string>
     <string name="comp_earlier_build">%1$s · более ранняя сборка</string>
@@ -440,7 +435,6 @@
     <string name="perf_zram_client">Сжимать Steam во время игры</string>
     <string name="perf_zram_client_hint">Через 20 с после запуска игры клиент Steam сжимается в zRAM, чтобы оставить игре больше памяти, и считывается обратно после закрытия игры. Отключите, если сессия закрывается вскоре после запуска игр. Лимит RAM выше всё равно сжимает Steam, когда сессия его превышает.</string>
     <string name="perf_ram_cap">Лимит RAM</string>
-    <string name="perf_ram_cap_hint">Действует, пока работает клиент Steam, в режиме Steam или с рабочего стола. Когда сессия использует больше этого значения, Steam, а затем другие поддерживаемые процессы сессии сжимаются в zRAM. Мягкий лимит: ничего не закрывается, но игры могут подтормаживать, пока страницы возвращаются.</string>
     <string name="perf_ram_cap_unavailable">Нужен своп zRAM, которого на этом устройстве нет.</string>
     <string name="perf_vram_cap">Лимит VRAM</string>
     <string name="perf_vram_cap_hint">Сообщает играм Direct3D 9–12 этот бюджет видеопамяти для снижения её использования. Игры могут его превысить; это не добавляет подкачку памяти GPU и не гарантирует защиту от сбоев из-за нехватки памяти. Действует со следующего сеанса.</string>
@@ -674,7 +668,6 @@
     <string name="setup_clear_logs">Очистить журналы</string>
     <string name="setup_log_sessions">Доступные журналы сессий</string>
     <string name="setup_log_empty">Сохраненных журналов сессий пока нет.</string>
-    <string name="setup_log_export_hint">ZIP-архив, которым вы делитесь или который сохраняете, содержит выбранную сессию и связанную диагностику Steam, магазинов, инструментов и Battle.net.</string>
     <string name="setup_log_size_date">%1$s · %2$s</string>
     <string name="setup_log_current">Текущая сессия</string>
     <string name="setup_log_share">Поделиться</string>
@@ -689,7 +682,6 @@
     <string name="setup_reset_settings_hint">Возвращает все настройки к значениям по умолчанию</string>
     <string name="setup_reset_settings_button">Сбросить</string>
     <string name="setup_reset_settings_title">Сбросить все настройки?</string>
-    <string name="setup_reset_settings_body">Настройки экрана, производительности, контроллера, темы, языка и лаунчера вернутся к значениям по умолчанию. Ваши игры, вход в Steam, аккаунты магазинов, загруженные драйверы и папки хранилища сохранятся.</string>
     <string name="setup_reset_settings_profiles">Также сбросить профили игр (Proton, FEX, компоненты и окружение каждой игры, а также окружение профиля по умолчанию)</string>
     <string name="setup_reset_settings_session_running">Остановите сессию перед сбросом настроек.</string>
     <string name="setup_reset_settings_partial">Настройки сброшены, но некоторые части сбросить не удалось. Подробности в журналах.</string>
@@ -708,7 +700,6 @@
     <string name="setup_launcher_orientation_auto">Следовать повороту устройства</string>
     <string name="setup_orientation_portrait">Портретная</string>
     <string name="setup_session_orientation">Ориентация сессии</string>
-    <string name="setup_session_orientation_hint">Применяется к Steam, играм, рабочему столу и редактору контроллера. Предустановки разрешения поворачиваются вместе с сессией; свои ширина и высота остаются как введены.</string>
     <string name="setup_orientation_auto">Альбомная (авто)</string>
     <string name="setup_orientation_landscape">Альбомная</string>
     <string name="setup_orientation_reverse">Перевернутая альбомная</string>
@@ -716,7 +707,6 @@
     <string name="setup_fullscreen_on">Скрывает строку состояния и панель навигации Android</string>
     <string name="setup_fullscreen_off">Показывает строку состояния и панель навигации Android</string>
     <string name="setup_dual_screen_launcher">Лаунчер на двух экранах</string>
-    <string name="setup_dual_screen_launcher_hint">«Автоматически» переносит разделы лаунчера (Steam, Библиотека, Магазины и остальные) на второй экран портативных устройств со встроенным вторым экраном. «Вкл.» использует любой второй дисплей. «Выкл.» оставляет лаунчер на одном экране.</string>
     <string name="setup_dual_screen_sessions">Сессии на двух экранах</string>
     <string name="setup_dual_screen_sessions_hint">«Автоматически» закрепляет внутриигровое меню на встроенном втором экране вместо всплывающего окна. «Вкл.» использует любой второй дисплей. «Выкл.» оставляет меню на экране игры; второй экран все равно можно выбрать в самом меню.</string>
     <string name="setup_dual_screen_auto">Автоматически</string>
@@ -856,7 +846,6 @@
     <string name="gpu_ubwc_title">Совместимость UBWC</string>
     <string name="gpu_ubwc_hint">Попробуйте «Вкл.» или «Выкл.», если в Steam или Android появляются полосы или мерцание. Применяется к обоим драйверам после перезапуска Kestrel.</string>
     <string name="gpu_ubwc_restart">Перезапустите Kestrel, чтобы применить.</string>
-    <string name="gpu_runtime_hint">Используется играми и рабочим столом.</string>
     <string name="gpu_runtime_default">Стандартный драйвер среды выполнения</string>
     <string name="gpu_auto_by_gpu">Авто — по GPU</string>
     <string name="load_runtime">Среда выполнения Linux</string>
@@ -963,7 +952,6 @@
     <string name="load_compat_wait">Ожидание завершения настройки совместимости</string>
     <string name="load_compat_hint">Сессия запустится, когда настройка завершится.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Дождитесь завершения установки приложения рабочего стола</string>
     <string name="main_wait_install_game">Дождитесь завершения установки, прежде чем запускать игру</string>
     <string name="main_saves_close_session">Сначала закройте сессию Steam, чтобы игра не записала свои сохранения поверх импортированных</string>
     <string name="main_saves_importing">Импорт в %1$s</string>
@@ -1007,7 +995,6 @@
     <string name="main_remove_runtime_title">Удалить среду выполнения Linux</string>
     <string name="main_remove_runtime_text">Будут удалены среда выполнения, клиент Steam в ней и все установленные туда игры.</string>
     <string name="runtime_actions_title">Среда выполнения Linux</string>
-    <string name="runtime_actions_text">Восстановление переустанавливает системные файлы среды выполнения и сохраняет Steam, ваши игры и настройки. Дополнения, например рабочий стол, установятся снова при следующем использовании. Удаление стирает всё.</string>
     <string name="runtime_repair">Восстановить среду выполнения</string>
     <string name="main_applied">Применено: %1$s</string>
     <string name="comp_busy_importing">Импорт</string>
@@ -2085,7 +2072,6 @@
     <string name="storage_leftover_confirm">Удалит его префикс Wine и кэш шейдеров (%1$s). Сначала сделайте копию нужных сохранений; сохранения Steam Cloud останутся в аккаунте.</string>
     <string name="storage_data_other">Сохранённые</string>
     <string name="storage_data_other_title">Игры не из Steam и общий префикс Steam</string>
-    <string name="storage_data_other_detail">Префиксы игр, добавленных магазинами или вручную</string>
     <string name="storage_components_packages">Загруженные пакеты</string>
     <string name="storage_components_originals">Сохранённые оригиналы</string>
     <string name="storage_components_none">Пакеты компонентов не загружены.</string>

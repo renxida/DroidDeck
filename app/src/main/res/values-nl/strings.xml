@@ -7,13 +7,11 @@
         <item>Je controller wordt gezien als Xbox 360-controller. Gebruik anders de schermbediening.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Bij de eerste start wordt de desktop ingericht. Dit kan een paar minuten duren.</item>
         <item>Standaard wordt de sessie gepauzeerd als je de app verlaat; als je terugkomt, gaat die verder waar je was.</item>
         <item>Aanraken werkt als touchpad: sleep om de aanwijzer te verplaatsen, tik om te klikken.</item>
         <item>Je controller wordt gezien als Xbox 360-controller. Gebruik anders de schermbediening.</item>
     </string-array>
     <string name="session_channel">Sessie</string>
-    <string name="session_channel_description">Wordt getoond zolang er een Steam- of desktopsessie open is</string>
     <string name="session_notification">Steam is actief</string>
     <string name="session_notification_downloads">Steam-download actief</string>
     <string name="session_notification_paused">Sessie gepauzeerd - tik op Hervatten als je klaar bent</string>
@@ -282,10 +280,8 @@
     <string name="common_delete_named">%1$s verwijderen</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Runtimedriver</string>
-    <string name="comp_runtime_driver_hint">Gebruikt door Steam, games en de desktop. Geldt vanaf de volgende sessie.</string>
     <string name="comp_import_turnip">Turnip-zip importeren…</string>
     <string name="comp_display_driver">Weergavedriver</string>
-    <string name="comp_display_driver_hint">Tekent frames op het scherm in beide modi. Start de app opnieuw om dit toe te passen.</string>
     <string name="comp_import_adrenotools">AdrenoTools-zip importeren…</string>
     <string name="comp_never">nooit</string>
     <string name="comp_nightlies_checked">Nightlies gecontroleerd: %1$s</string>
@@ -347,7 +343,6 @@
     <string name="comp_applies_next_game">Geldt bij de volgende start van een game</string>
     <string name="comp_import_zip">.zip importeren</string>
     <string name="comp_reading">Protons lezen…</string>
-    <string name="comp_no_proton">Nog geen Proton geïnstalleerd. Start Steam één keer om de ARM64-Proton te downloaden, of voeg GE-Proton, CachyOS of DroidDeck-Proton toe via Installatie.</string>
     <string name="comp_original">Origineel · %1$s</string>
     <string name="comp_this_build">%1$s · deze build</string>
     <string name="comp_earlier_build">%1$s · eerdere build</string>
@@ -417,7 +412,6 @@
     <string name="perf_zram_client">Steam comprimeren terwijl een game draait</string>
     <string name="perf_zram_client_hint">20 s nadat een game start, wordt de Steam-client in zRAM gecomprimeerd om de game meer geheugen te geven, en teruggelezen als de game sluit. Zet dit uit als de sessie kort na het starten van games sluit. Een RAM-limiet hierboven comprimeert Steam nog steeds als de sessie die overschrijdt.</string>
     <string name="perf_ram_cap">RAM-limiet</string>
-    <string name="perf_ram_cap_hint">Geldt terwijl de Steam-client draait, in de Steam-modus of vanaf de desktop. Als de sessie meer gebruikt dan dit, worden Steam en daarna de andere ondersteunde processen van de sessie in zRAM gecomprimeerd. Een zachte limiet: er wordt niets gesloten, maar games kunnen haperen terwijl pagina’s terugkomen.</string>
     <string name="perf_ram_cap_unavailable">Vereist zRAM-swap, die dit apparaat niet heeft.</string>
     <string name="perf_vram_cap">VRAM-limiet</string>
     <string name="perf_vram_cap_hint">Meldt dit videogeheugenbudget aan Direct3D 9- tot 12-games om het geheugengebruik te verlagen. Games kunnen het overschrijden; dit voegt geen GPU-paging toe en garandeert geen bescherming tegen crashes door geheugentekort. Geldt vanaf de volgende sessie.</string>
@@ -650,7 +644,6 @@
     <string name="setup_reset_settings_hint">Zet elke instelling terug op de standaardwaarde</string>
     <string name="setup_reset_settings_button">Resetten</string>
     <string name="setup_reset_settings_title">Alle instellingen resetten?</string>
-    <string name="setup_reset_settings_body">Instellingen voor beeld, prestaties, controller, thema, taal en launcher gaan terug naar de standaardwaarden. Je games, Steam-aanmelding, winkelaccounts, gedownloade drivers en opslagmappen blijven bewaard.</string>
     <string name="setup_reset_settings_profiles">Ook gameprofielen resetten (Proton, FEX, componenten en omgeving per game, en de omgeving van het Standaard-profiel)</string>
     <string name="setup_reset_settings_session_running">Stop de sessie voordat je instellingen reset.</string>
     <string name="setup_reset_settings_partial">De instellingen zijn gereset, maar niet alles. De details staan in de logs.</string>
@@ -669,7 +662,6 @@
     <string name="setup_launcher_orientation_auto">Apparaatrotatie volgen</string>
     <string name="setup_orientation_portrait">Staand</string>
     <string name="setup_session_orientation">Oriëntatie van sessie</string>
-    <string name="setup_session_orientation_hint">Geldt voor Steam, games, desktop en de controllereditor. Resolutievoorinstellingen draaien mee met de sessie; aangepaste breedte en hoogte blijven zoals ingevoerd.</string>
     <string name="setup_orientation_auto">Automatisch liggend</string>
     <string name="setup_orientation_landscape">Liggend</string>
     <string name="setup_orientation_reverse">Liggend omgekeerd</string>
@@ -813,7 +805,6 @@
     <string name="gpu_ubwc_title">UBWC-compatibiliteit</string>
     <string name="gpu_ubwc_hint">Probeer Aan of Uit als Steam of Android strepen of flikkering toont. Geldt voor beide drivers na het herstarten van Kestrel.</string>
     <string name="gpu_ubwc_restart">Start Kestrel opnieuw om dit toe te passen.</string>
-    <string name="gpu_runtime_hint">Gebruikt door games en de desktop.</string>
     <string name="gpu_runtime_default">Runtimestandaard</string>
     <string name="gpu_auto_by_gpu">Automatisch - gekozen op basis van de GPU</string>
     <string name="load_runtime">Linux-runtime</string>
@@ -911,7 +902,6 @@
     <string name="load_compat_wait">Wachten tot de compatibiliteitsinstallatie klaar is</string>
     <string name="load_compat_hint">Je sessie start zodra de installatie klaar is.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Wacht tot de installatie van de desktop-app klaar is</string>
     <string name="main_wait_install_game">Wacht tot de installatie klaar is voordat je een game start</string>
     <string name="main_saves_close_session">Sluit eerst de Steam-sessie, zodat de game niet over de import heen kan opslaan</string>
     <string name="main_saves_importing">Importeren in %1$s</string>
@@ -947,7 +937,6 @@
     <string name="main_remove_runtime_title">Linux-runtime verwijderen</string>
     <string name="main_remove_runtime_text">Hiermee verwijder je de runtime, de Steam-client erin en alle games die daar zijn geïnstalleerd.</string>
     <string name="runtime_actions_title">Linux-runtime</string>
-    <string name="runtime_actions_text">Repareren installeert de systeembestanden van de runtime opnieuw en behoudt Steam, je games en instellingen. Extra’s zoals de desktop worden opnieuw geïnstalleerd wanneer je ze weer gebruikt. Verwijderen wist alles.</string>
     <string name="runtime_repair">Runtime repareren</string>
     <string name="main_applied">Toegepast: %1$s</string>
     <string name="comp_busy_importing">Importeren</string>
@@ -1955,7 +1944,6 @@
     <string name="storage_leftover_confirm">Wist het Wine-prefix en de shadercache (%1$s). Maak eerst een kopie van de saves die je nodig hebt; Steam Cloud-saves blijven in je account.</string>
     <string name="storage_data_other">Bewaard</string>
     <string name="storage_data_other_title">Niet-Steam-games en gedeeld Steam-prefix</string>
-    <string name="storage_data_other_detail">Prefixen van games die via winkels of handmatig zijn toegevoegd</string>
     <string name="storage_components_packages">Gedownloade pakketten</string>
     <string name="storage_components_originals">Bewaarde originelen</string>
     <string name="storage_components_none">Geen componentpakketten gedownload.</string>

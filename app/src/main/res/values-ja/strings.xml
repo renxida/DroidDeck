@@ -7,13 +7,11 @@
         <item>コントローラーはXbox 360コントローラーとして認識されます。それ以外の場合は、画面コントローラーを使用してください。</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>初回起動時はデスクトップをセットアップします。数分かかる場合があります。</item>
         <item>デフォルトでは、アプリを離れるとセッションが一時停止し、戻ると前回の続きから再開します。</item>
         <item>タッチはトラックパッドのように機能します。ドラッグでポインタを移動し、タップでクリックします。</item>
         <item>コントローラーはXbox 360コントローラーとして認識されます。それ以外の場合は、画面コントローラーを使用してください。</item>
     </string-array>
     <string name="session_channel">セッション</string>
-    <string name="session_channel_description">Steamまたはデスクトップのセッション中に表示</string>
     <string name="session_notification">Steamが実行中です</string>
     <string name="session_notification_downloads">Steamのダウンロードが進行中</string>
     <string name="session_notification_paused">セッションが一時停止中 - 準備ができたらタップして再開</string>
@@ -280,10 +278,8 @@
     <string name="common_delete_named">%1$sを削除</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">ランタイムドライバー</string>
-    <string name="comp_runtime_driver_hint">Steam、ゲーム、デスクトップで使用されます。次回のセッションで有効になります。</string>
     <string name="comp_import_turnip">Turnip zipをインポート…</string>
     <string name="comp_display_driver">ディスプレイドライバー</string>
-    <string name="comp_display_driver_hint">どちらのモードでも画面への出力を担当します。アプリの再起動後に有効になります。</string>
     <string name="comp_import_adrenotools">AdrenoTools zipをインポート…</string>
     <string name="comp_never">なし</string>
     <string name="comp_nightlies_checked">Nightliesの確認日時 %1$s</string>
@@ -345,7 +341,6 @@
     <string name="comp_applies_next_game">次回のゲーム起動時に有効になります</string>
     <string name="comp_import_zip">.zipをインポート</string>
     <string name="comp_reading">Protonを読み込み中…</string>
-    <string name="comp_no_proton">Protonがインストールされていません。一度Steamを起動してARM64 Protonをダウンロードするか、「セットアップ」からGE-ProtonまたはCachyOSを追加してください。</string>
     <string name="comp_original">元 · %1$s</string>
     <string name="comp_this_build">%1$s · 現在のビルド</string>
     <string name="comp_earlier_build">%1$s · 以前のビルド</string>
@@ -415,7 +410,6 @@
     <string name="perf_zram_client">ゲーム実行中はSteamを圧縮</string>
     <string name="perf_zram_client_hint">ゲーム開始の20秒後、SteamクライアントをzRAMに圧縮してゲームに使えるメモリを増やし、ゲーム終了時に読み戻します。ゲーム開始直後にセッションが終了する場合はオフにしてください。上のRAM上限を設定している場合は、セッションが上限を超えるとSteamは引き続き圧縮されます。</string>
     <string name="perf_ram_cap">RAM上限</string>
-    <string name="perf_ram_cap_hint">Steamモードでもデスクトップからでも、Steamクライアントの実行中に適用されます。セッションの使用量がこの値を超えると、Steam、次にセッション内の対応する他のプロセスがzRAMに圧縮されます。ソフトな上限のため何も終了されませんが、ページの読み戻し中にゲームがカクつくことがあります。</string>
     <string name="perf_ram_cap_unavailable">zRAMスワップが必要ですが、このデバイスにはありません。</string>
     <string name="perf_vram_cap">VRAM上限</string>
     <string name="perf_vram_cap_hint">Direct3D 9～12のゲームにこのビデオメモリ予算を通知し、メモリ使用量の削減を促します。ゲームは予算を超える場合があります。GPUのページングを追加するものではなく、メモリ不足によるクラッシュの防止は保証されません。次のセッションから有効になります。</string>
@@ -647,7 +641,6 @@
     <string name="setup_reset_settings_hint">すべての設定をデフォルトに戻します</string>
     <string name="setup_reset_settings_button">リセット</string>
     <string name="setup_reset_settings_title">すべての設定をリセットしますか？</string>
-    <string name="setup_reset_settings_body">画面、パフォーマンス、コントローラー、テーマ、言語、ランチャーの設定がデフォルトに戻ります。ゲーム、Steamのサインイン、ストアのアカウント、ダウンロードしたドライバー、ストレージフォルダーは保持されます。</string>
     <string name="setup_reset_settings_profiles">ゲームプロファイルもリセットする（各ゲームのProton、FEX、コンポーネント、環境、およびデフォルトプロファイルの環境）</string>
     <string name="setup_reset_settings_session_running">設定をリセットする前にセッションを停止してください。</string>
     <string name="setup_reset_settings_partial">設定はリセットされましたが、一部をリセットできませんでした。詳細はログを確認してください。</string>
@@ -666,7 +659,6 @@
     <string name="setup_launcher_orientation_auto">デバイスの回転に合わせる</string>
     <string name="setup_orientation_portrait">縦向き</string>
     <string name="setup_session_orientation">セッションの向き</string>
-    <string name="setup_session_orientation_hint">Steam、ゲーム、デスクトップ、コントローラーエディターに適用されます。解像度プリセットはセッションに合わせて回転し、カスタムの幅と高さは入力したとおりになります。</string>
     <string name="setup_orientation_auto">横向き（自動回転）</string>
     <string name="setup_orientation_landscape">横向き</string>
     <string name="setup_orientation_reverse">横向き（反転）</string>
@@ -810,7 +802,6 @@
     <string name="gpu_ubwc_title">UBWC互換性</string>
     <string name="gpu_ubwc_hint">SteamやAndroidで縞模様やちらつきが出る場合は、オンまたはオフを試してください。Kestrelの再起動後、両方のドライバーに適用されます。</string>
     <string name="gpu_ubwc_restart">適用するにはKestrelを再起動してください。</string>
-    <string name="gpu_runtime_hint">ゲームとデスクトップで使用されます。</string>
     <string name="gpu_runtime_default">ランタイムデフォルト</string>
     <string name="gpu_auto_by_gpu">自動 - GPUごとに選択</string>
     <string name="load_runtime">Linux実行環境</string>
@@ -908,7 +899,6 @@
     <string name="load_compat_wait">互換性のセットアップが完了するのを待っています</string>
     <string name="load_compat_hint">セットアップが完了するとセッションが開始します。</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">デスクトップアプリのインストールが完了するまでお待ちください</string>
     <string name="main_wait_install_game">インストールが完了してからゲームを起動してください</string>
     <string name="main_saves_close_session">インポートしたデータがゲームに上書き保存されないよう、先にSteamセッションを終了してください</string>
     <string name="main_saves_importing">%1$sにインポート中</string>
@@ -940,7 +930,6 @@
     <string name="main_remove_runtime_title">Linux実行環境を削除</string>
     <string name="main_remove_runtime_text">実行環境、その中のSteamクライアント、そこにインストールされたすべてのゲームが削除されます。</string>
     <string name="runtime_actions_title">Linux実行環境</string>
-    <string name="runtime_actions_text">「修復」は実行環境のシステムファイルを再インストールし、Steam、ゲーム、設定は保持します。デスクトップなどの追加機能は、次に使用するときに再度インストールされます。「削除」はすべてを消去します。</string>
     <string name="runtime_repair">実行環境を修復</string>
     <string name="main_applied">適用しました：%1$s</string>
     <string name="comp_busy_importing">インポート中</string>
@@ -1933,7 +1922,6 @@
     <string name="storage_leftover_confirm">Wine プレフィックスとシェーダーキャッシュ（%1$s）を削除します。必要なセーブデータは先にバックアップしてください。Steam クラウドのセーブデータはアカウントに残ります。</string>
     <string name="storage_data_other">保持</string>
     <string name="storage_data_other_title">Steam 以外のゲームと Steam の共有プレフィックス</string>
-    <string name="storage_data_other_detail">ストアから、または手動で追加したゲームのプレフィックス</string>
     <string name="storage_components_packages">ダウンロード済みのパッケージ</string>
     <string name="storage_components_originals">保存済みの元ファイル</string>
     <string name="storage_components_none">ダウンロード済みのコンポーネントパッケージはありません。</string>

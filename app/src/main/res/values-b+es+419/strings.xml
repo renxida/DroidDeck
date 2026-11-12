@@ -7,13 +7,11 @@
         <item>Tu control aparece como un control de Xbox 360. Si no, usa los controles en pantalla.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>La primera vez se prepara el escritorio. Puede tardar unos minutos.</item>
         <item>De forma predeterminada, al salir de la app la sesión se pausa y continúa donde la dejaste cuando vuelves.</item>
         <item>El tacto funciona como un touchpad: arrastra para mover el puntero y toca para hacer clic.</item>
         <item>Tu control aparece como un control de Xbox 360. Si no, usa los controles en pantalla.</item>
     </string-array>
     <string name="session_channel">Sesión</string>
-    <string name="session_channel_description">Se muestra mientras hay una sesión de Steam o de escritorio abierta</string>
     <string name="session_notification">Steam se está ejecutando</string>
     <string name="session_notification_downloads">Descarga de Steam en curso</string>
     <string name="session_notification_paused">Sesión en pausa - toca Reanudar cuando quieras</string>
@@ -284,10 +282,8 @@
     <string name="common_delete_named">Eliminar %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Controlador de runtime</string>
-    <string name="comp_runtime_driver_hint">Lo usan Steam, los juegos y el escritorio. Se aplica en la próxima sesión.</string>
     <string name="comp_import_turnip">Importar zip de Turnip…</string>
     <string name="comp_display_driver">Controlador de pantalla</string>
-    <string name="comp_display_driver_hint">Dibuja los fotogramas en pantalla en ambos modos. Reinicia la app para aplicarlo.</string>
     <string name="comp_import_adrenotools">Importar un zip de AdrenoTools…</string>
     <string name="comp_never">nunca</string>
     <string name="comp_nightlies_checked">Última comprobación de Nightlies: %1$s</string>
@@ -349,7 +345,6 @@
     <string name="comp_applies_next_game">Se aplica la próxima vez que se inicie un juego</string>
     <string name="comp_import_zip">Importar .zip</string>
     <string name="comp_reading">Leyendo Protons…</string>
-    <string name="comp_no_proton">Aún no hay ningún Proton instalado. Inicia Steam una vez para descargar su Proton ARM64, o agrega GE-Proton o CachyOS desde Configuración.</string>
     <string name="comp_original">Original · %1$s</string>
     <string name="comp_this_build">%1$s · esta versión</string>
     <string name="comp_earlier_build">%1$s · versión anterior</string>
@@ -419,7 +414,6 @@
     <string name="perf_zram_client">Comprimir Steam mientras se ejecuta un juego</string>
     <string name="perf_zram_client_hint">20 s después de que empiece un juego, el cliente de Steam se comprime en zRAM para dejarle más memoria al juego, y se vuelve a leer cuando el juego se cierra. Desactívalo si la sesión se cierra poco después de iniciar los juegos. Un límite de RAM definido arriba sigue comprimiendo Steam cuando la sesión lo supera.</string>
     <string name="perf_ram_cap">Límite de RAM</string>
-    <string name="perf_ram_cap_hint">Se aplica mientras se ejecuta el cliente de Steam, en modo Steam o desde el escritorio. Cuando la sesión usa más de esto, Steam y luego los demás procesos compatibles de la sesión se comprimen en zRAM. Es un límite flexible: no se cierra nada, pero los juegos pueden tener microcortes mientras se recuperan las páginas.</string>
     <string name="perf_ram_cap_unavailable">Requiere swap de zRAM, y este dispositivo no lo tiene.</string>
     <string name="perf_vram_cap">Límite de VRAM</string>
     <string name="perf_vram_cap_hint">Informa a los juegos Direct3D 9 a 12 de este presupuesto de memoria de video para reducir su uso. Los juegos pueden superarlo; no agrega paginación de GPU ni garantiza evitar fallos por falta de memoria. Se aplica en la próxima sesión.</string>
@@ -656,7 +650,6 @@
     <string name="setup_reset_settings_hint">Devuelve cada ajuste a su valor predeterminado</string>
     <string name="setup_reset_settings_button">Restablecer</string>
     <string name="setup_reset_settings_title">¿Restablecer todos los ajustes?</string>
-    <string name="setup_reset_settings_body">Los ajustes de pantalla, rendimiento, control, tema, idioma y lanzador vuelven a sus valores predeterminados. Se conservan tus juegos, la sesión de Steam, las cuentas de tiendas, los controladores descargados y las carpetas de almacenamiento.</string>
     <string name="setup_reset_settings_profiles">Restablecer también los perfiles de juego (Proton, FEX, componentes y entorno de cada juego, y el entorno del perfil predeterminado)</string>
     <string name="setup_reset_settings_session_running">Detén la sesión antes de restablecer los ajustes.</string>
     <string name="setup_reset_settings_partial">Los ajustes se restablecieron, pero algunas partes no se pudieron restablecer. Los registros tienen los detalles.</string>
@@ -675,7 +668,6 @@
     <string name="setup_launcher_orientation_auto">Seguir la rotación del dispositivo</string>
     <string name="setup_orientation_portrait">Vertical</string>
     <string name="setup_session_orientation">Orientación de la sesión</string>
-    <string name="setup_session_orientation_hint">Se aplica a Steam, los juegos, el escritorio y el editor de controles. Los ajustes predefinidos de resolución giran con la sesión; el ancho y el alto personalizados se mantienen como se ingresaron.</string>
     <string name="setup_orientation_auto">Horizontal automática</string>
     <string name="setup_orientation_landscape">Horizontal</string>
     <string name="setup_orientation_reverse">Horizontal invertida</string>
@@ -819,7 +811,6 @@
     <string name="gpu_ubwc_title">Compatibilidad con UBWC</string>
     <string name="gpu_ubwc_hint">Prueba Activado o Desactivado si Steam o Android muestran franjas o parpadeos. Se aplica a ambos controladores después de reiniciar Kestrel.</string>
     <string name="gpu_ubwc_restart">Reinicia Kestrel para aplicarlo.</string>
-    <string name="gpu_runtime_hint">Lo usan los juegos y el escritorio.</string>
     <string name="gpu_runtime_default">Predeterminado del runtime</string>
     <string name="gpu_auto_by_gpu">Auto - elegido según la GPU</string>
     <string name="load_runtime">Runtime de Linux</string>
@@ -916,7 +907,6 @@
     <string name="load_compat_wait">Esperando a que termine la configuración de compatibilidad</string>
     <string name="load_compat_hint">Tu sesión se iniciará cuando termine la configuración.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Espera a que termine la instalación de la app de escritorio</string>
     <string name="main_wait_install_game">Espera a que termine la instalación antes de iniciar un juego</string>
     <string name="main_saves_close_session">Cierra primero la sesión de Steam para que el juego no guarde encima de lo importado</string>
     <string name="main_saves_importing">Importando en %1$s</string>
@@ -956,7 +946,6 @@
     <string name="main_remove_runtime_title">Eliminar el runtime de Linux</string>
     <string name="main_remove_runtime_text">Esto elimina el runtime, el cliente de Steam que contiene y todos los juegos instalados en él.</string>
     <string name="runtime_actions_title">Runtime de Linux</string>
-    <string name="runtime_actions_text">Reparar reinstala los archivos del sistema del runtime y conserva Steam, tus juegos y tus ajustes. Los extras, como el escritorio, se vuelven a instalar la próxima vez que los uses. Eliminar borra todo.</string>
     <string name="runtime_repair">Reparar el runtime</string>
     <string name="main_applied">Aplicado: %1$s</string>
     <string name="comp_busy_importing">Importando</string>
@@ -1957,7 +1946,6 @@
     <string name="storage_leftover_confirm">Elimina su prefijo de Wine y su caché de shaders (%1$s). Haz copia de las partidas que quieras antes; las de Steam Cloud siguen en tu cuenta.</string>
     <string name="storage_data_other">Conservados</string>
     <string name="storage_data_other_title">Juegos que no son de Steam y prefijo compartido de Steam</string>
-    <string name="storage_data_other_detail">Prefijos de juegos agregados desde tiendas o a mano</string>
     <string name="storage_components_packages">Paquetes descargados</string>
     <string name="storage_components_originals">Originales guardados</string>
     <string name="storage_components_none">No hay paquetes de componentes descargados.</string>

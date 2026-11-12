@@ -7,13 +7,11 @@
         <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια στην οθόνη.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Η πρώτη εκτέλεση ρυθμίζει την επιφάνεια εργασίας. Αυτό μπορεί να διαρκέσει μερικά λεπτά.</item>
         <item>Από προεπιλογή, η έξοδος από την εφαρμογή θέτει τη συνεδρία σε παύση· συνεχίζει από εκεί που είχε μείνει όταν επιστρέψετε.</item>
         <item>Το άγγιγμα λειτουργεί ως πινακίδα αφής: σύρετε για να μετακινήσετε τον δείκτη, πατήστε για κλικ.</item>
         <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια στην οθόνη.</item>
     </string-array>
     <string name="session_channel">Συνεδρία</string>
-    <string name="session_channel_description">Εμφανίζεται όσο μια συνεδρία Steam ή επιφάνειας εργασίας είναι ανοιχτή</string>
     <string name="session_notification">Το Steam εκτελείται</string>
     <string name="session_notification_downloads">Λήψη Steam σε εξέλιξη</string>
     <string name="session_notification_paused">Η συνεδρία παύθηκε - πατήστε Συνέχιση όταν είστε έτοιμοι</string>
@@ -282,10 +280,8 @@
     <string name="common_delete_named">Διαγραφή %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Πρόγραμμα οδήγησης runtime</string>
-    <string name="comp_runtime_driver_hint">Χρησιμοποιείται από το Steam, τα παιχνίδια και την επιφάνεια εργασίας. Εφαρμόζεται στην επόμενη συνεδρία.</string>
     <string name="comp_import_turnip">Εισαγωγή zip Turnip…</string>
     <string name="comp_display_driver">Πρόγραμμα οδήγησης οθόνης</string>
-    <string name="comp_display_driver_hint">Σχεδιάζει τα καρέ στην οθόνη και στις δύο λειτουργίες. Κάντε επανεκκίνηση της εφαρμογής για εφαρμογή.</string>
     <string name="comp_import_adrenotools">Εισαγωγή zip AdrenoTools…</string>
     <string name="comp_never">ποτέ</string>
     <string name="comp_nightlies_checked">Έλεγχος Nightlies %1$s</string>
@@ -347,7 +343,6 @@
     <string name="comp_applies_next_game">Εφαρμόζεται την επόμενη φορά που θα ξεκινήσει ένα παιχνίδι</string>
     <string name="comp_import_zip">Εισαγωγή .zip</string>
     <string name="comp_reading">Ανάγνωση Proton…</string>
-    <string name="comp_no_proton">Δεν έχει εγκατασταθεί Proton ακόμα. Εκκινήστε το Steam μία φορά για λήψη του ARM64 Proton του, ή προσθέστε GE-Proton, CachyOS ή DroidDeck-Proton από τη Ρύθμιση.</string>
     <string name="comp_original">Πρωτότυπο · %1$s</string>
     <string name="comp_this_build">%1$s · αυτό το build</string>
     <string name="comp_earlier_build">%1$s · προηγούμενο build</string>
@@ -417,7 +412,6 @@
     <string name="perf_zram_client">Συμπίεση του Steam όσο τρέχει παιχνίδι</string>
     <string name="perf_zram_client_hint">20 s μετά την εκκίνηση ενός παιχνιδιού, ο πελάτης Steam συμπιέζεται στη zRAM για να μείνει περισσότερη μνήμη στο παιχνίδι, και διαβάζεται πίσω όταν το παιχνίδι κλείσει. Απενεργοποιήστε το αν η συνεδρία κλείνει λίγο μετά την εκκίνηση παιχνιδιών. Ένα όριο RAM παραπάνω εξακολουθεί να συμπιέζει το Steam όταν η συνεδρία το ξεπεράσει.</string>
     <string name="perf_ram_cap">Όριο RAM</string>
-    <string name="perf_ram_cap_hint">Ισχύει όσο τρέχει ο πελάτης Steam, σε λειτουργία Steam ή από την επιφάνεια εργασίας. Όταν η συνεδρία χρησιμοποιεί περισσότερη, το Steam και έπειτα οι άλλες υποστηριζόμενες διεργασίες της συνεδρίας συμπιέζονται στη zRAM. Ήπιο όριο: τίποτα δεν κλείνει, αλλά τα παιχνίδια μπορεί να κολλάνε όσο επιστρέφουν οι σελίδες.</string>
     <string name="perf_ram_cap_unavailable">Απαιτεί zRAM swap, που δεν υπάρχει σε αυτή τη συσκευή.</string>
     <string name="perf_vram_cap">Όριο VRAM</string>
     <string name="perf_vram_cap_hint">Αναφέρει αυτόν τον προϋπολογισμό μνήμης βίντεο σε παιχνίδια Direct3D 9 έως 12 για να μειωθεί η χρήση μνήμης. Τα παιχνίδια μπορεί να τον υπερβούν· δεν προσθέτει σελιδοποίηση GPU ούτε εγγυάται προστασία από σφάλματα έλλειψης μνήμης. Ισχύει από την επόμενη συνεδρία.</string>
@@ -650,7 +644,6 @@
     <string name="setup_reset_settings_hint">Επαναφέρει κάθε ρύθμιση στην προεπιλεγμένη τιμή</string>
     <string name="setup_reset_settings_button">Επαναφορά</string>
     <string name="setup_reset_settings_title">Επαναφορά όλων των ρυθμίσεων;</string>
-    <string name="setup_reset_settings_body">Οι ρυθμίσεις εικόνας, απόδοσης, χειριστηρίου, θέματος, γλώσσας και εκκινητή επιστρέφουν στις προεπιλογές. Τα παιχνίδια, η σύνδεση στο Steam, οι λογαριασμοί καταστημάτων, τα ληφθέντα προγράμματα οδήγησης και οι φάκελοι αποθήκευσης παραμένουν.</string>
     <string name="setup_reset_settings_profiles">Επαναφορά και των προφίλ παιχνιδιών (Proton, FEX, στοιχεία και περιβάλλον ανά παιχνίδι, καθώς και το περιβάλλον του προφίλ Προεπιλογή)</string>
     <string name="setup_reset_settings_session_running">Σταμάτησε τη συνεδρία πριν κάνεις επαναφορά ρυθμίσεων.</string>
     <string name="setup_reset_settings_partial">Οι ρυθμίσεις επαναφέρθηκαν, αλλά όχι όλες. Οι λεπτομέρειες είναι στα αρχεία καταγραφής.</string>
@@ -669,7 +662,6 @@
     <string name="setup_launcher_orientation_auto">Ακολουθεί την περιστροφή της συσκευής</string>
     <string name="setup_orientation_portrait">Κατακόρυφος</string>
     <string name="setup_session_orientation">Προσανατολισμός συνεδρίας</string>
-    <string name="setup_session_orientation_hint">Ισχύει για το Steam, τα παιχνίδια, την επιφάνεια εργασίας και τον επεξεργαστή χειριστηρίου. Οι προκαθορισμένες αναλύσεις περιστρέφονται με τη συνεδρία· το προσαρμοσμένο πλάτος και ύψος μένουν όπως καταχωρίστηκαν.</string>
     <string name="setup_orientation_auto">Αυτόματος οριζόντιος προσανατολισμός</string>
     <string name="setup_orientation_landscape">Οριζόντιος προσανατολισμός</string>
     <string name="setup_orientation_reverse">Αντίστροφος οριζόντιος προσανατολισμός</string>
@@ -813,7 +805,6 @@
     <string name="gpu_ubwc_title">Συμβατότητα UBWC</string>
     <string name="gpu_ubwc_hint">Δοκιμάστε Ενεργό ή Ανενεργό αν το Steam ή το Android εμφανίζει γραμμές ή τρεμόπαιγμα. Ισχύει και για τα δύο προγράμματα οδήγησης μετά την επανεκκίνηση του Kestrel.</string>
     <string name="gpu_ubwc_restart">Κάντε επανεκκίνηση του Kestrel για εφαρμογή.</string>
-    <string name="gpu_runtime_hint">Χρησιμοποιείται από παιχνίδια και την επιφάνεια εργασίας.</string>
     <string name="gpu_runtime_default">Προεπιλογή runtime</string>
     <string name="gpu_auto_by_gpu">Αυτόματο - επιλέγεται από τη GPU</string>
     <string name="load_runtime">Runtime Linux</string>
@@ -911,7 +902,6 @@
     <string name="load_compat_wait">Αναμονή για ολοκλήρωση της ρύθμισης συμβατότητας</string>
     <string name="load_compat_hint">Η συνεδρία σας θα ξεκινήσει όταν ολοκληρωθεί η ρύθμιση.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Περιμένετε να ολοκληρωθεί η εγκατάσταση της εφαρμογής επιφάνειας εργασίας</string>
     <string name="main_wait_install_game">Περιμένετε να ολοκληρωθεί η εγκατάσταση πριν εκκινήσετε ένα παιχνίδι</string>
     <string name="main_saves_close_session">Κλείστε πρώτα τη συνεδρία Steam, ώστε το παιχνίδι να μην αποθηκεύσει πάνω από την εισαγωγή</string>
     <string name="main_saves_importing">Εισαγωγή στο %1$s</string>
@@ -947,7 +937,6 @@
     <string name="main_remove_runtime_title">Κατάργηση του Linux runtime</string>
     <string name="main_remove_runtime_text">Αυτό διαγράφει το runtime, τον πελάτη Steam μέσα σε αυτό και κάθε παιχνίδι που είναι εγκατεστημένο εκεί.</string>
     <string name="runtime_actions_title">Runtime Linux</string>
-    <string name="runtime_actions_text">Η Επιδιόρθωση επανεγκαθιστά τα αρχεία συστήματος του runtime και διατηρεί το Steam, τα παιχνίδια και τις ρυθμίσεις σας. Πρόσθετα όπως η επιφάνεια εργασίας εγκαθίστανται ξανά όταν τα χρησιμοποιήσετε. Η Αφαίρεση διαγράφει τα πάντα.</string>
     <string name="runtime_repair">Επιδιόρθωση runtime</string>
     <string name="main_applied">Εφαρμόστηκε: %1$s</string>
     <string name="comp_busy_importing">Εισαγωγή</string>
@@ -1955,7 +1944,6 @@
     <string name="storage_leftover_confirm">Καθαρίζει το prefix Wine και την προσωρινή μνήμη shaders (%1$s). Κράτα πρώτα αντίγραφο των αποθηκεύσεων που χρειάζεσαι· οι αποθηκεύσεις Steam Cloud μένουν στον λογαριασμό σου.</string>
     <string name="storage_data_other">Διατηρούνται</string>
     <string name="storage_data_other_title">Παιχνίδια εκτός Steam και κοινό prefix Steam</string>
-    <string name="storage_data_other_detail">Prefix παιχνιδιών που προστέθηκαν από καταστήματα ή χειροκίνητα</string>
     <string name="storage_components_packages">Ληφθέντα πακέτα</string>
     <string name="storage_components_originals">Διατηρημένα αρχικά</string>
     <string name="storage_components_none">Δεν έχουν ληφθεί πακέτα στοιχείων.</string>

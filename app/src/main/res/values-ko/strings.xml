@@ -7,13 +7,11 @@
         <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>첫 실행 시 데스크톱을 설정합니다. 몇 분 정도 걸릴 수 있습니다.</item>
         <item>기본적으로 앱을 나가면 세션이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
         <item>터치는 트랙패드처럼 작동합니다. 드래그하여 포인터를 이동하고, 탭하여 클릭합니다.</item>
         <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
     </string-array>
     <string name="session_channel">세션</string>
-    <string name="session_channel_description">Steam 또는 데스크톱 세션이 실행 중일 때 표시</string>
     <string name="session_notification">Steam이 실행 중입니다</string>
     <string name="session_notification_downloads">Steam 다운로드 진행 중</string>
     <string name="session_notification_paused">세션이 일시 중지됨 - 준비되면 \"재개\"를 탭하세요</string>
@@ -280,10 +278,8 @@
     <string name="common_delete_named">%1$s 삭제</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">런타임 드라이버</string>
-    <string name="comp_runtime_driver_hint">Steam, 게임 및 데스크톱에서 사용됩니다. 다음 세션에 적용됩니다.</string>
     <string name="comp_import_turnip">Turnip zip 가져오기…</string>
     <string name="comp_display_driver">디스플레이 드라이버</string>
-    <string name="comp_display_driver_hint">두 모드 모두에서 화면 출력을 담당합니다. 앱을 다시 시작한 후 적용됩니다.</string>
     <string name="comp_import_adrenotools">AdrenoTools zip 가져오기…</string>
     <string name="comp_never">없음</string>
     <string name="comp_nightlies_checked">Nightlies 확인 시각 %1$s</string>
@@ -345,7 +341,6 @@
     <string name="comp_applies_next_game">다음 게임 실행 시 적용됩니다</string>
     <string name="comp_import_zip">.zip 가져오기</string>
     <string name="comp_reading">Proton 읽는 중…</string>
-    <string name="comp_no_proton">Proton이 설치되지 않았습니다. Steam을 한 번 실행하여 ARM64 Proton을 다운로드하거나 \"설정\"에서 GE-Proton 또는 CachyOS를 추가하세요.</string>
     <string name="comp_original">원본 · %1$s</string>
     <string name="comp_this_build">%1$s · 현재 빌드</string>
     <string name="comp_earlier_build">%1$s · 이전 빌드</string>
@@ -415,7 +410,6 @@
     <string name="perf_zram_client">게임 실행 중 Steam 압축</string>
     <string name="perf_zram_client_hint">게임이 시작되고 20초 후 Steam 클라이언트를 zRAM으로 압축해 게임에 더 많은 메모리를 남기고, 게임이 종료되면 다시 읽어 들입니다. 게임 시작 직후 세션이 종료되면 이 옵션을 끄세요. 위의 RAM 제한을 설정하면 세션이 이를 초과할 때 여전히 Steam을 압축합니다.</string>
     <string name="perf_ram_cap">RAM 제한</string>
-    <string name="perf_ram_cap_hint">Steam 모드나 데스크톱에서 Steam 클라이언트가 실행되는 동안 적용됩니다. 세션이 이 값보다 많이 사용하면 Steam과 세션의 다른 지원 프로세스를 차례로 zRAM으로 압축합니다. 소프트 제한이므로 종료되는 것은 없지만, 페이지를 다시 읽어 들이는 동안 게임이 끊길 수 있습니다.</string>
     <string name="perf_ram_cap_unavailable">zRAM 스왑이 필요하지만 이 기기에는 없습니다.</string>
     <string name="perf_vram_cap">VRAM 제한</string>
     <string name="perf_vram_cap_hint">메모리 사용량을 줄이도록 Direct3D 9~12 게임에 이 비디오 메모리 예산을 알립니다. 게임은 예산을 초과할 수 있으며, GPU 페이징을 추가하거나 메모리 부족으로 인한 충돌 방지를 보장하지 않습니다. 다음 세션부터 적용됩니다.</string>
@@ -647,7 +641,6 @@
     <string name="setup_reset_settings_hint">모든 설정을 기본값으로 되돌립니다</string>
     <string name="setup_reset_settings_button">초기화</string>
     <string name="setup_reset_settings_title">모든 설정을 초기화할까요?</string>
-    <string name="setup_reset_settings_body">화면, 성능, 컨트롤러, 테마, 언어 및 런처 설정이 기본값으로 돌아갑니다. 게임, Steam 로그인, 스토어 계정, 다운로드한 드라이버 및 저장소 폴더는 유지됩니다.</string>
     <string name="setup_reset_settings_profiles">게임 프로필도 초기화 (각 게임의 Proton, FEX, 구성 요소 및 환경, 기본 프로필의 환경)</string>
     <string name="setup_reset_settings_session_running">설정을 초기화하기 전에 세션을 중지하세요.</string>
     <string name="setup_reset_settings_partial">설정이 초기화되었지만 일부는 초기화하지 못했습니다. 자세한 내용은 로그를 확인하세요.</string>
@@ -666,7 +659,6 @@
     <string name="setup_launcher_orientation_auto">기기 회전 따르기</string>
     <string name="setup_orientation_portrait">세로</string>
     <string name="setup_session_orientation">세션 방향</string>
-    <string name="setup_session_orientation_hint">Steam, 게임, 데스크톱 및 컨트롤러 편집기에 적용됩니다. 해상도 프리셋은 세션에 맞춰 회전하며, 사용자 정의 너비와 높이는 입력한 그대로 유지됩니다.</string>
     <string name="setup_orientation_auto">자동 가로 모드</string>
     <string name="setup_orientation_landscape">가로 모드</string>
     <string name="setup_orientation_reverse">역방향 가로 모드</string>
@@ -810,7 +802,6 @@
     <string name="gpu_ubwc_title">UBWC 호환성</string>
     <string name="gpu_ubwc_hint">Steam이나 Android에 줄무늬나 깜박임이 보이면 켜기 또는 끄기를 시도하세요. Kestrel을 다시 시작한 후 두 드라이버 모두에 적용됩니다.</string>
     <string name="gpu_ubwc_restart">적용하려면 Kestrel을 다시 시작하세요.</string>
-    <string name="gpu_runtime_hint">게임 및 데스크톱에서 사용됩니다.</string>
     <string name="gpu_runtime_default">런타임 기본값</string>
     <string name="gpu_auto_by_gpu">자동 - GPU별 선택</string>
     <string name="load_runtime">Linux 런타임</string>
@@ -908,7 +899,6 @@
     <string name="load_compat_wait">호환성 설정이 끝나기를 기다리는 중</string>
     <string name="load_compat_hint">설정이 끝나면 세션이 시작됩니다.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">데스크톱 앱 설치가 끝날 때까지 기다려 주세요</string>
     <string name="main_wait_install_game">설치가 끝난 후 게임을 실행하세요</string>
     <string name="main_saves_close_session">게임이 가져온 데이터를 덮어쓰지 않도록 먼저 Steam 세션을 종료하세요</string>
     <string name="main_saves_importing">%1$s(으)로 가져오는 중</string>
@@ -940,7 +930,6 @@
     <string name="main_remove_runtime_title">Linux 런타임 제거</string>
     <string name="main_remove_runtime_text">런타임과 그 안의 Steam 클라이언트, 그리고 런타임에 설치된 모든 게임이 삭제됩니다.</string>
     <string name="runtime_actions_title">Linux 런타임</string>
-    <string name="runtime_actions_text">복구는 런타임의 시스템 파일을 다시 설치하며 Steam, 게임 및 설정은 유지합니다. 데스크톱 같은 추가 기능은 다음에 사용할 때 다시 설치됩니다. 제거는 모든 것을 삭제합니다.</string>
     <string name="runtime_repair">런타임 복구</string>
     <string name="main_applied">적용됨: %1$s</string>
     <string name="comp_busy_importing">가져오는 중</string>
@@ -1933,7 +1922,6 @@
     <string name="storage_leftover_confirm">Wine 프리픽스와 셰이더 캐시(%1$s)를 삭제합니다. 필요한 저장 파일은 먼저 백업하세요. Steam 클라우드 저장 파일은 계정에 남습니다.</string>
     <string name="storage_data_other">유지</string>
     <string name="storage_data_other_title">Steam이 아닌 게임과 Steam의 공유 프리픽스</string>
-    <string name="storage_data_other_detail">스토어에서 추가했거나 직접 추가한 게임의 프리픽스</string>
     <string name="storage_components_packages">내려받은 패키지</string>
     <string name="storage_components_originals">저장된 원본 파일</string>
     <string name="storage_components_none">내려받은 구성 요소 패키지가 없습니다.</string>

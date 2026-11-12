@@ -7,13 +7,11 @@
         <item>Pengawal anda akan muncul sebagai pad Xbox 360. Jika tidak, gunakan kawalan pada skrin.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Larian pertama menyediakan desktop. Ini mungkin mengambil beberapa minit.</item>
         <item>Secara lalai, meninggalkan apl ini menjedakan sesi; ia menyambung semula dari tempat ia berhenti apabila anda kembali.</item>
         <item>Sentuhan berfungsi sebagai pad sentuh: seret untuk menggerakkan penunjuk, ketik untuk klik.</item>
         <item>Pengawal anda akan muncul sebagai pad Xbox 360. Jika tidak, gunakan kawalan pada skrin.</item>
     </string-array>
     <string name="session_channel">Sesi</string>
-    <string name="session_channel_description">Dipaparkan semasa sesi Steam atau desktop sedang dibuka</string>
     <string name="session_notification">Steam sedang berjalan</string>
     <string name="session_notification_downloads">Muat turun Steam aktif</string>
     <string name="session_notification_paused">Sesi dijeda - ketik Sambung apabila sedia</string>
@@ -280,10 +278,8 @@
     <string name="common_delete_named">Padam %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Pemacu runtime</string>
-    <string name="comp_runtime_driver_hint">Digunakan oleh Steam, permainan dan desktop. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="comp_import_turnip">Import zip Turnip…</string>
     <string name="comp_display_driver">Pemacu paparan</string>
-    <string name="comp_display_driver_hint">Melukis bingkai ke skrin dalam kedua-dua mod. Mulakan semula apl untuk menggunakannya.</string>
     <string name="comp_import_adrenotools">Import zip AdrenoTools…</string>
     <string name="comp_never">tidak pernah</string>
     <string name="comp_nightlies_checked">Nightlies disemak %1$s</string>
@@ -345,7 +341,6 @@
     <string name="comp_applies_next_game">Berkuat kuasa pada permulaan permainan seterusnya</string>
     <string name="comp_import_zip">Import .zip</string>
     <string name="comp_reading">Membaca Proton…</string>
-    <string name="comp_no_proton">Tiada Proton dipasang lagi. Mulakan Steam sekali untuk memuat turun Proton ARM64-nya, atau tambah GE-Proton, CachyOS atau DroidDeck-Proton daripada Persediaan.</string>
     <string name="comp_original">Asal · %1$s</string>
     <string name="comp_this_build">%1$s · binaan ini</string>
     <string name="comp_earlier_build">%1$s · binaan terdahulu</string>
@@ -415,7 +410,6 @@
     <string name="perf_zram_client">Mampatkan Steam semasa permainan berjalan</string>
     <string name="perf_zram_client_hint">20 s selepas permainan bermula, klien Steam dimampatkan ke dalam zRAM untuk memberi permainan lebih banyak memori, dan dibaca semula apabila permainan ditutup. Matikan ini jika sesi tertutup sejurus selepas permainan bermula. Had RAM di atas masih memampatkan Steam apabila sesi melebihinya.</string>
     <string name="perf_ram_cap">Had RAM</string>
-    <string name="perf_ram_cap_hint">Berkuat kuasa semasa klien Steam berjalan, dalam mod Steam atau dari desktop. Apabila sesi menggunakan lebih daripada ini, Steam dan kemudian proses lain sesi yang disokong dimampatkan ke dalam zRAM. Had lembut: tiada apa yang ditutup, tetapi permainan mungkin tersekat-sekat semasa halaman dibaca semula.</string>
     <string name="perf_ram_cap_unavailable">Memerlukan swap zRAM, yang tiada pada peranti ini.</string>
     <string name="perf_vram_cap">Had VRAM</string>
     <string name="perf_vram_cap_hint">Melaporkan bajet memori video ini kepada permainan Direct3D 9 hingga 12 untuk mengurangkan penggunaan memori. Permainan boleh melebihinya; ini tidak menambah paging GPU atau menjamin perlindungan daripada ranap akibat kehabisan memori. Berkuat kuasa pada sesi seterusnya.</string>
@@ -647,7 +641,6 @@
     <string name="setup_reset_settings_hint">Kembalikan setiap tetapan kepada nilai lalai</string>
     <string name="setup_reset_settings_button">Set semula</string>
     <string name="setup_reset_settings_title">Set semula semua tetapan?</string>
-    <string name="setup_reset_settings_body">Tetapan paparan, prestasi, pengawal, tema, bahasa dan pelancar kembali kepada lalai. Permainan, log masuk Steam, akaun kedai, pemacu yang dimuat turun dan folder storan kekal.</string>
     <string name="setup_reset_settings_profiles">Set semula profil permainan juga (Proton, FEX, komponen dan persekitaran runtime bagi setiap permainan, serta persekitaran profil Lalai)</string>
     <string name="setup_reset_settings_session_running">Hentikan sesi sebelum menetap semula tetapan.</string>
     <string name="setup_reset_settings_partial">Tetapan telah ditetap semula, tetapi bukan semuanya. Butirannya ada dalam log.</string>
@@ -666,7 +659,6 @@
     <string name="setup_launcher_orientation_auto">Ikut putaran peranti</string>
     <string name="setup_orientation_portrait">Potret</string>
     <string name="setup_session_orientation">Orientasi sesi</string>
-    <string name="setup_session_orientation_hint">Berkuat kuasa pada Steam, permainan, desktop dan editor pengawal. Pratetap resolusi berputar bersama sesi; lebar dan tinggi tersuai kekal seperti yang dimasukkan.</string>
     <string name="setup_orientation_auto">Lanskap automatik</string>
     <string name="setup_orientation_landscape">Lanskap</string>
     <string name="setup_orientation_reverse">Lanskap songsang</string>
@@ -810,7 +802,6 @@
     <string name="gpu_ubwc_title">Keserasian UBWC</string>
     <string name="gpu_ubwc_hint">Cuba Hidup atau Mati jika Steam atau Android memaparkan jalur atau kelipan. Berkuat kuasa pada kedua-dua pemacu selepas Kestrel dimulakan semula.</string>
     <string name="gpu_ubwc_restart">Mulakan semula Kestrel untuk menggunakannya.</string>
-    <string name="gpu_runtime_hint">Digunakan oleh permainan dan desktop.</string>
     <string name="gpu_runtime_default">Lalai masa jalan</string>
     <string name="gpu_auto_by_gpu">Auto - dipilih mengikut GPU</string>
     <string name="load_runtime">Masa jalan Linux</string>
@@ -908,7 +899,6 @@
     <string name="load_compat_wait">Menunggu persediaan keserasian selesai</string>
     <string name="load_compat_hint">Sesi anda akan bermula apabila persediaan selesai.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Tunggu pemasangan apl desktop selesai</string>
     <string name="main_wait_install_game">Tunggu pemasangan selesai sebelum melancarkan permainan</string>
     <string name="main_saves_close_session">Tutup sesi Steam dahulu, supaya permainan tidak dapat menyimpan di atas import</string>
     <string name="main_saves_importing">Mengimport ke %1$s</string>
@@ -940,7 +930,6 @@
     <string name="main_remove_runtime_title">Alih keluar masa jalan Linux</string>
     <string name="main_remove_runtime_text">Ini memadam masa jalan, klien Steam di dalamnya, dan setiap permainan yang dipasang di sana.</string>
     <string name="runtime_actions_title">Masa jalan Linux</string>
-    <string name="runtime_actions_text">Baik pulih memasang semula fail sistem masa jalan dan mengekalkan Steam, permainan dan tetapan anda. Tambahan seperti desktop dipasang semula apabila anda menggunakannya nanti. Alih keluar memadam segala-galanya.</string>
     <string name="runtime_repair">Baik pulih masa jalan</string>
     <string name="main_applied">Digunakan: %1$s</string>
     <string name="comp_busy_importing">Mengimport</string>
@@ -1933,7 +1922,6 @@
     <string name="storage_leftover_confirm">Memadam awalan Wine dan cache shader (%1$s). Salin dahulu simpanan penting; simpanan Steam Cloud kekal dalam akaun anda.</string>
     <string name="storage_data_other">Disimpan</string>
     <string name="storage_data_other_title">Permainan bukan Steam dan awalan Steam dikongsi</string>
-    <string name="storage_data_other_detail">Awalan permainan daripada kedai atau yang ditambah sendiri</string>
     <string name="storage_components_packages">Pakej yang dimuat turun</string>
     <string name="storage_components_originals">Fail asal yang disimpan</string>
     <string name="storage_components_none">Tiada pakej komponen dimuat turun.</string>

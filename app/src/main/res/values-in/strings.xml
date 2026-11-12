@@ -7,13 +7,11 @@
         <item>Pengontrol Anda akan terlihat sebagai gamepad Xbox 360. Jika tidak, gunakan kontrol di layar.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Proses pertama menyiapkan desktop. Ini mungkin memerlukan beberapa menit.</item>
         <item>Secara default, keluar dari aplikasi akan menjeda sesi; sesi dilanjutkan dari posisi terakhir saat Anda kembali.</item>
         <item>Sentuhan berfungsi seperti touchpad: geser untuk menggerakkan penunjuk, ketuk untuk mengeklik.</item>
         <item>Pengontrol Anda akan terlihat sebagai gamepad Xbox 360. Jika tidak, gunakan kontrol di layar.</item>
     </string-array>
     <string name="session_channel">Sesi</string>
-    <string name="session_channel_description">Ditampilkan saat sesi Steam atau desktop berjalan</string>
     <string name="session_notification">Steam berjalan</string>
     <string name="session_notification_downloads">Unduhan Steam aktif</string>
     <string name="session_notification_paused">Sesi dijeda - ketuk Lanjutkan saat siap</string>
@@ -280,10 +278,8 @@
     <string name="common_delete_named">Hapus %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Driver runtime</string>
-    <string name="comp_runtime_driver_hint">Digunakan oleh Steam, gim, dan desktop. Berlaku pada sesi berikutnya.</string>
     <string name="comp_import_turnip">Impor zip Turnip…</string>
     <string name="comp_display_driver">Driver tampilan</string>
-    <string name="comp_display_driver_hint">Menggambar frame ke layar di kedua mode. Mulai ulang aplikasi untuk menerapkannya.</string>
     <string name="comp_import_adrenotools">Impor zip AdrenoTools…</string>
     <string name="comp_never">tidak pernah</string>
     <string name="comp_nightlies_checked">Nightlies diperiksa %1$s</string>
@@ -345,7 +341,6 @@
     <string name="comp_applies_next_game">Berlaku saat gim berikutnya dimulai</string>
     <string name="comp_import_zip">Impor .zip</string>
     <string name="comp_reading">Membaca Proton…</string>
-    <string name="comp_no_proton">Belum ada Proton yang terinstal. Mulai Steam sekali untuk mengunduh Proton ARM64-nya, atau tambahkan GE-Proton, CachyOS, atau DroidDeck-Proton dari Penyiapan.</string>
     <string name="comp_original">Asli · %1$s</string>
     <string name="comp_this_build">%1$s · build ini</string>
     <string name="comp_earlier_build">%1$s · build sebelumnya</string>
@@ -415,7 +410,6 @@
     <string name="perf_zram_client">Kompres Steam saat gim berjalan</string>
     <string name="perf_zram_client_hint">20 detik setelah gim dimulai, klien Steam dikompres ke zRAM agar gim mendapat lebih banyak memori, lalu dibaca kembali saat gim ditutup. Nonaktifkan jika sesi tertutup sesaat setelah gim dimulai. Batas RAM di atas tetap mengompres Steam saat sesi melampauinya.</string>
     <string name="perf_ram_cap">Batas RAM</string>
-    <string name="perf_ram_cap_hint">Berlaku saat klien Steam berjalan, di mode Steam atau dari desktop. Saat sesi menggunakan lebih dari ini, Steam lalu proses lain yang didukung dalam sesi dikompres ke zRAM. Batas lunak: tidak ada yang ditutup, tetapi gim dapat tersendat saat halaman dimuat kembali.</string>
     <string name="perf_ram_cap_unavailable">Memerlukan swap zRAM, yang tidak dimiliki perangkat ini.</string>
     <string name="perf_vram_cap">Batas VRAM</string>
     <string name="perf_vram_cap_hint">Melaporkan anggaran memori video ini ke game Direct3D 9 hingga 12 untuk mengurangi penggunaan memori. Game dapat melampauinya; ini tidak menambahkan paging GPU atau menjamin perlindungan dari crash akibat kehabisan memori. Berlaku pada sesi berikutnya.</string>
@@ -647,7 +641,6 @@
     <string name="setup_reset_settings_hint">Kembalikan setiap setelan ke nilai bawaannya</string>
     <string name="setup_reset_settings_button">Setel ulang</string>
     <string name="setup_reset_settings_title">Setel ulang semua setelan?</string>
-    <string name="setup_reset_settings_body">Setelan tampilan, performa, pengontrol, tema, bahasa, dan peluncur kembali ke bawaan. Gim, login Steam, akun toko, driver yang diunduh, dan folder penyimpanan tetap ada.</string>
     <string name="setup_reset_settings_profiles">Setel ulang profil gim juga (Proton, FEX, komponen, dan lingkungan runtime per gim, serta lingkungan profil Bawaan)</string>
     <string name="setup_reset_settings_session_running">Hentikan sesi sebelum menyetel ulang setelan.</string>
     <string name="setup_reset_settings_partial">Setelan disetel ulang, tetapi tidak semuanya. Rinciannya ada di log.</string>
@@ -666,7 +659,6 @@
     <string name="setup_launcher_orientation_auto">Ikuti rotasi perangkat</string>
     <string name="setup_orientation_portrait">Potret</string>
     <string name="setup_session_orientation">Orientasi sesi</string>
-    <string name="setup_session_orientation_hint">Berlaku untuk Steam, gim, desktop, dan editor pengontrol. Preset resolusi ikut berputar dengan sesi; lebar dan tinggi kustom tetap seperti yang dimasukkan.</string>
     <string name="setup_orientation_auto">Lanskap otomatis</string>
     <string name="setup_orientation_landscape">Lanskap</string>
     <string name="setup_orientation_reverse">Lanskap terbalik</string>
@@ -810,7 +802,6 @@
     <string name="gpu_ubwc_title">Kompatibilitas UBWC</string>
     <string name="gpu_ubwc_hint">Coba Aktif atau Nonaktif jika Steam atau Android menampilkan garis-garis atau berkedip. Berlaku untuk kedua driver setelah Kestrel dimulai ulang.</string>
     <string name="gpu_ubwc_restart">Mulai ulang Kestrel untuk menerapkan.</string>
-    <string name="gpu_runtime_hint">Digunakan oleh gim dan desktop.</string>
     <string name="gpu_runtime_default">Default runtime</string>
     <string name="gpu_auto_by_gpu">Otomatis - dipilih berdasarkan GPU</string>
     <string name="load_runtime">Runtime Linux</string>
@@ -908,7 +899,6 @@
     <string name="load_compat_wait">Menunggu penyiapan kompatibilitas selesai</string>
     <string name="load_compat_hint">Sesi Anda akan dimulai setelah penyiapan selesai.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Tunggu instalasi aplikasi desktop selesai</string>
     <string name="main_wait_install_game">Tunggu instalasi selesai sebelum meluncurkan game</string>
     <string name="main_saves_close_session">Tutup sesi Steam dulu, agar game tidak menyimpan dan menimpa hasil impor</string>
     <string name="main_saves_importing">Mengimpor ke %1$s</string>
@@ -940,7 +930,6 @@
     <string name="main_remove_runtime_title">Hapus runtime Linux</string>
     <string name="main_remove_runtime_text">Ini menghapus runtime, klien Steam di dalamnya, dan setiap game yang terinstal di sana.</string>
     <string name="runtime_actions_title">Runtime Linux</string>
-    <string name="runtime_actions_text">Perbaiki menginstal ulang file sistem runtime dan mempertahankan Steam, gim, serta setelan Anda. Tambahan seperti desktop diinstal lagi saat Anda menggunakannya berikutnya. Hapus menghapus semuanya.</string>
     <string name="runtime_repair">Perbaiki runtime</string>
     <string name="main_applied">Diterapkan: %1$s</string>
     <string name="comp_busy_importing">Mengimpor</string>
@@ -1933,7 +1922,6 @@
     <string name="storage_leftover_confirm">Menghapus prefix Wine dan cache shader (%1$s). Salin dulu save yang penting; save Steam Cloud tetap di akun Anda.</string>
     <string name="storage_data_other">Disimpan</string>
     <string name="storage_data_other_title">Gim non-Steam dan prefix Steam bersama</string>
-    <string name="storage_data_other_detail">Prefix gim dari toko atau yang ditambahkan sendiri</string>
     <string name="storage_components_packages">Paket yang diunduh</string>
     <string name="storage_components_originals">Berkas asli yang disimpan</string>
     <string name="storage_components_none">Tidak ada paket komponen yang diunduh.</string>
