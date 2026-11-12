@@ -384,8 +384,7 @@ object SessionPrefs {
 
     fun linuxDriver(context: Context): String =
         prefs(context).getString("linuxDriver", null)
-            ?: prefs(context).getString("linuxDriver.steam", null)
-            ?: prefs(context).getString("linuxDriver.desktop", "") ?: ""
+            ?: prefs(context).getString("linuxDriver.steam", "") ?: ""
 
     fun setLinuxDriver(context: Context, id: String) {
         prefs(context).edit().putString("linuxDriver", id).apply()

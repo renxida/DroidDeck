@@ -34,7 +34,7 @@ object GuestCommand {
         LinuxRuntime.writeAccounts(context)
         SessionFiles.stage(context, root)
         LinuxNetworkLinkComponent(context, root).publish()
-        val runtimeDir = File(context.filesDir, ".flatpak-rt").apply { mkdirs() }
+        val runtimeDir = File(context.filesDir, ".guest-rt").apply { mkdirs() }
         val binds = LinuxRuntime.binds(context, null, runtimeDir, Environment.getExternalStorageDirectory(), extraBinds)
         val native = NativeGuest.forSession(context)
         val fastPathKey = if (!native && fastPath && !fakeRoot && linkDir == null && ProotFastPath.enabled(context)) ProotFastPath.key(root, binds) else null

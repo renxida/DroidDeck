@@ -78,11 +78,10 @@ class RuntimeUserDataCarryTest {
     @Test fun cachesTiedToThePreviousRuntimeAreDropped() {
         val root = tmp.newFolder("rt")
         val keep = listOf("root/.cache/mozilla/cache2/entry", "root/.cache/droiddeck/session.log",
-            "root/.local/share/droiddeck/apt/packages.txt", "root/.local/share/Steam/steam.sh", "root/.config/kwinrc")
+            "root/.local/share/droiddeck/apt/packages.txt", "root/.local/share/Steam/steam.sh", "root/.config/MangoHud/MangoHud.conf")
         val drop = listOf("root/.local/share/droiddeck/pacman/packages.txt", "root/.cache/droiddeck/pacman-restore.log",
-            "root/.cache/mesa_shader_cache_db/index", "root/.cache/mesa_shader_cache/a/b", "root/.cache/appstream/x.xb",
-            "root/.cache/discover/c", "root/.cache/ksycoca6_en-POSIX_abc", "root/.cache/plasma_theme_Vapor.kcache",
-            "root/.cache/kwinsession.kcache", "root/.cache/qtshadercache-arm64-little_endian-lp64/s",
+            "root/.cache/mesa_shader_cache_db/index", "root/.cache/mesa_shader_cache/a/b",
+            "root/.cache/qtshadercache-arm64-little_endian-lp64/s",
             "root/.cache/event-sound-cache.tdb.1.aarch64-unknown-linux-gnu", "root/.cache/fontconfig/x.cache-9")
         (keep + drop).forEach { put(root, it) }
 

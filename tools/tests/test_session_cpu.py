@@ -40,11 +40,11 @@ cat() {
     def test_disabled_pinning_takes_precedence_over_explicit_cores(self):
         self.assertEqual('', self.cores('run', '6,7', pin='0'))
 
-    def test_desktop_keeps_its_fast_core_default(self):
-        self.assertEqual('6,7', self.cores('lxqt'))
+    def test_steam_keeps_its_fast_core_default(self):
+        self.assertEqual('6,7', self.cores('steam'))
 
-    def test_desktop_preserves_an_explicit_core_selection(self):
-        self.assertEqual('0,1,2', self.cores('lxqt', '0,1,2'))
+    def test_steam_preserves_an_explicit_core_selection(self):
+        self.assertEqual('0,1,2', self.cores('steam', '0,1,2'))
 
 
 if __name__ == '__main__':
