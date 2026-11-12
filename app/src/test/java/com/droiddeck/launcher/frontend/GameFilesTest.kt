@@ -180,13 +180,13 @@ class GameFilesTest {
         assertEquals(0, folder.listFiles()!!.count { it.extension == GameFiles.EXTENSION })
     }
 
-    @Test fun steamExportContainsOnlyIdForSteamAndAddedGames() {
+    @Test fun steamExportContainsOnlyTheGameId() {
         val folder = tmp.newFolder()
         val file = GameFiles.export(app, folder, game("620", "Portal 2"))
         assertEquals("Portal 2.steam", file.name)
         assertEquals("620", file.readText())
         assertEquals("620", GameFiles.readIntent(RuntimeEnvironment.getApplication(), Intent(Intent.ACTION_VIEW, Uri.fromFile(file))))
-        val added = Library.SteamGame(1, "Added Game", null, Library.ADDED, -1L)
+        val added = Library.SteamGame(1, "Added Game", null, "internal", -1L)
         val addedFile = GameFiles.export(app, folder, added)
         assertEquals("Added Game.steam", addedFile.name)
         assertEquals("18446744073709551615", addedFile.readText())

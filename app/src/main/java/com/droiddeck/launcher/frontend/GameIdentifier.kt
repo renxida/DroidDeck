@@ -7,12 +7,11 @@ object GameIdentifier {
     private const val MAX_PARENT_DEPTH = 6
     internal const val SPACEWAR = 480
 
-    enum class Source { STEAM_APPID_TXT, STEAM_MANIFEST_ACF, STEAM_EMU_INI, GOG_INFO, PE_VERSION, FILENAME, NONE }
+    enum class Source { STEAM_APPID_TXT, STEAM_MANIFEST_ACF, STEAM_EMU_INI, PE_VERSION, FILENAME, NONE }
     enum class Confidence { HIGH, MEDIUM, LOW }
 
     data class GameIdentity(
         val appId: Int? = null,
-        val gogId: String? = null,
         val name: String? = null,
         val source: Source = Source.NONE,
         val confidence: Confidence = Confidence.LOW,
@@ -27,14 +26,12 @@ object GameIdentifier {
         val steamAppId = dirs.firstNotNullOfOrNull { readSteamAppIdTxt(it) }
         val emuAppId = dirs.firstNotNullOfOrNull { readEmuIniAppId(it) }
         val acf = resolveSteamManifest(exeFile, dirs)
-        val gog = dirs.firstNotNullOfOrNull { readGogInfo(it) }
         val peName = PeVersionInfo.bestName(PeVersionInfo.read(exeFile))?.takeUnless { isJunkPeName(it) }
 
         val appId = acf?.appId ?: steamAppId ?: emuAppId
 
         val nameHit: Pair<String, Source>? = when {
             acf?.name != null -> acf.name to Source.STEAM_MANIFEST_ACF
-            gog?.name != null -> gog.name to Source.GOG_INFO
             peName != null -> peName to Source.PE_VERSION
             else -> cleanedFallbackName(exeFile)?.let { it to Source.FILENAME }
         }
@@ -48,14 +45,12 @@ object GameIdentifier {
 
         val confidence = when {
             appId != null -> Confidence.HIGH
-            nameHit?.second == Source.GOG_INFO -> Confidence.HIGH
             nameHit?.second == Source.PE_VERSION -> Confidence.MEDIUM
             else -> Confidence.LOW
         }
 
         return GameIdentity(
             appId = appId,
-            gogId = gog?.id,
             name = nameHit?.first?.let(::normalizeName)?.takeIf { it.isNotBlank() },
             source = primary,
             confidence = confidence,
@@ -144,22 +139,6 @@ object GameIdentifier {
         return if (appId == null && name == null) null else Acf(appId, name)
     }
 
-    private data class Gog(val id: String?, val name: String?)
-
-    private fun readGogInfo(dir: File): Gog? {
-        val files = dir.listFiles { f ->
-            f.isFile && f.name.startsWith("goggame-") && f.name.endsWith(".info")
-        } ?: return null
-        for (f in files) {
-            val text = readSmallTextFile(f) ?: continue
-            val name = jsonStringValue(text, "name")?.takeIf { it.isNotBlank() } ?: continue
-            val id = f.name.removePrefix("goggame-").removeSuffix(".info").takeIf { it.isNotBlank() }
-            return Gog(id, name)
-        }
-        return null
-    }
-
-
     private val REPACK_TOKENS = setOf(
         "fitgirl", "dodi", "codex", "plaza", "skidrow", "rune", "empress", "flt", "tenoke",
         "reloaded", "elamigos", "razor1911", "hoodlum", "gog", "repack", "multi", "goldberg",
@@ -227,8 +206,4 @@ object GameIdentifier {
 
     private fun vdfValue(text: String, key: String): String? =
         Regex(""""${Regex.escape(key)}"\s*"([^"]*)"""", RegexOption.IGNORE_CASE).find(text)?.groupValues?.getOrNull(1)?.trim()
-
-    private fun jsonStringValue(text: String, key: String): String? =
-        Regex(""""${Regex.escape(key)}"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"""").find(text)
-            ?.groupValues?.getOrNull(1)?.replace("\\\"", "\"")?.replace("\\\\", "\\")?.trim()
 }

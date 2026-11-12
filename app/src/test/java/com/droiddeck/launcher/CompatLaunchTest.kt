@@ -6,7 +6,6 @@ import android.os.Looper
 import com.droiddeck.launcher.session.LoadingState
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.session.SessionService
-import com.droiddeck.launcher.ui.LaunchOrigin
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -29,7 +28,6 @@ class CompatLaunchTest {
 
     @Before fun setUp() {
         installing(false)
-        LaunchOrigin.take()
         activity = Robolectric.buildActivity(FrontEndActivity::class.java).get()
         protons = ReflectionHelpers.getField(activity, "protons")
         ReflectionHelpers.setField(activity, "compatLaunchVisible", true)
@@ -48,7 +46,6 @@ class CompatLaunchTest {
         protons.protonPercent = -1
         setString("setPkgStage", null)
         installing(false)
-        LaunchOrigin.take()
     }
 
     @Test fun waitingShowsRealProgressThenStartsTheOriginalRequestOnce() {

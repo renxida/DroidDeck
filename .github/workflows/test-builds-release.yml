@@ -1,0 +1,47 @@
+name: Publish test builds
+
+# Puts the APKs of finished "Build APK" runs on one pre-release, so a phone can download each APK directly.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+      builds:
+        description: Space-separated label=run_id pairs, in display order
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+      BUILDS: ${{ inputs.builds }}
+    steps:
+      - name: Collect APKs
+        run: |
+          set -euo pipefail
+          mkdir out
+          n=0
+          for pair in $BUILDS; do
+            n=$((n + 1))
+            label=${pair%%=*}; run=${pair#*=}
+            case "$label$run" in *[!A-Za-z0-9._-]*) echo "bad pair: $pair"; exit 1;; esac
+            gh run download "$run" -R "$GITHUB_REPOSITORY" -n droiddeck-apk -D "dl/$run"
+            apk=$(find "dl/$run" -name '*.apk' | head -1)
+            test -n "$apk"
+            cp "$apk" "out/$(printf '%02d' $n)-kestrel-$label.apk"
+            echo "$(printf '%02d' $n) $label: run $run" >> notes.txt
+          done
+          ls -l out
+      - name: Publish pre-release
+        run: |
+          set -euo pipefail
+          gh release delete "$TAG" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+            --title "Test builds $TAG" --notes-file notes.txt out/*.apk

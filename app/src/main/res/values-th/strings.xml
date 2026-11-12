@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>การเริ่มใช้งานครั้งแรกจะดาวน์โหลด Steam ซึ่งอาจใช้เวลาสักครู่</item>
-        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุด Steam ไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
-        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุดเซสชันไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
-        <item>การสัมผัสหน้าจอทำงานเหมือนทัชแพด ลากเพื่อเลื่อนตัวชี้ แตะเพื่อคลิก</item>
-        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
-    </string-array>
     <string name="session_channel">เซสชัน</string>
     <string name="session_notification">Steam กำลังทำงาน</string>
     <string name="session_notification_downloads">กำลังดาวน์โหลดใน Steam</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">การสัมผัส</string>
     <string name="mode_touch_touchpad">ทัชแพด</string>
     <string name="mode_touch_direct">โดยตรง</string>
-    <string name="mode_touch_note">อัตโนมัติ: ทัชแพดในเดสก์ท็อป โดยตรงใน Steam</string>
     <string name="mode_osc">ปุ่มควบคุมบนหน้าจอ</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">อัตโนมัติจะแสดงปุ่มควบคุมเมื่อไม่มีคอนโทรลเลอร์เชื่อมต่ออยู่</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">ดาวน์โหลดไคลเอนต์ Steam ใหม่อีกครั้งในครั้งถัดไปที่ Steam เริ่มทำงาน ใช้เมื่อ Steam ค้างอยู่ที่หน้าจอโหลด เกม การลงชื่อเข้าใช้ และการตั้งค่ายังคงอยู่</string>
     <string name="mode_steam_repair_queued">ไคลเอนต์ Steam จะถูกดาวน์โหลดใหม่อีกครั้งในครั้งถัดไปที่ Steam เริ่มทำงาน</string>
     <string name="mode_steam_repair_button">ซ่อมแซม</string>
-    <string name="mode_added_art">ภาพปก</string>
     <string name="mode_sgdb_key">คีย์ API ของ SteamGridDB</string>
     <string name="mode_sgdb_key_yours">คีย์ของคุณ</string>
     <string name="mode_sgdb_edit">แก้ไข…</string>
-    <string name="mode_added_art_hint">เติมภาพปกที่ขาดไปจาก Steam จากนั้นจาก SteamGridDB ไฟล์ cover.jpg, hero.jpg, logo.png หรือ icon.png ของคุณเองในโฟลเดอร์เกมจะมีสิทธิ์ก่อน</string>
-    <string name="summary_remove_game">ลบ %1$s</string>
-    <string name="mode_added_remove_confirm">ลบหรือไม่?</string>
-    <string name="games_add">เพิ่มเกม</string>
-    <string name="games_add_title">เพิ่มเกม:</string>
-    <string name="games_pick_exe_title">เลือกไฟล์ exe:</string>
-    <string name="games_add_unreachable">ตำแหน่งนี้ไม่พร้อมใช้งานในเซสชัน</string>
-    <string name="mode_added_exe_check">ตรวจสอบไฟล์ exe นี้</string>
     <string name="wincomp_title">คอมโพเนนต์ของ Windows</string>
     <string name="wincomp_pad_hint">LB / RB สลับระหว่างส่วนต่าง ๆ</string>
     <string name="wincomp_card_none">ไม่มี</string>
@@ -223,7 +203,6 @@
     </plurals>
     <string name="wincomp_auto_section">เปิดใช้สำหรับเกมนี้</string>
     <string name="wincomp_auto_steam">Steam ติดตั้ง %1$s ร่วมกับ %2$s (แอป %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam ติดตั้ง %1$s ร่วมกับแอป %2$s โดยจับคู่ตามชื่อ</string>
     <string name="wincomp_suggestions">ยังมีการแนะนำเพิ่ม</string>
     <string name="wincomp_suggestion_reason">แนะนำโดย %1$s; ไม่ใช่คอมโพเนนต์ในที่นี้</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -453,7 +432,6 @@
     <string name="drawer_page_controls">การควบคุม</string>
     <string name="drawer_page_components">คอมโพเนนต์</string>
     <string name="drawer_page_controller">คอนโทรลเลอร์</string>
-    <string name="drawer_page_settings">การตั้งค่า</string>
     <string name="drawer_page_desc">หน้า %1$s</string>
     <string name="drawer_steam_menu">เมนู Steam</string>
     <string name="drawer_open_qam">เปิดเมนู Quick Access</string>
@@ -596,9 +574,6 @@
     <string name="setup_limit_adb_failed">ตรวจสอบที่อยู่ IP และพอร์ตของ Wireless debugging หรือจับคู่ใหม่หาก Android ลบอุปกรณ์นี้ไปแล้ว</string>
     <string name="setup_install">ติดตั้ง</string>
     <string name="setup_manage">จัดการ</string>
-    <string name="setup_tab_overview">ภาพรวม</string>
-    <string name="setup_tab_controller">คอนโทรลเลอร์</string>
-    <string name="setup_tab_launcher">ตัวเปิดแอป</string>
     <string name="setup_title">การตั้งค่า</string>
     <string name="setup_gpu_supported">รองรับอุปกรณ์นี้</string>
     <string name="setup_gpu_untested">GPU ที่ยังไม่ผ่านการทดสอบ</string>
@@ -625,7 +600,6 @@
     <string name="setup_signed_in">ลงชื่อเข้าใช้เป็น %1$s</string>
     <string name="setup_sign_in">กด Play แล้วลงชื่อเข้าใช้ Steam</string>
     <string name="setup_controller">คอนโทรลเลอร์</string>
-    <string name="setup_controller_unavailable">การตั้งค่าคอนโทรลเลอร์ไม่พร้อมใช้งาน</string>
     <string name="setup_logs">ล็อกเซสชัน</string>
     <string name="setup_logs_hint">บันทึกไว้หลังจบแต่ละเซสชัน</string>
     <string name="setup_game_debug_logs">บันทึกดีบักของเกม</string>
@@ -679,11 +653,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">การควบคุม</string>
     <string name="setup_card_controls_hint">การกำหนดปุ่ม</string>
-    <string name="store_starting">กำลังเริ่ม…</string>
-    <string name="store_try_again">ลองใหม่</string>
-    <string name="store_all">ทั้งหมด</string>
-    <string name="store_open">เปิด</string>
-    <string name="store_remove">ลบ</string>
+    <string name="common_starting">กำลังเริ่ม…</string>
+    <string name="common_try_again">ลองใหม่</string>
+    <string name="common_all">ทั้งหมด</string>
+    <string name="common_open">เปิด</string>
+    <string name="common_remove">ลบ</string>
     <string name="upd_open_settings">เปิดการตั้งค่า</string>
     <string name="upd_current_status">เป็นรุ่นล่าสุดแล้ว</string>
     <string name="upd_just_now">เมื่อสักครู่</string>
@@ -765,7 +739,6 @@
     <string name="ctrl_steam_button">ปุ่ม Steam</string>
     <string name="ctrl_qam_button">ปุ่ม QAM</string>
     <string name="ctrl_keyboard_button">ปุ่มแป้นพิมพ์</string>
-    <string name="setup_animations">ภาพเคลื่อนไหว</string>
     <string name="setup_low_storage_warning">เตือนเมื่อพื้นที่เก็บข้อมูลเหลือน้อย</string>
     <string name="setup_low_storage_warning_hint">ถามก่อนเริ่ม Steam เมื่อพื้นที่ว่างน้อยกว่า 10 GB</string>
     <string name="ctrl_layout">การจัดวาง</string>
@@ -777,24 +750,12 @@
     <string name="games_play_steam">เล่น Steam</string>
     <string name="games_files">ไฟล์เกม</string>
     <string name="games_prefix">Prefix ของ Proton</string>
-    <string name="games_saves_looking">กำลังค้นหาเซฟ…</string>
-    <string name="games_saves_none">ไม่พบโฟลเดอร์เซฟที่ตรงชื่อ การส่งออกจะนำทั้งโฟลเดอร์ผู้ใช้ไป</string>
-    <string name="games_saves_folders">%1$d โฟลเดอร์เซฟ</string>
-    <string name="games_saves_summary">%1$s · %2$d ไฟล์ · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">เซฟของเกม</string>
-    <string name="games_import_saves">นำเข้าเซฟ…</string>
-    <string name="games_export_gamehub">ส่งออกเป็น GameHub zip…</string>
-    <string name="games_export_winlator">ส่งออกเป็น Winlator zip…</string>
-    <string name="games_open_save_folder">เปิดโฟลเดอร์เซฟ</string>
     <string name="games_never_played">ยังไม่เคยเล่น</string>
     <string name="games_runtime_busy_percent">รันไทม์กำลังทำงาน · %1$d%%</string>
     <string name="games_runtime_update">มีอัปเดตรันไทม์</string>
     <string name="games_runtime_ready">● รันไทม์พร้อมใช้งาน</string>
     <string name="games_internal">พื้นที่จัดเก็บภายใน</string>
     <string name="games_uninstall_body">ลบไฟล์และนำออกจาก Steam</string>
-    <string name="games_remove_title">ลบ %1$s?</string>
-    <string name="games_remove_body">ลบช็อตคัต ไฟล์เกมยังอยู่</string>
     <string name="gpu_checking">กำลังตรวจสอบไดรเวอร์…</string>
     <string name="gpu_none_listed">ยังไม่มีไดรเวอร์ในรายการ รีเฟรชเพื่อค้นหา</string>
     <string name="gpu_hide_other">ซ่อนไดรเวอร์สำหรับ GPU อื่น</string>
@@ -873,7 +834,6 @@
     <string name="pip_unavailable">Android ไม่สามารถเปิดภาพซ้อนภาพได้</string>
     <string name="game_more">เพิ่มเติม</string>
     <string name="game_edit_art">แก้ไขภาพปก</string>
-    <string name="stores_in_steam_label">ใน Steam</string>
     <string name="game_shortcut">ช็อตคัต</string>
     <string name="game_shortcut_add">เพิ่มไปยังหน้าจอหลัก</string>
     <string name="game_shortcut_choose">เลือกเกม</string>
@@ -900,20 +860,6 @@
     <string name="load_compat_hint">เซสชันของคุณจะเริ่มเมื่อการตั้งค่าเสร็จสิ้น</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">รอให้การติดตั้งเสร็จสิ้นก่อนเปิดเกม</string>
-    <string name="main_saves_close_session">ปิดเซสชัน Steam ก่อน เพื่อไม่ให้เกมบันทึกทับการนำเข้า</string>
-    <string name="main_saves_importing">กำลังนำเข้าสู่ %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="other">นำเข้า %1$d ไฟล์จาก %2$s สู่ %3$s แล้ว</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="other">นำเข้า %1$d ไฟล์จาก %2$s สู่ %3$s แล้ว เซฟเก่าสำรองไว้ที่ Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">เลือกไฟล์ zip เซฟสำหรับ %1$s</string>
-    <string name="main_saves_exporting">กำลังส่งออก %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="other">ส่งออก %1$d ไฟล์เป็น %2$s: %3$s แล้ว</item>
-    </plurals>
-    <string name="main_saves_pick_folder">เลือกตำแหน่งบันทึก %1$s (%2$s)</string>
     <string name="main_action_failed">%1$s ล้มเหลว: %2$s</string>
     <string name="main_no_logs_yet">ยังไม่มีล็อกเซสชัน: รันเซสชันก่อน</string>
     <string name="main_no_logs_to_clear">ไม่มีล็อกเซสชันให้ล้าง</string>
@@ -1045,7 +991,7 @@
         <item quantity="other">ล็อกแสดงข้อผิดพลาด “Function not implemented” %1$d รายการ: การเร่งความเร็ว seccomp ของ proot ทำให้ตัวช่วยบนอุปกรณ์นี้ล้มเหลว ลอง %2$s → “%3$s” (หรือ “%4$s”) แล้วเริ่มใหม่</item>
     </plurals>
 
-    <string name="store_section_loading">กำลังโหลด…</string>
+    <string name="lib_section_loading">กำลังโหลด…</string>
     <string name="theme_graphite">แกรไฟต์</string>
     <string name="theme_graphite_detail">พื้นผิวสีเทาแกรไฟต์ พร้อมสีฟ้าของโลโก้สำหรับทุกสิ่งที่ถูกเลือก โฟกัส หรือกด</string>
     <string name="theme_paper">กระดาษบนพื้นดำ</string>
@@ -1056,8 +1002,6 @@
     <string name="theme_electric_detail">สีฟ้าสว่างขึ้น บนพื้นผิวที่เอียงไปทางกรมท่ามากกว่าเทา</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">สีที่เปลี่ยนวนไปตามสายรุ้ง ทำงานตามการตั้งค่าแอนิเมชันของ Android</string>
-    <string name="theme_rgb_speed">ความเร็ว</string>
-    <string name="theme_rgb_speed_hint">สีเปลี่ยนเร็วแค่ไหน</string>
     <string name="theme_gradient">ไล่เฉดสี</string>
     <string name="theme_gradient_detail">สีหลักและสีรองที่คุณเลือกเอง ผสมกันบนปุ่มและส่วนที่เน้น</string>
     <string name="theme_gradient_primary">สีหลัก</string>
@@ -1091,7 +1035,6 @@
     <string name="game_sync_err_steam_library">ไลบรารี Steam ไม่พร้อมใช้งาน</string>
     <string name="game_sync_err_previous_sd">ไลบรารี SD ก่อนหน้าไม่พร้อมใช้งาน</string>
     <string name="game_sync_err_game_storage">พื้นที่จัดเก็บเกมไม่พร้อมใช้งาน</string>
-    <string name="game_sync_err_added_games">โฟลเดอร์เกมที่เพิ่มไม่พร้อมใช้งาน</string>
     <string name="game_sync_err_manifests">ไฟล์ manifest ของ Steam ไม่พร้อมใช้งาน</string>
     <string name="fm_drive_internal">ภายใน</string>
     <string name="fm_drive_linux">ระบบ Linux</string>
@@ -1508,11 +1451,6 @@
     <string name="phantom_instructions_not_applicable">Android รุ่นนี้ไม่ใช้ขีดจำกัดนี้</string>
     <string name="phantom_fix_toggle">เปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย” ในตัวเลือกสำหรับนักพัฒนา และเปิดตัวเลือกสำหรับนักพัฒนาไว้ต่อไปหลังจากนั้น</string>
     <string name="phantom_fix_no_toggle">Android รุ่นนี้ไม่มีสวิตช์สำหรับสิ่งนี้ ใช้ Wireless debugging เพื่อเปลี่ยนค่าจากอุปกรณ์นี้</string>
-    <string name="saves_layout_zip">zip ของ %1$s</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s ยังไม่ถูกเปิด</string>
-    <string name="saves_none_found">ไม่พบไฟล์เซฟสำหรับ %1$s</string>
-    <string name="saves_not_save_zip">%1$s ไม่มีโฟลเดอร์ drive_c จึงไม่ใช่ไฟล์ zip เซฟของ GameHub หรือ Winlator</string>
     <string name="gstore_cannot_create">ไม่สามารถสร้างโฟลเดอร์ใน %1$s ได้</string>
     <string name="gstore_cannot_write">ไม่สามารถเขียนใน %1$s ได้</string>
     <string name="gstore_cannot_write_detail">ไม่สามารถเขียนใน %1$s ได้ (%2$s)</string>
@@ -1557,16 +1495,13 @@
     <string name="force_ssbs_title">บังคับ SSBS</string>
     <string name="force_ssbs_hint">คงการตั้งค่าความเร็ว CPU ที่ Wine มักปิดอยู่เสมอ อาจทำให้เกม Windows เร็วขึ้นบน Snapdragon 8 Elite แต่เห็นความเปลี่ยนแปลงน้อยบนชิปรุ่นเก่า มีผลในการเปิดเกมครั้งถัดไป</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">กำหนดเอง</string>
-    <string name="stores_tab_library">ไลบรารี</string>
-    <string name="stores_tab_all">ทั้งหมด</string>
-    <string name="stores_search_library">ค้นหาไลบรารีของคุณ…</string>
-    <string name="stores_search_open">ค้นหา</string>
-    <string name="stores_nothing_matches">ไม่มีเกม</string>
-    <string name="stores_play">เล่น</string>
-    <string name="stores_refresh">รีเฟรช</string>
-    <string name="stores_sort">จัดเรียง</string>
+    <string name="lib_tab_library">ไลบรารี</string>
+    <string name="lib_search_library">ค้นหาไลบรารีของคุณ…</string>
+    <string name="lib_search_open">ค้นหา</string>
+    <string name="lib_nothing_matches">ไม่มีเกม</string>
+    <string name="lib_play">เล่น</string>
+    <string name="lib_refresh">รีเฟรช</string>
+    <string name="lib_sort">จัดเรียง</string>
     <string name="setup_rail_labels">ป้ายแถบด้านข้าง</string>
     <string name="setup_rail_labels_hint">แสดงชื่อใต้ไอคอนในแถบด้านข้าง ปิดเพื่อให้แถบด้านข้างแคบลง</string>
     <string name="library_display">การแสดงผล</string>
@@ -1574,32 +1509,26 @@
     <string name="library_display_smaller">การ์ดเล็กลง</string>
     <string name="library_display_title">แสดงชื่อ</string>
     <string name="library_display_size">แสดงขนาด</string>
-    <string name="stores_sort_last_played">เล่นล่าสุด</string>
-    <string name="stores_sort_recently_installed">เพิ่งติดตั้ง</string>
-    <string name="stores_sort_title_asc">ชื่อ A–Z</string>
-    <string name="stores_sort_title_desc">ชื่อ Z–A</string>
-    <string name="stores_sort_size_desc">ขนาด: ใหญ่สุด</string>
-    <string name="stores_sort_size_asc">ขนาด: เล็กสุด</string>
-    <string name="stores_view_list">มุมมองรายการ</string>
-    <string name="stores_view_cards">มุมมองการ์ด</string>
-    <string name="stores_view_capsules">มุมมองปก</string>
+    <string name="lib_sort_last_played">เล่นล่าสุด</string>
+    <string name="lib_sort_recently_installed">เพิ่งติดตั้ง</string>
+    <string name="lib_sort_title_asc">ชื่อ A–Z</string>
+    <string name="lib_sort_title_desc">ชื่อ Z–A</string>
+    <string name="lib_sort_size_desc">ขนาด: ใหญ่สุด</string>
+    <string name="lib_sort_size_asc">ขนาด: เล็กสุด</string>
+    <string name="lib_view_list">มุมมองรายการ</string>
+    <string name="lib_view_cards">มุมมองการ์ด</string>
+    <string name="lib_view_capsules">มุมมองปก</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">ติดตั้งแล้ว</string>
-    <string name="stores_uninstall_title">ถอนการติดตั้ง %1$s?</string>
-    <string name="stores_dl_pause">หยุดชั่วคราว</string>
-    <string name="stores_target_free">เหลือ %1$s</string>
+    <string name="lib_eyebrow_installed">ติดตั้งแล้ว</string>
+    <string name="lib_uninstall_title">ถอนการติดตั้ง %1$s?</string>
+    <string name="lib_dl_pause">หยุดชั่วคราว</string>
+    <string name="lib_target_free">เหลือ %1$s</string>
     <string name="common_close">ปิด</string>
     <string name="common_back">กลับ</string>
-    <string name="games_add_all">เพิ่มเกมทั้งหมดในโฟลเดอร์นี้</string>
-    <string name="games_added_none">ไม่มีอะไรใหม่ในโฟลเดอร์นี้</string>
-    <string name="edit_name">ชื่อ</string>
-    <string name="edit_target">เป้าหมาย</string>
-    <string name="edit_start_in">เริ่มที่</string>
     <string name="edit_launch_options">ตัวเลือกการเปิด</string>
     <string name="edit_launch_options_steam_hint">ใช้ร่วมกับคุณสมบัติใน Steam: เปลี่ยนที่ใดที่หนึ่งก็จะแสดงในทั้งสองที่</string>
     <string name="edit_launch_options_not_saved">บันทึกตัวเลือกการเปิดลงใน Steam ไม่ได้ ลองอีกครั้ง</string>
     <string name="edit_artwork">ภาพปก</string>
-    <string name="edit_other_exe">exe อื่น…</string>
     <string name="edit_remove">ลบ</string>
     <string name="art_cover">ภาพปก</string>
     <string name="art_wide_cover">ภาพปกกว้าง</string>
@@ -1620,11 +1549,9 @@
     <string name="art_background">พื้นหลัง</string>
     <string name="art_logo">โลโก้</string>
     <string name="art_icon">ไอคอน</string>
-    <string name="art_src_folder">โฟลเดอร์เกม</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">ไฟล์ของคุณ</string>
-    <string name="art_src_exe">จากไฟล์ exe</string>
     <string name="art_src_auto">อัตโนมัติ</string>
     <string name="art_pick_image">เลือกภาพ…</string>
     <string name="art_pick_title">เลือกภาพ: %1$s</string>
@@ -1640,15 +1567,8 @@
     <string name="art_sgdb_offline">ติดต่อ SteamGridDB ไม่ได้ ตรวจสอบการเชื่อมต่อ</string>
     <string name="art_sgdb_server">เกิดปัญหาที่ SteamGridDB ลองใหม่ภายหลัง</string>
     <string name="art_sgdb_no_game">SteamGridDB ไม่มีผลลัพธ์สำหรับเกมนี้ ลองค้นหาเอง</string>
-    <plurals name="games_added_n">
-        <item quantity="other">เพิ่มเกมแล้ว %1$d เกม</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="other">มีอยู่ใน Games แล้ว %1$d เกม</item>
-    </plurals>
     <string name="hop_back">B · กลับไปที่ %1$s</string>
     <string name="hop_from_games">เกม</string>
-    <string name="hop_from_play">การตั้งค่า Play</string>
     <string name="sheet_graphics_drivers">ไดรเวอร์กราฟิก</string>
     <string name="comp_this_proton">Proton นี้</string>
     <string name="comp_for_every_proton">สำหรับ Proton ทุกตัว</string>
@@ -1701,12 +1621,6 @@
     <string name="comp_this_device">อุปกรณ์นี้</string>
     <string name="proton_remove_title">ลบ %1$s?</string>
     <string name="setup_tab_diagnostics">การวินิจฉัย</string>
-    <string name="setup_ready">พร้อมเล่นแล้ว</string>
-    <string name="setup_not_ready">ยังไม่พร้อมเล่น</string>
-    <string name="setup_ready_runtime">รันไทม์ %1$s</string>
-    <string name="setup_ready_limit_off">ปิดขีดจำกัดโพรเซส</string>
-    <string name="setup_ready_signed_in">ลงชื่อเข้าใช้เป็น %1$s</string>
-    <string name="setup_needs_you">เมื่อต้องการให้คุณดำเนินการ</string>
     <string name="setup_group_look">รูปลักษณ์</string>
     <string name="setup_group_device">อุปกรณ์นี้</string>
     <string name="setup_group_art">ภาพปกไลบรารี</string>
@@ -2028,9 +1942,7 @@
     <string name="game_install_location">ตำแหน่ง</string>
     <string name="game_install_folder">โฟลเดอร์</string>
     <string name="game_install_size">ขนาดบนดิสก์</string>
-    <string name="library_filter_added">ที่เพิ่มเอง</string>
     <string name="game_tab_launch">การเปิดเกม</string>
-    <string name="game_launch_shortcut">ทางลัด Steam</string>
     <string name="game_install_played">เล่นล่าสุด</string>
     <string name="integration_title">การผสานรวม Steam</string>
     <string name="integration_count">เปิด %1$d จาก %2$d</string>
@@ -2068,11 +1980,6 @@
     <string name="slow_usb_port">%1$s เชื่อมต่อผ่าน %2$s (%3$s Mbps ประมาณ %4$d MB/s) พอร์ต USB ของอุปกรณ์นี้เร็วกว่านี้ไม่ได้ เกมจึงโหลดช้า ที่เก็บข้อมูลภายในหรือการ์ด microSD อาจเร็วกว่า</string>
     <string name="slow_usb_never">ไม่ต้องแสดงอีก</string>
     <string name="slow_usb_dismiss">ปิด</string>
-    <string name="steam_import_title">รีสตาร์ต Steam เพื่อเพิ่มเกมของคุณหรือไม่</string>
-    <string name="steam_import_body">Steam แสดงเกมที่คุณเป็นเจ้าของเหล่านี้ว่าติดตั้งแล้วได้: %1$s ต้องรีสตาร์ตเพื่อให้แสดง รีสตาร์ตเลย หรือเกมจะถูกเพิ่มเมื่อ Steam เริ่มครั้งถัดไป</string>
-    <string name="steam_import_names_more">%1$s และอีก %2$d เกม</string>
-    <string name="steam_import_now">รีสตาร์ตเลย</string>
-    <string name="steam_import_later">ภายหลัง</string>
     <string name="input_reset_positions">รีเซ็ตตำแหน่ง</string>
     <string name="input_show_label">แสดงป้ายกำกับ</string>
     <string name="input_layout_import_failed">ไม่สามารถนำเข้าการจัดวางนี้ได้</string>

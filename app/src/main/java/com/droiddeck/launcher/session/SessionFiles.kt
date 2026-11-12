@@ -70,6 +70,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
             "usr/local/bin/droiddeck-pipewire" to "usr/local/bin/droiddeck-pipewire",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
+            "usr/local/bin/droiddeck-tso-litmus" to "usr/local/bin/droiddeck-tso-litmus",
             "usr/local/bin/droiddeck-innoextract" to "usr/local/bin/droiddeck-innoextract",
             "usr/local/lib/droiddeck-inno/innoextract" to "usr/local/lib/droiddeck-inno/innoextract",
             "usr/local/lib/droiddeck-inno/libboost_container.so.1.92.0" to "usr/local/lib/droiddeck-inno/libboost_container.so.1.92.0",
@@ -130,6 +131,8 @@ object SessionFiles {
             "usr/local/bin/droiddeck-vkbridge-smoke" to "usr/local/bin/droiddeck-vkbridge-smoke",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
+            "usr/local/lib/droiddeck-tso-litmus/tso-litmus.exe" to "usr/local/lib/droiddeck-tso-litmus/tso-litmus.exe",
+            "usr/local/lib/droiddeck-tso-litmus/tso-litmus.dll" to "usr/local/lib/droiddeck-tso-litmus/tso-litmus.dll",
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)

@@ -81,12 +81,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
-    fun animationsEnabled(context: Context): Boolean = prefs(context).getBoolean("animations", true)
-
-    fun setAnimationsEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("animations", on).apply()
-    }
-
     private fun savedDualScreenMode(context: Context, key: String): String? =
         prefs(context).getString(key, null)?.takeIf { it in com.droiddeck.launcher.input.DualScreen.modes }
 
@@ -184,18 +178,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("androidTextFieldKeyboard", on).apply()
     }
 
-    fun storesSort(context: Context): String =
-        prefs(context).getString("storesSort", null)?.takeIf { it in STORES_SORTS } ?: STORES_SORTS.first()
+    fun librarySort(context: Context): String =
+        prefs(context).getString("librarySort", null)?.takeIf { it in LIBRARY_SORTS } ?: LIBRARY_SORTS.first()
 
-    fun setStoresSort(context: Context, sort: String) {
-        prefs(context).edit().putString("storesSort", if (sort in STORES_SORTS) sort else STORES_SORTS.first()).apply()
+    fun setLibrarySort(context: Context, sort: String) {
+        prefs(context).edit().putString("librarySort", if (sort in LIBRARY_SORTS) sort else LIBRARY_SORTS.first()).apply()
     }
 
-    fun storesView(context: Context): String =
-        prefs(context).getString("storesView", null)?.takeIf { it in STORES_VIEWS } ?: DEFAULT_STORES_VIEW
+    fun libraryView(context: Context): String =
+        prefs(context).getString("libraryView", null)?.takeIf { it in LIBRARY_VIEWS } ?: DEFAULT_LIBRARY_VIEW
 
-    fun setStoresView(context: Context, view: String) {
-        prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else DEFAULT_STORES_VIEW).apply()
+    fun setLibraryView(context: Context, view: String) {
+        prefs(context).edit().putString("libraryView", if (view in LIBRARY_VIEWS) view else DEFAULT_LIBRARY_VIEW).apply()
     }
 
     fun libraryCardLevel(context: Context): Int = prefs(context).getInt("libraryCardLevel", 2)
@@ -224,9 +218,9 @@ object SessionPrefs {
 
     private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
-    val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc")
-    val STORES_VIEWS = listOf("cards", "capsules", "list")
-    const val DEFAULT_STORES_VIEW = "capsules"
+    val LIBRARY_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc")
+    val LIBRARY_VIEWS = listOf("cards", "capsules", "list")
+    const val DEFAULT_LIBRARY_VIEW = "capsules"
 
     fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
@@ -1052,107 +1046,6 @@ object SessionPrefs {
         prefs(context).edit().putString("gameFolderBinds", binds.distinctBy { it.first }.joinToString("\n") { "${it.first}\t${it.second}" }).apply()
     }
 
-    fun gamesFoldersMigrated(context: Context): Boolean = prefs(context).getBoolean("gamesFoldersMigrated", false)
-
-    fun setGamesFoldersMigrated(context: Context) {
-        prefs(context).edit().putBoolean("gamesFoldersMigrated", true).apply()
-    }
-
-    fun removedAddedGames(context: Context): List<String> =
-        (prefs(context).getString("removedAddedGames", "") ?: "").split('\n').filter { it.isNotEmpty() }
-
-    fun setAddedGameRemoved(context: Context, folderPath: String, removed: Boolean) {
-        synchronized(addedGameLock) {
-            val now = removedAddedGames(context).filter { it != folderPath } + listOfNotNull(folderPath.takeIf { removed })
-            prefs(context).edit().putString("removedAddedGames", now.joinToString("\n")).apply()
-        }
-    }
-
-    fun addedGameName(context: Context, folderPath: String): String = prefs(context).getString("addedName:$folderPath", "") ?: ""
-
-    fun setAddedGameName(context: Context, folderPath: String, name: String) {
-        prefs(context).edit().putString("addedName:$folderPath", name.trim()).apply()
-    }
-
-    fun addedGameStartIn(context: Context, folderPath: String): String = prefs(context).getString("addedStartIn:$folderPath", "") ?: ""
-
-    fun setAddedGameStartIn(context: Context, folderPath: String, guestDir: String) {
-        prefs(context).edit().putString("addedStartIn:$folderPath", guestDir.trim()).apply()
-    }
-
-    fun addedGameLaunch(context: Context, folderPath: String): String = prefs(context).getString("addedLaunch:$folderPath", "") ?: ""
-
-    fun setAddedGameLaunch(context: Context, folderPath: String, options: String) {
-        prefs(context).edit().putString("addedLaunch:$folderPath", options.trim()).apply()
-    }
-
-    fun addedGameAdopted(context: Context, folderPath: String, field: String): String? =
-        prefs(context).getString("addedAdopted:$field:$folderPath", null)
-
-    fun setAddedGameAdopted(context: Context, folderPath: String, field: String, value: String) {
-        prefs(context).edit().putString("addedAdopted:$field:$folderPath", value).apply()
-    }
-
-    fun addedGameArtSource(context: Context, folderPath: String, slot: String): String =
-        prefs(context).getString("addedArt:$slot:$folderPath", "") ?: ""
-
-    fun setAddedGameArtSource(context: Context, folderPath: String, slot: String, source: String) {
-        prefs(context).edit().putString("addedArt:$slot:$folderPath", source).apply()
-    }
-
-    fun addedGamesArt(context: Context): Boolean = prefs(context).getBoolean("addedGamesArt", true)
-
-    fun setAddedGamesArt(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("addedGamesArt", on).apply()
-    }
-
-    fun addedGameExe(context: Context, folderPath: String): String = prefs(context).getString("addedExe:$folderPath", "") ?: ""
-
-    private val addedGameLock = Any()
-
-    fun setAddedGameExe(context: Context, folderPath: String, path: String) {
-        synchronized(addedGameLock) { prefs(context).edit().putString("addedExe:$folderPath", path).apply() }
-    }
-
-    fun addedGameExeSeen(context: Context, folderPath: String): Int = prefs(context).getInt("addedExeSeen:$folderPath", 0)
-
-    fun adoptAddedGameExe(context: Context, folderPath: String, expected: String, path: String, seen: Int): Boolean =
-        synchronized(addedGameLock) {
-            val unchanged = addedGameExe(context, folderPath) == expected
-            if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
-            unchanged
-        }
-
-    fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
-        prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
-
-    fun inheritAddedGame(context: Context, from: String, to: String) = synchronized(addedGameLock) {
-        val p = prefs(context)
-        val all = p.all
-        val edit = p.edit()
-        all.filterKeys { it.startsWith("added") && it.endsWith(":$from") }.forEach { (name, value) ->
-            val key = name.removeSuffix(from) + to
-            if (key !in all) edit.putValue(key, value)
-        }
-        edit.apply()
-    }
-
-    private fun android.content.SharedPreferences.Editor.putValue(name: String, value: Any?) {
-        when (value) {
-            is String -> putString(name, value)
-            is Long -> putLong(name, value)
-            is Int -> putInt(name, value)
-            is Boolean -> putBoolean(name, value)
-            is Float -> putFloat(name, value)
-        }
-    }
-
-    fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
-        val p = prefs(context)
-        p.getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
-            ?: first.also { p.edit().putLong("addedAppId:$folderPath", it).apply() }
-    }
-
     fun theme(context: Context): String = prefs(context).getString("theme", "graphite") ?: "graphite"
 
     fun setTheme(context: Context, id: String) {
@@ -1162,13 +1055,6 @@ object SessionPrefs {
     fun gradientColors(context: Context): Pair<Int, Int> = prefs(context).let {
         it.getInt("gradientPrimary", com.droiddeck.launcher.ui.Themes.DEFAULT_PRIMARY) to
             it.getInt("gradientSecondary", com.droiddeck.launcher.ui.Themes.DEFAULT_SECONDARY)
-    }
-
-    fun rgbSpeed(context: Context): Int =
-        prefs(context).getInt("innerGamerSpeed", com.droiddeck.launcher.ui.Themes.DEFAULT_RGB_SPEED).coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)
-
-    fun setRgbSpeed(context: Context, speed: Int) {
-        prefs(context).edit().putInt("innerGamerSpeed", speed.coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)).apply()
     }
 
     fun setGradientColors(context: Context, primary: Int, secondary: Int) {

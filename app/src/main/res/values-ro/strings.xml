@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Prima rulare descarcă Steam. Poate dura câteva minute.</item>
-        <item>În mod implicit, la părăsirea aplicației, Steam este pus pe pauză; continuă de unde ai rămas când te întorci.</item>
-        <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>În mod implicit, la părăsirea aplicației, sesiunea este pusă pe pauză; continuă de unde ai rămas când te întorci.</item>
-        <item>Atingerea funcționează ca un touchpad: trage pentru a mișca cursorul, apasă scurt pentru a face clic.</item>
-        <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
-    </string-array>
     <string name="session_channel">Sesiune</string>
     <string name="session_notification">Steam este în execuție</string>
     <string name="session_notification_downloads">Descărcare Steam activă</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Atingere</string>
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
-    <string name="mode_touch_note">Automat: touchpad pe Desktop, direct în Steam.</string>
     <string name="mode_osc">Comenzi pe ecran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automat afișează comenzile când niciun controller nu este conectat.</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">Descarcă din nou clientul Steam la următoarea pornire a Steam. Folosește-l dacă Steam rămâne blocat pe ecranul de încărcare. Jocurile, autentificarea și setările sunt păstrate.</string>
     <string name="mode_steam_repair_queued">Clientul Steam va fi descărcat din nou la următoarea pornire a Steam.</string>
     <string name="mode_steam_repair_button">Repară</string>
-    <string name="mode_added_art">Grafică</string>
     <string name="mode_sgdb_key">Cheie API SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Cheia ta</string>
     <string name="mode_sgdb_edit">Editează…</string>
-    <string name="mode_added_art_hint">Completează grafica lipsă din Steam, apoi din SteamGridDB. Propriile tale cover.jpg, hero.jpg, logo.png sau icon.png din folderul jocului au prioritate.</string>
-    <string name="summary_remove_game">Elimină %1$s</string>
-    <string name="mode_added_remove_confirm">Elimini?</string>
-    <string name="games_add">Adaugă joc</string>
-    <string name="games_add_title">Adaugă un joc:</string>
-    <string name="games_pick_exe_title">Alege fișierul exe:</string>
-    <string name="games_add_unreachable">Această locație nu este disponibilă în sesiune</string>
-    <string name="mode_added_exe_check">Verifică acest exe</string>
     <string name="wincomp_title">Componente Windows</string>
     <string name="wincomp_pad_hint">LB / RB trec între secțiuni.</string>
     <string name="wincomp_card_none">Niciuna</string>
@@ -225,7 +205,6 @@
     </plurals>
     <string name="wincomp_auto_section">Activ pentru acest joc</string>
     <string name="wincomp_auto_steam">Steam instalează %1$s cu %2$s (aplicația %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam instalează %1$s cu aplicația %2$s, potrivită după nume</string>
     <string name="wincomp_suggestions">De asemenea, listate</string>
     <string name="wincomp_suggestion_reason">Listată de %1$s; nu este o componentă aici</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -457,7 +436,6 @@
     <string name="drawer_page_controls">Comenzi</string>
     <string name="drawer_page_components">Componente</string>
     <string name="drawer_page_controller">Controller</string>
-    <string name="drawer_page_settings">Setări</string>
     <string name="drawer_page_desc">Pagina %1$s</string>
     <string name="drawer_steam_menu">Meniu Steam</string>
     <string name="drawer_open_qam">Deschide meniul de acces rapid</string>
@@ -602,9 +580,6 @@
     <string name="setup_limit_adb_failed">Verifică adresa IP și portul Depanării wireless, sau asociază din nou dacă Android a eliminat acest dispozitiv.</string>
     <string name="setup_install">Instalează</string>
     <string name="setup_manage">Gestionează</string>
-    <string name="setup_tab_overview">Prezentare generală</string>
-    <string name="setup_tab_controller">Controller</string>
-    <string name="setup_tab_launcher">Launcher</string>
     <string name="setup_title">Configurare</string>
     <string name="setup_gpu_supported">Dispozitiv acceptat</string>
     <string name="setup_gpu_untested">GPU netestat</string>
@@ -631,7 +606,6 @@
     <string name="setup_signed_in">Autentificat ca %1$s</string>
     <string name="setup_sign_in">Apasă Play și autentifică-te în Steam</string>
     <string name="setup_controller">Controller</string>
-    <string name="setup_controller_unavailable">Setările controllerului nu sunt disponibile.</string>
     <string name="setup_logs">Jurnalele sesiunii</string>
     <string name="setup_logs_hint">Salvate după fiecare sesiune</string>
     <string name="setup_game_debug_logs">Jurnale de depanare a jocurilor</string>
@@ -685,11 +659,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Comenzi</string>
     <string name="setup_card_controls_hint">Maparea butoanelor</string>
-    <string name="store_starting">Se pornește…</string>
-    <string name="store_try_again">Încearcă din nou</string>
-    <string name="store_all">Toate</string>
-    <string name="store_open">Deschide</string>
-    <string name="store_remove">Elimină</string>
+    <string name="common_starting">Se pornește…</string>
+    <string name="common_try_again">Încearcă din nou</string>
+    <string name="common_all">Toate</string>
+    <string name="common_open">Deschide</string>
+    <string name="common_remove">Elimină</string>
     <string name="upd_open_settings">Deschide setările</string>
     <string name="upd_current_status">Actualizat</string>
     <string name="upd_just_now">chiar acum</string>
@@ -771,7 +745,6 @@
     <string name="ctrl_steam_button">Butonul Steam</string>
     <string name="ctrl_qam_button">Butonul QAM</string>
     <string name="ctrl_keyboard_button">Butonul tastaturii</string>
-    <string name="setup_animations">Animații</string>
     <string name="setup_low_storage_warning">Avertizează când spațiul de stocare este redus</string>
     <string name="setup_low_storage_warning_hint">Întreabă înainte de pornirea Steam când spațiul liber este sub 10 GB.</string>
     <string name="ctrl_layout">Aranjament</string>
@@ -783,24 +756,12 @@
     <string name="games_play_steam">Joacă Steam</string>
     <string name="games_files">Fișierele jocului</string>
     <string name="games_prefix">Prefix Proton</string>
-    <string name="games_saves_looking">Se caută salvările…</string>
-    <string name="games_saves_none">Niciun folder de salvare găsit după nume. Exportul include tot folderul de utilizator.</string>
-    <string name="games_saves_folders">%1$d foldere de salvare</string>
-    <string name="games_saves_summary">%1$s · %2$d fișiere · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Salvările jocului</string>
-    <string name="games_import_saves">Importă salvări…</string>
-    <string name="games_export_gamehub">Exportă ca arhivă GameHub…</string>
-    <string name="games_export_winlator">Exportă ca arhivă Winlator…</string>
-    <string name="games_open_save_folder">Deschide folderul de salvare</string>
     <string name="games_never_played">Niciodată jucat</string>
     <string name="games_runtime_busy_percent">Mediu de execuție ocupat · %1$d%%</string>
     <string name="games_runtime_update">Actualizare disponibilă pentru mediul de execuție</string>
     <string name="games_runtime_ready">● Mediu de execuție pregătit</string>
     <string name="games_internal">Stocare internă</string>
     <string name="games_uninstall_body">Șterge fișierele sale și îl elimină din Steam.</string>
-    <string name="games_remove_title">Elimini %1$s?</string>
-    <string name="games_remove_body">Șterge comanda rapidă. Fișierele jocului rămân.</string>
     <string name="gpu_checking">Se verifică driverele…</string>
     <string name="gpu_none_listed">Niciun driver listat încă. Reîmprospătează pentru a le căuta.</string>
     <string name="gpu_hide_other">Ascunde driverele pentru alte GPU-uri</string>
@@ -879,7 +840,6 @@
     <string name="pip_unavailable">Android nu a putut deschide imaginea în imagine.</string>
     <string name="game_more">Mai multe</string>
     <string name="game_edit_art">Editează grafica</string>
-    <string name="stores_in_steam_label">În Steam</string>
     <string name="game_shortcut">Comandă rapidă</string>
     <string name="game_shortcut_add">Adaugă pe ecranul principal</string>
     <string name="game_shortcut_choose">Alege jocul</string>
@@ -906,26 +866,6 @@
     <string name="load_compat_hint">Sesiunea va porni după finalizarea configurării.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Așteaptă să se termine instalarea înainte de a lansa un joc</string>
-    <string name="main_saves_close_session">Închide mai întâi sesiunea Steam, ca jocul să nu poată salva peste import</string>
-    <string name="main_saves_importing">Se importă în %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">S-a importat %1$d fișier din %2$s în %3$s</item>
-        <item quantity="few">S-au importat %1$d fișiere din %2$s în %3$s</item>
-        <item quantity="other">S-au importat %1$d de fișiere din %2$s în %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">S-a importat %1$d fișier din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
-        <item quantity="few">S-au importat %1$d fișiere din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">S-au importat %1$d de fișiere din %2$s în %3$s. Salvările vechi au fost copiate de rezervă în Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Alege o arhivă de salvare pentru %1$s</string>
-    <string name="main_saves_exporting">Se exportă %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">S-a exportat %1$d fișier ca %2$s: %3$s</item>
-        <item quantity="few">S-au exportat %1$d fișiere ca %2$s: %3$s</item>
-        <item quantity="other">S-au exportat %1$d de fișiere ca %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Alege unde se salvează %1$s (%2$s)</string>
     <string name="main_action_failed">%1$s a eșuat: %2$s</string>
     <string name="main_no_logs_yet">Niciun jurnal de sesiune încă: rulează mai întâi o sesiune.</string>
     <string name="main_no_logs_to_clear">Niciun jurnal de sesiune de șters.</string>
@@ -1069,7 +1009,7 @@
         <item quantity="other">Jurnalul arată %1$d de erori „Function not implemented”: accelerarea seccomp a proot nu reușește să ruleze un auxiliar pe acest dispozitiv. Încearcă %2$s → „%3$s” (sau „%4$s”) și pornește din nou.</item>
     </plurals>
 
-    <string name="store_section_loading">se încarcă…</string>
+    <string name="lib_section_loading">se încarcă…</string>
     <string name="theme_graphite">Grafit</string>
     <string name="theme_graphite_detail">Suprafețe grafit, cu albastrul propriu al orbului din logo pentru tot ce este selectat, focalizat sau apăsat.</string>
     <string name="theme_paper">Hârtie pe negru</string>
@@ -1080,8 +1020,6 @@
     <string name="theme_electric_detail">Albastrul mai strălucitor, pe suprafețe care tind spre bleumarin în loc de gri.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Culori care parcurg curcubeul. Respectă setările de animație din Android.</string>
-    <string name="theme_rgb_speed">Viteză</string>
-    <string name="theme_rgb_speed_hint">Cât de repede se schimbă culorile.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Culorile tale primară și secundară, combinate pe butoane și evidențieri.</string>
     <string name="theme_gradient_primary">Primară</string>
@@ -1115,7 +1053,6 @@
     <string name="game_sync_err_steam_library">Biblioteca Steam nu este disponibilă</string>
     <string name="game_sync_err_previous_sd">Biblioteca SD anterioară nu este disponibilă</string>
     <string name="game_sync_err_game_storage">Stocarea jocurilor nu este disponibilă</string>
-    <string name="game_sync_err_added_games">Folderul de jocuri adăugate nu este disponibil</string>
     <string name="game_sync_err_manifests">Manifestele Steam nu sunt disponibile</string>
     <string name="fm_drive_internal">Internă</string>
     <string name="fm_drive_linux">Sistem Linux</string>
@@ -1546,11 +1483,6 @@
     <string name="phantom_instructions_not_applicable">Această versiune de Android nu folosește această limită.</string>
     <string name="phantom_fix_toggle">Activează „Dezactivează restricțiile pentru procese secundare” în Opțiunile pentru dezvoltatori, și lasă Opțiunile pentru dezvoltatori activate după aceea.</string>
     <string name="phantom_fix_no_toggle">Această versiune de Android nu are un comutator pentru asta. Folosește Depanarea wireless pentru a o schimba de pe acest dispozitiv.</string>
-    <string name="saves_layout_zip">Arhivă %1$s</string>
-    <string name="saves_zip">arhivă</string>
-    <string name="saves_not_launched">%1$s nu a fost lansat încă</string>
-    <string name="saves_none_found">Niciun fișier de salvare găsit pentru %1$s</string>
-    <string name="saves_not_save_zip">%1$s nu are un folder drive_c, așa că nu este o arhivă de salvare GameHub sau Winlator</string>
     <string name="gstore_cannot_create">nu se pot crea foldere în %1$s</string>
     <string name="gstore_cannot_write">nu se poate scrie în %1$s</string>
     <string name="gstore_cannot_write_detail">nu se poate scrie în %1$s (%2$s)</string>
@@ -1595,16 +1527,13 @@
     <string name="force_ssbs_title">Forțează SSBS</string>
     <string name="force_ssbs_hint">Păstrează o setare de viteză a CPU-ului pe care Wine o dezactivează mereu. Poate face jocurile Windows mai rapide pe Snapdragon 8 Elite; schimbare mică observată pe cipuri mai vechi. Se aplică la următoarea lansare a jocului.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Personalizat</string>
-    <string name="stores_tab_library">Bibliotecă</string>
-    <string name="stores_tab_all">Toate</string>
-    <string name="stores_search_library">Caută în biblioteca ta…</string>
-    <string name="stores_search_open">Căutare</string>
-    <string name="stores_nothing_matches">Niciun joc</string>
-    <string name="stores_play">Joacă</string>
-    <string name="stores_refresh">Reîmprospătează</string>
-    <string name="stores_sort">Sortează</string>
+    <string name="lib_tab_library">Bibliotecă</string>
+    <string name="lib_search_library">Caută în biblioteca ta…</string>
+    <string name="lib_search_open">Căutare</string>
+    <string name="lib_nothing_matches">Niciun joc</string>
+    <string name="lib_play">Joacă</string>
+    <string name="lib_refresh">Reîmprospătează</string>
+    <string name="lib_sort">Sortează</string>
     <string name="setup_rail_labels">Etichete în bara laterală</string>
     <string name="setup_rail_labels_hint">Afișează numele sub pictogramele din bara laterală. Dezactivează pentru o bară laterală mai îngustă.</string>
     <string name="library_display">Afișare</string>
@@ -1612,32 +1541,26 @@
     <string name="library_display_smaller">Carduri mai mici</string>
     <string name="library_display_title">Afișează titlul</string>
     <string name="library_display_size">Afișează dimensiunea</string>
-    <string name="stores_sort_last_played">Jucate recent</string>
-    <string name="stores_sort_recently_installed">Instalate recent</string>
-    <string name="stores_sort_title_asc">Titlu A–Z</string>
-    <string name="stores_sort_title_desc">Titlu Z–A</string>
-    <string name="stores_sort_size_desc">Dimensiune: cea mai mare</string>
-    <string name="stores_sort_size_asc">Dimensiune: cea mai mică</string>
-    <string name="stores_view_list">Vizualizare listă</string>
-    <string name="stores_view_cards">Vizualizare carduri</string>
-    <string name="stores_view_capsules">Vizualizare coperți</string>
+    <string name="lib_sort_last_played">Jucate recent</string>
+    <string name="lib_sort_recently_installed">Instalate recent</string>
+    <string name="lib_sort_title_asc">Titlu A–Z</string>
+    <string name="lib_sort_title_desc">Titlu Z–A</string>
+    <string name="lib_sort_size_desc">Dimensiune: cea mai mare</string>
+    <string name="lib_sort_size_asc">Dimensiune: cea mai mică</string>
+    <string name="lib_view_list">Vizualizare listă</string>
+    <string name="lib_view_cards">Vizualizare carduri</string>
+    <string name="lib_view_capsules">Vizualizare coperți</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">instalat</string>
-    <string name="stores_uninstall_title">Dezinstalezi %1$s?</string>
-    <string name="stores_dl_pause">Pauză</string>
-    <string name="stores_target_free">%1$s liber</string>
+    <string name="lib_eyebrow_installed">instalat</string>
+    <string name="lib_uninstall_title">Dezinstalezi %1$s?</string>
+    <string name="lib_dl_pause">Pauză</string>
+    <string name="lib_target_free">%1$s liber</string>
     <string name="common_close">Închide</string>
     <string name="common_back">Înapoi</string>
-    <string name="games_add_all">Adaugă toate jocurile din acest folder</string>
-    <string name="games_added_none">Nimic nou în acest folder</string>
-    <string name="edit_name">Nume</string>
-    <string name="edit_target">Țintă</string>
-    <string name="edit_start_in">Pornește în</string>
     <string name="edit_launch_options">Opțiuni de lansare</string>
     <string name="edit_launch_options_steam_hint">Comune cu Proprietățile din Steam: o modificare într-unul dintre locuri apare în ambele.</string>
     <string name="edit_launch_options_not_saved">Opțiunile de lansare nu au putut fi salvate în Steam. Încearcă din nou.</string>
     <string name="edit_artwork">Grafică</string>
-    <string name="edit_other_exe">Alt exe…</string>
     <string name="edit_remove">Elimină</string>
     <string name="art_cover">Copertă</string>
     <string name="art_wide_cover">Copertă lată</string>
@@ -1658,11 +1581,9 @@
     <string name="art_background">Fundal</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Iconiță</string>
-    <string name="art_src_folder">Folderul jocului</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Fișierul tău</string>
-    <string name="art_src_exe">Din exe</string>
     <string name="art_src_auto">Automat</string>
     <string name="art_pick_image">Alege imaginea…</string>
     <string name="art_pick_title">Alege o imagine: %1$s</string>
@@ -1678,19 +1599,8 @@
     <string name="art_sgdb_offline">SteamGridDB nu poate fi contactat. Verifică conexiunea.</string>
     <string name="art_sgdb_server">Ceva a mers greșit la SteamGridDB. Încearcă mai târziu.</string>
     <string name="art_sgdb_no_game">SteamGridDB nu are rezultate pentru acest joc. Încearcă să îl cauți.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d joc adăugat</item>
-        <item quantity="few">%1$d jocuri adăugate</item>
-        <item quantity="other">%1$d de jocuri adăugate</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d deja în Jocuri</item>
-        <item quantity="few">%1$d deja în Jocuri</item>
-        <item quantity="other">%1$d deja în Jocuri</item>
-    </plurals>
     <string name="hop_back">B · Înapoi la %1$s</string>
     <string name="hop_from_games">joc</string>
-    <string name="hop_from_play">Setările de lansare</string>
     <string name="sheet_graphics_drivers">Drivere grafice</string>
     <string name="comp_this_proton">Acest Proton</string>
     <string name="comp_for_every_proton">Pentru fiecare Proton</string>
@@ -1743,12 +1653,6 @@
     <string name="comp_this_device">Acest dispozitiv</string>
     <string name="proton_remove_title">Elimini %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnosticare</string>
-    <string name="setup_ready">Pregătit de joc</string>
-    <string name="setup_not_ready">Încă nepregătit de joc</string>
-    <string name="setup_ready_runtime">mediu de execuție %1$s</string>
-    <string name="setup_ready_limit_off">limita proceselor dezactivată</string>
-    <string name="setup_ready_signed_in">autentificat ca %1$s</string>
-    <string name="setup_needs_you">Când ceva are nevoie de tine</string>
     <string name="setup_group_look">Aspect</string>
     <string name="setup_group_device">Acest dispozitiv</string>
     <string name="setup_group_art">Grafica bibliotecii</string>
@@ -2080,9 +1984,7 @@
     <string name="game_install_location">Locație</string>
     <string name="game_install_folder">Folder</string>
     <string name="game_install_size">Dimensiune pe disc</string>
-    <string name="library_filter_added">Adăugate</string>
     <string name="game_tab_launch">Lansare</string>
-    <string name="game_launch_shortcut">Scurtătură Steam</string>
     <string name="game_install_played">Jucat ultima dată</string>
     <string name="integration_title">Integrare Steam</string>
     <string name="integration_count">%1$d din %2$d activate</string>
@@ -2120,11 +2022,6 @@
     <string name="slow_usb_port">%1$s este conectat prin %2$s (%3$s Mbps, aproximativ %4$d MB/s). Portul USB al acestui dispozitiv nu poate merge mai repede, așa că jocurile se vor încărca lent. Memoria internă sau un card microSD pot fi mai rapide.</string>
     <string name="slow_usb_never">Nu mai afișa</string>
     <string name="slow_usb_dismiss">Închide</string>
-    <string name="steam_import_title">Repornești Steam pentru a adăuga jocurile tale?</string>
-    <string name="steam_import_body">Steam poate afișa ca instalate aceste jocuri pe care le deții: %1$s. Trebuie să repornească pentru a le afișa. Repornește acum sau vor fi adăugate la următoarea pornire a Steam.</string>
-    <string name="steam_import_names_more">%1$s și încă %2$d</string>
-    <string name="steam_import_now">Repornește acum</string>
-    <string name="steam_import_later">Mai târziu</string>
     <string name="input_reset_positions">Resetează pozițiile</string>
     <string name="input_show_label">Afișează eticheta</string>
     <string name="input_layout_import_failed">Acest aranjament nu a putut fi importat</string>

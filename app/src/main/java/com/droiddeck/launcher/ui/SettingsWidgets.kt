@@ -270,9 +270,7 @@ fun AnchoredMenu(
     compact: Boolean = false, minWidth: androidx.compose.ui.unit.Dp = 120.dp,
     content: @Composable ColumnScope.(FocusRequester) -> Unit,
 ) {
-    val state = remember { MutableTransitionState(false) }
-    state.targetState = open
-    if (!state.currentState && !state.targetState && state.isIdle) return
+    if (!open) return
     val firstItemFocus = remember { FocusRequester() }
     val inputMode = LocalInputModeManager.current.inputMode
     LaunchedEffect(open, inputMode) {
@@ -304,12 +302,7 @@ fun AnchoredMenu(
           }
       }
       CompositionLocalProvider(LocalDensity provides density, LocalConfiguration provides configuration) {
-        AnimatedVisibility(
-            visibleState = state,
-            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
-            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
-            label = "menu",
-        ) {
+        run {
             val maxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp
             Column(
                 modifier = Modifier
@@ -374,7 +367,7 @@ fun MenuItem(
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
-    val shift by animateFloatAsState(if (hot) 2f else 0f, Motion.sp(0.5f), label = "miShift")
+    val shift = if (hot) 2f else 0f
     val reveal = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     if (checked) LaunchedEffect(Unit) { reveal.bringIntoView() }
     Row(
@@ -412,7 +405,7 @@ fun ValueChip(text: String, open: Boolean, enabled: Boolean = true, modifier: Mo
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val pal = LocalPalette.current
-    val rot by animateFloatAsState(if (open) 180f else 0f, Motion.sp(0.6f), label = "chipCaret")
+    val rot = if (open) 180f else 0f
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
         modifier = modifier
@@ -426,13 +419,9 @@ fun ValueChip(text: String, open: Boolean, enabled: Boolean = true, modifier: Mo
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 6.dp else 8.dp),
     ) {
-        AnimatedContent(
-            targetState = text,
-            transitionSpec = { (fadeIn(Motion.tw(260)) + slideInVertically(Motion.tw(260)) { it / 2 }) togetherWith (fadeOut(Motion.tw(160)) + slideOutVertically(Motion.tw(160)) { -it / 2 }) },
-            label = "chipText",
-        ) { t -> Text(t, fontSize = if (compact) 12.sp else 13.sp,
+        Text(text, fontSize = if (compact) 12.sp else 13.sp,
             lineHeight = if (compact) 16.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
-            fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.width(8.dp))
         Text("▾", fontSize = 10.sp, color = colors.onSurfaceVariant, modifier = Modifier.rotate(rot))
     }
@@ -443,7 +432,7 @@ fun SettingsGroup(title: String, compact: Boolean = false, detail: String? = nul
     val tight = compact || LocalCompactSettings.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Column(Modifier.fillMaxWidth().sheetPiece()) {
+    Column(Modifier.fillMaxWidth()) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (tight) 6.dp else 10.dp),
@@ -462,7 +451,7 @@ fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hint
     val compact = LocalCompactSettings.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val bg by animateColorAsState(if (highlighted) pal.signal.copy(alpha = 0.10f) else Color.Transparent, Motion.tw(200), label = "rowBg")
+    val bg = if (highlighted) pal.signal.copy(alpha = 0.10f) else Color.Transparent
     val hintText: @Composable (androidx.compose.ui.unit.TextUnit) -> Unit = { size ->
         Text(hint ?: "", fontSize = size, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp),
             lineHeight = if (compact) 14.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
@@ -556,8 +545,8 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
-    val track by animateColorAsState(if (checked) pal.signal else colors.surfaceVariant, Motion.tw(180), label = "switchTrack")
-    val knob by animateFloatAsState(if (checked) 1f else 0f, Motion.sp(0.7f), label = "switchKnob")
+    val track = if (checked) pal.signal else colors.surfaceVariant
+    val knob = if (checked) 1f else 0f
     val flip = { onChange(!checked) }
     val onLabel = stringResource(R.string.widgets_on)
     val offLabel = stringResource(R.string.widgets_off)
@@ -728,7 +717,7 @@ fun SettingsPage(
 ) {
     val scrollState = scroll ?: rememberScrollState()
     val colors = MaterialTheme.colorScheme
-    val dim by animateFloatAsState(if (host.open != null) 0.6f else 1f, Motion.tw(220), label = "pageDim")
+    val dim = if (host.open != null) 0.6f else 1f
     val narrow = LocalNarrowPane.current && !compactLayout
     Column(
         modifier = modifier.fillMaxSize().padding(
@@ -738,7 +727,7 @@ fun SettingsPage(
         verticalArrangement = Arrangement.spacedBy(if (compactLayout) 2.dp else 0.dp),
     ) {
         if (title == null) {
-            Rise(0) {
+            Box {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -749,7 +738,7 @@ fun SettingsPage(
                 }
             }
         } else if (narrow) {
-            Rise(0) {
+            Box {
                 Row(
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.padding(bottom = 6.dp),
@@ -762,9 +751,9 @@ fun SettingsPage(
                     if (action != null) action()
                 }
             }
-            if (lede != null) Rise(1) { Lede(lede) }
+            if (lede != null) Box { Lede(lede) }
         } else {
-            Rise(0) {
+            Box {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (showBack) BackLink(stringResource(R.string.mode_back), compact = compactLayout, onClick = onBack)
                     if (eyebrow != null) {
@@ -773,7 +762,7 @@ fun SettingsPage(
                     }
                 }
             }
-            Rise(1) {
+            Box {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) {
                         if (compactLayout) {
@@ -791,7 +780,7 @@ fun SettingsPage(
                     if (action != null) action()
                 }
             }
-            if (lede != null) Rise(2) {
+            if (lede != null) Box {
                 if (compactLayout) {
                     Text(
                         lede,
@@ -807,7 +796,7 @@ fun SettingsPage(
             }
         }
         if (header != null && title != null) header()
-        Rise(3, Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -829,8 +818,8 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
     val pillShape = RoundedCornerShape(9.dp)
     BoxWithConstraints(modifier) {
         val segment = minOf(92.dp, (maxWidth - 8.dp) / options.size)
-        val slide by animateDpAsState(segment * index.coerceAtLeast(0), Motion.sp(0.75f), label = "tabPill")
-        val shown by animateFloatAsState(if (index >= 0) 1f else 0f, Motion.tw(180), label = "tabPillShown")
+        val slide = segment * index.coerceAtLeast(0)
+        val shown = if (index >= 0) 1f else 0f
         Box(
             modifier = Modifier
                 .height(48.dp).width(segment * options.size + 8.dp)
@@ -847,13 +836,12 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
                     val src = remember { MutableInteractionSource() }
                     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
                     val chosen = i == index
-                    val ink by animateColorAsState(
+                    val ink = (
                         when {
                             chosen -> pal.onSignal
                             hot -> colors.onBackground
                             else -> colors.onSurfaceVariant
-                        },
-                        Motion.tw(220), label = "tabInk",
+                        }
                     )
                     val pick = { onPick(value) }
                     Box(

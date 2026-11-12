@@ -20,11 +20,7 @@ import java.util.concurrent.PriorityBlockingQueue
 object AutoComponents {
     private const val TAG = "AutoComponents"
 
-    fun appKey(game: Library.SteamGame): String? =
-        when {
-            game.library == Library.ADDED -> Integer.toUnsignedString(game.appId)
-            else -> game.appId.takeIf { it > 0 }?.toString()
-        }
+    fun appKey(game: Library.SteamGame): String? = game.appId.takeIf { it > 0 }?.toString()
 
     fun autoPicks(findings: List<WinCompSources.Finding>, catalog: Map<String, WinComponents.Component>): Map<String, WinComponents.AutoReason> {
         val out = LinkedHashMap<String, WinComponents.AutoReason>()
@@ -215,10 +211,6 @@ object AutoComponents {
     private fun apply(context: Context, game: Library.SteamGame, asked: Boolean, inSession: Boolean = false,
         knownCatalog: Map<String, WinComponents.Component>? = null) {
         val key = appKey(game) ?: return
-        val folder = game.gameFiles
-        if (game.library == Library.ADDED && folder != null && SteamMatch.get(context, folder.path) == null) {
-            AddedGames.single(context, folder.path)?.let { SteamMatch.resolve(context, folder.path, it.exe, it.name) }
-        }
         if (knownCatalog == null && asked && online(context)) steamAppOf(context, game)?.let { SteamAppInfo.lookup(context, listOf(it)) }
         val findings = findings(context, game)
         val refreshed = if (knownCatalog == null && asked && online(context)) catalogOf(context, true) else null
@@ -379,7 +371,6 @@ object AutoComponents {
             folder?.listFiles { f -> f.name.lowercase().let { it.startsWith("installscript") && it.endsWith(".vdf") } }
                 ?.maxOfOrNull { it.lastModified() },
             SteamAppInfo.appinfoFile(context).lastModified(),
-            folder?.let { SteamMatch.get(context, it.path) }?.let { "${it.appId}/${it.certainty}" },
             steamAppOf(context, game)?.let { SteamAppInfo.state(context, it) },
         )
         return parts.joinToString("|")
@@ -516,9 +507,7 @@ object AutoComponents {
         games.forEach { queueGame(context, it, asked = false) }
     }
 
-    private fun steamAppOf(context: Context, game: Library.SteamGame): Int? =
-        if (game.library != Library.ADDED) game.appId.takeIf { it > 0 }
-        else game.gameFiles?.let { SteamMatch.get(context, it.path) }?.appId
+    private fun steamAppOf(context: Context, game: Library.SteamGame): Int? = game.appId.takeIf { it > 0 }
 
     fun isOnline(context: Context): Boolean {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false

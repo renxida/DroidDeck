@@ -72,7 +72,7 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
     val scroll = rememberScrollState()
     var typingHex by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { focusSoon { first } }
-    LaunchedEffect(typingHex, scroll.maxValue) { if (typingHex) scroll.animateScrollTo(scroll.maxValue) }
+    LaunchedEffect(typingHex, scroll.maxValue) { if (typingHex) scroll.scrollTo(scroll.maxValue) }
     fun picked(h: Float = hue, s: Float = sat, v: Float = value) {
         hue = h.coerceIn(0f, 360f); sat = s.coerceIn(0f, 1f); value = v.coerceIn(0f, 1f)
         hexText = ThemeColors.hex(ThemeColors.fromHsv(hue, sat, value))

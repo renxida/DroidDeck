@@ -161,12 +161,12 @@ private fun RowScope.KeyCap(
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     var down by remember { mutableStateOf(false) }
-    val fill by animateColorAsState(
+    val fill = (
         when {
             down -> pal.signal.copy(alpha = 0.55f)
             lit -> pal.signal.copy(alpha = if (locked) 0.45f else 0.28f)
             else -> Color.White.copy(alpha = 0.07f)
-        }, Motion.tw(160), label = "keyFill",
+        }
     )
     Box(
         contentAlignment = Alignment.Center,

@@ -20,20 +20,15 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
         private set
     var percent by mutableIntStateOf(-1)
     var elapsed by mutableStateOf("")
-    var hint by mutableStateOf("")
     var ended by mutableStateOf(false)
     var endedDetail by mutableStateOf<String?>(null)
 
-    private val hints = context.resources.getStringArray(
-        if (steam) com.droiddeck.launcher.R.array.loading_hints else com.droiddeck.launcher.R.array.loading_hints_desktop,
-    )
     private val res = context.resources
     private val startedAt = SystemClock.elapsedRealtime()
 
     fun tick() {
         val seconds = (SystemClock.elapsedRealtime() - startedAt) / 1000
         elapsed = res.getString(com.droiddeck.launcher.R.string.loadstate_elapsed, seconds / 60, seconds % 60)
-        hint = hints[((seconds / 8) % hints.size).toInt()]
     }
 
     fun say(line: String, topic: Topic, readable: Boolean) {

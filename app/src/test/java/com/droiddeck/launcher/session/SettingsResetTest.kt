@@ -99,12 +99,7 @@ class SettingsResetTest {
     }
 
     @Test fun libraryAndRecordsAreKept() {
-        val folder = "/storage/emulated/0/Games/Foo"
-        SessionPrefs.setAddedGameName(app, folder, "Foo")
-        SessionPrefs.setAddedGameExe(app, folder, "$folder/foo.exe")
-        SessionPrefs.addedGameAppId(app, folder, 1234L)
-        SessionPrefs.setAddedGameRemoved(app, "/storage/emulated/0/Games/Bar", true)
-        SessionPrefs.setGamesFoldersMigrated(app)
+        SessionPrefs.setGameFolderBinds(app, listOf("/storage/emulated/0/Games" to "/root/Games/Games"))
         SessionPrefs.setGpuAutoInstalled(app, setOf("turnip-a"))
         SessionPrefs.setGameStorage(app, "/storage/ABCD-1234", "SD Card")
         SessionPrefs.setMicAsked(app)
@@ -112,11 +107,7 @@ class SettingsResetTest {
 
         SettingsReset.resetAll(app, gameProfiles = false)
 
-        assertEquals("Foo", SessionPrefs.addedGameName(app, folder))
-        assertEquals("$folder/foo.exe", SessionPrefs.addedGameExe(app, folder))
-        assertEquals(1234L, SessionPrefs.addedGameStoredAppId(app, folder))
-        assertEquals(listOf("/storage/emulated/0/Games/Bar"), SessionPrefs.removedAddedGames(app))
-        assertTrue(SessionPrefs.gamesFoldersMigrated(app))
+        assertEquals(listOf("/storage/emulated/0/Games" to "/root/Games/Games"), SessionPrefs.gameFolderBinds(app))
         assertEquals(setOf("turnip-a"), SessionPrefs.gpuAutoInstalled(app))
         assertEquals("/storage/ABCD-1234", SessionPrefs.gameStorage(app))
         assertTrue(SessionPrefs.micAsked(app))

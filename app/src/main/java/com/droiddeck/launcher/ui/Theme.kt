@@ -55,13 +55,8 @@ object Themes {
     var gradientColors by mutableStateOf(DEFAULT_PRIMARY to DEFAULT_SECONDARY)
         private set
 
-    const val RGB_SPEEDS = 10
-    const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
     const val WHITE_RED = "white_red"
-
-    var rgbSpeed by mutableStateOf(DEFAULT_RGB_SPEED)
-        private set
 
     var rgbHue by mutableStateOf(0f)
         private set
@@ -70,17 +65,8 @@ object Themes {
         rgbHue = hue
     }
 
-    fun setRgbSpeed(context: Context, speed: Int) {
-        val value = speed.coerceIn(1, RGB_SPEEDS)
-        SessionPrefs.setRgbSpeed(context, value)
-        rgbSpeed = value
-    }
-
-    fun rgbCycleMillis(speed: Int): Int = 30_000 / speed.coerceIn(1, RGB_SPEEDS)
-
     fun loadGradient(context: Context) {
         gradientColors = SessionPrefs.gradientColors(context)
-        rgbSpeed = SessionPrefs.rgbSpeed(context)
     }
 
     fun innerGamer(hue: Float): Palette = ThemeColors.palette(
@@ -153,7 +139,6 @@ val Palette.onSignal: Color get() = if (signal.luminance() > 0.18f) Color(0xFF03
 @Composable
 fun DroidDeckTheme(theme: String? = null, appScale: Int = AppUiPrefs.DEFAULT_SCALE, content: @Composable () -> Unit) {
     val id = theme ?: SessionPrefs.theme(LocalContext.current)
-    if (id == Themes.INNER_GAMER) InnerGamerHue(Themes.rgbSpeed)
     val p = Themes.byId(id)
     val scheme = darkColorScheme(
         primary = p.primary, onPrimary = p.onPrimary, secondary = p.onSurfaceVariant,
@@ -186,20 +171,4 @@ private val ContentDirected = Typography().run {
         bodyLarge.byContent(), bodyMedium.byContent(), bodySmall.byContent(),
         labelLarge.byContent(), labelMedium.byContent(), labelSmall.byContent(),
     )
-}
-
-@Composable
-private fun InnerGamerHue(speed: Int) {
-    if (Motion.scale == 0f) return
-    key(speed) { InnerGamerCycle(speed) }
-}
-
-@Composable
-private fun InnerGamerCycle(speed: Int) {
-    val start = remember { Themes.rgbHue }
-    val hue by rememberInfiniteTransition(label = "innerGamer").animateFloat(
-        start, start + 360f, infiniteRepeatable(tween(Themes.rgbCycleMillis(speed).coerceAtLeast(1), easing = LinearEasing), RepeatMode.Restart), label = "hue",
-    )
-    val stepped = ((hue % 360f) / Themes.RGB_HUE_STEP).toInt() * Themes.RGB_HUE_STEP
-    SideEffect { Themes.moveRgbHue(stepped) }
 }

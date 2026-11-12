@@ -109,30 +109,6 @@ class GameIdentifierTest {
     }
 
     @Test
-    fun gogInfo_givesNameAndId_highConfidence() {
-        val dir = tmp.newFolder("Witcher3")
-        File(dir, "goggame-1207658691.info").writeText(
-            """{"gameId":"1207658691","name":"The Witcher 3: Wild Hunt","version":1}"""
-        )
-        val id = GameIdentifier.identify(exeIn(dir))
-        assertEquals("The Witcher 3 - Wild Hunt", id.name)
-        assertEquals("1207658691", id.gogId)
-        assertNull(id.appId)
-        assertEquals(GameIdentifier.Confidence.HIGH, id.confidence)
-    }
-
-    @Test
-    fun acfNamePreferredOverGogName_whenBothPresent() {
-        val steamapps = tmp.newFolder("steamapps")
-        File(steamapps, "appmanifest_100.acf").writeText(""""AppState"{"appid" "100" "name" "SteamName" "installdir" "MyGame"}""")
-        val gameDir = File(steamapps, "common/MyGame").apply { mkdirs() }
-        File(gameDir, "goggame-9.info").writeText("""{"name":"GogName"}""")
-        val id = GameIdentifier.identify(exeIn(gameDir))
-        assertEquals("SteamName", id.name)
-        assertEquals(100, id.appId)
-    }
-
-    @Test
     fun noMarkers_fallsBackToCleanedFolderName_forEngineBinary() {
         val dir = tmp.newFolder("Hades")
         val id = GameIdentifier.identify(exeIn(dir, "Hades-Win64-Shipping.exe"))
@@ -182,18 +158,10 @@ class GameIdentifierTest {
 
     @Test
     fun name_isNormalizedToBeFilesystemSafeAndTidy() {
-        val d1 = tmp.newFolder("ds")
-        File(d1, "goggame-1.info").writeText("""{"name":"Dark Souls: Remastered"}""")
-        assertEquals("Dark Souls - Remastered", GameIdentifier.identify(exeIn(d1)).name)
-        val d2 = tmp.newFolder("gow2")
-        File(d2, "goggame-2.info").writeText("""{"name":"God of War™"}""")
-        assertEquals("God of War", GameIdentifier.identify(exeIn(d2)).name)
-        val d3 = tmp.newFolder("ds3")
-        File(d3, "goggame-3.info").writeText("""{"name":"DARK SOULS(TM): REMASTERED"}""")
-        assertEquals("DARK SOULS - REMASTERED", GameIdentifier.identify(exeIn(d3)).name)
-        val d4 = tmp.newFolder("dirt")
-        File(d4, "goggame-4.info").writeText("""{"name":"DiRT 3 Executable"}""")
-        assertEquals("DiRT 3", GameIdentifier.identify(exeIn(d4)).name)
+        assertEquals("Dark Souls - Remastered", GameIdentifier.normalizeName("Dark Souls: Remastered"))
+        assertEquals("God of War", GameIdentifier.normalizeName("God of War™"))
+        assertEquals("DARK SOULS - REMASTERED", GameIdentifier.normalizeName("DARK SOULS(TM): REMASTERED"))
+        assertEquals("DiRT 3", GameIdentifier.normalizeName("DiRT 3 Executable"))
     }
 
     @Test

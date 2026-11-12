@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>पहली बार चलाने पर Steam डाउनलोड होता है। इसमें कुछ मिनट लग सकते हैं।</item>
-        <item>डिफ़ॉल्ट रूप से, ऐप से बाहर जाने पर Steam रुक जाता है; वापस आने पर यह वहीं से शुरू होता है जहां छोड़ा था।</item>
-        <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>डिफ़ॉल्ट रूप से, ऐप से बाहर जाने पर सेशन रुक जाता है; वापस आने पर यह वहीं से शुरू होता है जहां छोड़ा था।</item>
-        <item>टच टचपैड की तरह काम करता है: पॉइंटर घुमाने के लिए ड्रैग करें, क्लिक के लिए टैप करें।</item>
-        <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
-    </string-array>
     <string name="session_channel">सेशन</string>
     <string name="session_notification">Steam चल रहा है</string>
     <string name="session_notification_downloads">Steam डाउनलोड जारी है</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">टच</string>
     <string name="mode_touch_touchpad">टचपैड</string>
     <string name="mode_touch_direct">डायरेक्ट</string>
-    <string name="mode_touch_note">ऑटो: डेस्कटॉप पर टचपैड, Steam में डायरेक्ट।</string>
     <string name="mode_osc">ऑन-स्क्रीन कंट्रोल</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">कोई कंट्रोलर कनेक्ट न होने पर ऑटो कंट्रोल दिखाता है।</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">अगली बार Steam शुरू होने पर Steam क्लाइंट फिर से डाउनलोड होता है। इसे इस्तेमाल करें जब Steam अपनी लोडिंग स्क्रीन पर अटका रह जाए। गेम, साइन-इन और सेटिंग बनी रहती हैं।</string>
     <string name="mode_steam_repair_queued">अगली बार Steam शुरू होने पर Steam क्लाइंट फिर से डाउनलोड होगा।</string>
     <string name="mode_steam_repair_button">रिपेयर करें</string>
-    <string name="mode_added_art">आर्टवर्क</string>
     <string name="mode_sgdb_key">SteamGridDB API कुंजी</string>
     <string name="mode_sgdb_key_yours">आपकी कुंजी</string>
     <string name="mode_sgdb_edit">संपादित करें…</string>
-    <string name="mode_added_art_hint">पहले Steam से, फिर SteamGridDB से छूटी हुई आर्टवर्क भरता है। गेम फ़ोल्डर में आपकी अपनी cover.jpg, hero.jpg, logo.png या icon.png को प्राथमिकता मिलती है।</string>
-    <string name="summary_remove_game">%1$s हटाएं</string>
-    <string name="mode_added_remove_confirm">हटाएं?</string>
-    <string name="games_add">गेम जोड़ें</string>
-    <string name="games_add_title">गेम जोड़ें:</string>
-    <string name="games_pick_exe_title">exe चुनें:</string>
-    <string name="games_add_unreachable">यह जगह सेशन में उपलब्ध नहीं है</string>
-    <string name="mode_added_exe_check">इस exe को जांचें</string>
     <string name="wincomp_title">Windows कॉम्पोनेंट</string>
     <string name="wincomp_pad_hint">LB / RB से सेक्शन के बीच जाएं।</string>
     <string name="wincomp_card_none">कोई नहीं</string>
@@ -224,7 +204,6 @@
     </plurals>
     <string name="wincomp_auto_section">इस गेम के लिए चालू</string>
     <string name="wincomp_auto_steam">Steam %2$s (ऐप %3$s) के साथ %1$s इंस्टॉल करता है</string>
-    <string name="wincomp_steam_by_name">Steam नाम से मिलान करके ऐप %2$s के साथ %1$s इंस्टॉल करता है</string>
     <string name="wincomp_suggestions">ये भी सूचीबद्ध</string>
     <string name="wincomp_suggestion_reason">%1$s द्वारा सूचीबद्ध; यहां कॉम्पोनेंट नहीं है</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -455,7 +434,6 @@
     <string name="drawer_page_controls">कंट्रोल</string>
     <string name="drawer_page_components">कॉम्पोनेंट</string>
     <string name="drawer_page_controller">कंट्रोलर</string>
-    <string name="drawer_page_settings">सेटिंग</string>
     <string name="drawer_page_desc">%1$s पेज</string>
     <string name="drawer_steam_menu">Steam मेनू</string>
     <string name="drawer_open_qam">Quick Access Menu खोलें</string>
@@ -599,9 +577,6 @@
     <string name="setup_limit_adb_failed">वायरलेस डीबगिंग का IP एड्रेस और पोर्ट जांचें, या अगर Android ने इस डिवाइस को हटा दिया है तो फिर से पेयर करें।</string>
     <string name="setup_install">इंस्टॉल करें</string>
     <string name="setup_manage">मैनेज करें</string>
-    <string name="setup_tab_overview">ओवरव्यू</string>
-    <string name="setup_tab_controller">कंट्रोलर</string>
-    <string name="setup_tab_launcher">लॉन्चर</string>
     <string name="setup_title">सेटअप</string>
     <string name="setup_gpu_supported">डिवाइस समर्थित</string>
     <string name="setup_gpu_untested">अनटेस्टेड GPU</string>
@@ -628,7 +603,6 @@
     <string name="setup_signed_in">%1$s के रूप में साइन इन</string>
     <string name="setup_sign_in">Play दबाएं और Steam में साइन इन करें</string>
     <string name="setup_controller">कंट्रोलर</string>
-    <string name="setup_controller_unavailable">कंट्रोलर सेटिंग उपलब्ध नहीं हैं।</string>
     <string name="setup_logs">सेशन लॉग</string>
     <string name="setup_logs_hint">हर सेशन के बाद सेव होता है</string>
     <string name="setup_game_debug_logs">गेम डीबग लॉग</string>
@@ -682,11 +656,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">कंट्रोल</string>
     <string name="setup_card_controls_hint">बटन मैपिंग</string>
-    <string name="store_starting">शुरू हो रहा है…</string>
-    <string name="store_try_again">फिर कोशिश करें</string>
-    <string name="store_all">सभी</string>
-    <string name="store_open">खोलें</string>
-    <string name="store_remove">हटाएं</string>
+    <string name="common_starting">शुरू हो रहा है…</string>
+    <string name="common_try_again">फिर कोशिश करें</string>
+    <string name="common_all">सभी</string>
+    <string name="common_open">खोलें</string>
+    <string name="common_remove">हटाएं</string>
     <string name="upd_open_settings">सेटिंग खोलें</string>
     <string name="upd_current_status">नवीनतम</string>
     <string name="upd_just_now">अभी-अभी</string>
@@ -768,7 +742,6 @@
     <string name="ctrl_steam_button">Steam बटन</string>
     <string name="ctrl_qam_button">QAM बटन</string>
     <string name="ctrl_keyboard_button">कीबोर्ड बटन</string>
-    <string name="setup_animations">एनिमेशन</string>
     <string name="setup_low_storage_warning">स्टोरेज कम होने पर चेतावनी दें</string>
     <string name="setup_low_storage_warning_hint">खाली जगह 10 GB से कम होने पर Steam शुरू करने से पहले पूछें।</string>
     <string name="ctrl_layout">लेआउट</string>
@@ -780,24 +753,12 @@
     <string name="games_play_steam">Steam चलाएं</string>
     <string name="games_files">गेम फ़ाइलें</string>
     <string name="games_prefix">Proton प्रीफ़िक्स</string>
-    <string name="games_saves_looking">सेव खोजे जा रहे हैं…</string>
-    <string name="games_saves_none">नाम से कोई सेव फ़ोल्डर नहीं मिला। एक्सपोर्ट पूरा यूज़र फ़ोल्डर लेता है।</string>
-    <string name="games_saves_folders">%1$d सेव फ़ोल्डर</string>
-    <string name="games_saves_summary">%1$s · %2$d फ़ाइलें · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">गेम सेव</string>
-    <string name="games_import_saves">सेव इंपोर्ट करें…</string>
-    <string name="games_export_gamehub">GameHub zip के रूप में एक्सपोर्ट करें…</string>
-    <string name="games_export_winlator">Winlator zip के रूप में एक्सपोर्ट करें…</string>
-    <string name="games_open_save_folder">सेव फ़ोल्डर खोलें</string>
     <string name="games_never_played">कभी नहीं खेला</string>
     <string name="games_runtime_busy_percent">रनटाइम व्यस्त · %1$d%%</string>
     <string name="games_runtime_update">रनटाइम अपडेट उपलब्ध</string>
     <string name="games_runtime_ready">● रनटाइम तैयार</string>
     <string name="games_internal">इंटरनल स्टोरेज</string>
     <string name="games_uninstall_body">इसकी फ़ाइलें हटाता है और इसे Steam से हटा देता है।</string>
-    <string name="games_remove_title">%1$s हटाएं?</string>
-    <string name="games_remove_body">इसका शॉर्टकट हटाता है। गेम की फ़ाइलें बनी रहती हैं।</string>
     <string name="gpu_checking">ड्राइवर देखे जा रहे हैं…</string>
     <string name="gpu_none_listed">अभी कोई ड्राइवर सूचीबद्ध नहीं है। उन्हें देखने के लिए रीफ़्रेश करें।</string>
     <string name="gpu_hide_other">दूसरे GPU के ड्राइवर छिपाएं</string>
@@ -876,7 +837,6 @@
     <string name="pip_unavailable">Android पिक्चर इन पिक्चर नहीं खोल सका।</string>
     <string name="game_more">और</string>
     <string name="game_edit_art">आर्ट एडिट करें</string>
-    <string name="stores_in_steam_label">Steam में</string>
     <string name="game_shortcut">शॉर्टकट</string>
     <string name="game_shortcut_add">होम स्क्रीन पर जोड़ें</string>
     <string name="game_shortcut_choose">गेम चुनें</string>
@@ -903,23 +863,6 @@
     <string name="load_compat_hint">सेटअप पूरा होते ही आपका सेशन शुरू होगा।</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">गेम लॉन्च करने से पहले इंस्टॉल खत्म होने का इंतज़ार करें</string>
-    <string name="main_saves_close_session">पहले Steam सेशन बंद करें, ताकि गेम इंपोर्ट के ऊपर सेव न कर सके</string>
-    <string name="main_saves_importing">%1$s में इंपोर्ट हो रहा है</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">%2$s से %1$d फ़ाइल %3$s में इंपोर्ट हुई</item>
-        <item quantity="other">%2$s से %1$d फ़ाइलें %3$s में इंपोर्ट हुईं</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">%2$s से %1$d फ़ाइल %3$s में इंपोर्ट हुई। पुराने सेव Download/DroidDeck/Saves/backups में बैकअप हो गए</item>
-        <item quantity="other">%2$s से %1$d फ़ाइलें %3$s में इंपोर्ट हुईं। पुराने सेव Download/DroidDeck/Saves/backups में बैकअप हो गए</item>
-    </plurals>
-    <string name="main_saves_pick_zip">%1$s के लिए एक सेव zip चुनें</string>
-    <string name="main_saves_exporting">%1$s एक्सपोर्ट हो रहा है</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">%1$d फ़ाइल %2$s के रूप में एक्सपोर्ट हुई: %3$s</item>
-        <item quantity="other">%1$d फ़ाइलें %2$s के रूप में एक्सपोर्ट हुईं: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">%1$s (%2$s) को सेव करने के लिए जगह चुनें</string>
     <string name="main_action_failed">%1$s विफल: %2$s</string>
     <string name="main_no_logs_yet">अभी कोई सेशन लॉग नहीं है: पहले एक सेशन चलाएं।</string>
     <string name="main_no_logs_to_clear">हटाने के लिए कोई सेशन लॉग नहीं है।</string>
@@ -1057,7 +1000,7 @@
         <item quantity="other">लॉग में %1$d “Function not implemented” एरर दिखते हैं: इस डिवाइस पर proot का seccomp एक्सेलरेशन एक हेल्पर को फेल कर रहा है। %2$s → “%3$s” (या “%4$s”) आज़माएं और फिर से शुरू करें।</item>
     </plurals>
 
-    <string name="store_section_loading">लोड हो रहा है…</string>
+    <string name="lib_section_loading">लोड हो रहा है…</string>
     <string name="theme_graphite">ग्रेफ़ाइट</string>
     <string name="theme_graphite_detail">ग्रेफ़ाइट सतहें, और चुने, फ़ोकस या दबाए गए हर चीज़ के लिए लोगो के अपने ऑर्ब ब्लू रंग का इस्तेमाल।</string>
     <string name="theme_paper">काले पर पेपर</string>
@@ -1068,8 +1011,6 @@
     <string name="theme_electric_detail">ब्लू रंग ज़्यादा चमकीला, उन सतहों पर जो ग्रे के बजाय नेवी की ओर झुकती हैं।</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">इंद्रधनुष के रंगों में बदलते रंग। Android की एनिमेशन सेटिंग का पालन करती है।</string>
-    <string name="theme_rgb_speed">गति</string>
-    <string name="theme_rgb_speed_hint">रंग कितनी तेज़ी से बदलें।</string>
     <string name="theme_gradient">ग्रेडिएंट</string>
     <string name="theme_gradient_detail">आपके अपने प्राथमिक और द्वितीयक रंग, बटनों और हाइलाइट पर मिश्रित।</string>
     <string name="theme_gradient_primary">प्राथमिक</string>
@@ -1103,7 +1044,6 @@
     <string name="game_sync_err_steam_library">Steam लाइब्रेरी उपलब्ध नहीं है</string>
     <string name="game_sync_err_previous_sd">पिछली SD लाइब्रेरी उपलब्ध नहीं है</string>
     <string name="game_sync_err_game_storage">गेम स्टोरेज उपलब्ध नहीं है</string>
-    <string name="game_sync_err_added_games">जोड़े गए गेम का फ़ोल्डर उपलब्ध नहीं है</string>
     <string name="game_sync_err_manifests">Steam मेनिफ़ेस्ट उपलब्ध नहीं हैं</string>
     <string name="fm_drive_internal">इंटरनल</string>
     <string name="fm_drive_linux">Linux सिस्टम</string>
@@ -1527,11 +1467,6 @@
     <string name="phantom_instructions_not_applicable">यह Android वर्शन इस सीमा का उपयोग नहीं करता।</string>
     <string name="phantom_fix_toggle">डेवलपर विकल्प में “चाइल्ड प्रोसेस से जुड़ी पाबंदियां हटाएं” चालू करें, और बाद में डेवलपर विकल्प चालू रहने दें।</string>
     <string name="phantom_fix_no_toggle">इस Android वर्शन में इसके लिए कोई स्विच नहीं है। इसे इस डिवाइस से बदलने के लिए वायरलेस डीबगिंग इस्तेमाल करें।</string>
-    <string name="saves_layout_zip">%1$s zip</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s अभी तक लॉन्च नहीं हुआ</string>
-    <string name="saves_none_found">%1$s के लिए कोई सेव फ़ाइल नहीं मिली</string>
-    <string name="saves_not_save_zip">%1$s में कोई drive_c फ़ोल्डर नहीं है, इसलिए यह GameHub या Winlator सेव zip नहीं है</string>
     <string name="gstore_cannot_create">%1$s में फ़ोल्डर नहीं बनाए जा सकते</string>
     <string name="gstore_cannot_write">%1$s में लिखा नहीं जा सकता</string>
     <string name="gstore_cannot_write_detail">%1$s में लिखा नहीं जा सकता (%2$s)</string>
@@ -1576,16 +1511,13 @@
     <string name="force_ssbs_title">SSBS फ़ोर्स करें</string>
     <string name="force_ssbs_hint">एक CPU स्पीड सेटिंग चालू रखता है जिसे Wine बार-बार बंद कर देता है। Snapdragon 8 Elite पर Windows गेम तेज़ हो सकते हैं; पुराने चिप पर बहुत कम फ़र्क़ दिखता है। अगली बार गेम लॉन्च होने पर लागू होता है।</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">कस्टम</string>
-    <string name="stores_tab_library">लाइब्रेरी</string>
-    <string name="stores_tab_all">सभी</string>
-    <string name="stores_search_library">अपनी लाइब्रेरी में सर्च करें…</string>
-    <string name="stores_search_open">सर्च</string>
-    <string name="stores_nothing_matches">कोई गेम नहीं</string>
-    <string name="stores_play">खेलें</string>
-    <string name="stores_refresh">रीफ़्रेश करें</string>
-    <string name="stores_sort">क्रमबद्ध करें</string>
+    <string name="lib_tab_library">लाइब्रेरी</string>
+    <string name="lib_search_library">अपनी लाइब्रेरी में सर्च करें…</string>
+    <string name="lib_search_open">सर्च</string>
+    <string name="lib_nothing_matches">कोई गेम नहीं</string>
+    <string name="lib_play">खेलें</string>
+    <string name="lib_refresh">रीफ़्रेश करें</string>
+    <string name="lib_sort">क्रमबद्ध करें</string>
     <string name="setup_rail_labels">साइडबार लेबल</string>
     <string name="setup_rail_labels_hint">साइडबार आइकन के नीचे नाम दिखाएं। पतले साइडबार के लिए बंद करें।</string>
     <string name="library_display">डिस्प्ले</string>
@@ -1593,32 +1525,26 @@
     <string name="library_display_smaller">छोटे कार्ड</string>
     <string name="library_display_title">टाइटल दिखाएं</string>
     <string name="library_display_size">साइज़ दिखाएं</string>
-    <string name="stores_sort_last_played">हाल में खेले गए</string>
-    <string name="stores_sort_recently_installed">हाल में इंस्टॉल किए गए</string>
-    <string name="stores_sort_title_asc">शीर्षक A–Z</string>
-    <string name="stores_sort_title_desc">शीर्षक Z–A</string>
-    <string name="stores_sort_size_desc">आकार: सबसे बड़ा</string>
-    <string name="stores_sort_size_asc">आकार: सबसे छोटा</string>
-    <string name="stores_view_list">सूची दृश्य</string>
-    <string name="stores_view_cards">कार्ड दृश्य</string>
-    <string name="stores_view_capsules">कवर व्यू</string>
+    <string name="lib_sort_last_played">हाल में खेले गए</string>
+    <string name="lib_sort_recently_installed">हाल में इंस्टॉल किए गए</string>
+    <string name="lib_sort_title_asc">शीर्षक A–Z</string>
+    <string name="lib_sort_title_desc">शीर्षक Z–A</string>
+    <string name="lib_sort_size_desc">आकार: सबसे बड़ा</string>
+    <string name="lib_sort_size_asc">आकार: सबसे छोटा</string>
+    <string name="lib_view_list">सूची दृश्य</string>
+    <string name="lib_view_cards">कार्ड दृश्य</string>
+    <string name="lib_view_capsules">कवर व्यू</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">इंस्टॉल है</string>
-    <string name="stores_uninstall_title">%1$s अनइंस्टॉल करें?</string>
-    <string name="stores_dl_pause">रोकें</string>
-    <string name="stores_target_free">%1$s खाली</string>
+    <string name="lib_eyebrow_installed">इंस्टॉल है</string>
+    <string name="lib_uninstall_title">%1$s अनइंस्टॉल करें?</string>
+    <string name="lib_dl_pause">रोकें</string>
+    <string name="lib_target_free">%1$s खाली</string>
     <string name="common_close">बंद करें</string>
     <string name="common_back">बैक</string>
-    <string name="games_add_all">इस फ़ोल्डर के सभी गेम जोड़ें</string>
-    <string name="games_added_none">इस फ़ोल्डर में कुछ नया नहीं है</string>
-    <string name="edit_name">नाम</string>
-    <string name="edit_target">टार्गेट</string>
-    <string name="edit_start_in">यहां शुरू करें</string>
     <string name="edit_launch_options">लॉन्च विकल्प</string>
     <string name="edit_launch_options_steam_hint">Steam की Properties के साथ साझा: किसी एक जगह किया गया बदलाव दोनों में दिखता है।</string>
     <string name="edit_launch_options_not_saved">लॉन्च विकल्प Steam में सहेजे नहीं जा सके। फिर से कोशिश करें।</string>
     <string name="edit_artwork">आर्टवर्क</string>
-    <string name="edit_other_exe">दूसरा exe…</string>
     <string name="edit_remove">हटाएं</string>
     <string name="art_cover">कवर</string>
     <string name="art_wide_cover">चौड़ा कवर</string>
@@ -1639,11 +1565,9 @@
     <string name="art_background">बैकग्राउंड</string>
     <string name="art_logo">लोगो</string>
     <string name="art_icon">आइकन</string>
-    <string name="art_src_folder">गेम फ़ोल्डर</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">आपकी फ़ाइल</string>
-    <string name="art_src_exe">exe से</string>
     <string name="art_src_auto">ऑटोमैटिक</string>
     <string name="art_pick_image">इमेज चुनें…</string>
     <string name="art_pick_title">एक इमेज चुनें: %1$s</string>
@@ -1659,17 +1583,8 @@
     <string name="art_sgdb_offline">SteamGridDB से संपर्क नहीं हो रहा। कनेक्शन जाँचें।</string>
     <string name="art_sgdb_server">SteamGridDB में कुछ गड़बड़ हुई। बाद में कोशिश करें।</string>
     <string name="art_sgdb_no_game">SteamGridDB पर इस गेम के नतीजे नहीं हैं। इसे खोजकर देखें।</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d गेम जोड़ा गया</item>
-        <item quantity="other">%1$d गेम जोड़े गए</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d पहले से Games में है</item>
-        <item quantity="other">%1$d पहले से Games में हैं</item>
-    </plurals>
     <string name="hop_back">B · %1$s पर वापस जाएं</string>
     <string name="hop_from_games">गेम</string>
-    <string name="hop_from_play">Play सेटिंग</string>
     <string name="sheet_graphics_drivers">ग्राफ़िक्स ड्राइवर</string>
     <string name="comp_this_proton">यह Proton</string>
     <string name="comp_for_every_proton">हर Proton के लिए</string>
@@ -1722,12 +1637,6 @@
     <string name="comp_this_device">यह डिवाइस</string>
     <string name="proton_remove_title">%1$s हटाएं?</string>
     <string name="setup_tab_diagnostics">डायग्नोस्टिक्स</string>
-    <string name="setup_ready">खेलने के लिए तैयार</string>
-    <string name="setup_not_ready">अभी खेलने के लिए तैयार नहीं</string>
-    <string name="setup_ready_runtime">रनटाइम %1$s</string>
-    <string name="setup_ready_limit_off">प्रोसेस सीमा बंद</string>
-    <string name="setup_ready_signed_in">%1$s के रूप में साइन इन</string>
-    <string name="setup_needs_you">जब किसी चीज़ को आपकी ज़रूरत हो</string>
     <string name="setup_group_look">लुक</string>
     <string name="setup_group_device">यह डिवाइस</string>
     <string name="setup_group_art">लाइब्रेरी आर्ट</string>
@@ -2050,9 +1959,7 @@
     <string name="game_install_location">जगह</string>
     <string name="game_install_folder">फ़ोल्डर</string>
     <string name="game_install_size">डिस्क पर आकार</string>
-    <string name="library_filter_added">जोड़े गए</string>
     <string name="game_tab_launch">लॉन्च</string>
-    <string name="game_launch_shortcut">Steam शॉर्टकट</string>
     <string name="game_install_played">आखिरी बार खेला</string>
     <string name="integration_title">Steam इंटीग्रेशन</string>
     <string name="integration_count">%2$d में से %1$d चालू</string>
@@ -2090,11 +1997,6 @@
     <string name="slow_usb_port">%1$s %2$s (%3$s Mbps, लगभग %4$d MB/s) से जुड़ा है। इस डिवाइस का USB पोर्ट इससे तेज़ नहीं चलता, इसलिए गेम धीरे लोड होंगे। आंतरिक स्टोरेज या microSD कार्ड तेज़ हो सकता है।</string>
     <string name="slow_usb_never">फिर से न दिखाएँ</string>
     <string name="slow_usb_dismiss">बंद करें</string>
-    <string name="steam_import_title">अपने गेम जोड़ने के लिए Steam फिर से शुरू करें?</string>
-    <string name="steam_import_body">Steam आपके इन गेम को इंस्टॉल के रूप में दिखा सकता है: %1$s. इन्हें दिखाने के लिए इसे फिर से शुरू करना होगा। अभी फिर से शुरू करें, या ये अगली बार Steam शुरू होने पर जुड़ जाएंगे।</string>
-    <string name="steam_import_names_more">%1$s और %2$d और</string>
-    <string name="steam_import_now">अभी फिर से शुरू करें</string>
-    <string name="steam_import_later">बाद में</string>
     <string name="input_reset_positions">स्थितियाँ रीसेट करें</string>
     <string name="input_show_label">लेबल दिखाएँ</string>
     <string name="input_layout_import_failed">यह लेआउट इम्पोर्ट नहीं किया जा सका</string>

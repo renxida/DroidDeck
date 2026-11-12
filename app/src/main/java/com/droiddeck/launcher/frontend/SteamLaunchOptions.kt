@@ -14,16 +14,16 @@ object SteamLaunchOptions {
     private val STEAM = listOf("UserLocalConfigStore", "Software", "Valve", "Steam")
 
     fun current(context: Context, appId: Int): String? =
-        SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: steam(SessionPrefs.activeSteamRoot(context), appId)
+        SteamLive.launchOptions(context, appId.toLong()) ?: steam(SessionPrefs.activeSteamRoot(context), appId)
 
     enum class Saved { YES, NO }
 
     fun set(context: Context, appId: Int, options: String, shown: String): Saved {
         val value = options.trim()
         if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) {
-            val live = SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: return Saved.NO
+            val live = SteamLive.launchOptions(context, appId.toLong()) ?: return Saved.NO
             if (live.trim() != shown.trim()) return Saved.NO
-            return if (SteamLiveShortcuts.setLaunchOptions(context, appId.toLong(), value)) Saved.YES else Saved.NO
+            return if (SteamLive.setLaunchOptions(context, appId.toLong(), value)) Saved.YES else Saved.NO
         }
         val home = SessionPrefs.activeSteamRoot(context)
         if (steam(home, appId).orEmpty().trim() != shown.trim()) return Saved.NO
@@ -31,14 +31,14 @@ object SteamLaunchOptions {
     }
 
     internal fun steam(steamHome: File, appId: Int): String? {
-        val config = AddedGames.accountConfig(steamHome) ?: return null
+        val config = Library.steamAccountConfig(steamHome) ?: return null
         val text = runCatching { File(config, "localconfig.vdf").readText() }.getOrNull() ?: return null
         if (section(text, STEAM) == null) return null
         return launchOptions(text, appId).orEmpty()
     }
 
     internal fun write(steamHome: File, appId: Int, options: String): Boolean {
-        val config = AddedGames.accountConfig(steamHome)?.let { File(it, "localconfig.vdf") } ?: return false
+        val config = Library.steamAccountConfig(steamHome)?.let { File(it, "localconfig.vdf") } ?: return false
         val text = runCatching { config.readText() }.getOrNull() ?: return false
         val updated = withLaunchOptions(text, appId, options) ?: return false
         if (updated == text) return true

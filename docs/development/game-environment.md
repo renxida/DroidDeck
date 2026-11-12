@@ -107,7 +107,7 @@ Run the batch/reference and work-budget regressions with
 Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
 before reproducing a Windows game problem. Game debug logs is off by default and
 is available when Session logs is enabled. It applies to the next game launch through DroidDeck's
-Valve or third-party Proton wrapper, including added games and store shortcuts.
+Valve or third-party Proton wrapper.
 A running game must be restarted. If the current session began with Session logs
 disabled, restart that session first: its existing log folder is disposable, and
 the UI shows a restart reminder instead of enabling logs that would be discarded.
@@ -206,7 +206,7 @@ same WSI layer, and with eight images and no frame limit it drew flat out
 launch options or the environment editor are kept.
 
 DOOM (2016) is the exception (`DOOMx64vk.exe` beside the launched program, which
-is `DOOMx64.exe` for a GOG install). It asks for exactly two images and stops with
+is `DOOMx64.exe`). It asks for exactly two images and stops with
 `FATAL ERROR: getSwapchainImagesKHR failed with error (VK_SUCCESS)` when it gets
 more, so its fix removes both variables, also from its launch options, and sets
 `vk_x11_strict_image_count=true`, the option Mesa's driconf gives the game. A
@@ -223,7 +223,7 @@ remains the default preset. Shader caching in VKD3D/DXVK, synchronization, ray
 tracing and diagnostic logging otherwise retain the runtime's defaults.
 
 On an Adreno 6xx, Turnip does not expose `storageBuffer8BitAccess`, which DXVK 3
-requires. A Steam or desktop session installs DXVK 2.7.1 into any Proton whose
+requires. A Steam session installs DXVK 2.7.1 into any Proton whose
 DXVK is still the copy that Proton shipped, including after a Proton update put
 that copy back. A DXVK package chosen in Components stays for that Proton build.
 With DXVK on Auto, DroidDeck-Proton builds get DXVK-gplasync 2.7.1 instead, replacing the

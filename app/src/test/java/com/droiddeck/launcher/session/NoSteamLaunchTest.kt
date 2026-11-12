@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.session
 
-import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,60 +22,32 @@ class NoSteamLaunchTest {
     }
 
     private val steamGame = Library.SteamGame(413150, "Stardew Valley", null, "internal")
-    private val shortcut = Library.SteamGame((2733369024L).toInt(), "Hogwarts Legacy", null, Library.ADDED)
+    private val other = Library.SteamGame(1172470, "Apex Legends", null, "internal")
 
-    @Test fun eachKindOfGameKeepsTheSettingUnderItsOwnId() {
+    @Test fun eachGameKeepsTheSettingUnderItsOwnId() {
         assertEquals("413150", NoSteamLaunch.scope(steamGame))
-        assertEquals("2733369024", NoSteamLaunch.scope(shortcut))
         assertNull(NoSteamLaunch.scope(Library.SteamGame(0, "nothing", null, "internal")))
     }
 
     @Test fun theSettingIsRememberedPerGame() {
-        assertFalse(NoSteamLaunch.enabled(context, shortcut))
-        GameEnvironmentStore.setGameNoSteam(context, "2733369024", true)
-        assertTrue(NoSteamLaunch.enabled(context, shortcut))
-        assertTrue(NoSteamLaunch.enabled(context, 2733369024L))
         assertFalse(NoSteamLaunch.enabled(context, steamGame))
-        GameEnvironmentStore.setGameNoSteam(context, "2733369024", false)
-        assertFalse(NoSteamLaunch.enabled(context, shortcut))
+        GameEnvironmentStore.setGameNoSteam(context, "413150", true)
+        assertTrue(NoSteamLaunch.enabled(context, steamGame))
+        assertTrue(NoSteamLaunch.enabled(context, 413150L))
+        assertFalse(NoSteamLaunch.enabled(context, other))
+        GameEnvironmentStore.setGameNoSteam(context, "413150", false)
+        assertFalse(NoSteamLaunch.enabled(context, steamGame))
     }
 
     @Test fun eachGameStartsInItsOwnProtonWithoutSteam() {
-        val game = AddedGames.Game(
-            File("/x/Hogwarts Legacy"), "Hogwarts Legacy", File("/x/Hogwarts Legacy/HogwartsLegacy.exe"),
-            "/mnt/droiddeck-sd/Games/Hogwarts Legacy/HogwartsLegacy.exe", "/mnt/droiddeck-sd/Games/Hogwarts Legacy",
-            2733369024L, 0L, emptyList(), launchOptions = "-windowed",
-        )
-        val added = NoSteamLaunch.command(shortcut, game)!!
-        assertEquals(NoSteamLaunch.PROTON_RUN, added.program)
-        assertEquals(
-            listOf("--app", "2733369024", "--dir", game.guestDir, "--options", "-windowed", "--", game.guestExe),
-            added.args,
-        )
-        val plain = NoSteamLaunch.addedCommand(AddedGames.Game(game.folder, game.name, game.exe, game.guestExe, game.guestDir, 2733369024L, 0L, emptyList()))
-        assertEquals(listOf("--app", "2733369024", "--dir", game.guestDir, "--", game.guestExe), plain.args)
-        assertNull(NoSteamLaunch.command(shortcut, null))
-        val steam = NoSteamLaunch.command(steamGame, null)!!
+        val steam = NoSteamLaunch.command(steamGame)!!
+        assertEquals(NoSteamLaunch.PROTON_RUN, steam.program)
         assertEquals(listOf("--app", "413150"), steam.args)
-    }
-
-    @Test fun anAddedGameOwnedOnSteamUsesItsSteamIdForSettingsAndLaunch() {
-        val routed = AddedGames.Game(
-            File("/x/Stardew Valley"), "Stardew Valley", File("/x/Stardew Valley/Stardew Valley.exe"),
-            "/mnt/droiddeck-sd/Games/Stardew Valley/Stardew Valley.exe", "/mnt/droiddeck-sd/Games/Stardew Valley",
-            2733369024L, 413150L, emptyList(), steamAppId = 413150,
-        )
-        assertEquals(413150L, NoSteamLaunch.settingsId(routed))
-        val entry = Library.SteamGame(413150, "Stardew Valley", null, Library.ADDED)
-        assertEquals(NoSteamLaunch.settingsId(routed).toString(), NoSteamLaunch.scope(entry))
-        val command = NoSteamLaunch.command(entry, routed)!!
-        assertEquals(NoSteamLaunch.PROTON_RUN to listOf("--app", "413150"), command.program to command.args)
-        val plain = AddedGames.Game(File("/x/a"), "a", File("/x/a/a.exe"), "/g/a.exe", "/g", 2733369024L, 0L, emptyList())
-        assertEquals(2733369024L, NoSteamLaunch.settingsId(plain))
+        assertNull(NoSteamLaunch.command(Library.SteamGame(0, "nothing", null, "internal")))
     }
 
     @Test fun theRunningSessionIsNamedAfterItsGame() {
-        val command = NoSteamLaunch.command(steamGame, null)!!
+        val command = NoSteamLaunch.command(steamGame)!!
         assertNull(NoSteamLaunch.nameFor(command.program, command.args))
         NoSteamLaunch.remember(command)
         assertEquals("Stardew Valley", NoSteamLaunch.nameFor(command.program, command.args))

@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>İlk çalıştırmada Steam indirilir. Bu işlem birkaç dakika sürebilir.</item>
-        <item>Varsayılan olarak uygulamadan çıkınca Steam duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Varsayılan olarak uygulamadan çıkınca oturum duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Dokunma, dokunmatik yüzey gibi çalışır: işaretçiyi taşımak için sürükleyin, tıklamak için dokunun.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
-    </string-array>
     <string name="session_channel">Oturum</string>
     <string name="session_notification">Steam çalışıyor</string>
     <string name="session_notification_downloads">Steam indirmesi sürüyor</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Dokunma</string>
     <string name="mode_touch_touchpad">Dokunmatik yüzey</string>
     <string name="mode_touch_direct">Doğrudan</string>
-    <string name="mode_touch_note">Otomatik: Masaüstünde dokunmatik yüzey, Steam\'de doğrudan.</string>
     <string name="mode_osc">Ekran üstü kontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatik, kumanda bağlı değilken kontrolleri gösterir.</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">Steam bir sonraki başlatıldığında Steam istemcisini yeniden indirir. Steam yükleme ekranında takılı kalırsa kullanın. Oyunlar, oturum bilgileri ve ayarlar korunur.</string>
     <string name="mode_steam_repair_queued">Steam istemcisi, Steam bir sonraki başlatıldığında yeniden indirilecek.</string>
     <string name="mode_steam_repair_button">Onar</string>
-    <string name="mode_added_art">Görseller</string>
     <string name="mode_sgdb_key">SteamGridDB API anahtarı</string>
     <string name="mode_sgdb_key_yours">Kendi anahtarınız</string>
     <string name="mode_sgdb_edit">Düzenle…</string>
-    <string name="mode_added_art_hint">Eksik görselleri önce Steam\'den, sonra SteamGridDB\'den tamamlar. Oyun klasöründeki kendi cover.jpg, hero.jpg, logo.png veya icon.png dosyalarınız önceliklidir.</string>
-    <string name="summary_remove_game">Kaldır: %1$s</string>
-    <string name="mode_added_remove_confirm">Kaldırılsın mı?</string>
-    <string name="games_add">Oyun ekle</string>
-    <string name="games_add_title">Oyun ekle:</string>
-    <string name="games_pick_exe_title">Exe dosyasını seçin:</string>
-    <string name="games_add_unreachable">Bu konum oturumda kullanılamıyor</string>
-    <string name="mode_added_exe_check">Bu exe dosyasını kontrol et</string>
     <string name="wincomp_title">Windows bileşenleri</string>
     <string name="wincomp_pad_hint">LB / RB ile bölümler arasında geçin.</string>
     <string name="wincomp_card_none">Yok</string>
@@ -224,7 +204,6 @@
     </plurals>
     <string name="wincomp_auto_section">Bu oyun için açık</string>
     <string name="wincomp_auto_steam">Steam, %1$s bileşenini %2$s ile yükler (uygulama %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam, %1$s bileşenini %2$s uygulamasıyla yükler (adla eşleştirildi)</string>
     <string name="wincomp_suggestions">Ayrıca listelenenler</string>
     <string name="wincomp_suggestion_reason">%1$s tarafından listelendi; burada bir bileşen değil</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -455,7 +434,6 @@
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Bileşenler</string>
     <string name="drawer_page_controller">Kumanda</string>
-    <string name="drawer_page_settings">Ayarlar</string>
     <string name="drawer_page_desc">%1$s sayfası</string>
     <string name="drawer_steam_menu">Steam menüsü</string>
     <string name="drawer_open_qam">Hızlı Erişim Menüsünü aç</string>
@@ -599,9 +577,6 @@
     <string name="setup_limit_adb_failed">Kablosuz hata ayıklama IP adresini ve bağlantı noktasını kontrol edin ya da Android bu cihazı kaldırdıysa yeniden eşleyin.</string>
     <string name="setup_install">Yükle</string>
     <string name="setup_manage">Yönet</string>
-    <string name="setup_tab_overview">Genel bakış</string>
-    <string name="setup_tab_controller">Kumanda</string>
-    <string name="setup_tab_launcher">Başlatıcı</string>
     <string name="setup_title">Kurulum</string>
     <string name="setup_gpu_supported">Cihaz destekleniyor</string>
     <string name="setup_gpu_untested">Test edilmemiş GPU</string>
@@ -628,7 +603,6 @@
     <string name="setup_signed_in">%1$s olarak oturum açıldı</string>
     <string name="setup_sign_in">Oyna\'ya basın ve Steam\'de oturum açın</string>
     <string name="setup_controller">Kumanda</string>
-    <string name="setup_controller_unavailable">Kumanda ayarları kullanılamıyor.</string>
     <string name="setup_logs">Oturum günlükleri</string>
     <string name="setup_logs_hint">Her oturumdan sonra kaydedilir</string>
     <string name="setup_game_debug_logs">Oyun hata ayıklama günlükleri</string>
@@ -675,11 +649,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Kontroller</string>
     <string name="setup_card_controls_hint">Düğme eşleme</string>
-    <string name="store_starting">Başlatılıyor…</string>
-    <string name="store_try_again">Tekrar dene</string>
-    <string name="store_all">Tümü</string>
-    <string name="store_open">Aç</string>
-    <string name="store_remove">Kaldır</string>
+    <string name="common_starting">Başlatılıyor…</string>
+    <string name="common_try_again">Tekrar dene</string>
+    <string name="common_all">Tümü</string>
+    <string name="common_open">Aç</string>
+    <string name="common_remove">Kaldır</string>
     <string name="upd_open_settings">Ayarları aç</string>
     <string name="upd_current_status">Güncel</string>
     <string name="upd_just_now">az önce</string>
@@ -761,7 +735,6 @@
     <string name="ctrl_steam_button">Steam düğmesi</string>
     <string name="ctrl_qam_button">QAM düğmesi</string>
     <string name="ctrl_keyboard_button">Klavye düğmesi</string>
-    <string name="setup_animations">Animasyonlar</string>
     <string name="setup_low_storage_warning">Depolama azaldığında uyar</string>
     <string name="setup_low_storage_warning_hint">Boş alan 10 GB\'ın altındayken Steam\'i başlatmadan önce sor.</string>
     <string name="ctrl_layout">Düzen</string>
@@ -773,24 +746,12 @@
     <string name="games_play_steam">Steam\'de oyna</string>
     <string name="games_files">Oyun dosyaları</string>
     <string name="games_prefix">Proton öneki</string>
-    <string name="games_saves_looking">Kayıtlar aranıyor…</string>
-    <string name="games_saves_none">Ada göre bir kayıt klasörü bulunamadı. Dışa aktarma tüm kullanıcı klasörünü alır.</string>
-    <string name="games_saves_folders">%1$d kayıt klasörü</string>
-    <string name="games_saves_summary">%1$s · %2$d dosya · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Oyun kayıtları</string>
-    <string name="games_import_saves">Kayıtları içe aktar…</string>
-    <string name="games_export_gamehub">GameHub zip\'i olarak dışa aktar…</string>
-    <string name="games_export_winlator">Winlator zip\'i olarak dışa aktar…</string>
-    <string name="games_open_save_folder">Kayıt klasörünü aç</string>
     <string name="games_never_played">Hiç oynanmadı</string>
     <string name="games_runtime_busy_percent">Çalışma ortamı meşgul · %1$d%%</string>
     <string name="games_runtime_update">Çalışma ortamı güncellemesi var</string>
     <string name="games_runtime_ready">● Çalışma ortamı hazır</string>
     <string name="games_internal">Dahili depolama</string>
     <string name="games_uninstall_body">Dosyalarını siler ve Steam\'den kaldırır.</string>
-    <string name="games_remove_title">Kaldır: %1$s?</string>
-    <string name="games_remove_body">Kısayolunu siler. Oyun dosyaları kalır.</string>
     <string name="gpu_checking">Sürücüler kontrol ediliyor…</string>
     <string name="gpu_none_listed">Henüz listelenen sürücü yok. Aramak için yenileyin.</string>
     <string name="gpu_hide_other">Diğer GPU\'lara ait sürücüleri gizle</string>
@@ -869,7 +830,6 @@
     <string name="pip_unavailable">Android, pencere içinde pencereyi açamadı.</string>
     <string name="game_more">Diğer</string>
     <string name="game_edit_art">Görseli düzenle</string>
-    <string name="stores_in_steam_label">Steam\'de</string>
     <string name="game_shortcut">Kısayol</string>
     <string name="game_shortcut_add">Ana ekrana ekle</string>
     <string name="game_shortcut_choose">Oyun seç</string>
@@ -896,23 +856,6 @@
     <string name="load_compat_hint">Kurulum bitince oturumunuz başlayacak.</string>
     <string name="load_compat_progress">%1$s · %%%2$d</string>
     <string name="main_wait_install_game">Oyun başlatmadan önce yüklemenin bitmesini bekleyin</string>
-    <string name="main_saves_close_session">Önce Steam oturumunu kapatın; böylece oyun, içe aktarılan kayıtların üzerine yazamaz</string>
-    <string name="main_saves_importing">İçe aktarılıyor: %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">%2$s içinden %1$d dosya %3$s oyununa aktarıldı</item>
-        <item quantity="other">%2$s içinden %1$d dosya %3$s oyununa aktarıldı</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">%2$s içinden %1$d dosya %3$s oyununa aktarıldı. Eski kayıtlar Download/DroidDeck/Saves/backups klasörüne yedeklendi</item>
-        <item quantity="other">%2$s içinden %1$d dosya %3$s oyununa aktarıldı. Eski kayıtlar Download/DroidDeck/Saves/backups klasörüne yedeklendi</item>
-    </plurals>
-    <string name="main_saves_pick_zip">%1$s için bir kayıt zip dosyası seçin</string>
-    <string name="main_saves_exporting">Dışa aktarılıyor: %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">%1$d dosya %2$s olarak dışa aktarıldı: %3$s</item>
-        <item quantity="other">%1$d dosya %2$s olarak dışa aktarıldı: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">%1$s kayıtlarının konumunu seçin (%2$s)</string>
     <string name="main_action_failed">İşlem başarısız (%1$s): %2$s</string>
     <string name="main_no_logs_yet">Henüz oturum günlüğü yok: önce bir oturum çalıştırın.</string>
     <string name="main_no_logs_to_clear">Temizlenecek oturum günlüğü yok.</string>
@@ -1050,7 +993,7 @@
         <item quantity="other">Günlükte %1$d “Function not implemented” hatası görünüyor: proot\'un seccomp hızlandırması bu cihazda bir yardımcı işlemi bozuyor. %2$s → “%3$s” (veya “%4$s”) seçeneğini deneyip yeniden başlatın.</item>
     </plurals>
 
-    <string name="store_section_loading">yükleniyor…</string>
+    <string name="lib_section_loading">yükleniyor…</string>
     <string name="theme_graphite">Grafit</string>
     <string name="theme_graphite_detail">Grafit yüzeyler; seçilen, odaklanan veya basılan her şey için logonun kendi küre mavisi.</string>
     <string name="theme_paper">Siyah üzerine kâğıt</string>
@@ -1061,8 +1004,6 @@
     <string name="theme_electric_detail">Daha parlak mavi; gri yerine laciverte çalan yüzeylerde.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Gökkuşağında dolaşan renkler. Android\'in animasyon ayarlarına uyar.</string>
-    <string name="theme_rgb_speed">Hız</string>
-    <string name="theme_rgb_speed_hint">Renklerin ne kadar hızlı değiştiği.</string>
     <string name="theme_gradient">Geçiş</string>
     <string name="theme_gradient_detail">Kendi birincil ve ikincil renklerin, düğmelerde ve vurgularda harmanlanır.</string>
     <string name="theme_gradient_primary">Birincil</string>
@@ -1096,7 +1037,6 @@
     <string name="game_sync_err_steam_library">Steam kütüphanesi kullanılamıyor</string>
     <string name="game_sync_err_previous_sd">Önceki SD kütüphanesi kullanılamıyor</string>
     <string name="game_sync_err_game_storage">Oyun depolama alanı kullanılamıyor</string>
-    <string name="game_sync_err_added_games">Eklenen oyunlar klasörü kullanılamıyor</string>
     <string name="game_sync_err_manifests">Steam manifest dosyaları kullanılamıyor</string>
     <string name="fm_drive_internal">Dahili</string>
     <string name="fm_drive_linux">Linux sistemi</string>
@@ -1520,11 +1460,6 @@
     <string name="phantom_instructions_not_applicable">Bu Android sürümü bu sınırı kullanmaz.</string>
     <string name="phantom_fix_toggle">Geliştirici seçenekleri\'nde “Alt işlem kısıtlamalarını devre dışı bırak” seçeneğini açın ve sonrasında Geliştirici seçeneklerini açık tutun.</string>
     <string name="phantom_fix_no_toggle">Bu Android sürümünde bunun için bir anahtar yok. Bu cihazdan değiştirmek için Kablosuz hata ayıklamayı kullanın.</string>
-    <string name="saves_layout_zip">%1$s zip\'i</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s henüz başlatılmadı</string>
-    <string name="saves_none_found">%1$s için kayıt dosyası bulunamadı</string>
-    <string name="saves_not_save_zip">%1$s\'de drive_c klasörü yok, bu yüzden bir GameHub veya Winlator kayıt zip\'i değil</string>
     <string name="gstore_cannot_create">%1$s içinde klasör oluşturulamıyor</string>
     <string name="gstore_cannot_write">%1$s içine yazılamıyor</string>
     <string name="gstore_cannot_write_detail">%1$s içine yazılamıyor (%2$s)</string>
@@ -1569,16 +1504,13 @@
     <string name="force_ssbs_title">SSBS\'i zorla</string>
     <string name="force_ssbs_hint">Wine\'ın sürekli kapattığı bir CPU hız ayarını açık tutar. Snapdragon 8 Elite\'te Windows oyunlarını hızlandırabilir; daha eski yongalarda pek fark görülmez. Bir sonraki oyun başlatmasında uygulanır.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Özel</string>
-    <string name="stores_tab_library">Kütüphane</string>
-    <string name="stores_tab_all">Tümü</string>
-    <string name="stores_search_library">Kütüphanenizde ara…</string>
-    <string name="stores_search_open">Ara</string>
-    <string name="stores_nothing_matches">Oyun yok</string>
-    <string name="stores_play">Oyna</string>
-    <string name="stores_refresh">Yenile</string>
-    <string name="stores_sort">Sırala</string>
+    <string name="lib_tab_library">Kütüphane</string>
+    <string name="lib_search_library">Kütüphanenizde ara…</string>
+    <string name="lib_search_open">Ara</string>
+    <string name="lib_nothing_matches">Oyun yok</string>
+    <string name="lib_play">Oyna</string>
+    <string name="lib_refresh">Yenile</string>
+    <string name="lib_sort">Sırala</string>
     <string name="setup_rail_labels">Kenar çubuğu etiketleri</string>
     <string name="setup_rail_labels_hint">Kenar çubuğu simgelerinin altında adları gösterir. Daha ince bir kenar çubuğu için kapatın.</string>
     <string name="library_display">Görünüm</string>
@@ -1586,32 +1518,26 @@
     <string name="library_display_smaller">Daha küçük kartlar</string>
     <string name="library_display_title">Başlığı göster</string>
     <string name="library_display_size">Boyutu göster</string>
-    <string name="stores_sort_last_played">Son oynanan</string>
-    <string name="stores_sort_recently_installed">Son yüklenen</string>
-    <string name="stores_sort_title_asc">Başlık A–Z</string>
-    <string name="stores_sort_title_desc">Başlık Z–A</string>
-    <string name="stores_sort_size_desc">Boyut: en büyük</string>
-    <string name="stores_sort_size_asc">Boyut: en küçük</string>
-    <string name="stores_view_list">Liste görünümü</string>
-    <string name="stores_view_cards">Kart görünümü</string>
-    <string name="stores_view_capsules">Kapak görünümü</string>
+    <string name="lib_sort_last_played">Son oynanan</string>
+    <string name="lib_sort_recently_installed">Son yüklenen</string>
+    <string name="lib_sort_title_asc">Başlık A–Z</string>
+    <string name="lib_sort_title_desc">Başlık Z–A</string>
+    <string name="lib_sort_size_desc">Boyut: en büyük</string>
+    <string name="lib_sort_size_asc">Boyut: en küçük</string>
+    <string name="lib_view_list">Liste görünümü</string>
+    <string name="lib_view_cards">Kart görünümü</string>
+    <string name="lib_view_capsules">Kapak görünümü</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">yüklü</string>
-    <string name="stores_uninstall_title">%1$s kaldırılsın mı?</string>
-    <string name="stores_dl_pause">Duraklat</string>
-    <string name="stores_target_free">%1$s boş</string>
+    <string name="lib_eyebrow_installed">yüklü</string>
+    <string name="lib_uninstall_title">%1$s kaldırılsın mı?</string>
+    <string name="lib_dl_pause">Duraklat</string>
+    <string name="lib_target_free">%1$s boş</string>
     <string name="common_close">Kapat</string>
     <string name="common_back">Geri</string>
-    <string name="games_add_all">Bu klasördeki tüm oyunları ekle</string>
-    <string name="games_added_none">Bu klasörde yeni bir şey yok</string>
-    <string name="edit_name">Ad</string>
-    <string name="edit_target">Hedef</string>
-    <string name="edit_start_in">Başlangıç yeri</string>
     <string name="edit_launch_options">Başlatma seçenekleri</string>
     <string name="edit_launch_options_steam_hint">Steam Özellikleri ile ortaktır: birinde yapılan değişiklik ikisinde de görünür.</string>
     <string name="edit_launch_options_not_saved">Başlatma seçenekleri Steam\'e kaydedilemedi. Tekrar deneyin.</string>
     <string name="edit_artwork">Görsel</string>
-    <string name="edit_other_exe">Diğer exe…</string>
     <string name="edit_remove">Kaldır</string>
     <string name="art_cover">Kapak</string>
     <string name="art_wide_cover">Geniş kapak</string>
@@ -1632,11 +1558,9 @@
     <string name="art_background">Arka plan</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Simge</string>
-    <string name="art_src_folder">Oyun klasörü</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Dosyanız</string>
-    <string name="art_src_exe">Exe\'den</string>
     <string name="art_src_auto">Otomatik</string>
     <string name="art_pick_image">Görsel seç…</string>
     <string name="art_pick_title">Bir görsel seçin: %1$s</string>
@@ -1652,17 +1576,8 @@
     <string name="art_sgdb_offline">SteamGridDB\'ye ulaşılamadı. Bağlantıyı kontrol edin.</string>
     <string name="art_sgdb_server">SteamGridDB\'de bir sorun oluştu. Daha sonra tekrar deneyin.</string>
     <string name="art_sgdb_no_game">SteamGridDB\'de bu oyun için eşleşme yok. Bir arama deneyin.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d oyun eklendi</item>
-        <item quantity="other">%1$d oyun eklendi</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d zaten Oyunlar\'da</item>
-        <item quantity="other">%1$d zaten Oyunlar\'da</item>
-    </plurals>
     <string name="hop_back">B · %1$s geri dön</string>
     <string name="hop_from_games">oyuna</string>
-    <string name="hop_from_play">Oyna ayarlarına</string>
     <string name="sheet_graphics_drivers">Grafik sürücüleri</string>
     <string name="comp_this_proton">Bu Proton</string>
     <string name="comp_for_every_proton">Her Proton için</string>
@@ -1715,12 +1630,6 @@
     <string name="comp_this_device">Bu cihaz</string>
     <string name="proton_remove_title">%1$s kaldırılsın mı?</string>
     <string name="setup_tab_diagnostics">Tanılama</string>
-    <string name="setup_ready">Oynamaya hazır</string>
-    <string name="setup_not_ready">Henüz oynamaya hazır değil</string>
-    <string name="setup_ready_runtime">çalışma ortamı %1$s</string>
-    <string name="setup_ready_limit_off">alt süreç sınırı kapalı</string>
-    <string name="setup_ready_signed_in">%1$s olarak oturum açıldı</string>
-    <string name="setup_needs_you">Sizden bir şey istendiğinde</string>
     <string name="setup_group_look">Görünüm</string>
     <string name="setup_group_device">Bu cihaz</string>
     <string name="setup_group_art">Kütüphane görselleri</string>
@@ -2050,9 +1959,7 @@
     <string name="game_install_location">Konum</string>
     <string name="game_install_folder">Klasör</string>
     <string name="game_install_size">Diskteki boyut</string>
-    <string name="library_filter_added">Eklenenler</string>
     <string name="game_tab_launch">Başlatma</string>
-    <string name="game_launch_shortcut">Steam kısayolu</string>
     <string name="game_install_played">Son oynanma</string>
     <string name="integration_title">Steam entegrasyonu</string>
     <string name="integration_count">%2$d içinden %1$d açık</string>
@@ -2090,11 +1997,6 @@
     <string name="slow_usb_port">%1$s, %2$s üzerinden bağlı (%3$s Mbps, yaklaşık %4$d MB/sn). Bu cihazın USB bağlantı noktası daha hızlı çalışamıyor, bu yüzden oyunlar yavaş yüklenecek. Dahili depolama veya bir microSD kart daha hızlı olabilir.</string>
     <string name="slow_usb_never">Bir daha gösterme</string>
     <string name="slow_usb_dismiss">Kapat</string>
-    <string name="steam_import_title">Oyunlarınızı eklemek için Steam yeniden başlatılsın mı?</string>
-    <string name="steam_import_body">Steam sahip olduğunuz bu oyunları yüklü olarak gösterebilir: %1$s. Bunları göstermek için yeniden başlaması gerekir. Şimdi yeniden başlatın ya da Steam bir sonraki açılışta onları ekleyecek.</string>
-    <string name="steam_import_names_more">%1$s ve %2$d tane daha</string>
-    <string name="steam_import_now">Şimdi yeniden başlat</string>
-    <string name="steam_import_later">Daha sonra</string>
     <string name="input_reset_positions">Konumları sıfırla</string>
     <string name="input_show_label">Etiketi göster</string>
     <string name="input_layout_import_failed">Bu düzen içe aktarılamadı</string>

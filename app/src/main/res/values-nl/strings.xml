@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Bij de eerste start wordt Steam gedownload. Dit kan een paar minuten duren.</item>
-        <item>Standaard wordt Steam gepauzeerd als je de app verlaat; als je terugkomt, gaat het verder waar je was.</item>
-        <item>Je controller wordt gezien als Xbox 360-controller. Gebruik anders de schermbediening.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Standaard wordt de sessie gepauzeerd als je de app verlaat; als je terugkomt, gaat die verder waar je was.</item>
-        <item>Aanraken werkt als touchpad: sleep om de aanwijzer te verplaatsen, tik om te klikken.</item>
-        <item>Je controller wordt gezien als Xbox 360-controller. Gebruik anders de schermbediening.</item>
-    </string-array>
     <string name="session_channel">Sessie</string>
     <string name="session_notification">Steam is actief</string>
     <string name="session_notification_downloads">Steam-download actief</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Aanraken</string>
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
-    <string name="mode_touch_note">Automatisch: touchpad op Desktop, direct in Steam.</string>
     <string name="mode_osc">Schermbediening</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automatisch toont de bediening als er geen controller is verbonden.</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">Downloadt de Steam-client opnieuw bij de volgende start van Steam. Gebruik dit als Steam op het laadscherm blijft hangen. Games, login en instellingen blijven behouden.</string>
     <string name="mode_steam_repair_queued">De Steam-client wordt opnieuw gedownload bij de volgende start van Steam.</string>
     <string name="mode_steam_repair_button">Repareren</string>
-    <string name="mode_added_art">Afbeeldingen</string>
     <string name="mode_sgdb_key">SteamGridDB-API-sleutel</string>
     <string name="mode_sgdb_key_yours">Je eigen sleutel</string>
     <string name="mode_sgdb_edit">Bewerken…</string>
-    <string name="mode_added_art_hint">Vult ontbrekende afbeeldingen aan uit Steam en daarna uit SteamGridDB. Je eigen cover.jpg, hero.jpg, logo.png of icon.png in de gamemap heeft voorrang.</string>
-    <string name="summary_remove_game">%1$s verwijderen</string>
-    <string name="mode_added_remove_confirm">Verwijderen?</string>
-    <string name="games_add">Game toevoegen</string>
-    <string name="games_add_title">Game toevoegen:</string>
-    <string name="games_pick_exe_title">Kies de exe:</string>
-    <string name="games_add_unreachable">Deze locatie is niet beschikbaar in de sessie</string>
-    <string name="mode_added_exe_check">Deze exe controleren</string>
     <string name="wincomp_title">Windows-componenten</string>
     <string name="wincomp_pad_hint">Met LB / RB spring je tussen de secties.</string>
     <string name="wincomp_card_none">Geen</string>
@@ -224,7 +204,6 @@
     </plurals>
     <string name="wincomp_auto_section">Aan voor deze game</string>
     <string name="wincomp_auto_steam">Steam installeert %1$s met %2$s (app %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam installeert %1$s met app %2$s, gevonden op naam</string>
     <string name="wincomp_suggestions">Ook vermeld</string>
     <string name="wincomp_suggestion_reason">Vermeld door %1$s; hier geen component</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -455,7 +434,6 @@
     <string name="drawer_page_controls">Bediening</string>
     <string name="drawer_page_components">Componenten</string>
     <string name="drawer_page_controller">Controller</string>
-    <string name="drawer_page_settings">Instellingen</string>
     <string name="drawer_page_desc">%1$s-pagina</string>
     <string name="drawer_steam_menu">Steam-menu</string>
     <string name="drawer_open_qam">Snelmenu openen</string>
@@ -599,9 +577,6 @@
     <string name="setup_limit_adb_failed">Controleer het IP-adres en de poort van Draadloos debuggen, of koppel opnieuw als Android dit apparaat heeft verwijderd.</string>
     <string name="setup_install">Installeren</string>
     <string name="setup_manage">Beheren</string>
-    <string name="setup_tab_overview">Overzicht</string>
-    <string name="setup_tab_controller">Controller</string>
-    <string name="setup_tab_launcher">Launcher</string>
     <string name="setup_title">Installatie</string>
     <string name="setup_gpu_supported">Apparaat ondersteund</string>
     <string name="setup_gpu_untested">Ongeteste GPU</string>
@@ -628,7 +603,6 @@
     <string name="setup_signed_in">Aangemeld als %1$s</string>
     <string name="setup_sign_in">Druk op Spelen en meld je aan bij Steam</string>
     <string name="setup_controller">Controller</string>
-    <string name="setup_controller_unavailable">Controllerinstellingen zijn niet beschikbaar.</string>
     <string name="setup_logs">Sessielogs</string>
     <string name="setup_logs_hint">Opgeslagen na elke sessie</string>
     <string name="setup_game_debug_logs">Debuglogs van games</string>
@@ -682,11 +656,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Bediening</string>
     <string name="setup_card_controls_hint">Knoppenindeling</string>
-    <string name="store_starting">Starten…</string>
-    <string name="store_try_again">Opnieuw proberen</string>
-    <string name="store_all">Alle</string>
-    <string name="store_open">Openen</string>
-    <string name="store_remove">Verwijderen</string>
+    <string name="common_starting">Starten…</string>
+    <string name="common_try_again">Opnieuw proberen</string>
+    <string name="common_all">Alle</string>
+    <string name="common_open">Openen</string>
+    <string name="common_remove">Verwijderen</string>
     <string name="upd_open_settings">Instellingen openen</string>
     <string name="upd_current_status">Up-to-date</string>
     <string name="upd_just_now">zojuist</string>
@@ -768,7 +742,6 @@
     <string name="ctrl_steam_button">Steam-knop</string>
     <string name="ctrl_qam_button">QAM-knop</string>
     <string name="ctrl_keyboard_button">Toetsenbordknop</string>
-    <string name="setup_animations">Animaties</string>
     <string name="setup_low_storage_warning">Waarschuwen bij weinig opslagruimte</string>
     <string name="setup_low_storage_warning_hint">Vragen voordat Steam start als er minder dan 10 GB vrij is.</string>
     <string name="ctrl_layout">Indeling</string>
@@ -780,24 +753,12 @@
     <string name="games_play_steam">Steam spelen</string>
     <string name="games_files">Gamebestanden</string>
     <string name="games_prefix">Proton-prefix</string>
-    <string name="games_saves_looking">Opslagbestanden zoeken…</string>
-    <string name="games_saves_none">Geen opslagmap gevonden op naam. Exporteren neemt de hele gebruikersmap.</string>
-    <string name="games_saves_folders">%1$d opslagmappen</string>
-    <string name="games_saves_summary">%1$s · %2$d bestanden · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Gameopslag</string>
-    <string name="games_import_saves">Opslagbestanden importeren…</string>
-    <string name="games_export_gamehub">Exporteren als GameHub-zip…</string>
-    <string name="games_export_winlator">Exporteren als Winlator-zip…</string>
-    <string name="games_open_save_folder">Opslagmap openen</string>
     <string name="games_never_played">Nooit gespeeld</string>
     <string name="games_runtime_busy_percent">Runtime bezig · %1$d%%</string>
     <string name="games_runtime_update">Runtime-update beschikbaar</string>
     <string name="games_runtime_ready">● Runtime gereed</string>
     <string name="games_internal">Interne opslag</string>
     <string name="games_uninstall_body">Verwijdert de bestanden en haalt het uit Steam.</string>
-    <string name="games_remove_title">%1$s verwijderen?</string>
-    <string name="games_remove_body">Verwijdert de snelkoppeling. De gamebestanden blijven staan.</string>
     <string name="gpu_checking">Controleren op drivers…</string>
     <string name="gpu_none_listed">Nog geen drivers vermeld. Vernieuw om ernaar te zoeken.</string>
     <string name="gpu_hide_other">Drivers voor andere GPU’s verbergen</string>
@@ -876,7 +837,6 @@
     <string name="pip_unavailable">Android kon scherm-in-scherm niet openen.</string>
     <string name="game_more">Meer</string>
     <string name="game_edit_art">Afbeeldingen bewerken</string>
-    <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Snelkoppeling</string>
     <string name="game_shortcut_add">Toevoegen aan startscherm</string>
     <string name="game_shortcut_choose">Game kiezen</string>
@@ -903,23 +863,6 @@
     <string name="load_compat_hint">Je sessie start zodra de installatie klaar is.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Wacht tot de installatie klaar is voordat je een game start</string>
-    <string name="main_saves_close_session">Sluit eerst de Steam-sessie, zodat de game niet over de import heen kan opslaan</string>
-    <string name="main_saves_importing">Importeren in %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">%1$d bestand uit de %2$s geïmporteerd in %3$s</item>
-        <item quantity="other">%1$d bestanden uit de %2$s geïmporteerd in %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">%1$d bestand uit de %2$s geïmporteerd in %3$s. Oude savegames als back-up bewaard in Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">%1$d bestanden uit de %2$s geïmporteerd in %3$s. Oude savegames als back-up bewaard in Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Kies een savegame-zip voor %1$s</string>
-    <string name="main_saves_exporting">%1$s exporteren</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">%1$d bestand geëxporteerd als %2$s: %3$s</item>
-        <item quantity="other">%1$d bestanden geëxporteerd als %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Kies waar je %1$s wilt opslaan (%2$s)</string>
     <string name="main_action_failed">%1$s mislukt: %2$s</string>
     <string name="main_no_logs_yet">Nog geen sessielogs: start eerst een sessie.</string>
     <string name="main_no_logs_to_clear">Geen sessielogs om te wissen.</string>
@@ -1057,7 +1000,7 @@
         <item quantity="other">Het log toont %1$d fouten “Function not implemented”: de seccomp-versnelling van proot laat op dit apparaat een hulpprogramma falen. Probeer %2$s → “%3$s” (of “%4$s”) en start opnieuw.</item>
     </plurals>
 
-    <string name="store_section_loading">laden…</string>
+    <string name="lib_section_loading">laden…</string>
     <string name="theme_graphite">Grafiet</string>
     <string name="theme_graphite_detail">Grafietkleurige vlakken, met het eigen bolblauw van het logo voor alles wat geselecteerd, gefocust of ingedrukt is.</string>
     <string name="theme_paper">Papier op zwart</string>
@@ -1068,8 +1011,6 @@
     <string name="theme_electric_detail">Het blauw feller, op vlakken die naar marineblauw neigen in plaats van grijs.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Kleuren die door de regenboog lopen. Volgt de animatie-instellingen van Android.</string>
-    <string name="theme_rgb_speed">Snelheid</string>
-    <string name="theme_rgb_speed_hint">Hoe snel de kleuren wisselen.</string>
     <string name="theme_gradient">Kleurverloop</string>
     <string name="theme_gradient_detail">Je eigen primaire en secundaire kleur, doorlopend op knoppen en accenten.</string>
     <string name="theme_gradient_primary">Primair</string>
@@ -1103,7 +1044,6 @@
     <string name="game_sync_err_steam_library">Steam-bibliotheek is niet beschikbaar</string>
     <string name="game_sync_err_previous_sd">Vorige SD-bibliotheek is niet beschikbaar</string>
     <string name="game_sync_err_game_storage">Gameopslag is niet beschikbaar</string>
-    <string name="game_sync_err_added_games">Map met toegevoegde games is niet beschikbaar</string>
     <string name="game_sync_err_manifests">Steam-manifesten zijn niet beschikbaar</string>
     <string name="fm_drive_internal">Intern</string>
     <string name="fm_drive_linux">Linux-systeem</string>
@@ -1527,11 +1467,6 @@
     <string name="phantom_instructions_not_applicable">Deze Android-versie gebruikt deze limiet niet.</string>
     <string name="phantom_fix_toggle">Schakel “Beperkingen voor onderliggende processen uitzetten” in bij Ontwikkelaarsopties en laat Ontwikkelaarsopties daarna aan staan.</string>
     <string name="phantom_fix_no_toggle">Deze Android-versie heeft hier geen schakelaar voor. Gebruik draadloze foutopsporing om dit vanaf dit apparaat te wijzigen.</string>
-    <string name="saves_layout_zip">%1$s-zip</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s is nog niet gestart</string>
-    <string name="saves_none_found">Geen savegames gevonden voor %1$s</string>
-    <string name="saves_not_save_zip">%1$s heeft geen drive_c-map, dus het is geen savegame-zip van GameHub of Winlator</string>
     <string name="gstore_cannot_create">kan geen mappen maken in %1$s</string>
     <string name="gstore_cannot_write">kan niet schrijven in %1$s</string>
     <string name="gstore_cannot_write_detail">kan niet schrijven in %1$s (%2$s)</string>
@@ -1576,16 +1511,13 @@
     <string name="force_ssbs_title">SSBS forceren</string>
     <string name="force_ssbs_hint">Houdt een CPU-snelheidsinstelling aan die Wine steeds uitschakelt. Kan Windows-games sneller maken op Snapdragon 8 Elite; op oudere chips is weinig verschil te zien. Geldt bij de volgende gamestart.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Aangepast</string>
-    <string name="stores_tab_library">Bibliotheek</string>
-    <string name="stores_tab_all">Alle</string>
-    <string name="stores_search_library">Zoeken in je bibliotheek…</string>
-    <string name="stores_search_open">Zoeken</string>
-    <string name="stores_nothing_matches">Geen games</string>
-    <string name="stores_play">Spelen</string>
-    <string name="stores_refresh">Vernieuwen</string>
-    <string name="stores_sort">Sorteren</string>
+    <string name="lib_tab_library">Bibliotheek</string>
+    <string name="lib_search_library">Zoeken in je bibliotheek…</string>
+    <string name="lib_search_open">Zoeken</string>
+    <string name="lib_nothing_matches">Geen games</string>
+    <string name="lib_play">Spelen</string>
+    <string name="lib_refresh">Vernieuwen</string>
+    <string name="lib_sort">Sorteren</string>
     <string name="setup_rail_labels">Labels in zijbalk</string>
     <string name="setup_rail_labels_hint">Toon namen onder de pictogrammen in de zijbalk. Zet uit voor een smallere zijbalk.</string>
     <string name="library_display">Weergave</string>
@@ -1593,32 +1525,26 @@
     <string name="library_display_smaller">Kleinere kaarten</string>
     <string name="library_display_title">Titel tonen</string>
     <string name="library_display_size">Grootte tonen</string>
-    <string name="stores_sort_last_played">Onlangs gespeeld</string>
-    <string name="stores_sort_recently_installed">Onlangs geïnstalleerd</string>
-    <string name="stores_sort_title_asc">Titel A–Z</string>
-    <string name="stores_sort_title_desc">Titel Z–A</string>
-    <string name="stores_sort_size_desc">Grootte: grootste</string>
-    <string name="stores_sort_size_asc">Grootte: kleinste</string>
-    <string name="stores_view_list">Lijstweergave</string>
-    <string name="stores_view_cards">Kaartweergave</string>
-    <string name="stores_view_capsules">Hoesweergave</string>
+    <string name="lib_sort_last_played">Onlangs gespeeld</string>
+    <string name="lib_sort_recently_installed">Onlangs geïnstalleerd</string>
+    <string name="lib_sort_title_asc">Titel A–Z</string>
+    <string name="lib_sort_title_desc">Titel Z–A</string>
+    <string name="lib_sort_size_desc">Grootte: grootste</string>
+    <string name="lib_sort_size_asc">Grootte: kleinste</string>
+    <string name="lib_view_list">Lijstweergave</string>
+    <string name="lib_view_cards">Kaartweergave</string>
+    <string name="lib_view_capsules">Hoesweergave</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">geïnstalleerd</string>
-    <string name="stores_uninstall_title">%1$s verwijderen?</string>
-    <string name="stores_dl_pause">Pauzeren</string>
-    <string name="stores_target_free">%1$s vrij</string>
+    <string name="lib_eyebrow_installed">geïnstalleerd</string>
+    <string name="lib_uninstall_title">%1$s verwijderen?</string>
+    <string name="lib_dl_pause">Pauzeren</string>
+    <string name="lib_target_free">%1$s vrij</string>
     <string name="common_close">Sluiten</string>
     <string name="common_back">Terug</string>
-    <string name="games_add_all">Alle games in deze map toevoegen</string>
-    <string name="games_added_none">Niets nieuws in deze map</string>
-    <string name="edit_name">Naam</string>
-    <string name="edit_target">Doel</string>
-    <string name="edit_start_in">Beginnen in</string>
     <string name="edit_launch_options">Opstartopties</string>
     <string name="edit_launch_options_steam_hint">Gedeeld met de Eigenschappen in Steam: een wijziging op de ene plek is op beide te zien.</string>
     <string name="edit_launch_options_not_saved">De opstartopties konden niet in Steam worden opgeslagen. Probeer het opnieuw.</string>
     <string name="edit_artwork">Artwork</string>
-    <string name="edit_other_exe">Andere exe…</string>
     <string name="edit_remove">Verwijderen</string>
     <string name="art_cover">Cover</string>
     <string name="art_wide_cover">Brede cover</string>
@@ -1639,11 +1565,9 @@
     <string name="art_background">Achtergrond</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Pictogram</string>
-    <string name="art_src_folder">Gamemap</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Jouw bestand</string>
-    <string name="art_src_exe">Vanuit de exe</string>
     <string name="art_src_auto">Automatisch</string>
     <string name="art_pick_image">Afbeelding kiezen…</string>
     <string name="art_pick_title">Kies een afbeelding: %1$s</string>
@@ -1659,17 +1583,8 @@
     <string name="art_sgdb_offline">SteamGridDB is niet bereikbaar. Controleer de verbinding.</string>
     <string name="art_sgdb_server">Er ging iets mis bij SteamGridDB. Probeer het later opnieuw.</string>
     <string name="art_sgdb_no_game">SteamGridDB heeft geen resultaten voor deze game. Probeer erop te zoeken.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d game toegevoegd</item>
-        <item quantity="other">%1$d games toegevoegd</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d al in Games</item>
-        <item quantity="other">%1$d al in Games</item>
-    </plurals>
     <string name="hop_back">B · Terug naar %1$s</string>
     <string name="hop_from_games">de game</string>
-    <string name="hop_from_play">Spelinstellingen</string>
     <string name="sheet_graphics_drivers">Grafische drivers</string>
     <string name="comp_this_proton">Deze Proton</string>
     <string name="comp_for_every_proton">Voor elke Proton</string>
@@ -1722,12 +1637,6 @@
     <string name="comp_this_device">Dit apparaat</string>
     <string name="proton_remove_title">%1$s verwijderen?</string>
     <string name="setup_tab_diagnostics">Diagnostiek</string>
-    <string name="setup_ready">Klaar om te spelen</string>
-    <string name="setup_not_ready">Nog niet klaar om te spelen</string>
-    <string name="setup_ready_runtime">runtime %1$s</string>
-    <string name="setup_ready_limit_off">proceslimiet uit</string>
-    <string name="setup_ready_signed_in">aangemeld als %1$s</string>
-    <string name="setup_needs_you">Als iets je aandacht nodig heeft</string>
     <string name="setup_group_look">Weergave</string>
     <string name="setup_group_device">Dit apparaat</string>
     <string name="setup_group_art">Bibliotheekartwork</string>
@@ -2050,9 +1959,7 @@
     <string name="game_install_location">Locatie</string>
     <string name="game_install_folder">Map</string>
     <string name="game_install_size">Grootte op schijf</string>
-    <string name="library_filter_added">Toegevoegd</string>
     <string name="game_tab_launch">Starten</string>
-    <string name="game_launch_shortcut">Steam-snelkoppeling</string>
     <string name="game_install_played">Laatst gespeeld</string>
     <string name="integration_title">Steam-integratie</string>
     <string name="integration_count">%1$d van %2$d aan</string>
@@ -2090,11 +1997,6 @@
     <string name="slow_usb_port">%1$s is verbonden via %2$s (%3$s Mbps, ongeveer %4$d MB/s). De USB-poort van dit apparaat kan niet sneller, dus games laden traag. Interne opslag of een microSD-kaart kan sneller zijn.</string>
     <string name="slow_usb_never">Niet meer tonen</string>
     <string name="slow_usb_dismiss">Sluiten</string>
-    <string name="steam_import_title">Steam opnieuw starten om je games toe te voegen?</string>
-    <string name="steam_import_body">Steam kan deze games die je bezit als geïnstalleerd tonen: %1$s. Steam moet opnieuw starten om ze te tonen. Start nu opnieuw, of ze worden toegevoegd de volgende keer dat Steam start.</string>
-    <string name="steam_import_names_more">%1$s en nog %2$d</string>
-    <string name="steam_import_now">Nu opnieuw starten</string>
-    <string name="steam_import_later">Later</string>
     <string name="input_reset_positions">Posities herstellen</string>
     <string name="input_show_label">Label tonen</string>
     <string name="input_layout_import_failed">Deze indeling kan niet worden geïmporteerd</string>

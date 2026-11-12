@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.CpuCores
-import com.droiddeck.launcher.frontend.AddedGameArt
+import com.droiddeck.launcher.frontend.GameArt
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.gpu.GpuInfo
@@ -433,7 +433,7 @@ private fun playedText(seconds: Long): String =
     if (seconds >= 3600) "%d:%02d:%02d".format(seconds / 3600, seconds / 60 % 60, seconds % 60) else "%d:%02d".format(seconds / 60, seconds % 60)
 
 private fun gameCover(context: Context, appId: Int): File? =
-    SteamGameArt.chosenFile(context, appId, AddedGameArt.Slot.COVER)
+    SteamGameArt.chosenFile(context, appId, GameArt.Slot.COVER)
         ?: Library.steamCacheImage(File(SessionPrefs.activeSteamRoot(context), "appcache/librarycache"), appId, listOf("library_capsule.jpg", "library_600x900.jpg"))
 
 private fun coreGroups(): List<CoreGroup> {

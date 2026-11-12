@@ -336,12 +336,8 @@ tries KMS dumb buffers on it in a loop.
   `RememberPassword` one client has and the other lacks. Device: the x86 client signed in with the
   arm64 token (`RecvMsgClientLogOnResponse ... 'OK'`).
 - **App side.** The library, art picker, grid sync and boot movie follow the running client, else the
-  selected one; a changed client applies from the next session. A game is listed once per client: an added game
-  whose folder a Steam install already covers (its `DroidDeck-<appid>` import) is shown as that Steam
-  game only, and a client switch drops the old client's imported entries with its Steam games. In
-  Steam, an import stays one when its ownership cannot be confirmed that session instead of gaining a
-  shortcut beside it, and only the client's own library folders count as an install (the arm64 card
-  library made the x86 client skip a game's import and its shortcut). Offline Mode is written to both
+  selected one; a changed client applies from the next session. A client switch drops the old
+  client's Steam games. Offline Mode is written to both
   clients' `loginusers.vdf`; until the x86 client's first start its sign-in is the arm64 one. The log
   redactor learns account names from both clients. The startup movie is staged into the x86 client's
   config only once its first start has created it; `--prepare` links the arm64 `config/uioverrides`
@@ -395,10 +391,6 @@ tries KMS dumb buffers on it in a loop.
   `proton_*` names, and `droiddeck-proton-arm64` left by an arm64 compat pass) to the default wrapper.
   Tools in its own `compatibilitytools.d` are kept: the wrappers include `proton-cachyos-*-a64`, which
   starts with "proton" like Valve's.
-- **Added games** are written by the client the session runs and pointed at its default wrapper. The
-  shortcuts pass keeps the x86 client's own default and state (`droiddeck-compat` beside its Steam
-  folder), because the arm64 client's `state.json` lists which of that client's titles follow its
-  default.
 - **Install scripts.** A game's own installers without a `HasRunKey` (Borderlands 2: VC++ 2005, 2008
   and 2010, DirectX, .NET 4.0) are marked under `Software\Valve\Steam\Apps\<appid>` (and the
   Wow6432Node view), so Steam skips them; this applies to both clients. Windows components install into
@@ -438,7 +430,7 @@ tries KMS dumb buffers on it in a loop.
 - With `BL_STEAM_CLIENT_ARCH=x86_64`, `droiddeck-session` updates the arm64 client's parts
   (`droiddeck-steam-install`, then `--sync steamdeck_publicbeta`), runs `droiddeck-steam-x64 --prepare`
   and starts the client with `droiddeck-steam-x64 --exec`. Steps only for the arm64 client (library
-  registration, the ARM64 Proton fetch, the live compat helper) are skipped; added games,
+  registration, the ARM64 Proton fetch, the live compat helper) are skipped;
   `steam-compatibility --x64`, UI scale and redistributables run for the x86 client.
 - **Deck mode.** With `-steamos3` the client's SteamOS audio manager passed libpulse the NULL
   operation of a failed request, and libpulse aborted the client right after start ("Assertion 'o'
@@ -457,11 +449,10 @@ tries KMS dumb buffers on it in a loop.
   mapping changed while it runs only at its next start, so changed titles go to `.bl-compat-pending`.
   Once they have installed (`StateFlags` 4 in the client's root or its card folder) and no game runs,
   the client is restarted once per title, at most 3 times a session.
-- **After exit.** Added games, `steam-compatibility --x64` and `--map-direct` run again: the client
+- **After exit.** `steam-compatibility --x64` and `--map-direct` run again: the client
   wrote its mapping from memory as it exited, over what the live passes set.
-- The Lossless Scaling ownership probe and the Steam import watcher reach the x86 client through the
-  arm64 client's `steamclient.so` (`BL_STEAMCLIENT`); the watcher restarts the client with
-  `droiddeck-steam-x64 --exec -shutdown`.
+- The Lossless Scaling ownership probe reaches the x86 client through the arm64 client's
+  `steamclient.so` (`BL_STEAMCLIENT`).
 - Steam logs and the Steam language come from the x86 client's home. On the desktop, `steam` and
   `steamdeck-steam` start the selected client, and the desktop game entries list its libraries.
 - The standalone launcher (desktop menu) shuts the arm64 client down first, starts the system bus and

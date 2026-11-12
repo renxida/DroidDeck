@@ -26,13 +26,8 @@ class GameResourcesTest {
         val links = gameResources(steam.name, steam)
         assertEquals("https://www.protondb.com/app/292030", links.single { it.label == R.string.game_resource_protondb }.url)
         assertEquals("https://store.steampowered.com/account/remotestorageapp/?appid=292030", links.single { it.label == R.string.game_resource_steam_cloud }.url)
-        val others = listOf(
-            Library.SteamGame(292030, steam.name, null, Library.ADDED),
-            Library.SteamGame(-1, steam.name, null, "/steam"),
-        )
-        others.forEach { game ->
-            assertEquals(3, gameResources(game.name, game).size)
-        }
+        val other = Library.SteamGame(-1, steam.name, null, "/steam")
+        assertEquals(3, gameResources(other.name, other).size)
     }
 
     @Test fun loadingPagesHaveNoResourcesUntilTheyHaveATitle() {

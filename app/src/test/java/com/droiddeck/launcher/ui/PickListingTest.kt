@@ -20,30 +20,28 @@ class PickListingTest {
     private fun storage(): File {
         val root = tmp.newFolder("emulated0")
         for (d in listOf("Download", "Android", "DCIM", "Games", "Documents", "Winlator", ".thumbnails", "alarms")) File(root, d).mkdirs()
-        for (f in listOf("Setup.exe", "game.EXE", "cover.jpg", "notes.txt", "logo.PNG", "icon.ico", "hero.webp", ".hidden.exe")) File(root, f).writeText("x")
+        for (f in listOf("Setup.exe", "game.EXE", "cover.jpg", "notes.txt", "logo.PNG", "icon.ico", "hero.webp", ".hidden.png")) File(root, f).writeText("x")
         return root
     }
 
     @Test fun everyFolderIsListedAToZAndDotFoldersAreNot() {
-        val listing = pickListing(storage(), PickKind.EXE)
+        val listing = pickListing(storage())
         assertEquals(listOf("alarms", "Android", "DCIM", "Documents", "Download", "Games", "Winlator"), listing.folders.map { it.dir.name })
     }
 
-    @Test fun hiddenDirectoriesAndExecutablesCanBeShownOnRequest() {
+    @Test fun hiddenDirectoriesAndImagesCanBeShownOnRequest() {
         val root = storage()
-        val hidden = File(root, ".Games").apply { mkdirs() }
-        File(hidden, "Game.exe").writeText("game")
-        assertFalse(pickListing(root, PickKind.EXE).folders.any { it.dir.name == ".Games" })
-        val listing = pickListing(root, PickKind.EXE, showHidden = true)
-        assertTrue(listing.folders.any { it.dir.name == ".Games" })
-        assertTrue(listing.files.any { it.name == ".hidden.exe" })
-        assertEquals(listOf("Game.exe"), pickListing(hidden, PickKind.EXE).files.map { it.name })
+        val hidden = File(root, ".Art").apply { mkdirs() }
+        File(hidden, "cover.png").writeText("art")
+        assertFalse(pickListing(root).folders.any { it.dir.name == ".Art" })
+        val listing = pickListing(root, showHidden = true)
+        assertTrue(listing.folders.any { it.dir.name == ".Art" })
+        assertTrue(listing.files.any { it.name == ".hidden.png" })
+        assertEquals(listOf("cover.png"), pickListing(hidden).files.map { it.name })
     }
 
-    @Test fun onlyExesForAGameOnlyImagesForArt() {
-        val root = storage()
-        assertEquals(listOf("game.EXE", "Setup.exe"), pickListing(root, PickKind.EXE).files.map { it.name })
-        assertEquals(listOf("cover.jpg", "hero.webp", "icon.ico", "logo.PNG"), pickListing(root, PickKind.IMAGE).files.map { it.name })
+    @Test fun onlyImagesAreListed() {
+        assertEquals(listOf("cover.jpg", "hero.webp", "icon.ico", "logo.PNG"), pickListing(storage()).files.map { it.name })
     }
 
     @Test fun aFolderTheAppCannotReadIsListedButMarked() {
@@ -52,7 +50,7 @@ class PickListingTest {
         locked.setReadable(false, false)
         try {
             assumeFalse("running as root reads everything", locked.list() != null)
-            val folders = pickListing(root, PickKind.EXE).folders.associate { it.dir.name to it.readable }
+            val folders = pickListing(root).folders.associate { it.dir.name to it.readable }
             assertFalse(folders.getValue("Android"))
             assertTrue(folders.getValue("Download"))
         } finally {
