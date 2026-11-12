@@ -52,18 +52,20 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         handler.removeCallbacksAndMessages(null)
     }
 
-    fun refresh(changed: Boolean = false) {
-        if (!active || !hasFocus()) return
+    /** True when it handed the guest new text, which Xwayland takes over asynchronously. */
+    fun refresh(changed: Boolean = false): Boolean {
+        if (!active || !hasFocus()) return false
         val clip = clipboard.primaryClip
-        if (clip != null && clip.itemCount == 0) return
+        if (clip != null && clip.itemCount == 0) return false
         val text = clip?.getItemAt(0)?.text?.toString()
         if (echo != null && text == echo) {
             echo = null
-            return
+            return false
         }
         echo = null
-        if (!changed && published && text == shared) return
+        if (!changed && published && text == shared) return false
         publish(text)
+        return true
     }
 
     private fun publish(text: String?) {

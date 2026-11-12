@@ -57,6 +57,7 @@ import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.input.InputSpace
+import com.droiddeck.launcher.input.GuestText
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
@@ -870,6 +871,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     sendKey = { code, down -> if (CompositorHost.isStarted) sendGuestKey(code, down, 32) },
                     onAndroidKeyboard = { pcKeyboardOpen = false; keyboard?.toggle() },
                     onClose = { pcKeyboardOpen = false },
+                    onPaste = ::pasteIntoSession,
+                    onSignIn = ::openSignInSheet,
                 )
                 if (!drawerDocked) SessionMenu(docked = false)
                 val autoResume = suspendPolicy == SessionPrefs.SUSPEND_AUTO || suspendPolicy == SessionPrefs.SUSPEND_NATIVE
@@ -1152,6 +1155,80 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun triggerSteamQam() {
         drawerOpen = false
         padBridge?.triggerQam()
+    }
+
+    private fun pasteIntoSession() {
+        if (!CompositorHost.isStarted) return
+        val republished = sessionClipboard.refresh()
+        Log.i(TAG, "session paste: Ctrl+V into the guest (Android clipboard republished=$republished)")
+        val ctrlV = Runnable { GuestText.chord(GuestText.KEY_LEFTCTRL, GuestText.KEY_V) { code, down -> sendGuestKey(code, down, PASTE_OWNER) } }
+        // The guest's droiddeck-clipboard takes new text over on an inotify event; a Ctrl+V sent first pastes the old text.
+        if (republished) uiHandler.postDelayed(ctrlV, PASTE_SETTLE_MS) else ctrlV.run()
+    }
+
+    private fun openSignInSheet() {
+        keyboard?.hide()
+        val density = resources.displayMetrics.density
+        val pad = (20 * density).toInt()
+        val account = android.widget.EditText(this).apply {
+            setHint(R.string.signin_sheet_account)
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            setAutofillHints(View.AUTOFILL_HINT_USERNAME)
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_YES
+        }
+        val password = android.widget.EditText(this).apply {
+            setHint(R.string.signin_sheet_password)
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setAutofillHints(View.AUTOFILL_HINT_PASSWORD)
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_YES
+        }
+        val form = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+            addView(android.widget.TextView(this@SessionActivity).apply { setText(R.string.signin_sheet_note) })
+            addView(account)
+            addView(password)
+        }
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.signin_sheet_title)
+            .setView(form)
+            .setPositiveButton(R.string.signin_sheet_type) { _, _ ->
+                val typedAccount = CharArray(account.length()).also { account.text.getChars(0, it.size, it, 0) }
+                val typedPassword = CharArray(password.length()).also { password.text.getChars(0, it.size, it, 0) }
+                account.text.clear()
+                password.text.clear()
+                // Typed once the session window has focus again, so the keys reach the field Steam had focused.
+                uiHandler.postDelayed({ typeSignIn(typedAccount, typedPassword) }, SIGN_IN_TYPE_DELAY_MS)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.window?.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        dialog.setOnDismissListener {
+            account.text.clear()
+            password.text.clear()
+            runCatching { getSystemService(android.view.autofill.AutofillManager::class.java)?.cancel() }
+        }
+        dialog.show()
+        account.requestFocus()
+    }
+
+    private fun typeSignIn(account: CharArray, password: CharArray) {
+        try {
+            if (!CompositorHost.isStarted || pipUi) {
+                Log.i(TAG, "sign-in sheet: nothing typed, the session is not showing")
+                return
+            }
+            val skipped = GuestText.signIn(java.nio.CharBuffer.wrap(account), java.nio.CharBuffer.wrap(password)) { code, down ->
+                sendGuestKey(code, down, PASTE_OWNER)
+            }
+            Log.i(TAG, "sign-in sheet: typed account=${account.isNotEmpty()} password=${password.isNotEmpty()} untypable=$skipped")
+            if (skipped > 0) Toast.makeText(this, getString(R.string.signin_sheet_skipped, skipped), Toast.LENGTH_LONG).show()
+        } finally {
+            account.fill('\u0000')
+            password.fill('\u0000')
+        }
     }
 
     private fun togglePcKeyboard() {
@@ -3554,10 +3631,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             steamTouchOptions = options
             applyTouchRouting()
         }
-        view.onPaste = {
-            sendGuestKey(29, true); sendGuestKey(47, true)
-            sendGuestKey(47, false); sendGuestKey(29, false)
-        }
+        view.onPaste = ::pasteIntoSession
         view.onSaved = {
             device.plugged = false
             uiHandler.postDelayed({ updateOnScreenControls() }, 700)
@@ -4253,6 +4327,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val BOTTOM_RECOVERY_MS = 1_000L
         private const val BOTTOM_RECOVERY_TRIES = 3
         private const val TAG = "SessionActivity"
+        private const val PASTE_OWNER = 64
+        private const val PASTE_SETTLE_MS = 250L
+        private const val SIGN_IN_TYPE_DELAY_MS = 400L
         private var startedScreens = 0
         @Volatile private var activeInstallWorker: Any? = null
         private const val FEX_MISSING = "droiddeck-fex: x86 Linux programs need"
