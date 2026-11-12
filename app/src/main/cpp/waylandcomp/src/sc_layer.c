@@ -750,13 +750,16 @@ static ASurfaceControl *swap_sc_begin(struct layer *l) {
 }
 
 static int present_slot(struct layer *l, int idx, const int r[8], const struct droiddeck_color *color,
-                        int translucent) {
+                        int translucent, int acquire_fd) {
     struct slot *s = &l->slots[idx];
     ASurfaceTransaction *tx = api.txCreate();
-    if (!tx) return -1;
+    if (!tx) {
+        if (acquire_fd >= 0) close(acquire_fd);
+        return -1;
+    }
     ASurfaceControl *old = swap_sc_begin(l);
     if (old) api.setZOrder(tx, l->sc, l->z);
-    api.setBuffer(tx, l->sc, s->ahb, -1);
+    api.setBuffer(tx, l->sc, s->ahb, acquire_fd);
     api.setBufferTransparency(tx, l->sc,
                               translucent ? ASC_TRANSPARENCY_TRANSLUCENT : ASC_TRANSPARENCY_OPAQUE);
     apply_geometry(tx, l, r);
@@ -860,8 +863,9 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { log_drop(l); return 0; }
-    if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, color, 0) != 0) return -1;
+    int done_fd;
+    if (vkp_blit_image(src, l->slots[idx].img, wait_fd, &done_fd) != 0) return -1;
+    if (present_slot(l, idx, r, color, 0, done_fd) != 0) return -1;
     if (color && color->dataspace) droiddeck_color_frame_shown(color, DROIDDECK_HDR_LAYER_COPY, AHB_RGBA8);
     if (!l->first_logged) {
         l->first_logged = 1;
@@ -884,7 +888,7 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
     int idx = take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, NULL, 0) != 0) return -1;
+    if (present_slot(l, idx, r, NULL, 0, -1) != 0) return -1;
     if (!l->first_logged) {
         l->first_logged = 1;
         droiddeck_log("layer", "presenting %dx%d frames on their own SurfaceControl layer (%s pool, %d buffers); "
@@ -918,7 +922,7 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
     }
     if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, tm ? NULL : color, 0) != 0) return -1;
+    if (present_slot(l, idx, r, tm ? NULL : color, 0, -1) != 0) return -1;
     if (color && color->dataspace)
         droiddeck_color_frame_shown(color, tm ? DROIDDECK_HDR_TONEMAPPED : DROIDDECK_HDR_COMPOSED, tm ? AHB_RGBA8 : g_hdr_pool_fmt);
     static int said = -1;
@@ -987,8 +991,9 @@ int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int transl
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { log_drop(l); return 0; }
-    if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, geo, NULL, translucent) != 0) return -1;
+    int done_fd;
+    if (vkp_blit_image(src, l->slots[idx].img, wait_fd, &done_fd) != 0) return -1;
+    if (present_slot(l, idx, geo, NULL, translucent, done_fd) != 0) return -1;
     if (!l->first_logged) {
         l->first_logged = 1;
         log_layer_count();

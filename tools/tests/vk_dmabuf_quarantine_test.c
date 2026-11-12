@@ -60,7 +60,7 @@ static int timerfd_settime(int fd, int flags, const struct itimerspec *v, void *
 static void perf_note_release(int64_t since) {}
 static int64_t now_ns(void) { return 1000000000LL; }
 static void vkp_image_destroy(struct vkp_image *img) { ++image_destroys; }
-/* No screen frame is pending in these scenarios; the GPU wait is covered by vk_terminal_callers_test.c. */
+/* No screen frame or layer blit is pending in these scenarios; the GPU wait is covered by vk_terminal_callers_test.c. */
 static void __attribute__((unused)) vkp_image_settle(struct vkp_image *img) { (void)img; }
 static void AHardwareBuffer_release(AHardwareBuffer *ahb) { ++ahb_releases; }
 static int wl_event_source_remove(struct wl_event_source *src) { ++source_removes; return 0; }

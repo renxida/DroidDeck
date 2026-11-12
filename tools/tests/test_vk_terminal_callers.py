@@ -144,6 +144,15 @@ int __android_log_print(int, const char *, const char *, ...);
     def test_two_frames_in_flight_timeout(self):
         self.run_scenario('two-in-flight-timeout')
 
+    def test_layer_blit_hands_its_fence_to_the_display(self):
+        self.run_scenario('layer-fence')
+
+    def test_layer_blit_fence_device_lost(self):
+        self.run_scenario('layer-fence-device-lost')
+
+    def test_layer_blit_fence_timeout(self):
+        self.run_scenario('layer-fence-timeout')
+
 
 if __name__ == '__main__':
     unittest.main()

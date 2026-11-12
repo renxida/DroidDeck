@@ -41,6 +41,13 @@ struct vkp_image {
     int sampled;
     AHardwareBuffer *android_buffer;
     uint64_t frame_use;
+    uint64_t gpu_use;
+    /* Layer slots (blit_dst) blit with their own command buffer, fence and
+     * semaphores so a blit can stay pending while the display holds the slot. */
+    VkCommandBuffer blit_cmd;
+    VkFence blit_fence;
+    VkSemaphore blit_wait, blit_done;
+    uint64_t blit_serial;
 };
 
 static ANativeWindow *g_window;
@@ -148,6 +155,11 @@ static int g_black_state;
 
 static PFN_vkImportSemaphoreFdKHR g_import_sem_fd;
 static VkSemaphore g_wait_sem;
+static PFN_vkGetSemaphoreFdKHR g_get_sem_fd;
+static int g_layer_fence;
+static uint64_t g_blit_serial;
+#define PENDING_BLITS 16
+static struct vkp_image *g_pending_blits[PENDING_BLITS];
 
 #define VKP_VENDOR_QUALCOMM 0x5143
 static uint32_t g_vendor_id;
@@ -213,8 +225,80 @@ static void frames_idle(void) {
 
 void vkp_frames_settle(void) { settle_frames(UINT64_MAX); }
 
+
+static void blit_forget(struct vkp_image *dst) {
+    dst->blit_serial = 0;
+    for (int i = 0; i < PENDING_BLITS; i++)
+        if (g_pending_blits[i] == dst) g_pending_blits[i] = NULL;
+}
+
+static int blit_wait(struct vkp_image *dst) {
+    if (!dst->blit_serial) return 0;
+    if (g_dev_state != 1) {
+        if (g_dev_state == -2) blit_forget(dst);
+        return -1;
+    }
+    VkResult r = timed_wait(dst->blit_fence, 1000000000ULL);
+    if (r == VK_ERROR_DEVICE_LOST) {
+        blit_forget(dst);
+        device_lost("layer blit");
+        return -1;
+    }
+    if (r != VK_SUCCESS) {
+        LOGE("layer: blit fence wait -> %s", vk_result_name(r));
+        return -1;
+    }
+    blit_forget(dst);
+    return 0;
+}
+
+static int settle_blits(uint64_t serial) {
+    int r = 0;
+    for (int i = 0; i < PENDING_BLITS; i++) {
+        struct vkp_image *d = g_pending_blits[i];
+        if (d && d->blit_serial <= serial && blit_wait(d) != 0) r = -1;
+    }
+    return r;
+}
+
+static void blits_idle(void) {
+    for (int i = 0; i < PENDING_BLITS; i++)
+        if (g_pending_blits[i]) blit_forget(g_pending_blits[i]);
+}
+
+static int blit_track(struct vkp_image *dst) {
+    int at = -1, oldest = -1;
+    for (int i = 0; i < PENDING_BLITS && at < 0; i++) {
+        if (!g_pending_blits[i]) at = i;
+        else if (oldest < 0 || g_pending_blits[i]->blit_serial < g_pending_blits[oldest]->blit_serial) oldest = i;
+    }
+    if (at < 0) {
+        if (blit_wait(g_pending_blits[oldest]) != 0) return -1;
+        at = oldest;
+    }
+    g_pending_blits[at] = dst;
+    dst->blit_serial = ++g_blit_serial;
+    return 0;
+}
+
+static void blit_slot_free(struct vkp_image *img) {
+    blit_forget(img);
+    if (g_dev) {
+        if (img->blit_cmd) g_vk.FreeCommandBuffers(g_dev, g_pool, 1, &img->blit_cmd);
+        if (img->blit_fence) g_vk.DestroyFence(g_dev, img->blit_fence, NULL);
+        if (img->blit_wait) g_vk.DestroySemaphore(g_dev, img->blit_wait, NULL);
+        if (img->blit_done) g_vk.DestroySemaphore(g_dev, img->blit_done, NULL);
+    }
+    img->blit_cmd = VK_NULL_HANDLE;
+    img->blit_fence = VK_NULL_HANDLE;
+    img->blit_wait = img->blit_done = VK_NULL_HANDLE;
+}
+
 void vkp_image_settle(struct vkp_image *img) {
-    if (img && img->frame_use) settle_frames(img->frame_use);
+    if (!img) return;
+    if (img->frame_use) settle_frames(img->frame_use);
+    const uint64_t s = img->gpu_use > img->blit_serial ? img->gpu_use : img->blit_serial;
+    if (s) settle_blits(s);
 }
 
 static struct { VkImage img; VkDeviceMemory mem; int w, h; } g_scene;
@@ -315,6 +399,7 @@ static void destroy_swapchain(void) {
         return;
     }
     frames_idle();
+    blits_idle();
     reset_sync();
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
     if (g_swapchain) g_vk.DestroySwapchainKHR(g_dev, g_swapchain, NULL);
@@ -549,6 +634,19 @@ static void log_display_driver(void) {
                    g_library_name);
 }
 
+static int sync_fd_exportable(void) {
+    PFN_vkGetInstanceProcAddr gipa = vk_loader_gipa();
+    PFN_vkGetPhysicalDeviceExternalSemaphoreProperties query = gipa
+        ? (PFN_vkGetPhysicalDeviceExternalSemaphoreProperties)gipa(g_inst, "vkGetPhysicalDeviceExternalSemaphoreProperties")
+        : NULL;
+    if (!query) return 1; /* the first export decides */
+    VkPhysicalDeviceExternalSemaphoreInfo info = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_SEMAPHORE_INFO,
+                                                  .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT};
+    VkExternalSemaphoreProperties props = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_PROPERTIES};
+    query(g_pd, &info, &props);
+    return (props.externalSemaphoreFeatures & VK_EXTERNAL_SEMAPHORE_FEATURE_EXPORTABLE_BIT) != 0;
+}
+
 static int dev_init(void) {
     if (g_dev_state != 0) return g_dev_state == 1 ? 0 : -1;
 
@@ -708,6 +806,18 @@ static int dev_init(void) {
     droiddeck_log("perf", "layer buffers: the display's release fences are waited for %s",
                g_import_sem_fd ? "on the GPU (VK_KHR_external_semaphore_fd)"
                                : "on the CPU (this driver has no VK_KHR_external_semaphore_fd)");
+    {
+        const char *why = NULL;
+        if (!want_sem_fd) why = "the driver has no VK_KHR_external_semaphore_fd";
+        else if (!(g_get_sem_fd = (PFN_vkGetSemaphoreFdKHR)g_vk.GetDeviceProcAddr(g_dev, "vkGetSemaphoreFdKHR")))
+            why = "the driver has no vkGetSemaphoreFdKHR";
+        else if (!g_vk.DestroyFence || !g_vk.FreeCommandBuffers) why = "the driver lacks vkDestroyFence or vkFreeCommandBuffers";
+        else if (!sync_fd_exportable()) why = "the driver cannot export a semaphore as a sync fd";
+        g_layer_fence = !why;
+        if (why) droiddeck_log("perf", "layer acquire fence: fallback: %s; layer blits are waited for on the CPU", why);
+        else droiddeck_log("perf", "layer acquire fence: sync fd (layer blits are handed to the display with their "
+                                   "completion fence instead of a CPU wait)");
+    }
     if (want_hdr_md)
         g_set_hdr_metadata = (PFN_vkSetHdrMetadataEXT)g_vk.GetDeviceProcAddr(g_dev, "vkSetHdrMetadataEXT");
     if (droiddeck_color_requested())
@@ -1318,7 +1428,10 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
 }
 
 void vkp_wait_idle(void) {
-    if (g_dev && g_vk.DeviceWaitIdle && g_vk.DeviceWaitIdle(g_dev) == VK_SUCCESS) frames_idle();
+    if (g_dev && g_vk.DeviceWaitIdle && g_vk.DeviceWaitIdle(g_dev) == VK_SUCCESS) {
+        frames_idle();
+        blits_idle();
+    }
 }
 
 struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
@@ -1538,6 +1651,7 @@ void vkp_image_destroy(struct vkp_image *img) {
     if (g_dev_state == -3) return; /* completion unknown: retain GPU ownership */
     vkp_image_settle(img);
     if (g_dev_state == -3) return;
+    blit_slot_free(img);
     if (g_dev) {
         blendp_forget_image(img->image);
         if (img->map) g_vk.UnmapMemory(g_dev, img->mem);
@@ -1951,11 +2065,11 @@ void vkp_perf_take(struct vkp_perf *out) {
 
 int vkp_can_wait_sync_fd(void) { return g_import_sem_fd != NULL && g_wait_sem != VK_NULL_HANDLE; }
 
-static int take_wait_fd(int fd) {
+static int take_wait_fd(int fd, VkSemaphore sem) {
     if (fd < 0) return 0;
-    if (vkp_can_wait_sync_fd()) {
+    if (g_import_sem_fd && sem != VK_NULL_HANDLE) {
         VkImportSemaphoreFdInfoKHR ii = {.sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
-                                         .semaphore = g_wait_sem, .flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
+                                         .semaphore = sem, .flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
                                          .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT, .fd = fd};
         if (g_import_sem_fd(g_dev, &ii) == VK_SUCCESS) {
             g_perf.gpu_release_waits++;
@@ -2400,16 +2514,49 @@ int vkp_map_draw(const struct vkp_draw *d, int out[8]) {
     return 1;
 }
 
-int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
+static int blit_slot_ready(struct vkp_image *dst) {
+    if (dst->blit_fence) return 0;
+    VkCommandBufferAllocateInfo cai = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, .commandPool = g_pool,
+                                       .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY, .commandBufferCount = 1};
+    VkFenceCreateInfo fci = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+    VkExportSemaphoreCreateInfo esi = {.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
+                                       .handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT};
+    VkSemaphoreCreateInfo dsi = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = &esi};
+    VkSemaphoreCreateInfo wsi = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+    VkFence fence = VK_NULL_HANDLE;
+    if (g_vk.AllocateCommandBuffers(g_dev, &cai, &dst->blit_cmd) != VK_SUCCESS) dst->blit_cmd = VK_NULL_HANDLE;
+    else if (g_vk.CreateSemaphore(g_dev, &dsi, NULL, &dst->blit_done) != VK_SUCCESS) dst->blit_done = VK_NULL_HANDLE;
+    else if (g_import_sem_fd && g_vk.CreateSemaphore(g_dev, &wsi, NULL, &dst->blit_wait) != VK_SUCCESS)
+        dst->blit_wait = VK_NULL_HANDLE;
+    else if (g_vk.CreateFence(g_dev, &fci, NULL, &fence) == VK_SUCCESS) {
+        dst->blit_fence = fence;
+        return 0;
+    }
+    blit_slot_free(dst);
+    g_layer_fence = 0;
+    droiddeck_log("perf", "layer acquire fence: fallback: a layer slot's command buffer, fence or exportable "
+                          "semaphore could not be created; layer blits are waited for on the CPU");
+    return -1;
+}
+
+int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd, int *done_fd) {
+    if (done_fd) *done_fd = -1;
     if (!src || src->blit_dst || !dst || !dst->blit_dst || g_dev_state == -2 || dev_init() != 0) {
         if (wait_fd >= 0) close(wait_fd);
         return -1;
     }
-    const int gpu_wait = take_wait_fd(wait_fd);
+    const int fenced = done_fd && g_layer_fence && blit_slot_ready(dst) == 0;
+    if (fenced && blit_wait(dst) != 0) {
+        if (wait_fd >= 0) close(wait_fd);
+        return -1;
+    }
+    const VkSemaphore wait_sem = fenced ? dst->blit_wait : g_wait_sem;
+    const int gpu_wait = take_wait_fd(wait_fd, wait_sem);
     if (gpu_wait < 0) return -1;
     VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-    VkCommandBuffer g_cmd = g_cmds[0];
+    VkCommandBuffer g_cmd = fenced ? dst->blit_cmd : g_cmds[0];
+    const VkFence fence = fenced ? dst->blit_fence : g_fence;
     g_vk.ResetCommandBuffer(g_cmd, 0);
     VkCommandBufferBeginInfo bi = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
@@ -2456,16 +2603,34 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
 
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
     VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &g_cmd,
-                       .waitSemaphoreCount = gpu_wait ? 1u : 0u, .pWaitSemaphores = gpu_wait ? &g_wait_sem : NULL,
-                       .pWaitDstStageMask = gpu_wait ? &wait_stage : NULL};
-    g_vk.ResetFences(g_dev, 1, &g_fence);
-    VkResult qr = g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
+                       .waitSemaphoreCount = gpu_wait ? 1u : 0u, .pWaitSemaphores = gpu_wait ? &wait_sem : NULL,
+                       .pWaitDstStageMask = gpu_wait ? &wait_stage : NULL,
+                       .signalSemaphoreCount = fenced ? 1u : 0u, .pSignalSemaphores = fenced ? &dst->blit_done : NULL};
+    g_vk.ResetFences(g_dev, 1, &fence);
+    VkResult qr = g_vk.QueueSubmit(g_queue, 1, &si, fence);
     if (qr != VK_SUCCESS) {
         if (qr == VK_ERROR_DEVICE_LOST) device_lost("layer blit");
         else LOGE("layer: blit submit failed (%d)", (int)qr);
         return -1;
     }
-    VkResult fr = timed_wait(g_fence, 1000000000ULL);
+    if (fenced) {
+        if (blit_track(dst) != 0) return -1;
+        src->gpu_use = dst->blit_serial;
+        VkSemaphoreGetFdInfoKHR gi = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
+                                      .semaphore = dst->blit_done,
+                                      .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT};
+        int fd = -1;
+        VkResult er = g_get_sem_fd(g_dev, &gi, &fd);
+        if (er == VK_SUCCESS) {
+            *done_fd = fd; /* -1 when the blit has already finished */
+            return 0;
+        }
+        g_layer_fence = 0;
+        droiddeck_log("perf", "layer acquire fence: fallback: exporting the blit's sync fd failed (%s); layer "
+                              "blits are waited for on the CPU from now on", vk_result_name(er));
+        return blit_wait(dst) == 0 ? 0 : -1;
+    }
+    VkResult fr = timed_wait(fence, 1000000000ULL);
     if (fr == VK_ERROR_DEVICE_LOST) { device_lost("layer blit"); return -1; }
     if (fr != VK_SUCCESS) { LOGE("layer: blit fence wait -> %s", vk_result_name(fr)); return -1; }
     return 0;
@@ -2715,7 +2880,7 @@ int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
         g_vk.EndCommandBuffer(cmd);
         return -1;
     }
-    const int gpu_wait = take_wait_fd(wait_fd);
+    const int gpu_wait = take_wait_fd(wait_fd, g_wait_sem);
     if (gpu_wait < 0) { g_vk.EndCommandBuffer(cmd); return -1; }
     VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
