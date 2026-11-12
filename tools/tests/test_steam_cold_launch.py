@@ -106,7 +106,7 @@ class SteamColdLaunchTest(unittest.TestCase):
     def test_the_warmup_experiment_polls_steam_more_often(self):
         result = self.run_launch("413150", ready_status=1, warmup=True)
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertEqual(["0.5"] * 60, self.sleep_args.read_text().split())
+        self.assertEqual(["0.5"] * 60 + ["1"], self.sleep_args.read_text().split())
 
     def test_a_focus_change_does_not_end_the_readiness_wait(self):
         result = self.run_launch("413150", focus="769 4242", ready_status=1)
