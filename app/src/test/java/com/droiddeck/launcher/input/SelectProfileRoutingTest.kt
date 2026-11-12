@@ -39,7 +39,7 @@ class SelectProfileRoutingTest {
         ControllerPrefs.setSelectSteam(context, true)
         shadowOf(context.getSystemService(InputManager::class.java)).addInputDevice(device)
         bridge.setInputRouter(InputRouter(output))
-        bridge.setInputProfile(InputProfiles.active(context, desktop = false))
+        bridge.setInputProfile(InputProfiles.active(context))
     }
 
     @After fun close() { bridge.stop() }
@@ -56,12 +56,12 @@ class SelectProfileRoutingTest {
     }
 
     @Test fun profileResetAndExplicitNativeBindingOverrideTheMigratedSetting() {
-        val migrated = InputProfiles.active(context, desktop = false)
+        val migrated = InputProfiles.active(context)
         InputProfiles.save(context, migrated.withBinding(InputRole.PHYSICAL, InputControl.SELECT, InputAction.Native()))
-        bridge.setInputProfile(InputProfiles.active(context, desktop = false))
+        bridge.setInputProfile(InputProfiles.active(context))
         assertNativeSelect()
         InputProfiles.reset(context, InputProfile.GAME)
-        bridge.setInputProfile(InputProfiles.active(context, desktop = false))
+        bridge.setInputProfile(InputProfiles.active(context))
         assertNativeSelect()
         assertTrue(ControllerPrefs.read(context).selectSteam)
     }
@@ -84,7 +84,7 @@ class SelectProfileRoutingTest {
         key(KeyEvent.KEYCODE_BUTTON_SELECT, false)
         assertFalse(state().isDown(PadState.SELECT))
         key(KeyEvent.KEYCODE_BUTTON_SELECT, true)
-        bridge.setInputRouter(InputRouter(output).also { it.setProfile(InputProfiles.active(context, desktop = false)) })
+        bridge.setInputRouter(InputRouter(output).also { it.setProfile(InputProfiles.active(context)) })
         assertFalse(state().isDown(PadState.GUIDE))
         key(KeyEvent.KEYCODE_BUTTON_SELECT, false)
         assertFalse(state().isDown(PadState.GUIDE))

@@ -57,10 +57,11 @@ class InputProfilesTest {
     }
 
     @Test fun profileSelectionIsExplicitAndNeverDependsOnDisplayPresence() {
-        assertEquals(InputProfile.DESKTOP, InputProfiles.active(context, true).id)
-        assertEquals(InputProfile.GAME, InputProfiles.active(context, false).id)
+        assertEquals(InputProfile.GAME, InputProfiles.active(context).id)
+        InputProfiles.select(context, InputProfile.DESKTOP)
+        assertEquals(InputProfile.DESKTOP, InputProfiles.active(context).id)
         InputProfiles.select(context, InputProfile.GAME)
-        assertEquals(InputProfile.GAME, InputProfiles.active(context, true).id)
+        assertEquals(InputProfile.GAME, InputProfiles.active(context).id)
     }
 
     @Test fun unknownVersionDoesNotExecuteBindings() {

@@ -20,7 +20,7 @@ class LegacyScreenKeyMigrationTest {
     }
 
     @Test fun upgradeImportsEverySavedSetWithoutChangingExistingProfilesAndIsIdempotent() {
-        val original = InputLibraries.read(context).selectProfile(false, "desktop")
+        val original = InputLibraries.read(context).selectProfile("desktop")
         prefs.edit().putString("library", JSONObject(InputLibraries.encode(original)).put("version", 5).toString()).commit()
         ControllerPrefs.prefs(context).edit().putString("screenKeys", "29+33:0.3,0.7,44::Find::0.6:1:1:1")
             .putBoolean("screenKeysShown", false).putString("screenLayout.Editor", "28:0.8,0.6,50::::1.0:2:0:1").commit()

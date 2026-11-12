@@ -19,10 +19,7 @@ object InputProfiles {
         }
     }
 
-    fun active(context: Context, desktop: Boolean): InputProfile {
-        val library = InputLibraries.read(context)
-        return library.compileActive(desktop)
-    }
+    fun active(context: Context): InputProfile = InputLibraries.read(context).compileActive()
 
     fun read(context: Context, id: String): InputProfile {
         return InputLibraries.read(context).compile(id)

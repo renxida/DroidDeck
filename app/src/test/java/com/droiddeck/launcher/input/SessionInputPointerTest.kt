@@ -134,19 +134,6 @@ class SessionInputPointerTest {
         assertTrue(state<Boolean>("cursorVisible").value)
     }
 
-    @Test fun touchpadZoomDoesNotReleaseCtrlHeldByTheProfileOrScreenKeys() {
-        val held = ReflectionHelpers.getField<HeldInput>(activity, "heldKeys")
-        output.key(29, true)
-        held.set(64, 29, true)
-        ReflectionHelpers.getField<PointerGestures.Listener>(activity, "pointerListener").onZoom(1)
-        assertEquals(listOf(29 to 1), CompositorShadow.keys)
-        output.key(29, false)
-        assertEquals(listOf(29 to 1), CompositorShadow.keys)
-        held.set(64, 29, false)
-        assertEquals(listOf(29 to 1, 29 to 0), CompositorShadow.keys)
-        assertEquals(listOf(Triple(4, 1, 0)), CompositorShadow.events)
-    }
-
     @Test fun routedMouseUsesRawBackendAndKeepsSharedButtonOwnership() {
         ReflectionHelpers.setField(activity, "mouseWriter", FakeInputWriter(activity.cacheDir.path, FakeInputWriter.MOUSE_SLOT))
         ReflectionHelpers.setField(activity, "evdevMouseActive", true)

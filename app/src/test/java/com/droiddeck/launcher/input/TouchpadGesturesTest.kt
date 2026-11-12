@@ -30,9 +30,6 @@ class TouchpadGesturesTest {
         }
         override fun onWheel(steps: Int) { events += "wheel $steps" }
         override fun onLongPress() { events += "long press" }
-        override fun onScroll(dx: Float, dy: Float) { events += "scroll" }
-        override fun onScrollEnd() { events += "scroll end" }
-        override fun onZoom(steps: Int) { events += "zoom $steps" }
         override fun onThreeFingerTap(): Boolean { events += "three tap"; return claimThreeTap }
     }
     private var claimThreeTap = false
@@ -74,38 +71,6 @@ class TouchpadGesturesTest {
         touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (400f to 300f), 2 to (600f to 310f))
         touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 300f))
         advance(100)
-    }
-
-    @Test fun desktopTwoFingerSlideScrollsSmoothlyAndStops() {
-        touchpad.desktop = true
-        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
-        advance(10)
-        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 300f))
-        for (step in 1..5) {
-            advance(16)
-            touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 300f + step * 20f), 2 to (600f to 300f + step * 20f))
-        }
-        touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (400f to 400f), 2 to (600f to 400f))
-        touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 400f))
-        advance(100)
-        assertTrue(events.contains("scroll"))
-        assertEquals("scroll end", events.last())
-        assertFalse(events.any { it.startsWith("right") || it.startsWith("wheel") })
-    }
-
-    @Test fun desktopPinchZoomsWithoutScrolling() {
-        touchpad.desktop = true
-        touch(MotionEvent.ACTION_DOWN, 0, 1 to (500f to 300f))
-        advance(10)
-        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (500f to 300f), 2 to (600f to 300f))
-        for (step in 1..6) {
-            advance(16)
-            touch(MotionEvent.ACTION_MOVE, 0, 1 to (500f - step * 30f to 300f), 2 to (600f + step * 30f to 300f))
-        }
-        touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (320f to 300f), 2 to (780f to 300f))
-        touch(MotionEvent.ACTION_UP, 0, 1 to (320f to 300f))
-        advance(100)
-        assertTrue(events.isNotEmpty() && events.all { it.startsWith("zoom -") })
     }
 
     @Test fun twoFingerTapHoldsTheRightButtonBeforeReleasingIt() {

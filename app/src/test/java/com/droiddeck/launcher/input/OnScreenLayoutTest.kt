@@ -140,19 +140,19 @@ class OnScreenLayoutTest {
 
     private val legacyKeys = "29+33:0.3,0.7,44::Find::0.6:1:1:1"
 
-    private fun importedOn(library: InputLibrary) = library.activeLayout(false, InputRole.PRIMARY)!!.elements.filter { it.id.startsWith("imported:") }
+    private fun importedOn(library: InputLibrary) = library.activeLayout(InputRole.PRIMARY)!!.elements.filter { it.id.startsWith("imported:") }
 
     @Test fun shownScreenKeysAreDrawnWithTheGamepadAfterMigration() {
         val before = gamepad()
         prefs.edit().clear().commit()
         ControllerPrefs.prefs(context).edit().putString("screenKeys", legacyKeys).commit()
         val migrated = InputLibraries.read(context)
-        val layout = migrated.activeLayout(false, InputRole.PRIMARY)!!
+        val layout = migrated.activeLayout(InputRole.PRIMARY)!!
         assertEquals(InputLibraries.OVERLAY, layout.id)
         assertEquals(before.elements, layout.elements.filterNot { it.id.startsWith("imported:") })
         assertEquals(1, importedOn(migrated).size)
-        assertEquals(InputAction.Keys(listOf(29, 33)), migrated.compileActive(false).elementAction(InputRole.PRIMARY, "imported:0", InputControl.A))
-        assertEquals(InputAction.Native(), migrated.compileActive(false).elementAction(InputRole.PRIMARY, "legacy:a", InputControl.A))
+        assertEquals(InputAction.Keys(listOf(29, 33)), migrated.compileActive().elementAction(InputRole.PRIMARY, "imported:0", InputControl.A))
+        assertEquals(InputAction.Native(), migrated.compileActive().elementAction(InputRole.PRIMARY, "legacy:a", InputControl.A))
         assertTrue(migrated.profiles.any { it.id == "migrated.screenkeys.0" })
         assertTrue(prefs.getBoolean(LegacyScreenKeyMigration.MERGED, false))
         assertEquals(migrated, InputLibraries.read(context))
@@ -164,12 +164,12 @@ class OnScreenLayoutTest {
         val fresh = InputLibraries.read(context)
         val backup = JSONObject().put("screenKeys", legacyKeys).toString()
         val old = LegacyScreenKeyMigration.migrate(context, fresh, backup)
-        val bindings = old.activePart(false, InputRole.PRIMARY).bindings
+        val bindings = old.activePart(InputRole.PRIMARY).bindings
         val edited = old.withPreset(old.preset(bindings).let { it.copy(controls = it.controls + (InputControl.A to InputAction.Keys(listOf(57)))) })
         prefs.edit().putString("library", InputLibraries.encode(edited)).putString(LegacyScreenKeyMigration.BACKUP, backup).commit()
         val merged = InputLibraries.read(context)
         assertEquals(1, importedOn(merged).size)
-        assertEquals(InputAction.Keys(listOf(57)), merged.compileActive(false).action(InputRole.PRIMARY, InputControl.A))
+        assertEquals(InputAction.Keys(listOf(57)), merged.compileActive().action(InputRole.PRIMARY, InputControl.A))
         assertEquals(edited.profiles, merged.profiles)
         assertEquals(edited.layouts.map { it.id }.toSet(), merged.layouts.map { it.id }.toSet())
         assertEquals(edited.layouts.first { it.id == "migrated.screenkeys.0.layout" }, merged.layouts.first { it.id == "migrated.screenkeys.0.layout" })
@@ -185,7 +185,7 @@ class OnScreenLayoutTest {
         val old = LegacyScreenKeyMigration.migrate(context, fresh, hidden)
         assertEquals(old, LegacyScreenKeyMigration.merge(old, hidden))
         val shown = JSONObject().put("screenKeys", legacyKeys).toString()
-        val selected = old.selectProfile(false, "migrated.screenkeys.0").selectProfile(true, "migrated.screenkeys.0")
+        val selected = old.selectProfile("migrated.screenkeys.0")
         assertEquals(selected, LegacyScreenKeyMigration.merge(selected, shown))
     }
 

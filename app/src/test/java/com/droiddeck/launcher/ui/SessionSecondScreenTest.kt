@@ -188,7 +188,7 @@ class SessionSecondScreenTest {
             val controls = descendants(panel.window!!.decorView).filterIsInstance<InputSurfaceView>().single()
             val element = InputSurfaceElement(InputControl.A, .3f, .2f, .2f, .2f, "updated")
             InputLibraries.update(activity) { library ->
-                val layout = library.activeLayout(false, InputRole.SECONDARY)!!
+                val layout = library.activeLayout(InputRole.SECONDARY)!!
                 library.withLayout(layout.copy(elements = listOf(element), style = InputSurfaceStyle(opacity = 35)))
             }
             panel.refreshControls()
@@ -314,8 +314,8 @@ class SessionSecondScreenTest {
                 SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.Role, androidx.compose.ui.semantics.Role.Button)).performClick()
             compose.runOnIdle {
                 val updated = InputLibraries.read(context)
-                assertEquals("desktop", updated.selection(false).profile)
-                assertEquals(InputLibraries.TRACKPAD, updated.activeLayout(false, InputRole.SECONDARY)?.id)
+                assertEquals("desktop", updated.selection().profile)
+                assertEquals(InputLibraries.TRACKPAD, updated.activeLayout(InputRole.SECONDARY)?.id)
                 assertEquals(original.profiles, updated.profiles)
                 val controls = descendants(panel.window!!.decorView).filterIsInstance<InputSurfaceView>().single()
                 val pads = descendants(controls).mapNotNull { it.tag as? InputSurfaceElement }.filter { it.kind == InputElementKind.TRACKPAD }.toList()

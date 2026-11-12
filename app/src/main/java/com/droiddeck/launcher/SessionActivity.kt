@@ -268,8 +268,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val gestureTouchStreamGate = GestureTouchStreamGate()
     private val clearRecognizedGesture = Runnable { recognizedGesture = null }
     private val gestureKeysDown = mutableSetOf<Int>()
-    private var scrollRestX = 0f
-    private var scrollRestY = 0f
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var cursorPos by mutableStateOf(androidx.compose.ui.geometry.Offset(-100f, -100f))
     private var cursorVisible by mutableStateOf(false)
@@ -2647,40 +2645,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             heldButtons.set(1, button, pressed)
         }
         override fun onWheel(steps: Int) { sendSceneWheel(steps) }
-        override fun onScroll(dx: Float, dy: Float) = fingerScroll(dx, dy)
-        override fun onScrollEnd() = fingerScrollEnd()
         override fun onThreeFingerTap(): Boolean {
             uiHandler.post { togglePcKeyboard() }
             return true
-        }
-        override fun onZoom(steps: Int) {
-            heldKeys.set(128, KEY_LEFTCTRL, true)
-            sendSceneWheel(steps)
-            heldKeys.set(128, KEY_LEFTCTRL, false)
         }
         override fun onLongPress() {
             @Suppress("DEPRECATION")
             (getSystemService(VIBRATOR_SERVICE) as? android.os.Vibrator)?.vibrate(15)
         }
-    }
-
-    private fun fingerScroll(dx: Float, dy: Float) {
-        val rect = drawnRect() ?: return
-        val out = SessionState.outputSize
-        scrollRestX += dx * out.first / rect.width() * AXIS_UNITS_PER_PIXEL
-        scrollRestY += dy * out.second / rect.height() * AXIS_UNITS_PER_PIXEL
-        val h = scrollRestX.toInt()
-        val v = scrollRestY.toInt()
-        if (h == 0 && v == 0) return
-        scrollRestX -= h
-        scrollRestY -= v
-        WaylandCompositor.nativeSendSceneInput(12, v, h)
-    }
-
-    private fun fingerScrollEnd() {
-        scrollRestX = 0f
-        scrollRestY = 0f
-        WaylandCompositor.nativeSendSceneInput(12, 0, 0)
     }
 
     private fun placeTouchpadAtGuest(rect: android.graphics.RectF) {
@@ -3026,12 +2998,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun refreshInputProfile() {
         val library = com.droiddeck.launcher.input.InputLibraries.read(this)
-        inputProfile = library.compileActive(false, secondScreenMode.panel(this))
-        primaryInputLayout = library.activeLayout(false, InputRole.PRIMARY)
+        inputProfile = library.compileActive(secondScreenMode.panel(this))
+        primaryInputLayout = library.activeLayout(InputRole.PRIMARY)
         adaptiveSticks = primaryInputLayout?.adaptiveSticks
         quickButtons = primaryInputLayout?.takeIf { it.editable }?.let { l -> l.quickButtons.associateWith { it !in l.style.hidden } }.orEmpty()
-        secondaryInputLayout = library.panelLayout(false, secondScreenMode.panel(this))
-        deckPanelLayouts = com.droiddeck.launcher.input.DeckPanel.entries.associateWith { library.panelLayout(false, it.bindings) }
+        secondaryInputLayout = library.panelLayout(secondScreenMode.panel(this))
+        deckPanelLayouts = com.droiddeck.launcher.input.DeckPanel.entries.associateWith { library.panelLayout(it.bindings) }
         inputUsesLocalActions = InputControl.padControls.any { inputProfile.action(InputRole.PHYSICAL, it) !is InputAction.Native }
         inputUsesPointer = inputProfile.bindings.values.any { bindings ->
             bindings.values.any { it is InputAction.Pointer || it is InputAction.MouseButton || it is InputAction.Scroll }
@@ -3385,10 +3357,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         val uiBlocking = drawerOpen || gestureSettingsOpen || inputSettingsOpen || pipUi || SessionState.suspended
-        if (event.actionMasked == MotionEvent.ACTION_DOWN && !uiBlocking && routedTouchMode != SessionPrefs.TOUCH_GESTURES) {
-            scrollRestX = 0f
-            scrollRestY = 0f
-        }
         val snapshot = com.droiddeck.launcher.input.TouchRouter.Snapshot(
             uiBlocking = uiBlocking,
             mode = routedTouchMode,
@@ -4380,8 +4348,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val UNBUFFERED_SOURCES = InputDevice.SOURCE_CLASS_JOYSTICK or InputDevice.SOURCE_CLASS_TRACKBALL or InputDevice.SOURCE_CLASS_POSITION
         private const val CURSOR_PAD_HOLD_MS = 1200L
         private const val CURSOR_RESYNC_IDLE_TICKS = 33
-        private const val AXIS_UNITS_PER_PIXEL = 3f
-        private const val KEY_LEFTCTRL = 29
         private const val BTN_SIDE = 0x113
         private const val BTN_EXTRA = 0x114
         private const val RELATIVE_MOUSE_MAX_RETRIES = 5

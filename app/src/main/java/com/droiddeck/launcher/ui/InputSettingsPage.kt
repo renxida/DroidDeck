@@ -202,7 +202,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                     SettingsGroup(stringResource(R.string.input_default_profiles)) {
                         ChoiceRow(host, "auto-game", stringResource(R.string.input_game_mode), null,
                             library.profiles.map { it.id to it.name }, library.steam) { id -> update { it.copy(steam = id) } }
-                        val selection = library.selection(false)
+                        val selection = library.selection()
                         if (selection.profile != InputProfiles.AUTO || selection.parts.isNotEmpty()) InputHint(stringResource(R.string.input_quick_override_hint,
                             stringResource(R.string.input_game_mode)))
                     }

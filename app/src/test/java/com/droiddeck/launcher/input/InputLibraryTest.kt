@@ -24,24 +24,24 @@ class InputLibraryTest {
         assertEquals(listOf("game", "desktop"), library.profiles.map { it.id })
         assertEquals(setOf(InputLibraries.OVERLAY, InputLibraries.TRACKPAD) + DeckPanel.entries.map { it.layout }, library.layouts.map { it.id }.toSet())
         assertEquals(10, library.bindings.size)
-        for (panel in DeckPanel.entries) assertEquals(panel.layout, library.panelLayout(false, panel.bindings)?.id)
-        assertEquals(InputLibraries.DECK, library.activeLayout(false, InputRole.SECONDARY)?.id)
-        assertEquals(InputLibraries.TRACKPAD, library.activeLayout(true, InputRole.SECONDARY)?.id)
-        assertEquals(InputAction.Pointer(), library.compileActive(true).action(InputRole.PHYSICAL, InputControl.LS))
-        assertEquals(InputAction.Native(), library.compileActive(false).action(InputRole.PHYSICAL, InputControl.LS))
+        for (panel in DeckPanel.entries) assertEquals(panel.layout, library.panelLayout(panel.bindings)?.id)
+        assertEquals(InputLibraries.DECK, library.activeLayout(InputRole.SECONDARY)?.id)
+        assertEquals(InputLibraries.TRACKPAD, library.layout("desktop", InputRole.SECONDARY)?.id)
+        assertEquals(InputAction.Pointer(), library.compile("desktop").action(InputRole.PHYSICAL, InputControl.LS))
+        assertEquals(InputAction.Native(), library.compileActive().action(InputRole.PHYSICAL, InputControl.LS))
 
-        val desktop = library.activeLayout(true, InputRole.SECONDARY)!!
+        val desktop = library.layout("desktop", InputRole.SECONDARY)!!
         val pad = desktop.elements.single { it.kind == InputElementKind.TRACKPAD }
         assertTrue(pad.mouseGestures)
         assertEquals(1, desktop.elements.size)
-        assertEquals(InputAction.Pointer(), library.compileActive(true).elementAction(InputRole.SECONDARY, pad.id, pad.control))
-        assertEquals(InputAction.MouseButton(272), library.compileActive(true).elementClickAction(InputRole.SECONDARY, pad))
-        val game = library.activeLayout(false, InputRole.SECONDARY)!!
+        assertEquals(InputAction.Pointer(), library.compile("desktop").elementAction(InputRole.SECONDARY, pad.id, pad.control))
+        assertEquals(InputAction.MouseButton(272), library.compile("desktop").elementClickAction(InputRole.SECONDARY, pad))
+        val game = library.activeLayout(InputRole.SECONDARY)!!
         assertEquals(6, game.elements.size)
         assertEquals(setOf(InputControl.LEFT_PAD, InputControl.RIGHT_PAD), game.elements.filter { it.kind == InputElementKind.TRACKPAD }.map { it.control }.toSet())
         for (control in listOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)) {
             val element = game.elements.single { it.control == control }
-            assertEquals(InputAction.Native(), library.compileActive(false).elementAction(InputRole.SECONDARY, element.id, element.control))
+            assertEquals(InputAction.Native(), library.compileActive().elementAction(InputRole.SECONDARY, element.id, element.control))
         }
         for (layout in InputStockLayouts.layouts()) assertTrue(layout.elements.none { it.id.startsWith("command:") })
         assertTrue(game.elements.filter { it.kind == InputElementKind.TRACKPAD }.all { it.y == .02f })
@@ -61,7 +61,7 @@ class InputLibraryTest {
         val layout = SavedInputLayout("builtin.left-pad", "My left pad", InputSurfaceLayout.defaults(), screen = InputLayoutScreen.SECONDARY)
         original = original.withLayout(layout).withPreset(SavedInputBindings("preset.left-pad", "My left pad", false, layout.id,
             controls = mapOf(InputControl.LEFT_PAD to InputAction.Pointer(700f))))
-            .selectProfile(true, "browser").selectPart(true, InputRole.SECONDARY, "preset.left-pad").validate()
+            .selectProfile("browser").selectPart(InputRole.SECONDARY, "preset.left-pad").validate()
         val raw = org.json.JSONObject(InputLibraries.encode(original)).put("version", 6).toString()
         prefs.edit().putString("library", raw).commit()
         assertEquals(original, InputLibraries.read(context))
@@ -173,9 +173,9 @@ class InputLibraryTest {
 
     @Test fun deletingActiveProfileFallsBackWithoutDeletingSharedParts() {
         val library = InputLibraries.read(context).duplicateProfile("desktop", "Editor", "editor")
-        val removed = library.copy(selected = "editor", desktop = "editor").removeProfile("editor").validate()
+        val removed = library.copy(selected = "editor", steam = "editor").removeProfile("editor").validate()
         assertEquals(InputProfiles.AUTO, removed.selected)
-        assertEquals("desktop", removed.desktop)
+        assertEquals("game", removed.steam)
         assertEquals(library.layouts, removed.layouts)
         assertEquals(library.bindings, removed.bindings)
     }
@@ -373,48 +373,56 @@ class InputLibraryTest {
         assertEquals(InputButtonShape.CIRCLE, restyled.single { it.control == InputControl.UP }.buttonShape)
         assertEquals(InputButtonShape.ROUNDED, upgraded.layouts.single { it.id == "mine" }.elements.single().buttonShape)
         assertEquals(upgraded, InputLibraries.read(context))
-        for (desktop in listOf(false, true))
-            assertEquals(InputAction.Command(InputCommand.KEYBOARD), upgraded.compileActive(desktop).elementAction(InputRole.PRIMARY, "builtin:keyboard", InputControl.A))
+        for (profile in listOf("game", "desktop"))
+            assertEquals(InputAction.Command(InputCommand.KEYBOARD), upgraded.compile(profile).elementAction(InputRole.PRIMARY, "builtin:keyboard", InputControl.A))
     }
 
-    @Test fun quickPartsAreModeSpecificAndDoNotEditSavedProfiles() {
+    @Test fun quickPartsDoNotEditSavedProfiles() {
         val original = InputLibraries.read(context)
-        val mixed = original.selectPart(true, InputRole.SECONDARY, InputStockLayouts.TRACKPAD).validate()
+        val mixed = original.selectPart(InputRole.SECONDARY, InputStockLayouts.TRACKPAD).validate()
         assertEquals(original.profiles, mixed.profiles)
-        assertEquals(original.compileActive(false), mixed.compileActive(false))
-        assertEquals(InputLibraries.TRACKPAD, mixed.activeLayout(true, InputRole.SECONDARY)?.id)
-        assertEquals(InputAction.Pointer(), mixed.compileActive(true).elementAction(InputRole.SECONDARY, "legacy:right-pad", InputControl.RIGHT_PAD))
+        assertEquals(original.compile("game"), mixed.compile("game"))
+        assertEquals(InputLibraries.TRACKPAD, mixed.activeLayout(InputRole.SECONDARY)?.id)
+        assertEquals(InputAction.Pointer(), mixed.compileActive().elementAction(InputRole.SECONDARY, "legacy:right-pad", InputControl.RIGHT_PAD))
         assertEquals(mixed, InputLibraries.decode(InputLibraries.encode(mixed)))
-        val restored = mixed.selectProfile(true, InputProfiles.AUTO)
-        assertTrue(restored.selection(true).parts.isEmpty())
-        assertEquals(original.compileActive(true), restored.compileActive(true))
+        val restored = mixed.selectProfile(InputProfiles.AUTO)
+        assertTrue(restored.selection().parts.isEmpty())
+        assertEquals(original.compileActive(), restored.compileActive())
+    }
+
+    @Test fun aSavedDesktopModeSelectionIsDroppedOnRead() {
+        val original = InputLibraries.read(context).selectPart(InputRole.SECONDARY, InputStockLayouts.TRACKPAD)
+        val raw = org.json.JSONObject(InputLibraries.encode(original)).put("desktop", "desktop")
+        raw.getJSONObject("selections").put("desktop", org.json.JSONObject().put("profile", "game").put("parts", org.json.JSONObject())
+            .put("profileSelected", true))
+        assertEquals(original, InputLibraries.decode(raw.toString()))
     }
 
     @Test fun explicitAutoSelectionStaysDistinctFromAnInheritedProfileAfterSaving() {
         val original = InputLibraries.read(context)
         val binding = original.profile("game").binding(InputRole.PHYSICAL)
-        val inherited = original.selectPart(false, InputRole.PHYSICAL, binding)
-        val explicit = original.selectProfile(false, InputProfiles.AUTO).selectPart(false, InputRole.PHYSICAL, binding)
-        assertFalse(InputLibraries.decode(InputLibraries.encode(inherited))!!.selection(false).profileSelected)
-        assertTrue(InputLibraries.decode(InputLibraries.encode(explicit))!!.selection(false).profileSelected)
-        assertEquals(inherited.compileActive(false), explicit.compileActive(false))
+        val inherited = original.selectPart(InputRole.PHYSICAL, binding)
+        val explicit = original.selectProfile(InputProfiles.AUTO).selectPart(InputRole.PHYSICAL, binding)
+        assertFalse(InputLibraries.decode(InputLibraries.encode(inherited))!!.selection().profileSelected)
+        assertTrue(InputLibraries.decode(InputLibraries.encode(explicit))!!.selection().profileSelected)
+        assertEquals(inherited.compileActive(), explicit.compileActive())
     }
 
     @Test fun versionSevenSelectionsRetainKnownProfileAndPartChoices() {
         val original = InputLibraries.read(context)
         val binding = original.profile("game").binding(InputRole.PHYSICAL)
         val choices = listOf(
-            original.selectPart(false, InputRole.PHYSICAL, binding) to false,
-            original.selectProfile(false, InputProfiles.AUTO) to true,
-            original.selectProfile(false, "game").selectPart(false, InputRole.PHYSICAL, binding) to true,
-            original.selectPart(false, InputRole.SECONDARY, InputStockLayouts.TRACKPAD) to false,
+            original.selectPart(InputRole.PHYSICAL, binding) to false,
+            original.selectProfile(InputProfiles.AUTO) to true,
+            original.selectProfile("game").selectPart(InputRole.PHYSICAL, binding) to true,
+            original.selectPart(InputRole.SECONDARY, InputStockLayouts.TRACKPAD) to false,
         )
         for ((library, selected) in choices) {
             val old = org.json.JSONObject(InputLibraries.encode(library)).put("version", 7)
             old.getJSONObject("selections").getJSONObject("game").remove("profileSelected")
             prefs.edit().putString("library", old.toString()).commit()
             val restored = InputLibraries.read(context)
-            assertEquals(selected, restored.selection(false).profileSelected)
+            assertEquals(selected, restored.selection().profileSelected)
             assertEquals(library, restored)
             assertEquals(restored, InputLibraries.read(context))
         }
@@ -422,13 +430,13 @@ class InputLibraryTest {
 
     @Test fun savedQuickCombinationOwnsIndependentCopiesOfAllThreeParts() {
         val original = InputLibraries.read(context)
-        val mixed = original.selectPart(true, InputRole.SECONDARY, InputStockLayouts.TRACKPAD)
-        val saved = mixed.saveSelection(true, "Writing", "writing").validate()
-        assertEquals("writing", saved.activeId(true))
-        assertTrue(saved.selection(true).parts.isEmpty())
+        val mixed = original.selectPart(InputRole.SECONDARY, InputStockLayouts.TRACKPAD)
+        val saved = mixed.saveSelection("Writing", "writing").validate()
+        assertEquals("writing", saved.activeId())
+        assertTrue(saved.selection().parts.isEmpty())
         for (role in InputRole.entries) {
-            val source = mixed.activePart(true, role)
-            val copy = saved.activePart(true, role)
+            val source = mixed.activePart(role)
+            val copy = saved.activePart(role)
             assertNotEquals(source.bindings, copy.bindings)
             if (role != InputRole.PHYSICAL) assertNotEquals(source.layout, copy.layout)
             assertEquals(mixed.preset(source.bindings).elements, saved.preset(copy.bindings).elements)
@@ -437,11 +445,11 @@ class InputLibraryTest {
     }
 
     @Test fun activeQuickPartsCannotBeDeletedAndInvalidCombinationsAreRejected() {
-        val library = InputLibraries.read(context).selectPart(false, InputRole.SECONDARY, InputStockLayouts.TRACKPAD)
+        val library = InputLibraries.read(context).selectPart(InputRole.SECONDARY, InputStockLayouts.TRACKPAD)
         assertThrows(IllegalArgumentException::class.java) { library.removeBindings(InputStockLayouts.TRACKPAD) }
         assertThrows(IllegalArgumentException::class.java) { library.removeLayout(InputLibraries.TRACKPAD) }
-        assertThrows(IllegalArgumentException::class.java) { library.selectPart(false, InputRole.PHYSICAL, InputStockLayouts.TRACKPAD).validate() }
-        assertThrows(IllegalArgumentException::class.java) { library.selectProfile(false, "missing").validate() }
+        assertThrows(IllegalArgumentException::class.java) { library.selectPart(InputRole.PHYSICAL, InputStockLayouts.TRACKPAD).validate() }
+        assertThrows(IllegalArgumentException::class.java) { library.selectProfile("missing").validate() }
     }
 
     @Test fun oldFixedLowerPanelsMigrateIntoEditableLayoutsWithWorkingCommands() {
