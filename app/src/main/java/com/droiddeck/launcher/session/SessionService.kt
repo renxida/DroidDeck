@@ -43,7 +43,6 @@ import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.frontend.GameLaunchLink
 import com.droiddeck.launcher.input.FakeInputWriter
 import com.droiddeck.launcher.input.SteamControllerBle
-import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
@@ -852,7 +851,6 @@ class SessionService : Service() {
     private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>) {
         guest.add("/usr/bin/env")
         guest.add("-i")
-        guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
         guest.add("HOME=/root")
         guest.add("USER=root")
         guest.add("PATH=" + LinuxRuntime.GUEST_PATH)

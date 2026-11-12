@@ -25,15 +25,10 @@ def guest_prefix(package):
         if not line.startswith("guest.add("):
             continue
         expression = line[len("guest.add("):-1]
-        match = re.fullmatch(r'("[^"\\]*")(?: \+ (.+))?', expression)
+        match = re.fullmatch(r'("[^"\\]*")', expression)
         if match is None:
             raise AssertionError("Launch prefix changed; update its regression harness: " + line)
-        value = json.loads(match[1])
-        if match[2]:
-            if match[2] != "com.droiddeck.launcher.runtime.BwrapSpawner.socket(this)":
-                raise AssertionError("Unexpected dynamic launch-prefix argument: " + line)
-            value += package + ".bwrap"
-        prefix.append(value)
+        prefix.append(json.loads(match[1]))
     return prefix
 
 
@@ -44,15 +39,13 @@ class SessionGuestCommandTest(unittest.TestCase):
                 self.assertEqual(["/usr/bin/env", "-i"], guest_prefix(package)[:2])
 
     @unittest.skipUnless(Path("/usr/bin/env").is_file(), "needs /usr/bin/env")
-    def test_child_receives_its_package_socket_after_environment_is_cleared(self):
+    def test_child_starts_with_a_cleared_environment(self):
         for package in PACKAGES:
             with self.subTest(package=package):
                 result = subprocess.run(
                     guest_prefix(package), capture_output=True, text=True, check=True,
-                    timeout=5, env={"DROIDDECK_BWRAP_SOCKET": "wrong.bwrap", "STALE_HOST": "1"})
-                self.assertEqual(
-                    ["DROIDDECK_BWRAP_SOCKET=" + package + ".bwrap"],
-                    result.stdout.splitlines())
+                    timeout=5, env={"STALE_HOST": "1"})
+                self.assertEqual([], result.stdout.splitlines())
 
 
 if __name__ == "__main__":

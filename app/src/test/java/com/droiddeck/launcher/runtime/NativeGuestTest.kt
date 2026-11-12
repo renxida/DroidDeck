@@ -3,6 +3,7 @@ package com.droiddeck.launcher.runtime
 import java.io.File
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -95,5 +96,27 @@ class NativeGuestTest {
         val binds = sdBinds + "/data/user/0/app/files/steam-libraries/x/steamapps/compatdata:/mnt/bannerlator-sd/steamapps/compatdata"
         assertEquals("/mnt/droiddeck-sd/steamapps/compatdata/2",
             NativeGuest.guestLinkTarget("/data/user/0/app/files/steam-libraries/x/steamapps/compatdata/2", linkRoot, binds))
+    }
+
+    private val session = listOf("/dev", "/cache/shm:/dev/shm", "/proc", "/rootfs/etc/droiddeck/proc/stat:/proc/stat", "/data/files")
+
+    @Test
+    fun underRespectsPathBoundaries() {
+        assertTrue(NativeGuest.under("/usr/lib", "/usr"))
+        assertTrue(NativeGuest.under("/usr", "/usr"))
+        assertFalse(NativeGuest.under("/usrlocal", "/usr"))
+        assertTrue(NativeGuest.under("/anything", "/"))
+    }
+
+    @Test
+    fun hostPathGoesThroughTheMostSpecificSessionBind() {
+        assertEquals("/cache/shm/x", NativeGuest.hostPath(session, "/rootfs", "/dev/shm/x"))
+        assertEquals("/dev/null", NativeGuest.hostPath(session, "/rootfs", "/dev/null"))
+        assertEquals("/data/files/.wayland-rt/wayland-1", NativeGuest.hostPath(session, "/rootfs", "/data/files/.wayland-rt/wayland-1"))
+    }
+
+    @Test
+    fun hostPathFallsBackToTheRootfs() {
+        assertEquals("/rootfs/root/.local/share/Steam", NativeGuest.hostPath(session, "/rootfs/", "/root/.local/share/Steam"))
     }
 }

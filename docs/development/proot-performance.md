@@ -58,8 +58,6 @@ SessionService ─HostProcess─▶ libproot.so (ONE tracer process, nice -6 aft
   `/proc` and `/sys` files, the GPU node, `/dev/shm`, storage and the game libraries.
 - `/etc/ld.so.preload` loads `libblsession.so` (the `tools/linuxfs/preload/*.c` shims) into every
   guest process.
-- The Flatpak sandboxes (`BwrapSpawner`) already run in **separate** proot instances, started from
-  the Android side.
 
 ### What proot does per traced syscall
 
@@ -249,7 +247,7 @@ call can be answered in-process with the 0014 design.
    versioned (`linuxfs-rN`), so glibc rebuilds stay under control.
 7. **On the tracer side, with no in-process changes:**
    - **A second proot for the game tree.** Measured 2.5× trap throughput, and Steam/CEF bursts no
-     longer stall the game. `BwrapSpawner` already shows the pattern: a stand-in process in the
+     longer stall the game. `RootSpawner` already shows the pattern: a stand-in process in the
      session relays stdio, the exit status and signals to a proot started from the app.
    - Leave the tracer unpinned (above).
    - Set `GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216` in the session

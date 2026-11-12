@@ -6,7 +6,6 @@ import android.os.Environment
 import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
-import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.runtime.LegacyNames
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
@@ -69,7 +68,6 @@ object SessionFiles {
             "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
             "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
             "usr/local/bin/droiddeck-pipewire" to "usr/local/bin/droiddeck-pipewire",
-            "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
             "usr/local/bin/droiddeck-innoextract" to "usr/local/bin/droiddeck-innoextract",
@@ -214,12 +212,6 @@ object SessionFiles {
         }
         writeCjkFontConfig(root, etc)
         val droiddeckEtc = File(etc, "droiddeck").apply { mkdirs() }
-        val stagedSocket = File(droiddeckEtc, "bwrap-socket.staged")
-        if (!FileUtils.writeString(stagedSocket, BwrapSpawner.socket(context) + "\n")
-            || !stagedSocket.renameTo(File(droiddeckEtc, "bwrap-socket"))) {
-            stagedSocket.delete()
-            Log.e(TAG, "could not write bwrap-socket")
-        }
         val stagedRoot = File(droiddeckEtc, "root-socket.staged")
         if (!FileUtils.writeString(stagedRoot, com.droiddeck.launcher.runtime.RootSpawner.socket(context) + "\n")
             || !stagedRoot.renameTo(File(droiddeckEtc, "root-socket"))) {
