@@ -123,12 +123,12 @@ class SessionLogShareZipTest {
                 "Authorization: Bearer abc.def.ghi\n" +
                 "kept: EResult 5, app 1086940, steamapps/common/Game\n"
         )
-        File(logs, SessionPaths.TOOLS_DIR).apply { mkdirs() }.resolve("flatpak-install.log").writeText("== install\nCookie: steamLoginSecure=76561198000000000%7C%7Ceyabc\n")
+        File(logs, SessionPaths.TOOLS_DIR).apply { mkdirs() }.resolve("wincomponents-vcredist.log").writeText("== install\nCookie: steamLoginSecure=76561198000000000%7C%7Ceyabc\n")
 
         val zip = SessionLogShare.zipFolder(app, session)!!
         assertTrue(zip.path.startsWith(File(app.cacheDir, "share").path))
         val text = ZipFile(zip).use { z -> z.entries().toList().associate { e -> e.name to z.getInputStream(e).bufferedReader().readText() } }
-        assertTrue(text.keys.containsAll(listOf("2026-10-08-01-steam/session.log", "tools/flatpak-install.log")))
+        assertTrue(text.keys.containsAll(listOf("2026-10-08-01-steam/session.log", "tools/wincomponents-vcredist.log")))
         val all = text.values.joinToString("\n")
         for (secret in listOf("0a1b2c3d4e5f", "deadbeefcafe", "abcdef123456", "someone@example.com", "AUTHCODE123", "abc.def.ghi", "eyabc")) {
             assertFalse("$secret survived", all.contains(secret))

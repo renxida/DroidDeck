@@ -14,7 +14,6 @@ object DesktopCatalog {
     private const val TAG = "DesktopCatalog"
     const val STEAM_SEED_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/steam-seed.json"
     const val PROTON_SEED_ID = "proton-arm64"
-    const val APPIMAGE_EXEC = "/usr/local/bin/droiddeck-appimage-exec"
 
     class Entry(
         val id: String, val name: String, val tier: Int, val version: String, val kind: String,

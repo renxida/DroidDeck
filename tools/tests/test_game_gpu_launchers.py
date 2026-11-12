@@ -29,11 +29,6 @@ class GameGpuLaunchersTest(unittest.TestCase):
         self.report.write_text("#!/bin/sh\nfor k in %s; do eval \"echo $k=\\${$k-unset}\"; done > %s\n"
                                % (" ".join(KEYS), self.out))
         self.report.chmod(0o755)
-        flatpak = self.tools / "flatpak"
-        flatpak.write_text("#!/bin/sh\n"
-                           "if [ \"$1\" = info ]; then [ \"$3\" = org.example.App ] && echo %s; exit 0; fi\n"
-                           "exec %s\n" % (self.app, self.report))
-        flatpak.chmod(0o755)
 
     def chromium(self):
         (self.app / "files/lib/browser").mkdir(parents=True)
@@ -50,14 +45,11 @@ class GameGpuLaunchersTest(unittest.TestCase):
     def wrapper(self, *args, session=SESSION):
         return self.run_env([sys.executable, str(BIN / "droiddeck-game-gpu"), *args, "--", str(self.report)], session)
 
-    def flatpak(self, session=SESSION):
-        return self.run_env(["bash", str(BIN / "droiddeck-flatpak-run"), "--command=app", "org.example.App"], session)
-
     def test_the_wrapper_gives_a_program_the_game_setting(self):
         self.assertEqual({key: "unset" for key in KEYS}, self.wrapper())
         self.assertEqual("gmem", self.wrapper(session={"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "gmem"})["TU_DEBUG"])
 
-    def test_non_flatpak_programs_keep_the_session_gpu_path(self):
+    def test_programs_keep_the_session_gpu_path(self):
         values = self.wrapper(session=GPU_SESSION)
         self.assertEqual(GPU_SESSION, {key: values[key] for key in GPU_SESSION})
 
@@ -78,18 +70,6 @@ class GameGpuLaunchersTest(unittest.TestCase):
         self.assertEqual(127, result.returncode)
         self.assertEqual(2, subprocess.run([sys.executable, str(BIN / "droiddeck-game-gpu")], capture_output=True,
                                            timeout=30).returncode)
-
-    def test_a_flatpak_app_gets_the_game_setting(self):
-        self.assertEqual({key: "unset" for key in KEYS}, self.flatpak(session=dict(SESSION, **GPU_SESSION)))
-        self.assertEqual("nolrz", self.flatpak({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"})["TU_DEBUG"])
-
-    def test_a_chromium_flatpak_keeps_the_session_setting(self):
-        self.chromium()
-        values = self.flatpak()
-        self.assertEqual(("sysmem", "unset"), (values["TU_DEBUG"], values["DROIDDECK_GAME_TU_DEBUG"]))
-
-    def test_a_flatpak_without_the_game_setting_is_unchanged(self):
-        self.assertEqual("sysmem", self.flatpak({"TU_DEBUG": "sysmem"})["TU_DEBUG"])
 
     def test_a_snap_gets_the_game_setting_unless_it_is_chromium(self):
         try:

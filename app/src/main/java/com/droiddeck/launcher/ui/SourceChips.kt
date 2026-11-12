@@ -15,19 +15,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 
-
-internal val FlathubTeal = Color(0xFF3FB8AF)
-internal val FlathubInk = Color(0xFF04211F)
-
-internal const val FLATHUB = "flathub"
-
 internal class SourceColours(val fill: Color, val ink: Color, val dot: Color)
 
 internal const val SOURCE_STEAM = "steam"
 
 internal fun sourceColours(source: String): SourceColours = when (source) {
     SOURCE_STEAM -> SourceColours(Color(0xFF16293D), Color(0xFF7CC4FF), Color(0xFF1A9FFF))
-    FLATHUB -> SourceColours(Color(0xFF0B2E2B), Color(0xFF9FE3DD), FlathubTeal)
     else -> SourceColours(Color(0xFF1A1D22), Color(0xFF9AA3AF), Color(0xFF9AA3AF))
 }
 

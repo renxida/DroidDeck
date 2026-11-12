@@ -6,7 +6,6 @@ import shutil
 HOME = os.environ.get("HOME", "/root")
 SYSTEM_DIR = "/usr/share/applications"
 LOCAL_DIR = "/usr/local/share/applications"
-FLATPAK_DIR = os.path.join(HOME, ".local/share/flatpak/exports/share/applications")
 USER_DIR = os.path.join(HOME, ".local/share/applications")
 MARK = "X-DroidDeck-GPU=1"
 SKIP = re.compile(r"^(steam|droiddeck-game-|droiddeck-steam|steamdeck-)", re.I)
@@ -55,8 +54,6 @@ def chromium_exec(exec_line):
 
 
 def gpu_exec(exec_line):
-    if exec_line.startswith("/usr/bin/flatpak run ") or exec_line.startswith("flatpak run "):
-        exec_line = "/usr/local/bin/droiddeck-flatpak-run " + exec_line.split(" run ", 1)[1]
     return "droiddeck-gpu " + exec_line
 
 
@@ -131,7 +128,7 @@ def main():
     on = enabled()
     os.makedirs(USER_DIR, exist_ok=True)
     written = set()
-    sources = [d for d in (SYSTEM_DIR, LOCAL_DIR, FLATPAK_DIR) if os.path.isdir(d)]
+    sources = [d for d in (SYSTEM_DIR, LOCAL_DIR) if os.path.isdir(d)]
     for source in sources:
         for name in sorted(os.listdir(source)):
             if not name.endswith(".desktop") or SKIP.match(name):

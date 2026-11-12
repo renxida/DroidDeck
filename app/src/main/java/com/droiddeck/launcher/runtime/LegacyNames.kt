@@ -10,8 +10,7 @@ object LegacyNames {
     private const val TAG = "LegacyNames"
     const val SESSION_SCRIPT = "/usr/local/bin/bannerlator-session"
     val SCRIPTS = listOf(
-        "appimage-run", "bwrap", "desktop-games", "flatpak", "flatpak-run", "flatpak-setup",
-        "game-env", "login1", "netmanager", "proton-extra", "script-run",
+        "bwrap", "desktop-games", "game-env", "login1", "netmanager", "proton-extra", "script-run",
         "seed-redists", "session", "steam-games", "steam-install", "steam-launch",
         "steam-library", "steam-shim", "steam-shortcuts",
     )
@@ -23,8 +22,6 @@ object LegacyNames {
     )
     private val MENU_REWRITES = listOf(
         Triple("usr/local/share/applications", "/usr/local/bin/bannerlator-", "/usr/local/bin/droiddeck-"),
-        Triple("usr/share/applications", "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/",
-            "Exec=${DesktopCatalog.APPIMAGE_EXEC} /opt/appimages/"),
     )
 
     @JvmStatic

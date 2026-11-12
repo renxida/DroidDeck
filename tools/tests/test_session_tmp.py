@@ -11,10 +11,9 @@ SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/d
 
 STEAM = ["mangohud.Ab3dE6gH", ".com.valvesoftware.Steam.x1Y2z3/", "steam_chrome_shmem_uid10480_0", "steamADfAnd/"]
 CHROMIUM = ["scoped_dir3yu9Xt/SingletonSocket"]
-APPIMAGE = ["droiddeck-appimage.19PoOD"]
 BUS = ["dbus-1zWfOP1IaR="]
 KDE = ["plasma-csd-generator.BVWIWA/"]
-STALE = STEAM + CHROMIUM + APPIMAGE + BUS + KDE
+STALE = STEAM + CHROMIUM + BUS + KDE
 KEPT = ["droiddeck-mangohud.conf", ".X11-unix/", "steamworks", "steamABCDEF/inside", "notes.txt",
         "mangohud.conf", ".wine-10480/", "dbus-1zWfOP1IaR.log", "dbus-notasocket",
         "plasma-csd-generator.CQGZSw/kept"]
@@ -57,7 +56,7 @@ class SessionTmpTest(unittest.TestCase):
         return os.path.lexists(self.tmp / name.rstrip("=").split("/")[0])
 
     def test_what_killed_sessions_left_goes_and_nothing_else(self):
-        self.assertEqual("== /tmp: cleared 8 entries earlier sessions left\n", self.sweep())
+        self.assertEqual("== /tmp: cleared 7 entries earlier sessions left\n", self.sweep())
         for name in STALE:
             self.assertFalse(self.exists(name), name)
         for name in KEPT:
@@ -73,9 +72,6 @@ class SessionTmpTest(unittest.TestCase):
 
     def test_a_running_chromium_keeps_its_singleton(self):
         self.kept_while("88 /opt/Heroic/heroic --type=renderer --enable-features=x\n", CHROMIUM)
-
-    def test_a_running_appimage_keeps_its_stamp(self):
-        self.kept_while("77 /bin/bash /usr/local/bin/droiddeck-appimage-run /root/Apps/X.AppImage\n", APPIMAGE)
 
     def test_a_running_session_bus_keeps_its_socket(self):
         self.kept_while("66 dbus-daemon --config-file=/usr/share/dbus-1/session.conf --nofork --session\n", BUS)

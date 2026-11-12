@@ -53,7 +53,6 @@ import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Button
 import com.droiddeck.launcher.ui.GlideDropdownMenu as DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -96,7 +95,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive

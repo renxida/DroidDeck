@@ -108,14 +108,13 @@ prepare_locale() {
 
 clear_stale_tmp() {
   local running names=() n
-  running=$(pgrep -af 'steamwebhelper|steamrtarm64/steam|steamrt64/steam|--type=|droiddeck-appimage-run|dbus-run-session|dbus-daemon.*--session|dbus-launch|kwin|plasmashell' 2>/dev/null)
+  running=$(pgrep -af 'steamwebhelper|steamrtarm64/steam|steamrt64/steam|--type=|dbus-run-session|dbus-daemon.*--session|dbus-launch|kwin|plasmashell' 2>/dev/null)
   case $running in
     *steamwebhelper* | *steamrtarm64/steam* | *steamrt64/steam*) ;;
     *) names+=(-o -name 'mangohud.????????' -o -name '.com.valvesoftware.Steam.??????'
                -o -name 'steam_chrome_shmem_uid*' -o \( -type d -empty -name 'steam??????' \)) ;;
   esac
   case $running in *--type=*) ;; *) names+=(-o \( -type d -name 'scoped_dir??????' \)) ;; esac
-  case $running in *droiddeck-appimage-run*) ;; *) names+=(-o -name 'droiddeck-appimage.??????') ;; esac
   case $running in
     *dbus-run-session* | *dbus-daemon*--session* | *dbus-launch*) ;;
     *) names+=(-o \( -type s -name 'dbus-??????????' \)) ;;
@@ -404,8 +403,6 @@ if [ "$mode" = lxqt ] || [ "$mode" = desktop ]; then
   /usr/local/bin/droiddeck-desktop-bookmarks || true
   /usr/local/bin/droiddeck-downloads || true
 fi
-export FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap
-export XDG_DATA_DIRS=$XDG_DATA_HOME/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}
 
 client_single_core_matches() {
   local wanted=$1 task key cpus
@@ -648,9 +645,6 @@ case $mode in
       esac
     fi
     case ${target,,} in
-      *.appimage)
-        run_program /usr/local/bin/droiddeck-appimage-exec "$target" "$@"
-        ;;
       *.sh)
         if [ -x /usr/local/bin/droiddeck-fex ]; then
           run_program /usr/local/bin/droiddeck-fex run --for "$target" -- bash "$target" "$@"

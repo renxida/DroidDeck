@@ -39,7 +39,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.DesktopWindows
-import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -62,7 +61,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -74,7 +72,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -87,7 +84,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
-import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.store.UserAppsState
@@ -106,7 +102,6 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val short = compactDesktop()
     val colors = MaterialTheme.colorScheme
     LaunchedEffect(Unit) { UserAppsState.refresh(ctx) }
-    LaunchedEffect(s.ready) { com.droiddeck.launcher.store.StoreState.refresh(ctx) }
     val apps = UserAppsState.items
     var adding by rememberSaveable { mutableStateOf(false) }
     val mode = SessionService.MODE_DESKTOP
@@ -148,7 +143,6 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
             ) {
-                HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub") { at -> openFrom(at, null, "store") }
                 HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add") { if (!s.busy) adding = true }
                 if (s.desktopPresent) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
             }
@@ -172,8 +166,7 @@ private fun DesktopDock(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val narrow = LocalNarrowPane.current
-    val flatpaks = com.droiddeck.launcher.store.StoreState.installed.filter { f -> apps.none { it.key == "flatpak:${f.id}" } }
-    val keys = apps.map { "user:${it.key}" } + flatpaks.map { "flatpak:${it.id}" }
+    val keys = apps.map { "user:${it.key}" }
     val seen = remember { mutableSetOf<String>() }
     val mounted = remember { booleanArrayOf(false) }
     LaunchedEffect(Unit) { mounted[0] = true }
@@ -195,15 +188,8 @@ private fun DesktopDock(
                     LaunchedEffect(Unit) { seen += k }
                     AnimatedVisibility(state, enter = expandHorizontally(Motion.sp(0.75f)) + fadeIn(Motion.tw(300, 80))) {
                         Box {
-                            val flatpak = flatpaks.firstOrNull { "flatpak:${it.id}" == k }
                             val app = apps.firstOrNull { "user:${it.key}" == k }
-                            if (flatpak != null) DesktopCard(
-                                k, flatpak.name, flatpak.summary ?: stringResource(R.string.flathub_name),
-                                art = flatpak.icon ?: com.droiddeck.launcher.store.FlathubApi.iconUrl(flatpak.id), first = i == 0,
-                            ) { at ->
-                                com.droiddeck.launcher.store.StoreState.openRequest = flatpak.id
-                                openFrom(at, flatpak.icon, "store")
-                            } else if (app != null) DesktopCard(k, app.name, stringResource(app.kind.label()), art = app.icon, fallback = if (app.kind == UserApps.Kind.SCRIPT) Icons.Outlined.Terminal else Icons.Outlined.Apps, first = i == 0) { at ->
+                            if (app != null) DesktopCard(k, app.name, stringResource(R.string.user_apps_kind_script), art = app.icon, fallback = Icons.Outlined.Terminal, first = i == 0) { at ->
                                 openFrom(at, app.icon, k)
                             }
                         }

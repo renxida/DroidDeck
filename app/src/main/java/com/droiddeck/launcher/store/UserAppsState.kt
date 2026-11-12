@@ -23,10 +23,6 @@ object UserAppsState {
         private set
     var lastError by mutableStateOf<String?>(null)
         private set
-    var checking by mutableStateOf<String?>(null)
-        private set
-    var updates by mutableStateOf<Map<String, UserApps.UpdateCheck>>(emptyMap())
-        private set
     private var listing = 0
 
     fun refresh(context: Context) {
@@ -41,33 +37,11 @@ object UserAppsState {
     fun add(context: Context, request: UserApps.Request, label: String) =
         run(context, label, R.string.user_apps_added) { app, progress -> UserApps.add(app, request, progress) }
 
-    fun remove(context: Context, target: UserApps.App) {
-        updates = updates - target.key
-        run(context, target.name, R.string.user_apps_removed) { app, progress -> UserApps.remove(app, target, progress) }
-    }
+    fun remove(context: Context, target: UserApps.App) =
+        run(context, target.name, R.string.user_apps_removed) { app, _ -> UserApps.remove(app, target) }
 
     fun edit(context: Context, target: UserApps.App, name: String, icon: String?, fex: String? = null) =
         run(context, name, R.string.user_apps_saved) { app, _ -> UserApps.edit(app, target, name, icon, fex) }
-
-    fun checkUpdate(context: Context, target: UserApps.App) {
-        if (checking != null) return
-        val app = context.applicationContext
-        checking = target.key
-        updates = updates - target.key
-        Thread({
-            val result = try {
-                UserApps.checkUpdate(app, target)
-            } catch (e: Exception) {
-                UserApps.UpdateCheck.Failed(e.message ?: e.toString())
-            }
-            main.post { checking = null; updates = updates + (target.key to result) }
-        }, "user-apps-check").start()
-    }
-
-    fun update(context: Context, target: UserApps.App, release: UserApps.Release) =
-        run(context, target.name, R.string.user_apps_updated) { app, progress ->
-            UserApps.update(app, target, release, progress).also { if (it == null) main.post { updates = updates - target.key } }
-        }
 
     private fun run(context: Context, label: String, done: Int, work: (Context, (String, Int) -> Unit) -> String?) {
         if (working != null) return
@@ -84,7 +58,6 @@ object UserAppsState {
                 lastError = problem?.let { "$label: $it" }
                 if (problem == null) Toast.makeText(app, app.getString(done, label), Toast.LENGTH_SHORT).show()
                 refresh(app)
-                StoreState.refresh(app)
             }
         }, "user-apps-work").start()
     }

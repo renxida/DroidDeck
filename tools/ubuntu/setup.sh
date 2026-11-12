@@ -139,8 +139,7 @@ if [ "$stage" = runtime ]; then
   divert_to "$multiarch/gamescope/libVkLayer_FROG_gamescope_wsi_aarch64.so" ../../libVkLayer_FROG_gamescope_wsi_aarch64.so droiddeck-runtime
   install_turnip
 
-  mkdir -p /var/cache/droiddeck-flatpak /usr/share/droiddeck/apt /etc/droiddeck/proc /etc/droiddeck/empty /root/Desktop
-  touch /var/cache/droiddeck-flatpak/installed
+  mkdir -p /usr/share/droiddeck/apt /etc/droiddeck/proc /etc/droiddeck/empty /root/Desktop
   cp -r "$here/proc/." /etc/droiddeck/proc/
   echo "$runtime_id" > /usr/share/droiddeck/apt/runtime-id
 

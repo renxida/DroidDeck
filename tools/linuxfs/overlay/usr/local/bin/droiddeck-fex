@@ -25,7 +25,6 @@ WANTED = os.path.join(HOME, ".config", "droiddeck", "fex-wanted")
 GAME_ENVIRONMENT = os.path.join(HOME, ".config", "droiddeck", "game-environment.json")
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 PRELOADS = "/usr/local/lib/droiddeck-fex"
-URUNTIME = "/usr/local/lib/droiddeck/uruntime"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
 OWN_FEX = "/usr/local"
@@ -739,98 +738,6 @@ def game_environment(env, command):
         return env
 
 
-def appimage_offset(path):
-    with open(path, "rb") as f:
-        head = f.read(64)
-    if head[:4] != b"\x7fELF":
-        raise ValueError("not an ELF file")
-    order = "<" if head[5] == 1 else ">"
-    if head[4] == 2:
-        shoff, = struct.unpack_from(order + "Q", head, 0x28)
-        shentsize, shnum = struct.unpack_from(order + "HH", head, 0x3A)
-    else:
-        shoff, = struct.unpack_from(order + "I", head, 0x20)
-        shentsize, shnum = struct.unpack_from(order + "HH", head, 0x2E)
-    return shoff + shentsize * shnum
-
-
-def clear_extracted():
-    for stale in ("squashfs-root", "AppDir"):
-        if os.path.islink(stale):
-            os.unlink(stale)
-        else:
-            shutil.rmtree(stale, ignore_errors=True)
-
-
-def extracted():
-    if os.path.isdir("AppDir") and not os.path.lexists("squashfs-root"):
-        os.symlink("AppDir", "squashfs-root")
-    return os.path.isdir("squashfs-root")
-
-
-def want_fex():
-    with locked():
-        update_own_fex()
-        status = describe(fex_install(), runtime_platform(), graphics_platform())
-        if not status["ready"]:
-            request_install()
-            write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
-
-
-XATTR_ONLY_NOISE = re.compile(r"^(proot (error|warning)|Failed to exec memfd|Further error messages of this type are suppressed)")
-
-
-def only_xattrs_failed(errors):
-    seen = False
-    for line in errors.splitlines():
-        if "write_xattr" in line:
-            seen = True
-        elif re.search(r"fail|could not|cannot|error", line, re.I) and not XATTR_ONLY_NOISE.match(line):
-            return False
-    return seen
-
-
-def extract(image):
-    image = os.path.abspath(image)
-    clear_extracted()
-    x86 = elf_arch(image) in X86.values()
-    if os.access(URUNTIME, os.X_OK):
-        run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                             env=dict(os.environ, TARGET_APPIMAGE=image))
-        errors = run.stderr.decode("utf-8", "replace")
-        sys.stderr.write(errors)
-        status = run.returncode
-        if status == 2 and only_xattrs_failed(errors) and extracted() and os.path.lexists("squashfs-root/AppRun"):
-            say("uruntime could not keep the image's extended attributes; the files are unpacked")
-            status = 0
-        if status == 0 and extracted():
-            if x86:
-                want_fex()
-            return 0
-        say("uruntime could not extract it (status %d)" % status)
-        clear_extracted()
-    fex = prepare() if x86 else None
-    if fex is not None:
-        status = subprocess.call([fex["bin"], image, "--appimage-extract"], stdout=subprocess.DEVNULL,
-                                 env=guest_environment(fex, dict(os.environ)))
-        if status == 0 and extracted():
-            return 0
-        say("the image's own runtime could not extract it under FEX (status %d)" % status)
-    unsquashfs = shutil.which("unsquashfs")
-    if unsquashfs:
-        clear_extracted()
-        status = subprocess.call([unsquashfs, "-q", "-n", "-no-xattrs", "-o", str(appimage_offset(image)), "-d", "squashfs-root", image],
-                                 stdout=subprocess.DEVNULL)
-        if status == 0:
-            if x86:
-                want_fex()
-            return 0
-        say("unsquashfs could not extract it (status %d)" % status)
-    elif fex is None:
-        say("this AppImage could not be unpacked here: no AppImage runtime for ARM64, no FEX yet and no unsquashfs")
-    return 1
-
-
 def parse_run(args):
     mode, decide = os.environ.get("DROIDDECK_FEX", "auto"), None
     while args and args[0].startswith("--"):
@@ -852,7 +759,7 @@ def parse_run(args):
 
 def main(argv):
     if not argv:
-        say("usage: droiddeck-fex steam VERB CMD... | run [--mode auto|on|off] [--for PATH] [--] CMD... | needs PATH | extract IMAGE | prepare | status")
+        say("usage: droiddeck-fex steam VERB CMD... | run [--mode auto|on|off] [--for PATH] [--] CMD... | needs PATH | prepare | status")
         return 2
     action, args = argv[0], list(argv[1:])
     if action == "steam":
@@ -879,10 +786,6 @@ def main(argv):
         needed = needs_fex(args[0])
         print("fex" if needed else "native")
         return 0 if needed else 1
-    if action == "extract":
-        if len(args) != 1:
-            return 2
-        return extract(args[0])
     if action == "prepare":
         return 0 if prepare() else 1
     if action == "status":

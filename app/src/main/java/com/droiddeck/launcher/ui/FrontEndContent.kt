@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.ui
 
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.runtime.CompositionLocalProvider
 import android.os.Build
 import androidx.compose.animation.AnimatedContent
@@ -26,7 +25,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,10 +54,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
@@ -85,7 +81,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -95,7 +90,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.store.UserAppsState
 import java.io.File
@@ -239,10 +233,6 @@ private fun Content(
         SteamHome(s, a, modifier)
         return
     }
-    if (selected == "store") {
-        StorePage(s, a, modifier)
-        return
-    }
     if (selected == "games" || selected.startsWith("app:")) {
         LibraryPage(s, a, selected, onSelect, modifier)
         return
@@ -262,23 +252,18 @@ private fun Content(
     }
 }
 
-internal fun UserApps.Kind.label() = when (this) {
-    UserApps.Kind.SCRIPT -> R.string.user_apps_kind_script
-    UserApps.Kind.APPIMAGE -> R.string.user_apps_kind_appimage
-    UserApps.Kind.FLATPAK -> R.string.user_apps_kind_flatpak
-}
-
 @Composable
 private fun UserAppIcon(app: UserApps.App, size: Int) {
-    if (app.icon != null) AppIcon(app.icon, app.name, size)
+    val shape = RoundedCornerShape((size / 5).dp)
+    if (app.icon != null) AsyncImage(
+        model = app.icon, contentDescription = app.name, contentScale = ContentScale.Fit,
+        modifier = Modifier.size(size.dp).clip(shape),
+    )
     else Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.size(size.dp).clip(RoundedCornerShape((size / 5).dp)).background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.size(size.dp).clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        Icon(
-            if (app.kind == UserApps.Kind.SCRIPT) Icons.Outlined.Terminal else Icons.Outlined.Apps, null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size((size / 2).dp),
-        )
+        Icon(Icons.Outlined.Terminal, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size((size / 2).dp))
     }
 }
 
@@ -306,11 +291,6 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
     val ctx = LocalContext.current
     val narrow = LocalNarrowPane.current
     var editing by rememberSaveable(app.key) { mutableStateOf(false) }
-    val x86 = (app.arch == "x86_64" || app.arch == "i386") && app.fex != com.droiddeck.launcher.runtime.LinuxFex.OFF &&
-        app.kind != UserApps.Kind.FLATPAK
-    val fexReady by produceState<Boolean?>(null, app.key, x86, s.sessionRunning) {
-        value = if (x86) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.runtime.LinuxFex.ready(ctx) } else true
-    }
     Rise(1) {
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -319,11 +299,7 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
             UserAppIcon(app, 52)
             Column {
                 Text(app.name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                Text(
-                    (app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) } ?: stringResource(app.kind.label())) +
-                        (if (app.arch == "x86_64" || app.arch == "i386") " · " + stringResource(R.string.app_fex_x86, app.arch) else ""),
-                    fontSize = 14.sp, color = colors.onSurfaceVariant,
-                )
+                Text(stringResource(R.string.user_apps_kind_script), fontSize = 14.sp, color = colors.onSurfaceVariant)
             }
         }
     }
@@ -332,7 +308,6 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
             PrimaryButton(stringResource(R.string.user_apps_open, app.name), enabled = !s.busy, main = true) { a.onUserApp(app) }
             BusyChip(s)
             SecondaryButton(stringResource(R.string.user_apps_edit), enabled = UserAppsState.working == null) { editing = true }
-            if (app.repo != null) UpdateButton(app, s)
             RemoveAppButton(app, enabled = !s.busy && !s.sessionRunning && UserAppsState.working == null) {
                 UserAppsState.remove(ctx, app); onSelect("desktop")
             }
@@ -340,17 +315,11 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
         }
     }
     if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(4) { UserAppsProgress() }
-    if (fexReady == false) Rise(4) {
-        Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) { Note(stringResource(R.string.app_fex_not_ready, app.arch.orEmpty())) }
-    }
     if (editing) EditAppDialog(app, onDismiss = { editing = false }) { name, icon, fex -> UserAppsState.edit(ctx, app, name, icon, fex) }
     val detail = app.detail
     if (detail != null) Rise(4) {
         Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-            Note(
-                if (app.kind != UserApps.Kind.SCRIPT) detail
-                else stringResource(if (app.copied) R.string.user_apps_script_copied else R.string.user_apps_script_linked, detail),
-            )
+            Note(stringResource(if (app.copied) R.string.user_apps_script_copied else R.string.user_apps_script_linked, detail))
         }
     }
 }
@@ -375,28 +344,6 @@ private fun RemoveAppButton(app: UserApps.App, enabled: Boolean, onRemove: () ->
                     StepChoice(label, danger = true, enabled = open) { Steps.fold(); onRemove() }
                 }
             })
-        }
-    }
-}
-
-@Composable
-private fun UpdateButton(app: UserApps.App, s: FrontEndState) {
-    val ctx = LocalContext.current
-    val idle = UserAppsState.working == null && UserAppsState.checking == null
-    when (val found = UserAppsState.updates[app.key]) {
-        is UserApps.UpdateCheck.Available -> SecondaryButton(
-            stringResource(R.string.user_apps_update_to, found.release.tag), enabled = !s.busy && idle && !s.sessionRunning,
-        ) { UserAppsState.update(ctx, app, found.release) }
-        else -> {
-            SecondaryButton(
-                stringResource(if (UserAppsState.checking == app.key) R.string.user_apps_checking_updates else R.string.user_apps_check_updates),
-                enabled = idle,
-            ) { UserAppsState.checkUpdate(ctx, app) }
-            when (found) {
-                is UserApps.UpdateCheck.Current -> ActionChip(stringResource(R.string.user_apps_up_to_date, found.tag), ok = true)
-                is UserApps.UpdateCheck.Failed -> ActionChip(found.message, ok = false)
-                else -> {}
-            }
         }
     }
 }

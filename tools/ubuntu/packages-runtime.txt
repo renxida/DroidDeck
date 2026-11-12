@@ -19,13 +19,11 @@ diffutils
 dpkg
 file
 findutils
-flatpak
 fontconfig
 fonts-dejavu-core
 fonts-noto-color-emoji
 fonts-noto-core
 gamescope
-gir1.2-flatpak-1.0
 gir1.2-glib-2.0
 gir1.2-gtk-3.0
 gnu-coreutils

@@ -56,7 +56,6 @@ class SessionScalingPrefsTest {
         assertEquals("steam", SessionPrefs.displayMode(context, "run", script))
         SessionPrefs.setResolutionChoice(context, "lxqt", SessionDisplay.MATCH_SCREEN)
         assertEquals("lxqt", SessionPrefs.displayMode(context, "run", script))
-        assertEquals("lxqt", SessionPrefs.displayMode(context, "run", com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER))
         val choice = SessionPrefs.resolutionChoice(context, SessionPrefs.displayMode(context, "run", script), 1240 to 1080)
         assertEquals(1240 to 1080, SessionDisplay.resolveChoice(1240 to 1080, choice))
         assertEquals("steam", SessionPrefs.displayMode(context, "run", "/usr/bin/retroarch"))

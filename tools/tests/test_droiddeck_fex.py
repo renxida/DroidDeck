@@ -174,17 +174,6 @@ class ArchitectureTest(FexTestCase):
         self.write(game / "a/b/game", elf(62), 0o755)
         self.assertTrue(FEX["needs_fex"](str(game)))
 
-    def test_appimage_offset_is_the_end_of_the_section_headers(self):
-        head = bytearray(elf(62))
-        struct.pack_into("<Q", head, 0x28, 1000)
-        struct.pack_into("<HH", head, 0x3A, 64, 30)
-        self.assertEqual(FEX["appimage_offset"](self.write(self.tmp / "x.AppImage", bytes(head))), 1000 + 64 * 30)
-        head = bytearray(elf(3))
-        head[4] = 1
-        struct.pack_into("<I", head, 0x20, 500)
-        struct.pack_into("<HH", head, 0x2E, 40, 10)
-        self.assertEqual(FEX["appimage_offset"](self.write(self.tmp / "y.AppImage", bytes(head))), 900)
-
     def test_run_options(self):
         self.assertEqual(FEX["parse_run"](["--mode", "on", "--for", "/x", "--", "a", "--mode"]), ("on", "/x", ["a", "--mode"]))
         self.assertEqual(FEX["parse_run"](["a"]), ("auto", None, ["a"]))
@@ -516,104 +505,6 @@ class PrepareTest(FexTestCase):
             fex, said = self.quiet(FEX["prepare"])
         self.assertIsNone(fex)
         self.assertIn("FEXServer beside", said)
-
-
-class ExtractTest(FexTestCase):
-    def setUp(self):
-        super().setUp()
-        self.work = self.tmp / "work"
-        self.work.mkdir()
-        self.image = self.write(self.work / "image.AppImage", elf(62) + b"payload", 0o755)
-        chdir = contextlib.chdir(self.work)
-        chdir.__enter__()
-        self.addCleanup(chdir.__exit__, None, None, None)
-
-    def uruntime(self, body):
-        return str(self.write(self.tmp / "uruntime", "#!/bin/sh\n" + body, 0o755))
-
-    def test_uruntime_unpacks_an_x86_image_without_fex(self):
-        tool = self.uruntime('[ "$1" = --appimage-extract ] && [ "$TARGET_APPIMAGE" = "%s" ] || exit 9\nmkdir -p AppDir && touch AppDir/AppRun\n' % self.image)
-        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False}):
-            status, said = self.quiet(FEX["extract"], "image.AppImage")
-        self.assertEqual((status, said), (0, ""))
-        self.assertEqual(os.readlink("squashfs-root"), "AppDir")
-        self.assertTrue(Path("squashfs-root/AppRun").is_file())
-        self.assertTrue((self.home / ".config/droiddeck/fex-wanted").is_file())
-        self.assertFalse(json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())["ready"])
-
-    def test_uruntime_that_only_drops_extended_attributes_still_unpacks(self):
-        tool = self.uruntime(
-            "mkdir -p AppDir && touch AppDir/AppRun\n"
-            "echo 'Failed to exec memfd: EACCES: Permission denied. Trying tmpfile in /tmp...' >&2\n"
-            "echo 'write_xattr: could not write xattr security.selinux for file ./AppDir/.DirIcon because you are not superuser!' >&2\n"
-            "echo 'Further error messages of this type are suppressed!' >&2\n"
-            "exit 2\n")
-        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False}):
-            status, said = self.quiet(FEX["extract"], "image.AppImage")
-        self.assertEqual(status, 0)
-        self.assertIn("could not keep the image's extended attributes", said)
-        self.assertTrue(Path("squashfs-root/AppRun").is_file())
-
-    def test_an_attribute_only_failure_without_apprun_is_not_taken_as_unpacked(self):
-        tool = self.uruntime(
-            "mkdir -p AppDir\n"
-            "echo 'write_xattr: could not write xattr security.selinux for file ./AppDir/.DirIcon because you are not superuser!' >&2\n"
-            "exit 2\n")
-        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False, "prepare": lambda: None}):
-            status, said = self.quiet(FEX["extract"], "image.AppImage")
-        self.assertIn("uruntime could not extract it (status 2)", said)
-        self.assertNotIn("could not keep the image's extended attributes", said)
-        self.assertFalse(os.path.lexists("squashfs-root/AppRun"))
-
-    def test_other_uruntime_errors_are_not_taken_as_unpacked(self):
-        self.assertFalse(FEX["only_xattrs_failed"]("write_xattr: could not write xattr\nwrite_file: failed to create file x\n"))
-        self.assertFalse(FEX["only_xattrs_failed"](""))
-        self.assertTrue(FEX["only_xattrs_failed"]("proot error: execveat() failed\nwrite_xattr: could not write xattr\n"))
-
-    def test_an_arm64_image_does_not_ask_for_fex(self):
-        self.write(self.image, elf(183) + b"payload", 0o755)
-        tool = self.uruntime("mkdir -p squashfs-root\n")
-        with mock.patch.dict(G, {"URUNTIME": tool}):
-            status, said = self.quiet(FEX["extract"], "image.AppImage")
-        self.assertEqual((status, said), (0, ""))
-        self.assertFalse((self.home / ".config/droiddeck/fex-wanted").exists())
-
-    def test_nothing_to_unpack_with_says_so(self):
-        tool = self.uruntime("mkdir -p squashfs-root\nexit 1\n")
-        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False}), \
-                mock.patch("shutil.which", return_value=None):
-            status, said = self.quiet(FEX["extract"], "image.AppImage")
-        self.assertEqual(status, 1)
-        self.assertIn("uruntime could not extract it (status 1)", said)
-        self.assertIn("no AppImage runtime for ARM64, no FEX yet and no unsquashfs", said)
-        self.assertFalse(os.path.lexists("squashfs-root"))
-
-    def test_unsquashfs_fallback_disables_unwritable_xattrs(self):
-        tool = self.uruntime("exit 1\n")
-        commands = []
-
-        def call(argv, **kwargs):
-            commands.append(argv)
-            if argv[0] == tool:
-                return 1
-            (self.work / "squashfs-root").mkdir()
-            (self.work / "squashfs-root/AppRun").touch()
-            return 0
-
-        with mock.patch.dict(G, {
-            "URUNTIME": tool,
-            "prepare": lambda: None,
-            "fex_install": lambda: None,
-            "steam_running": lambda: False,
-            "want_fex": lambda: None,
-        }), mock.patch("shutil.which", return_value="/usr/bin/unsquashfs"), \
-                mock.patch("subprocess.call", side_effect=call):
-            status, said = self.quiet(FEX["extract"], "image.AppImage")
-        self.assertEqual(status, 0)
-        self.assertIn("uruntime could not extract it (status 1)", said)
-        self.assertEqual(commands[-1][0], "/usr/bin/unsquashfs")
-        self.assertIn("-no-xattrs", commands[-1])
-        self.assertTrue(Path("squashfs-root/AppRun").is_file())
 
 
 class LaunchTest(FexTestCase):

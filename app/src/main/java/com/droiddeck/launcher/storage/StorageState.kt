@@ -10,7 +10,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.files.FileOps
-import com.droiddeck.launcher.runtime.FlatpakManager
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.SessionState
 
@@ -159,19 +158,6 @@ object StorageState {
         val current = fresh.components.firstOrNull { it.packageFile == usage.packageFile && it.protonId == usage.protonId &&
             it.comp == usage.comp && it.version == usage.version } ?: return@act false
         !current.inUse && deleteComponent(app, current)
-    })
-
-    fun uninstallFlatpak(context: Context, id: String) = act(context, "flatpak-$id", { app, fresh ->
-        if (fresh.flatpakApps.none { it.id == id }) return@act false
-        val error = FlatpakManager.uninstall(app, id) { step, _ -> main.post { progress = step } }
-        if (error != null) main.post { lastError = error }
-        error == null
-    })
-
-    fun pruneFlatpak(context: Context) = act(context, "flatpak-prune", { app, _ ->
-        val error = FlatpakManager.prune(app) { step, _ -> main.post { progress = step } }
-        if (error != null) main.post { lastError = error }
-        error == null
     })
 
     private fun deleteComponent(app: Context, usage: ComponentUsage): Boolean {

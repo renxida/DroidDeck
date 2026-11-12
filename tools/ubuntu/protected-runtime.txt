@@ -3,7 +3,6 @@ bash
 coreutils
 dbus-daemon
 dpkg
-flatpak
 fontconfig
 gamescope
 libegl-mesa0

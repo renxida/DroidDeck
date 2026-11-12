@@ -46,13 +46,13 @@ class LegacyNamesTest {
     @Test fun oldScriptsBecomeLinksToTheNewOnes() {
         write("usr/local/bin/bannerlator-session", "old")
         write("usr/local/bin/droiddeck-session", "new")
-        write("usr/local/bin/bannerlator-appimage-run", "old")
-        write("usr/local/bin/droiddeck-appimage-run", "new")
+        write("usr/local/bin/bannerlator-script-run", "old")
+        write("usr/local/bin/droiddeck-script-run", "new")
         write("usr/local/bin/droiddeck-bwrap", "new")
         LegacyNames.migrateRootfs(root)
         assertEquals("droiddeck-session", link("usr/local/bin/bannerlator-session"))
         assertEquals("new", File(root, "usr/local/bin/bannerlator-session").readText())
-        assertEquals("droiddeck-appimage-run", link("usr/local/bin/bannerlator-appimage-run"))
+        assertEquals("droiddeck-script-run", link("usr/local/bin/bannerlator-script-run"))
         assertFalse(isLink("usr/local/bin/bannerlator-bwrap"))
         LegacyNames.migrateRootfs(root)
         assertEquals("new", File(root, "usr/local/bin/bannerlator-session").readText())
@@ -64,8 +64,8 @@ class LegacyNamesTest {
         write("etc/bannerlator-network.json", "{}")
         write("etc/droiddeck-network.json", "{\"new\":1}")
         write("usr/local/share/bannerlator/system-bus.conf", "<busconfig/>")
-        write("usr/local/share/applications/droiddeck-appimage-emulator.desktop",
-            "[Desktop Entry]\nExec=/usr/local/bin/bannerlator-appimage-run /opt/appimages/user/emulator %U\n")
+        write("usr/local/share/applications/droiddeck-app-game.desktop",
+            "[Desktop Entry]\nExec=/usr/local/bin/bannerlator-script-run /opt/droiddeck-apps/game\n")
         write("usr/local/share/applications/firefox.desktop", "Exec=/usr/local/bin/bannerlator-steam-launch\n")
         LegacyNames.migrateRootfs(root)
         assertEquals("wlan0", File(root, "etc/droiddeck-net").readText())
@@ -74,23 +74,9 @@ class LegacyNamesTest {
         assertFalse(File(root, "etc/bannerlator-network.json").exists())
         assertEquals("<busconfig/>", File(root, "usr/local/share/droiddeck/system-bus.conf").readText())
         assertEquals("droiddeck", link("usr/local/share/bannerlator"))
-        assertEquals("[Desktop Entry]\nExec=/usr/local/bin/droiddeck-appimage-run /opt/appimages/user/emulator %U\n",
-            File(root, "usr/local/share/applications/droiddeck-appimage-emulator.desktop").readText())
+        assertEquals("[Desktop Entry]\nExec=/usr/local/bin/droiddeck-script-run /opt/droiddeck-apps/game\n",
+            File(root, "usr/local/share/applications/droiddeck-app-game.desktop").readText())
         assertEquals("Exec=/usr/local/bin/bannerlator-steam-launch\n",
             File(root, "usr/local/share/applications/firefox.desktop").readText())
-    }
-
-    @Test fun catalogAppImageMenusStartThroughTheSharedLauncher() {
-        write("usr/share/applications/droiddeck-rpcs3.desktop",
-            "[Desktop Entry]\nName=RPCS3\nExec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/rpcs3.AppImage\nCategories=Emulator;\n")
-        write("usr/share/applications/droiddeck-steam-x64.desktop", "[Desktop Entry]\nExec=droiddeck-steam-x64\n")
-        write("usr/share/applications/other.desktop", "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/other.AppImage\n")
-        LegacyNames.migrateRootfs(root)
-        LegacyNames.migrateRootfs(root)
-        assertEquals("[Desktop Entry]\nName=RPCS3\nExec=/usr/local/bin/droiddeck-appimage-exec /opt/appimages/rpcs3.AppImage\nCategories=Emulator;\n",
-            File(root, "usr/share/applications/droiddeck-rpcs3.desktop").readText())
-        assertEquals("[Desktop Entry]\nExec=droiddeck-steam-x64\n", File(root, "usr/share/applications/droiddeck-steam-x64.desktop").readText())
-        assertEquals("Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/other.AppImage\n",
-            File(root, "usr/share/applications/other.desktop").readText())
     }
 }

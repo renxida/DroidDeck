@@ -99,11 +99,6 @@ object SessionFiles {
             "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
             "usr/local/bin/droiddeck-pipewire" to "usr/local/bin/droiddeck-pipewire",
             "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
-            "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
-            "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
-            "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
-            "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
-            "usr/local/bin/droiddeck-appimage-exec" to "usr/local/bin/droiddeck-appimage-exec",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
@@ -165,9 +160,7 @@ object SessionFiles {
             "usr/local/lib/vkbridge/libvulkan_droidbridge.so" to "usr/local/lib/vkbridge/libvulkan_droidbridge.so",
             "usr/local/share/vkbridge/droidbridge_icd.json" to "usr/local/share/vkbridge/droidbridge_icd.json",
             "usr/local/bin/droiddeck-vkbridge-smoke" to "usr/local/bin/droiddeck-vkbridge-smoke",
-            "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
-            "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')

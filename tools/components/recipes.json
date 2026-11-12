@@ -6,8 +6,6 @@
       "tools/quest",
       "tools/linuxfs/overlay",
       "tools/linuxfs/desktop",
-      "tools/linuxfs/licenses",
-      "tools/linuxfs/uruntime.env",
       "tools/gamescope/release.env",
       "tools/wlroots/release.env",
       "tools/mangoapp",

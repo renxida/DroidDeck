@@ -1065,18 +1065,11 @@ class FrontEndActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
                         },
                         onUserApp = { app ->
-                            app.args.firstOrNull()?.let { Library.flatpakNames[it] = app.name }
+                            app.args.firstOrNull()?.let { Library.appNames[it] = app.name }
                             startActivity(Intent(this, SessionActivity::class.java)
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
                                 .putExtra(SessionService.EXTRA_PROGRAM, app.program)
                                 .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
-                        },
-                        onFlatpakApp = { id, name ->
-                            Library.flatpakNames[id] = name
-                            startActivity(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-                                .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER)
-                                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, arrayOf(id)))
                         },
                         onResume = { startActivity(Intent(this, SessionActivity::class.java)) },
                         onSteamSettings = { loadModeSettings(SessionService.MODE_STEAM) },

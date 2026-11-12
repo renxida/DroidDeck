@@ -1701,17 +1701,14 @@ class SessionService : Service() {
         }.toMap()
         val key = fields["id"]?.takeIf { it.matches(Regex("[0-9a-f]{16}")) } ?: return
         val guestPath = fields["path"]?.takeIf { it.startsWith("/") && !it.contains("/../") } ?: return
-        val folder = fields["kind"] == "folder"
+        if (fields["kind"] != "folder") return
         val binds = LinuxRuntime.lastBinds(this).map { BwrapSpawner.Bind.parse(it) }
         val file = File(BwrapSpawner.hostPath(binds, LinuxRuntime.rootDir(this).path, guestPath))
         val context = applicationContext
         val lock = desktopImports.computeIfAbsent(key) { Any() }
         Thread({
-            fun imported() = UserApps.desktopImport(context, key, guestPath)?.let { "ok $it" }
-            val request = UserApps.Request(
-                if (folder) UserApps.Source.Script(file) else UserApps.Source.AppImage(file),
-                if (folder) file.parentFile?.name else null, null, mapOf(UserApps.DESKTOP_IMPORT to "$key\n$guestPath"),
-            )
+            fun imported() = UserApps.desktopImport(context, key)?.let { "ok $it" }
+            val request = UserApps.Request(file, file.parentFile?.name, null, mapOf(UserApps.DESKTOP_IMPORT to "$key\n$guestPath"))
             val answer = synchronized(lock) {
                 try {
                     imported() ?: UserApps.add(context, request) { _, _ -> }?.let { "error $it" }

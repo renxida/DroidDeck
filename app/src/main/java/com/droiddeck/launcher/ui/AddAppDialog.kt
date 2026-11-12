@@ -8,26 +8,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -49,8 +38,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,7 +47,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -69,16 +55,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -91,7 +73,6 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.ui.GlideDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.files.InAppFilePicker
@@ -99,21 +80,11 @@ import com.droiddeck.launcher.runtime.LinuxFex
 import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.store.UserAppsState
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private enum class AddSource(val label: Int, val hint: Int) {
-    SCRIPT(R.string.add_app_tab_script, R.string.add_app_script_hint),
-    APPIMAGE(R.string.add_app_tab_appimage, R.string.add_app_appimage_hint),
-    GITHUB(R.string.add_app_tab_github, R.string.add_app_github_hint),
-    FLATPAK(R.string.add_app_tab_flatpak, R.string.add_app_flatpak_hint),
-}
-
 private val ICON_TYPES = listOf("png", "jpg", "jpeg", "webp")
 private val FieldShape = RoundedCornerShape(8.dp)
-
-private fun iconModel(ref: String): Any = if (ref.startsWith("https://")) ref else File(ref)
 
 @Composable
 internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (UserApps.Request, String) -> Unit) {
@@ -121,109 +92,40 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
 
-    var source by rememberSaveable { mutableStateOf(AddSource.SCRIPT) }
     var scriptPath by rememberSaveable { mutableStateOf<String?>(null) }
-    var imagePath by rememberSaveable { mutableStateOf<String?>(null) }
-    var repo by rememberSaveable { mutableStateOf("") }
-    var flatpak by rememberSaveable { mutableStateOf("") }
-    var bundlePath by rememberSaveable { mutableStateOf<String?>(null) }
     var name by rememberSaveable { mutableStateOf("") }
     var iconPath by rememberSaveable { mutableStateOf<String?>(null) }
 
     val pickScript = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { scriptPath = it.path }
     }
-    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { imagePath = it.path }
-    }
-    val pickBundle = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { bundlePath = it.path; flatpak = "" }
-    }
     val pickIcon = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { iconPath = it.path }
     }
 
-    val repoId = UserApps.githubRepo(repo)
-    val flatpakId = UserApps.flatpakId(flatpak)
     val custom = name.trim().takeIf { it.isNotEmpty() }
-    val request: Pair<UserApps.Request, String>? = when (source) {
-        AddSource.SCRIPT -> scriptPath?.takeIf { it.endsWith(".sh", ignoreCase = true) }?.let { File(it) }
-            ?.let { UserApps.Request(UserApps.Source.Script(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
-        AddSource.APPIMAGE -> imagePath?.takeIf { it.endsWith(".appimage", ignoreCase = true) }?.let { File(it) }
-            ?.let { UserApps.Request(UserApps.Source.AppImage(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
-        AddSource.GITHUB -> repoId?.let { UserApps.Request(UserApps.Source.GitHub(it, UserApps.githubAsset(repo)), custom, iconPath) to (custom ?: it) }
-        AddSource.FLATPAK -> bundlePath?.takeIf { it.endsWith(".flatpak", ignoreCase = true) }?.let { File(it) }
-            ?.let { UserApps.Request(UserApps.Source.FlatpakBundle(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
-            ?: flatpakId?.let { UserApps.Request(UserApps.Source.Flatpak(it), custom, iconPath) to (custom ?: it) }
-    }
+    val request: Pair<UserApps.Request, String>? = scriptPath?.takeIf { it.endsWith(".sh", ignoreCase = true) }?.let { File(it) }
+        ?.let { UserApps.Request(it, custom, iconPath) to (custom ?: it.nameWithoutExtension) }
     val busy = UserAppsState.working
-    val tabFocus = remember { AddSource.entries.map { FocusRequester() } }
-    val inputMode = LocalInputModeManager.current.inputMode
-    LaunchedEffect(Unit) {
-        if (inputMode == InputMode.Keyboard) {
-            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-            runCatching { tabFocus[source.ordinal].requestFocus() }
-        }
-    }
-    val step = { by: Int -> source = AddSource.entries[(source.ordinal + by + AddSource.entries.size) % AddSource.entries.size] }
 
-    AppDialog(shown, close, "addApp", wide = true, modifier = Modifier.bumpers(onPrevious = { step(-1) }, onNext = { step(1) })) {
-        DialogHeader(stringResource(R.string.user_apps_back), stringResource(R.string.add_app_title)) {
-            TabStrip(AddSource.entries.map { stringResource(it.label) }, source.ordinal, { source = AddSource.entries[it] }, focusRequesters = tabFocus)
-        }
-        val glyph = if (source == AddSource.SCRIPT) Icons.Outlined.Terminal else Icons.Outlined.Apps
+    AppDialog(shown, close, "addApp", wide = true) {
+        DialogHeader(stringResource(R.string.user_apps_back), stringResource(R.string.add_app_title))
         Columns(
             first = {
                 Panel(stringResource(R.string.add_app_source)) {
-                    AnimatedContent(
-                        targetState = source,
-                        transitionSpec = {
-                            val dir = if (targetState.ordinal > initialState.ordinal) 1 else -1
-                            (fadeIn(Motion.tw(260, 60)) + slideInHorizontally(Motion.tw(320, 60)) { dir * it / 12 })
-                                .togetherWith(fadeOut(Motion.tw(140)) + slideOutHorizontally(Motion.tw(140)) { -dir * it / 16 })
-                        },
-                        label = "addSource",
-                    ) { src ->
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Small(stringResource(src.hint))
-                            when (src) {
-                                AddSource.SCRIPT -> {
-                                    FileRow(scriptPath) { pickScript.launch(InAppFilePicker.buildIntent(ctx, listOf("sh"), ctx.getString(R.string.add_app_pick_script))) }
-                                    scriptPath?.let { FolderNote(it) }
-                                }
-                                AddSource.APPIMAGE -> FileRow(imagePath) {
-                                    pickImage.launch(InAppFilePicker.buildIntent(ctx, listOf("appimage"), ctx.getString(R.string.add_app_pick_appimage)))
-                                }
-                                AddSource.GITHUB -> CheckedField(
-                                    repo, { repo = it.take(200) }, stringResource(R.string.add_app_repository),
-                                    stringResource(R.string.add_app_repository_placeholder),
-                                    stringResource(R.string.add_app_repository_invalid).takeIf { repo.isNotBlank() && repoId == null },
-                                )
-                                AddSource.FLATPAK -> {
-                                    CheckedField(
-                                        flatpak, { flatpak = it.take(200); bundlePath = null }, stringResource(R.string.add_app_flatpak_id),
-                                        stringResource(R.string.add_app_flatpak_placeholder),
-                                        stringResource(R.string.add_app_flatpak_invalid).takeIf { flatpak.isNotBlank() && flatpakId == null },
-                                    )
-                                    Small(stringResource(R.string.add_app_flatpak_bundle_hint))
-                                    FileRow(bundlePath) {
-                                        pickBundle.launch(InAppFilePicker.buildIntent(ctx, listOf("flatpak"), ctx.getString(R.string.add_app_pick_flatpak)))
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    Small(stringResource(R.string.add_app_script_hint))
+                    FileRow(scriptPath) { pickScript.launch(InAppFilePicker.buildIntent(ctx, listOf("sh"), ctx.getString(R.string.add_app_pick_script))) }
+                    scriptPath?.let { FolderNote(it) }
                 }
             },
             second = {
                 Panel(stringResource(R.string.add_app_appearance)) {
-                    AppPreview(iconPath?.let(::iconModel), glyph, request?.second, stringResource(source.label))
+                    AppPreview(iconPath?.let(::File), Icons.Outlined.Terminal, request?.second, stringResource(R.string.add_app_tab_script))
                     NameField(name, { name = it }, stringResource(R.string.add_app_name_placeholder))
                     IconActions(
                         onChoose = { pickIcon.launch(InAppFilePicker.buildIntent(ctx, ICON_TYPES, ctx.getString(R.string.add_app_pick_icon))) },
                         clear = iconPath?.let { R.string.add_app_clear_icon to { iconPath = null } },
                     )
-                    if (source == AddSource.GITHUB && repoId != null) IconSuggestions(repoId, iconPath) { iconPath = it }
                 }
             },
         )
@@ -247,50 +149,43 @@ internal fun EditAppDialog(app: UserApps.App, onDismiss: () -> Unit, onSave: (St
     var name by rememberSaveable(app.key) { mutableStateOf(app.name) }
     var icon by rememberSaveable(app.key) { mutableStateOf<String?>(null) }
     var fex by rememberSaveable(app.key) { mutableStateOf(app.fex) }
-    val fexChoice = app.kind != UserApps.Kind.FLATPAK
     val pickIcon = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { icon = it.path }
     }
     val preview: Any? = when (val i = icon) {
         null -> app.icon
         "" -> null
-        else -> iconModel(i)
+        else -> File(i)
     }
     val busy = UserAppsState.working
     val changed = name.trim() != app.name || icon != null || fex != app.fex
     AppDialog(shown, close, "editApp", wide = false) {
-        DialogHeader(stringResource(app.kind.label()), stringResource(R.string.edit_app_title, app.name))
+        DialogHeader(stringResource(R.string.user_apps_kind_script), stringResource(R.string.edit_app_title, app.name))
         Rise(1) {
             Panel(stringResource(R.string.add_app_appearance)) {
-                AppPreview(
-                    preview, if (app.kind == UserApps.Kind.SCRIPT) Icons.Outlined.Terminal else Icons.Outlined.Apps,
-                    name.trim().ifEmpty { null }, stringResource(app.kind.label()),
-                )
+                AppPreview(preview, Icons.Outlined.Terminal, name.trim().ifEmpty { null }, stringResource(R.string.user_apps_kind_script))
                 NameField(name, { name = it }, app.name)
                 IconActions(
                     onChoose = { pickIcon.launch(InAppFilePicker.buildIntent(ctx, ICON_TYPES, ctx.getString(R.string.add_app_pick_icon))) },
                     clear = if (preview == null) null else R.string.add_app_icon_reset to { icon = "" },
                 )
-                app.repo?.let { repo -> IconSuggestions(repo, icon) { icon = it } }
-                if (fexChoice) {
-                    Text(stringResource(R.string.app_fex_title).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    SegmentedTabs(
-                        listOf(
-                            LinuxFex.AUTO to stringResource(R.string.app_fex_auto),
-                            LinuxFex.ON to stringResource(R.string.app_fex_on),
-                            LinuxFex.OFF to stringResource(R.string.app_fex_off),
-                        ),
-                        fex,
-                    ) { fex = it }
-                    Text(stringResource(R.string.app_fex_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                Text(stringResource(R.string.app_fex_title).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SegmentedTabs(
+                    listOf(
+                        LinuxFex.AUTO to stringResource(R.string.app_fex_auto),
+                        LinuxFex.ON to stringResource(R.string.app_fex_on),
+                        LinuxFex.OFF to stringResource(R.string.app_fex_off),
+                    ),
+                    fex,
+                ) { fex = it }
+                Text(stringResource(R.string.app_fex_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         DialogFooter(
             busy?.let { stringResource(R.string.add_app_busy, it) },
             stringResource(R.string.edit_app_save), name.isNotBlank() && changed && busy == null,
             onCancel = close,
-        ) { onSave(name.trim(), icon, fex.takeIf { fexChoice && it != app.fex }); close() }
+        ) { onSave(name.trim(), icon, fex.takeIf { it != app.fex }); close() }
     }
 }
 
@@ -431,18 +326,6 @@ private fun hideKeyboard(view: View) {
 }
 
 @Composable
-private fun CheckedField(value: String, onChange: (String) -> Unit, label: String, placeholder: String, problem: String?) {
-    val view = LocalView.current
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        AdbTextField(
-            value, onChange, label, KeyboardType.Uri, ImeAction.Done, placeholder = placeholder, compact = true,
-            onDone = { hideKeyboard(view) },
-        )
-        if (problem != null) Small(problem, error = true)
-    }
-}
-
-@Composable
 private fun NameField(name: String, onName: (String) -> Unit, placeholder: String) {
     val view = LocalView.current
     AdbTextField(
@@ -482,45 +365,6 @@ private fun IconActions(onChoose: () -> Unit, clear: Pair<Int, () -> Unit>?) {
         AnimatedVisibility(clear != null, enter = fadeIn(Motion.tw(180)) + expandHorizontally(Motion.tw(220)), exit = fadeOut(Motion.tw(120)) + shrinkHorizontally(Motion.tw(180))) {
             clear?.let { (label, action) -> SecondaryButton(stringResource(label), compact = true, onClick = action) }
         }
-    }
-}
-
-@Composable
-private fun IconSuggestions(repo: String, selected: String?, onPick: (String) -> Unit) {
-    val found by produceState<List<String>?>(null, repo) {
-        value = null
-        delay(500)
-        value = withContext(Dispatchers.IO) { runCatching { UserApps.githubIcons(repo) }.getOrDefault(emptyList()) }
-    }
-    val list = found
-    if (list != null && list.isEmpty()) return
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(44.dp)) {
-        Small(stringResource(if (list == null) R.string.add_app_icon_searching else R.string.add_app_icon_suggestions))
-        if (list != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).selectableGroup()) {
-            list.forEachIndexed { i, url -> Rise(i) { SuggestedIcon(url, url == selected) { onPick(url) } } }
-        }
-    }
-}
-
-@Composable
-private fun SuggestedIcon(url: String, selected: Boolean, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val scale by animateFloatAsState(if (hot || selected) 1.06f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "suggestScale")
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.size(44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(Shape12).background(colors.surface)
-            .glideBorder(hot, Shape12, pal.signal, pal.line2)
-            .hoverable(src).selectable(selected = selected, role = androidx.compose.ui.semantics.Role.RadioButton, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
-            .controllerConfirm(onClick = onClick),
-    ) {
-        AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(true).build(), contentDescription = stringResource(R.string.add_app_icon), contentScale = ContentScale.Fit, modifier = Modifier.size(34.dp))
-        if (selected) Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(14.dp).clip(androidx.compose.foundation.shape.CircleShape).background(pal.signal),
-        ) { Icon(Icons.Filled.Check, contentDescription = null, tint = pal.onSignal, modifier = Modifier.size(10.dp)) }
     }
 }
 

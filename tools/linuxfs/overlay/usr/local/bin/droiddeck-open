@@ -14,12 +14,11 @@ BIN = "/usr/local/bin"
 FEX = os.path.join(BIN, "droiddeck-fex")
 GPU = os.path.join(BIN, "droiddeck-gpu")
 PROTON_RUN = os.path.join(BIN, "droiddeck-proton-run")
-APPIMAGE_RUN = os.path.join(BIN, "droiddeck-appimage-run")
 SCRIPT_RUN = os.path.join(BIN, "droiddeck-script-run")
 STEAM_LAUNCH = os.path.join(BIN, "droiddeck-steam-launch")
 PROGRAMS = os.path.join(BIN, "droiddeck-desktop-programs")
 CACHE = os.path.join(HOME, ".cache", "droiddeck")
-IMPORTS = {"appimage": ("/opt/appimages/user", "app"), "folder": ("/opt/droiddeck-apps", "entry")}
+IMPORTS = {"folder": ("/opt/droiddeck-apps", "entry")}
 SHARED_FOLDERS = ("alarms", "android", "audiobooks", "dcim", "documents", "download", "movies", "music",
                   "notifications", "pictures", "podcasts", "recordings", "ringtones")
 SCAN_LIMIT = 4000
@@ -27,14 +26,13 @@ APPS_DIR = "/usr/local/share/applications"
 WINDOWS = (".exe", ".bat", ".cmd", ".com", ".msi")
 NOT_PROGRAMS = (".dll", ".sys", ".drv", ".cpl", ".ocx", ".efi", ".scr", ".mui")
 SCRIPTS = (".sh", ".bash")
-MACHINES = {3: "i386", 62: "x86_64", 183: "arm64"}
 EMULATED = (3, 62)
 QUICK_FAILURE = 20
 IMPORT_WAIT = 1800
 WINDOWS_TYPES = ("application/x-ms-dos-executable", "application/x-msdownload",
                  "application/vnd.microsoft.portable-executable", "application/x-msi", "application/x-bat")
 SCRIPT_TYPES = ("application/x-shellscript", "text/x-shellscript")
-LINUX_TYPES = ("application/x-executable", "application/x-pie-executable", "application/vnd.appimage")
+LINUX_TYPES = ("application/x-executable", "application/x-pie-executable")
 ENTRIES = (
     ("droiddeck-open.desktop", "Run", "", WINDOWS_TYPES + SCRIPT_TYPES + LINUX_TYPES),
     ("droiddeck-open-window.desktop", "Run in a Desktop Window", "--window ", WINDOWS_TYPES + SCRIPT_TYPES + LINUX_TYPES),
@@ -74,7 +72,7 @@ def kind(path):
     data = head(path)
     ext = os.path.splitext(path)[1].lower()
     if data[:4] == b"\x7fELF":
-        return "appimage" if data[8:11] == b"AI\x02" or ext == ".appimage" else "elf"
+        return "elf"
     if ext in NOT_PROGRAMS:
         return None
     if ext in WINDOWS or data[:2] == b"MZ":
@@ -125,50 +123,12 @@ def runnable(path):
     return copy
 
 
-def appimage(path):
-    st = os.stat(path)
-    real = os.path.realpath(path)
-    key = hashlib.sha1(("%s\0%d\0%d" % (real, st.st_size, st.st_mtime_ns)).encode("utf-8")).hexdigest()[:16]
-    images = os.path.join(CACHE, "appimages")
-    return once(key, lambda: unpacked(path, real, key, images, os.path.join(images, key)))
-
-
 def once(key, make):
     locks = os.path.join(CACHE, "locks")
     os.makedirs(locks, exist_ok=True)
     with open(os.path.join(locks, key), "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         return make()
-
-
-def unpacked(path, real, key, images, folder):
-    if os.path.exists(os.path.join(folder, "app", "AppRun")):
-        return folder
-    earlier = import_of(key, "appimage")
-    if earlier:
-        return earlier
-    name = os.path.splitext(os.path.basename(path))[0]
-    notify("Preparing %s" % name, "Unpacking it for its first start.", "system-run")
-    work = folder + ".tmp"
-    shutil.rmtree(work, ignore_errors=True)
-    os.makedirs(work)
-    status = subprocess.call([FEX, "extract", real], cwd=work, stdout=subprocess.DEVNULL)
-    unpacked = os.path.realpath(os.path.join(work, "squashfs-root"))
-    if status != 0 or not os.path.isdir(unpacked):
-        shutil.rmtree(work, ignore_errors=True)
-        return imported("appimage", real, key, name)
-    os.replace(unpacked, os.path.join(work, "app"))
-    if os.path.islink(os.path.join(work, "squashfs-root")):
-        os.unlink(os.path.join(work, "squashfs-root"))
-    for file, value in (("name", name), ("arch", MACHINES.get(machine(head(path)), "")), ("source", real)):
-        with open(os.path.join(work, file), "w", encoding="utf-8") as f:
-            f.write(value + "\n")
-    for other in os.listdir(images):
-        old = os.path.join(images, other)
-        if other != key + ".tmp" and (head(os.path.join(old, "source"), 4096).decode("utf-8", "replace").strip() == real):
-            shutil.rmtree(old, ignore_errors=True)
-    os.replace(work, folder)
-    return folder
 
 
 def import_of(key, what):
@@ -194,11 +154,8 @@ def imported(what, real, key, name):
     with open(request + ".tmp", "w", encoding="utf-8") as f:
         f.write("id=%s\nkind=%s\npath=%s\n" % (key, what, real))
     os.replace(request + ".tmp", request)
-    if what == "appimage":
-        notify("Adding %s to DroidDeck" % name, "It is unpacked once, then it starts, and it stays in the menu.", "system-run")
-    else:
-        notify("Adding %s to DroidDeck" % name, "Shared storage cannot run its programs, so the folder is copied in "
-               "once; then it starts, and it stays in the menu.", "system-run")
+    notify("Adding %s to DroidDeck" % name, "Shared storage cannot run its programs, so the folder is copied in "
+           "once; then it starts, and it stays in the menu.", "system-run")
     deadline = time.monotonic() + IMPORT_WAIT
     while time.monotonic() < deadline:
         try:
@@ -282,8 +239,6 @@ def command(path, args, what, window=False, appid=None):
         return [FEX, "run", "--mode", "on", "--for", folder, "--"] + interpreter(path) + [path] + args, folder
     if what == "script":
         return interpreter(path) + [path] + args, folder
-    if what == "appimage":
-        return [APPIMAGE_RUN, appimage(path)] + args, folder
     if what == "folder":
         return [SCRIPT_RUN, copied_in(path)] + args, folder
     return [FEX, "run", "--mode", "auto", "--", runnable(path)] + args, folder

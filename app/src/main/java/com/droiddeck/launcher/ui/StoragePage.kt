@@ -42,7 +42,6 @@ import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.Storage
@@ -100,7 +99,6 @@ private val BucketColors = mapOf(
     Bucket.GAME_DATA to Color(0xFF8F7CF6),
     Bucket.TOOLS to Color(0xFF3FC1C9),
     Bucket.COMPONENTS to Color(0xFF9BD65B),
-    Bucket.DESKTOP to Color(0xFFE57FB1),
     Bucket.SYSTEM to Color(0xFF7D8796),
     Bucket.DROIDDECK to Color(0xFF6FD08C),
 )
@@ -145,7 +143,6 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         "games" -> GamesView(report, s.sessionRunning, a) { view = "overview" }
         "data" -> GameDataView(report, s.sessionRunning) { view = "overview" }
         "components" -> ComponentsView(report, s.sessionRunning) { view = "overview" }
-        "desktop" -> DesktopView(report, s.sessionRunning) { view = "overview" }
         "tools" -> ToolsView(report, s.sessionRunning) { view = "overview" }
         else -> Overview(report, s.sessionRunning, onCleanUp = { cleanup = true }, onOpen = { view = it })
     }
@@ -227,12 +224,6 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
                 report.buckets.getValue(Bucket.COMPONENTS), m, attention = unusedComponents > 0) { onOpen("components") }
         },
         { m ->
-            BucketCard(Bucket.DESKTOP, Icons.Outlined.Monitor, stringResource(R.string.storage_desktop),
-                pluralStringResource(R.plurals.storage_desktop_apps, report.flatpakApps.size, report.flatpakApps.size) +
-                    " · " + stringResource(R.string.storage_desktop_shared, gb(report.flatpakRuntimes + report.flatpakCache)),
-                report.buckets.getValue(Bucket.DESKTOP), m) { onOpen("desktop") }
-        },
-        { m ->
             BucketCard(Bucket.SYSTEM, Icons.Outlined.Storage, stringResource(R.string.storage_system),
                 stringResource(R.string.storage_system_hint), report.buckets.getValue(Bucket.SYSTEM), m, locked = true)
         },
@@ -258,7 +249,6 @@ private fun bucketLabel(bucket: Bucket) = stringResource(when (bucket) {
     Bucket.GAME_DATA -> R.string.storage_legend_data
     Bucket.TOOLS -> R.string.storage_legend_tools
     Bucket.COMPONENTS -> R.string.storage_legend_components
-    Bucket.DESKTOP -> R.string.storage_legend_desktop
     Bucket.SYSTEM -> R.string.storage_legend_system
     Bucket.DROIDDECK -> R.string.storage_legend_app
 })
@@ -860,34 +850,3 @@ internal fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBa
     }
 }
 
-@Composable
-private fun DesktopView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
-    val ctx = LocalContext.current
-    val busy = sessionRunning || StorageState.cleaning
-    var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.FlatpakUsage?>(null) }
-    var confirmPrune by remember { mutableStateOf(false) }
-    SubHeader(stringResource(R.string.storage_desktop), stringResource(R.string.storage_desktop_detail, gb(report.flatpak)), onBack) {
-        PrimaryButton(stringResource(R.string.storage_desktop_prune), compact = true, enabled = !busy && report.flatpakRuntimes + report.flatpakCache >= ONE_MB) { confirmPrune = true }
-    }
-    ActionStatus()
-    if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
-    SectionTitle(stringResource(R.string.storage_desktop_apps_title), null)
-    ListCard {
-        if (report.flatpakApps.isEmpty()) Text(stringResource(R.string.storage_desktop_none), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
-        report.flatpakApps.forEachIndexed { i, app ->
-            ItemRow(app.name, app.id, app.bytes, i == report.flatpakApps.lastIndex,
-                action = { SecondaryButton(stringResource(R.string.storage_uninstall), compact = true, enabled = !busy) { confirm = app } })
-        }
-    }
-    SectionTitle(stringResource(R.string.storage_desktop_shared_title), null)
-    ListCard {
-        ItemRow(stringResource(R.string.storage_desktop_runtimes), stringResource(R.string.storage_desktop_runtimes_detail), report.flatpakRuntimes, false)
-        ItemRow(stringResource(R.string.storage_desktop_cache), stringResource(R.string.storage_desktop_cache_detail), report.flatpakCache, true)
-    }
-    confirm?.let { app ->
-        ConfirmDialog(stringResource(R.string.storage_uninstall_title, app.name), stringResource(R.string.storage_flatpak_uninstall_body, gb(app.bytes)),
-            stringResource(R.string.storage_uninstall), onConfirm = { StorageState.uninstallFlatpak(ctx, app.id) }, onDismiss = { confirm = null })
-    }
-    if (confirmPrune) ConfirmDialog(stringResource(R.string.storage_desktop_prune), stringResource(R.string.storage_desktop_prune_body),
-        stringResource(R.string.storage_desktop_prune), danger = false, onConfirm = { StorageState.pruneFlatpak(ctx) }, onDismiss = { confirmPrune = false })
-}

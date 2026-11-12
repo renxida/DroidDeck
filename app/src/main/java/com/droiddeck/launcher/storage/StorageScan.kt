@@ -7,14 +7,13 @@ import android.system.OsConstants
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import android.util.Log
-import com.droiddeck.launcher.runtime.FlatpakManager
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.SecondaryLibrary
 import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 
-enum class Bucket { GAMES, GAME_DATA, TOOLS, COMPONENTS, DESKTOP, SYSTEM, DROIDDECK }
+enum class Bucket { GAMES, GAME_DATA, TOOLS, COMPONENTS, SYSTEM, DROIDDECK }
 
 class GameUsage(
     val appId: Int, val name: String, val art: File?, val library: String, val internal: Boolean, val lastPlayed: Long,
@@ -40,8 +39,6 @@ class ComponentUsage(
     val packageFile: String? = null, val protonId: String? = null, val protonName: String? = null,
 )
 
-class FlatpakUsage(val id: String, val name: String, val bytes: Long)
-
 class StorageReport(
     val at: Long,
     val total: Long,
@@ -50,15 +47,12 @@ class StorageReport(
     val prefixes: Long,
     val shaders: Long,
     val workshop: Long,
-    val flatpak: Long,
     val games: List<GameUsage>,
     val tools: List<ToolUsage>,
     val leftovers: List<Leftover>,
     val logs: List<File>,
     val logBytes: Long,
     val components: List<ComponentUsage>,
-    val flatpakApps: List<FlatpakUsage>,
-    val flatpakRuntimes: Long,
     val otherPrefixes: Long,
     val leftoversChecked: Boolean,
 ) {
@@ -67,7 +61,6 @@ class StorageReport(
     val unusedTools: List<ToolUsage> get() = tools.filter { it.state == ToolState.UNUSED }
     val gamesOnSd: Int get() = games.count { !it.internal }
     val unusedComponents: List<ComponentUsage> get() = components.filter { !it.inUse }
-    val flatpakCache: Long get() = (flatpak - flatpakApps.sumOf { it.bytes } - flatpakRuntimes).coerceAtLeast(0)
 }
 
 object StorageScan {
@@ -227,13 +220,6 @@ object StorageScan {
             listOf(File(LinuxRuntime.logDir(context), SessionPaths.TOOLS_DIR)).filter { it.exists() }
         val logBytes = logs.sumOf { walker.measure(it) }
 
-        val flatpakDir = File(rootfs, "root/.local/share/flatpak")
-        val flatpakNames = runCatching { FlatpakManager.installedApps(context) }.getOrDefault(emptyList()).associate { it.id to it.name }
-        val flatpakApps = File(flatpakDir, "app").listFiles().orEmpty().filter { it.isDirectory }.map { dir ->
-            FlatpakUsage(dir.name, flatpakNames[dir.name] ?: dir.name.substringAfterLast('.'), walker.measure(dir))
-        }.sortedByDescending { it.bytes }
-        val flatpakRuntimes = File(flatpakDir, "runtime").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
-
         val componentsDir = File(files, "components")
         val stored = runCatching { ComponentsManager.stored(context) }.onFailure { Log.w("StorageScan", "components", it) }.getOrNull()
         val components = stored?.let { st ->
@@ -260,11 +246,9 @@ object StorageScan {
         val prefixes = inApps("compatdata") + privatePrefixes
         val shaders = inApps("shadercache") + privateShaders
         val workshop = inApps("workshop")
-        val flatpak = m(File(rootfs, "root/.local/share/flatpak"))
         val rootfsBytes = m(rootfs)
         val privateBytes = privateRoots.sumOf { m(it) }
-        val system = rootfsBytes - installs - inApps("compatdata") - inApps("shadercache") - workshop -
-            compatTools - flatpak
+        val system = rootfsBytes - installs - inApps("compatdata") - inApps("shadercache") - workshop - compatTools
         val componentBytes = m(componentsDir)
         val droiddeck = m(files) + m(context.cacheDir) - rootfsBytes - privateBytes - componentBytes +
             (privateBytes - toolsPrivate - privatePrefixes - privateShaders)
@@ -276,13 +260,12 @@ object StorageScan {
                 Bucket.GAME_DATA to (prefixes + shaders + workshop),
                 Bucket.TOOLS to toolsInApps + toolsPrivate + compatTools,
                 Bucket.COMPONENTS to componentBytes,
-                Bucket.DESKTOP to flatpak,
                 Bucket.SYSTEM to system.coerceAtLeast(0),
                 Bucket.DROIDDECK to droiddeck.coerceAtLeast(0),
             ),
-            prefixes, shaders, workshop, flatpak,
+            prefixes, shaders, workshop,
             games.sortedByDescending { it.total }, tools.values.toList(), leftovers, logs, logBytes,
-            components, flatpakApps, flatpakRuntimes, otherPrefixes, everyLibraryRead,
+            components, otherPrefixes, everyLibraryRead,
         )
     }
 }

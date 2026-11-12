@@ -178,28 +178,6 @@ class AgentTest(unittest.TestCase):
             tagged = agent.tag_game_windows(snap, proc=self.dir / "proc")
         return tagged, [call.args[0][-1] for call in run.call_args_list]
 
-    def test_a_sandboxed_flatpak_window_is_tagged_with_its_shortcut(self):
-        self.fake_proc(40, 1, "gjs", {"FLATPAK_ID": "com.github.tchx84.Flatseal", "SteamAppId": "2166984148"})
-        win = {"window": 7, "map": "viewable", "class": "com.github.tchx84.Flatseal", "pid": None}
-        self.assertEqual(self.tag([win]), (True, ["2166984148"]))
-
-    def test_a_flatpak_window_named_after_the_app_is_matched(self):
-        self.fake_proc(40, 1, "vacuumtube", {"FLATPAK_ID": "rocks.shy.VacuumTube", "SteamAppId": "3000000001"})
-        win = {"window": 7, "map": "viewable", "class": "VacuumTube", "pid": None}
-        self.assertEqual(self.tag([win]), (True, ["3000000001"]))
-
-    def test_a_window_whose_process_has_no_app_id_falls_back_to_its_flatpak(self):
-        self.fake_proc(40, 1, "bwrap", {"FLATPAK_ID": "com.github.tchx84.Flatseal", "SteamAppId": "2166984148"})
-        self.fake_proc(41, 1, "gjs", {})
-        win = {"window": 7, "map": "viewable", "class": "com.github.tchx84.Flatseal", "pid": 41}
-        self.assertEqual(self.tag([win]), (True, ["2166984148"]))
-
-    def test_a_flatpak_shared_by_two_shortcuts_is_not_guessed(self):
-        self.fake_proc(40, 1, "gjs", {"FLATPAK_ID": "com.github.tchx84.Flatseal", "SteamAppId": "2166984148"})
-        self.fake_proc(42, 1, "gjs", {"FLATPAK_ID": "com.github.tchx84.Flatseal", "SteamAppId": "3000000003"})
-        win = {"window": 7, "map": "viewable", "class": "com.github.tchx84.Flatseal", "pid": None}
-        self.assertEqual(self.tag([win]), (False, []))
-
     def test_a_window_outside_the_reaper_takes_its_process_app_id(self):
         self.fake_proc(30, 1, "proot", {})
         self.fake_proc(31, 30, "electron", {"SteamAppId": "3000000002"})

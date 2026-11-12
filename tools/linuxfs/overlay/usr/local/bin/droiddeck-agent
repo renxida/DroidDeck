@@ -259,23 +259,7 @@ def under_reaper(pid, proc=Path("/proc")):
     return False
 
 
-def sandboxed_apps(proc=Path("/proc")):
-    apps = {}
-    try:
-        pids = [entry for entry in os.listdir(proc) if entry.isdigit()]
-    except OSError:
-        return apps
-    for pid in pids:
-        env = process_env(pid, proc)
-        flatpak, app = env.get(b"FLATPAK_ID"), steam_app_id(env)
-        if flatpak and app:
-            name = flatpak.decode(errors="replace").lower()
-            for key in {name, name.rsplit(".", 1)[-1]}:
-                apps[key] = app if apps.get(key, app) == app else None
-    return apps
-
-
-def window_steam_app(win, flatpaks, proc=Path("/proc")):
+def window_steam_app(win, proc=Path("/proc")):
     match = STEAM_APP_CLASS.match(win.get("class") or "")
     if match:
         return match.group(1) if os.environ.get("BL_STEAM_CLIENT_ARCH") == "x86_64" else None
@@ -286,26 +270,18 @@ def window_steam_app(win, flatpaks, proc=Path("/proc")):
         app = steam_app_id(process_env(pid, proc))
         if app:
             return str(app)
-    app = flatpaks().get((win.get("class") or "").lower())
-    return str(app) if app else None
+    return None
 
 
 def tag_game_windows(snap, proc=Path("/proc")):
     tagged = False
-    found = []
-
-    def flatpaks():
-        if not found:
-            found.append(sandboxed_apps(proc))
-        return found[0]
-
     for display, wins in snap.get("displays", {}).items():
         if display == os.environ.get("DISPLAY"):
             continue
         for win in wins:
             if win.get("appId") or win.get("map") != "viewable" or win.get("overrideRedirect") or win.get("inputOnly"):
                 continue
-            app = window_steam_app(win, flatpaks, proc)
+            app = window_steam_app(win, proc)
             if not app:
                 continue
             try:

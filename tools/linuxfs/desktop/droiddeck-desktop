@@ -65,7 +65,6 @@ case $input_method in
   ''|*/droiddeck-ime.desktop) kwriteconfig6 --file kwinrc --group Wayland --key InputMethod /usr/local/share/applications/droiddeck-ime.desktop ;;
 esac
 python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'
-export APPIMAGE_EXTRACT_AND_RUN=1
 [ -e /etc/xdg/kiorc ] || printf '[Executable scripts]\nbehaviourOnLaunch=execute\n' >/etc/xdg/kiorc 2>/dev/null
 desktop_dir=$(xdg-user-dir DESKTOP 2>/dev/null); [ -n "$desktop_dir" ] && [ "$desktop_dir" != "$HOME" ] || desktop_dir=$HOME/Desktop
 if [ ! -e "$HOME/.config/droiddeck-desktop-icons" ]; then
@@ -76,9 +75,6 @@ if [ ! -e "$HOME/.config/droiddeck-desktop-icons" ]; then
   touch "$HOME/.config/droiddeck-desktop-icons"
 fi
 [ -f "$desktop_dir/Return.desktop" ] && cp -f /usr/share/applications/droiddeck-return-gaming.desktop "$desktop_dir/Return.desktop" 2>/dev/null
-if command -v flatpak >/dev/null 2>&1 && [ ! -d /var/lib/pacman ]; then
-  FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1 &
-fi
 skel_done=$HOME/.local/share/droiddeck/skel-copied
 if [ -d /etc/skel ] && [ ! -e "$skel_done" ]; then
   cp -rn /etc/skel/. "$HOME/" 2>/dev/null

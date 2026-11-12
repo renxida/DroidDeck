@@ -231,13 +231,6 @@ if [[ -f "${repo_root}/tools/gamescope/release.env" ]]; then
     test -f "${linuxfs_dir}/usr/local/bin/gamescope"
 fi
 
-. "${repo_root}/tools/linuxfs/uruntime.env"
-uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
-    bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
-mkdir -p "${linuxfs_dir}/usr/local/lib/droiddeck" "${linuxfs_dir}/usr/local/share/licenses/uruntime"
-install -m644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
-install -m644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
-
 sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
 if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
     . "${repo_root}/tools/droiddeck-esync/release.env"

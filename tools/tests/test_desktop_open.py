@@ -40,8 +40,6 @@ class KindTest(Temp):
     def test_each_file_is_told_by_its_content_then_its_name(self):
         cases = {
             "game.x86_64": (elf(62), "elf"),
-            "Tool.AppImage": (elf(183, b"AI\x02"), "appimage"),
-            "renamed": (elf(62, b"AI\x02"), "appimage"),
             "setup.exe": (b"MZ" + bytes(62), "windows"),
             "launcher.bat": (b"@echo off\r\n", "windows"),
             "no-extension": (b"MZ" + bytes(62), "windows"),
@@ -73,7 +71,7 @@ class PlacementTest(Temp):
         return OPEN["placed"](["cmd"], what, mode, self.desktop if env is None else env)
 
     def test_programs_from_the_desktop_go_to_the_gpu(self):
-        for what in ("windows", "elf", "appimage", "x86 script", "folder"):
+        for what in ("windows", "elf", "x86 script", "folder"):
             with self.subTest(what):
                 self.assertEqual(self.placed(what, "run"), [str(self.gpu), "cmd"])
 
@@ -168,11 +166,12 @@ class InstallTest(Temp):
 
 
 class ImportTest(Temp):
-    def test_the_app_unpacks_what_the_desktop_cannot(self):
+    def test_the_app_copies_in_what_the_desktop_cannot_run(self):
         launch = self.tmp / "launch"
         launch.mkdir()
-        folder = self.tmp / "imported/eden"
-        (folder / "app").mkdir(parents=True)
+        folder = self.tmp / "imported/game"
+        folder.mkdir(parents=True)
+        (folder / "entry").write_text("start.sh")
 
         def app():
             request = launch / "desktop-import-0123456789abcdef.request"
@@ -180,13 +179,13 @@ class ImportTest(Temp):
                 time.sleep(0.05)
             text = request.read_text()
             request.unlink()
-            self.assertEqual(text, "id=0123456789abcdef\nkind=appimage\npath=/root/Storage/Eden.AppImage\n")
+            self.assertEqual(text, "id=0123456789abcdef\nkind=folder\npath=/root/Storage/Game/start.sh\n")
             (launch / "desktop-import-0123456789abcdef.result").write_text("ok %s\n" % folder)
 
         worker = threading.Thread(target=app)
         worker.start()
         with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}), mock.patch.dict(OPEN, {"notify": lambda *a: None}):
-            self.assertEqual(OPEN["imported"]("appimage", "/root/Storage/Eden.AppImage", "0123456789abcdef", "Eden"), str(folder))
+            self.assertEqual(OPEN["imported"]("folder", "/root/Storage/Game/start.sh", "0123456789abcdef", "Game"), str(folder))
         worker.join()
         self.assertEqual(list(launch.iterdir()), [])
 
@@ -196,48 +195,19 @@ class ImportTest(Temp):
         (launch / "desktop-import-0123456789abcdef.result").write_text("error Not enough space\n")
         with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}), mock.patch.dict(OPEN, {"notify": lambda *a: None}):
             with self.assertRaisesRegex(RuntimeError, "^Not enough space$"):
-                OPEN["imported"]("appimage", "/x.AppImage", "0123456789abcdef", "x")
+                OPEN["imported"]("folder", "/x/start.sh", "0123456789abcdef", "x")
 
     def test_outside_a_session_it_says_how_to_add_one(self):
         with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": ""}):
             with self.assertRaisesRegex(RuntimeError, "Add an app"):
                 OPEN["imported"]("folder", "/x/start.sh", "0123456789abcdef", "x")
 
-    def test_starts_of_one_image_unpack_it_once(self):
-        image = self.write("Tool.AppImage", elf(183, b"AI\x02"))
-        unpacks = []
-
-        def extract(cmd, cwd, stdout):
-            unpacks.append(cwd)
-            time.sleep(0.2)
-            os.makedirs(os.path.join(cwd, "squashfs-root"))
-            open(os.path.join(cwd, "squashfs-root", "AppRun"), "w").close()
-            return 0
-
-        found = []
-        none = {what: (str(self.tmp / "none"), made) for what, (_, made) in OPEN["IMPORTS"].items()}
-        with mock.patch.dict(OPEN, {"CACHE": str(self.tmp / "cache"), "IMPORTS": none, "notify": lambda *a: None}), \
-                mock.patch.object(OPEN["subprocess"], "call", extract):
-            starts = [threading.Thread(target=lambda: found.append(OPEN["appimage"](str(image)))) for _ in range(3)]
-            for start in starts:
-                start.start()
-            for start in starts:
-                start.join()
-        self.assertEqual(len(unpacks), 1)
-        self.assertEqual(len(set(found)), 1)
-        self.assertTrue(os.path.isfile(os.path.join(found[0], "app", "AppRun")))
-        self.assertEqual(Path(found[0], "arch").read_text(), "arm64\n")
-
     def test_an_earlier_import_is_found_by_its_key(self):
-        self.write("user/eden/desktop-import", "0123456789abcdef\n/root/Storage/Eden.AppImage")
-        (self.tmp / "user/eden/app").mkdir()
-        self.write("user/other/desktop-import", "fedcba9876543210\n/root/Storage/Other.AppImage")
         self.write("apps/game/desktop-import", "fedcba9876543210\n/root/Storage/Game/start.sh")
         self.write("apps/game/entry", "start.sh")
-        imports = {"appimage": (str(self.tmp / "user"), "app"), "folder": (str(self.tmp / "apps"), "entry")}
+        imports = {"folder": (str(self.tmp / "apps"), "entry")}
         with mock.patch.dict(OPEN, {"IMPORTS": imports}):
-            self.assertEqual(OPEN["import_of"]("0123456789abcdef", "appimage"), str(self.tmp / "user/eden"))
-            self.assertIsNone(OPEN["import_of"]("fedcba9876543210", "appimage"))
+            self.assertIsNone(OPEN["import_of"]("0123456789abcdef", "folder"))
             self.assertEqual(OPEN["import_of"]("fedcba9876543210", "folder"), str(self.tmp / "apps/game"))
 
 

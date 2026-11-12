@@ -18,12 +18,6 @@ if [ -f tools/gamescope/release.env ]; then
   test -f "$D/usr/local/bin/gamescope"
   rm gamescope.tzst
 fi
-. tools/linuxfs/uruntime.env
-curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o uruntime "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}"
-echo "${URUNTIME_SHA256}  uruntime" | sha256sum -c -
-install -Dm644 uruntime "$D/usr/local/lib/droiddeck/uruntime"
-install -Dm644 tools/linuxfs/licenses/uruntime-LICENSE "$D/usr/local/share/licenses/uruntime/LICENSE"
-rm uruntime
 M="$D/usr/local/lib/mangoapp"
 mkdir -p "$M" mango-pkgs
 grep -v '^#' tools/mangoapp/packages.txt | while read -r sum url; do
