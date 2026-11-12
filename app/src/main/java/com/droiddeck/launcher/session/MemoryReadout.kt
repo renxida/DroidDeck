@@ -16,7 +16,10 @@ internal object MemoryReadout {
         val swapUsedKb get() = (swapTotalKb - swapFreeKb).coerceAtLeast(0)
     }
 
-    data class Split(val gameKb: Long, val droiddeckKb: Long, val gpuKb: Long?)
+    data class Split(
+        val gameKb: Long, val droiddeckKb: Long, val gpuKb: Long?,
+        val gameSwapKb: Long = 0, val droiddeckSwapKb: Long = 0, val topName: String = "", val topKb: Long = 0,
+    )
 
     fun parseMeminfo(text: String): Device? {
         fun field(name: String) = Regex("""(?m)^$name:\s+(\d+) kB""").find(text)?.groupValues?.get(1)?.toLongOrNull()
@@ -29,6 +32,12 @@ internal object MemoryReadout {
         fun field(name: String) = Regex("""(?m)^$name:\s+(\d+) kB""").find(status)?.groupValues?.get(1)?.toLongOrNull() ?: 0
         return field("RssAnon") + field("RssShmem")
     }
+
+    fun swapKb(status: String): Long =
+        Regex("""(?m)^VmSwap:\s+(\d+) kB""").find(status)?.groupValues?.get(1)?.toLongOrNull() ?: 0
+
+    fun processName(status: String): String =
+        Regex("""(?m)^Name:\s+(\S+)""").find(status)?.groupValues?.get(1)?.replace(',', '_') ?: ""
 
     fun inWinePrefix(environ: ByteArray): Boolean {
         var start = 0
@@ -60,6 +69,10 @@ internal object MemoryReadout {
         val children = parents.entries.groupBy({ it.value }, { it.key })
         var game = 0L
         var droiddeck = 0L
+        var gameSwap = 0L
+        var droiddeckSwap = 0L
+        var topName = ""
+        var topKb = 0L
         val queue = ArrayDeque<Int>().apply { add(root) }
         val seen = HashSet<Int>()
         while (queue.isNotEmpty()) {
@@ -68,12 +81,14 @@ internal object MemoryReadout {
             val status = runCatching { File("/proc/$pid/status").readText() }.getOrNull()
             if (status != null) {
                 val kb = residentKb(status)
+                val swap = swapKb(status)
                 val windows = pid != root && runCatching { inWinePrefix(File("/proc/$pid/environ").readBytes()) }.getOrDefault(false)
-                if (windows) game += kb else droiddeck += kb
+                if (windows) { game += kb; gameSwap += swap } else { droiddeck += kb; droiddeckSwap += swap }
+                if (kb + swap > topKb) { topKb = kb + swap; topName = processName(status) }
             }
             children[pid]?.let(queue::addAll)
         }
-        return Split(game, droiddeck, gpuKb())
+        return Split(game, droiddeck, gpuKb(), gameSwap, droiddeckSwap, topName, topKb)
     }
 
     private fun parentOf(pid: Int): Int? {
@@ -100,11 +115,12 @@ object MemoryLog {
             "droiddeck ${split.droiddeckKb / 1024}, android ${MemoryReadout.androidKb(device, split) / 1024}, " +
             "gpu ${split.gpuKb?.div(1024) ?: "?"} MB"
 
-    internal const val CSV_HEADER = "t_wall_ms,used_mb,available_mb,swap_used_mb,game_mb,droiddeck_mb,app_mb,gpu_mb"
+    internal const val CSV_HEADER = "t_wall_ms,used_mb,available_mb,swap_used_mb,game_mb,droiddeck_mb,app_mb,gpu_mb,game_swap_mb,droiddeck_swap_mb,top_process,top_mb"
 
     internal fun csvLine(at: Long, device: MemoryReadout.Device, split: MemoryReadout.Split, appKb: Long?): String =
         "$at,${device.usedKb / 1024},${device.availableKb / 1024},${device.swapUsedKb / 1024},${split.gameKb / 1024}," +
-            "${split.droiddeckKb / 1024},${appKb?.div(1024) ?: ""},${split.gpuKb?.div(1024) ?: ""}"
+            "${split.droiddeckKb / 1024},${appKb?.div(1024) ?: ""},${split.gpuKb?.div(1024) ?: ""}," +
+            "${split.gameSwapKb / 1024},${split.droiddeckSwapKb / 1024},${split.topName},${split.topKb / 1024}"
 
     /** Logs to logcat every [LOG_EVERY] samples and, with [csv], appends every sample to it (memory.csv). */
     @Synchronized
