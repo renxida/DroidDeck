@@ -340,9 +340,6 @@ def godot_vulkan(game):
     if target:
         extra += ["--rendering-method", target]
     extra += ["--rendering-driver", "vulkan"]
-    if version and version[:2] >= (4, 5) and not game.has_arg("--accessibility"):
-        # The default "auto" mode starts AccessKit's UI Automation provider for the window; "disabled" skips it.
-        extra += ["--accessibility", "disabled"]
     # Without --rendering-method, Godot's main.cpp picks forward_plus for any RenderingDevice driver.
     shown = target or shown or "forward_plus"
     return {}, extra, "%s: %s on Vulkan (%s=%s)" % (described, shown, GODOT_RENDERER, choice)

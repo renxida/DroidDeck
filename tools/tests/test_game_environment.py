@@ -3087,7 +3087,7 @@ class GodotRendererTest(unittest.TestCase):
     def test_forward_plus_projects_keep_their_renderer_on_vulkan_and_use_mobile_on_powervr(self):
         exe = self.game(godot_pack(STS2_SETTINGS))
         env, extra, notes = self.args(exe)
-        self.assertEqual(extra, ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan", "--accessibility", "disabled"])
+        self.assertEqual(extra, ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan"])
         self.assertIn("Godot 4.5.1 (project: forward_plus on d3d12): forward_plus on Vulkan (DROIDDECK_GODOT_RENDERER=auto)", notes)
         env, extra, notes = self.args(exe, POWERVR)
         self.assertEqual(extra[:4], ["--rendering-method", "mobile", "--rendering-driver", "vulkan"])
@@ -3096,7 +3096,7 @@ class GodotRendererTest(unittest.TestCase):
                                  ("forward_plus", ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan"]),
                                  ("vulkan", ["--rendering-driver", "vulkan"]), ("junk", ["--rendering-method", "mobile", "--rendering-driver", "vulkan"])):
             with self.subTest(choice=choice):
-                self.assertEqual(self.args(exe, dict(POWERVR, DROIDDECK_GODOT_RENDERER=choice))[1][:-2], expected)
+                self.assertEqual(self.args(exe, dict(POWERVR, DROIDDECK_GODOT_RENDERER=choice))[1], expected)
         self.assertEqual(self.args(exe, dict(POWERVR, DROIDDECK_GODOT_RENDERER="off")), ({}, [], []))
 
     def test_launch_options_and_other_projects_choose_for_themselves(self):
@@ -3169,8 +3169,7 @@ class GodotRendererTest(unittest.TestCase):
         with patch.dict(os.environ, environment, clear=True), patch.object(sys, "argv", ["game-env", *command]), \
                 patch.dict(MODULE["main"].__globals__, stubs), patch.object(sys, "stderr", err):
             self.assertEqual(MODULE["main"](), 0)
-        self.assertEqual(started[0][3:], ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan",
-                                          "--accessibility", "disabled", "--", "--mod"])
+        self.assertEqual(started[0][3:], ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan", "--", "--mod"])
         self.assertIn("droiddeck-game-env: Godot 4.5.1 (project: forward_plus on d3d12): forward_plus on Vulkan "
                       "(DROIDDECK_GODOT_RENDERER=forward_plus)\n", err.getvalue())
         self.assertIn("droiddeck-game-env: Godot: pipeline cache saved every 0.5 MiB (override.cfg)\n", err.getvalue())
