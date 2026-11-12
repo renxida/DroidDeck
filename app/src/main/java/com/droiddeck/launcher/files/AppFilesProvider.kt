@@ -41,7 +41,7 @@ class AppFilesProvider : DocumentsProvider() {
         result.newRow().apply {
             add(Root.COLUMN_ROOT_ID, ROOT_ID)
             add(Root.COLUMN_DOCUMENT_ID, base.absolutePath)
-            add(Root.COLUMN_TITLE, titleFor(ctx))
+            add(Root.COLUMN_TITLE, ctx.getString(R.string.app_name))
             add(Root.COLUMN_SUMMARY, null)
             add(Root.COLUMN_FLAGS, Root.FLAG_SUPPORTS_CREATE or Root.FLAG_SUPPORTS_SEARCH or Root.FLAG_SUPPORTS_IS_CHILD)
             add(Root.COLUMN_MIME_TYPES, "*/*")
@@ -181,7 +181,7 @@ class AppFilesProvider : DocumentsProvider() {
         if (mime.startsWith("image/")) flags = flags or Document.FLAG_SUPPORTS_THUMBNAIL
         result.newRow().apply {
             add(Document.COLUMN_DOCUMENT_ID, file.absolutePath)
-            add(Document.COLUMN_DISPLAY_NAME, if (file.absolutePath == base.absolutePath) titleFor(context!!) else file.name)
+            add(Document.COLUMN_DISPLAY_NAME, if (file.absolutePath == base.absolutePath) context!!.getString(R.string.app_name) else file.name)
             add(Document.COLUMN_SIZE, if (file.isDirectory) null else file.length())
             add(Document.COLUMN_MIME_TYPE, mime)
             add(Document.COLUMN_LAST_MODIFIED, file.lastModified())
@@ -206,15 +206,5 @@ class AppFilesProvider : DocumentsProvider() {
             Document.COLUMN_DOCUMENT_ID, Document.COLUMN_MIME_TYPE, Document.COLUMN_DISPLAY_NAME,
             Document.COLUMN_LAST_MODIFIED, Document.COLUMN_FLAGS, Document.COLUMN_SIZE,
         )
-
-        fun titleFor(context: Context): String {
-            val name = context.getString(R.string.app_name)
-            return when (context.packageName) {
-                "com.tencent.ig" -> "$name PUBG"
-                "com.antutu.benchmark.full" -> "$name AnTuTu"
-                "com.ludashi.benchmark" -> "$name Ludashi"
-                else -> name
-            }
-        }
     }
 }

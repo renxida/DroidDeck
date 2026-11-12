@@ -271,8 +271,6 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
     timeout-minutes: 45
-    outputs:
-      variants: ${{ steps.variants.outputs.list }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -304,10 +302,6 @@ jobs:
           else
             python3 tools/release/check_authorship.py HEAD
           fi
-
-      - name: The packages a signed build ships as
-        id: variants
-        run: echo "list=$(awk '!/^#/ && NF { print $1 }' tools/release/variants.txt | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
 
       - name: No private key in the tree
         run: |
@@ -658,7 +652,7 @@ jobs:
     uses: ./.github/workflows/sign.yml
     with:
       environment: signing-main
-      variants: ${{ needs.build.outputs.variants }}
+      variants: '["standard"]'
     secrets: inherit
 
   scan:
