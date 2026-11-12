@@ -1113,6 +1113,7 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(
                 [env[name] for name in ("FEX_TSOENABLED", "FEX_VECTORTSOENABLED", "FEX_MEMCPYSETTSOENABLED", "FEX_HALFBARRIERTSOENABLED")],
                 ["1", "0", "0", "1"])
+            self.assertEqual(env["DOTNET_gcConcurrent"], "0")
             self.assertNotIn("FEX_MULTIBLOCK", env)
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
@@ -1149,7 +1150,7 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.split(), ["0", "0"])
             self.assertIn("FEX TSO for this game: FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 "
-                          "FEX_HALFBARRIERTSOENABLED=1", result.stderr)
+                          "FEX_HALFBARRIERTSOENABLED=1 DOTNET_gcConcurrent=0", result.stderr)
             (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
                 {"version": 1, "games": {"2868840": {"FEX_VECTORTSOENABLED": "1"}}}))
             result = subprocess.run(command, env=env, text=True, capture_output=True)

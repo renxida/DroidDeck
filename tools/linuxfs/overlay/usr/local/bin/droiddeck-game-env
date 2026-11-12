@@ -57,6 +57,7 @@ DOTNET_FEX = {
     "FEX_MEMCPYSETTSOENABLED": "0",
     "FEX_HALFBARRIERTSOENABLED": "1",
     "FEX_X87REDUCEDPRECISION": "0",
+    "DOTNET_gcConcurrent": "0",
 }
 
 
@@ -105,7 +106,7 @@ def is_godot(game):
 @fix
 def dotnet_memory_ordering(game):
     if "coreclr.dll" in game.files:
-        return DOTNET_FEX, [], ".NET runtime: FEX with TSO, vector and memcpy/memset TSO off (experiment)"
+        return DOTNET_FEX, [], ".NET runtime: FEX with TSO, vector and memcpy/memset TSO off, background GC off (experiment)"
 
 
 @fix
@@ -345,7 +346,7 @@ def offline_without_anticheat(command, env):
     return command[:2] + [game] + command[3:]
 
 
-FEX_TSO_NAMES = ("FEX_TSOENABLED", "FEX_VECTORTSOENABLED", "FEX_MEMCPYSETTSOENABLED", "FEX_HALFBARRIERTSOENABLED")
+FEX_TSO_NAMES = ("FEX_TSOENABLED", "FEX_VECTORTSOENABLED", "FEX_MEMCPYSETTSOENABLED", "FEX_HALFBARRIERTSOENABLED", "DOTNET_gcConcurrent")
 
 
 def fex_tso_settings(env):
