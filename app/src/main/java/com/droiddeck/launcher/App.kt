@@ -24,6 +24,7 @@ class App : Application() {
             else (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)
                 .runningAppProcesses?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName
         if (process == "$packageName:shortcuts_sync") return
+        com.droiddeck.launcher.telemetry.Timeline.processStarted()
         CrashHandler.install(this)
         com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
@@ -34,6 +35,7 @@ class App : Application() {
         GpuClockPin.clearLeftover(this)
         com.droiddeck.launcher.runtime.RootSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
+        com.droiddeck.launcher.telemetry.TelemetryUploader.flushPending(this)
     }
 
     private fun prefetchAddonPacks() {
