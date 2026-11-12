@@ -208,8 +208,9 @@ All of it is in `tools/linuxfs/overlay/usr/local/bin/droiddeck-game-env`, with t
   per-game profile overrides them (`all` or `0` undoes them). Log line:
   `droiddeck-game-env: Slay the Spire 2: game threads kept off the little cores, 60 fps cap (...)`.
 - `thread_budget` (line 482), used by `cpu_topology`:
-  - `big` keeps cores at ≥ ½ of the top `cpu_capacity` (the IPC-weighted scale), or at ≥ ⅔ of
-    the top `cpuinfo_max_freq` when capacity is unreadable.
+  - `big` keeps cores at ≥ ½ of the top `cpu_capacity` (the IPC-weighted scale), or at ≥ 0.7 of
+    the top `cpuinfo_max_freq` when capacity is unreadable (0.7 so that Snapdragon 8 Gen 3's
+    2.27 GHz A520s, at 0.69 of 3.30 GHz, are still left out).
   - A number keeps that many of the fastest cores; at least 2 are always kept.
   - On Tensor G5 `big` keeps 6. On SM8750/SM8850, whose six performance cores are only clocked
     lower, it keeps all 8.

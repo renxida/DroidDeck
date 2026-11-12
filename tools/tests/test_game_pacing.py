@@ -13,6 +13,7 @@ MODULE = runpy.run_path(str(BIN / "droiddeck-game-env"))
 
 TENSOR_G5_CAPACITY = {0: 260, 1: 260, 2: 620, 3: 620, 4: 620, 5: 620, 6: 620, 7: 1024}
 TENSOR_G5_CLOCKS = {0: 2253000, 1: 2253000, 2: 3053000, 3: 3053000, 4: 3053000, 5: 3053000, 6: 3053000, 7: 3782000}
+GEN3_CLOCKS = {0: 2265600, 1: 2265600, 2: 2956800, 3: 2956800, 4: 3148800, 5: 3148800, 6: 3148800, 7: 3302400}
 ELITE_CLOCKS = {0: 3532800, 1: 3532800, 2: 3532800, 3: 3532800, 4: 3532800, 5: 3532800, 6: 4320000, 7: 4320000}
 
 
@@ -29,6 +30,10 @@ class ThreadBudgetTest(unittest.TestCase):
             kept, said = budget("big", speeds)
             self.assertEqual(kept, [7, 2, 3, 4, 5, 6])
             self.assertIn("thread budget big: game threads on 6 of 8 cores (7,2,3,4,5,6), left out 0,1", said)
+
+    def test_big_by_clock_leaves_out_a520s_clocked_close_to_the_rest(self):
+        kept, _ = budget("big", GEN3_CLOCKS, cores=(7, 4, 5, 6, 2, 3, 0, 1))
+        self.assertEqual(kept, [7, 4, 5, 6, 2, 3])
 
     def test_big_keeps_performance_cores_that_are_only_clocked_lower(self):
         kept, said = budget("big", ELITE_CLOCKS, cores=(6, 7, 0, 1, 2, 3, 4, 5))

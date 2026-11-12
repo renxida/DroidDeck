@@ -491,7 +491,7 @@ def thread_budget(budget, cores):
         # cpu_capacity is IPC-weighted (little cores sit near a quarter of the prime core); cpufreq is not.
         capacity = all(speed <= 1024 for speed in speeds.values())
         top = max(speeds.values())
-        floor = top / 2 if capacity else top * 2 / 3
+        floor = top / 2 if capacity else top * 0.7
         kept = [core for core in cores if speeds[core] >= floor]
     elif re.fullmatch(r"[1-9][0-9]{0,2}", budget):
         kept = cores[:int(budget)]
