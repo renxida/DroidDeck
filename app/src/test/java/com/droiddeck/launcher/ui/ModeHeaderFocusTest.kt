@@ -79,7 +79,7 @@ class ModeHeaderFocusTest {
             }
         }
         val context = RuntimeEnvironment.getApplication()
-        compose.onNodeWithContentDescription(context.getString(R.string.stores_search_open)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.lib_search_open)).performClick()
         compose.waitForIdle()
         val field = editText(root)!!
         compose.runOnIdle {

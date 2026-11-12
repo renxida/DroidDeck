@@ -1,7 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.os.Environment
-import com.droiddeck.launcher.frontend.AddedGames
+
 import java.io.File
 import org.junit.Assert.*
 import org.junit.Rule
@@ -28,7 +28,7 @@ class GameStorageTest {
         SessionPrefs.setAddedGamesDirs(app, listOf(pc.path, plain.path, missing.path))
         val libraries = GameStorage.gamesFolderLibraries(app)
         assertEquals(listOf(pc), libraries.map { it.host })
-        assertEquals(listOf(AddedGames.GUEST_DIR + "/PC"), libraries.map { it.guest })
+        assertEquals(listOf(GameFolders.GUEST_DIR + "/PC"), libraries.map { it.guest })
         assertEquals(listOf("PC"), libraries.map { it.label })
     }
 

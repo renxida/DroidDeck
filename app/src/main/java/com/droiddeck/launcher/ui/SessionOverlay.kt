@@ -339,7 +339,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     var sheetCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var stopCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val pageScroll = remember { SessionDrawerPage.entries.associateWith { ScrollState(0) } }
-    val veil by animateFloatAsState(if (open) 1f else 0f, Motion.tw(260), label = "veil")
+    val veil = if (open) 1f else 0f
     val focus = remember { DrawerFocus() }
     val inputModeManager = LocalInputModeManager.current
     val focusManager = LocalFocusManager.current
@@ -419,11 +419,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         val short = maxHeight < 440.dp
         val sheetWidth = if (docked) maxWidth else minOf(420.dp, maxWidth * 0.92f)
         val narrow = sheetWidth < 320.dp
-        AnimatedVisibility(
-            open,
-            enter = if (docked) fadeIn(Motion.tw(160)) else slideInHorizontally(Motion.sp(0.8f, Spring.StiffnessLow)) { it } + fadeIn(Motion.tw(220)),
-            exit = if (docked) fadeOut(Motion.tw(140)) else slideOutHorizontally(Motion.tw(240)) { it } + fadeOut(Motion.tw(200)),
-        ) {
+        if (open) {
             FocusGlideHost(Modifier.fillMaxHeight().width(sheetWidth)) { Box(Modifier.fillMaxSize().onGloballyPositioned { sheetCoords = it }) {
             Column(
                 modifier = Modifier
@@ -448,7 +444,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     ) { host.open = null; (a.onDismissScreen ?: a.onClose)() }
                     if (roomyHeader) Spacer(Modifier.weight(1f))
                     SteamActionPill(
-                        stringResource(R.string.stores_dl_pause), Icons.Outlined.Pause, focus.track(page, "pause"),
+                        stringResource(R.string.lib_dl_pause), Icons.Outlined.Pause, focus.track(page, "pause"),
                     ) { host.open = null; a.onPause() }
                     if (a.pipSupported) SteamActionPill(
                         stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt, focus.track(page, "pip"),
@@ -797,7 +793,7 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     val colors = MaterialTheme.colorScheme
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
-    val fill by animateColorAsState(if (hot) colors.error.copy(alpha = 0.18f) else Color.Transparent, Motion.tw(220), label = "dangerFill")
+    val fill = if (hot) colors.error.copy(alpha = 0.18f) else Color.Transparent
     val shape = RoundedCornerShape(20.dp)
     val stopDescription = stringResource(R.string.stop_session)
     Row(
@@ -851,7 +847,6 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
     val count = pages.size
     val selectedIndex = pages.indexOf(page)
     val middle = (count - 1) / 2f
-    val motion = Motion.tw<Float>(340, easing = FastOutSlowInEasing)
     androidx.compose.foundation.layout.BoxWithConstraints(
         contentAlignment = Alignment.Center,
         modifier = modifier.height(if (compact) 44.dp else 64.dp).clipToBounds().selectableGroup(),
@@ -861,21 +856,21 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
         val scroll = rememberScrollState()
         val density = LocalDensity.current.density
         LaunchedEffect(scrolling, selectedIndex, maxWidth) {
-            if (scrolling) scroll.animateScrollTo(((selectedIndex * (tab + 4f) + tab / 2f - maxWidth.value / 2f) * density).roundToInt().coerceAtLeast(0))
+            if (scrolling) scroll.scrollTo(((selectedIndex * (tab + 4f) + tab / 2f - maxWidth.value / 2f) * density).roundToInt().coerceAtLeast(0))
         }
         val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(24f, DRAWER_TAB_SPACING_DP)
         val leanStep = DRAWER_TAB_LEAN_DP * spacing / DRAWER_TAB_SPACING_DP
-        val lean by animateFloatAsState(-(selectedIndex - middle) * leanStep, motion, label = "tabLean")
+        val lean = -(selectedIndex - middle) * leanStep
         @Composable fun tabs() { pages.forEachIndexed { index, item ->
             androidx.compose.runtime.key(item) {
                 val selected = item == page
                 val source = remember { MutableInteractionSource() }
                 val focused = source.collectIsFocusedAsState().value
-                val scale by animateFloatAsState(if (selected || scrolling) 1f else DRAWER_TAB_SIDE_SCALE, motion, label = "tabScale")
-                val alpha by animateFloatAsState(if (selected || scrolling) 1f else DRAWER_TAB_SIDE_ALPHA, motion, label = "tabAlpha")
-                val glow by animateFloatAsState(if (selected) 1f else 0f, motion, label = "tabGlow")
+                val scale = if (selected || scrolling) 1f else DRAWER_TAB_SIDE_SCALE
+                val alpha = if (selected || scrolling) 1f else DRAWER_TAB_SIDE_ALPHA
+                val glow = if (selected) 1f else 0f
                 val pageDescription = stringResource(R.string.drawer_page_desc, stringResource(item.title))
-                val tint by animateColorAsState(if (selected) colors.onBackground else colors.onSurfaceVariant, Motion.tw(340, easing = FastOutSlowInEasing), label = "tabTint")
+                val tint = if (selected) colors.onBackground else colors.onSurfaceVariant
                 val select = { onSelect(item) }
                 Box(
                     contentAlignment = Alignment.Center,
@@ -935,7 +930,7 @@ private fun ScreenEffectsGroup(
     }
     val source = remember { MutableInteractionSource() }
     val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
-    val rotation by animateFloatAsState(if (advancedExpanded) 180f else 0f, Motion.tw(180), label = "advancedArrow")
+    val rotation = if (advancedExpanded) 180f else 0f
     val description = stringResource(if (advancedExpanded) R.string.widgets_expanded else R.string.widgets_collapsed)
     val toggle = { host.open = null; onAdvancedToggle() }
     Row(
@@ -952,7 +947,7 @@ private fun ScreenEffectsGroup(
         Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = colors.onSurfaceVariant,
             modifier = Modifier.size(22.dp).rotate(rotation))
     }
-    AnimatedVisibility(advancedExpanded) {
+    if (advancedExpanded) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface).border(1.dp, pal.line, RoundedCornerShape(14.dp))) {
             ToggleRow(host, "cas", stringResource(R.string.drawer_cas), null, e.cas, chipModifier = track("cas")) { a.onEffects(e.copy(cas = it)) }
             if (e.cas) SliderRow(stringResource(R.string.drawer_cas_level), null, e.casLevel, 0..100, step = 5,
@@ -983,8 +978,6 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
     val pal = LocalPalette.current
     val modes = secondScreenModes(a.secondScreenNone, com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable)
     SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
-        Text(stringResource(R.string.input_second_mode_hint), Modifier.padding(14.dp),
-            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         Column(Modifier.fillMaxWidth().selectableGroup()) {
             modes.forEach { mode ->
                 val selected = a.secondScreenMode == mode
@@ -1399,7 +1392,7 @@ internal fun ComponentDownloadsDrawerGroup(
         SettingsRow(stringResource(R.string.comp_nightlies_checked,
             if (catalogAt > 0) java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
                 .format(java.util.Date(catalogAt * 1000)) else stringResource(R.string.comp_never)), null, stacked = true) {
-            ValueChip(stringResource(if (checking) R.string.common_checking else R.string.stores_refresh),
+            ValueChip(stringResource(if (checking) R.string.common_checking else R.string.lib_refresh),
                 false, enabled = !checking, modifier = track("cmp-download-refresh"), onClick = onRefresh)
         }
         for (comp in ComponentsManager.COMPONENTS) {
@@ -1558,28 +1551,15 @@ private fun StopConfirm(
                 items.forEach { it.snapTo(0f) }
                 grown = true
             }
-            coroutineScope {
-                launch { dim.animateTo(1f, Motion.tw(260)) }
-                launch { tint.animateTo(1f, Motion.tw(200)) }
-                launch { bottom.animateTo(boxBottom, Motion.sp(0.7f, 380f)) }
-                launch { delay(Motion.ms(110).toLong()); left.animateTo(boxLeft, Motion.sp(0.55f, 300f)) }
-                items.forEachIndexed { i, a ->
-                    launch { delay(Motion.ms(260 + i * 55).toLong()); a.animateTo(1f, Motion.tw(220)) }
-                }
-                if (controllerActive) launch {
-                    delay(Motion.ms(300).toLong())
-                    withFrameNanos { }
-                    runCatching { cancelFocus.requestFocus() }
-                }
+            dim.snapTo(1f); tint.snapTo(1f); bottom.snapTo(boxBottom); left.snapTo(boxLeft)
+            items.forEach { it.snapTo(1f) }
+            if (controllerActive) {
+                withFrameNanos { }
+                runCatching { cancelFocus.requestFocus() }
             }
         } else if (grown) {
-            coroutineScope {
-                items.forEach { launch { it.animateTo(0f, Motion.tw(90)) } }
-                launch { delay(Motion.ms(60).toLong()); dim.animateTo(0f, Motion.tw(300)) }
-                launch { delay(Motion.ms(60).toLong()); left.animateTo(p.left, Motion.sp(1f, 420f)) }
-                launch { delay(Motion.ms(160).toLong()); bottom.animateTo(p.bottom, Motion.sp(1f, 380f)) }
-                launch { delay(Motion.ms(200).toLong()); tint.animateTo(0f, Motion.tw(200)) }
-            }
+            items.forEach { it.snapTo(0f) }
+            dim.snapTo(0f); left.snapTo(p.left); bottom.snapTo(p.bottom); tint.snapTo(0f)
             grown = false
             shown = false
             content = null
@@ -1587,7 +1567,7 @@ private fun StopConfirm(
     }
     LaunchedEffect(open, controllerActive) {
         if (!open || !controllerActive || stopFocused || cancelFocused) return@LaunchedEffect
-        delay(Motion.ms(300).toLong())
+        withFrameNanos { }
         withFrameNanos { }
         if (stopFocused || cancelFocused) return@LaunchedEffect
         runCatching { cancelFocus.requestFocus() }

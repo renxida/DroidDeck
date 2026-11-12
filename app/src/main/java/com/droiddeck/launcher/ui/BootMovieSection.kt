@@ -250,7 +250,7 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
     }
     AppDialog(shown, close, "boot-movies", wide = false, scrollable = false) {
         val filters = listOf(
-            null to stringResource(R.string.store_all),
+            null to stringResource(R.string.common_all),
             BootMovieLibrary.SOURCE_DROIDDECK to movieSourceLabel(BootMovieLibrary.SOURCE_DROIDDECK),
             BootMovieLibrary.SOURCE_STEAM to movieSourceLabel(BootMovieLibrary.SOURCE_STEAM),
             BootMovieLibrary.SOURCE_POINTSHOP to movieSourceLabel(BootMovieLibrary.SOURCE_POINTSHOP),
@@ -475,7 +475,7 @@ private fun RepoTab(a: ModeSettingsActions) {
         }
     }
     if (searching) TextEntryDialog(
-        stringResource(R.string.boot_movie_repo_search), query, number = false, confirm = stringResource(R.string.stores_search_open),
+        stringResource(R.string.boot_movie_repo_search), query, number = false, confirm = stringResource(R.string.lib_search_open),
         onSubmit = { value -> if (value != query) { query = value; page = 1 } }, onDismiss = { searching = false },
     )
     if (jumping) TextEntryDialog(

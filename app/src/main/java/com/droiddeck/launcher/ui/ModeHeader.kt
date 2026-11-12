@@ -65,7 +65,7 @@ internal fun ModeHeader(
     val pal = LocalPalette.current
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
     var focusOnOpen by remember { mutableStateOf(false) }
-    val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
+    val open = if (searching) 1f else 0f
     val close = {
         searching = false
         focusOnOpen = false
@@ -97,7 +97,7 @@ internal fun ModeHeader(
         }
     }
     val searchButton: @Composable () -> Unit = {
-        SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
+        SearchIcon(stringResource(R.string.lib_search_open)) { searching = true; focusOnOpen = true }
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = maxWidth < NarrowPaneWidth

@@ -171,12 +171,10 @@ internal fun StepOut(
     var grown by remember { mutableStateOf(false) }
     var measured by remember { mutableStateOf<IntSize?>(null) }
     val first = remember { FocusRequester() }
-    val glide = LocalFocusGlide.current
-    val opener = remember { arrayOfNulls<GlideSource>(1) }
+    val ff = LocalFrontFocus.current
+    val opener = remember { arrayOfNulls<String>(1) }
     val openNow = androidx.compose.runtime.rememberUpdatedState(open)
-    var moving by remember { mutableStateOf(false) }
     val placed = remember { arrayOfNulls<Any>(3) }
-    if (moving) VeilRing()
     val pull = with(density) { OutPull.toPx() }
     val corner = pillCorner?.let { with(density) { it.toPx() } } ?: minOf(pill.height, pill.width) / 2f
 
@@ -202,42 +200,23 @@ internal fun StepOut(
             val boxBottom = pill.bottom + pull + c.height
             if (open) {
                 if (!grown) {
-                    opener[0] = glide?.current
-                    edge.snapTo(rest); bottom.snapTo(pill.bottom); tint.snapTo(0f)
-                    pieces.forEach { it.snapTo(0f) }
+                    opener[0] = ff?.last
                     grown = true
                 }
-                coroutineScope {
-                    launch { dim.animateTo(1f, Motion.tw(260)) }
-                    launch { tint.animateTo(1f, Motion.tw(200)) }
-                    moving = true
-                    val down = launch { bottom.animateTo(boxBottom, Motion.sp(0.8f, 380f)) }
-                    val across = launch { edge.animateTo(out, Motion.sp(0.8f, 380f)) }
-                    launch { down.join(); across.join(); moving = false }
-                    pieces.forEachIndexed { i, a ->
-                        launch { delay(Motion.ms(260 + i * 55).toLong()); a.animateTo(1f, Motion.tw(220)) }
-                    }
-                }
+                edge.snapTo(out); bottom.snapTo(boxBottom); tint.snapTo(1f); dim.snapTo(1f)
+                pieces.forEach { it.snapTo(1f) }
             } else {
-                opener[0]?.let { o -> if (inputMode.inputMode == InputMode.Keyboard) runCatching { o.requester.requestFocus() } }
+                opener[0]?.let { id -> if (inputMode.inputMode == InputMode.Keyboard) ff?.items?.get(id)?.let { runCatching { it.requestFocus() } } }
                 opener[0] = null
-                coroutineScope {
-                    pieces.forEach { launch { it.animateTo(0f, Motion.tw(90)) } }
-                    launch { delay(Motion.ms(60).toLong()); dim.animateTo(0f, Motion.tw(300)) }
-                    moving = true
-                    launch { delay(Motion.ms(60).toLong()); edge.animateTo(rest, Motion.tw(240)) }
-                    launch { delay(Motion.ms(60).toLong()); bottom.animateTo(pill.bottom, Motion.tw(240)) }
-                    launch { delay(Motion.ms(200).toLong()); tint.animateTo(0f, Motion.tw(200)) }
-                }
+                pieces.forEach { it.snapTo(0f) }
+                dim.snapTo(0f); edge.snapTo(rest); bottom.snapTo(pill.bottom); tint.snapTo(0f)
                 grown = false
-                moving = false
                 onClosed()
             }
         }
 
         LaunchedEffect(open, measured) {
             if (!open || measured == null || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
-            delay(Motion.ms(300).toLong())
             withFrameNanos { }
             runCatching { first.requestFocus() }
         }

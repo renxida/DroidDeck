@@ -65,7 +65,6 @@ internal fun AppDialog(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
-    VeilRing()
     Dialog(onDismissRequest = back ?: close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
       CompositionLocalProvider(LocalFrontFocus provides null) {
         Box(
@@ -73,12 +72,7 @@ internal fun AppDialog(
             modifier = Modifier.fillMaxSize().imePadding()
                 .tapOutside(close),
         ) {
-            AnimatedVisibility(
-                visibleState = shown,
-                enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f),
-                exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f),
-                label = label,
-            ) {
+            if (shown.targetState) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier
@@ -117,7 +111,7 @@ internal fun DialogHeader(eyebrow: String, title: String, trailing: (@Composable
             Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
-    Rise(0) {
+    Box {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             when {
                 trailing == null -> heading()
@@ -134,7 +128,7 @@ internal fun DialogHeader(eyebrow: String, title: String, trailing: (@Composable
 @Composable
 internal fun DialogFooter(note: String?, confirm: String, enabled: Boolean, onCancel: () -> Unit, onConfirm: () -> Unit) {
     val lineColor = LocalPalette.current.line
-    Rise(2) {
+    Box {
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.drawBehind { drawLine(lineColor, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }.padding(top = 14.dp),

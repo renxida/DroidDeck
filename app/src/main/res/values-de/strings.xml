@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Beim ersten Start wird Steam heruntergeladen. Das kann ein paar Minuten dauern.</item>
-        <item>Standardmäßig pausiert Steam, wenn du die App verlässt, und macht bei deiner Rückkehr dort weiter, wo es aufgehört hat.</item>
-        <item>Dein Controller erscheint als Xbox-360-Pad. Ansonsten nutze die Bildschirmsteuerung.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Standardmäßig wird die Sitzung pausiert, wenn du die App verlässt, und macht bei deiner Rückkehr dort weiter, wo sie aufgehört hat.</item>
-        <item>Touch funktioniert wie ein Touchpad: Ziehen bewegt den Zeiger, Tippen klickt.</item>
-        <item>Dein Controller erscheint als Xbox-360-Pad. Ansonsten nutze die Bildschirmsteuerung.</item>
-    </string-array>
     <string name="session_channel">Sitzung</string>
     <string name="session_notification">Steam läuft</string>
     <string name="session_notification_downloads">Steam-Download aktiv</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Touch</string>
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direkt</string>
-    <string name="mode_touch_note">Auto: Touchpad auf dem Desktop, direkt in Steam.</string>
     <string name="mode_osc">Bildschirmsteuerung</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto zeigt die Steuerung an, wenn kein Controller verbunden ist.</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">Lädt den Steam-Client beim nächsten Start von Steam erneut herunter. Nutze dies, wenn Steam im Ladebildschirm hängen bleibt. Spiele, Anmeldung und Einstellungen bleiben erhalten.</string>
     <string name="mode_steam_repair_queued">Der Steam-Client wird beim nächsten Start von Steam erneut heruntergeladen.</string>
     <string name="mode_steam_repair_button">Reparieren</string>
-    <string name="mode_added_art">Grafiken</string>
     <string name="mode_sgdb_key">SteamGridDB-API-Schlüssel</string>
     <string name="mode_sgdb_key_yours">Dein Schlüssel</string>
     <string name="mode_sgdb_edit">Bearbeiten…</string>
-    <string name="mode_added_art_hint">Ergänzt fehlende Grafiken aus Steam, dann aus SteamGridDB. Deine eigene cover.jpg, hero.jpg, logo.png oder icon.png im Spielordner hat Vorrang.</string>
-    <string name="summary_remove_game">%1$s entfernen</string>
-    <string name="mode_added_remove_confirm">Entfernen?</string>
-    <string name="games_add">Spiel hinzufügen</string>
-    <string name="games_add_title">Spiel hinzufügen:</string>
-    <string name="games_pick_exe_title">EXE-Datei auswählen:</string>
-    <string name="games_add_unreachable">Dieser Ort ist in der Sitzung nicht verfügbar</string>
-    <string name="mode_added_exe_check">Diese EXE-Datei prüfen</string>
     <string name="wincomp_title">Windows-Komponenten</string>
     <string name="wincomp_pad_hint">Mit LB / RB zwischen den Abschnitten wechseln.</string>
     <string name="wincomp_card_none">Keine</string>
@@ -224,7 +204,6 @@
     </plurals>
     <string name="wincomp_auto_section">Für dieses Spiel aktiv</string>
     <string name="wincomp_auto_steam">Steam installiert %1$s mit %2$s (App %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam installiert %1$s mit App %2$s, per Name zugeordnet</string>
     <string name="wincomp_suggestions">Ebenfalls aufgeführt</string>
     <string name="wincomp_suggestion_reason">Aufgeführt von %1$s; hier keine Komponente</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -455,7 +434,6 @@
     <string name="drawer_page_controls">Steuerung</string>
     <string name="drawer_page_components">Komponenten</string>
     <string name="drawer_page_controller">Controller</string>
-    <string name="drawer_page_settings">Einstellungen</string>
     <string name="drawer_page_desc">Seite %1$s</string>
     <string name="drawer_steam_menu">Steam-Menü</string>
     <string name="drawer_open_qam">Schnellzugriffsmenü öffnen</string>
@@ -599,9 +577,6 @@
     <string name="setup_limit_adb_failed">Prüfe IP-Adresse und Port unter „Debugging über WLAN“ oder kopple erneut, falls Android dieses Gerät entfernt hat.</string>
     <string name="setup_install">Installieren</string>
     <string name="setup_manage">Verwalten</string>
-    <string name="setup_tab_overview">Übersicht</string>
-    <string name="setup_tab_controller">Controller</string>
-    <string name="setup_tab_launcher">Launcher</string>
     <string name="setup_title">Einrichtung</string>
     <string name="setup_gpu_supported">Gerät unterstützt</string>
     <string name="setup_gpu_untested">Ungetestete GPU</string>
@@ -628,7 +603,6 @@
     <string name="setup_signed_in">Angemeldet als %1$s</string>
     <string name="setup_sign_in">Drücke „Spielen“ und melde dich bei Steam an</string>
     <string name="setup_controller">Controller</string>
-    <string name="setup_controller_unavailable">Controller-Einstellungen sind nicht verfügbar.</string>
     <string name="setup_logs">Sitzungslogs</string>
     <string name="setup_logs_hint">Nach jeder Sitzung gespeichert</string>
     <string name="setup_game_debug_logs">Spiel-Debug-Logs</string>
@@ -675,11 +649,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Steuerung</string>
     <string name="setup_card_controls_hint">Tastenbelegung</string>
-    <string name="store_starting">Wird gestartet…</string>
-    <string name="store_try_again">Erneut versuchen</string>
-    <string name="store_all">Alle</string>
-    <string name="store_open">Öffnen</string>
-    <string name="store_remove">Entfernen</string>
+    <string name="common_starting">Wird gestartet…</string>
+    <string name="common_try_again">Erneut versuchen</string>
+    <string name="common_all">Alle</string>
+    <string name="common_open">Öffnen</string>
+    <string name="common_remove">Entfernen</string>
     <string name="upd_open_settings">Einstellungen öffnen</string>
     <string name="upd_current_status">Aktuell</string>
     <string name="upd_just_now">gerade eben</string>
@@ -761,7 +735,6 @@
     <string name="ctrl_steam_button">Steam-Taste</string>
     <string name="ctrl_qam_button">QAM-Taste</string>
     <string name="ctrl_keyboard_button">Tastatur-Taste</string>
-    <string name="setup_animations">Animationen</string>
     <string name="setup_low_storage_warning">Bei knappem Speicher warnen</string>
     <string name="setup_low_storage_warning_hint">Vor dem Start von Steam nachfragen, wenn weniger als 10 GB frei sind.</string>
     <string name="ctrl_layout">Layout</string>
@@ -773,24 +746,12 @@
     <string name="games_play_steam">Mit Steam spielen</string>
     <string name="games_files">Spieldateien</string>
     <string name="games_prefix">Proton-Präfix</string>
-    <string name="games_saves_looking">Suche nach Spielständen…</string>
-    <string name="games_saves_none">Kein Spielstandordner per Name gefunden. Der Export nimmt den ganzen Benutzerordner.</string>
-    <string name="games_saves_folders">%1$d Spielstandordner</string>
-    <string name="games_saves_summary">%1$s · %2$d Dateien · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Spielstände</string>
-    <string name="games_import_saves">Spielstände importieren…</string>
-    <string name="games_export_gamehub">Als GameHub-ZIP exportieren…</string>
-    <string name="games_export_winlator">Als Winlator-ZIP exportieren…</string>
-    <string name="games_open_save_folder">Spielstandordner öffnen</string>
     <string name="games_never_played">Nie gespielt</string>
     <string name="games_runtime_busy_percent">Laufzeit beschäftigt · %1$d %%</string>
     <string name="games_runtime_update">Laufzeit-Update verfügbar</string>
     <string name="games_runtime_ready">● Laufzeit bereit</string>
     <string name="games_internal">Interner Speicher</string>
     <string name="games_uninstall_body">Löscht seine Dateien und entfernt es aus Steam.</string>
-    <string name="games_remove_title">%1$s entfernen?</string>
-    <string name="games_remove_body">Löscht die Verknüpfung. Die Spieldateien bleiben.</string>
     <string name="gpu_checking">Suche nach Treibern…</string>
     <string name="gpu_none_listed">Noch keine Treiber aufgeführt. Aktualisiere, um danach zu suchen.</string>
     <string name="gpu_hide_other">Treiber für andere GPUs ausblenden</string>
@@ -869,7 +830,6 @@
     <string name="pip_unavailable">Android konnte Bild im Bild nicht öffnen.</string>
     <string name="game_more">Mehr</string>
     <string name="game_edit_art">Grafiken bearbeiten</string>
-    <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Verknüpfung</string>
     <string name="game_shortcut_add">Zum Startbildschirm hinzufügen</string>
     <string name="game_shortcut_choose">Spiel auswählen</string>
@@ -896,23 +856,6 @@
     <string name="load_compat_hint">Deine Sitzung startet, sobald die Einrichtung abgeschlossen ist.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Warte, bis die Installation abgeschlossen ist, bevor du ein Spiel startest</string>
-    <string name="main_saves_close_session">Schließe zuerst die Steam-Sitzung, damit das Spiel den Import nicht überschreiben kann</string>
-    <string name="main_saves_importing">Import in %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">%1$d Datei aus %2$s in %3$s importiert</item>
-        <item quantity="other">%1$d Dateien aus %2$s in %3$s importiert</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">%1$d Datei aus %2$s in %3$s importiert. Alte Spielstände gesichert unter Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">%1$d Dateien aus %2$s in %3$s importiert. Alte Spielstände gesichert unter Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Spielstand-ZIP für %1$s auswählen</string>
-    <string name="main_saves_exporting">Export von %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">%1$d Datei als %2$s exportiert: %3$s</item>
-        <item quantity="other">%1$d Dateien als %2$s exportiert: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Speicherort für %1$s auswählen (%2$s)</string>
     <string name="main_action_failed">%1$s fehlgeschlagen: %2$s</string>
     <string name="main_no_logs_yet">Noch keine Sitzungsprotokolle: Starte zuerst eine Sitzung.</string>
     <string name="main_no_logs_to_clear">Keine Sitzungsprotokolle zum Löschen.</string>
@@ -1050,7 +993,7 @@
         <item quantity="other">Das Protokoll zeigt %1$d Fehler „Function not implemented“: Die seccomp-Beschleunigung von proot lässt auf diesem Gerät einen Helfer scheitern. Versuche %2$s → „%3$s“ (oder „%4$s“) und starte neu.</item>
     </plurals>
 
-    <string name="store_section_loading">wird geladen…</string>
+    <string name="lib_section_loading">wird geladen…</string>
     <string name="theme_graphite">Graphit</string>
     <string name="theme_graphite_detail">Graphitflächen, mit dem Kugelblau des Logos für alles Ausgewählte, Fokussierte oder Gedrückte.</string>
     <string name="theme_paper">Papier auf Schwarz</string>
@@ -1061,8 +1004,6 @@
     <string name="theme_electric_detail">Das Blau heller, auf Flächen, die eher zu Marineblau als zu Grau tendieren.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Farben, die durch den Regenbogen wechseln. Folgt den Animationseinstellungen von Android.</string>
-    <string name="theme_rgb_speed">Geschwindigkeit</string>
-    <string name="theme_rgb_speed_hint">Wie schnell die Farben wechseln.</string>
     <string name="theme_gradient">Farbverlauf</string>
     <string name="theme_gradient_detail">Eigene Primär- und Sekundärfarbe, als Verlauf auf Schaltflächen und Hervorhebungen.</string>
     <string name="theme_gradient_primary">Primär</string>
@@ -1096,7 +1037,6 @@
     <string name="game_sync_err_steam_library">Steam-Bibliothek ist nicht verfügbar</string>
     <string name="game_sync_err_previous_sd">Vorherige SD-Bibliothek ist nicht verfügbar</string>
     <string name="game_sync_err_game_storage">Spielspeicher ist nicht verfügbar</string>
-    <string name="game_sync_err_added_games">Ordner für hinzugefügte Spiele ist nicht verfügbar</string>
     <string name="game_sync_err_manifests">Steam-Manifeste sind nicht verfügbar</string>
     <string name="fm_drive_internal">Intern</string>
     <string name="fm_drive_linux">Linux-System</string>
@@ -1520,11 +1460,6 @@
     <string name="phantom_instructions_not_applicable">Diese Android-Version nutzt dieses Limit nicht.</string>
     <string name="phantom_fix_toggle">Aktiviere „Beschränkungen für Unterprozesse deaktivieren“ in den Entwickleroptionen und lass die Entwickleroptionen danach aktiviert.</string>
     <string name="phantom_fix_no_toggle">Diese Android-Version hat dafür keinen Schalter. Nutze Debugging über WLAN, um es auf diesem Gerät zu ändern.</string>
-    <string name="saves_layout_zip">%1$s-ZIP</string>
-    <string name="saves_zip">ZIP</string>
-    <string name="saves_not_launched">%1$s wurde noch nicht gestartet</string>
-    <string name="saves_none_found">Keine Spielstände für %1$s gefunden</string>
-    <string name="saves_not_save_zip">%1$s hat keinen drive_c-Ordner und ist daher keine GameHub- oder Winlator-Spielstand-ZIP</string>
     <string name="gstore_cannot_create">in %1$s können keine Ordner erstellt werden</string>
     <string name="gstore_cannot_write">in %1$s kann nicht geschrieben werden</string>
     <string name="gstore_cannot_write_detail">in %1$s kann nicht geschrieben werden (%2$s)</string>
@@ -1569,16 +1504,13 @@
     <string name="force_ssbs_title">SSBS erzwingen</string>
     <string name="force_ssbs_hint">Hält eine CPU-Geschwindigkeitseinstellung aktiv, die Wine immer wieder abschaltet. Kann Windows-Spiele auf dem Snapdragon 8 Elite beschleunigen; auf älteren Chips kaum Unterschied. Gilt ab dem nächsten Spielstart.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Eigene</string>
-    <string name="stores_tab_library">Bibliothek</string>
-    <string name="stores_tab_all">Alle</string>
-    <string name="stores_search_library">Deine Bibliothek durchsuchen…</string>
-    <string name="stores_search_open">Suchen</string>
-    <string name="stores_nothing_matches">Keine Spiele</string>
-    <string name="stores_play">Spielen</string>
-    <string name="stores_refresh">Aktualisieren</string>
-    <string name="stores_sort">Sortieren</string>
+    <string name="lib_tab_library">Bibliothek</string>
+    <string name="lib_search_library">Deine Bibliothek durchsuchen…</string>
+    <string name="lib_search_open">Suchen</string>
+    <string name="lib_nothing_matches">Keine Spiele</string>
+    <string name="lib_play">Spielen</string>
+    <string name="lib_refresh">Aktualisieren</string>
+    <string name="lib_sort">Sortieren</string>
     <string name="setup_rail_labels">Seitenleisten-Beschriftungen</string>
     <string name="setup_rail_labels_hint">Namen unter den Symbolen der Seitenleiste anzeigen. Ausschalten für eine schmalere Seitenleiste.</string>
     <string name="library_display">Anzeige</string>
@@ -1586,32 +1518,26 @@
     <string name="library_display_smaller">Kleinere Karten</string>
     <string name="library_display_title">Titel anzeigen</string>
     <string name="library_display_size">Größe anzeigen</string>
-    <string name="stores_sort_last_played">Zuletzt gespielt</string>
-    <string name="stores_sort_recently_installed">Zuletzt installiert</string>
-    <string name="stores_sort_title_asc">Titel A–Z</string>
-    <string name="stores_sort_title_desc">Titel Z–A</string>
-    <string name="stores_sort_size_desc">Größe: größte</string>
-    <string name="stores_sort_size_asc">Größe: kleinste</string>
-    <string name="stores_view_list">Listenansicht</string>
-    <string name="stores_view_cards">Kartenansicht</string>
-    <string name="stores_view_capsules">Coveransicht</string>
+    <string name="lib_sort_last_played">Zuletzt gespielt</string>
+    <string name="lib_sort_recently_installed">Zuletzt installiert</string>
+    <string name="lib_sort_title_asc">Titel A–Z</string>
+    <string name="lib_sort_title_desc">Titel Z–A</string>
+    <string name="lib_sort_size_desc">Größe: größte</string>
+    <string name="lib_sort_size_asc">Größe: kleinste</string>
+    <string name="lib_view_list">Listenansicht</string>
+    <string name="lib_view_cards">Kartenansicht</string>
+    <string name="lib_view_capsules">Coveransicht</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">installiert</string>
-    <string name="stores_uninstall_title">%1$s deinstallieren?</string>
-    <string name="stores_dl_pause">Pausieren</string>
-    <string name="stores_target_free">%1$s frei</string>
+    <string name="lib_eyebrow_installed">installiert</string>
+    <string name="lib_uninstall_title">%1$s deinstallieren?</string>
+    <string name="lib_dl_pause">Pausieren</string>
+    <string name="lib_target_free">%1$s frei</string>
     <string name="common_close">Schließen</string>
     <string name="common_back">Zurück</string>
-    <string name="games_add_all">Alle Spiele in diesem Ordner hinzufügen</string>
-    <string name="games_added_none">Nichts Neues in diesem Ordner</string>
-    <string name="edit_name">Name</string>
-    <string name="edit_target">Ziel</string>
-    <string name="edit_start_in">Ausführen in</string>
     <string name="edit_launch_options">Startoptionen</string>
     <string name="edit_launch_options_steam_hint">Gemeinsam mit den Eigenschaften in Steam: Eine Änderung an einer Stelle gilt für beide.</string>
     <string name="edit_launch_options_not_saved">Die Startoptionen konnten nicht in Steam gespeichert werden. Versuche es erneut.</string>
     <string name="edit_artwork">Grafiken</string>
-    <string name="edit_other_exe">Andere EXE…</string>
     <string name="edit_remove">Entfernen</string>
     <string name="art_cover">Cover</string>
     <string name="art_wide_cover">Breites Cover</string>
@@ -1632,11 +1558,9 @@
     <string name="art_background">Hintergrund</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Symbol</string>
-    <string name="art_src_folder">Spielordner</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Deine Datei</string>
-    <string name="art_src_exe">Aus der EXE</string>
     <string name="art_src_auto">Automatisch</string>
     <string name="art_pick_image">Bild auswählen…</string>
     <string name="art_pick_title">Bild auswählen: %1$s</string>
@@ -1652,17 +1576,8 @@
     <string name="art_sgdb_offline">Keine Verbindung zu SteamGridDB. Prüfe die Netzwerkverbindung.</string>
     <string name="art_sgdb_server">Bei SteamGridDB ist ein Problem aufgetreten. Versuche es später erneut.</string>
     <string name="art_sgdb_no_game">SteamGridDB hat keinen Treffer für dieses Spiel. Versuche es mit der Suche.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d Spiel hinzugefügt</item>
-        <item quantity="other">%1$d Spiele hinzugefügt</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d bereits unter „Spiele“</item>
-        <item quantity="other">%1$d bereits unter „Spiele“</item>
-    </plurals>
     <string name="hop_back">B · Zurück: %1$s</string>
     <string name="hop_from_games">Spiel</string>
-    <string name="hop_from_play">Spieleinstellungen</string>
     <string name="sheet_graphics_drivers">Grafiktreiber</string>
     <string name="comp_this_proton">Dieses Proton</string>
     <string name="comp_for_every_proton">Für jedes Proton</string>
@@ -1715,12 +1630,6 @@
     <string name="comp_this_device">Dieses Gerät</string>
     <string name="proton_remove_title">%1$s entfernen?</string>
     <string name="setup_tab_diagnostics">Diagnose</string>
-    <string name="setup_ready">Bereit zum Spielen</string>
-    <string name="setup_not_ready">Noch nicht bereit zum Spielen</string>
-    <string name="setup_ready_runtime">Laufzeit %1$s</string>
-    <string name="setup_ready_limit_off">Prozesslimit aus</string>
-    <string name="setup_ready_signed_in">angemeldet als %1$s</string>
-    <string name="setup_needs_you">Wenn etwas deine Aufmerksamkeit braucht</string>
     <string name="setup_group_look">Aussehen</string>
     <string name="setup_group_device">Dieses Gerät</string>
     <string name="setup_group_art">Bibliotheksgrafiken</string>
@@ -2050,9 +1959,7 @@
     <string name="game_install_location">Speicherort</string>
     <string name="game_install_folder">Ordner</string>
     <string name="game_install_size">Speicherbedarf</string>
-    <string name="library_filter_added">Hinzugefügt</string>
     <string name="game_tab_launch">Start</string>
-    <string name="game_launch_shortcut">Steam-Verknüpfung</string>
     <string name="game_install_played">Zuletzt gespielt</string>
     <string name="integration_title">Steam-Integration</string>
     <string name="integration_count">%1$d von %2$d an</string>
@@ -2090,11 +1997,6 @@
     <string name="slow_usb_port">%1$s ist über %2$s verbunden (%3$s Mbit/s, etwa %4$d MB/s). Der USB-Anschluss dieses Geräts kann nicht schneller, daher laden Spiele darauf langsam. Interner Speicher oder eine microSD-Karte können schneller sein.</string>
     <string name="slow_usb_never">Nicht mehr anzeigen</string>
     <string name="slow_usb_dismiss">Schließen</string>
-    <string name="steam_import_title">Steam neu starten, um deine Spiele hinzuzufügen?</string>
-    <string name="steam_import_body">Steam kann diese Spiele, die du besitzt, als installiert anzeigen: %1$s. Dafür muss Steam neu starten. Starte jetzt neu, oder sie werden beim nächsten Start von Steam hinzugefügt.</string>
-    <string name="steam_import_names_more">%1$s und %2$d weitere</string>
-    <string name="steam_import_now">Jetzt neu starten</string>
-    <string name="steam_import_later">Später</string>
     <string name="input_reset_positions">Positionen zurücksetzen</string>
     <string name="input_show_label">Beschriftung anzeigen</string>
     <string name="input_layout_import_failed">Dieses Layout konnte nicht importiert werden</string>

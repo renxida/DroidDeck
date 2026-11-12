@@ -47,11 +47,11 @@ class WinComponentDetectorsTest {
         val game = File(steamapps, "common/Skyrim Special Edition").apply { mkdirs() }
         File(steamapps, "appmanifest_489830.acf").writeText("\"AppState\"\n{\n\t\"SharedDepots\"\n\t{\n\t\t\"228990\"\t\t\"228980\"\n\t}\n}\n")
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
-        val found = WinCompSources.steamList(context, game, 489830, "Skyrim Special Edition", auto = true)
+        val found = WinCompSources.steamList(context, game, 489830, "Skyrim Special Edition")
         assertEquals(listOf("d3dx9", "xact_x64"), found.map { it.component })
         assertTrue(found.all { it.auto && it.origin == WinCompSources.Origin.STEAM })
         assertEquals(listOf("DirectX XACT audio (64-bit)", "Skyrim Special Edition", "489830"), found.last().args)
-        assertEquals(emptyList<String?>(), WinCompSources.steamList(context, game, 409710, "Other", auto = true).map { it.component })
+        assertEquals(emptyList<String?>(), WinCompSources.steamList(context, game, 409710, "Other").map { it.component })
     }
 
     @Test fun theGamesInstallScriptRedistsAreInstalledAsSteamWould() {
@@ -81,7 +81,7 @@ class WinComponentDetectorsTest {
         )
         assertEquals(listOf("oalinst", "vcredist2010"), SteamRedists.installScript(game).map { it.first })
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
-        val found = WinCompSources.steamList(context, game, 321040, "DiRT 3 Complete Edition", auto = true)
+        val found = WinCompSources.steamList(context, game, 321040, "DiRT 3 Complete Edition")
         assertEquals(listOf("vcredist2010_dll", "oalinst"), found.map { it.component })
         assertTrue(found.all { it.auto && it.origin == WinCompSources.Origin.STEAM })
         assertEquals(emptyList<Pair<String, String>>(), SteamRedists.installScript(File(steamapps, "missing")))

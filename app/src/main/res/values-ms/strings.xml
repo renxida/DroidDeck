@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Larian pertama memuat turun Steam. Ini mungkin mengambil beberapa minit.</item>
-        <item>Secara lalai, meninggalkan apl ini menjedakan Steam; ia menyambung semula dari tempat ia berhenti apabila anda kembali.</item>
-        <item>Pengawal anda akan muncul sebagai pad Xbox 360. Jika tidak, gunakan kawalan pada skrin.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Secara lalai, meninggalkan apl ini menjedakan sesi; ia menyambung semula dari tempat ia berhenti apabila anda kembali.</item>
-        <item>Sentuhan berfungsi sebagai pad sentuh: seret untuk menggerakkan penunjuk, ketik untuk klik.</item>
-        <item>Pengawal anda akan muncul sebagai pad Xbox 360. Jika tidak, gunakan kawalan pada skrin.</item>
-    </string-array>
     <string name="session_channel">Sesi</string>
     <string name="session_notification">Steam sedang berjalan</string>
     <string name="session_notification_downloads">Muat turun Steam aktif</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Sentuhan</string>
     <string name="mode_touch_touchpad">Pad sentuh</string>
     <string name="mode_touch_direct">Terus</string>
-    <string name="mode_touch_note">Auto: pad sentuh pada Desktop, terus dalam Steam.</string>
     <string name="mode_osc">Kawalan pada skrin</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto memaparkan kawalan apabila tiada pengawal disambungkan.</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">Memuat turun semula klien Steam pada permulaan Steam seterusnya. Gunakan jika Steam tersekat pada skrin pemuatannya. Permainan, log masuk dan tetapan dikekalkan.</string>
     <string name="mode_steam_repair_queued">Klien Steam akan dimuat turun semula pada permulaan Steam seterusnya.</string>
     <string name="mode_steam_repair_button">Baik pulih</string>
-    <string name="mode_added_art">Karya seni</string>
     <string name="mode_sgdb_key">Kunci API SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Kunci anda</string>
     <string name="mode_sgdb_edit">Sunting…</string>
-    <string name="mode_added_art_hint">Melengkapkan karya seni yang hilang daripada Steam, kemudian SteamGridDB. cover.jpg, hero.jpg, logo.png atau icon.png anda sendiri dalam folder permainan diutamakan.</string>
-    <string name="summary_remove_game">Alih keluar %1$s</string>
-    <string name="mode_added_remove_confirm">Alih keluar?</string>
-    <string name="games_add">Tambah permainan</string>
-    <string name="games_add_title">Tambah permainan:</string>
-    <string name="games_pick_exe_title">Pilih exe:</string>
-    <string name="games_add_unreachable">Lokasi ini tidak tersedia dalam sesi</string>
-    <string name="mode_added_exe_check">Semak exe ini</string>
     <string name="wincomp_title">Komponen Windows</string>
     <string name="wincomp_pad_hint">LB / RB bertukar antara bahagian.</string>
     <string name="wincomp_card_none">Tiada</string>
@@ -223,7 +203,6 @@
     </plurals>
     <string name="wincomp_auto_section">Dihidupkan untuk permainan ini</string>
     <string name="wincomp_auto_steam">Steam memasang %1$s dengan %2$s (apl %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam memasang %1$s dengan apl %2$s, disepadankan mengikut nama</string>
     <string name="wincomp_suggestions">Turut disenaraikan</string>
     <string name="wincomp_suggestion_reason">Disenaraikan oleh %1$s; bukan komponen di sini</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -453,7 +432,6 @@
     <string name="drawer_page_controls">Kawalan</string>
     <string name="drawer_page_components">Komponen</string>
     <string name="drawer_page_controller">Pengawal</string>
-    <string name="drawer_page_settings">Tetapan</string>
     <string name="drawer_page_desc">Halaman %1$s</string>
     <string name="drawer_steam_menu">Menu Steam</string>
     <string name="drawer_open_qam">Buka Menu Akses Pantas</string>
@@ -596,9 +574,6 @@
     <string name="setup_limit_adb_failed">Semak alamat IP dan port Debugging Wayarles, atau gandingkan semula jika Android mengalih keluar peranti ini.</string>
     <string name="setup_install">Pasang</string>
     <string name="setup_manage">Urus</string>
-    <string name="setup_tab_overview">Gambaran keseluruhan</string>
-    <string name="setup_tab_controller">Pengawal</string>
-    <string name="setup_tab_launcher">Pelancar</string>
     <string name="setup_title">Persediaan</string>
     <string name="setup_gpu_supported">Peranti disokong</string>
     <string name="setup_gpu_untested">GPU belum diuji</string>
@@ -625,7 +600,6 @@
     <string name="setup_signed_in">Dilog masuk sebagai %1$s</string>
     <string name="setup_sign_in">Tekan Main dan log masuk ke Steam</string>
     <string name="setup_controller">Pengawal</string>
-    <string name="setup_controller_unavailable">Tetapan pengawal tidak tersedia.</string>
     <string name="setup_logs">Log sesi</string>
     <string name="setup_logs_hint">Disimpan selepas setiap sesi</string>
     <string name="setup_game_debug_logs">Log nyahpepijat permainan</string>
@@ -679,11 +653,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Kawalan</string>
     <string name="setup_card_controls_hint">Pemetaan butang</string>
-    <string name="store_starting">Memulakan…</string>
-    <string name="store_try_again">Cuba lagi</string>
-    <string name="store_all">Semua</string>
-    <string name="store_open">Buka</string>
-    <string name="store_remove">Alih keluar</string>
+    <string name="common_starting">Memulakan…</string>
+    <string name="common_try_again">Cuba lagi</string>
+    <string name="common_all">Semua</string>
+    <string name="common_open">Buka</string>
+    <string name="common_remove">Alih keluar</string>
     <string name="upd_open_settings">Buka tetapan</string>
     <string name="upd_current_status">Terkini</string>
     <string name="upd_just_now">sebentar tadi</string>
@@ -765,7 +739,6 @@
     <string name="ctrl_steam_button">Butang Steam</string>
     <string name="ctrl_qam_button">Butang QAM</string>
     <string name="ctrl_keyboard_button">Butang papan kekunci</string>
-    <string name="setup_animations">Animasi</string>
     <string name="setup_low_storage_warning">Beri amaran apabila storan rendah</string>
     <string name="setup_low_storage_warning_hint">Tanya sebelum memulakan Steam apabila ruang kosong kurang daripada 10 GB.</string>
     <string name="ctrl_layout">Susun atur</string>
@@ -777,24 +750,12 @@
     <string name="games_play_steam">Main Steam</string>
     <string name="games_files">Fail permainan</string>
     <string name="games_prefix">Prefix Proton</string>
-    <string name="games_saves_looking">Mencari simpanan…</string>
-    <string name="games_saves_none">Tiada folder simpanan dijumpai mengikut nama. Eksport mengambil seluruh folder pengguna.</string>
-    <string name="games_saves_folders">%1$d folder simpanan</string>
-    <string name="games_saves_summary">%1$s · %2$d fail · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Simpanan permainan</string>
-    <string name="games_import_saves">Import simpanan…</string>
-    <string name="games_export_gamehub">Eksport sebagai zip GameHub…</string>
-    <string name="games_export_winlator">Eksport sebagai zip Winlator…</string>
-    <string name="games_open_save_folder">Buka folder simpanan</string>
     <string name="games_never_played">Belum pernah dimainkan</string>
     <string name="games_runtime_busy_percent">Masa jalan sibuk · %1$d%%</string>
     <string name="games_runtime_update">Kemas kini masa jalan tersedia</string>
     <string name="games_runtime_ready">● Masa jalan sedia</string>
     <string name="games_internal">Storan dalaman</string>
     <string name="games_uninstall_body">Memadam failnya dan mengalih keluarnya daripada Steam.</string>
-    <string name="games_remove_title">Alih keluar %1$s?</string>
-    <string name="games_remove_body">Memadam pintasannya. Fail permainan kekal.</string>
     <string name="gpu_checking">Menyemak pemacu…</string>
     <string name="gpu_none_listed">Belum ada pemacu disenaraikan. Segarkan untuk mencarinya.</string>
     <string name="gpu_hide_other">Sembunyikan pemacu untuk GPU lain</string>
@@ -873,7 +834,6 @@
     <string name="pip_unavailable">Android tidak dapat membuka gambar dalam gambar.</string>
     <string name="game_more">Lagi</string>
     <string name="game_edit_art">Sunting seni</string>
-    <string name="stores_in_steam_label">Dalam Steam</string>
     <string name="game_shortcut">Pintasan</string>
     <string name="game_shortcut_add">Tambah ke skrin utama</string>
     <string name="game_shortcut_choose">Pilih permainan</string>
@@ -900,20 +860,6 @@
     <string name="load_compat_hint">Sesi anda akan bermula apabila persediaan selesai.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Tunggu pemasangan selesai sebelum melancarkan permainan</string>
-    <string name="main_saves_close_session">Tutup sesi Steam dahulu, supaya permainan tidak dapat menyimpan di atas import</string>
-    <string name="main_saves_importing">Mengimport ke %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="other">Mengimport %1$d fail daripada %2$s ke %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="other">Mengimport %1$d fail daripada %2$s ke %3$s. Simpanan lama disandarkan ke Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Pilih zip simpanan untuk %1$s</string>
-    <string name="main_saves_exporting">Mengeksport %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="other">Mengeksport %1$d fail sebagai %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Pilih tempat menyimpan %1$s (%2$s)</string>
     <string name="main_action_failed">%1$s gagal: %2$s</string>
     <string name="main_no_logs_yet">Belum ada log sesi: jalankan sesi dahulu.</string>
     <string name="main_no_logs_to_clear">Tiada log sesi untuk dikosongkan.</string>
@@ -1045,7 +991,7 @@
         <item quantity="other">Log menunjukkan %1$d ralat “Function not implemented”: pecutan seccomp proot gagal pada pembantu di peranti ini. Cuba %2$s → “%3$s” (atau “%4$s”) dan mulakan semula.</item>
     </plurals>
 
-    <string name="store_section_loading">memuatkan…</string>
+    <string name="lib_section_loading">memuatkan…</string>
     <string name="theme_graphite">Graphite</string>
     <string name="theme_graphite_detail">Permukaan graphite, dengan bebola biru logo untuk semua yang dipilih, difokus atau ditekan.</string>
     <string name="theme_paper">Kertas pada hitam</string>
@@ -1056,8 +1002,6 @@
     <string name="theme_electric_detail">Biru lebih cerah, pada permukaan yang lebih cenderung navy daripada kelabu.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Warna yang bertukar merentasi pelangi. Mengikut tetapan animasi Android.</string>
-    <string name="theme_rgb_speed">Kelajuan</string>
-    <string name="theme_rgb_speed_hint">Seberapa pantas warna bertukar.</string>
     <string name="theme_gradient">Kecerunan</string>
     <string name="theme_gradient_detail">Warna utama dan sekunder pilihan anda, diadun pada butang dan sorotan.</string>
     <string name="theme_gradient_primary">Utama</string>
@@ -1091,7 +1035,6 @@
     <string name="game_sync_err_steam_library">Pustaka Steam tidak tersedia</string>
     <string name="game_sync_err_previous_sd">Pustaka SD terdahulu tidak tersedia</string>
     <string name="game_sync_err_game_storage">Storan permainan tidak tersedia</string>
-    <string name="game_sync_err_added_games">Folder permainan yang ditambah tidak tersedia</string>
     <string name="game_sync_err_manifests">Manifest Steam tidak tersedia</string>
     <string name="fm_drive_internal">Dalaman</string>
     <string name="fm_drive_linux">Sistem Linux</string>
@@ -1508,11 +1451,6 @@
     <string name="phantom_instructions_not_applicable">Versi Android ini tidak menggunakan had ini.</string>
     <string name="phantom_fix_toggle">Hidupkan “Lumpuhkan sekatan proses anak” dalam Pilihan pembangun, dan biarkan Pilihan pembangun hidup selepas itu.</string>
     <string name="phantom_fix_no_toggle">Versi Android ini tidak mempunyai suis untuknya. Gunakan Debugging Wayarles untuk menukarnya daripada peranti ini.</string>
-    <string name="saves_layout_zip">zip %1$s</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s belum pernah dilancarkan</string>
-    <string name="saves_none_found">Tiada fail simpanan dijumpai untuk %1$s</string>
-    <string name="saves_not_save_zip">%1$s tidak mempunyai folder drive_c, jadi ia bukan zip simpanan GameHub atau Winlator</string>
     <string name="gstore_cannot_create">tidak dapat mencipta folder dalam %1$s</string>
     <string name="gstore_cannot_write">tidak dapat menulis dalam %1$s</string>
     <string name="gstore_cannot_write_detail">tidak dapat menulis dalam %1$s (%2$s)</string>
@@ -1557,16 +1495,13 @@
     <string name="force_ssbs_title">Paksa SSBS</string>
     <string name="force_ssbs_hint">Mengekalkan tetapan kelajuan CPU yang sentiasa dimatikan oleh Wine. Boleh melajukan permainan Windows pada Snapdragon 8 Elite; sedikit perubahan dilihat pada cip lama. Berkuat kuasa pada pelancaran permainan seterusnya.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Tersuai</string>
-    <string name="stores_tab_library">Pustaka</string>
-    <string name="stores_tab_all">Semua</string>
-    <string name="stores_search_library">Cari pustaka anda…</string>
-    <string name="stores_search_open">Cari</string>
-    <string name="stores_nothing_matches">Tiada permainan</string>
-    <string name="stores_play">Main</string>
-    <string name="stores_refresh">Segar semula</string>
-    <string name="stores_sort">Isih</string>
+    <string name="lib_tab_library">Pustaka</string>
+    <string name="lib_search_library">Cari pustaka anda…</string>
+    <string name="lib_search_open">Cari</string>
+    <string name="lib_nothing_matches">Tiada permainan</string>
+    <string name="lib_play">Main</string>
+    <string name="lib_refresh">Segar semula</string>
+    <string name="lib_sort">Isih</string>
     <string name="setup_rail_labels">Label bar sisi</string>
     <string name="setup_rail_labels_hint">Paparkan nama di bawah ikon bar sisi. Matikan untuk bar sisi yang lebih ramping.</string>
     <string name="library_display">Paparan</string>
@@ -1574,32 +1509,26 @@
     <string name="library_display_smaller">Kad lebih kecil</string>
     <string name="library_display_title">Paparkan tajuk</string>
     <string name="library_display_size">Paparkan saiz</string>
-    <string name="stores_sort_last_played">Baru dimainkan</string>
-    <string name="stores_sort_recently_installed">Baru dipasang</string>
-    <string name="stores_sort_title_asc">Tajuk A–Z</string>
-    <string name="stores_sort_title_desc">Tajuk Z–A</string>
-    <string name="stores_sort_size_desc">Saiz: terbesar</string>
-    <string name="stores_sort_size_asc">Saiz: terkecil</string>
-    <string name="stores_view_list">Paparan senarai</string>
-    <string name="stores_view_cards">Paparan kad</string>
-    <string name="stores_view_capsules">Paparan kulit</string>
+    <string name="lib_sort_last_played">Baru dimainkan</string>
+    <string name="lib_sort_recently_installed">Baru dipasang</string>
+    <string name="lib_sort_title_asc">Tajuk A–Z</string>
+    <string name="lib_sort_title_desc">Tajuk Z–A</string>
+    <string name="lib_sort_size_desc">Saiz: terbesar</string>
+    <string name="lib_sort_size_asc">Saiz: terkecil</string>
+    <string name="lib_view_list">Paparan senarai</string>
+    <string name="lib_view_cards">Paparan kad</string>
+    <string name="lib_view_capsules">Paparan kulit</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">dipasang</string>
-    <string name="stores_uninstall_title">Nyahpasang %1$s?</string>
-    <string name="stores_dl_pause">Jeda</string>
-    <string name="stores_target_free">%1$s bebas</string>
+    <string name="lib_eyebrow_installed">dipasang</string>
+    <string name="lib_uninstall_title">Nyahpasang %1$s?</string>
+    <string name="lib_dl_pause">Jeda</string>
+    <string name="lib_target_free">%1$s bebas</string>
     <string name="common_close">Tutup</string>
     <string name="common_back">Kembali</string>
-    <string name="games_add_all">Tambah semua permainan dalam folder ini</string>
-    <string name="games_added_none">Tiada yang baharu dalam folder ini</string>
-    <string name="edit_name">Nama</string>
-    <string name="edit_target">Sasaran</string>
-    <string name="edit_start_in">Mula dalam</string>
     <string name="edit_launch_options">Pilihan pelancaran</string>
     <string name="edit_launch_options_steam_hint">Dikongsi dengan Properties dalam Steam: perubahan di salah satu tempat dipaparkan di kedua-duanya.</string>
     <string name="edit_launch_options_not_saved">Tidak dapat menyimpan pilihan pelancaran ke Steam. Cuba lagi.</string>
     <string name="edit_artwork">Seni</string>
-    <string name="edit_other_exe">Exe lain…</string>
     <string name="edit_remove">Alih keluar</string>
     <string name="art_cover">Kulit</string>
     <string name="art_wide_cover">Kulit lebar</string>
@@ -1620,11 +1549,9 @@
     <string name="art_background">Latar belakang</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Ikon</string>
-    <string name="art_src_folder">Folder permainan</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Fail anda</string>
-    <string name="art_src_exe">Daripada exe</string>
     <string name="art_src_auto">Automatik</string>
     <string name="art_pick_image">Pilih imej…</string>
     <string name="art_pick_title">Pilih imej: %1$s</string>
@@ -1640,15 +1567,8 @@
     <string name="art_sgdb_offline">SteamGridDB tidak dapat dihubungi. Semak sambungan.</string>
     <string name="art_sgdb_server">Ada masalah di SteamGridDB. Cuba kemudian.</string>
     <string name="art_sgdb_no_game">SteamGridDB tiada hasil untuk permainan ini. Cuba cari sendiri.</string>
-    <plurals name="games_added_n">
-        <item quantity="other">%1$d permainan ditambah</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="other">%1$d sudah berada dalam Permainan</item>
-    </plurals>
     <string name="hop_back">B · Kembali ke %1$s</string>
     <string name="hop_from_games">permainan itu</string>
-    <string name="hop_from_play">Tetapan Main</string>
     <string name="sheet_graphics_drivers">Pemacu grafik</string>
     <string name="comp_this_proton">Proton ini</string>
     <string name="comp_for_every_proton">Untuk setiap Proton</string>
@@ -1701,12 +1621,6 @@
     <string name="comp_this_device">Peranti ini</string>
     <string name="proton_remove_title">Alih keluar %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostik</string>
-    <string name="setup_ready">Sedia untuk bermain</string>
-    <string name="setup_not_ready">Belum sedia untuk bermain</string>
-    <string name="setup_ready_runtime">masa jalan %1$s</string>
-    <string name="setup_ready_limit_off">had proses dimatikan</string>
-    <string name="setup_ready_signed_in">dilog masuk sebagai %1$s</string>
-    <string name="setup_needs_you">Apabila sesuatu memerlukan anda</string>
     <string name="setup_group_look">Rupa</string>
     <string name="setup_group_device">Peranti ini</string>
     <string name="setup_group_art">Seni pustaka</string>
@@ -2028,9 +1942,7 @@
     <string name="game_install_location">Lokasi</string>
     <string name="game_install_folder">Folder</string>
     <string name="game_install_size">Saiz pada cakera</string>
-    <string name="library_filter_added">Ditambah</string>
     <string name="game_tab_launch">Pelancaran</string>
-    <string name="game_launch_shortcut">Pintasan Steam</string>
     <string name="game_install_played">Terakhir dimainkan</string>
     <string name="integration_title">Integrasi Steam</string>
     <string name="integration_count">%1$d daripada %2$d hidup</string>
@@ -2068,11 +1980,6 @@
     <string name="slow_usb_port">%1$s disambungkan melalui %2$s (%3$s Mbps, kira-kira %4$d MB/s). Port USB peranti ini tidak boleh lebih pantas, jadi permainan akan dimuatkan perlahan. Storan dalaman atau kad microSD mungkin lebih pantas.</string>
     <string name="slow_usb_never">Jangan tunjukkan lagi</string>
     <string name="slow_usb_dismiss">Tutup</string>
-    <string name="steam_import_title">Mulakan semula Steam untuk menambah permainan anda?</string>
-    <string name="steam_import_body">Steam boleh menyenaraikan permainan milik anda ini sebagai dipasang: %1$s. Steam perlu dimulakan semula untuk menunjukkannya. Mulakan semula sekarang, atau ia akan ditambah apabila Steam dimulakan seterusnya.</string>
-    <string name="steam_import_names_more">%1$s dan %2$d lagi</string>
-    <string name="steam_import_now">Mulakan semula sekarang</string>
-    <string name="steam_import_later">Kemudian</string>
     <string name="input_reset_positions">Tetapkan semula kedudukan</string>
     <string name="input_show_label">Tunjukkan label</string>
     <string name="input_layout_import_failed">Susun atur ini tidak dapat diimport</string>

@@ -100,7 +100,7 @@ private fun IntegrationRow(
     LaunchedEffect(focused) {
         if (focused) try { flash = true; reveal.bringIntoView(); kotlinx.coroutines.delay(1600) } finally { flash = false }
     }
-    val bg by animateColorAsState(if (flash) pal.signal.copy(alpha = 0.12f) else Color.Transparent, Motion.tw(400), label = "integrationFlash")
+    val bg = if (flash) pal.signal.copy(alpha = 0.12f) else Color.Transparent
     val wifiLocationOff = feature == Feature.WIFI && state.wifi && state.locationPermission && !state.locationOn
     val wifiDenied = feature == Feature.WIFI && !state.locationPermission && state.locationBlocked
     val restricted = feature == Feature.SHORTCUTS && !state.shortcuts && state.shortcutsRestricted
@@ -147,7 +147,7 @@ private fun IntegrationRow(
 private fun FeatureBadge(icon: ImageVector, on: Boolean) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val tint by animateColorAsState(if (on) pal.good else colors.onSurfaceVariant, Motion.tw(250), label = "badgeTint")
+    val tint = if (on) pal.good else colors.onSurfaceVariant
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.size(36.dp).clip(BadgeShape)
@@ -166,43 +166,4 @@ private fun featureTitle(feature: Feature) = when (feature) {
     Feature.WIFI -> R.string.integration_wifi
     Feature.BRIGHTNESS -> R.string.integration_brightness
     Feature.SHORTCUTS -> R.string.integration_shortcuts
-}
-
-@Composable
-internal fun IntegrationSuggestion(state: SteamIntegration.State, onOpen: () -> Unit, onLater: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val pill = RoundedCornerShape(99.dp)
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clip(pill).background(colors.surfaceVariant.copy(alpha = 0.85f))
-            .border(1.dp, pal.signal.copy(alpha = 0.3f), pill).testTag("integration-suggestion"),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.heightIn(min = 40.dp).clip(pill).glideBorder(hot, pill, pal.signal, Color.Transparent)
-                .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = onOpen)
-                .controllerConfirm(onClick = onOpen)
-                .padding(start = 12.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
-        ) {
-            Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = pal.signal, modifier = Modifier.size(16.dp))
-            Text(stringResource(R.string.integration_title), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1)
-            Text(stringResource(R.string.integration_count, state.enabledCount(), Feature.entries.size), fontSize = 12.sp,
-                color = colors.onSurfaceVariant, maxLines = 1)
-        }
-        val closeSrc = remember { MutableInteractionSource() }
-        val closeHot = rememberHot(closeSrc)
-        val later = stringResource(R.string.common_close)
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.padding(end = 4.dp).size(32.dp).clip(CircleShape)
-                .background(if (closeHot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
-                .glideBorder(closeHot, CircleShape, pal.signal, Color.Transparent)
-                .hoverable(closeSrc).clickable(role = Role.Button, interactionSource = closeSrc, indication = LocalIndication.current, onClick = onLater)
-                .controllerConfirm(onClick = onLater)
-                .semantics { contentDescription = later },
-        ) { Icon(Icons.Outlined.Close, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp)) }
-    }
 }

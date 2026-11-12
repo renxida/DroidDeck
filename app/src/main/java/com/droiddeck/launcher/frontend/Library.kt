@@ -22,10 +22,8 @@ object Library {
             SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, logo, installedAt)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
-        val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
+        val profileKey: String get() = appId.toString()
     }
-    const val ADDED = "added"
-    private const val PLAYED = "added_games_played"
 
     private val NOT_GAMES = setOf(
         858280,
@@ -151,18 +149,8 @@ object Library {
         return view.list().orEmpty().mapNotNull { Regex("appmanifest_(\\d+)\\.acf").matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.toSet()
     }
 
-    fun steamLibraryArt(context: Context): List<Pair<Int, File>> {
-        val root = SessionPrefs.activeSteamRoot(context)
-        val cache = File(root, "appcache/librarycache")
-        val concealed = concealedSteamApps(root)
-        return cache.listFiles().orEmpty().mapNotNull { dir ->
-            val appId = dir.name.toIntOrNull()?.takeIf { it !in NOT_GAMES && it.toLong() !in concealed } ?: return@mapNotNull null
-            steamCacheImage(cache, appId, STEAM_CAPSULES)?.let { appId to it }
-        }
-    }
-
     internal fun concealedSteamApps(root: File): Set<Long> {
-        val config = AddedGames.accountConfig(root) ?: return emptySet()
+        val config = steamAccountConfig(root) ?: return emptySet()
         val hidden = runCatching {
             val entries = org.json.JSONArray(File(config, "cloudstorage/cloud-storage-namespace-1.json").readText())
             val entry = (0 until entries.length()).map { entries.getJSONArray(it) }
@@ -180,74 +168,29 @@ object Library {
         return hidden + private
     }
 
-    fun fromSteamClient(g: SteamGame): Boolean = g.library != ADDED
-
     fun launchableGames(
-        context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null,
+        context: Context, strictRead: Boolean = false,
         arch: String = SessionPrefs.activeSteamClientArch(context),
     ): List<SteamGame> {
-        val roots = steamLibraries(context, arch).map { it.first }
-        val list = added ?: AddedGames.scan(context)
         var steam = steamGames(context, strictRead, arch)
-        val targets = steam.filter(::fromSteamClient).map { SteamGrid.target(it, context) } + list.map { SteamGrid.target(it, context) }
-        if (runCatching { SteamGrid.sync(context, targets) }.getOrDefault(false)) steam = steamGames(context, strictRead, arch)
-        val claimed = claimedFolders(steam)
-        val own = list.filter { g ->
-            g.steamAppId != null || claimed.isEmpty() ||
-                (runCatching { g.folder.canonicalPath }.getOrDefault(g.folder.absolutePath) !in claimed &&
-                    AddedGames.guestPath(context, g.folder).let { it == null || it !in claimed })
-        }
-        val played = shortcutsLastPlayed(SessionPrefs.steamRoot(context, arch))
-        return (steam + own.map { g -> addedGame(context, g, roots, played[g.appId] ?: 0L) }).distinctBy { it.gameId }
+        if (runCatching { SteamGrid.sync(context, steam.map { SteamGrid.target(it, context) }) }.getOrDefault(false)) steam = steamGames(context, strictRead, arch)
+        return steam.distinctBy { it.gameId }
     }
 
-    fun recordPlayed(context: Context, game: SteamGame) {
-        if (game.library == ADDED) recordPlayed(context, game.gameIdString)
+    private class LoginUser(val id: String, val mostRecent: Boolean, val autoLogin: Boolean, val timestamp: Long)
+
+    internal fun steamAccountConfig(root: File): File? {
+        val users = runCatching { File(root, "config/loginusers.vdf").readText() }.getOrDefault("")
+        val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users).map {
+            val body = it.groupValues[2]
+            LoginUser(it.groupValues[1], Regex(""""MostRecent"\s*"1"""").containsMatchIn(body), Regex(""""AutoLogin"\s*"1"""").containsMatchIn(body),
+                Regex(""""timestamp"\s*"(\d+)"""").find(body)?.groupValues?.get(1)?.toLongOrNull() ?: 0L)
+        }.filter { it.mostRecent || it.autoLogin || it.timestamp > 0 }.toList().asReversed()
+            .maxWithOrNull(compareBy<LoginUser>({ it.mostRecent }, { it.autoLogin }, { it.timestamp }))
+        val account = recent?.id?.toLongOrNull()?.let { (it - 76561197960265728L).toString() }
+            ?: File(root, "userdata").list()?.filter { it.isNotEmpty() && it.all(Char::isDigit) && it != "0" }?.singleOrNull()
+        return account?.let { File(root, "userdata/$it/config") }
     }
-
-    fun recordPlayed(context: Context, gameId: String) {
-        context.getSharedPreferences(PLAYED, Context.MODE_PRIVATE).edit()
-            .putLong(gameId, System.currentTimeMillis() / 1000).apply()
-    }
-
-    internal fun recordedPlay(context: Context, gameId: Long): Long =
-        context.getSharedPreferences(PLAYED, Context.MODE_PRIVATE).getLong(java.lang.Long.toUnsignedString(gameId), 0L)
-
-    internal fun shortcutsLastPlayed(root: File): Map<Long, Long> = runCatching {
-        val config = AddedGames.accountConfig(root) ?: return emptyMap()
-        val bytes = File(config, "shortcuts.vdf").takeIf { it.isFile }?.readBytes() ?: return emptyMap()
-        val vdf = SteamAppInfo.readMap(java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN), null)
-        (vdf["shortcuts"] as? Map<*, *>)?.values?.filterIsInstance<Map<*, *>>()?.mapNotNull { s ->
-            fun int(key: String) = s.entries.firstOrNull { (it.key as? String).equals(key, ignoreCase = true) }
-                ?.let { (it.value as? String)?.toLongOrNull() }?.and(0xFFFFFFFFL)
-            val id = int("appid") ?: return@mapNotNull null
-            val time = int("LastPlayTime")?.takeIf { it > 0L } ?: return@mapNotNull null
-            id to time
-        }?.toMap()
-    }.getOrNull().orEmpty()
-
-    fun claimedFolders(steam: List<SteamGame>): Set<String> = steam.filter(::fromSteamClient).flatMap { g ->
-        val dir = g.gameFiles ?: return@flatMap emptyList()
-        listOfNotNull(
-            runCatching { dir.canonicalPath }.getOrNull(),
-            runCatching { java.nio.file.Files.readSymbolicLink(dir.toPath()).toString() }.getOrNull(),
-        )
-    }.toSet()
-
-    fun addedGame(
-        context: Context, g: AddedGames.Game, roots: List<File> = steamLibraries(context).map { it.first },
-        lastPlayed: Long = 0L,
-    ): SteamGame =
-        AddedGameArt.resolve(context, g).let { art ->
-            SteamGame(
-                g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
-                hero = art.hero ?: art.header, lastPlayed = maxOf(lastPlayed, recordedPlay(context, g.gameId)), gameFiles = g.folder,
-                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
-                icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
-                logo = art.logo,
-                installedAt = g.folder.lastModified(),
-            )
-        }
 
     internal fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? =
         SteamCacheImages(File(cache, appId.toString())).find(names)

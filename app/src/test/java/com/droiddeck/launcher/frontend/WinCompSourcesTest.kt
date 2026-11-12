@@ -24,7 +24,7 @@ class WinCompSourcesTest {
     private val app get() = RuntimeEnvironment.getApplication()
     @get:Rule val tmp = TemporaryFolder()
 
-    private fun game(folder: File?, appId: Int = 0x8123_4567.toInt(), library: String = Library.ADDED, name: String = "Game") =
+    private fun game(folder: File?, appId: Int = 0x0123_4567, library: String = "steam", name: String = "Game") =
         Library.SteamGame(appId, name, null, library, gameFiles = folder)
 
     private fun auto(findings: List<WinCompSources.Finding>) = findings.filter { it.auto }.map { it.component to it.origin }
@@ -83,27 +83,7 @@ class WinCompSourcesTest {
         assertEquals(null, SteamAppInfo.read(file, 1))
     }
 
-    @Test fun customWithAnAppidInItsFilesIsCertainAndOnByItself() {
-        appinfo(SteamAppInfo.appinfoFile(app), 1145360)
-        val folder = tmp.newFolder("Hades")
-        File(folder, "steam_appid.txt").writeText("1145360")
-        val exe = File(folder, "Hades.exe").apply { writeText("x") }
-        assertEquals(SteamMatch.Certainty.FILES, SteamMatch.resolve(app, folder.path, exe, "Hades").certainty)
-        val findings = WinCompSources.forGame(app, game(folder, name = "Hades"))
-        assertEquals(listOf("vcredist2015_dll" to WinCompSources.Origin.STEAM, "d3dx9" to WinCompSources.Origin.STEAM), auto(findings))
-    }
-
-    @Test fun customMatchedByNameIsOnlyRecommended() {
-        appinfo(SteamAppInfo.appinfoFile(app), 1145360)
-        val folder = tmp.newFolder("Hades Named")
-        val exe = File(folder, "Hades.exe").apply { writeText("x") }
-        assertEquals(SteamMatch.Certainty.NAME, SteamMatch.resolve(app, folder.path, exe, "Hades") { 1145360 }.certainty)
-        val findings = WinCompSources.forGame(app, game(folder, name = "Hades"))
-        assertTrue(auto(findings).isEmpty())
-        assertEquals(listOf("vcredist2015_dll", "d3dx9"), findings.filter { it.origin == WinCompSources.Origin.STEAM_NAME }.map { it.component })
-    }
-
-    @Test fun customWithNoMatchHasTheFolderScanOnly() {
+    @Test fun aGameWithoutSteamDataHasTheFolderScanOnly() {
         val folder = tmp.newFolder("Unknown")
         File(folder, "_CommonRedist/vcredist/2013").mkdirs()
         File(folder, "_CommonRedist/vcredist/2013/vcredist_x64.exe").writeText("x")
@@ -148,17 +128,6 @@ class WinCompSourcesTest {
         File(app.filesDir, "wincomponents.json").writeText("""{"version":1,"games":{"777":["d3dx9","xact"]}}""")
         assertEquals(mapOf("d3dx9" to true, "xact" to true), WinComponents.selection(app, "777").user)
         assertEquals(listOf("d3dx9", "xact"), WinComponents.picks(app, "777"))
-    }
-
-    @Test fun artAndComponentsShareOneSteamMatch() {
-        val folder = tmp.newFolder("Shared")
-        val exe = File(folder, "Shared.exe").apply { writeText("x") }
-        val art = AddedGames.Game(folder, "Shared", exe, "/g/Shared.exe", "/g", 0x81234567L, 0L, emptyList())
-        val match = AddedGameArt.steamMatch(app, art) { 4242 }
-        assertEquals(4242, match.appId)
-        assertEquals(4242, SteamMatch.get(app, folder.path)!!.appId)
-        assertEquals(SteamMatch.Certainty.NAME, SteamMatch.get(app, folder.path)!!.certainty)
-        assertFalse(WinCompSources.forGame(app, game(folder)).any { it.auto })
     }
 
     private val catalog3 = listOf(ready("d3dx9"), ready("vcredist2013_dll"), ready("vcredist2019_dll"))

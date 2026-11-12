@@ -37,9 +37,9 @@ class GameLaunchLinkTest {
     }
 
     @Test fun convertsSignedStorageRepresentationToUnsignedShortcutUri() {
-        assertEquals("18446744073709551615", Library.SteamGame(1, "Added", null, Library.ADDED, -1L).gameIdString)
-        assertEquals("9223372036854775808", Library.SteamGame(1, "Added", null, Library.ADDED, Long.MIN_VALUE).gameIdString)
-        assertEquals("droiddeck://game/18446744073709551615", GameLaunchLink.uri(Library.SteamGame(1, "Added", null, Library.ADDED, -1L).gameIdString))
+        assertEquals("18446744073709551615", Library.SteamGame(1, "Added", null, "internal", -1L).gameIdString)
+        assertEquals("9223372036854775808", Library.SteamGame(1, "Added", null, "internal", Long.MIN_VALUE).gameIdString)
+        assertEquals("droiddeck://game/18446744073709551615", GameLaunchLink.uri(Library.SteamGame(1, "Added", null, "internal", -1L).gameIdString))
     }
 }
 

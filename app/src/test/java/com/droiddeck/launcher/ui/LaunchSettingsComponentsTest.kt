@@ -28,15 +28,6 @@ class LaunchSettingsComponentsTest {
         assertEquals(0, defaultOpens)
     }
 
-    @Test fun addedGameComponentsCardPreservesItsUnsignedProfileKey() {
-        val game = Library.SteamGame(-42, "Added game", null, Library.ADDED)
-        show(game)
-        clickComponents()
-        assertEquals(game.profileKey, openedGame?.profileKey)
-        assertEquals("4294967254", openedGame?.profileKey)
-        assertEquals(0, defaultOpens)
-    }
-
     @Test fun generalComponentsCardStillOpensDefault() {
         show(null)
         clickComponents()

@@ -4,15 +4,12 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
-import androidx.compose.ui.geometry.Rect
 import com.droiddeck.launcher.frontend.AutoComponents
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.LoadingState
-import com.droiddeck.launcher.ui.LaunchOrigin
-import com.droiddeck.launcher.ui.Motion
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
@@ -49,8 +46,6 @@ class ProtonMenuAutoTest {
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
         SessionState.stopRequested = false
-        LaunchOrigin.take()
-        LaunchOrigin.flooding = null
         val latest = JSONObject()
         for (tool in ProtonExtras.tools) latest.put(tool.id, JSONObject()
             .put("tag", "${tool.prefix}-11-12").put("at", System.currentTimeMillis()))
@@ -77,8 +72,6 @@ class ProtonMenuAutoTest {
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
         SessionState.stopRequested = false
-        LaunchOrigin.take()
-        LaunchOrigin.flooding = null
     }
 
     private fun install(name: String): File = File(root, "root/.local/share/Steam/compatibilitytools.d/$name").apply {
@@ -230,35 +223,6 @@ class ProtonMenuAutoTest {
         menu.installProton("droiddeck")
         waitUntil { menu.protonBusyId == null }
         assertFalse(ProtonExtras.declined(activity))
-    }
-
-    @Test fun aPendingAnimatedLaunchPreventsAnAutomaticInstall() {
-        install("DroidDeck-Proton-11-11.1")
-        val launcher = Robolectric.buildActivity(FrontEndActivity::class.java).get()
-        val protons = ReflectionHelpers.getField<ProtonMenu>(launcher, "protons")
-        protons.installer = { tool, _ -> attempts.add(tool.id); "failed" }
-        Motion.refresh(launcher)
-        LaunchOrigin.mark(Rect(0f, 0f, 100f, 100f), "game")
-        launcher.startActivity(Intent(launcher, SessionActivity::class.java))
-        assertNotNull(ReflectionHelpers.callInstanceMethod<Any?>(launcher, "getFlood"))
-        assertNull(shadowOf(launcher).nextStartedActivity)
-        protons.ensureAutoUpdates()
-        assertNull(protons.protonBusyId)
-        assertTrue(attempts.isEmpty())
-    }
-
-    @Test fun anAnimatedLaunchRechecksTheProtonInstallGuardBeforeStarting() {
-        val launcher = Robolectric.buildActivity(FrontEndActivity::class.java).get()
-        Motion.refresh(launcher)
-        LaunchOrigin.mark(Rect(0f, 0f, 100f, 100f), "game")
-        launcher.startActivity(Intent(launcher, SessionActivity::class.java))
-        val pending = requireNotNull(ReflectionHelpers.callInstanceMethod<Any?>(launcher, "getFlood"))
-        ReflectionHelpers.getField<ProtonMenu>(launcher, "protons").protonBusyId = "droiddeck"
-        FrontEndActivity::class.java.getDeclaredMethod("launchFlooded", pending.javaClass)
-            .apply { isAccessible = true }.invoke(launcher, pending)
-        assertNull(shadowOf(launcher).nextStartedActivity)
-        assertNull(ReflectionHelpers.callInstanceMethod<Any?>(launcher, "getFlood"))
-        assertNull(LaunchOrigin.flooding)
     }
 
     @Test fun aCancellationDuringTeardownCannotPublishIdleEarly() {

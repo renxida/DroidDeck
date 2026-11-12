@@ -1,18 +1,12 @@
 # Windows components by source
 
 A game's Windows components (VC++ runtimes, DirectX's d3dx9, XNA, PhysX...) are picked for it by
-itself, from the list its source keeps. The source badge (Steam, GOG, Epic Games, Amazon Games,
-Custom) decides whose list is trusted (`WinCompSources`):
+itself from the list Steam keeps for it (`WinCompSources`):
 
 | Source | List | On by itself |
 | --- | --- | --- |
 | Steam | The Steamworks Shared redistributables Steam installs with the game: the appmanifest's `SharedDepots`, else the client's app info (`SteamAppInfo`) | yes |
-| GOG | The build manifest's `dependencies`, kept in the sidecar at install (`extra.dependencies`) | yes |
-| Epic Games | The manifest's prerequisite (`PrereqName`, `PrereqPath`), kept in the sidecar at install | yes, for the mapped parts |
-| Amazon Games | fuel.json's `PostInstall` installers | yes, for the mapped parts |
-| Custom, appid in its files | Steam's list for that app (`SteamMatch` certainty `FILES`: steam_appid.txt, also under steam_settings/ or a parent; an emulator ini; an appmanifest) | yes |
-| Custom, matched by name | Steam's list for that app (certainty `NAME`, a store search with the same name) | no, Recommended |
-| Custom, no match | the folder scan (`DependencyDetector`) | no, Recommended |
+| Folder scan | the game folder's own installers (`DependencyDetector`) | no, Recommended |
 
 The folder scan is offered as Recommended for every game.
 
@@ -26,25 +20,9 @@ its appmanifest beside it uses the manifest first. `droiddeck-seed-redists` stil
 install scripts for those redistributables as already run, so the client never runs the real
 installers.
 
-## One Steam match per game
-
-`SteamMatch` keeps, per added game (by its folder), `{appId, certainty FILES|NAME|NONE, source}`
-in `files/steam-matches.json`. The art fetch (`AddedGameArt`) and the components read and write
-the same record; an earlier build's art lookup (`added-art/<appid>/steam-appid`) is taken over as
-a name match. A miss is tried again after a week.
-
 ## Mapping
 
-All in `WinCompSources`:
-- GOG ids: `MSVC<year>[_x64]` → `vcredist<year>` (2017 → the 2015 family, as the folder scan),
-  `DirectX*`/`DX9`/`D3DX*` → `d3dx9`, `DOTNET<n>` → `dotnet35`...`dotnet48`, `PhysX` → `physx`,
-  `OpenAL` → `oalinst`, `XNA3`/`XNA31` → `xna31`, other `XNA*` → `xna40`, `XLive*`/`GFWL*` →
-  `XLiveRedist`, `XACT*` → `xact`.
-- Epic: Unreal's `UE4PrereqSetup`/`UEPrereqSetup` (or a "UE4/UE5/Unreal Engine Prerequisites" name)
-  → `vcredist2022` + `d3dx9`; any other installer by its path, as the folder scan names it.
-- Amazon: each `PostInstall` command by its path, as the folder scan names it (Unreal's
-  prerequisite as above).
-- Steam: Steamworks Shared depots 228981-228990 (`SteamRedists.DEPOTS`).
+In `WinCompSources`, Steam's list is the Steamworks Shared depots 228981-228990 (`SteamRedists.DEPOTS`).
 Anything that maps to nothing is listed under "Also listed" with its own name. A mapped component
 that needs a Windows installer here, or is not in the catalog, stays Recommended with its status.
 
@@ -55,8 +33,8 @@ install starts run under `nice -n 19` and `ionice -c3`), one job at a time from 
 list (worked out again only when the files it is read from change, by modification time, and kept
 in `files/wincomp-findings.json`, so a page opens on it at once) and a component's download (each
 component once, for every game that wants it). What the user asked for goes first: the page of a
-game (on a metered network too), a store install or an add. A game's list is queued when it is
-installed, added or edited, when its page opens, when it is launched from DroidDeck (the launch
+game (on a metered network too). A game's list is queued when it is
+installed, when its page opens, when it is launched from DroidDeck (the launch
 itself only takes what is on already), and for every Steam game once per app start, ten seconds
 after the launcher is up (Steam installs them without a word to DroidDeck). The queue waits while
 a session runs, and a download also waits for a validated network (the page then greys what is not

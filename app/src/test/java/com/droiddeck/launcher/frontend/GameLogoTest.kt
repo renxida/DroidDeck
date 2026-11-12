@@ -23,7 +23,7 @@ class GameLogoTest {
     @get:Rule val tmp = TemporaryFolder()
 
     @Before fun noGamesFolders() {
-        AddedGamesPublisher.now = true
+        SteamGameArt.publishNow = true
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         SessionPrefs.setAddedGamesDirs(app, emptyList())
     }
@@ -66,25 +66,12 @@ class GameLogoTest {
         val game = Library.SteamGame(620, "Portal 2", null, "Steam library", logo = stock)
         assertTrue(SteamGameArt.withOverrides(app, game) === game)
         val picked = image("mine.png")
-        assertTrue(SteamGameArt.choose(app, game, AddedGameArt.Slot.LOGO, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path)))
+        assertTrue(SteamGameArt.choose(app, game, GameArt.Slot.LOGO, GameArt.Option(GameArt.FILE, picked.path, picked.path)))
         val shown = SteamGameArt.withOverrides(app, game)
         assertTrue(shown.logo!!.name.startsWith("chosen-logo"))
         assertNull(shown.art)
-        SteamGameArt.reset(app, game, AddedGameArt.Slot.LOGO)
+        SteamGameArt.reset(app, game, GameArt.Slot.LOGO)
         assertEquals(stock, SteamGameArt.withOverrides(app, game).logo)
-    }
-
-    @Test fun anAddedGameShowsItsFolderLogoUnlessOneWasChosen() {
-        val dir = tmp.newFolder("Celeste")
-        val own = File(dir, "logo.png").apply { writeBytes(ByteArray(4) { 1 }) }
-        val exe = File(dir, "Celeste.exe").apply { writeText("x") }
-        val g = AddedGames.Game(dir, "Celeste", exe, "/g/Celeste.exe", "/g", 0x82000001L, 0x82000001L, emptyList())
-        assertEquals(own, Library.addedGame(app, g, emptyList()).logo)
-        val picked = image("pick.png")
-        assertTrue(AddedGameArt.choose(app, g, AddedGameArt.Slot.LOGO, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path)))
-        assertTrue(Library.addedGame(app, g, emptyList()).logo!!.name.startsWith("chosen-logo"))
-        val bare = AddedGames.Game(tmp.newFolder("Bare"), "Bare", exe, "/g/Bare.exe", "/g", 0x82000002L, 0x82000002L, emptyList())
-        assertNull(Library.addedGame(app, bare, emptyList()).logo)
     }
 
     @Test fun theLibraryCacheKeepsTheLogoAndReadsOlderEntries() {

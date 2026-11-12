@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Ensimmäinen käynnistys lataa Steamin. Tämä voi kestää muutaman minuutin.</item>
-        <item>Oletuksena sovelluksesta poistuminen keskeyttää Steamin; se jatkuu siitä mihin jäit, kun palaat takaisin.</item>
-        <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muussa tapauksessa käytä näytön ohjaimia.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Oletuksena sovelluksesta poistuminen keskeyttää istunnon; se jatkuu siitä mihin jäit, kun palaat takaisin.</item>
-        <item>Kosketus toimii kosketuslevynä: vedä liikuttaaksesi osoitinta, napauta napsauttaaksesi.</item>
-        <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muussa tapauksessa käytä näytön ohjaimia.</item>
-    </string-array>
     <string name="session_channel">Istunto</string>
     <string name="session_notification">Steam on käynnissä</string>
     <string name="session_notification_downloads">Steamin lataus käynnissä</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Kosketus</string>
     <string name="mode_touch_touchpad">Kosketuslevy</string>
     <string name="mode_touch_direct">Suora</string>
-    <string name="mode_touch_note">Automaattinen: kosketuslevy Työpöydällä, suora Steamissa.</string>
     <string name="mode_osc">Näytön ohjaimet</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaattinen näyttää ohjaimet, kun yhtään ohjainta ei ole kytketty.</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">Lataa Steam-asiakasohjelman uudelleen, kun Steam käynnistyy seuraavan kerran. Käytä tätä, jos Steam jää lataus­näytölle. Pelit, kirjautuminen ja asetukset säilyvät.</string>
     <string name="mode_steam_repair_queued">Steam-asiakasohjelma ladataan uudelleen, kun Steam käynnistyy seuraavan kerran.</string>
     <string name="mode_steam_repair_button">Korjaa</string>
-    <string name="mode_added_art">Kuvitus</string>
     <string name="mode_sgdb_key">SteamGridDB-API-avain</string>
     <string name="mode_sgdb_key_yours">Oma avaimesi</string>
     <string name="mode_sgdb_edit">Muokkaa…</string>
-    <string name="mode_added_art_hint">Täyttää puuttuvan kuvituksen Steamista ja sen jälkeen SteamGridDB:stä. Pelin kansiossa oleva oma cover.jpg, hero.jpg, logo.png tai icon.png menee näiden edelle.</string>
-    <string name="summary_remove_game">Poista %1$s</string>
-    <string name="mode_added_remove_confirm">Poistetaanko?</string>
-    <string name="games_add">Lisää peli</string>
-    <string name="games_add_title">Lisää peli:</string>
-    <string name="games_pick_exe_title">Valitse exe-tiedosto:</string>
-    <string name="games_add_unreachable">Tämä sijainti ei ole käytettävissä istunnossa</string>
-    <string name="mode_added_exe_check">Tarkista tämä exe-tiedosto</string>
     <string name="wincomp_title">Windows-komponentit</string>
     <string name="wincomp_pad_hint">LB/RB siirtyvät osioiden välillä.</string>
     <string name="wincomp_card_none">Ei mitään</string>
@@ -224,7 +204,6 @@
     </plurals>
     <string name="wincomp_auto_section">Käytössä tässä pelissä</string>
     <string name="wincomp_auto_steam">Steam asentaa %1$s:n %2$s:n mukana (sovellus %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam asentaa %1$s:n sovelluksella %2$s, nimen perusteella täsmäytettynä</string>
     <string name="wincomp_suggestions">Myös listalla</string>
     <string name="wincomp_suggestion_reason">%1$s listaa tämän; ei komponentti tässä</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -455,7 +434,6 @@
     <string name="drawer_page_controls">Ohjaimet</string>
     <string name="drawer_page_components">Komponentit</string>
     <string name="drawer_page_controller">Ohjain</string>
-    <string name="drawer_page_settings">Asetukset</string>
     <string name="drawer_page_desc">%1$s-sivu</string>
     <string name="drawer_steam_menu">Steam-valikko</string>
     <string name="drawer_open_qam">Avaa pikavalikko</string>
@@ -599,9 +577,6 @@
     <string name="setup_limit_adb_failed">Tarkista Langattoman virheenkorjauksen IP-osoite ja portti, tai pariuta uudelleen, jos Android poisti tämän laitteen.</string>
     <string name="setup_install">Asenna</string>
     <string name="setup_manage">Hallitse</string>
-    <string name="setup_tab_overview">Yleiskatsaus</string>
-    <string name="setup_tab_controller">Ohjain</string>
-    <string name="setup_tab_launcher">Käynnistin</string>
     <string name="setup_title">Käyttöönotto</string>
     <string name="setup_gpu_supported">Laite tuettu</string>
     <string name="setup_gpu_untested">Testaamaton GPU</string>
@@ -628,7 +603,6 @@
     <string name="setup_signed_in">Kirjautuneena nimellä %1$s</string>
     <string name="setup_sign_in">Paina Pelaa ja kirjaudu Steamiin</string>
     <string name="setup_controller">Ohjain</string>
-    <string name="setup_controller_unavailable">Ohjaimen asetukset eivät ole käytettävissä.</string>
     <string name="setup_logs">Istunnon lokit</string>
     <string name="setup_logs_hint">Tallennetaan joka istunnon jälkeen</string>
     <string name="setup_game_debug_logs">Pelien vianmäärityslokit</string>
@@ -682,11 +656,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Ohjaimet</string>
     <string name="setup_card_controls_hint">Painikkeiden kartoitus</string>
-    <string name="store_starting">Käynnistyy…</string>
-    <string name="store_try_again">Yritä uudelleen</string>
-    <string name="store_all">Kaikki</string>
-    <string name="store_open">Avaa</string>
-    <string name="store_remove">Poista</string>
+    <string name="common_starting">Käynnistyy…</string>
+    <string name="common_try_again">Yritä uudelleen</string>
+    <string name="common_all">Kaikki</string>
+    <string name="common_open">Avaa</string>
+    <string name="common_remove">Poista</string>
     <string name="upd_open_settings">Avaa asetukset</string>
     <string name="upd_current_status">Ajan tasalla</string>
     <string name="upd_just_now">juuri nyt</string>
@@ -768,7 +742,6 @@
     <string name="ctrl_steam_button">Steam-painike</string>
     <string name="ctrl_qam_button">QAM-painike</string>
     <string name="ctrl_keyboard_button">Näppäimistöpainike</string>
-    <string name="setup_animations">Animaatiot</string>
     <string name="setup_low_storage_warning">Varoita, kun tallennustila on vähissä</string>
     <string name="setup_low_storage_warning_hint">Kysy ennen Steamin käynnistämistä, kun vapaata tilaa on alle 10 Gt.</string>
     <string name="ctrl_layout">Asettelu</string>
@@ -780,24 +753,12 @@
     <string name="games_play_steam">Pelaa Steamissa</string>
     <string name="games_files">Pelitiedostot</string>
     <string name="games_prefix">Proton-prefix</string>
-    <string name="games_saves_looking">Etsitään tallennuksia…</string>
-    <string name="games_saves_none">Nimellä löydettävää tallennuskansiota ei löytynyt. Vienti ottaa koko käyttäjäkansion.</string>
-    <string name="games_saves_folders">%1$d tallennuskansiota</string>
-    <string name="games_saves_summary">%1$s · %2$d tiedostoa · %3$s</string>
-    <string name="games_kb">%1$d kt</string>
-    <string name="games_saves">Pelitallennukset</string>
-    <string name="games_import_saves">Tuo tallennuksia…</string>
-    <string name="games_export_gamehub">Vie GameHub-zipinä…</string>
-    <string name="games_export_winlator">Vie Winlator-zipinä…</string>
-    <string name="games_open_save_folder">Avaa tallennuskansio</string>
     <string name="games_never_played">Ei pelattu koskaan</string>
     <string name="games_runtime_busy_percent">Ajoympäristö varattu · %1$d %%</string>
     <string name="games_runtime_update">Ajoympäristön päivitys saatavilla</string>
     <string name="games_runtime_ready">● Ajoympäristö valmis</string>
     <string name="games_internal">Sisäinen tallennustila</string>
     <string name="games_uninstall_body">Poistaa sen tiedostot ja poistaa sen Steamista.</string>
-    <string name="games_remove_title">Poistetaanko %1$s?</string>
-    <string name="games_remove_body">Poistaa pikakuvakkeen. Pelin tiedostot jäävät.</string>
     <string name="gpu_checking">Tarkistetaan ajureita…</string>
     <string name="gpu_none_listed">Ei ajureita listattuna vielä. Päivitä etsiäksesi niitä.</string>
     <string name="gpu_hide_other">Piilota muiden GPU:iden ajurit</string>
@@ -876,7 +837,6 @@
     <string name="pip_unavailable">Android ei pystynyt avaamaan kuva kuvassa -tilaa.</string>
     <string name="game_more">Lisää</string>
     <string name="game_edit_art">Muokkaa kuvitusta</string>
-    <string name="stores_in_steam_label">Steamissa</string>
     <string name="game_shortcut">Pikakuvake</string>
     <string name="game_shortcut_add">Lisää aloitusnäytölle</string>
     <string name="game_shortcut_choose">Valitse peli</string>
@@ -903,23 +863,6 @@
     <string name="load_compat_hint">Istuntosi alkaa, kun asennus valmistuu.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Odota, että asennus päättyy ennen pelin käynnistämistä</string>
-    <string name="main_saves_close_session">Sulje Steam-istunto ensin, jotta peli ei voi tallentaa tuonnin päälle</string>
-    <string name="main_saves_importing">Tuodaan kohteeseen %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">Tuotiin %1$d tiedosto %2$s-muodosta kohteeseen %3$s</item>
-        <item quantity="other">Tuotiin %1$d tiedostoa %2$s-muodosta kohteeseen %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">Tuotiin %1$d tiedosto %2$s-muodosta kohteeseen %3$s. Vanhat tallennukset varmuuskopioitu kansioon Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">Tuotiin %1$d tiedostoa %2$s-muodosta kohteeseen %3$s. Vanhat tallennukset varmuuskopioitu kansioon Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Valitse tallennusten zip-tiedosto kohteelle %1$s</string>
-    <string name="main_saves_exporting">Viedään %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">Vietiin %1$d tiedosto %2$s-muotoisena: %3$s</item>
-        <item quantity="other">Vietiin %1$d tiedostoa %2$s-muotoisena: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Valitse, minne %1$s (%2$s) tallennetaan</string>
     <string name="main_action_failed">%1$s epäonnistui: %2$s</string>
     <string name="main_no_logs_yet">Ei istuntolokeja vielä: suorita istunto ensin.</string>
     <string name="main_no_logs_to_clear">Ei tyhjennettäviä istuntolokeja.</string>
@@ -1057,7 +1000,7 @@
         <item quantity="other">Loki näyttää %1$d ”Function not implemented” -virhettä: prootin seccomp-kiihdytys epäonnistuu laitteen apuohjelmassa. Kokeile %2$s → ”%3$s” (tai ”%4$s”) ja käynnistä uudelleen.</item>
     </plurals>
 
-    <string name="store_section_loading">latautuu…</string>
+    <string name="lib_section_loading">latautuu…</string>
     <string name="theme_graphite">Grafiitti</string>
     <string name="theme_graphite_detail">Grafiitinväriset pinnat, ja logon oma pallonsininen sävy kaikessa valitussa, kohdistetussa tai painetussa.</string>
     <string name="theme_paper">Paperi mustalla</string>
@@ -1068,8 +1011,6 @@
     <string name="theme_electric_detail">Sininen kirkkaampana pinnoilla, jotka taittuvat harmaan sijaan laivastonsiniseen.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Värit, jotka kiertävät sateenkaaren läpi. Noudattaa Androidin animaatioasetuksia.</string>
-    <string name="theme_rgb_speed">Nopeus</string>
-    <string name="theme_rgb_speed_hint">Kuinka nopeasti värit vaihtuvat.</string>
     <string name="theme_gradient">Liukuväri</string>
     <string name="theme_gradient_detail">Omat ensisijainen ja toissijainen värisi, sulautettuina painikkeisiin ja korostuksiin.</string>
     <string name="theme_gradient_primary">Ensisijainen</string>
@@ -1103,7 +1044,6 @@
     <string name="game_sync_err_steam_library">Steam-kirjasto ei ole käytettävissä</string>
     <string name="game_sync_err_previous_sd">Aiempi SD-kirjasto ei ole käytettävissä</string>
     <string name="game_sync_err_game_storage">Pelien tallennustila ei ole käytettävissä</string>
-    <string name="game_sync_err_added_games">Lisättyjen pelien kansio ei ole käytettävissä</string>
     <string name="game_sync_err_manifests">Steam-manifestit eivät ole käytettävissä</string>
     <string name="fm_drive_internal">Sisäinen</string>
     <string name="fm_drive_linux">Linux-järjestelmä</string>
@@ -1527,11 +1467,6 @@
     <string name="phantom_instructions_not_applicable">Tämä Android-versio ei käytä tätä rajaa.</string>
     <string name="phantom_fix_toggle">Ota käyttöön ”Poista käytöstä alatason prosessirajoitukset” Kehittäjäasetuksissa, ja pidä Kehittäjäasetukset päällä sen jälkeen.</string>
     <string name="phantom_fix_no_toggle">Tässä Android-versiossa ei ole kytkintä sille. Käytä langatonta virheenkorjausta muuttaaksesi sitä tältä laitteelta.</string>
-    <string name="saves_layout_zip">%1$s-zip</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s ei ole käynnistetty vielä</string>
-    <string name="saves_none_found">Tallennustiedostoja ei löytynyt kohteelle %1$s</string>
-    <string name="saves_not_save_zip">%1$s ei sisällä drive_c-kansiota, joten se ei ole GameHubin tai Winlatorin tallennuszip</string>
     <string name="gstore_cannot_create">kansioita ei voida luoda kohteeseen %1$s</string>
     <string name="gstore_cannot_write">kohteeseen %1$s ei voida kirjoittaa</string>
     <string name="gstore_cannot_write_detail">kohteeseen %1$s ei voida kirjoittaa (%2$s)</string>
@@ -1576,16 +1511,13 @@
     <string name="force_ssbs_title">Pakota SSBS</string>
     <string name="force_ssbs_hint">Pitää päällä suoritintehoasetuksen, jonka Wine jatkuvasti sammuttaa. Voi nopeuttaa Windows-pelejä Snapdragon 8 Elite -piirillä; vanhemmilla piireillä vaikutus on pieni. Vaikuttaa seuraavasta pelin käynnistyksestä alkaen.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Mukautettu</string>
-    <string name="stores_tab_library">Kirjasto</string>
-    <string name="stores_tab_all">Kaikki</string>
-    <string name="stores_search_library">Hae kirjastostasi…</string>
-    <string name="stores_search_open">Hae</string>
-    <string name="stores_nothing_matches">Ei pelejä</string>
-    <string name="stores_play">Pelaa</string>
-    <string name="stores_refresh">Päivitä</string>
-    <string name="stores_sort">Järjestä</string>
+    <string name="lib_tab_library">Kirjasto</string>
+    <string name="lib_search_library">Hae kirjastostasi…</string>
+    <string name="lib_search_open">Hae</string>
+    <string name="lib_nothing_matches">Ei pelejä</string>
+    <string name="lib_play">Pelaa</string>
+    <string name="lib_refresh">Päivitä</string>
+    <string name="lib_sort">Järjestä</string>
     <string name="setup_rail_labels">Sivupalkin nimikkeet</string>
     <string name="setup_rail_labels_hint">Näytä nimet sivupalkin kuvakkeiden alla. Poista käytöstä kapeampaa sivupalkkia varten.</string>
     <string name="library_display">Näkymä</string>
@@ -1593,32 +1525,26 @@
     <string name="library_display_smaller">Pienemmät kortit</string>
     <string name="library_display_title">Näytä nimi</string>
     <string name="library_display_size">Näytä koko</string>
-    <string name="stores_sort_last_played">Viimeksi pelatut</string>
-    <string name="stores_sort_recently_installed">Viimeksi asennetut</string>
-    <string name="stores_sort_title_asc">Nimi A–Ö</string>
-    <string name="stores_sort_title_desc">Nimi Ö–A</string>
-    <string name="stores_sort_size_desc">Koko: suurin</string>
-    <string name="stores_sort_size_asc">Koko: pienin</string>
-    <string name="stores_view_list">Luettelonäkymä</string>
-    <string name="stores_view_cards">Korttinäkymä</string>
-    <string name="stores_view_capsules">Kansinäkymä</string>
+    <string name="lib_sort_last_played">Viimeksi pelatut</string>
+    <string name="lib_sort_recently_installed">Viimeksi asennetut</string>
+    <string name="lib_sort_title_asc">Nimi A–Ö</string>
+    <string name="lib_sort_title_desc">Nimi Ö–A</string>
+    <string name="lib_sort_size_desc">Koko: suurin</string>
+    <string name="lib_sort_size_asc">Koko: pienin</string>
+    <string name="lib_view_list">Luettelonäkymä</string>
+    <string name="lib_view_cards">Korttinäkymä</string>
+    <string name="lib_view_capsules">Kansinäkymä</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">asennettu</string>
-    <string name="stores_uninstall_title">Poistetaanko %1$s:n asennus?</string>
-    <string name="stores_dl_pause">Keskeytä</string>
-    <string name="stores_target_free">%1$s vapaana</string>
+    <string name="lib_eyebrow_installed">asennettu</string>
+    <string name="lib_uninstall_title">Poistetaanko %1$s:n asennus?</string>
+    <string name="lib_dl_pause">Keskeytä</string>
+    <string name="lib_target_free">%1$s vapaana</string>
     <string name="common_close">Sulje</string>
     <string name="common_back">Takaisin</string>
-    <string name="games_add_all">Lisää kaikki tämän kansion pelit</string>
-    <string name="games_added_none">Ei mitään uutta tässä kansiossa</string>
-    <string name="edit_name">Nimi</string>
-    <string name="edit_target">Kohde</string>
-    <string name="edit_start_in">Käynnistyskansio</string>
     <string name="edit_launch_options">Käynnistysasetukset</string>
     <string name="edit_launch_options_steam_hint">Jaettu Steamin Ominaisuuksien kanssa: muutos jommassakummassa näkyy molemmissa.</string>
     <string name="edit_launch_options_not_saved">Käynnistysasetuksia ei voitu tallentaa Steamiin. Yritä uudelleen.</string>
     <string name="edit_artwork">Kuvitus</string>
-    <string name="edit_other_exe">Toinen exe…</string>
     <string name="edit_remove">Poista</string>
     <string name="art_cover">Kansikuva</string>
     <string name="art_wide_cover">Leveä kansikuva</string>
@@ -1639,11 +1565,9 @@
     <string name="art_background">Tausta</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Kuvake</string>
-    <string name="art_src_folder">Pelin kansio</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Oma tiedostosi</string>
-    <string name="art_src_exe">Exe-tiedostosta</string>
     <string name="art_src_auto">Automaattinen</string>
     <string name="art_pick_image">Valitse kuva…</string>
     <string name="art_pick_title">Valitse kuva: %1$s</string>
@@ -1659,17 +1583,8 @@
     <string name="art_sgdb_offline">SteamGridDB ei ole tavoitettavissa. Tarkista yhteys.</string>
     <string name="art_sgdb_server">SteamGridDB:ssä meni jotain pieleen. Yritä myöhemmin uudelleen.</string>
     <string name="art_sgdb_no_game">SteamGridDB:llä ei ole tuloksia tälle pelille. Kokeile hakea sitä.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d peli lisätty</item>
-        <item quantity="other">%1$d peliä lisätty</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d on jo Peleissä</item>
-        <item quantity="other">%1$d on jo Peleissä</item>
-    </plurals>
     <string name="hop_back">B · Takaisin %1$s</string>
     <string name="hop_from_games">peliin</string>
-    <string name="hop_from_play">Käynnistysasetuksiin</string>
     <string name="sheet_graphics_drivers">Näyttöajurit</string>
     <string name="comp_this_proton">Tämä Proton</string>
     <string name="comp_for_every_proton">Kaikille Protoneille</string>
@@ -1722,12 +1637,6 @@
     <string name="comp_this_device">Tämä laite</string>
     <string name="proton_remove_title">Poistetaanko %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostiikka</string>
-    <string name="setup_ready">Valmis pelattavaksi</string>
-    <string name="setup_not_ready">Ei vielä valmis pelattavaksi</string>
-    <string name="setup_ready_runtime">ajoympäristö %1$s</string>
-    <string name="setup_ready_limit_off">lapsiprosessiraja pois</string>
-    <string name="setup_ready_signed_in">kirjautuneena nimellä %1$s</string>
-    <string name="setup_needs_you">Kun jokin tarvitsee sinua</string>
     <string name="setup_group_look">Ulkoasu</string>
     <string name="setup_group_device">Tämä laite</string>
     <string name="setup_group_art">Kirjaston kuvitus</string>
@@ -2050,9 +1959,7 @@
     <string name="game_install_location">Sijainti</string>
     <string name="game_install_folder">Kansio</string>
     <string name="game_install_size">Koko levyllä</string>
-    <string name="library_filter_added">Lisätyt</string>
     <string name="game_tab_launch">Käynnistys</string>
-    <string name="game_launch_shortcut">Steam-pikakuvake</string>
     <string name="game_install_played">Viimeksi pelattu</string>
     <string name="integration_title">Steam-integraatio</string>
     <string name="integration_count">%1$d/%2$d päällä</string>
@@ -2090,11 +1997,6 @@
     <string name="slow_usb_port">%1$s on yhdistetty %2$s-yhteydellä (%3$s Mbps, noin %4$d Mt/s). Tämän laitteen USB-portti ei ole nopeampi, joten pelit latautuvat hitaasti. Sisäinen tallennustila tai microSD-kortti voi olla nopeampi.</string>
     <string name="slow_usb_never">Älä näytä uudelleen</string>
     <string name="slow_usb_dismiss">Sulje</string>
-    <string name="steam_import_title">Käynnistetäänkö Steam uudelleen pelien lisäämiseksi?</string>
-    <string name="steam_import_body">Steam voi näyttää nämä omistamasi pelit asennettuina: %1$s. Se täytyy käynnistää uudelleen, jotta ne näkyvät. Käynnistä uudelleen nyt, tai ne lisätään, kun Steam käynnistyy seuraavan kerran.</string>
-    <string name="steam_import_names_more">%1$s ja %2$d muuta</string>
-    <string name="steam_import_now">Käynnistä uudelleen nyt</string>
-    <string name="steam_import_later">Myöhemmin</string>
     <string name="input_reset_positions">Palauta sijainnit</string>
     <string name="input_show_label">Näytä nimi</string>
     <string name="input_layout_import_failed">Tätä asettelua ei voitu tuoda</string>

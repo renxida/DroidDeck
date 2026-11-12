@@ -4,8 +4,6 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.foundation.shape.CircleShape
@@ -13,66 +11,42 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.VideogameAsset
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -84,14 +58,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.frontend.GameRemoval
-import com.droiddeck.launcher.frontend.Library
-import com.droiddeck.launcher.session.GameSaves
-import com.droiddeck.launcher.session.SessionState
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
+import com.droiddeck.launcher.frontend.Library
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
@@ -101,7 +69,7 @@ internal object GameRef {
     fun key(game: Library.SteamGame) = "app:${game.appId}"
 }
 
-internal enum class GameTab { ABOUT, LAUNCH, SAVES, INSTALL }
+internal enum class GameTab { ABOUT, LAUNCH, INSTALL }
 
 @Composable
 internal fun GameDetail(
@@ -114,11 +82,9 @@ internal fun GameDetail(
     LaunchedEffect(game == null) { if (game == null) onBack() }
     if (game == null) return
     val title = game.name
-    val prefix = game.protonPrefix?.takeIf { it.isDirectory }
     val tabs = buildList {
         if (!s.shortcutPicker && title.isNotBlank()) add(GameTab.ABOUT)
         add(GameTab.LAUNCH)
-        if (game.library == Library.ADDED && prefix != null) add(GameTab.SAVES)
         add(GameTab.INSTALL)
     }
     var picked by remember(key) { mutableStateOf<GameTab?>(null) }
@@ -140,11 +106,10 @@ internal fun GameDetail(
     }
     val art: Any? = game.hero
     val artModel: Any? = if (art is String) cardArtRequest(art, null) else art
-    val inSteam = !s.shortcutPicker && game.library == Library.ADDED
     val inset = LocalDetailInset.current
-    GameBackdrop(artModel, art ?: game.art, hueOf(title), fadeTop = inset.top < 8.dp, onArtPlaced = { CardMotion.heroAt = it }) {
+    GameBackdrop(artModel, art ?: game.art, hueOf(title), fadeTop = inset.top < 8.dp) {
         Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top).onFocusChanged { inPage = it.hasFocus }.bumpers(onPrevious = { cycle(-1) }, onNext = { cycle(1) })) {
-            Rise(0) {
+            Box {
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.glass(CircleShape)) { BackLink(backLabel, compact = true, onClick = onBack) }
                     Spacer(Modifier.weight(1f))
@@ -153,20 +118,19 @@ internal fun GameDetail(
             }
             val header: @Composable () -> Unit = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GameStatusLine(game, inSteam)
+                    GameStatusLine(game)
                     GameTitle(title, game.logo, if (narrow) 30.sp else 40.sp)
                     Spacer(Modifier.height(2.dp))
                     GameCapsule { GameActions(game, s, a, Modifier.focusRequester(lead), compactMenu = stacked) }
                 }
             }
-            if (CardMotion.heroLands) header() else Rise(1) { header() }
-            Rise(2) {
+            header()
+            Box {
                 Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val labels = tabs.map { t ->
                         when (t) {
                             GameTab.ABOUT -> stringResource(R.string.game_tab_about)
                             GameTab.LAUNCH -> stringResource(R.string.game_tab_launch)
-                            GameTab.SAVES -> stringResource(R.string.games_saves)
                             GameTab.INSTALL -> stringResource(R.string.game_tab_install)
                         }
                     }
@@ -178,7 +142,6 @@ internal fun GameDetail(
                         when (tab) {
                             GameTab.ABOUT -> Column(Modifier.fillMaxWidth().tabPanel()) { GameResourcesRow(title, game) }
                             GameTab.LAUNCH -> LaunchTab(game, s, a, hopRail)
-                            GameTab.SAVES -> if (prefix != null) SavesTab(game, prefix, a)
                             GameTab.INSTALL -> InstallTab(game)
                         }
                     }
@@ -189,36 +152,14 @@ internal fun GameDetail(
 }
 
 @Composable
-private fun SourceBadge(source: String) {
-    val c = sourceColours(source)
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
-        modifier = Modifier.glass(CircleShape, 0.06f).padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(c.dot))
-        Text(sourceLabel(source), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1)
-    }
-}
-
-@Composable
-private fun GameStatusLine(game: Library.SteamGame, inSteam: Boolean) {
+private fun GameStatusLine(game: Library.SteamGame) {
     val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val state = listOf(stringResource(R.string.stores_eyebrow_installed), libraryLabel(game))
+    val state = listOf(stringResource(R.string.lib_eyebrow_installed), libraryLabel(game))
     val size = game.gameFiles?.let { diskSize(it) }
     val line = (state + listOfNotNull(size?.let { formatBytes(it) })).filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
     val muted = colors.onBackground.copy(alpha = 0.78f)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (game.library == Library.ADDED) SourceBadge(Library.ADDED)
         Text(line, fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        if (inSteam) {
-            Text("·", fontSize = 12.sp, color = muted.copy(alpha = 0.5f))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Icon(Icons.Outlined.VideogameAsset, contentDescription = null, tint = muted, modifier = Modifier.size(15.dp))
-                Text(stringResource(R.string.stores_in_steam_label), fontSize = 12.sp, color = muted, maxLines = 1)
-                Icon(Icons.Filled.Check, contentDescription = null, tint = pal.good, modifier = Modifier.size(14.dp))
-            }
-        }
     }
 }
 
@@ -292,7 +233,7 @@ private fun GameActions(game: Library.SteamGame, s: FrontEndState, a: FrontEndAc
         } else {
             val preparing = game.gameIdString in s.preparingGames
             PrimaryButton(
-                stringResource(if (preparing) R.string.store_starting else R.string.stores_play),
+                stringResource(if (preparing) R.string.common_starting else R.string.lib_play),
                 enabled = !s.busy && !preparing, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn,
             ) { a.onSteamGame(game) }
             if (compactMenu) GameMoreMenu(game, a) else {
@@ -324,29 +265,18 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
     }
 }
 
-@Composable
-private fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
-    val ctx = LocalContext.current
-    val folder = g.gameFiles
-    return when {
-        g.library == Library.ADDED && folder != null -> {
-            { GamesDialogState.editing = EditRequest(folder.path, openTarget = false, fromSummary = false, preview = EditPreview.of(ctx, g, folder.path)) }
-        }
-        g.library != Library.ADDED -> { { GamesDialogState.steamArt = g } }
-        else -> null
-    }
-}
+private fun editArt(g: Library.SteamGame): () -> Unit = { GamesDialogState.steamArt = g }
 
 @Composable
 private fun EditArtButton(g: Library.SteamGame) {
-    val open = rememberEditArt(g) ?: return
+    val open = editArt(g)
     IconAction(Icons.Outlined.Edit, stringResource(R.string.game_edit_art), "game:edit", onClick = open)
 }
 
 @Composable
 private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { mutableStateOf(false) }
-    val edit = rememberEditArt(g)
+    val edit = editArt(g)
     Box {
         SecondaryButton(stringResource(R.string.game_more)) { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.game_more), compact = true) { first ->
@@ -357,7 +287,7 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
             MenuItem(stringResource(R.string.game_shortcut_add), checked = false, focusRequester = take()) { open = false; a.onGameShortcut(g) }
             MenuItem(stringResource(R.string.game_file_export), checked = false) { open = false; a.onExportGameFile(g) }
             MenuItem(stringResource(R.string.game_link_copy), checked = false) { open = false; a.onCopyGameLink(g) }
-            edit?.let { run -> MenuItem(stringResource(R.string.game_edit_art), checked = false) { open = false; run() } }
+            MenuItem(stringResource(R.string.game_edit_art), checked = false) { open = false; edit() }
         }
     }
 }
@@ -398,12 +328,11 @@ internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 private fun RemoveButton(g: Library.SteamGame, a: FrontEndActions) {
     if (g.gameFiles?.isDirectory != true) return
     var asking by remember(g.gameId) { mutableStateOf(false) }
-    val shortcut = g.library == Library.ADDED
-    val label = stringResource(if (shortcut) R.string.edit_remove else R.string.common_uninstall)
+    val label = stringResource(R.string.common_uninstall)
     IconAction(Icons.Outlined.Delete, label, "game:remove", danger = true, frosted = true) { asking = true }
     if (asking) ConfirmDialog(
-        title = if (shortcut) stringResource(R.string.games_remove_title, g.name) else stringResource(R.string.stores_uninstall_title, g.name),
-        text = stringResource(if (shortcut) R.string.games_remove_body else R.string.games_uninstall_body),
+        title = stringResource(R.string.lib_uninstall_title, g.name),
+        text = stringResource(R.string.games_uninstall_body),
         confirm = label,
         onConfirm = { a.onGameRemoved(g) },
         onDismiss = { asking = false },
@@ -425,59 +354,10 @@ private fun LaunchTab(game: Library.SteamGame, s: FrontEndState, a: FrontEndActi
         if (canEditSteamLaunchOptions(game, s.shortcutPicker)) {
             SteamLaunchOptionsPanel(game.appId)
         }
-        val folder = game.gameFiles
-        if (game.library == Library.ADDED && !s.shortcutPicker && folder != null) ShortcutFields(game, folder)
     }
 }
 
-internal fun canEditSteamLaunchOptions(game: Library.SteamGame, shortcutPicker: Boolean): Boolean =
-    !shortcutPicker && game.library != Library.ADDED
-
-@Composable
-private fun ShortcutFields(game: Library.SteamGame, folder: File) {
-    val ctx = LocalContext.current
-    val preview = remember(game.gameId, game.name, GamesDialogState.editing) { EditPreview.of(ctx, game, folder.path) }
-    fun edit(target: Boolean) { GamesDialogState.editing = EditRequest(folder.path, openTarget = target, fromSummary = false, preview = EditPreview.of(ctx, game, folder.path)) }
-    Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        SectionLabel(stringResource(R.string.game_launch_shortcut))
-        MenuItem(stringResource(R.string.edit_name), checked = false, detail = preview.name) { edit(false) }
-        MenuItem(stringResource(R.string.edit_target), checked = false, detail = preview.exeName ?: "—") { edit(true) }
-        MenuItem(stringResource(R.string.edit_start_in), checked = false, detail = preview.startIn ?: "—") { edit(false) }
-        MenuItem(stringResource(R.string.edit_launch_options), checked = false, detail = preview.launchOptions.ifEmpty { "—" }) { edit(false) }
-    }
-}
-
-@Composable
-private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
-    val saves by produceState<List<GameSaves.SaveDir>?>(null, g.gameId) {
-        value = withContext(Dispatchers.IO) { runCatching { GameSaves.locate(prefix, g) }.getOrDefault(emptyList()) }
-    }
-    val found = saves
-    val summary = when {
-        found == null -> stringResource(R.string.games_saves_looking)
-        found.isEmpty() -> stringResource(R.string.games_saves_none)
-        else -> {
-            val mb = found.sumOf { it.bytes } / 1048576.0
-            stringResource(
-                R.string.games_saves_summary,
-                if (found.size == 1) found[0].relPath else stringResource(R.string.games_saves_folders, found.size),
-                found.sumOf { it.files },
-                if (mb < 1) stringResource(R.string.games_kb, (mb * 1024).toInt()) else stringResource(R.string.common_size_mb, mb),
-            )
-        }
-    }
-    Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(summary, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp).readable().padding(4.dp))
-        MenuItem(stringResource(R.string.games_import_saves), checked = false) { a.onSaveImport(g) }
-        MenuItem(stringResource(R.string.games_export_gamehub), checked = false) { a.onSaveExport(g, GameSaves.Layout.GAMEHUB) }
-        MenuItem(stringResource(R.string.games_export_winlator), checked = false) { a.onSaveExport(g, GameSaves.Layout.WINLATOR) }
-        found?.firstOrNull()?.let { d ->
-            MenuItem(stringResource(R.string.games_open_save_folder), checked = false, detail = d.relPath) {
-                a.onBrowseFiles(File(prefix, "drive_c/users/steamuser/" + d.relPath))
-            }
-        }
-    }
-}
+internal fun canEditSteamLaunchOptions(game: Library.SteamGame, shortcutPicker: Boolean): Boolean = !shortcutPicker
 
 @Composable
 private fun InstallTab(game: Library.SteamGame) {

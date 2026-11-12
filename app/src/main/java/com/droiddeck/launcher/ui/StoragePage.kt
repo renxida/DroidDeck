@@ -292,13 +292,10 @@ private fun BucketCard(
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && onClick != null
-    val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "bucketScale")
     val tint = BucketColors.getValue(bucket)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = modifier.paneItem("storage:${bucket.name}")
-            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(Shape14)
             .background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
             .glideBorder(hot, Shape14, pal.signal, pal.line)

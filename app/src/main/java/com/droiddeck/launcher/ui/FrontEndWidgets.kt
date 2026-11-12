@@ -80,10 +80,8 @@ internal fun headingUppercase(text: String): String =
 @Composable
 internal fun Eyebrow(t: String) {
     val pal = LocalPalette.current
-    val rule = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { rule.animateTo(1f, Motion.tw(600, 120)) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(modifier = Modifier.width(18.dp).height(1.5.dp).graphicsLayer { scaleX = rule.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }.background(pal.signal))
+        Box(modifier = Modifier.width(18.dp).height(1.5.dp).background(pal.signal))
         Text(headingUppercase(t), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = pal.signal)
     }
 }
@@ -196,26 +194,17 @@ internal fun PrimaryButton(
     val track = (if (frontFocus == null) Modifier.paneItem("btn:$text") else Modifier).downToFirstTile()
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && enabled
-    val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.955f else if (hot) 1.02f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "btnScale")
-    val lift by animateFloatAsState(if (hot) 14f else 6f, Motion.tw(300), label = "btnLift")
-    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = if (fill) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
         modifier = modifier.then(track)
-            .onGloballyPositioned { placed[0] = it }
             .heightIn(min = if (pillMode) 40.dp else if (compact) 44.dp else 48.dp)
             .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.primary).onFocusChanged { if (it.isFocused) frontFocus.last = FrontFocus.PRIMARY } else Modifier)
-            .graphicsLayer { alpha = if (LaunchOrigin.flooding === placed) 0f else 1f; scaleX = scale; scaleY = scale; shadowElevation = if (enabled) lift.dp.toPx() else 0f; shape = btnShape; clip = false; ambientShadowColor = pal.signal; spotShadowColor = pal.signal }
             .clip(btnShape)
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
             .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, btnShape))
             .glideBorder(hot, btnShape, pal.signal, hotFillAlpha = 0f)
-            .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = null, enabled = enabled) {
-                placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
-                onClick()
-            }
+            .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
             .padding(
                 start = if (fill) 12.dp else if (large) 20.dp else if (pillMode) 18.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
                 end = if (fill) 12.dp else if (large) 26.dp else if (pillMode) 20.dp else if (compact) 10.dp else 18.dp,
@@ -269,13 +258,11 @@ internal fun SecondaryButton(text: String, enabled: Boolean = true, compact: Boo
     val shape = if (pill) CircleShape else Shape12
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && enabled
-    val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.955f else if (hot) 1.02f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "secScale")
     val pal = LocalPalette.current
-    val fill by animateColorAsState(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = if (pill) 0.09f else 0.03f), Motion.tw(250), label = "secFill")
+    val fill = if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = if (pill) 0.09f else 0.03f)
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (pill) 40.dp else if (compact) 44.dp else 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape).background(fill).glideBorder(hot, shape, pal.signal, if (pill) Color.White.copy(alpha = 0.14f) else pal.line2)
+        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (pill) 40.dp else if (compact) 44.dp else 48.dp).clip(shape).background(fill).glideBorder(hot, shape, pal.signal, if (pill) Color.White.copy(alpha = 0.14f) else pal.line2)
             .alpha(if (enabled) 1f else 0.5f)
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)

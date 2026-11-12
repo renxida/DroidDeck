@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>首次執行會下載 Steam。這可能需要幾分鐘。</item>
-        <item>預設情況下，離開應用程式會暫停 Steam；返回時會從上次中斷處繼續。</item>
-        <item>你的控制器會被識別為 Xbox 360 手把。沒有控制器時，可使用螢幕控制。</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>預設情況下，離開應用程式會暫停工作階段；返回時會從上次中斷處繼續。</item>
-        <item>觸控會像觸控板一樣運作：拖曳移動指標，輕觸即點擊。</item>
-        <item>你的控制器會被識別為 Xbox 360 手把。沒有控制器時，可使用螢幕控制。</item>
-    </string-array>
     <string name="session_channel">工作階段</string>
     <string name="session_notification">Steam 正在執行</string>
     <string name="session_notification_downloads">Steam 正在下載</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">觸控</string>
     <string name="mode_touch_touchpad">觸控板</string>
     <string name="mode_touch_direct">直接</string>
-    <string name="mode_touch_note">自動：桌面使用觸控板，Steam 使用直接觸控。</string>
     <string name="mode_osc">螢幕控制</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自動模式會在未連接控制器時顯示螢幕控制。</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">下次啟動 Steam 時重新下載 Steam 用戶端。如果 Steam 一直停在載入畫面，請使用此功能。遊戲、登入狀態和設定都會保留。</string>
     <string name="mode_steam_repair_queued">下次啟動 Steam 時會重新下載 Steam 用戶端。</string>
     <string name="mode_steam_repair_button">修復</string>
-    <string name="mode_added_art">圖片</string>
     <string name="mode_sgdb_key">SteamGridDB API 金鑰</string>
     <string name="mode_sgdb_key_yours">你的金鑰</string>
     <string name="mode_sgdb_edit">編輯…</string>
-    <string name="mode_added_art_hint">自動從 Steam、其次從 SteamGridDB 補齊缺少的圖片。遊戲資料夾中你自己的 cover.jpg、hero.jpg、logo.png 或 icon.png 優先使用。</string>
-    <string name="summary_remove_game">移除 %1$s</string>
-    <string name="mode_added_remove_confirm">移除？</string>
-    <string name="games_add">新增遊戲</string>
-    <string name="games_add_title">新增遊戲：</string>
-    <string name="games_pick_exe_title">選擇 exe：</string>
-    <string name="games_add_unreachable">工作階段無法存取此位置</string>
-    <string name="mode_added_exe_check">請檢查此 exe</string>
     <string name="wincomp_title">Windows 元件</string>
     <string name="wincomp_pad_hint">按 LB / RB 在各區段之間切換。</string>
     <string name="wincomp_card_none">無</string>
@@ -223,7 +203,6 @@
     </plurals>
     <string name="wincomp_auto_section">這款遊戲已開啟</string>
     <string name="wincomp_auto_steam">Steam 會隨 %2$s（應用程式 %3$s）安裝 %1$s</string>
-    <string name="wincomp_steam_by_name">Steam 會隨應用程式 %2$s 安裝 %1$s（依名稱比對）</string>
     <string name="wincomp_suggestions">清單中的其他項目</string>
     <string name="wincomp_suggestion_reason">%1$s 列出；這裡不是元件</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -453,7 +432,6 @@
     <string name="drawer_page_controls">控制</string>
     <string name="drawer_page_components">元件</string>
     <string name="drawer_page_controller">控制器</string>
-    <string name="drawer_page_settings">設定</string>
     <string name="drawer_page_desc">%1$s 頁面</string>
     <string name="drawer_steam_menu">Steam 選單</string>
     <string name="drawer_open_qam">開啟快速存取選單</string>
@@ -596,9 +574,6 @@
     <string name="setup_limit_adb_failed">請檢查無線偵錯的 IP 位址和連接埠；如果 Android 已移除該裝置，請重新配對。</string>
     <string name="setup_install">安裝</string>
     <string name="setup_manage">管理</string>
-    <string name="setup_tab_overview">概觀</string>
-    <string name="setup_tab_controller">控制器</string>
-    <string name="setup_tab_launcher">啟動器</string>
     <string name="setup_title">設定</string>
     <string name="setup_gpu_supported">裝置受支援</string>
     <string name="setup_gpu_untested">未經測試的 GPU</string>
@@ -625,7 +600,6 @@
     <string name="setup_signed_in">已登入為 %1$s</string>
     <string name="setup_sign_in">點擊「執行」並登入 Steam</string>
     <string name="setup_controller">控制器</string>
-    <string name="setup_controller_unavailable">控制器設定無法使用。</string>
     <string name="setup_logs">工作階段日誌</string>
     <string name="setup_logs_hint">每次工作階段結束後儲存</string>
     <string name="setup_game_debug_logs">遊戲偵錯日誌</string>
@@ -679,11 +653,11 @@
     <string name="setup_card_components_hint">FEX、DXVK、VKD3D</string>
     <string name="setup_card_controls">控制</string>
     <string name="setup_card_controls_hint">按鍵映射</string>
-    <string name="store_starting">正在啟動…</string>
-    <string name="store_try_again">重試</string>
-    <string name="store_all">全部</string>
-    <string name="store_open">開啟</string>
-    <string name="store_remove">移除</string>
+    <string name="common_starting">正在啟動…</string>
+    <string name="common_try_again">重試</string>
+    <string name="common_all">全部</string>
+    <string name="common_open">開啟</string>
+    <string name="common_remove">移除</string>
     <string name="upd_open_settings">開啟設定</string>
     <string name="upd_current_status">已是最新</string>
     <string name="upd_just_now">剛剛</string>
@@ -765,7 +739,6 @@
     <string name="ctrl_steam_button">Steam 按鈕</string>
     <string name="ctrl_qam_button">QAM 按鈕</string>
     <string name="ctrl_keyboard_button">鍵盤按鈕</string>
-    <string name="setup_animations">動畫</string>
     <string name="setup_low_storage_warning">儲存空間不足時提醒</string>
     <string name="setup_low_storage_warning_hint">可用空間少於 10 GB 時，啟動 Steam 前先詢問。</string>
     <string name="ctrl_layout">版面配置</string>
@@ -777,24 +750,12 @@
     <string name="games_play_steam">執行 Steam</string>
     <string name="games_files">遊戲檔案</string>
     <string name="games_prefix">Proton 前綴</string>
-    <string name="games_saves_looking">正在尋找存檔…</string>
-    <string name="games_saves_none">未按名稱找到存檔資料夾。匯出時會包含整個使用者資料夾。</string>
-    <string name="games_saves_folders">%1$d 個存檔資料夾</string>
-    <string name="games_saves_summary">%1$s · %2$d 個檔案 · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">遊戲存檔</string>
-    <string name="games_import_saves">匯入存檔…</string>
-    <string name="games_export_gamehub">匯出為 GameHub 壓縮檔…</string>
-    <string name="games_export_winlator">匯出為 Winlator 壓縮檔…</string>
-    <string name="games_open_save_folder">開啟存檔資料夾</string>
     <string name="games_never_played">從未執行</string>
     <string name="games_runtime_busy_percent">執行環境繁忙 · %1$d%%</string>
     <string name="games_runtime_update">執行環境有可用更新</string>
     <string name="games_runtime_ready">● 執行環境已就緒</string>
     <string name="games_internal">內部儲存空間</string>
     <string name="games_uninstall_body">刪除遊戲檔案並從 Steam 中移除。</string>
-    <string name="games_remove_title">要移除 %1$s 嗎？</string>
-    <string name="games_remove_body">刪除捷徑，遊戲檔案保留。</string>
     <string name="gpu_checking">正在檢查驅動程式…</string>
     <string name="gpu_none_listed">尚未列出驅動程式。重新整理以尋找驅動程式。</string>
     <string name="gpu_hide_other">隱藏其他 GPU 的驅動程式</string>
@@ -873,7 +834,6 @@
     <string name="pip_unavailable">Android 無法開啟子母畫面。</string>
     <string name="game_more">更多</string>
     <string name="game_edit_art">編輯圖片</string>
-    <string name="stores_in_steam_label">在 Steam 中</string>
     <string name="game_shortcut">捷徑</string>
     <string name="game_shortcut_add">新增至主螢幕</string>
     <string name="game_shortcut_choose">選擇遊戲</string>
@@ -900,20 +860,6 @@
     <string name="load_compat_hint">設定完成後，工作階段就會啟動。</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">請等待安裝完成後再啟動遊戲</string>
-    <string name="main_saves_close_session">請先關閉 Steam 工作階段，以免遊戲存檔覆蓋匯入的內容</string>
-    <string name="main_saves_importing">正在匯入到 %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="other">已從 %2$s 匯入 %1$d 個檔案到 %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="other">已從 %2$s 匯入 %1$d 個檔案到 %3$s。舊存檔已備份到 Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">選擇 %1$s 的存檔壓縮檔</string>
-    <string name="main_saves_exporting">正在匯出 %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="other">已將 %1$d 個檔案匯出為 %2$s：%3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">選擇 %1$s 的儲存位置（%2$s）</string>
     <string name="main_action_failed">%1$s 失敗：%2$s</string>
     <string name="main_no_logs_yet">還沒有工作階段日誌：請先執行一次工作階段。</string>
     <string name="main_no_logs_to_clear">沒有可清除的工作階段日誌。</string>
@@ -1045,7 +991,7 @@
         <item quantity="other">日誌中出現 %1$d 個「Function not implemented」錯誤：proot 的 seccomp 加速在這部裝置上導致輔助程式失敗。請嘗試 %2$s →「%3$s」（或「%4$s」），然後重新啟動。</item>
     </plurals>
 
-    <string name="store_section_loading">正在載入…</string>
+    <string name="lib_section_loading">正在載入…</string>
     <string name="theme_graphite">石墨</string>
     <string name="theme_graphite_detail">石墨色介面，選取、聚焦或按下的項目都使用標誌本身的球體藍。</string>
     <string name="theme_paper">黑底白紙</string>
@@ -1056,8 +1002,6 @@
     <string name="theme_electric_detail">更亮的藍色，搭配偏藏青而非灰色的介面。</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">在彩虹色之間循環變化的顏色。遵循 Android 的動畫設定。</string>
-    <string name="theme_rgb_speed">速度</string>
-    <string name="theme_rgb_speed_hint">顏色循環的快慢。</string>
     <string name="theme_gradient">漸層</string>
     <string name="theme_gradient_detail">你自行選擇的主色與輔色，在按鈕與強調處以漸層呈現。</string>
     <string name="theme_gradient_primary">主色</string>
@@ -1091,7 +1035,6 @@
     <string name="game_sync_err_steam_library">無法使用 Steam 收藏庫</string>
     <string name="game_sync_err_previous_sd">無法使用先前的 SD 卡收藏庫</string>
     <string name="game_sync_err_game_storage">無法使用遊戲儲存空間</string>
-    <string name="game_sync_err_added_games">無法使用已新增遊戲的資料夾</string>
     <string name="game_sync_err_manifests">無法使用 Steam 資訊清單</string>
     <string name="fm_drive_internal">內部</string>
     <string name="fm_drive_linux">Linux 系統</string>
@@ -1508,11 +1451,6 @@
     <string name="phantom_instructions_not_applicable">此 Android 版本不使用這項限制。</string>
     <string name="phantom_fix_toggle">在開發人員選項中開啟「停止限制子程序」，之後請保持開發人員選項開啟。</string>
     <string name="phantom_fix_no_toggle">此 Android 版本沒有這個開關。請使用無線偵錯，直接在此裝置上變更。</string>
-    <string name="saves_layout_zip">%1$s 壓縮檔</string>
-    <string name="saves_zip">壓縮檔</string>
-    <string name="saves_not_launched">%1$s 尚未啟動過</string>
-    <string name="saves_none_found">找不到 %1$s 的存檔</string>
-    <string name="saves_not_save_zip">%1$s 中沒有 drive_c 資料夾，因此不是 GameHub 或 Winlator 存檔壓縮檔</string>
     <string name="gstore_cannot_create">無法在 %1$s 中建立資料夾</string>
     <string name="gstore_cannot_write">無法寫入 %1$s</string>
     <string name="gstore_cannot_write_detail">無法寫入 %1$s（%2$s）</string>
@@ -1557,16 +1495,13 @@
     <string name="force_ssbs_title">強制 SSBS</string>
     <string name="force_ssbs_hint">讓一項 Wine 會不斷關閉的 CPU 速度設定保持開啟。在 Snapdragon 8 Elite 上可能讓 Windows 遊戲更快；在較舊的晶片上變化不大。下次啟動遊戲時生效。</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">自訂</string>
-    <string name="stores_tab_library">收藏庫</string>
-    <string name="stores_tab_all">全部</string>
-    <string name="stores_search_library">搜尋你的收藏庫…</string>
-    <string name="stores_search_open">搜尋</string>
-    <string name="stores_nothing_matches">沒有遊戲</string>
-    <string name="stores_play">執行</string>
-    <string name="stores_refresh">重新整理</string>
-    <string name="stores_sort">排序</string>
+    <string name="lib_tab_library">收藏庫</string>
+    <string name="lib_search_library">搜尋你的收藏庫…</string>
+    <string name="lib_search_open">搜尋</string>
+    <string name="lib_nothing_matches">沒有遊戲</string>
+    <string name="lib_play">執行</string>
+    <string name="lib_refresh">重新整理</string>
+    <string name="lib_sort">排序</string>
     <string name="setup_rail_labels">側邊欄標籤</string>
     <string name="setup_rail_labels_hint">在側邊欄圖示下方顯示名稱。關閉可讓側邊欄更窄。</string>
     <string name="library_display">顯示</string>
@@ -1574,32 +1509,26 @@
     <string name="library_display_smaller">較小的卡片</string>
     <string name="library_display_title">顯示標題</string>
     <string name="library_display_size">顯示大小</string>
-    <string name="stores_sort_last_played">最近遊玩</string>
-    <string name="stores_sort_recently_installed">最近安裝</string>
-    <string name="stores_sort_title_asc">標題 A–Z</string>
-    <string name="stores_sort_title_desc">標題 Z–A</string>
-    <string name="stores_sort_size_desc">大小: 由大到小</string>
-    <string name="stores_sort_size_asc">大小: 由小到大</string>
-    <string name="stores_view_list">列表檢視</string>
-    <string name="stores_view_cards">卡片檢視</string>
-    <string name="stores_view_capsules">封面檢視</string>
+    <string name="lib_sort_last_played">最近遊玩</string>
+    <string name="lib_sort_recently_installed">最近安裝</string>
+    <string name="lib_sort_title_asc">標題 A–Z</string>
+    <string name="lib_sort_title_desc">標題 Z–A</string>
+    <string name="lib_sort_size_desc">大小: 由大到小</string>
+    <string name="lib_sort_size_asc">大小: 由小到大</string>
+    <string name="lib_view_list">列表檢視</string>
+    <string name="lib_view_cards">卡片檢視</string>
+    <string name="lib_view_capsules">封面檢視</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">已安裝</string>
-    <string name="stores_uninstall_title">要解除安裝 %1$s 嗎？</string>
-    <string name="stores_dl_pause">暫停</string>
-    <string name="stores_target_free">可用 %1$s</string>
+    <string name="lib_eyebrow_installed">已安裝</string>
+    <string name="lib_uninstall_title">要解除安裝 %1$s 嗎？</string>
+    <string name="lib_dl_pause">暫停</string>
+    <string name="lib_target_free">可用 %1$s</string>
     <string name="common_close">關閉</string>
     <string name="common_back">返回</string>
-    <string name="games_add_all">新增此資料夾中的所有遊戲</string>
-    <string name="games_added_none">此資料夾中沒有新遊戲</string>
-    <string name="edit_name">名稱</string>
-    <string name="edit_target">目標</string>
-    <string name="edit_start_in">開始位置</string>
     <string name="edit_launch_options">啟動選項</string>
     <string name="edit_launch_options_steam_hint">與 Steam 的「內容」共用：在任一處變更，兩處都會更新。</string>
     <string name="edit_launch_options_not_saved">無法將啟動選項儲存至 Steam。請再試一次。</string>
     <string name="edit_artwork">圖片</string>
-    <string name="edit_other_exe">其他 exe…</string>
     <string name="edit_remove">移除</string>
     <string name="art_cover">封面</string>
     <string name="art_wide_cover">寬封面</string>
@@ -1620,11 +1549,9 @@
     <string name="art_background">背景</string>
     <string name="art_logo">標誌</string>
     <string name="art_icon">圖示</string>
-    <string name="art_src_folder">遊戲資料夾</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">你的檔案</string>
-    <string name="art_src_exe">來自 exe</string>
     <string name="art_src_auto">自動</string>
     <string name="art_pick_image">選擇圖片…</string>
     <string name="art_pick_title">選擇圖片：%1$s</string>
@@ -1640,15 +1567,8 @@
     <string name="art_sgdb_offline">無法連線至 SteamGridDB。請檢查網路連線。</string>
     <string name="art_sgdb_server">SteamGridDB 發生問題。請稍後再試。</string>
     <string name="art_sgdb_no_game">SteamGridDB 沒有此遊戲的相符項目。請改用搜尋。</string>
-    <plurals name="games_added_n">
-        <item quantity="other">已新增 %1$d 個遊戲</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="other">%1$d 個已在遊戲中</item>
-    </plurals>
     <string name="hop_back">B · 返回%1$s</string>
     <string name="hop_from_games">遊戲</string>
-    <string name="hop_from_play">執行設定</string>
     <string name="sheet_graphics_drivers">圖形驅動程式</string>
     <string name="comp_this_proton">此 Proton</string>
     <string name="comp_for_every_proton">適用於所有 Proton</string>
@@ -1701,12 +1621,6 @@
     <string name="comp_this_device">此裝置</string>
     <string name="proton_remove_title">要移除 %1$s 嗎？</string>
     <string name="setup_tab_diagnostics">診斷</string>
-    <string name="setup_ready">已可開始遊戲</string>
-    <string name="setup_not_ready">尚未準備好開始遊戲</string>
-    <string name="setup_ready_runtime">執行環境 %1$s</string>
-    <string name="setup_ready_limit_off">處理程序限制已關閉</string>
-    <string name="setup_ready_signed_in">已登入為 %1$s</string>
-    <string name="setup_needs_you">需要你處理的項目</string>
     <string name="setup_group_look">外觀</string>
     <string name="setup_group_device">這部裝置</string>
     <string name="setup_group_art">收藏庫圖片</string>
@@ -2028,9 +1942,7 @@
     <string name="game_install_location">位置</string>
     <string name="game_install_folder">資料夾</string>
     <string name="game_install_size">佔用空間</string>
-    <string name="library_filter_added">已加入</string>
     <string name="game_tab_launch">啟動</string>
-    <string name="game_launch_shortcut">Steam 捷徑</string>
     <string name="game_install_played">上次遊玩</string>
     <string name="integration_title">Steam 整合</string>
     <string name="integration_count">已開啟 %1$d/%2$d 項</string>
@@ -2068,11 +1980,6 @@
     <string name="slow_usb_port">%1$s 透過 %2$s 連接（%3$s Mbps，約 %4$d MB/s）。此裝置的 USB 連接埠無法更快，遊戲載入會很慢。內部儲存空間或 microSD 卡可能更快。</string>
     <string name="slow_usb_never">不再顯示</string>
     <string name="slow_usb_dismiss">關閉</string>
-    <string name="steam_import_title">重新啟動 Steam 以加入你的遊戲？</string>
-    <string name="steam_import_body">Steam 可以將你擁有的這些遊戲顯示為已安裝：%1$s。需要重新啟動 Steam 才會顯示。立即重新啟動，或在下次啟動 Steam 時加入。</string>
-    <string name="steam_import_names_more">%1$s 及另外 %2$d 款</string>
-    <string name="steam_import_now">立即重新啟動</string>
-    <string name="steam_import_later">稍後</string>
     <string name="setup_gpu_bridged">GPU 透過 Mali 橋接</string>
     <string name="gpuinfo_bridge">透過 Mali 橋接執行，使用手機內建的 Vulkan 驅動程式</string>
     <string name="gpuinfo_bridge_off">關閉 Mali 橋接時不受支援：Turnip 需要 Adreno（Snapdragon）GPU</string>

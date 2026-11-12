@@ -6,7 +6,6 @@ import android.os.StatFs
 import android.os.storage.StorageManager
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
-import com.droiddeck.launcher.frontend.AddedGames
 import java.io.File
 
 object GameStorage {
@@ -93,7 +92,7 @@ object GameStorage {
         val card = effective(context)?.let { SteamLibraries.canonical(File(it.path)) }
         val added = SteamLibraries.list(context).map { SteamLibraries.canonical(it.host) }
         val sm = context.getSystemService(StorageManager::class.java)
-        return AddedGames.roots(context).mapNotNull { root ->
+        return GameFolders.roots(context).mapNotNull { root ->
             val host = SteamLibraries.canonical(root.host)
             if (!hasInstalledGames(root.host)) return@mapNotNull null
             if ('"' in root.guest || '\\' in root.guest || !root.host.isDirectory || !root.host.canWrite()) return@mapNotNull null

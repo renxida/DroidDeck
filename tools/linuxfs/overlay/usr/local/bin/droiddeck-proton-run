@@ -224,13 +224,6 @@ def shortcut_entries(root):
                     entries.append((appid & 0xFFFFFFFF, unquoted(exe), unquoted(value.get("StartDir", ""))))
     except (OSError, ValueError, IndexError, KeyError, struct.error):
         pass
-    try:
-        with open(os.environ.get("BL_ADDED_GAMES", ""), encoding="utf-8") as f:
-            for game in json.load(f):
-                if isinstance(game, dict) and game.get("exe") and str(game.get("appid", "")).isdigit():
-                    entries.append((int(game["appid"]) & 0xFFFFFFFF, game["exe"], game.get("dir") or ""))
-    except (OSError, ValueError, TypeError):
-        pass
     return entries
 
 

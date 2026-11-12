@@ -588,12 +588,8 @@ class SessionService : Service() {
         val noSteamGame = noSteamGame()
         if (noSteamGame) guest.add("BL_PIN_CORES=0")
         if (steamHere || noSteamGame) {
-            val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
-            val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
-            guest.add("BL_ADDED_GAMES=" + listing.path)
             if (OfflineMode.enabled(this)) guest.add("BL_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
-            if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
@@ -1172,13 +1168,13 @@ class SessionService : Service() {
                 Log.w(TAG, "storage diagnostics: selected library could not be identified; metadata snapshot only")
             }
         }
-        for (root in com.droiddeck.launcher.frontend.AddedGames.roots(this)) {
+        for (root in GameFolders.roots(this)) {
             if (root.host.isDirectory && root.host.canRead()) {
                 File(LinuxRuntime.rootDir(this), root.guest.removePrefix("/")).mkdirs()
                 binds.add(root.host.path + ":" + root.guest)
-                Log.i(TAG, "added games: ${root.host} -> ${root.guest}")
+                Log.i(TAG, "game folder: ${root.host} -> ${root.guest}")
             } else {
-                Log.w(TAG, "added games: ${root.host} is not a readable folder this session")
+                Log.w(TAG, "game folder: ${root.host} is not a readable folder this session")
             }
         }
         val libraries = ArrayList<Pair<String, String>>()

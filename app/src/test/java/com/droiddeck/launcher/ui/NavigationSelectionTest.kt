@@ -44,7 +44,6 @@ class NavigationSelectionTest {
 
     @Test fun sideRailExposesSelectionEvenWhenOnlyIconsAreVisible() {
         val selected = mutableStateOf("steam")
-        Hops.railPreview = null
         compose.setContent {
             DroidDeckTheme {
                 SideRail(FrontEndState(
@@ -56,13 +55,13 @@ class NavigationSelectionTest {
         }
         compose.mainClock.advanceTimeBy(1_000)
         val steam = compose.onNodeWithTag("rail-steam")
-        val games = compose.onNodeWithTag("rail-games")
+        val settings = compose.onNodeWithTag("rail-setup")
         assertTab(steam, true)
-        assertTab(games, false)
-        games.performClick()
+        assertTab(settings, false)
+        settings.performClick()
         compose.mainClock.advanceTimeBy(1_000)
         assertTab(steam, false)
-        assertTab(games, true)
+        assertTab(settings, true)
         assertGroup()
     }
 

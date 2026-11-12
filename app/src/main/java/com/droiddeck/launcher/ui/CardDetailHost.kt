@@ -68,56 +68,22 @@ internal fun CardDetailHost(
     grid: @Composable () -> Unit,
     detail: @Composable (key: String) -> Unit,
 ) {
-    val ctx = LocalContext.current
     val ff = LocalFrontFocus.current
     val density = LocalDensity.current
-    var shown by remember { mutableStateOf<String?>(null) }
-    var leaving by remember { mutableStateOf(false) }
-    var from by remember { mutableStateOf<Origin?>(null) }
-    var art by remember { mutableStateOf<String?>(null) }
+    val shown = open
     var viewportAt by remember { mutableStateOf(Offset.Zero) }
     var viewportH by remember { mutableStateOf(0) }
-    LaunchedEffect(open) {
-        if (open != null) {
-            val mark = CardMotion.takeCard(open)
-            from = mark?.let { Origin(it.bounds.translate(-viewportAt), it.corner) }
-            art = mark?.art
-            CardMotion.heroLands = mark != null
-            leaving = false
-            shown = open
-        } else if (shown != null) {
-            if (from != null) {
-                leaving = true
-                delay(Motion.ms(PAGE_RETURN_MS).toLong())
-            }
-            shown = null
-            leaving = false
-            from = null
-        }
-    }
     LaunchedEffect(shown) { detailScroll.scrollTo(0) }
-    val covering = shown != null && !leaving
+    val covering = shown != null
     val coveringNow = rememberUpdatedState(covering)
-    val gridScale by animateFloatAsState(if (covering) 0.95f else 1f, if (covering) Motion.tw(480) else Motion.tw(460, 40), label = "gridSink")
-    val gridAlpha by animateFloatAsState(if (covering) 0f else 1f, if (covering) Motion.tw(320, 80) else Motion.tw(300, 100), label = "gridFade")
-    val fade = with(density) { 14.dp.toPx() }
     Box(
         modifier.bleed(bleedHorizontal, bleedTop).clipToBounds()
-            .onGloballyPositioned { viewportAt = it.positionInRoot(); viewportH = it.size.height }
-            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                val scrolled = if (shown != null) detailScroll.value > 0 else gridScrolled()
-                if (scrolled && size.height > fade) drawRect(
-                    Brush.verticalGradient(0f to Color.Transparent, fade / size.height to Color.Black),
-                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
-                )
-            },
+            .onGloballyPositioned { viewportAt = it.positionInRoot(); viewportH = it.size.height },
     ) {
         CompositionLocalProvider(LocalFrontFocus provides if (covering) null else ff) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(horizontal = bleedHorizontal).padding(top = bleedTop)
-                    .graphicsLayer { scaleX = gridScale; scaleY = gridScale; alpha = gridAlpha }
+                    .graphicsLayer { alpha = if (coveringNow.value) 0f else 1f }
                     .focusProperties { enter = { if (coveringNow.value) FocusRequester.Cancel else FocusRequester.Default } }
                     .focusGroup(),
             ) { grid() }
@@ -139,19 +105,7 @@ internal fun CardDetailHost(
                     }
                 }
             }
-            val origin = from
-            if (origin == null) body()
-            else {
-                val painter = art?.let { url ->
-                    coil.compose.rememberAsyncImagePainter(
-                        remember(url) {
-                            coil.request.ImageRequest.Builder(ctx).data(url).size(1280, 720)
-                                .placeholderMemoryCacheKey(url).build()
-                        },
-                    )
-                }
-                PageFlood(origin, leaving, painter, onto = { CardMotion.heroAt }, ontoCorner = 16.dp) { body() }
-            }
+            body()
         }
     }
 }

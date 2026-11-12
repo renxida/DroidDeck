@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Första starten laddar ned Steam. Det kan ta några minuter.</item>
-        <item>Som standard pausas Steam när du lämnar appen. Det fortsätter där det slutade när du kommer tillbaka.</item>
-        <item>Din handkontroll visas som en Xbox 360-kontroll. Annars kan du använda skärmkontrollerna.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Som standard pausas sessionen när du lämnar appen. Den fortsätter där den slutade när du kommer tillbaka.</item>
-        <item>Pekskärmen fungerar som en pekplatta: dra för att flytta pekaren, tryck för att klicka.</item>
-        <item>Din handkontroll visas som en Xbox 360-kontroll. Annars kan du använda skärmkontrollerna.</item>
-    </string-array>
     <string name="session_channel">Session</string>
     <string name="session_notification">Steam körs</string>
     <string name="session_notification_downloads">Steam-nedladdning pågår</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Pekskärm</string>
     <string name="mode_touch_touchpad">Pekplatta</string>
     <string name="mode_touch_direct">Direkt</string>
-    <string name="mode_touch_note">Auto: pekplatta på skrivbordet, direkt i Steam.</string>
     <string name="mode_osc">Skärmkontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto visar kontrollerna när ingen handkontroll är ansluten.</string>
@@ -198,18 +187,9 @@
     <string name="mode_steam_repair_hint">Laddar ned Steam-klienten igen nästa gång Steam startar. Använd det om Steam fastnar på sin inläsningsskärm. Spel, inloggning och inställningar behålls.</string>
     <string name="mode_steam_repair_queued">Steam-klienten laddas ned igen nästa gång Steam startar.</string>
     <string name="mode_steam_repair_button">Reparera</string>
-    <string name="mode_added_art">Grafik</string>
     <string name="mode_sgdb_key">SteamGridDB API-nyckel</string>
     <string name="mode_sgdb_key_yours">Din nyckel</string>
     <string name="mode_sgdb_edit">Redigera…</string>
-    <string name="mode_added_art_hint">Fyller i saknad grafik från Steam, sedan SteamGridDB. Din egen cover.jpg, hero.jpg, logo.png eller icon.png i spelmappen har företräde.</string>
-    <string name="summary_remove_game">Ta bort %1$s</string>
-    <string name="mode_added_remove_confirm">Ta bort?</string>
-    <string name="games_add">Lägg till spel</string>
-    <string name="games_add_title">Lägg till ett spel:</string>
-    <string name="games_pick_exe_title">Välj exe-filen:</string>
-    <string name="games_add_unreachable">Den här platsen är inte tillgänglig i sessionen</string>
-    <string name="mode_added_exe_check">Kontrollera den här exe-filen</string>
     <string name="wincomp_title">Windows-komponenter</string>
     <string name="wincomp_pad_hint">LB/RB hoppar mellan avsnitten.</string>
     <string name="wincomp_card_none">Ingen</string>
@@ -224,7 +204,6 @@
     </plurals>
     <string name="wincomp_auto_section">På för det här spelet</string>
     <string name="wincomp_auto_steam">Steam installerar %1$s med %2$s (app %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam installerar %1$s med app %2$s, matchad på namn</string>
     <string name="wincomp_suggestions">Listas även</string>
     <string name="wincomp_suggestion_reason">Listad av %1$s; inte en komponent här</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -455,7 +434,6 @@
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Komponenter</string>
     <string name="drawer_page_controller">Handkontroll</string>
-    <string name="drawer_page_settings">Inställningar</string>
     <string name="drawer_page_desc">%1$s-sidan</string>
     <string name="drawer_steam_menu">Steam-meny</string>
     <string name="drawer_open_qam">Öppna snabbåtkomstmenyn</string>
@@ -599,9 +577,6 @@
     <string name="setup_limit_adb_failed">Kontrollera IP-adressen och porten för Trådlös felsökning, eller para ihop enheten igen om Android tog bort den.</string>
     <string name="setup_install">Installera</string>
     <string name="setup_manage">Hantera</string>
-    <string name="setup_tab_overview">Översikt</string>
-    <string name="setup_tab_controller">Handkontroll</string>
-    <string name="setup_tab_launcher">Startprogram</string>
     <string name="setup_title">Konfiguration</string>
     <string name="setup_gpu_supported">Enheten stöds</string>
     <string name="setup_gpu_untested">Otestad GPU</string>
@@ -628,7 +603,6 @@
     <string name="setup_signed_in">Inloggad som %1$s</string>
     <string name="setup_sign_in">Tryck på Play och logga in på Steam</string>
     <string name="setup_controller">Handkontroll</string>
-    <string name="setup_controller_unavailable">Handkontrollsinställningar är inte tillgängliga.</string>
     <string name="setup_logs">Sessionsloggar</string>
     <string name="setup_logs_hint">Sparas efter varje session</string>
     <string name="setup_game_debug_logs">Felsökningsloggar för spel</string>
@@ -682,11 +656,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Kontroller</string>
     <string name="setup_card_controls_hint">Knappmappning</string>
-    <string name="store_starting">Startar…</string>
-    <string name="store_try_again">Försök igen</string>
-    <string name="store_all">Alla</string>
-    <string name="store_open">Öppna</string>
-    <string name="store_remove">Ta bort</string>
+    <string name="common_starting">Startar…</string>
+    <string name="common_try_again">Försök igen</string>
+    <string name="common_all">Alla</string>
+    <string name="common_open">Öppna</string>
+    <string name="common_remove">Ta bort</string>
     <string name="upd_open_settings">Öppna inställningar</string>
     <string name="upd_current_status">Senaste versionen</string>
     <string name="upd_just_now">just nu</string>
@@ -768,7 +742,6 @@
     <string name="ctrl_steam_button">Steam-knappen</string>
     <string name="ctrl_qam_button">QAM-knappen</string>
     <string name="ctrl_keyboard_button">Tangentbordsknappen</string>
-    <string name="setup_animations">Animationer</string>
     <string name="setup_low_storage_warning">Varna när lagringsutrymmet är lågt</string>
     <string name="setup_low_storage_warning_hint">Fråga innan Steam startas när det lediga utrymmet är under 10 GB.</string>
     <string name="ctrl_layout">Layout</string>
@@ -780,24 +753,12 @@
     <string name="games_play_steam">Spela Steam</string>
     <string name="games_files">Spelfiler</string>
     <string name="games_prefix">Proton-prefix</string>
-    <string name="games_saves_looking">Letar efter sparfiler…</string>
-    <string name="games_saves_none">Ingen sparmapp hittades efter namn. Export tar hela användarmappen.</string>
-    <string name="games_saves_folders">%1$d sparmappar</string>
-    <string name="games_saves_summary">%1$s · %2$d filer · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Sparfiler</string>
-    <string name="games_import_saves">Importera sparfiler…</string>
-    <string name="games_export_gamehub">Exportera som GameHub-zip…</string>
-    <string name="games_export_winlator">Exportera som Winlator-zip…</string>
-    <string name="games_open_save_folder">Öppna sparmappen</string>
     <string name="games_never_played">Aldrig spelat</string>
     <string name="games_runtime_busy_percent">Körmiljö upptagen · %1$d %%</string>
     <string name="games_runtime_update">Uppdatering av körmiljön tillgänglig</string>
     <string name="games_runtime_ready">● Körmiljö redo</string>
     <string name="games_internal">Internt lagringsutrymme</string>
     <string name="games_uninstall_body">Tar bort dess filer och tar bort det från Steam.</string>
-    <string name="games_remove_title">Ta bort %1$s?</string>
-    <string name="games_remove_body">Tar bort genvägen. Spelets filer ligger kvar.</string>
     <string name="gpu_checking">Söker efter drivrutiner…</string>
     <string name="gpu_none_listed">Inga drivrutiner listade än. Uppdatera för att söka efter dem.</string>
     <string name="gpu_hide_other">Dölj drivrutiner för andra GPU:er</string>
@@ -876,7 +837,6 @@
     <string name="pip_unavailable">Android kunde inte öppna bild-i-bild.</string>
     <string name="game_more">Mer</string>
     <string name="game_edit_art">Redigera grafik</string>
-    <string name="stores_in_steam_label">I Steam</string>
     <string name="game_shortcut">Genväg</string>
     <string name="game_shortcut_add">Lägg till på hemskärmen</string>
     <string name="game_shortcut_choose">Välj spel</string>
@@ -903,23 +863,6 @@
     <string name="load_compat_hint">Sessionen startar när konfigurationen är klar.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Vänta tills installationen är klar innan du startar ett spel</string>
-    <string name="main_saves_close_session">Stäng Steam-sessionen först, så att spelet inte skriver över importen</string>
-    <string name="main_saves_importing">Importerar till %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">Importerade %1$d fil från %2$s till %3$s</item>
-        <item quantity="other">Importerade %1$d filer från %2$s till %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">Importerade %1$d fil från %2$s till %3$s. Gamla sparfiler säkerhetskopierades till Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">Importerade %1$d filer från %2$s till %3$s. Gamla sparfiler säkerhetskopierades till Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Välj en zip-fil med sparfiler för %1$s</string>
-    <string name="main_saves_exporting">Exporterar %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">Exporterade %1$d fil som %2$s: %3$s</item>
-        <item quantity="other">Exporterade %1$d filer som %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Välj var %1$s ska sparas (%2$s)</string>
     <string name="main_action_failed">%1$s misslyckades: %2$s</string>
     <string name="main_no_logs_yet">Inga sessionsloggar än: kör en session först.</string>
     <string name="main_no_logs_to_clear">Inga sessionsloggar att rensa.</string>
@@ -1057,7 +1000,7 @@
         <item quantity="other">Loggen visar %1$d ”Function not implemented”-fel: proots seccomp-acceleration misslyckas med en hjälpprocess på den här enheten. Prova %2$s → ”%3$s” (eller ”%4$s”) och starta igen.</item>
     </plurals>
 
-    <string name="store_section_loading">läser in…</string>
+    <string name="lib_section_loading">läser in…</string>
     <string name="theme_graphite">Grafit</string>
     <string name="theme_graphite_detail">Grafitgrå ytor, med den blå färgen från logotypens klot för allt som är markerat, i fokus eller nedtryckt.</string>
     <string name="theme_paper">Papper på svart</string>
@@ -1068,8 +1011,6 @@
     <string name="theme_electric_detail">Den blå färgen klarare, på ytor som lutar åt marinblått i stället för grått.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Färger som växlar genom regnbågen. Följer Androids animationsinställningar.</string>
-    <string name="theme_rgb_speed">Hastighet</string>
-    <string name="theme_rgb_speed_hint">Hur snabbt färgerna växlar.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Dina egna primära och sekundära färger, blandade på knappar och markeringar.</string>
     <string name="theme_gradient_primary">Primär</string>
@@ -1103,7 +1044,6 @@
     <string name="game_sync_err_steam_library">Steam-biblioteket är inte tillgängligt</string>
     <string name="game_sync_err_previous_sd">Det tidigare SD-biblioteket är inte tillgängligt</string>
     <string name="game_sync_err_game_storage">Spellagringen är inte tillgänglig</string>
-    <string name="game_sync_err_added_games">Mappen för tillagda spel är inte tillgänglig</string>
     <string name="game_sync_err_manifests">Steam-manifesten är inte tillgängliga</string>
     <string name="fm_drive_internal">Internt</string>
     <string name="fm_drive_linux">Linux-system</string>
@@ -1527,11 +1467,6 @@
     <string name="phantom_instructions_not_applicable">Den här Android-versionen använder inte den här gränsen.</string>
     <string name="phantom_fix_toggle">Slå på ”Inaktivera begränsningar på underordnade processer” i Utvecklaralternativ, och låt Utvecklaralternativ vara kvar på efteråt.</string>
     <string name="phantom_fix_no_toggle">Den här Android-versionen har ingen växel för det. Använd trådlös felsökning för att ändra det från den här enheten.</string>
-    <string name="saves_layout_zip">%1$s-zip</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s har inte startats än</string>
-    <string name="saves_none_found">Inga sparfiler hittades för %1$s</string>
-    <string name="saves_not_save_zip">%1$s har ingen drive_c-mapp, så det är inte en sparfils-zip från GameHub eller Winlator</string>
     <string name="gstore_cannot_create">kan inte skapa mappar i %1$s</string>
     <string name="gstore_cannot_write">kan inte skriva i %1$s</string>
     <string name="gstore_cannot_write_detail">kan inte skriva i %1$s (%2$s)</string>
@@ -1576,16 +1511,13 @@
     <string name="force_ssbs_title">Tvinga SSBS</string>
     <string name="force_ssbs_hint">Håller kvar en CPU-hastighetsinställning som Wine annars stänger av. Kan göra Windows-spel snabbare på Snapdragon 8 Elite; liten skillnad på äldre chip. Gäller från nästa spelstart.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Egna</string>
-    <string name="stores_tab_library">Bibliotek</string>
-    <string name="stores_tab_all">Alla</string>
-    <string name="stores_search_library">Sök i ditt bibliotek…</string>
-    <string name="stores_search_open">Sök</string>
-    <string name="stores_nothing_matches">Inga spel</string>
-    <string name="stores_play">Spela</string>
-    <string name="stores_refresh">Uppdatera</string>
-    <string name="stores_sort">Sortera</string>
+    <string name="lib_tab_library">Bibliotek</string>
+    <string name="lib_search_library">Sök i ditt bibliotek…</string>
+    <string name="lib_search_open">Sök</string>
+    <string name="lib_nothing_matches">Inga spel</string>
+    <string name="lib_play">Spela</string>
+    <string name="lib_refresh">Uppdatera</string>
+    <string name="lib_sort">Sortera</string>
     <string name="setup_rail_labels">Sidofältets etiketter</string>
     <string name="setup_rail_labels_hint">Visa namn under ikonerna i sidofältet. Stäng av för ett smalare sidofält.</string>
     <string name="library_display">Visning</string>
@@ -1593,32 +1525,26 @@
     <string name="library_display_smaller">Mindre kort</string>
     <string name="library_display_title">Visa titel</string>
     <string name="library_display_size">Visa storlek</string>
-    <string name="stores_sort_last_played">Senast spelade</string>
-    <string name="stores_sort_recently_installed">Senast installerade</string>
-    <string name="stores_sort_title_asc">Titel A–Ö</string>
-    <string name="stores_sort_title_desc">Titel Ö–A</string>
-    <string name="stores_sort_size_desc">Storlek: störst</string>
-    <string name="stores_sort_size_asc">Storlek: minst</string>
-    <string name="stores_view_list">Listvy</string>
-    <string name="stores_view_cards">Kortvy</string>
-    <string name="stores_view_capsules">Omslagsvy</string>
+    <string name="lib_sort_last_played">Senast spelade</string>
+    <string name="lib_sort_recently_installed">Senast installerade</string>
+    <string name="lib_sort_title_asc">Titel A–Ö</string>
+    <string name="lib_sort_title_desc">Titel Ö–A</string>
+    <string name="lib_sort_size_desc">Storlek: störst</string>
+    <string name="lib_sort_size_asc">Storlek: minst</string>
+    <string name="lib_view_list">Listvy</string>
+    <string name="lib_view_cards">Kortvy</string>
+    <string name="lib_view_capsules">Omslagsvy</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">installerat</string>
-    <string name="stores_uninstall_title">Avinstallera %1$s?</string>
-    <string name="stores_dl_pause">Pausa</string>
-    <string name="stores_target_free">%1$s ledigt</string>
+    <string name="lib_eyebrow_installed">installerat</string>
+    <string name="lib_uninstall_title">Avinstallera %1$s?</string>
+    <string name="lib_dl_pause">Pausa</string>
+    <string name="lib_target_free">%1$s ledigt</string>
     <string name="common_close">Stäng</string>
     <string name="common_back">Tillbaka</string>
-    <string name="games_add_all">Lägg till alla spel i den här mappen</string>
-    <string name="games_added_none">Inget nytt i den här mappen</string>
-    <string name="edit_name">Namn</string>
-    <string name="edit_target">Mål</string>
-    <string name="edit_start_in">Starta i</string>
     <string name="edit_launch_options">Startalternativ</string>
     <string name="edit_launch_options_steam_hint">Delas med Egenskaper i Steam: en ändring på det ena stället syns på båda.</string>
     <string name="edit_launch_options_not_saved">Det gick inte att spara startalternativen i Steam. Försök igen.</string>
     <string name="edit_artwork">Bildmaterial</string>
-    <string name="edit_other_exe">Annan exe…</string>
     <string name="edit_remove">Ta bort</string>
     <string name="art_cover">Omslag</string>
     <string name="art_wide_cover">Brett omslag</string>
@@ -1639,11 +1565,9 @@
     <string name="art_background">Bakgrund</string>
     <string name="art_logo">Logotyp</string>
     <string name="art_icon">Ikon</string>
-    <string name="art_src_folder">Spelmapp</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Din fil</string>
-    <string name="art_src_exe">Från exe-filen</string>
     <string name="art_src_auto">Automatiskt</string>
     <string name="art_pick_image">Välj bild…</string>
     <string name="art_pick_title">Välj en bild: %1$s</string>
@@ -1659,17 +1583,8 @@
     <string name="art_sgdb_offline">SteamGridDB går inte att nå. Kontrollera anslutningen.</string>
     <string name="art_sgdb_server">Något gick fel hos SteamGridDB. Försök igen senare.</string>
     <string name="art_sgdb_no_game">SteamGridDB har inga träffar för det här spelet. Prova att söka på det.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d spel tillagt</item>
-        <item quantity="other">%1$d spel tillagda</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d redan i Spel</item>
-        <item quantity="other">%1$d redan i Spel</item>
-    </plurals>
     <string name="hop_back">B · Tillbaka till %1$s</string>
     <string name="hop_from_games">spelet</string>
-    <string name="hop_from_play">Spelinställningar</string>
     <string name="sheet_graphics_drivers">Grafikdrivrutiner</string>
     <string name="comp_this_proton">Denna Proton</string>
     <string name="comp_for_every_proton">För alla Proton</string>
@@ -1722,12 +1637,6 @@
     <string name="comp_this_device">Den här enheten</string>
     <string name="proton_remove_title">Ta bort %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostik</string>
-    <string name="setup_ready">Redo att spela</string>
-    <string name="setup_not_ready">Inte redo att spela än</string>
-    <string name="setup_ready_runtime">runtime %1$s</string>
-    <string name="setup_ready_limit_off">processgräns av</string>
-    <string name="setup_ready_signed_in">inloggad som %1$s</string>
-    <string name="setup_needs_you">När något behöver dig</string>
     <string name="setup_group_look">Utseende</string>
     <string name="setup_group_device">Den här enheten</string>
     <string name="setup_group_art">Biblioteksbilder</string>
@@ -2050,9 +1959,7 @@
     <string name="game_install_location">Plats</string>
     <string name="game_install_folder">Mapp</string>
     <string name="game_install_size">Storlek på disk</string>
-    <string name="library_filter_added">Tillagda</string>
     <string name="game_tab_launch">Start</string>
-    <string name="game_launch_shortcut">Steam-genväg</string>
     <string name="game_install_played">Senast spelat</string>
     <string name="integration_title">Steam-integration</string>
     <string name="integration_count">%1$d av %2$d på</string>
@@ -2090,11 +1997,6 @@
     <string name="slow_usb_port">%1$s är ansluten via %2$s (%3$s Mbit/s, cirka %4$d MB/s). USB-porten på den här enheten kan inte gå snabbare, så spel läses in långsamt. Internt lagringsutrymme eller ett microSD-kort kan vara snabbare.</string>
     <string name="slow_usb_never">Visa inte igen</string>
     <string name="slow_usb_dismiss">Stäng</string>
-    <string name="steam_import_title">Starta om Steam för att lägga till dina spel?</string>
-    <string name="steam_import_body">Steam kan visa de här spelen du äger som installerade: %1$s. Steam måste startas om för att visa dem. Starta om nu, annars läggs de till nästa gång Steam startar.</string>
-    <string name="steam_import_names_more">%1$s och %2$d till</string>
-    <string name="steam_import_now">Starta om nu</string>
-    <string name="steam_import_later">Senare</string>
     <string name="input_reset_positions">Återställ positioner</string>
     <string name="input_show_label">Visa etikett</string>
     <string name="input_layout_import_failed">Det gick inte att importera layouten</string>

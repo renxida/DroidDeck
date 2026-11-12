@@ -203,12 +203,12 @@ Automator show them:
 
 | Tag | Where |
 |---|---|
-| `rail-steam`, `rail-games` (the Library), `rail-desktop`, `rail-components`, `rail-setup` | the front end's rail |
-| `play-steam` | Play on the Steam page, and on the Library when it has no games |
+| `rail-steam` (Home), `rail-setup` (Settings) | the front end's rail |
+| `play-last`, `play-steam`, `play:<game id>` | Home: play the last game, open Steam, play one installed game |
 | `library-source-<source>` | the Library's source filter chips (`all`, `steam`, ...) |
 | `game-tab-<about\|launch\|saves\|install>` | the open tab of a game page |
 | `setting-<key>` | every toggle and choice row, by its key (`setting-logs`, `setting-agent-commands`, ...) |
-| `tab-<n>` | a page's tab strip (Setup's Overview, Controller, Session, Launcher...), by position |
+| `tab-<n>` | a segmented tab strip, by position |
 | `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-games`, `-session` | the session drawer's pages |
 | `drawer-stop`, `drawer-stop-confirm`, `drawer-stop-cancel` | stopping a session from the drawer |
 

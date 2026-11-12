@@ -24,7 +24,7 @@ class SteamGridTest {
     private lateinit var grid: File
 
     @Before fun account() {
-        AddedGamesPublisher.now = true
+        SteamGameArt.publishNow = true
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         SessionPrefs.setAddedGamesDirs(app, emptyList())
         grid = File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config/grid")
@@ -37,25 +37,25 @@ class SteamGridTest {
     @Test fun aChoiceIsPlacedInTheGridFolderWhileSteamIsClosed() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val picked = image("mine.png", 12)
-        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
+        SteamGameArt.choose(app, game(), GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, picked.path, picked.path))
         assertEquals(12L, File(grid, "620p.png").length())
 
-        SteamGameArt.reset(app, game(), AddedGameArt.Slot.COVER)
+        SteamGameArt.reset(app, game(), GameArt.Slot.COVER)
         assertFalse(File(grid, "620p.png").exists())
     }
 
     @Test fun aWideCoverGoesToTheUnsuffixedGridFileAndComesBackFromSteam() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val picked = image("wide.png", 14)
-        assertTrue(SteamGameArt.choose(app, game(), AddedGameArt.Slot.WIDE, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path)))
+        assertTrue(SteamGameArt.choose(app, game(), GameArt.Slot.WIDE, GameArt.Option(GameArt.FILE, picked.path, picked.path)))
         assertEquals(14L, File(grid, "620.png").length())
         assertFalse(File(grid, "620p.png").exists())
-        assertTrue(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.WIDE)!!.name.matches(Regex("chosen-header-\\d+\\.png")))
-        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER))
+        assertTrue(SteamGameArt.chosenFile(app, 620, GameArt.Slot.WIDE)!!.name.matches(Regex("chosen-header-\\d+\\.png")))
+        assertNull(SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER))
 
         File(grid, "620.png").delete()
         assertTrue(SteamGrid.sync(app, listOf(target())))
-        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.WIDE))
+        assertNull(SteamGameArt.chosenFile(app, 620, GameArt.Slot.WIDE))
     }
 
     private val corner = LogoPosition.Value(LogoPosition.Pin.UPPER_CENTER, 35, 35)
@@ -120,25 +120,25 @@ class SteamGridTest {
         grid.mkdirs()
         val theirs = File(grid, "620_hero.jpg").apply { writeBytes(ByteArray(20) { 2 }) }
         assertTrue(SteamGrid.sync(app, listOf(target())))
-        assertEquals(20L, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.BACKGROUND)?.length())
-        assertEquals(AddedGameArt.STEAM, SteamGameArt.chosenSource(app, 620, AddedGameArt.Slot.BACKGROUND).first)
+        assertEquals(20L, SteamGameArt.chosenFile(app, 620, GameArt.Slot.BACKGROUND)?.length())
+        assertEquals(GameArt.STEAM, SteamGameArt.chosenSource(app, 620, GameArt.Slot.BACKGROUND).first)
         assertFalse(SteamGrid.sync(app, listOf(target())))
 
         theirs.delete()
         assertTrue(SteamGrid.sync(app, listOf(target())))
-        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.BACKGROUND))
+        assertNull(SteamGameArt.chosenFile(app, 620, GameArt.Slot.BACKGROUND))
     }
 
     @Test fun theOtherClientsEmptyGridGetsTheChoiceInsteadOfDroppingIt() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val picked = image("mine.png", 12)
-        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
+        SteamGameArt.choose(app, game(), GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, picked.path, picked.path))
         assertFalse(SteamGrid.sync(app, listOf(target())))
 
         val x64 = File(SessionPrefs.steamRoot(app, "x86_64"), "userdata/123/config").apply { mkdirs() }
         SessionPrefs.setSteamClientArch(app, "x86_64")
         assertFalse(SteamGrid.sync(app, listOf(target())))
-        assertEquals(12L, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)?.length())
+        assertEquals(12L, SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER)?.length())
         assertEquals(12L, File(x64, "grid/620p.png").length())
 
         SessionPrefs.setSteamClientArch(app, "arm64")
@@ -149,10 +149,10 @@ class SteamGridTest {
     @Test fun aChoiceMadeHereIsNotTakenBackAsASteamChange() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val picked = image("mine.png", 12)
-        SteamGameArt.choose(app, game(), AddedGameArt.Slot.LOGO, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
+        SteamGameArt.choose(app, game(), GameArt.Slot.LOGO, GameArt.Option(GameArt.FILE, picked.path, picked.path))
         File(grid, "620_logo.png").writeBytes(picked.readBytes())
         assertFalse(SteamGrid.sync(app, listOf(target())))
-        assertEquals(AddedGameArt.FILE, SteamGameArt.chosenSource(app, 620, AddedGameArt.Slot.LOGO).first)
+        assertEquals(GameArt.FILE, SteamGameArt.chosenSource(app, 620, GameArt.Slot.LOGO).first)
     }
 
     @Test fun artDroidDeckPlacedItselfIsNotTakenAsAChoice() {
@@ -161,7 +161,7 @@ class SteamGridTest {
         File(grid, "620p.png").writeBytes(ByteArray(7))
         File(grid, ".droiddeck-art.json").writeText("""{"620p.png": 7}""")
         assertFalse(SteamGrid.sync(app, listOf(target())))
-        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER))
+        assertNull(SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER))
     }
 
     @Test fun withoutASteamAccountNothingHappens() {
@@ -172,30 +172,30 @@ class SteamGridTest {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val old = image("old.png", 5)
         val dir = SteamGameArt.dir(app, 620)
-        assertTrue(AddedGameArt.store(dir, AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, old.path, old.path)))
+        assertTrue(GameArt.store(dir, GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, old.path, old.path)))
         grid.mkdirs()
         File(grid, "620p.png").writeBytes(ByteArray(30) { 3 })
         assertTrue(SteamGrid.sync(app, listOf(target())))
-        assertEquals(30L, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)?.length())
+        assertEquals(30L, SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER)?.length())
         assertEquals(30L, File(grid, "620p.png").length())
     }
 
     @Test fun aChoiceSurvivesWhenOnlyDroidDecksOwnWriterFileIsInTheFolder() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val picked = image("mine.png", 12)
-        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
+        SteamGameArt.choose(app, game(), GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, picked.path, picked.path))
         File(grid, "620p.png").writeBytes(ByteArray(12) { 9 })
         File(grid, ".droiddeck-art.json").writeText("""{"620p.png": 12}""")
         assertFalse(SteamGrid.sync(app, listOf(target())))
-        assertEquals(12L, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)?.length())
+        assertEquals(12L, SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER)?.length())
     }
 
     @Test fun anImageSteamCannotReadIsNotWrittenAndTheCurrentOneStays() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val png = image("mine.png", 12)
-        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, png.path, png.path))
+        SteamGameArt.choose(app, game(), GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, png.path, png.path))
         val ico = image("mine.ico", 6)
-        SteamGrid.write(app, target(), AddedGameArt.Slot.COVER, ico)
+        SteamGrid.write(app, target(), GameArt.Slot.COVER, ico)
         assertEquals(12L, File(grid, "620p.png").length())
         assertFalse(File(grid, "620p.ico").exists())
     }
@@ -203,15 +203,15 @@ class SteamGridTest {
     @Test fun aChoiceSteamCannotReadIsRefusedAndNotKept() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val ico = image("mine.ico", 6)
-        assertFalse(SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, ico.path, ico.path)))
-        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER))
+        assertFalse(SteamGameArt.choose(app, game(), GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, ico.path, ico.path)))
+        assertNull(SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER))
     }
 
     @Test fun aStaleFileLeftByAnEarlierFailedWriteIsReplacedByTheLocalChoice() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val picked = image("mine.png", 12)
-        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
-        SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)!!.writeBytes(ByteArray(15) { 4 })
+        SteamGameArt.choose(app, game(), GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, picked.path, picked.path))
+        SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER)!!.writeBytes(ByteArray(15) { 4 })
         assertFalse(SteamGrid.sync(app, listOf(target())))
         assertEquals(15L, File(grid, "620p.png").length())
     }
@@ -219,11 +219,11 @@ class SteamGridTest {
     @Test fun aRefusedReplacementLeavesTheLastGoodChoiceInPlace() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val png = image("mine.png", 12)
-        assertTrue(SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, png.path, png.path)))
-        val kept = SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)
+        assertTrue(SteamGameArt.choose(app, game(), GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, png.path, png.path)))
+        val kept = SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER)
         val ico = image("mine.ico", 6)
-        assertFalse(SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, ico.path, ico.path)))
-        assertEquals(kept, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER))
+        assertFalse(SteamGameArt.choose(app, game(), GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, ico.path, ico.path)))
+        assertEquals(kept, SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER))
         assertEquals(12L, File(grid, "620p.png").length())
     }
 
@@ -232,23 +232,23 @@ class SteamGridTest {
         val dir = SteamGameArt.dir(app, 620)
         val names = (1..5).map { n ->
             val image = image("pick$n.png", n)
-            AddedGameArt.storeNew(dir, AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, image.path, image.path))!!.name
+            GameArt.storeNew(dir, GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, image.path, image.path))!!.name
         }
         assertEquals(5, names.toSet().size)
         assertEquals(names.sorted(), names)
-        assertEquals(5L, AddedGameArt.chosen(dir, AddedGameArt.Slot.COVER)?.length())
+        assertEquals(5L, GameArt.chosen(dir, GameArt.Slot.COVER)?.length())
     }
 
     @Test fun aChoiceSurvivesTheGridFolderBeingWipedAndIsPlacedAgain() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val picked = image("mine.png", 12)
-        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
+        SteamGameArt.choose(app, game(), GameArt.Slot.COVER, GameArt.Option(GameArt.FILE, picked.path, picked.path))
         assertEquals(12L, File(grid, "620p.png").length())
 
         assertTrue(grid.deleteRecursively())
         grid.mkdirs()
         assertFalse(SteamGrid.sync(app, listOf(target())))
-        assertEquals(12L, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)?.length())
+        assertEquals(12L, SteamGameArt.chosenFile(app, 620, GameArt.Slot.COVER)?.length())
         assertEquals(12L, File(grid, "620p.png").length())
     }
 }

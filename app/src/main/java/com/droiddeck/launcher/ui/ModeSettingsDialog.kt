@@ -170,7 +170,7 @@ internal fun sheetTabLabel(tab: String): String = when (tab) {
     SheetTab.CONTROLS -> stringResource(R.string.drawer_page_controls)
     SheetTab.AUDIO -> stringResource(R.string.mode_audio)
     SheetTab.SESSION -> stringResource(R.string.mode_session)
-    SheetTab.LIBRARY -> stringResource(R.string.stores_tab_library)
+    SheetTab.LIBRARY -> stringResource(R.string.lib_tab_library)
     SheetTab.STEAM -> stringResource(R.string.mode_tab_steam)
     else -> stringResource(R.string.setup_tool_files)
 }
@@ -243,7 +243,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             ChoiceRow(
                 host, "touch", stringResource(R.string.mode_touch), null,
                 listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.common_auto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_GESTURES to stringResource(R.string.mode_touch_gestures), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)), s.touchMode,
-                note = stringResource(R.string.mode_touch_note),
                 onPick = a.onTouch,
             )
             if (s.oscMode != null) ChoiceRow(
