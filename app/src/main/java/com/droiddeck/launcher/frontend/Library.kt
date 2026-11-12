@@ -151,16 +151,6 @@ object Library {
         return view.list().orEmpty().mapNotNull { Regex("appmanifest_(\\d+)\\.acf").matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.toSet()
     }
 
-    fun steamLibraryArt(context: Context): List<Pair<Int, File>> {
-        val root = SessionPrefs.activeSteamRoot(context)
-        val cache = File(root, "appcache/librarycache")
-        val concealed = concealedSteamApps(root)
-        return cache.listFiles().orEmpty().mapNotNull { dir ->
-            val appId = dir.name.toIntOrNull()?.takeIf { it !in NOT_GAMES && it.toLong() !in concealed } ?: return@mapNotNull null
-            steamCacheImage(cache, appId, STEAM_CAPSULES)?.let { appId to it }
-        }
-    }
-
     internal fun concealedSteamApps(root: File): Set<Long> {
         val config = AddedGames.accountConfig(root) ?: return emptySet()
         val hidden = runCatching {

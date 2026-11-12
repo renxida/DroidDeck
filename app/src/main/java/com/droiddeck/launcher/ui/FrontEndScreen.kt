@@ -240,7 +240,6 @@ class FrontEndActions(
     val onLibraryView: (String) -> Unit = {},
     val onLibraryChanged: () -> Unit = {},
     val onSteamIntegration: (com.droiddeck.launcher.core.SteamIntegration.Feature?) -> Unit = {},
-    val onDismissIntegration: () -> Unit = {},
     val onIntegration: (com.droiddeck.launcher.core.SteamIntegration.Feature) -> Unit = {},
     val onIntegrationAppInfo: () -> Unit = {},
     val onIntegrationLocation: () -> Unit = {},

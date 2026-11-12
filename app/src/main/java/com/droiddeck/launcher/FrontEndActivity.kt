@@ -1233,10 +1233,6 @@ class FrontEndActivity : ComponentActivity() {
                         onIntegration = { integrationFocus = null; configureIntegration(it) },
                         onIntegrationAppInfo = ::openAppInfo,
                         onIntegrationLocation = ::openWifiDiscoverySettings,
-                        onDismissIntegration = {
-                            SteamIntegration.dismissSuggestion(this)
-                            integrationState = readIntegration()
-                        },
                         onBackActionsInverted = { inverted ->
                             SessionPrefs.setBackActionsInverted(this, inverted)
                             backActionsInverted = inverted
