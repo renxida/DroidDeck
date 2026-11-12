@@ -116,8 +116,13 @@ class TelemetryUploadTest {
         File(logs, "godot.log").apply { writeText("Godot Engine v4\nCrashHandlerException: Program crashed\n"); setLastModified(1762941700000L) }
         val unity = File(compat, "400/pfx/drive_c/users/steamuser/AppData/LocalLow/Studio/Game").apply { mkdirs() }
         File(unity, "Player.log").apply { writeText("unity\n"); setLastModified(1762941650000L) }
+        dir.resolve("processes.csv").writeText("t_wall_ms,pid,name,side,rss_mb,swap_mb,cpu_pct\n1762941660000,10,steamwebhelper,droiddeck,300,200,4.0\n")
+        val steamLogs = File(tmp.root, "steam-logs").apply { mkdirs() }
+        File(steamLogs, "shader_log.txt").apply { writeText("[2025-11-12 10:01:00] Starting processing job for app 2868840\n"); setLastModified(1762941660000L) }
+        File(steamLogs, "content_log.txt").apply { writeText("old download\n"); setLastModified(1762941600000L - 3_600_000) }
+        File(steamLogs, "webhelper.txt").apply { writeText("not wanted\n"); setLastModified(1762941660000L) }
         val upload = File(tmp.root, "upload.zip")
-        val sources = TelemetryBundle.Sources(1762941600000L, x64, from, listOf(compat))
+        val sources = TelemetryBundle.Sources(1762941600000L, x64, from, listOf(compat), listOf("arm64" to steamLogs))
         assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint", sources))
         ZipFile(upload).use { archive ->
             val names = archive.entries().toList().map { it.name }
@@ -136,6 +141,10 @@ class TelemetryUploadTest {
             assertTrue(text(game).contains("Program crashed"))
             assertFalse(names.any { it.contains("godot2025") })
             assertTrue(names.indexOf(game) < names.indexOf("game-logs/400/AppData/LocalLow/Studio/Game/Player.log"))
+            assertTrue(text("processes.csv").contains("steamwebhelper,droiddeck,300,200,4.0"))
+            assertTrue(text("steam-logs/arm64/shader_log.txt").contains("processing job for app 2868840"))
+            assertFalse(names.contains("steam-logs/arm64/content_log.txt"))
+            assertFalse(names.any { it.endsWith("webhelper.txt") })
         }
     }
 

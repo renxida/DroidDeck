@@ -1703,6 +1703,34 @@ class GameEnvironmentTest(unittest.TestCase):
             named = game_logs(command, on, None, now=0)
             self.assertTrue(Path(named["PROTON_LOG_DIR"]).name.endswith("-Hades"))
 
+    def test_game_logs_keep_protons_exception_traces_off_unless_asked(self):
+        game_logs = MODULE["game_logs"]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
+            command = ["/proton", "waitforexitandrun", "/games/sts2/SlayTheSpire2.exe"]
+            on = {"BL_DEBUG_DIR": tmp, "BL_GAME_LOGS": "1"}
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+                result = game_logs(command, on, "2868840", now=0)
+            self.assertEqual(result["WINEDEBUG"], "+timestamp,+pid,+tid,+threadname,+loaddll")
+            self.assertNotIn("unwind", result["WINEDEBUG"])
+            self.assertIn("+seh,+unwind default stays off", err.getvalue())
+            self.assertEqual(result["DROIDDECK_GAME_LOG_DIR"], result["PROTON_LOG_DIR"])
+            asked = game_logs(command, dict(on, WINEDEBUG="+seh,+unwind"), "2868840", now=0)
+            self.assertEqual(asked["WINEDEBUG"], "+seh,+unwind")
+
+    def test_launch_txt_ends_with_the_environment_the_game_really_gets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "launch.txt").write_text("app: 2868840\nVK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo\n")
+            env = {"DROIDDECK_GAME_LOG_DIR": tmp, "VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat",
+                   "WINEDEBUG": "+timestamp", "DOTNET_GCConserveMemory": "5", "HOME": "/root", "STEAM_COMPAT_CLIENT_INSTALL_PATH": "/s"}
+            MODULE["record_final_env"](["/runtime/run-proton.py", "/proton", "waitforexitandrun"], env)
+            text = Path(tmp, "launch.txt").read_text()
+            final = text.split("== final environment (/runtime/run-proton.py /proton)\n")[1]
+            self.assertIn("VK_INSTANCE_LAYERS=VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat", final)
+            self.assertIn("WINEDEBUG=+timestamp", final)
+            self.assertIn("DOTNET_GCConserveMemory=5", final)
+            self.assertNotIn("HOME=", final)
+            MODULE["record_final_env"](["/proton", "run"], {"VK_X": "1"})
+
     def test_rapid_game_launches_keep_separate_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
             env = {"BL_GAME_LOGS": "1", "BL_DEBUG_DIR": tmp}

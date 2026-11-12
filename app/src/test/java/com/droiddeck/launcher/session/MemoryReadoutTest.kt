@@ -79,4 +79,29 @@ class MemoryReadoutTest {
         assertEquals(MemoryLog.CSV_HEADER.split(',').size, line.split(',').size)
         assertTrue(line.endsWith(",1024,2,SlayTheSpire2.e,3072"))
     }
+
+    @Test fun cpuTicksAreUserPlusSystemTimeAfterTheCommandName() {
+        val stat = "4242 (steam webhelper) S 1 4242 4242 0 -1 4194560 100 0 0 0 1500 250 0 0 20 0 30 0 12345 0 0"
+        assertEquals(1750L, MemoryReadout.cpuTicks(stat))
+        assertNull(MemoryReadout.cpuTicks("4242 (x"))
+        assertNull(MemoryReadout.cpuTicks("4242 (x) S 1"))
+    }
+
+    @Test fun processRowsKeepLargeOrBusyProcessesWithCpuOverTheInterval() {
+        val procs = listOf(
+            MemoryReadout.Proc(10, "steamwebhelper", false, 300 * 1024, 200 * 1024, 1_100),
+            MemoryReadout.Proc(11, "SlayTheSpire2.e", true, 1500 * 1024, 0, 7_000),
+            MemoryReadout.Proc(12, "sleep", false, 1024, 0, 5),
+            MemoryReadout.Proc(13, "xdg,busy", false, 2048, 0, 700),
+        )
+        val first = MemoryLog.processLines(1_000L, procs, emptyMap(), 0L, 100L)
+        assertEquals(listOf("1000,10,steamwebhelper,droiddeck,300,200,", "1000,11,SlayTheSpire2.e,game,1500,0,"), first)
+        val later = MemoryLog.processLines(61_000L, procs, mapOf(10 to 500L, 11 to 1_000L, 12 to 5L, 13 to 100L), 60_000L, 100L)
+        assertEquals(listOf(
+            "61000,10,steamwebhelper,droiddeck,300,200,10.0",
+            "61000,11,SlayTheSpire2.e,game,1500,0,100.0",
+            "61000,13,xdg_busy,droiddeck,2,0,10.0",
+        ), later)
+        assertEquals(MemoryLog.PROCESS_HEADER.split(',').size, later[0].split(',').size)
+    }
 }

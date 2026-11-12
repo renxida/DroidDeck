@@ -19,7 +19,20 @@ internal object MemoryReadout {
     data class Split(
         val gameKb: Long, val droiddeckKb: Long, val gpuKb: Long?,
         val gameSwapKb: Long = 0, val droiddeckSwapKb: Long = 0, val topName: String = "", val topKb: Long = 0,
+        val processes: List<Proc> = emptyList(),
     )
+
+    /** One process of the session's tree; [cpuTicks] is utime + stime from /proc/<pid>/stat. */
+    data class Proc(val pid: Int, val name: String, val windows: Boolean, val rssKb: Long, val swapKb: Long, val cpuTicks: Long)
+
+    fun cpuTicks(stat: String): Long? {
+        val close = stat.lastIndexOf(')')
+        if (close < 0 || close + 2 >= stat.length) return null
+        val fields = stat.substring(close + 2).split(' ')
+        val user = fields.getOrNull(11)?.toLongOrNull() ?: return null
+        val system = fields.getOrNull(12)?.toLongOrNull() ?: return null
+        return user + system
+    }
 
     fun parseMeminfo(text: String): Device? {
         fun field(name: String) = Regex("""(?m)^$name:\s+(\d+) kB""").find(text)?.groupValues?.get(1)?.toLongOrNull()
@@ -60,7 +73,7 @@ internal object MemoryReadout {
 
     fun device(): Device? = runCatching { parseMeminfo(File("/proc/meminfo").readText()) }.getOrNull()
 
-    fun split(root: Int = android.os.Process.myPid()): Split {
+    fun split(root: Int = android.os.Process.myPid(), withProcesses: Boolean = false): Split {
         val parents = HashMap<Int, Int>()
         File("/proc").listFiles()?.forEach { entry ->
             val pid = entry.name.toIntOrNull() ?: return@forEach
@@ -73,6 +86,7 @@ internal object MemoryReadout {
         var droiddeckSwap = 0L
         var topName = ""
         var topKb = 0L
+        val processes = ArrayList<Proc>()
         val queue = ArrayDeque<Int>().apply { add(root) }
         val seen = HashSet<Int>()
         while (queue.isNotEmpty()) {
@@ -85,10 +99,14 @@ internal object MemoryReadout {
                 val windows = pid != root && runCatching { inWinePrefix(File("/proc/$pid/environ").readBytes()) }.getOrDefault(false)
                 if (windows) { game += kb; gameSwap += swap } else { droiddeck += kb; droiddeckSwap += swap }
                 if (kb + swap > topKb) { topKb = kb + swap; topName = processName(status) }
+                if (withProcesses) {
+                    val ticks = runCatching { cpuTicks(File("/proc/$pid/stat").readText()) }.getOrNull() ?: 0L
+                    processes += Proc(pid, processName(status), windows, kb, swap, ticks)
+                }
             }
             children[pid]?.let(queue::addAll)
         }
-        return Split(game, droiddeck, gpuKb(), gameSwap, droiddeckSwap, topName, topKb)
+        return Split(game, droiddeck, gpuKb(), gameSwap, droiddeckSwap, topName, topKb, processes)
     }
 
     private fun parentOf(pid: Int): Int? {
@@ -122,6 +140,25 @@ object MemoryLog {
             "${split.droiddeckKb / 1024},${appKb?.div(1024) ?: ""},${split.gpuKb?.div(1024) ?: ""}," +
             "${split.gameSwapKb / 1024},${split.droiddeckSwapKb / 1024},${split.topName},${split.topKb / 1024}"
 
+    internal const val PROCESS_FILE = "processes.csv"
+    internal const val PROCESS_HEADER = "t_wall_ms,pid,name,side,rss_mb,swap_mb,cpu_pct"
+    private const val PROCESS_EVERY = 12L
+    private const val PROCESS_MIN_KB = 16L * 1024
+
+    /**
+     * processes.csv rows for one snapshot: every process of the session's tree holding at least 16 MB
+     * (resident + swapped) or, against [previous] ticks taken [elapsedMs] earlier, at least 1 % of a core.
+     */
+    internal fun processLines(at: Long, procs: List<MemoryReadout.Proc>, previous: Map<Int, Long>, elapsedMs: Long, ticksPerSecond: Long): List<String> =
+        procs.mapNotNull { p ->
+            val before = previous[p.pid]
+            val pct = if (before != null && elapsedMs > 0 && ticksPerSecond > 0 && p.cpuTicks >= before)
+                (p.cpuTicks - before) * 100_000.0 / (ticksPerSecond * elapsedMs) else null
+            if (p.rssKb + p.swapKb < PROCESS_MIN_KB && (pct ?: 0.0) < 1.0) return@mapNotNull null
+            "$at,${p.pid},${p.name.replace(',', '_')},${if (p.windows) "game" else "droiddeck"},${p.rssKb / 1024},${p.swapKb / 1024}," +
+                (pct?.let { String.format(Locale.US, "%.1f", it) } ?: "")
+        }
+
     /** Logs to logcat every [LOG_EVERY] samples and, with [csv], appends every sample to it (memory.csv). */
     @Synchronized
     fun start(csv: java.io.File? = null) {
@@ -129,18 +166,37 @@ object MemoryLog {
         thread = Thread({
             runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) }
             val out = csv?.let { runCatching { java.io.FileWriter(it, true) }.getOrNull() }
+            val processFile = csv?.parentFile?.let { java.io.File(it, PROCESS_FILE) }
+            val processOut = processFile?.let { runCatching { java.io.FileWriter(it, true) }.getOrNull() }
+            val ticksPerSecond = runCatching { android.system.Os.sysconf(android.system.OsConstants._SC_CLK_TCK) }
+                .getOrDefault(100L).takeIf { it > 0 } ?: 100L
+            var lastTicks = emptyMap<Int, Long>()
+            var lastSnapshotAt = 0L
             try {
                 if (out != null && csv?.length() == 0L) runCatching { out.write(CSV_HEADER + "\n"); out.flush() }
+                if (processOut != null && processFile?.length() == 0L) runCatching {
+                    processOut.write(PROCESS_HEADER + "\n"); processOut.flush()
+                    android.util.Log.i(TAG, "DROIDDECK_PROCESS_LOG file=$PROCESS_FILE every_s=${PERIOD_MS * PROCESS_EVERY / 1000} min_mb=${PROCESS_MIN_KB / 1024}")
+                }
                 var sample = 0L
                 while (!Thread.currentThread().isInterrupted) {
                     runCatching {
                         val device = MemoryReadout.device() ?: return@runCatching
-                        val split = MemoryReadout.split()
+                        val snapshot = processOut != null && sample % PROCESS_EVERY == 0L
+                        val split = MemoryReadout.split(withProcesses = snapshot)
                         if (sample % LOG_EVERY == 0L) android.util.Log.i(TAG, line(device, split))
+                        val now = System.currentTimeMillis()
                         if (out != null) {
                             val app = runCatching { MemoryReadout.residentKb(java.io.File("/proc/self/status").readText()) }.getOrNull()
-                            out.write(csvLine(System.currentTimeMillis(), device, split, app) + "\n")
+                            out.write(csvLine(now, device, split, app) + "\n")
                             out.flush()
+                        }
+                        if (snapshot && processOut != null) {
+                            val elapsed = if (lastSnapshotAt > 0) now - lastSnapshotAt else 0L
+                            for (row in processLines(now, split.processes, lastTicks, elapsed, ticksPerSecond)) processOut.write(row + "\n")
+                            processOut.flush()
+                            lastTicks = split.processes.associate { it.pid to it.cpuTicks }
+                            lastSnapshotAt = now
                         }
                     }
                     sample++
@@ -148,6 +204,7 @@ object MemoryLog {
                 }
             } finally {
                 runCatching { out?.close() }
+                runCatching { processOut?.close() }
             }
         }, "memory-log").apply { isDaemon = true; start() }
     }
