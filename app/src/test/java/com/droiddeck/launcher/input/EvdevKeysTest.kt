@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EvdevKeysTest {
-    private val typedPunctuation = "`-=[]\;',./"
+    private val typedPunctuation = "`-=[]\\;',./"
 
     @Test fun everyCharacterKeyOfTheOnScreenKeyboardTypesItsOwnCode() {
         var checked = 0
