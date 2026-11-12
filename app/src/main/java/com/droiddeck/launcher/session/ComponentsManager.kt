@@ -44,6 +44,7 @@ object ComponentsManager {
     val COMPONENTS = listOf("fex", "dxvk", "vkd3d")
     val LABEL = mapOf("fex" to "FEX", "dxvk" to "DXVK", "vkd3d" to "VKD3D-Proton")
 
+    private val SHA256_HEX = Regex("[0-9a-f]{64}")
     private const val WINE = "files/lib/wine"
     private val FEX_FILES = listOf(
         "$WINE/aarch64-windows/libarm64ecfex.dll",
@@ -549,6 +550,28 @@ object ComponentsManager {
             return unpacked
         }
 
+        val digestsByKey = HashMap<String, Map<String, String>>()
+
+        // Unpacked store files never change, so their digests are kept beside them and only
+        // recomputed for a file whose size or modification time differs.
+        fun digests(key: String, base: File, files: Map<String, File>): Map<String, String> = digestsByKey.getOrPut(key) {
+            val sidecar = File(base, ".sha256")
+            val saved = runCatching { sidecar.readLines() }.getOrDefault(emptyList())
+                .map { it.split('\t') }
+                .filter { it.size == 4 && it[3].matches(SHA256_HEX) }
+                .associate { "${it[0]}\t${it[1]}\t${it[2]}" to it[3] }
+            val stamps = files.mapValues { (rel, file) -> "$rel\t${file.length()}\t${file.lastModified()}" }
+            val found = files.mapValues { (rel, file) -> saved[stamps.getValue(rel)] ?: Hashes.sha256(file) }
+            if (stamps.size != saved.size || stamps.values.any { it !in saved }) {
+                val tmp = File(base, ".sha256.tmp")
+                runCatching {
+                    tmp.writeText(stamps.entries.joinToString("") { (rel, stamp) -> "$stamp\t${found.getValue(rel)}\n" })
+                    check(tmp.renameTo(sidecar))
+                }.onFailure { tmp.delete() }
+            }
+            found
+        }
+
         fun managed(comp: String): Set<String> = if (comp == "fex") FEX_FILES.toSet() else buildSet {
             for (arch in PE_ARCHES) for (dll in COMP_DLLS.getValue(comp)) add("${COMP_DIR.getValue(comp)}/$arch/$dll")
         }
@@ -559,6 +582,7 @@ object ComponentsManager {
                 File(base, "files").walkTopDown().filter { it.isFile }.map { it.relativeTo(base).invariantSeparatorsPath }
                     .filter { owned(comp, it) }.associateWith { File(base, it) }
             }
+            val sums = digests(key, unpacked, files)
             for (rel in managed(comp) - files.keys) {
                 lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
                     .append('\t').append(rel).append("\t-\t-\n")
@@ -566,7 +590,7 @@ object ComponentsManager {
             for ((rel, src) in files) {
                 val guestSrc = "/" + src.relativeTo(root(context)).invariantSeparatorsPath
                 lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
-                    .append('\t').append(rel).append('\t').append(Hashes.sha256(src)).append('\t').append(guestSrc).append('\n')
+                    .append('\t').append(rel).append('\t').append(sums.getValue(rel)).append('\t').append(guestSrc).append('\n')
             }
         }
 
