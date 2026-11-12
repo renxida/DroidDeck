@@ -35,9 +35,56 @@ def apply(steam_root, enabled):
     return changed
 
 
+def state(steam_root):
+    """"off" when config.vdf disables pre-caching, "on" otherwise (the client's default), None without a config."""
+    config = Path(steam_root) / "config/config.vdf"
+    if not config.is_file():
+        return None
+    block = VDF["parse"](config.read_text()).get("InstallConfigStore")
+    for section in PATH[:-1]:
+        block = block.get(section) if isinstance(block, VDF["Block"]) else None
+    value = block.get(PATH[-1]) if isinstance(block, VDF["Block"]) else None
+    return "off" if value == "1" else "on"
+
+
+def system_driver_default(choice_file, roots):
+    """The phone's own Vulkan driver (through libhybris) keeps no pipeline cache that Steam's
+    fossilize_replay could fill, so pre-caching only competes with the game for CPU and memory
+    as it starts. Turned off unless DroidDeck's own switch last chose it on."""
+    try:
+        choice = Path(choice_file).read_text().strip()
+    except OSError:
+        choice = ""
+    if choice == "1":
+        print("== steam: shader pre-caching left on: chosen in DroidDeck")
+        return 0
+    status = 0
+    for root in roots:
+        if not Path(root).is_dir():
+            continue
+        try:
+            if apply(root, False):
+                print(f"DROIDDECK_SHADER_PRECACHE off reason=system-vulkan-driver root={root}")
+        except (OSError, ValueError, RecursionError) as error:
+            print(f"== steam: left shader pre-caching unchanged in {root}: {error}", file=sys.stderr)
+            status = 1
+    return status
+
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] == "--state":
+        for root in sys.argv[2:]:
+            try:
+                value = state(root)
+            except (OSError, ValueError, RecursionError, AttributeError) as error:
+                value = "unreadable (%s)" % error
+            if value is not None:
+                print(f"== steam: shader pre-caching {value} in {root}")
+        sys.exit(0)
+    if len(sys.argv) >= 3 and sys.argv[1] == "--system-driver":
+        sys.exit(system_driver_default(sys.argv[2], sys.argv[3:]))
     if len(sys.argv) < 3 or sys.argv[1] not in ("0", "1"):
-        print("usage: droiddeck-steam-shaders <0|1> <steam root>...", file=sys.stderr)
+        print("usage: droiddeck-steam-shaders <0|1|--system-driver CHOICE_FILE|--state> <steam root>...", file=sys.stderr)
         sys.exit(2)
     enabled = sys.argv[1] == "1"
     status = 0

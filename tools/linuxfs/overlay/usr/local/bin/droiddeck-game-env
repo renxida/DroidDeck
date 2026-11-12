@@ -1832,6 +1832,7 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
+    record_final_env(launch, launch_env)
     started = time.monotonic()
     if after or diagnostic_app_id is not None or watch:
         process = subprocess.Popen(launch, env=launch_env)
@@ -1914,6 +1915,12 @@ def system_graphics_launch(command, env):
     return [str(wrapper), *command], result
 
 
+# PROTON_LOG=1 alone makes Proton default WINEDEBUG to +seh,+unwind,... (proton_10.0 `proton` 1618-1619):
+# every caught .NET exception then writes hundreds of unwind lines from the thread that threw it.
+GAME_LOG_WINEDEBUG = "+timestamp,+pid,+tid,+threadname,+loaddll"
+FINAL_ENV_PREFIXES = ("VK_", "WINE", "DOTNET_", "DXVK_", "VKD3D", "PROTON_", "FEX_", "HYBRIS_", "MESA_", "GODOT", "SteamGameId")
+
+
 def game_logs(command, env, app_id, now=None):
     """Detailed graphics logs for one game launch, in the session's log folder: Proton's own log,
     DXVK's and vkd3d-proton's, and the Vulkan driver's startup messages. The app turns this on
@@ -1932,7 +1939,12 @@ def game_logs(command, env, app_id, now=None):
         print("droiddeck-game-env: no game log folder (%s)" % error, file=sys.stderr)
         return env
     result = dict(env)
+    if not env.get("WINEDEBUG"):
+        result["WINEDEBUG"] = GAME_LOG_WINEDEBUG
+        print("droiddeck-game-env: game log Wine channels %s (Proton's +seh,+unwind default stays off)" % GAME_LOG_WINEDEBUG,
+              file=sys.stderr)
     result.update({
+        "DROIDDECK_GAME_LOG_DIR": str(folder),
         "PROTON_LOG": "1",
         "PROTON_LOG_DIR": str(folder),
         "DXVK_LOG_PATH": str(folder),
@@ -1986,6 +1998,21 @@ def warmup_launch(command, env, app_id, phases):
         print("droiddeck-game-env: warmup: settings skipped (%s)" % error, file=sys.stderr)
     timer.report(app_id)
     return env
+
+
+def record_final_env(launch, env):
+    """Appends what the game is really started with to launch.txt: the launch above is written
+    before later steps change the Vulkan layers, WINEDEBUG and the .NET settings."""
+    folder = env.get("DROIDDECK_GAME_LOG_DIR")
+    if not folder:
+        return
+    lines = ["== final environment (%s)" % " ".join(launch[:2])]
+    lines += ["%s=%s" % (key, env[key]) for key in sorted(env) if key.startswith(FINAL_ENV_PREFIXES)]
+    try:
+        with open(os.path.join(folder, "launch.txt"), "a", encoding="utf-8") as out:
+            out.write("\n".join(lines) + "\n")
+    except OSError:
+        pass
 
 
 def exec_proton(command, env):

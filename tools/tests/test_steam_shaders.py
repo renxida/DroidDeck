@@ -1,3 +1,5 @@
+import contextlib
+import io
 from pathlib import Path
 import runpy
 import tempfile
@@ -78,6 +80,30 @@ class SteamShadersTest(unittest.TestCase):
         fresh.mkdir()
         self.assertTrue(apply(fresh, True))
         self.assertEqual('0', disabled((fresh / 'config/config.vdf').read_text()))
+
+    def test_state_reads_what_the_client_will_do(self):
+        self.assertIsNone(MODULE['state'](self.root))
+        self.config.write_text(THOR)
+        self.assertEqual('on', MODULE['state'](self.root))
+        apply(self.root, False)
+        self.assertEqual('off', MODULE['state'](self.root))
+
+    def test_the_phones_own_driver_turns_pre_caching_off_unless_droiddeck_chose_it(self):
+        self.config.write_text(THOR)
+        choice = Path(self.temp.name) / 'choice'
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(0, MODULE['system_driver_default'](choice, [self.root, self.root / 'missing']))
+        self.assertEqual('1', disabled(self.config.read_text()))
+        self.assertIn('DROIDDECK_SHADER_PRECACHE off reason=system-vulkan-driver', out.getvalue())
+        apply(self.root, True)
+        choice.write_text('1\n')
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            MODULE['system_driver_default'](choice, [self.root])
+        self.assertEqual('0', disabled(self.config.read_text()))
+        self.assertIn('left on: chosen in DroidDeck', out.getvalue())
+        choice.write_text('0\n')
+        MODULE['system_driver_default'](choice, [self.root])
+        self.assertEqual('1', disabled(self.config.read_text()))
 
     def test_invalid_config_is_rejected(self):
         with self.assertRaises(ValueError):
