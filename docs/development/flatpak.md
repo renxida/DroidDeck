@@ -36,7 +36,7 @@ store's commands). It reads bwrap's command line, including `--args` fds and the
   the D-Bus proxy (every top-level directory bound onto itself) are the cases, and they keep the
   file descriptors Flatpak handed them.
 - Anything else is described to the app over the abstract socket
-  `com.droiddeck.launcher.bwrap`, which serves only the app's own uid. `BwrapSpawner` builds the
+  `<package>.bwrap` (`dev.renxida.kestrel.bwrap`), which serves only the app's own uid. `BwrapSpawner` builds the
   tree under `cache/bwrap/<n>`: a root directory for top-level links, directories and files,
   scratch directories for `--tmpfs` inside a bind, and every `--bind` translated from guest
   to host paths through the session's own binds. It then starts it as a proot of its own

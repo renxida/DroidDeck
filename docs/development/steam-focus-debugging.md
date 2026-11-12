@@ -53,7 +53,7 @@ Everything below runs on the device as the app's uid (`su 10195` on the Thor, `u
 the rootfs's own binaries through its loader, so nothing has to enter proot:
 
 ```sh
-R=/data/user/0/com.droiddeck.launcher/files/linuxfs
+R=/data/user/0/dev.renxida.kestrel/files/linuxfs
 $R/usr/lib/ld-linux-aarch64.so.1 --library-path $R/usr/lib $R/usr/bin/xprop -display :0 -root \
   GAMESCOPE_FOCUSED_APP GAMESCOPE_FOCUSABLE_WINDOWS GAMESCOPECTRL_BASELAYER_APPID
 ```
@@ -67,7 +67,7 @@ $R/usr/lib/ld-linux-aarch64.so.1 --library-path $R/usr/lib $R/usr/bin/xprop -dis
   `Download/DroidDeck/<date>-NN-steam/`):
 
   ```sh
-  export XDG_RUNTIME_DIR=/data/user/0/com.droiddeck.launcher/files/.wayland-rt WAYLAND_DISPLAY=gamescope-0
+  export XDG_RUNTIME_DIR=/data/user/0/dev.renxida.kestrel/files/.wayland-rt WAYLAND_DISPLAY=gamescope-0
   G="$R/usr/lib/ld-linux-aarch64.so.1 --library-path $R/usr/lib $R/usr/bin/gamescopectl"
   $G log_focus debug; $G focus_info
   ```
@@ -81,7 +81,7 @@ $R/usr/lib/ld-linux-aarch64.so.1 --library-path $R/usr/lib $R/usr/bin/xprop -dis
   nothing.
 - To test gamescope with a candidate binary without rebuilding the apk, put it in the rootfs (for
   example `/opt/gstest/gamescope`, owned by the app's uid) and add
-  `PATH=/opt/gstest:/usr/local/bin:/usr/bin:/bin` to `Android/data/com.droiddeck.launcher/files/droiddeck-env`. The session log's
+  `PATH=/opt/gstest:/usr/local/bin:/usr/bin:/bin` to `Android/data/dev.renxida.kestrel/files/droiddeck-env`. The session log's
   first lines name the gamescope that ran. Remove the line afterwards: the app stages its own
   gamescope over `/usr/local/bin` at every session start.
 - Never `pkill -f <pattern>` inside `su -c '…'`: the pattern matches that shell's own command line.

@@ -13,14 +13,14 @@ Each game page's **Shortcut** menu offers **Add to home screen** through Android
 With the debug app installed, exercise link routing with an installed game ID from the current library:
 
 ```sh
-adb shell am start -n com.droiddeck.launcher/.MainActivity \
+adb shell am start -n dev.renxida.kestrel/com.droiddeck.launcher.MainActivity \
   -a android.intent.action.VIEW -d 'droiddeck://game/620'
 ```
 
 Open the standard shortcut picker with:
 
 ```sh
-adb shell am start -n com.droiddeck.launcher/.MainActivity \
+adb shell am start -n dev.renxida.kestrel/com.droiddeck.launcher.MainActivity \
   -a android.intent.action.CREATE_SHORTCUT
 ```
 
