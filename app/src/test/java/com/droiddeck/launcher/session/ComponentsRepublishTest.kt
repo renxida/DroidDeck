@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
@@ -73,12 +74,35 @@ class ComponentsRepublishTest {
         assertEquals("{\"active\": ", state.readText())
     }
 
+    @Test fun storedDigestsAreReusedUntilTheFileChanges() {
+        proton("DroidDeck-Proton 11-11.8", "DroidDeck-Proton-11-11.8")
+        packageFile()
+        ComponentsManager.setGameComponent(context, scope, "fex", fex)
+        val sidecar = File(launchState().parentFile, "store/${fex.removeSuffix(".wcp")}/.sha256")
+        val line = sidecar.readLines().single { it.startsWith(dll + "\t") }
+        assertEquals(setOf(line.substringAfterLast('\t')), scopedSums())
+
+        val saved = "0".repeat(64)
+        sidecar.writeText(line.substringBeforeLast('\t') + "\t" + saved + "\n")
+        proton("DroidDeck-Proton 11-11.9", "DroidDeck-Proton-11-11.9")
+        assertTrue(ComponentsManager.republish(context))
+        assertEquals(setOf(saved), scopedSums())
+
+        val stored = File(LinuxRuntime.rootDir(context), rows().first { it[0] == scope && it[4] == dll }[6].removePrefix("/"))
+        stored.appendText(" changed")
+        proton("DroidDeck-Proton 11-11.10", "DroidDeck-Proton-11-11.10")
+        assertTrue(ComponentsManager.republish(context))
+        assertEquals(setOf(Hashes.sha256(stored)), scopedSums())
+    }
+
     @Test fun withNoSelectionsNothingIsPublished() {
         proton("DroidDeck-Proton 11-11.8", "DroidDeck-Proton-11-11.8")
 
         assertFalse(ComponentsManager.republish(context))
         assertFalse(launchState().exists())
     }
+
+    private fun scopedSums() = rows().filter { it[0] == scope && it[4] == dll }.map { it[5] }.toSet()
 
     private fun scopedTools() = rows().filter { it[0] == scope }.map { it[1] }.toSet()
 
