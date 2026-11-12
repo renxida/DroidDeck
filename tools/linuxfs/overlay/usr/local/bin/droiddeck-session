@@ -1036,14 +1036,27 @@ case $mode in
     fi
 
     if [ "$steam_x64" = 0 ]; then
+    _bl_setup_at=$(bl_now_ms)
+    _bl_setup=
+    _bl_setup_mark() {
+      local now
+      now=$(bl_now_ms)
+      _bl_setup="$_bl_setup${_bl_setup:+, }$1 $((now - _bl_setup_at)) ms"
+      _bl_setup_at=$now
+    }
     step "registering the app's game library with Steam"
     droiddeck-steam-library "$steam_root" || true
+    _bl_setup_mark library
     step "setting up the ARM64 Proton compatibility tool"
     steam-compatibility "$steam_root" || true
+    _bl_setup_mark compatibility
     if [ "${BL_STEAM_UI:-}" != desktop ]; then
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
+      _bl_setup_mark ui-scale
     fi
     droiddeck-seed-redists "$steam_root" || true
+    _bl_setup_mark redists
+    echo "== steam setup before the client starts: $_bl_setup"
     else
     _bl_x64_tool=$(droiddeck-steam-x64 --default-tool)
     if [ -n "$_bl_x64_tool" ]; then
@@ -1160,20 +1173,28 @@ case $mode in
       _bl_hand_off() {
         printf '%s\n' "$game" > "$BL_LAUNCH_DIR/steam-game.tmp" && mv -f "$BL_LAUNCH_DIR/steam-game.tmp" "$BL_LAUNCH_DIR/steam-game"
       }
+      _bl_ms() {
+        if [ -n "${EPOCHREALTIME:-}" ]; then local t=${EPOCHREALTIME/[.,]/}; echo $((10#$t / 1000)); else date +%s%3N; fi
+      }
+      local began front
+      began=$(_bl_ms)
+      # Polled every 0.25 s and 0.5 s rather than every second: each poll is cheap, and the
+      # hand-off to the game waits for both.
       _bl_end=$((SECONDS + 120))
       until [ "$(_bl_focused)" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
-        sleep 1
+        sleep 0.25
       done
+      front=$(($(_bl_ms) - began))
       [ "${#game}" -gt 10 ] && shortcut=1
       _bl_ready_end=$((SECONDS + 30))
-      while [ "$waited" -lt 30 ] && [ "$((_bl_ready_end - SECONDS))" -gt 0 ]; do
+      while [ "$waited" -lt 60 ] && [ "$((_bl_ready_end - SECONDS))" -gt 0 ]; do
         timeout "$((_bl_ready_end - SECONDS))" /usr/local/bin/droiddeck-agent --steam-ready >/dev/null 2>&1 && break
         [ "$((_bl_ready_end - SECONDS))" -gt 1 ] || break
-        sleep 1
+        sleep 0.5
         waited=$((waited + 1))
       done
       waited=0
-      echo "== steam: interface up; launching the requested game $game"
+      echo "== steam: interface up after $(($(_bl_ms) - began)) ms (Steam in front after $front ms); launching the requested game $game"
       _bl_hand_off
       [ -n "$shortcut" ] || return 0
       while [ "$(_bl_focused)" = 769 ] && [ "$waited" -lt 20 ]; do

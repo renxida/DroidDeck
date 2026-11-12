@@ -97,12 +97,12 @@ class SteamColdLaunchTest(unittest.TestCase):
         result = self.run_launch("413150", ready_status=1)
         self.assertEqual("413150", (self.launch_dir / "steam-game").read_text().strip())
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
+        self.assertEqual(["0.5"] * 60, self.sleep_args.read_text().split())
 
     def test_a_focus_change_does_not_end_the_readiness_wait(self):
         result = self.run_launch("413150", focus="769 4242", ready_status=1)
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
+        self.assertEqual(["0.5"] * 60, self.sleep_args.read_text().split())
 
     def test_a_game_still_starting_without_a_window_is_not_launched_twice(self):
         result = self.run_launch(SHORTCUT, running_after=1)
@@ -124,6 +124,11 @@ class SteamColdLaunchTest(unittest.TestCase):
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
         self.assertNotIn("clearing the pending launch interstitial", result.stdout)
         self.assertNotIn("launching the requested game again", result.stdout)
+
+    def test_the_hand_off_line_gives_the_time_steam_took(self):
+        result = self.run_launch("413150")
+        self.assertRegex(result.stdout, r"== steam: interface up after \d+ ms \(Steam in front after \d+ ms\); "
+                                        r"launching the requested game 413150")
 
     def test_native_app_id_keeps_the_short_delay_and_is_handed_over_once(self):
         result = self.run_launch("413150")

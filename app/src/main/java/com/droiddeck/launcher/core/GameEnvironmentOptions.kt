@@ -37,6 +37,8 @@ object GameEnvironmentOptions {
         Option("AUDIO_DIRECT_MS", "", 0, Type.NUMBER),
         Option("AUDIO_DIRECT_PERIOD_MS", "", 0, Type.NUMBER),
         Option("DROIDDECK_GAME_CORES", "", R.string.game_env_cores, Type.TEXT),
+        Option("DROIDDECK_FEX_DISKCACHE", "1", R.string.game_env_fex_diskcache, Type.TOGGLE, listOf("0", "1")),
+        Option("DROIDDECK_DOTNET_WARMUP", "pgo-off", R.string.game_env_dotnet_warmup, Type.CHOICE, listOf("off", "pgo-off", "lean", "single-tier")),
         Option("DROIDDECK_ANTICHEAT_OFFLINE", "1", R.string.game_env_anticheat_offline, Type.TOGGLE, listOf("0", "1")),
         Option("DROIDDECK_GODOT_RENDERER", "auto", R.string.game_env_godot_renderer, Type.CHOICE, listOf("auto", "mobile", "forward_plus", "vulkan", "off")),
         Option("WINE_LARGE_ADDRESS_AWARE", "0", 0, Type.TOGGLE, listOf("0", "1")),
