@@ -6,19 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionVisibilityTest {
-    @Test fun xrVisibilitySurvivesPanelHandoffAndPanelScreenState() {
-        for (panelVisible in listOf(false, true)) {
-            for (screenOn in listOf(false, true)) {
-                assertTrue(sessionHasVisibleSurface(panelVisible, screenOn, true))
-            }
-        }
-    }
-
     @Test fun normalPanelStillRequiresAnInteractiveScreen() {
-        assertTrue(sessionHasVisibleSurface(true, true, false))
-        assertFalse(sessionHasVisibleSurface(false, true, false))
-        assertFalse(sessionHasVisibleSurface(true, false, false))
-        assertFalse(sessionHasVisibleSurface(false, false, false))
+        assertTrue(sessionHasVisibleSurface(true, true))
+        assertFalse(sessionHasVisibleSurface(false, true))
+        assertFalse(sessionHasVisibleSurface(true, false))
+        assertFalse(sessionHasVisibleSurface(false, false))
     }
 
     @Test fun phoneDisplayFollowsTheInteractiveState() {
@@ -47,11 +39,5 @@ class SessionVisibilityTest {
     @Test fun unknownExternalDisplayStateFallsBackToThePhone() {
         assertTrue(sessionScreenOn(false, true, Display.STATE_UNKNOWN))
         assertFalse(sessionScreenOn(false, false, Display.STATE_UNKNOWN))
-    }
-
-    @Test fun losingXrVisibilityReturnsToNormalSuspendRules() {
-        assertTrue(sessionHasVisibleSurface(false, false, true))
-        assertFalse(sessionHasVisibleSurface(false, false, false))
-        assertTrue(sessionHasVisibleSurface(true, true, false))
     }
 }

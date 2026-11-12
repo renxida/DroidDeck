@@ -476,8 +476,6 @@ internal val LibraryCardWidth = 150.dp
 private val CardWidth = 112.dp
 private val CapsuleWidth = 92.dp
 
-internal fun libraryTileWidth() = LibraryCardWidth * LibraryDisplay.scales[LibraryDisplay.level]
-
 @Composable
 private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, hot: Boolean, capsule: Boolean, showSource: Boolean) {
     ArtCard(

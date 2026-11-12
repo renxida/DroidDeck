@@ -20,8 +20,7 @@ class SessionVisibilityPolicyTest {
         assertFalse(SessionVisibilityPolicy.isHidden(true, true, true, false))
     }
 
-    @Test fun stoppedActivityIsHiddenButVisibleXrKeepsSessionVisible() {
+    @Test fun stoppedActivityIsHidden() {
         assertTrue(SessionVisibilityPolicy.isHidden(false, true, true, true))
-        assertFalse(SessionVisibilityPolicy.isHidden(false, false, true, false, xrActivityVisible = true))
     }
 }
