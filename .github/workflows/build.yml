@@ -644,6 +644,9 @@ jobs:
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
           python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
 
+      - name: APK size report
+        run: python3 tools/release/apk_size_report.py app/build/outputs/apk/release/app-release.apk
+
       - name: Check the store engines' library
         run: |
           set -euo pipefail
