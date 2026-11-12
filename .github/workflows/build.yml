@@ -370,7 +370,138 @@ jobs:
             echo
             for f in $FILES; do echo "- \`$f\`"; done
             echo
-            echo "Each conflicting hunk, as git leaves it: \`      - name: APK size report
+            echo "Each conflicting hunk, as git leaves it: \`<<<<<<< HEAD\` is this pull request, \`>>>>>>> origin/main\` is main."
+            echo
+            for f in $FILES; do
+              echo "<details><summary><code>$f</code></summary>"
+              echo
+              echo '```'
+              awk '/^<<<<<<< /{p=1} p{print} /^>>>>>>> /{p=0}' "$f" | head -300
+              echo '```'
+              echo "</details>"
+              echo
+            done
+            echo "Not built: rebase or merge main into the branch and push again."
+          } > /tmp/pr-merge.md
+          cat /tmp/pr-merge.md >> "$GITHUB_STEP_SUMMARY"
+          git merge --abort || true
+          echo "::error::the pull request conflicts with main: $(echo $FILES | tr '\n' ' ')"
+          exit 1
+
+      - name: Verify APK source match
+        env:
+          SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
+        run: test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          cache-cleanup: ${{ github.event_name == 'pull_request' && 'never' || 'on-success' }}
+
+      - name: Resolve the pinned Android NDK
+        run: bash tools/ci/resolve-ndk.sh
+
+      - name: Set the APK build label
+        id: build-label
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BUILD_REF: ${{ github.ref_name }}
+          BUILD_SHA: ${{ github.sha }}
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            tree_state=dirty
+          else
+            tree_state=clean
+          fi
+          echo "DROIDDECK_BUILD_TREE_STATE=$tree_state" >> "$GITHUB_ENV"
+          if [[ -n "$PR_NUMBER" ]]; then
+            label="pr${PR_NUMBER} at ${PR_HEAD_SHA:0:7}"
+          else
+            label="${BUILD_REF} at ${BUILD_SHA:0:7}"
+          fi
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+          echo "DROIDDECK_SOURCE_COMMIT=${PR_HEAD_SHA:-$BUILD_SHA}" >> "$GITHUB_ENV"
+          echo "DROIDDECK_PR_NUMBER=${PR_NUMBER:-0}" >> "$GITHUB_ENV"
+          echo "DROIDDECK_PR_TITLE=${PR_TITLE//$'\n'/ }" >> "$GITHUB_ENV"
+          echo "Build: \`$label\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cache the CMake build tree
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/.cxx
+            app/build/intermediates/cxx
+          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**') }}
+          restore-keys: |
+            cxx-${{ env.NDK_VERSION }}-
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepared-components
+          path: app/build
+      - name: Verify and unpack prepared components
+        env:
+          SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
+        run: python3 tools/components/prepare.py unpack --tree "$SOURCE_TREE"
+
+      - name: Cache checksum-pinned pack inputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/droiddeck-pack-inputs
+            ~/.cache/droiddeck-build
+          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/powervr/release.json') }}
+          restore-keys: pack-inputs-v2-
+      - name: Build the add-on packs
+        run: |
+          python3 tools/powervr/fetch.py
+          bash tools/packs/build.sh app/build/packs
+
+      - name: Note when the proot pack pin is behind this build
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source tools/packs/proot/release.env
+          sha=$(sha256sum app/build/packs/proot.tar.zst | cut -d' ' -f1)
+          if [ "$sha" != "$PROOT_PACK_SHA256" ]; then
+            echo "::warning::built proot pack $sha does not match tools/packs/proot/release.env ($PROOT_PACK_SHA256). This build publishes the pack it just built. Source builds keep downloading the pinned pack until release.env is updated."
+          fi
+
+      - name: Check out MaliBridge
+        run: git submodule update --init external/MaliBridge
+      - name: Fetch the Mali (Venus) component (tools/venus/release.env)
+        run: |
+          set -euo pipefail
+          . tools/venus/release.env
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o venus.tzst \
+            "https://github.com/${VENUS_REPO}/releases/download/${VENUS_TAG}/venus.tzst"
+          echo "${VENUS_SHA256}  venus.tzst" | sha256sum -c -
+          tar --use-compress-program=unzstd -xf venus.tzst -C app/src/main
+          test -f app/src/main/jniLibs/arm64-v8a/libvirgl_test_server.so
+          test -f app/src/main/assets/venus/libvulkan_virtio.so
+          rm venus.tzst
+
+      - name: Build
+        id: build
+        env:
+          DROIDDECK_BUILD_LABEL: ${{ steps.build-label.outputs.label }}
+          SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
+        run: |
+          set -o pipefail
+          python3 tools/powervr/fetch.py
+          python3 tools/release/runtime_inputs.py record
+          ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
+          python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
+          python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
+
+      - name: APK size report
         run: python3 tools/release/apk_size_report.py app/build/outputs/apk/release/app-release.apk
 
       - name: Check the native libraries
