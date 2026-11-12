@@ -68,7 +68,6 @@ object SessionFiles {
             "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
             "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
             "usr/local/bin/droiddeck-pipewire" to "usr/local/bin/droiddeck-pipewire",
-            "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
             "usr/local/bin/droiddeck-innoextract" to "usr/local/bin/droiddeck-innoextract",
             "usr/local/lib/droiddeck-inno/innoextract" to "usr/local/lib/droiddeck-inno/innoextract",

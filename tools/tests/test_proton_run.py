@@ -1,4 +1,3 @@
-import contextlib
 import os
 from pathlib import Path
 import runpy
@@ -10,15 +9,7 @@ from unittest import mock
 import zlib
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
-OPEN = runpy.run_path(str(BIN / "droiddeck-open"))["main"].__globals__
 RUN = runpy.run_path(str(BIN / "droiddeck-proton-run"))["main"].__globals__
-
-
-def elf(machine, extra=b""):
-    head = bytearray(64)
-    head[0:4], head[4], head[5], head[18] = b"\x7fELF", 2, 1, machine
-    head[8:8 + len(extra)] = extra
-    return bytes(head)
 
 
 class Temp(unittest.TestCase):
@@ -32,92 +23,6 @@ class Temp(unittest.TestCase):
         path.write_bytes(data if isinstance(data, bytes) else data.encode())
         path.chmod(mode)
         return path
-
-
-class KindTest(Temp):
-    def test_each_file_is_told_by_its_content_then_its_name(self):
-        cases = {
-            "game.x86_64": (elf(62), "elf"),
-            "setup.exe": (b"MZ" + bytes(62), "windows"),
-            "launcher.bat": (b"@echo off\r\n", "windows"),
-            "no-extension": (b"MZ" + bytes(62), "windows"),
-            "d3d11.dll": (b"MZ" + bytes(62), None),
-            "start.sh": (b"echo hi\n", "script"),
-            "run": (b"#!/usr/bin/env python3\n", "script"),
-            "notes.txt": (b"hello\n", None),
-        }
-        for name, (data, expected) in cases.items():
-            with self.subTest(name):
-                self.assertEqual(OPEN["kind"](str(self.write(name, data))), expected)
-
-    def test_a_script_names_its_interpreter_or_gets_bash(self):
-        self.assertEqual(OPEN["interpreter"](str(self.write("a", b"#!/usr/bin/env  python3 -u\r\nx\n"))),
-                         ["/usr/bin/env", "python3", "-u"])
-        self.assertEqual(OPEN["interpreter"](str(self.write("b", b"echo\n"))), ["/bin/bash"])
-
-
-class CommandTest(Temp):
-    def test_each_kind_gets_its_runner(self):
-        exe, script = str(self.tmp / "a.exe"), str(self.tmp / "go.sh")
-        self.write("go.sh", b"#!/bin/sh\n")
-        self.assertEqual(OPEN["command"](exe, ["-x"], "windows"), ([OPEN["PROTON_RUN"], exe, "-x"], str(self.tmp)))
-        self.assertEqual(OPEN["command"](script, ["1"], "script")[0], ["/bin/sh", script, "1"])
-        self.assertEqual(OPEN["command"](script, [], "x86 script")[0],
-                         [OPEN["FEX"], "run", "--mode", "on", "--for", str(self.tmp), "--", "/bin/sh", script])
-
-    def test_a_native_program_on_noexec_storage_runs_from_a_copy(self):
-        program = self.write("storage/tool", elf(183))
-        x86 = self.write("storage/game.x86_64", elf(62))
-        with mock.patch.dict(OPEN, {"CACHE": str(self.tmp / "cache"), "noexec": lambda path: True}):
-            copy = OPEN["runnable"](str(program))
-            self.assertNotEqual(copy, str(program))
-            self.assertEqual(Path(copy).read_bytes(), elf(183))
-            self.assertTrue(os.access(copy, os.X_OK))
-            self.assertEqual(OPEN["runnable"](str(program)), copy)
-            self.assertEqual(OPEN["runnable"](str(x86)), str(x86))
-        with mock.patch.dict(OPEN, {"noexec": lambda path: False}):
-            self.assertEqual(OPEN["runnable"](str(program)), str(program))
-
-
-class ExecTest(Temp):
-    def setUp(self):
-        super().setUp()
-        self.storage = self.tmp / "storage"
-        self.write("storage/Download/Game/start.sh", b"#!/bin/sh\n./game.x86_64\n", 0o755)
-        self.write("storage/Download/Game/game.x86_64", elf(62), 0o755)
-        env = {k: v for k, v in os.environ.items() if k != "BL_BINFMT"}
-        for patcher in (mock.patch.dict(OPEN, {"noexec": lambda path: True, "steam_title": lambda path: None,
-                                               "CACHE": str(self.tmp / "cache")}),
-                        mock.patch.dict(os.environ, env, clear=True),
-                        mock.patch.object(OPEN["os"], "chdir"),
-                        mock.patch.object(OPEN["os"], "execv", side_effect=self.execv)):
-            patcher.start()
-            self.addCleanup(patcher.stop)
-        self.ran = []
-
-    def execv(self, program, cmd):
-        self.ran.append(cmd)
-        raise SystemExit(0)
-
-    def open(self, *argv, env=None):
-        os.environ.update(env or {})
-        with contextlib.suppress(SystemExit):
-            OPEN["main"](list(argv))
-        return self.ran[-1]
-
-    def test_an_x86_program_a_running_program_starts_runs_under_fex_where_it_lies(self):
-        program = str(self.storage / "Download/Game/game.x86_64")
-        for env in ({}, {"BL_BINFMT": "1"}):
-            with self.subTest(env=env):
-                self.assertEqual(self.open("--exec", program, "-x", env=env), [OPEN["FEX"], "run", "--mode", "auto", "--", program, "-x"])
-
-    def test_an_in_place_hand_off_keeps_the_callers_working_folder(self):
-        program = str(self.storage / "Download/Game/game.x86_64")
-        with mock.patch("os.chdir") as chdir:
-            self.open("--exec", program, env={"BL_BINFMT": "1"})
-            chdir.assert_not_called()
-            self.open("--exec", str(self.write("storage/Download/Game/setup.exe", b"MZ")))
-            chdir.assert_called_once()
 
 
 def appinfo(apps):
@@ -382,16 +287,6 @@ class ProtonRunTest(Temp):
                 self.assertEqual(RUN["steam_launches"](RUN["locate"](program, root), program, root), expected)
         own = str(self.write("Download/Stardew Valley.exe", b"MZ"))
         self.assertFalse(RUN["steam_launches"](RUN["locate"](own, root), own, root))
-
-    def test_a_steam_games_windows_program_goes_to_steam(self):
-        self.write("Steam/appcache/appinfo.vdf", appinfo({413150: STARDEW}))
-        program = str(self.game("413150", "Stardew Valley", "Stardew Valley.exe"))
-        with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
-                mock.patch.dict(OPEN, {"PROTON_RUN": str(BIN / "droiddeck-proton-run")}):
-            appid = OPEN["steam_title"](program)
-            self.assertEqual(appid, "413150")
-            self.assertEqual(OPEN["command"](program, [], "steam", appid=appid)[0], [OPEN["STEAM_LAUNCH"], "desktop", "413150"])
-            self.assertIsNone(OPEN["steam_title"](str(self.write("Download/winemine.exe", b"MZ"))))
 
     def test_the_tool_is_started_as_steam_starts_it(self):
         program = self.game("413150", "Stardew Valley", "Stardew Valley.exe")
