@@ -20,7 +20,7 @@ def socket_name():
                 name = f.read().strip()
         except OSError:
             pass
-    return "\0" + (name or "com.droiddeck.launcher.bwrap")
+    return "\0" + (name or "dev.renxida.kestrel.bwrap")
 
 
 SOCKET = socket_name()

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">Kestrel</string>
     <string-array name="loading_hints">
         <item>Az első indítás letölti a Steamet. Ez néhány percet vehet igénybe.</item>
         <item>Alapértelmezés szerint az alkalmazás elhagyása szünetelteti a Steamet; visszatéréskor ott folytatja, ahol abbahagyta.</item>
@@ -118,7 +118,7 @@
     <string name="user_apps_runtime_required">Előbb telepítse a Linux futtatókörnyezetet</string>
     <string name="user_apps_downloading">%1$s letöltése</string>
     <string name="user_apps_download_failed">A letöltés sikertelen</string>
-    <string name="session_proot_missing">A DroidDeck proot nem tölthető le. Ellenőrizze a kapcsolatot, és próbálja újra. A munkamenet nem indult el, mert a tartalék proot túl lassú a játékhoz.</string>
+    <string name="session_proot_missing">A Kestrel proot nem tölthető le. Ellenőrizze a kapcsolatot, és próbálja újra. A munkamenet nem indult el, mert a tartalék proot túl lassú a játékhoz.</string>
     <string name="session_powervr_missing">A PowerVR grafikus környezetet nem sikerült letölteni. Ellenőrizd a kapcsolatot, és próbáld újra.</string>
     <string name="session_directaudio_missing">A DirectAudio nem tölthető le, ezért a játékhang ebben a munkamenetben a lassabb útvonalat használja.</string>
     <string name="session_end_program">Ez a program</string>
@@ -174,7 +174,7 @@
     <string name="back_double_tap_window">Dupla koppintás időablaka</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">Fényerő-szabályozás engedélyezése</string>
-    <string name="brightness_permission_text">Fényerő-szabályozás beállítása a DroidDeckben.</string>
+    <string name="brightness_permission_text">Fényerő-szabályozás beállítása a Kestrelben.</string>
     <string name="back_menu_then_qam">Menü → QAM</string>
     <string name="back_qam_then_menu">QAM → Menü</string>
     <string name="mode_session">Munkamenet</string>
@@ -188,12 +188,12 @@
     <string name="mode_suspend_note">Az Automatikus szüneteltet a háttérben, és megjelenéskor folytatja. A Manuális megvárja a Folytatást. A Soha mindig futva tartja.</string>
     <string name="mode_startup">Indítás</string>
     <string name="mode_startup_session">Megnyitás indításkor</string>
-    <string name="mode_startup_session_hint">A DroidDeck indulásakor elindítja ezt a munkamenetet.</string>
+    <string name="mode_startup_session_hint">A Kestrel indulásakor elindítja ezt a munkamenetet.</string>
     <string name="mode_client">Kliens</string>
     <string name="mode_mangoapp">Teljesítmény-overlay</string>
     <string name="mode_mangoapp_hint">Kapcsolja ki, ha a játékok összeomlanak vagy elfeketednek Deck módban. A következő munkamenettől érvényes.</string>
-    <string name="mode_return_after_game">Visszatérés a DroidDeckbe játék után</string>
-    <string name="mode_return_after_game_hint">Amikor egy a DroidDeckből vagy más indítóból elindított játék bezárul, a Steam szabályosan kilép (előbb befejeződnek a felhőmentések), és oda tér vissza. Ki: a Steamben marad.</string>
+    <string name="mode_return_after_game">Visszatérés a Kestrelbe játék után</string>
+    <string name="mode_return_after_game_hint">Amikor egy a Kestrelből vagy más indítóból elindított játék bezárul, a Steam szabályosan kilép (előbb befejeződnek a felhőmentések), és oda tér vissza. Ki: a Steamben marad.</string>
     <string name="mode_shader_precache">Shader-előgyorsítótárazás</string>
     <string name="mode_shader_precache_hint">A Steam előre lefordított shadereket tölt le a játékaihoz, és a háttérben feldolgozza őket, így a játékok kevésbé akadnak. Kikapcsolva adatforgalmat, tárhelyet és akkumulátort takarít meg; a játékok ehelyett játék közben fordítják a shadereket. Ugyanaz a beállítás, mint a Steam Letöltések > Shader-előgyorsítótárazás opciója. A következő munkamenettől érvényes.</string>
     <string name="mode_steam_repair">Steam-kliens javítása</string>
@@ -347,7 +347,7 @@
     <string name="comp_applies_next_game">A következő játékindítástól érvényes</string>
     <string name="comp_import_zip">.zip importálása</string>
     <string name="comp_reading">Protonok beolvasása…</string>
-    <string name="comp_no_proton">Még nincs telepítve Proton. Indítsa el egyszer a Steamet az ARM64 Protonjának letöltéséhez, vagy adjon hozzá GE-Protont, CachyOS-t vagy DroidDeck-Protont a Beállításból.</string>
+    <string name="comp_no_proton">Még nincs telepítve Proton. Indítsa el egyszer a Steamet az ARM64 Protonjának letöltéséhez, vagy adjon hozzá GE-Protont, CachyOS-t vagy Kestrel-Protont a Beállításból.</string>
     <string name="comp_original">Eredeti · %1$s</string>
     <string name="comp_this_build">%1$s · ez a build</string>
     <string name="comp_earlier_build">%1$s · korábbi build</string>
@@ -661,7 +661,7 @@
     <string name="setup_language_system">Rendszer alapértelmezett (%1$s)</string>
     <string name="setup_language_system_short">Rendszer alapértelmezett</string>
     <string name="setup_app_scale">Alkalmazásméret</string>
-    <string name="setup_app_scale_hint">A DroidDeck szövege és vezérlői</string>
+    <string name="setup_app_scale_hint">A Kestrel szövege és vezérlői</string>
     <string name="setup_app_scale_default">%1$d%% (Alapértelmezett)</string>
     <string name="setup_theme">Téma</string>
     <string name="setup_theme_hint">Az indítóalkalmazás megjelenése</string>
@@ -704,13 +704,13 @@
     <string name="gate_fix_for_me">Javítsa ezt helyettem</string>
     <string name="gate_toggle_steps">Kapcsolja be az „Alárendelt folyamatok korlátozásának kikapcsolása” kapcsolót, majd térjen vissza. Hagyja bekapcsolva a Fejlesztői beállításokat, különben a kapcsoló visszakapcsol.</string>
     <string name="gate_open_dev">Fejlesztői beállítások megnyitása</string>
-    <string name="gate_no_toggle">Ehhez az Android-verzióhoz nincs kapcsoló, ezért a DroidDeck a vezeték nélküli hibakeresésen keresztül módosítja. Körülbelül egy percet vesz igénybe, számítógép nélkül.</string>
+    <string name="gate_no_toggle">Ehhez az Android-verzióhoz nincs kapcsoló, ezért a Kestrel a vezeték nélküli hibakeresésen keresztül módosítja. Körülbelül egy percet vesz igénybe, számítógép nélkül.</string>
     <string name="gate_needs_wifi">A vezeték nélküli hibakereséshez Wi-Fi szükséges. Bármelyik hálózat megfelel; internetkapcsolat nem szükséges.</string>
-    <string name="gate_needs_notifications">A párosítási kód egy értesítésben jelenik meg. Engedélyezze az értesítéseket a DroidDecknek, vagy használja az Egyéb módokat.</string>
+    <string name="gate_needs_notifications">A párosítási kód egy értesítésben jelenik meg. Engedélyezze az értesítéseket a Kestrelnek, vagy használja az Egyéb módokat.</string>
     <string name="gate_allow_notifications">Értesítések engedélyezése</string>
     <string name="gate_step1">Nyissa meg: Beállítások → Fejlesztői beállítások → Vezeték nélküli hibakeresés, és kapcsolja be</string>
     <string name="gate_step2">Koppintson az „Eszköz párosítása párosítási kóddal” lehetőségre</string>
-    <string name="gate_step3">Írja be a kódot a DroidDeck értesítésébe</string>
+    <string name="gate_step3">Írja be a kódot a Kestrel értesítésébe</string>
     <string name="pairguide_build_number">A Telefon névjegye menüben koppintson hétszer a Buildszámra</string>
     <string name="pairguide_wireless">Kapcsolja be a Vezeték nélküli hibakeresést</string>
     <string name="pairguide_pair">Nyissa meg a Vezeték nélküli hibakeresést, majd koppintson az „Eszköz párosítása párosítási kóddal” lehetőségre</string>
@@ -811,8 +811,8 @@
     <string name="gpu_hide_other">Más GPU-k illesztőprogramjainak elrejtése</string>
     <string name="gpu_show_other">Más GPU-k illesztőprogramjainak megjelenítése</string>
     <string name="gpu_ubwc_title">UBWC-kompatibilitás</string>
-    <string name="gpu_ubwc_hint">Próbálja a Be vagy Ki beállítást, ha a Steam vagy az Android csíkokat vagy villódzást mutat. A DroidDeck újraindítása után mindkét illesztőprogramra érvényes.</string>
-    <string name="gpu_ubwc_restart">Indítsa újra a DroidDecket az alkalmazáshoz.</string>
+    <string name="gpu_ubwc_hint">Próbálja a Be vagy Ki beállítást, ha a Steam vagy az Android csíkokat vagy villódzást mutat. A Kestrel újraindítása után mindkét illesztőprogramra érvényes.</string>
+    <string name="gpu_ubwc_restart">Indítsa újra a Kestrelet az alkalmazáshoz.</string>
     <string name="gpu_runtime_hint">A játékok és az asztal használja.</string>
     <string name="gpu_runtime_default">Futtatókörnyezet alapértelmezése</string>
     <string name="gpu_auto_by_gpu">Automatikus – GPU szerint kiválasztva</string>
@@ -881,7 +881,7 @@
     <string name="unfolded_controls_with_controller_hint">Ezeket az érintéses vezérlőket akkor is megjeleníti, ha kontroller van csatlakoztatva.</string>
     <string name="pip_suspended">Felfüggesztve</string>
     <string name="pip_not_ready">A kép a képben mód csak a munkamenet elkészülése után érhető el.</string>
-    <string name="pip_permission">Engedélyezze a kép a képben módot a DroidDeck számára az Android beállításaiban.</string>
+    <string name="pip_permission">Engedélyezze a kép a képben módot a Kestrel számára az Android beállításaiban.</string>
     <string name="pip_unavailable">Az Android nem tudta megnyitni a kép a képben módot.</string>
     <string name="game_more">Továbbiak</string>
     <string name="game_edit_art">Illusztrációk szerkesztése</string>
@@ -894,7 +894,7 @@
     <string name="game_link_copied">Indítási link másolva</string>
     <string name="game_shortcut_unsupported">Ez az indítóalkalmazás nem tud parancsikont hozzáadni. Használja helyette az „Indítási link másolása” lehetőséget.</string>
     <string name="game_link_invalid">Érvénytelen játékindítási link.</string>
-    <string name="game_link_missing">Ez a játék már nincs a DroidDeck könyvtárában.</string>
+    <string name="game_link_missing">Ez a játék már nincs a Kestrel könyvtárában.</string>
     <string name="game_link_session_busy">Állítsa le a jelenlegi munkamenetet, mielőtt elindít egy Steam-játékot.</string>
     <string name="game_link_failed">Nem sikerült elküldeni a játékot a Steamnek. Próbálja újra elindítani.</string>
     <string name="setup_retry_removal">Eltávolítás újra</string>
@@ -993,22 +993,22 @@
     <string name="drivers_recommended_unpublished">Az ajánlott illesztőprogramok jelenleg nincsenek kiadva</string>
     <string name="drivers_downloading_pair">%1$s %2$s letöltése…</string>
     <string name="drivers_updated_to">Frissítve erre: %1$s %2$s.</string>
-    <string name="drivers_updated_to_restart">Frissítve erre: %1$s %2$s. A megjelenítő-illesztőprogram a DroidDeck újraindítása után lép érvénybe.</string>
+    <string name="drivers_updated_to_restart">Frissítve erre: %1$s %2$s. A megjelenítő-illesztőprogram a Kestrel újraindítása után lép érvénybe.</string>
     <string name="drivers_auto_waits_for_session">Az illesztőprogram-frissítések a munkamenet leállásáig várnak.</string>
     <string name="drivers_auto_waits_for_network">A(z) %1$s %2$s letöltése akkor indul, amikor kilépsz a mobilnetről és az energiatakarékos módból.</string>
     <string name="drivers_skipping_bad">A(z) %1$s %2$s nem indított itt munkamenetet, ezért az Automatikus azoknál az illesztőprogramoknál marad, amelyek igen.</string>
     <string name="drivers_rolled_back">A(z) %1$s kétszer nem indított munkamenetet, ezért az Automatikus visszatért a működő illesztőprogramokhoz.</string>
     <string name="drivers_switched_to">Átváltva erre: %1$s %2$s.</string>
-    <string name="drivers_switched_to_restart">Átváltva erre: %1$s %2$s. A megjelenítő-illesztőprogram a DroidDeck újraindítása után lép érvénybe.</string>
+    <string name="drivers_switched_to_restart">Átváltva erre: %1$s %2$s. A megjelenítő-illesztőprogram a Kestrel újraindítása után lép érvénybe.</string>
     <string name="drivers_using">%1$s %2$s használatban.</string>
-    <string name="drivers_using_restart">%1$s %2$s használatban. A megjelenítő-illesztőprogram a DroidDeck újraindítása után lép érvénybe.</string>
+    <string name="drivers_using_restart">%1$s %2$s használatban. A megjelenítő-illesztőprogram a Kestrel újraindítása után lép érvénybe.</string>
     <string name="drivers_using_quest">A Questhez adott kép-illesztőprogram és az alapértelmezett futtatókörnyezet van használatban.</string>
-    <string name="drivers_using_quest_restart">A Questhez adott kép-illesztőprogram és az alapértelmezett futtatókörnyezet van használatban. A kép-illesztőprogram a DroidDeck újraindítása után lép életbe.</string>
+    <string name="drivers_using_quest_restart">A Questhez adott kép-illesztőprogram és az alapértelmezett futtatókörnyezet van használatban. A kép-illesztőprogram a Kestrel újraindítása után lép életbe.</string>
     <string name="drivers_not_a_driver">Nem illesztőprogram zip: nem AdrenoTools-illesztőprogram, nem -Linux Turnip és nem Android + Linux csomag</string>
     <string name="drivers_import_failed">Importálás sikertelen: %1$s</string>
     <string name="drivers_imported_unnamed">Illesztőprogram importálva</string>
     <string name="drivers_using_bundle">%1$s használatban mind futtatókörnyezet-, mind megjelenítő-illesztőprogramként.</string>
-    <string name="drivers_using_bundle_restart">%1$s használatban mind futtatókörnyezet-, mind megjelenítő-illesztőprogramként. A megjelenítő-illesztőprogram a DroidDeck újraindítása után lép érvénybe.</string>
+    <string name="drivers_using_bundle_restart">%1$s használatban mind futtatókörnyezet-, mind megjelenítő-illesztőprogramként. A megjelenítő-illesztőprogram a Kestrel újraindítása után lép érvénybe.</string>
     <string name="drivers_deleted_bundle">%1$s törölve (mindkét illesztőprogram)</string>
     <string name="drivers_deleted">%1$s törölve</string>
     <string name="drivers_release_status">Legújabb: %1$s · ellenőrizve: %2$s</string>
@@ -1210,7 +1210,7 @@
     <string name="fm_decline">Elutasítom</string>
     <string name="fm_drive_not_readable">A %1$s csatolva van, de jelenleg nem olvasható</string>
     <string name="fm_drive_access_title">Hozzáférés engedélyezése: %1$s</string>
-    <string name="fm_drive_access_text">Az Android látni engedi a DroidDecknek ezt a meghajtót, de olvasni nem. Kapcsold be a DroidDecknél az Összes fájlhoz való hozzáférést, majd gyere vissza.</string>
+    <string name="fm_drive_access_text">Az Android látni engedi a Kestrelnek ezt a meghajtót, de olvasni nem. Kapcsold be a Kestrelnél az Összes fájlhoz való hozzáférést, majd gyere vissza.</string>
     <string name="fm_list_view">Listanézet</string>
     <string name="fm_grid_view">Rácsnézet</string>
     <string name="fm_search">Keresés</string>
@@ -1331,12 +1331,12 @@
     <string name="bottom_page_chat">Csevegés és hang</string>
     <string name="bottom_chat_why">Itt olvashatja a Steam-csevegést és válaszolhat rá, miközben a játék tovább fut a fő képernyőn. Azt a fiókot használja, amellyel a Steambe bejelentkezett.</string>
     <string name="bottom_chat_not_signed_in">A Steam még nem rendelkezik megosztható webes bejelentkezéssel, ezért egyszer jelentkezzen be itt.</string>
-    <string name="bottom_chat_stopped">Az Android bezárta a csevegőoldalt, amíg a DroidDeck a háttérben volt. Újra megnyílik, amikor visszatér a DroidDeckhez.</string>
+    <string name="bottom_chat_stopped">Az Android bezárta a csevegőoldalt, amíg a Kestrel a háttérben volt. Újra megnyílik, amikor visszatér a Kestrelhez.</string>
     <string name="bottom_chat_open">Steam Chat megnyitása</string>
     <string name="bottom_chat_close">Csevegés bezárása</string>
     <string name="bottom_chat_mic_on">Mikrofon be</string>
     <string name="bottom_chat_mic_off">Mikrofon ki</string>
-    <string name="bottom_chat_mic_unavailable">A mikrofon ki van kapcsolva ennél a játéknál. A beszédhez kapcsolja be a Mikrofon opciót a DroidDeck Steam-beállításaiban (Hang), majd indítsa újra a játékot.</string>
+    <string name="bottom_chat_mic_unavailable">A mikrofon ki van kapcsolva ennél a játéknál. A beszédhez kapcsolja be a Mikrofon opciót a Kestrel Steam-beállításaiban (Hang), majd indítsa újra a játékot.</string>
     <string name="bottom_chat_volume">Hangerő %1$d%%</string>
     <string name="bottom_page_telemetry">Játékon belüli statisztikák</string>
     <string name="bottom_telemetry_battery">Akkumulátor</string>
@@ -1385,7 +1385,7 @@
     <string name="adbfix_no_pairing">Nincs mentett vezeték nélküli hibakeresés-párosítás</string>
     <string name="adbfix_enter_address">Adja meg a vezeték nélküli hibakeresés jelenlegi IP-címét és portját</string>
 
-    <string name="adbpair_timed_out">Időtúllépés a párosítási felugró ablakra várva. Próbálja újra a DroidDeckből.</string>
+    <string name="adbpair_timed_out">Időtúllépés a párosítási felugró ablakra várva. Próbálja újra a Kestrelből.</string>
     <string name="adbpair_discovery_failed_code">Nem sikerült megkeresni a párosítási felugró ablakot (%1$d). Ellenőrizze, hogy a Wi-Fi be van kapcsolva.</string>
     <string name="adbpair_discovery_failed">Nem sikerült megkeresni a párosítási felugró ablakot: %1$s</string>
     <string name="adbpair_six_digits">Írja be a kód mind a 6 számjegyét</string>
@@ -1408,7 +1408,7 @@
     <string name="adbpair_enter_code">Kód megadása</string>
     <string name="adbpair_title_working">A Steam beállítása</string>
     <string name="adbpair_title_done">A Steam készen áll</string>
-    <string name="adbpair_done_text">Koppintson a DroidDeckhez való visszatéréshez. A vezeték nélküli hibakeresést most kikapcsolhatja.</string>
+    <string name="adbpair_done_text">Koppintson a Kestrelhez való visszatéréshez. A vezeték nélküli hibakeresést most kikapcsolhatja.</string>
     <string name="adbpair_title_failed">A vezeték nélküli hibakeresés beállítása megállt</string>
 
 
@@ -1557,7 +1557,7 @@
     <string name="cmgr_not_component_package">A %1$s nem Linux-összetevőcsomag (típus: %2$s)</string>
     <string name="gstore_volume_free">%1$s · %2$s szabad</string>
     <string name="mode_storage_auto_short">Automatikus</string>
-    <string name="main_adb_clip_label">DroidDeck gyermekfolyamat-beállítás</string>
+    <string name="main_adb_clip_label">Kestrel gyermekfolyamat-beállítás</string>
     <string name="setup_signed_in_offline_unnamed">Bejelentkezve · offline mód</string>
     <string name="setup_signed_in_unnamed">Bejelentkezve</string>
     <string name="driver_tag_bundled">CSOMAGOLT</string>
@@ -1713,7 +1713,7 @@
     <string name="gpu_display_next">A képernyőt rajzolja. A következő munkamenettől érvényes.</string>
     <string name="gpu_previous_driver">az előző illesztőprogram</string>
     <string name="gpu_restart_banner">Indítsd újra a kép-illesztőprogram váltásához.</string>
-    <string name="gpu_restart_blocked">Állítsd le a jelenlegi munkamenetet és indítsd újra a DroidDecket a kép-illesztőprogram váltásához.</string>
+    <string name="gpu_restart_blocked">Állítsd le a jelenlegi munkamenetet és indítsd újra a Kestrelet a kép-illesztőprogram váltásához.</string>
     <string name="gpu_restart_now">Újraindítás most</string>
     <string name="gpu_restart_later">Később</string>
     <string name="gpu_auto_title">Az Automatikus ezt a párt választotta ehhez: %1$s</string>
@@ -1765,7 +1765,7 @@
     <string name="touch_speed_normal">Normál</string>
     <string name="touch_speed_fast">Gyors</string>
     <string name="touch_edit_layout">Elrendezés szerkesztése</string>
-    <string name="touch_droiddeck_menu">DroidDeck menü</string>
+    <string name="touch_droiddeck_menu">Kestrel menü</string>
     <string name="touch_drag_hint">Húzd a vezérlőket a képernyőre</string>
     <string name="touch_arrange">Elrendezés</string>
     <string name="touch_discard">Elvetés</string>
@@ -1824,7 +1824,7 @@
     <string name="storage_internal">Belső tárhely</string>
     <string name="storage_used_of">%1$s / %2$s használt</string>
     <string name="storage_free">%1$s szabad</string>
-    <string name="storage_droiddeck_uses">A DroidDeck %1$s-t használ. Mérve: %2$s.</string>
+    <string name="storage_droiddeck_uses">A Kestrel %1$s-t használ. Mérve: %2$s.</string>
     <string name="storage_rescanning">újramérés…</string>
     <string name="storage_other_apps">Egyéb Android-alkalmazások</string>
     <string name="storage_safe_now">Most felszabadítható</string>
@@ -1839,13 +1839,13 @@
     <string name="storage_tools_unused">%1$s nem használt</string>
     <string name="storage_system">Linux rendszer és Steam kliens</string>
     <string name="storage_system_hint">Szükséges ahhoz, hogy bármi fusson</string>
-    <string name="storage_app_data">DroidDeck-adatok</string>
+    <string name="storage_app_data">Kestrel-adatok</string>
     <string name="storage_app_data_hint">Régi munkamenetek naplói %1$s · gyorsítótár · illesztőprogramok</string>
     <string name="storage_legend_games">Játékok</string>
     <string name="storage_legend_data">Játékadatok</string>
     <string name="storage_legend_tools">Proton és futtatókörnyezetek</string>
     <string name="storage_legend_system">Linux rendszer</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">Kestrel</string>
     <string name="storage_clean_up_title">Takarítás</string>
     <string name="storage_clean_up_lede">Itt semmi sem érinti a telepített játékokat vagy a futó letöltéseket.</string>
     <string name="storage_nothing_to_clean">Most nincs mit takarítani.</string>
@@ -1894,8 +1894,8 @@
     <string name="storage_tool_redist">A játékokhoz szükséges VC++ és DirectX telepítések</string>
     <string name="storage_tool_fex">Linux x86-os játékokat futtat</string>
     <string name="storage_tool_steam">Steam-eszköz</string>
-    <string name="storage_tool_old_runtime">A DroidDeck e futtatókörnyezet nélkül futtat játékokat</string>
-    <string name="storage_tool_x86_proton">Proton x86, amit a DroidDeck nem tud futtatni</string>
+    <string name="storage_tool_old_runtime">A Kestrel e futtatókörnyezet nélkül futtat játékokat</string>
+    <string name="storage_tool_x86_proton">Proton x86, amit a Kestrel nem tud futtatni</string>
     <string name="storage_tool_custom_default">Alapértelmezett minden játéknak</string>
     <string name="storage_tool_custom_unused">Egy játék sem használja</string>
     <string name="storage_tool_custom_unknown">A Steam beállításai nem olvashatók, ezért megmarad</string>
@@ -1930,8 +1930,8 @@
         <item quantity="one">%d játék</item>
         <item quantity="other">%d játék</item>
     </plurals>
-    <string name="storage_tool_default_proton">A DroidDeck alap Protonja</string>
-    <string name="storage_tool_proton">A DroidDeck Proton 11 lehetősége</string>
+    <string name="storage_tool_default_proton">A Kestrel alap Protonja</string>
+    <string name="storage_tool_proton">A Kestrel Proton 11 lehetősége</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">%d játék használja</item>
         <item quantity="other">%d játék használja</item>
@@ -1982,11 +1982,11 @@
     <string name="boot_movie_imported_silent">Mostantól %1$s az indítóvideó, hang nélkül</string>
     <string name="boot_movie_too_long">Az átalakítandó videó legfeljebb %1$d másodperces lehet</string>
     <string name="boot_movie_converting">Átalakítás %1$d%%</string>
-    <string name="boot_movie_converting_started">%1$s átalakítása a Steamhez. Hagyd nyitva a DroidDecket.</string>
+    <string name="boot_movie_converting_started">%1$s átalakítása a Steamhez. Hagyd nyitva a Kestrelet.</string>
     <string name="boot_movie_unsupported">Ez az eszköz nem tudja dekódolni a videót.</string>
     <string name="boot_movie_import_failed">Nem sikerült importálni a videót</string>
     <string name="boot_movie_remove_confirm">Eltávolítod: %1$s?</string>
-    <string name="boot_movie_remove_confirm_body">Ezzel törlődik a videó a DroidDeckből és a Steam videómappájából.</string>
+    <string name="boot_movie_remove_confirm_body">Ezzel törlődik a videó a Kestrelből és a Steam videómappájából.</string>
     <string name="boot_movie_tab_installed">Telepítve</string>
     <string name="boot_movie_tab_import">Importálás</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
@@ -1999,7 +1999,7 @@
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">Pontbolt</string>
     <string name="boot_movie_report">Indítóvideó-jelentés</string>
-    <string name="boot_movie_report_hint">Szöveges fájlba menti, amit a DroidDeck és a Steam tud az indítóvideókról, hibajelentéshez csatolható.</string>
+    <string name="boot_movie_report_hint">Szöveges fájlba menti, amit a Kestrel és a Steam tud az indítóvideókról, hibajelentéshez csatolható.</string>
     <string name="boot_movie_report_save">Mentés</string>
     <string name="boot_movie_report_saved">Mentve: %1$s</string>
     <string name="boot_movie_report_failed">A jelentést nem sikerült menteni.</string>
@@ -2034,22 +2034,22 @@
     <string name="session_end_vulkan_device">A Linux grafikus illesztőprogram nem talált használható Vulkan-eszközt. Ellenőrizze, hogy a kiválasztott Linux GPU-illesztőprogram támogatja-e ezt a GPU-t.</string>
     <string name="setup_group_memory">Memória</string>
     <string name="setup_clear_cached">Gyorsítótárazott alkalmazások bezárása munkamenet előtt</string>
-    <string name="setup_clear_cached_hint">Munkamenet indításakor a DroidDeck bezárja azokat az alkalmazásokat, amelyeket az Android a háttérben tart, így a játéknak több memória jut. A vezeték nélküli hibakeresésnek bekapcsolva kell lennie.</string>
-    <string name="setup_clear_cached_unpaired">A DroidDecket párosítani kell a vezeték nélküli hibakereséssel (Párosítás, lent).</string>
+    <string name="setup_clear_cached_hint">Munkamenet indításakor a Kestrel bezárja azokat az alkalmazásokat, amelyeket az Android a háttérben tart, így a játéknak több memória jut. A vezeték nélküli hibakeresésnek bekapcsolva kell lennie.</string>
+    <string name="setup_clear_cached_unpaired">A Kestrelet párosítani kell a vezeték nélküli hibakereséssel (Párosítás, lent).</string>
     <string name="setup_memory_hud">Memóriakijelzés</string>
-    <string name="setup_memory_hud_hint">A használt memória és swap a munkamenet képernyőjén. A Speciális nézet szétbontja a játék, a DroidDeck, az Android és a GPU között.</string>
+    <string name="setup_memory_hud_hint">A használt memória és swap a munkamenet képernyőjén. A Speciális nézet szétbontja a játék, a Kestrel, az Android és a GPU között.</string>
     <string name="setup_memory_hud_simple">Egyszerű</string>
     <string name="setup_memory_hud_advanced">Speciális</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">játék %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">játék %1$s · Kestrel %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">Háttéralkalmazások munkamenet közben</string>
-    <string name="setup_bg_limit_hint">Munkamenet közben az Android legfeljebb ennyi alkalmazást tart a gyorsítótárban, a többit bezárja, így azok memóriája a játéké lesz. A munkamenet végén a DroidDeck visszaállítja a korábbi korlátot. A vezeték nélküli hibakeresésnek bekapcsolva kell lennie.</string>
+    <string name="setup_bg_limit_hint">Munkamenet közben az Android legfeljebb ennyi alkalmazást tart a gyorsítótárban, a többit bezárja, így azok memóriája a játéké lesz. A munkamenet végén a Kestrel visszaállítja a korábbi korlátot. A vezeték nélküli hibakeresésnek bekapcsolva kell lennie.</string>
     <string name="setup_bg_limit_4">Legfeljebb 4</string>
     <string name="setup_bg_limit_1">Legfeljebb 1</string>
     <string name="setup_bg_limit_0">Nincs</string>
     <string name="setup_adb_pair">Vezeték nélküli hibakeresés</string>
-    <string name="setup_adb_pair_hint">Párosítja a DroidDecket az Android vezeték nélküli hibakeresésével a fenti beállításokhoz. A gyermekfolyamat-korlát kikapcsolva marad.</string>
+    <string name="setup_adb_pair_hint">Párosítja a Kestrelet az Android vezeték nélküli hibakeresésével a fenti beállításokhoz. A gyermekfolyamat-korlát kikapcsolva marad.</string>
     <string name="setup_adb_pair_button">Párosítás</string>
     <string name="game_tab_about">Névjegy</string>
     <string name="game_resources_browser">A böngészőben nyílik meg</string>
@@ -2081,8 +2081,8 @@
     <string name="integration_shortcuts_hint">Az Alt+Tab, a Win billentyű és a Kezdőlap gomb a munkamenetben marad</string>
     <string name="integration_shortcuts_maybe_restricted">Szürke az Androidban? Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
     <string name="integration_shortcuts_restricted">Az Android letiltotta · Alkalmazásinformáció → ⋮ → Korlátozott beállítások engedélyezése</string>
-    <string name="integration_shortcuts_service">DroidDeck rendszerbillentyűk</string>
-    <string name="integration_shortcuts_service_description">Az Alt+Tab, a Win billentyű és a Kezdőlap gomb az aktív DroidDeck-munkamenetben marad az Android helyett.</string>
+    <string name="integration_shortcuts_service">Kestrel rendszerbillentyűk</string>
+    <string name="integration_shortcuts_service_description">Az Alt+Tab, a Win billentyű és a Kezdőlap gomb az aktív Kestrel-munkamenetben marad az Android helyett.</string>
     <string name="integration_brightness_needed">Kapcsolja be a Fényerőt itt: Beállítás → Steam-integráció</string>
     <string name="setup_gpu_bridge_off">Mali híd: ki</string>
     <string name="setup_gpu_bridge_on">Mali híd: be</string>

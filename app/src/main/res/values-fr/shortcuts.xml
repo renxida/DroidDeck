@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Raccourcis des boutons physiques</string>
-    <string name="shortcuts_dd_menu">Menu DroidDeck</string>
+    <string name="shortcuts_dd_menu">Menu Kestrel</string>
     <string name="shortcuts_capture">Attribuer : %1$s</string>
     <string name="shortcuts_press">Appuyez sur un bouton puis relâchez-le. L’affectation est enregistrée automatiquement.</string>
     <string name="shortcuts_release">Relâchez le bouton pour continuer.</string>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Snarveier for fysiske knapper</string>
-    <string name="shortcuts_dd_menu">DroidDeck-meny</string>
+    <string name="shortcuts_dd_menu">Kestrel-meny</string>
     <string name="shortcuts_capture">Tilordne: %1$s</string>
     <string name="shortcuts_press">Trykk på en knapp og slipp den. Tilordningen lagres automatisk.</string>
     <string name="shortcuts_release">Slipp knappen for å fortsette.</string>

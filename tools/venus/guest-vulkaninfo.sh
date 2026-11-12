@@ -5,7 +5,7 @@
 set -euo pipefail
 COMPAT=${1:-1}
 A=/c/Users/derab/tools/platform-tools/adb.exe
-PKG=com.droiddeck.launcher
+PKG=$("$(dirname "$0")/../app-id")
 F=/data/user/0/$PKG/files
 APK=$($A shell pm path $PKG | head -1 | tr -d '\r' | sed 's/^package://')
 L=${APK%/base.apk}/lib/arm64

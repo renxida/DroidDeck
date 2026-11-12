@@ -8,12 +8,12 @@ and reports every run.
 
 ## How it works
 
-- **The provider** `content://com.droiddeck.launcher.agent` (`agent/AgentBridgeProvider.kt`)
+- **The provider** `content://dev.renxida.kestrel.agent` (`agent/AgentBridgeProvider.kt`)
   answers each command with JSON. It and the session-start Activity (`AgentStartActivity`) are in
   every build and require `android.permission.DUMP`, held by the ADB shell and privileged or
   explicitly granted callers. The provider checks the calling permission before decoding requests.
   A build under another package answers at `content://<package>.agent`: set `DROIDDECK_PACKAGE`
-  to that package for `droiddeckctl`.
+  to that package for `droiddeckctl` (by default it uses the applicationId, see `tools/app-id`).
 - **The guest agent** `droiddeck-agent` runs inside every session (started by
   `droiddeck-session`). It runs commands with the session's own environment, publishes gamescope's
   focus, and talks to the Steam client's DevTools, which only accepts guest processes. The app and

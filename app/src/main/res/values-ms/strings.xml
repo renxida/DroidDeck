@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">Kestrel</string>
     <string-array name="loading_hints">
         <item>Larian pertama memuat turun Steam. Ini mungkin mengambil beberapa minit.</item>
         <item>Secara lalai, meninggalkan apl ini menjedakan Steam; ia menyambung semula dari tempat ia berhenti apabila anda kembali.</item>
@@ -118,7 +118,7 @@
     <string name="user_apps_runtime_required">Pasang runtime Linux dahulu</string>
     <string name="user_apps_downloading">Memuat turun %1$s</string>
     <string name="user_apps_download_failed">Muat turun gagal</string>
-    <string name="session_proot_missing">proot DroidDeck tidak dapat dimuat turun. Semak sambungan dan cuba lagi. Sesi tidak dimulakan kerana proot sandaran terlalu perlahan untuk bermain.</string>
+    <string name="session_proot_missing">proot Kestrel tidak dapat dimuat turun. Semak sambungan dan cuba lagi. Sesi tidak dimulakan kerana proot sandaran terlalu perlahan untuk bermain.</string>
     <string name="session_powervr_missing">Persekitaran grafik PowerVR tidak dapat dimuat turun. Semak sambungan dan cuba lagi.</string>
     <string name="session_directaudio_missing">DirectAudio tidak dapat dimuat turun, jadi audio permainan menggunakan laluan yang lebih perlahan untuk sesi ini.</string>
     <string name="session_end_program">Program ini</string>
@@ -174,7 +174,7 @@
     <string name="back_double_tap_window">Tempoh ketik dua kali</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">Benarkan kawalan kecerahan</string>
-    <string name="brightness_permission_text">Sediakan kawalan kecerahan dalam DroidDeck.</string>
+    <string name="brightness_permission_text">Sediakan kawalan kecerahan dalam Kestrel.</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
     <string name="mode_session">Sesi</string>
@@ -188,12 +188,12 @@
     <string name="mode_suspend_note">Auto menjeda di latar belakang dan menyambung semula apabila dipaparkan. Manual menunggu Sambung. Jangan sekali-kali terus berjalan.</string>
     <string name="mode_startup">Permulaan</string>
     <string name="mode_startup_session">Buka semasa pelancaran</string>
-    <string name="mode_startup_session_hint">Memulakan sesi ini apabila DroidDeck dilancarkan.</string>
+    <string name="mode_startup_session_hint">Memulakan sesi ini apabila Kestrel dilancarkan.</string>
     <string name="mode_client">Klien</string>
     <string name="mode_mangoapp">Overlay prestasi</string>
     <string name="mode_mangoapp_hint">Matikan jika permainan ranap atau skrin hitam dalam mod Deck. Berkuat kuasa pada sesi seterusnya.</string>
-    <string name="mode_return_after_game">Kembali ke DroidDeck selepas permainan</string>
-    <string name="mode_return_after_game_hint">Apabila permainan yang anda mulakan dari DroidDeck atau pelancar lain ditutup, Steam keluar dengan bersih (simpanan awan selesai dahulu) dan anda kembali ke sana. Mati: kekal dalam Steam.</string>
+    <string name="mode_return_after_game">Kembali ke Kestrel selepas permainan</string>
+    <string name="mode_return_after_game_hint">Apabila permainan yang anda mulakan dari Kestrel atau pelancar lain ditutup, Steam keluar dengan bersih (simpanan awan selesai dahulu) dan anda kembali ke sana. Mati: kekal dalam Steam.</string>
     <string name="mode_shader_precache">Pra-cache shader</string>
     <string name="mode_shader_precache_hint">Steam memuat turun shader yang telah dibina untuk permainan anda dan memprosesnya di latar belakang, jadi permainan kurang tersekat-sekat. Mati menjimatkan data, storan dan bateri; permainan membina shader semasa dimainkan. Tetapan yang sama seperti Downloads > Shader Pre-Caching dalam Steam. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="mode_steam_repair">Baik pulih klien Steam</string>
@@ -658,7 +658,7 @@
     <string name="setup_language_system">Lalai sistem (%1$s)</string>
     <string name="setup_language_system_short">Lalai sistem</string>
     <string name="setup_app_scale">Skala apl</string>
-    <string name="setup_app_scale_hint">Teks dan kawalan DroidDeck</string>
+    <string name="setup_app_scale_hint">Teks dan kawalan Kestrel</string>
     <string name="setup_app_scale_default">%1$d%% (Lalai)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Rupa pelancar</string>
@@ -701,13 +701,13 @@
     <string name="gate_fix_for_me">Betulkan untuk saya</string>
     <string name="gate_toggle_steps">Hidupkan “Lumpuhkan sekatan proses anak”, kemudian kembali semula. Biarkan Pilihan pembangun hidup, atau suis itu akan mati semula.</string>
     <string name="gate_open_dev">Buka Pilihan pembangun</string>
-    <string name="gate_no_toggle">Versi Android ini tidak mempunyai suis untuknya, jadi DroidDeck menukarnya melalui Debugging Wayarles. Mengambil masa kira-kira seminit, tanpa komputer diperlukan.</string>
+    <string name="gate_no_toggle">Versi Android ini tidak mempunyai suis untuknya, jadi Kestrel menukarnya melalui Debugging Wayarles. Mengambil masa kira-kira seminit, tanpa komputer diperlukan.</string>
     <string name="gate_needs_wifi">Debugging Wayarles memerlukan Wi-Fi. Mana-mana rangkaian berfungsi; ia tidak memerlukan internet.</string>
-    <string name="gate_needs_notifications">Kod gandingan dihantar dalam pemberitahuan. Benarkan pemberitahuan untuk DroidDeck, atau gunakan Cara lain.</string>
+    <string name="gate_needs_notifications">Kod gandingan dihantar dalam pemberitahuan. Benarkan pemberitahuan untuk Kestrel, atau gunakan Cara lain.</string>
     <string name="gate_allow_notifications">Benarkan pemberitahuan</string>
     <string name="gate_step1">Buka Tetapan → Pilihan pembangun → Debugging Wayarles dan hidupkannya</string>
     <string name="gate_step2">Ketik “Gandingkan peranti dengan kod gandingan”</string>
-    <string name="gate_step3">Taip kod itu ke dalam pemberitahuan DroidDeck</string>
+    <string name="gate_step3">Taip kod itu ke dalam pemberitahuan Kestrel</string>
     <string name="pairguide_build_number">Dalam Perihal telefon, ketik Nombor binaan 7 kali</string>
     <string name="pairguide_wireless">Hidupkan Penyahpepijatan wayarles</string>
     <string name="pairguide_pair">Buka Penyahpepijatan wayarles, kemudian ketik “Gandingkan peranti dengan kod gandingan”</string>
@@ -808,8 +808,8 @@
     <string name="gpu_hide_other">Sembunyikan pemacu untuk GPU lain</string>
     <string name="gpu_show_other">Papar pemacu untuk GPU lain</string>
     <string name="gpu_ubwc_title">Keserasian UBWC</string>
-    <string name="gpu_ubwc_hint">Cuba Hidup atau Mati jika Steam atau Android memaparkan jalur atau kelipan. Berkuat kuasa pada kedua-dua pemacu selepas DroidDeck dimulakan semula.</string>
-    <string name="gpu_ubwc_restart">Mulakan semula DroidDeck untuk menggunakannya.</string>
+    <string name="gpu_ubwc_hint">Cuba Hidup atau Mati jika Steam atau Android memaparkan jalur atau kelipan. Berkuat kuasa pada kedua-dua pemacu selepas Kestrel dimulakan semula.</string>
+    <string name="gpu_ubwc_restart">Mulakan semula Kestrel untuk menggunakannya.</string>
     <string name="gpu_runtime_hint">Digunakan oleh permainan dan desktop.</string>
     <string name="gpu_runtime_default">Lalai masa jalan</string>
     <string name="gpu_auto_by_gpu">Auto - dipilih mengikut GPU</string>
@@ -878,7 +878,7 @@
     <string name="unfolded_controls_with_controller_hint">Juga paparkan kawalan sentuh ini semasa pengawal disambungkan.</string>
     <string name="pip_suspended">Digantung</string>
     <string name="pip_not_ready">Gambar dalam gambar tersedia sebaik sahaja sesi sedia.</string>
-    <string name="pip_permission">Benarkan gambar dalam gambar untuk DroidDeck dalam tetapan Android.</string>
+    <string name="pip_permission">Benarkan gambar dalam gambar untuk Kestrel dalam tetapan Android.</string>
     <string name="pip_unavailable">Android tidak dapat membuka gambar dalam gambar.</string>
     <string name="game_more">Lagi</string>
     <string name="game_edit_art">Sunting seni</string>
@@ -891,7 +891,7 @@
     <string name="game_link_copied">Pautan pelancaran disalin</string>
     <string name="game_shortcut_unsupported">Pelancar ini tidak dapat menambah pintasan. Gunakan Salin pautan pelancaran sebaliknya.</string>
     <string name="game_link_invalid">Pautan pelancaran permainan tidak sah.</string>
-    <string name="game_link_missing">Permainan ini tidak lagi berada dalam pustaka DroidDeck anda.</string>
+    <string name="game_link_missing">Permainan ini tidak lagi berada dalam pustaka Kestrel anda.</string>
     <string name="game_link_session_busy">Hentikan sesi semasa sebelum melancarkan permainan Steam.</string>
     <string name="game_link_failed">Tidak dapat menghantar permainan ke Steam. Cuba lancarkan semula.</string>
     <string name="setup_retry_removal">Cuba semula pengalihan keluar</string>
@@ -986,22 +986,22 @@
     <string name="drivers_recommended_unpublished">Pemacu yang disyorkan tidak diterbitkan sekarang</string>
     <string name="drivers_downloading_pair">Memuat turun %1$s %2$s…</string>
     <string name="drivers_updated_to">Dikemas kini ke %1$s %2$s.</string>
-    <string name="drivers_updated_to_restart">Dikemas kini ke %1$s %2$s. Pemacu paparan berkuat kuasa selepas DroidDeck dimulakan semula.</string>
+    <string name="drivers_updated_to_restart">Dikemas kini ke %1$s %2$s. Pemacu paparan berkuat kuasa selepas Kestrel dimulakan semula.</string>
     <string name="drivers_auto_waits_for_session">Kemas kini pemacu menunggu sesi berhenti.</string>
     <string name="drivers_auto_waits_for_network">%1$s %2$s akan dimuat turun selepas anda keluar daripada data mudah alih dan penjimat bateri.</string>
     <string name="drivers_skipping_bad">%1$s %2$s tidak memulakan sesi di sini, jadi Automatik kekal dengan pemacu yang berjaya.</string>
     <string name="drivers_rolled_back">%1$s gagal memulakan sesi dua kali, jadi Automatik kembali kepada pemacu yang berfungsi.</string>
     <string name="drivers_switched_to">Ditukar ke %1$s %2$s.</string>
-    <string name="drivers_switched_to_restart">Ditukar ke %1$s %2$s. Pemacu paparan berkuat kuasa selepas DroidDeck dimulakan semula.</string>
+    <string name="drivers_switched_to_restart">Ditukar ke %1$s %2$s. Pemacu paparan berkuat kuasa selepas Kestrel dimulakan semula.</string>
     <string name="drivers_using">Menggunakan %1$s %2$s.</string>
-    <string name="drivers_using_restart">Menggunakan %1$s %2$s. Pemacu paparan berkuat kuasa selepas DroidDeck dimulakan semula.</string>
+    <string name="drivers_using_restart">Menggunakan %1$s %2$s. Pemacu paparan berkuat kuasa selepas Kestrel dimulakan semula.</string>
     <string name="drivers_using_quest">Pemacu paparan bawaan Quest dan runtime lalai sedang digunakan.</string>
-    <string name="drivers_using_quest_restart">Pemacu paparan bawaan Quest dan runtime lalai sedang digunakan. Pemacu paparan berkuat kuasa selepas DroidDeck dimulakan semula.</string>
+    <string name="drivers_using_quest_restart">Pemacu paparan bawaan Quest dan runtime lalai sedang digunakan. Pemacu paparan berkuat kuasa selepas Kestrel dimulakan semula.</string>
     <string name="drivers_not_a_driver">Bukan zip pemacu: bukan pemacu AdrenoTools, Turnip -Linux, atau gabungan Android + Linux</string>
     <string name="drivers_import_failed">Import gagal: %1$s</string>
     <string name="drivers_imported_unnamed">Pemacu diimport</string>
     <string name="drivers_using_bundle">Menggunakan %1$s sebagai pemacu masa jalan dan paparan.</string>
-    <string name="drivers_using_bundle_restart">Menggunakan %1$s sebagai pemacu masa jalan dan paparan. Pemacu paparan berkuat kuasa selepas DroidDeck dimulakan semula.</string>
+    <string name="drivers_using_bundle_restart">Menggunakan %1$s sebagai pemacu masa jalan dan paparan. Pemacu paparan berkuat kuasa selepas Kestrel dimulakan semula.</string>
     <string name="drivers_deleted_bundle">%1$s dipadam (kedua-dua pemacu)</string>
     <string name="drivers_deleted">%1$s dipadam</string>
     <string name="drivers_release_status">Terkini: %1$s · disemak %2$s</string>
@@ -1193,7 +1193,7 @@
     <string name="fm_decline">Tolak</string>
     <string name="fm_drive_not_readable">%1$s dilekapkan tetapi tidak dapat dibaca sekarang</string>
     <string name="fm_drive_access_title">Benarkan akses kepada %1$s</string>
-    <string name="fm_drive_access_text">Android membenarkan DroidDeck melihat pemacu ini tetapi tidak membacanya. Hidupkan Akses semua fail untuk DroidDeck, kemudian kembali.</string>
+    <string name="fm_drive_access_text">Android membenarkan Kestrel melihat pemacu ini tetapi tidak membacanya. Hidupkan Akses semua fail untuk Kestrel, kemudian kembali.</string>
     <string name="fm_list_view">Paparan senarai</string>
     <string name="fm_grid_view">Paparan grid</string>
     <string name="fm_search">Cari</string>
@@ -1313,12 +1313,12 @@
     <string name="bottom_page_chat">Sembang &amp; suara</string>
     <string name="bottom_chat_why">Baca dan balas sembang Steam di sini sementara permainan terus berjalan pada skrin utama. Ia menggunakan akaun yang digunakan untuk log masuk ke Steam.</string>
     <string name="bottom_chat_not_signed_in">Steam belum mempunyai log masuk web untuk dikongsi, jadi log masuk di sini sekali.</string>
-    <string name="bottom_chat_stopped">Android menutup halaman sembang semasa DroidDeck berada di latar belakang. Ia dibuka semula apabila anda kembali ke DroidDeck.</string>
+    <string name="bottom_chat_stopped">Android menutup halaman sembang semasa Kestrel berada di latar belakang. Ia dibuka semula apabila anda kembali ke Kestrel.</string>
     <string name="bottom_chat_open">Buka Steam Chat</string>
     <string name="bottom_chat_close">Tutup sembang</string>
     <string name="bottom_chat_mic_on">Mikrofon hidup</string>
     <string name="bottom_chat_mic_off">Mikrofon mati</string>
-    <string name="bottom_chat_mic_unavailable">Mikrofon dimatikan untuk permainan ini. Untuk bercakap, hidupkan Mikrofon dalam tetapan Steam DroidDeck (Audio) dan mulakan permainan semula.</string>
+    <string name="bottom_chat_mic_unavailable">Mikrofon dimatikan untuk permainan ini. Untuk bercakap, hidupkan Mikrofon dalam tetapan Steam Kestrel (Audio) dan mulakan permainan semula.</string>
     <string name="bottom_chat_volume">Kelantangan %1$d%%</string>
     <string name="bottom_page_telemetry">Statistik dalam permainan</string>
     <string name="bottom_telemetry_battery">Bateri</string>
@@ -1366,7 +1366,7 @@
     <string name="adbfix_no_pairing">Tiada gandingan Debugging Wayarles disimpan</string>
     <string name="adbfix_enter_address">Masukkan alamat IP &amp; Port Debugging Wayarles semasa</string>
 
-    <string name="adbpair_timed_out">Masa tamat menunggu tetingkap timbul gandingan. Cuba lagi daripada DroidDeck.</string>
+    <string name="adbpair_timed_out">Masa tamat menunggu tetingkap timbul gandingan. Cuba lagi daripada Kestrel.</string>
     <string name="adbpair_discovery_failed_code">Tidak dapat mencari tetingkap timbul gandingan (%1$d). Semak Wi-Fi dihidupkan.</string>
     <string name="adbpair_discovery_failed">Tidak dapat mencari tetingkap timbul gandingan: %1$s</string>
     <string name="adbpair_six_digits">Masukkan kesemua 6 digit kod</string>
@@ -1389,7 +1389,7 @@
     <string name="adbpair_enter_code">Masukkan kod</string>
     <string name="adbpair_title_working">Menyediakan Steam</string>
     <string name="adbpair_title_done">Steam sedia</string>
-    <string name="adbpair_done_text">Ketik untuk kembali ke DroidDeck. Anda boleh matikan Debugging Wayarles sekarang.</string>
+    <string name="adbpair_done_text">Ketik untuk kembali ke Kestrel. Anda boleh matikan Debugging Wayarles sekarang.</string>
     <string name="adbpair_title_failed">Persediaan Debugging Wayarles terhenti</string>
 
 
@@ -1538,7 +1538,7 @@
     <string name="cmgr_not_component_package">%1$s bukan pakej komponen Linux (jenis %2$s)</string>
     <string name="gstore_volume_free">%1$s · %2$s bebas</string>
     <string name="mode_storage_auto_short">Automatik</string>
-    <string name="main_adb_clip_label">Tetapan proses anak DroidDeck</string>
+    <string name="main_adb_clip_label">Tetapan proses anak Kestrel</string>
     <string name="setup_signed_in_offline_unnamed">Dilog masuk · mod luar talian</string>
     <string name="setup_signed_in_unnamed">Dilog masuk</string>
     <string name="driver_tag_bundled">TERBUNDLE</string>
@@ -1692,7 +1692,7 @@
     <string name="gpu_display_next">Melukis skrin. Berkuat kuasa mulai sesi seterusnya.</string>
     <string name="gpu_previous_driver">pemacu sebelum ini</string>
     <string name="gpu_restart_banner">Mula semula untuk menukar pemacu paparan.</string>
-    <string name="gpu_restart_blocked">Hentikan sesi semasa dan mula semula DroidDeck untuk menukar pemacu paparan.</string>
+    <string name="gpu_restart_blocked">Hentikan sesi semasa dan mula semula Kestrel untuk menukar pemacu paparan.</string>
     <string name="gpu_restart_now">Mula semula sekarang</string>
     <string name="gpu_restart_later">Kemudian</string>
     <string name="gpu_auto_title">Automatik memilih pasangan ini untuk %1$s anda</string>
@@ -1744,7 +1744,7 @@
     <string name="touch_speed_normal">Biasa</string>
     <string name="touch_speed_fast">Pantas</string>
     <string name="touch_edit_layout">Edit susun atur</string>
-    <string name="touch_droiddeck_menu">Menu DroidDeck</string>
+    <string name="touch_droiddeck_menu">Menu Kestrel</string>
     <string name="touch_drag_hint">Seret kawalan ke skrin</string>
     <string name="touch_arrange">Susun</string>
     <string name="touch_discard">Buang</string>
@@ -1802,7 +1802,7 @@
     <string name="storage_internal">Storan dalaman</string>
     <string name="storage_used_of">%1$s daripada %2$s digunakan</string>
     <string name="storage_free">%1$s kosong</string>
-    <string name="storage_droiddeck_uses">DroidDeck menggunakan %1$s. Diukur pada %2$s.</string>
+    <string name="storage_droiddeck_uses">Kestrel menggunakan %1$s. Diukur pada %2$s.</string>
     <string name="storage_rescanning">mengimbas semula…</string>
     <string name="storage_other_apps">Aplikasi Android lain</string>
     <string name="storage_safe_now">Boleh dikosongkan sekarang</string>
@@ -1817,13 +1817,13 @@
     <string name="storage_tools_unused">%1$s tidak digunakan</string>
     <string name="storage_system">Sistem Linux dan klien Steam</string>
     <string name="storage_system_hint">Diperlukan untuk apa-apa berjalan</string>
-    <string name="storage_app_data">Data DroidDeck</string>
+    <string name="storage_app_data">Data Kestrel</string>
     <string name="storage_app_data_hint">Log sesi lama %1$s · cache · pemacu</string>
     <string name="storage_legend_games">Permainan</string>
     <string name="storage_legend_data">Data permainan</string>
     <string name="storage_legend_tools">Proton dan runtime</string>
     <string name="storage_legend_system">Sistem Linux</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">Kestrel</string>
     <string name="storage_clean_up_title">Bersihkan</string>
     <string name="storage_clean_up_lede">Tiada apa di sini yang menyentuh permainan yang dipasang atau muat turun yang sedang berjalan.</string>
     <string name="storage_nothing_to_clean">Tiada apa untuk dibersihkan sekarang.</string>
@@ -1872,8 +1872,8 @@
     <string name="storage_tool_redist">Pemasangan VC++ dan DirectX yang diperlukan permainan</string>
     <string name="storage_tool_fex">Menjalankan permainan Linux x86</string>
     <string name="storage_tool_steam">Alat Steam</string>
-    <string name="storage_tool_old_runtime">DroidDeck menjalankan permainan tanpa runtime ini</string>
-    <string name="storage_tool_x86_proton">Proton x86, yang tidak dapat dijalankan oleh DroidDeck</string>
+    <string name="storage_tool_old_runtime">Kestrel menjalankan permainan tanpa runtime ini</string>
+    <string name="storage_tool_x86_proton">Proton x86, yang tidak dapat dijalankan oleh Kestrel</string>
     <string name="storage_tool_custom_default">Lalai untuk semua permainan</string>
     <string name="storage_tool_custom_unused">Tiada permainan menggunakannya</string>
     <string name="storage_tool_custom_unknown">Tetapan Steam tidak dapat dibaca, jadi ini disimpan</string>
@@ -1908,8 +1908,8 @@
         <item quantity="one">%d permainan</item>
         <item quantity="other">%d permainan</item>
     </plurals>
-    <string name="storage_tool_default_proton">Proton lalai DroidDeck</string>
-    <string name="storage_tool_proton">Pilihan Proton 11 DroidDeck</string>
+    <string name="storage_tool_default_proton">Proton lalai Kestrel</string>
+    <string name="storage_tool_proton">Pilihan Proton 11 Kestrel</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">digunakan %d permainan</item>
         <item quantity="other">digunakan %d permainan</item>
@@ -1960,11 +1960,11 @@
     <string name="boot_movie_imported_silent">%1$s kini video but, tanpa bunyi</string>
     <string name="boot_movie_too_long">Video yang perlu ditukar mestilah %1$d saat atau kurang</string>
     <string name="boot_movie_converting">Menukar %1$d%%</string>
-    <string name="boot_movie_converting_started">Menukar %1$s untuk Steam. Biarkan DroidDeck terbuka.</string>
+    <string name="boot_movie_converting_started">Menukar %1$s untuk Steam. Biarkan Kestrel terbuka.</string>
     <string name="boot_movie_unsupported">Peranti ini tidak dapat menyahkod video itu.</string>
     <string name="boot_movie_import_failed">Tidak dapat mengimport video itu</string>
     <string name="boot_movie_remove_confirm">Alih keluar %1$s?</string>
-    <string name="boot_movie_remove_confirm_body">Ini memadamkan video daripada DroidDeck dan daripada folder video Steam.</string>
+    <string name="boot_movie_remove_confirm_body">Ini memadamkan video daripada Kestrel dan daripada folder video Steam.</string>
     <string name="boot_movie_tab_installed">Dipasang</string>
     <string name="boot_movie_tab_import">Import</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
@@ -1977,7 +1977,7 @@
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">Kedai Mata</string>
     <string name="boot_movie_report">Laporan filem but</string>
-    <string name="boot_movie_report_hint">Menyimpan apa yang DroidDeck dan Steam ketahui tentang filem but ke dalam fail teks yang boleh dilampirkan pada laporan pepijat.</string>
+    <string name="boot_movie_report_hint">Menyimpan apa yang Kestrel dan Steam ketahui tentang filem but ke dalam fail teks yang boleh dilampirkan pada laporan pepijat.</string>
     <string name="boot_movie_report_save">Simpan</string>
     <string name="boot_movie_report_saved">Disimpan di %1$s</string>
     <string name="boot_movie_report_failed">Laporan tidak dapat disimpan.</string>
@@ -2012,22 +2012,22 @@
     <string name="session_end_vulkan_device">Pemacu grafik Linux tidak menemui peranti Vulkan yang boleh digunakan. Pastikan pemacu GPU Linux yang dipilih menyokong GPU ini.</string>
     <string name="setup_group_memory">Memori</string>
     <string name="setup_clear_cached">Tutup apl dalam cache sebelum sesi</string>
-    <string name="setup_clear_cached_hint">Apabila sesi bermula, DroidDeck menutup apl yang disimpan Android di latar belakang supaya permainan mendapat lebih banyak memori. Debugging Wayarles mesti dihidupkan.</string>
-    <string name="setup_clear_cached_unpaired">Memerlukan DroidDeck digandingkan dengan Debugging Wayarles (Gandingkan, di bawah).</string>
+    <string name="setup_clear_cached_hint">Apabila sesi bermula, Kestrel menutup apl yang disimpan Android di latar belakang supaya permainan mendapat lebih banyak memori. Debugging Wayarles mesti dihidupkan.</string>
+    <string name="setup_clear_cached_unpaired">Memerlukan Kestrel digandingkan dengan Debugging Wayarles (Gandingkan, di bawah).</string>
     <string name="setup_memory_hud">Paparan memori</string>
-    <string name="setup_memory_hud_hint">Memori dan swap yang digunakan, pada skrin sesi. Lanjutan memecahkannya kepada permainan, DroidDeck, Android dan GPU.</string>
+    <string name="setup_memory_hud_hint">Memori dan swap yang digunakan, pada skrin sesi. Lanjutan memecahkannya kepada permainan, Kestrel, Android dan GPU.</string>
     <string name="setup_memory_hud_simple">Ringkas</string>
     <string name="setup_memory_hud_advanced">Lanjutan</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">permainan %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">permainan %1$s · Kestrel %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">Apl latar belakang semasa sesi</string>
-    <string name="setup_bg_limit_hint">Semasa sesi berjalan, Android menyimpan paling banyak bilangan apl ini dalam cache dan menutup selebihnya, supaya permainan mendapat memori apl tersebut. DroidDeck memulihkan had seperti asal apabila sesi tamat. Debugging Wayarles mesti dihidupkan.</string>
+    <string name="setup_bg_limit_hint">Semasa sesi berjalan, Android menyimpan paling banyak bilangan apl ini dalam cache dan menutup selebihnya, supaya permainan mendapat memori apl tersebut. Kestrel memulihkan had seperti asal apabila sesi tamat. Debugging Wayarles mesti dihidupkan.</string>
     <string name="setup_bg_limit_4">Paling banyak 4</string>
     <string name="setup_bg_limit_1">Paling banyak 1</string>
     <string name="setup_bg_limit_0">Tiada</string>
     <string name="setup_adb_pair">Debugging Wayarles</string>
-    <string name="setup_adb_pair_hint">Menggandingkan DroidDeck dengan Debugging Wayarles Android untuk pilihan di atas. Had proses anak kekal dimatikan.</string>
+    <string name="setup_adb_pair_hint">Menggandingkan Kestrel dengan Debugging Wayarles Android untuk pilihan di atas. Had proses anak kekal dimatikan.</string>
     <string name="setup_adb_pair_button">Gandingkan</string>
     <string name="game_tab_about">Perihal</string>
     <string name="game_resources_browser">Dibuka dalam pelayar anda</string>
@@ -2059,8 +2059,8 @@
     <string name="integration_shortcuts_hint">Alt+Tab, kekunci Win dan butang Utama kekal dalam sesi</string>
     <string name="integration_shortcuts_maybe_restricted">Dikelabukan dalam Android? Maklumat apl → ⋮ → Benarkan tetapan terhad</string>
     <string name="integration_shortcuts_restricted">Disekat oleh Android · Maklumat apl → ⋮ → Benarkan tetapan terhad</string>
-    <string name="integration_shortcuts_service">Kekunci sistem DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Mengekalkan Alt+Tab, kekunci Win dan butang Utama dalam sesi DroidDeck yang aktif, bukan Android.</string>
+    <string name="integration_shortcuts_service">Kekunci sistem Kestrel</string>
+    <string name="integration_shortcuts_service_description">Mengekalkan Alt+Tab, kekunci Win dan butang Utama dalam sesi Kestrel yang aktif, bukan Android.</string>
     <string name="integration_brightness_needed">Hidupkan Kecerahan dalam Persediaan → Integrasi Steam</string>
     <string name="setup_gpu_bridge_off">Jambatan Mali: mati</string>
     <string name="setup_gpu_bridge_on">Jambatan Mali: hidup</string>

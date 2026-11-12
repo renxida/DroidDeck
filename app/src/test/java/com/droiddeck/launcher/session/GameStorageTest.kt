@@ -51,7 +51,7 @@ class GameStorageTest {
     }
 
     @Test fun anUnpluggedDriveFallsBackToInternalWithoutForgettingIt() {
-        val gone = "/storage/0000-0000/Android/data/com.droiddeck.launcher/files/steam"
+        val gone = "/storage/0000-0000/Android/data/dev.renxida.kestrel/files/steam"
         SessionPrefs.setGameStorage(app, gone, "USB drive")
         assertNull(GameStorage.effective(app))
         assertNull(GameStorage.x64CardLibrary(app))
@@ -108,7 +108,7 @@ class GameStorageTest {
         assertFalse(GameStorage.disconnected(app))
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         assertFalse(GameStorage.disconnected(app))
-        SessionPrefs.setGameStorage(app, "/storage/0000-0000/Android/data/com.droiddeck.launcher/files/steam", "USB drive")
+        SessionPrefs.setGameStorage(app, "/storage/0000-0000/Android/data/dev.renxida.kestrel/files/steam", "USB drive")
         assertTrue(GameStorage.disconnected(app))
         SessionPrefs.setGameStorage(app, tmp.newFolder("plugged").path, "USB drive")
         assertFalse(GameStorage.disconnected(app))

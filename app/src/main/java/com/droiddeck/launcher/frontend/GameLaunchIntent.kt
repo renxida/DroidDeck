@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 
 object GameLaunchIntent {
-    const val ACTION = "com.droiddeck.launcher.LAUNCH_GAME"
+    const val ACTION = "dev.renxida.kestrel.LAUNCH_GAME"
     const val EXTRA_APP_ID = "app_id"
     const val EXTRA_GAME_SOURCE = "game_source"
     private const val GAMENATIVE_ACTION = "app.gamenative.LAUNCH_GAME"

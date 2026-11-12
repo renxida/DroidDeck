@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Преки пътища с физически бутони</string>
-    <string name="shortcuts_dd_menu">Меню на DroidDeck</string>
+    <string name="shortcuts_dd_menu">Меню на Kestrel</string>
     <string name="shortcuts_capture">Задаване: %1$s</string>
     <string name="shortcuts_press">Натиснете и отпуснете бутон. Назначението се запазва автоматично.</string>
     <string name="shortcuts_release">Отпуснете бутона, за да продължите.</string>

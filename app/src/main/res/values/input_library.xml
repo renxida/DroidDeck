@@ -11,7 +11,7 @@
     <string name="input_controller_route_hint">Send controller input to Steam Input or the game.</string>
     <string name="input_disabled_hint">This element sends no controller, mouse or keyboard input.</string>
     <string name="input_mouse_click">Mouse click</string>
-    <string name="input_command">DroidDeck action</string>
+    <string name="input_command">Kestrel action</string>
     <string name="input_action">Action</string>
     <string name="input_scroll_speed">Scroll speed: %1$d steps/s</string>
     <string name="input_new_profile">+ New profile</string>
@@ -81,16 +81,16 @@
     <string name="input_mouse_gestures">Mouse touchpad gestures</string>
     <string name="input_mouse_gestures_hint">When assigned to the mouse pointer: tap to click, hold to drag, and scroll with two fingers.</string>
     <string name="input_quick_override_hint">%1$s has a quick-menu override. Select Auto there to use its default profile and all three saved parts.</string>
-    <string name="input_route_local">DroidDeck Input</string>
-    <string name="input_axis_action_hint" formatted="false">Held while the stick is moved in any direction: press above 55%, release below 35%. Use Direction keys to assign each direction separately. DroidDeck commands run once per deflection. The stick click is configured separately.</string>
-    <string name="input_contact_action_hint">Held while touching the trackpad; released when you lift your finger. DroidDeck commands run once per touch. The trackpad click is configured separately.</string>
-    <string name="input_trigger_action_hint" formatted="false">Held when the trigger passes 55%; released below 35%. DroidDeck commands run once per press.</string>
+    <string name="input_route_local">Kestrel Input</string>
+    <string name="input_axis_action_hint" formatted="false">Held while the stick is moved in any direction: press above 55%, release below 35%. Use Direction keys to assign each direction separately. Kestrel commands run once per deflection. The stick click is configured separately.</string>
+    <string name="input_contact_action_hint">Held while touching the trackpad; released when you lift your finger. Kestrel commands run once per touch. The trackpad click is configured separately.</string>
+    <string name="input_trigger_action_hint" formatted="false">Held when the trigger passes 55%; released below 35%. Kestrel commands run once per press.</string>
     <string name="input_scroll_axis">Scroll direction</string>
     <string name="input_vertical">Vertical</string>
     <string name="input_horizontal">Horizontal</string>
     <string name="input_scroll_horizontal">Scroll horizontally</string>
     <string name="input_measurements">Measurements</string>
-    <string name="input_measure_instructions">Enable recording, use controls in a running session, then return and read the results. Measures DroidDeck dispatch time only, not display latency. Recording ends when the app process closes.</string>
+    <string name="input_measure_instructions">Enable recording, use controls in a running session, then return and read the results. Measures Kestrel dispatch time only, not display latency. Recording ends when the app process closes.</string>
     <string name="input_layout_count">%1$d controls</string>
     <string name="input_other_layouts">Other saved layouts (%1$d) ▾</string>
     <string name="input_hide_other_layouts">Hide other saved layouts (%1$d) ▴</string>

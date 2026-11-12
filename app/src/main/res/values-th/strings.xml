@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">Kestrel</string>
     <string-array name="loading_hints">
         <item>การเริ่มใช้งานครั้งแรกจะดาวน์โหลด Steam ซึ่งอาจใช้เวลาสักครู่</item>
         <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุด Steam ไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
@@ -118,7 +118,7 @@
     <string name="user_apps_runtime_required">ติดตั้งรันไทม์ Linux ก่อน</string>
     <string name="user_apps_downloading">กำลังดาวน์โหลด %1$s</string>
     <string name="user_apps_download_failed">ดาวน์โหลดไม่สำเร็จ</string>
-    <string name="session_proot_missing">ดาวน์โหลด proot ของ DroidDeck ไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่ เซสชันไม่ได้เริ่มเพราะ proot สำรองช้าเกินกว่าจะเล่นได้</string>
+    <string name="session_proot_missing">ดาวน์โหลด proot ของ Kestrel ไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่ เซสชันไม่ได้เริ่มเพราะ proot สำรองช้าเกินกว่าจะเล่นได้</string>
     <string name="session_powervr_missing">ดาวน์โหลดสภาพแวดล้อมกราฟิก PowerVR ไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
     <string name="session_directaudio_missing">ดาวน์โหลด DirectAudio ไม่ได้ เสียงเกมในเซสชันนี้จึงใช้เส้นทางที่ช้ากว่า</string>
     <string name="session_end_program">โปรแกรมนี้</string>
@@ -174,7 +174,7 @@
     <string name="back_double_tap_window">ช่วงเวลาแตะสองครั้ง</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">อนุญาตการควบคุมความสว่าง</string>
-    <string name="brightness_permission_text">ตั้งค่าการควบคุมความสว่างใน DroidDeck</string>
+    <string name="brightness_permission_text">ตั้งค่าการควบคุมความสว่างใน Kestrel</string>
     <string name="back_menu_then_qam">เมนู → QAM</string>
     <string name="back_qam_then_menu">QAM → เมนู</string>
     <string name="mode_session">เซสชัน</string>
@@ -188,12 +188,12 @@
     <string name="mode_suspend_note">อัตโนมัติจะหยุดชั่วคราวเมื่ออยู่ในพื้นหลังและดำเนินการต่อเมื่อแสดงผล กำหนดเองรอการกดดำเนินการต่อ ไม่มีวันทำงานต่อเนื่องตลอด</string>
     <string name="mode_startup">การเริ่มทำงาน</string>
     <string name="mode_startup_session">เปิดเมื่อเริ่มต้น</string>
-    <string name="mode_startup_session_hint">เริ่มเซสชันนี้เมื่อเปิด DroidDeck</string>
+    <string name="mode_startup_session_hint">เริ่มเซสชันนี้เมื่อเปิด Kestrel</string>
     <string name="mode_client">ไคลเอนต์</string>
     <string name="mode_mangoapp">โอเวอร์เลย์แสดงประสิทธิภาพ</string>
     <string name="mode_mangoapp_hint">ปิดหากเกมขัดข้องหรือจอดำในโหมด Deck จะมีผลในเซสชันถัดไป</string>
-    <string name="mode_return_after_game">กลับไปที่ DroidDeck หลังเล่นเกม</string>
-    <string name="mode_return_after_game_hint">เมื่อเกมที่คุณเริ่มจาก DroidDeck หรือตัวเปิดเกมอื่นปิดลง Steam จะออกอย่างเรียบร้อย (บันทึกบนคลาวด์เสร็จก่อน) แล้วคุณจะกลับไปที่นั่น ปิด: อยู่ใน Steam ต่อ</string>
+    <string name="mode_return_after_game">กลับไปที่ Kestrel หลังเล่นเกม</string>
+    <string name="mode_return_after_game_hint">เมื่อเกมที่คุณเริ่มจาก Kestrel หรือตัวเปิดเกมอื่นปิดลง Steam จะออกอย่างเรียบร้อย (บันทึกบนคลาวด์เสร็จก่อน) แล้วคุณจะกลับไปที่นั่น ปิด: อยู่ใน Steam ต่อ</string>
     <string name="mode_shader_precache">แคชเชเดอร์ล่วงหน้า</string>
     <string name="mode_shader_precache_hint">Steam จะดาวน์โหลดเชเดอร์ที่สร้างไว้แล้วสำหรับเกมของคุณและประมวลผลในเบื้องหลัง เกมจึงกระตุกน้อยลง การปิดช่วยประหยัดข้อมูล พื้นที่จัดเก็บ และแบตเตอรี่ โดยเกมจะสร้างเชเดอร์ระหว่างเล่นแทน เป็นการตั้งค่าเดียวกับ Downloads > Shader Pre-Caching ของ Steam มีผลในเซสชันถัดไป</string>
     <string name="mode_steam_repair">ซ่อมแซมไคลเอนต์ Steam</string>
@@ -658,7 +658,7 @@
     <string name="setup_language_system">ค่าเริ่มต้นของระบบ (%1$s)</string>
     <string name="setup_language_system_short">ค่าเริ่มต้นของระบบ</string>
     <string name="setup_app_scale">ขนาดแอป</string>
-    <string name="setup_app_scale_hint">ข้อความและการควบคุมของ DroidDeck</string>
+    <string name="setup_app_scale_hint">ข้อความและการควบคุมของ Kestrel</string>
     <string name="setup_app_scale_default">%1$d%% (ค่าเริ่มต้น)</string>
     <string name="setup_theme">ธีม</string>
     <string name="setup_theme_hint">รูปลักษณ์ของตัวเปิดแอป</string>
@@ -701,13 +701,13 @@
     <string name="gate_fix_for_me">แก้ให้ฉันเลย</string>
     <string name="gate_toggle_steps">เปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย” แล้วกลับมาที่นี่ เปิดตัวเลือกสำหรับนักพัฒนาไว้เสมอ ไม่เช่นนั้นสวิตช์จะปิดลงอีก</string>
     <string name="gate_open_dev">เปิดตัวเลือกสำหรับนักพัฒนา</string>
-    <string name="gate_no_toggle">Android รุ่นนี้ไม่มีสวิตช์สำหรับสิ่งนี้ ดังนั้น DroidDeck จะเปลี่ยนค่าผ่าน Wireless debugging ใช้เวลาประมาณหนึ่งนาที ไม่ต้องใช้คอมพิวเตอร์</string>
+    <string name="gate_no_toggle">Android รุ่นนี้ไม่มีสวิตช์สำหรับสิ่งนี้ ดังนั้น Kestrel จะเปลี่ยนค่าผ่าน Wireless debugging ใช้เวลาประมาณหนึ่งนาที ไม่ต้องใช้คอมพิวเตอร์</string>
     <string name="gate_needs_wifi">Wireless debugging ต้องใช้ Wi-Fi เครือข่ายใดก็ได้ ไม่จำเป็นต้องมีอินเทอร์เน็ต</string>
-    <string name="gate_needs_notifications">รหัสจับคู่จะแสดงในการแจ้งเตือน อนุญาตการแจ้งเตือนสำหรับ DroidDeck หรือใช้วิธีอื่น</string>
+    <string name="gate_needs_notifications">รหัสจับคู่จะแสดงในการแจ้งเตือน อนุญาตการแจ้งเตือนสำหรับ Kestrel หรือใช้วิธีอื่น</string>
     <string name="gate_allow_notifications">อนุญาตการแจ้งเตือน</string>
     <string name="gate_step1">เปิดการตั้งค่า → ตัวเลือกสำหรับนักพัฒนา → Wireless debugging แล้วเปิดใช้งาน</string>
     <string name="gate_step2">แตะ “Pair device with pairing code”</string>
-    <string name="gate_step3">พิมพ์รหัสลงในการแจ้งเตือนของ DroidDeck</string>
+    <string name="gate_step3">พิมพ์รหัสลงในการแจ้งเตือนของ Kestrel</string>
     <string name="pairguide_build_number">ในเกี่ยวกับโทรศัพท์ แตะหมายเลขบิลด์ 7 ครั้ง</string>
     <string name="pairguide_wireless">เปิดการแก้ไขข้อบกพร่องผ่าน Wi-Fi</string>
     <string name="pairguide_pair">เปิดการแก้ไขข้อบกพร่องผ่าน Wi-Fi แล้วแตะ “จับคู่อุปกรณ์ด้วยรหัสการจับคู่”</string>
@@ -808,8 +808,8 @@
     <string name="gpu_hide_other">ซ่อนไดรเวอร์สำหรับ GPU อื่น</string>
     <string name="gpu_show_other">แสดงไดรเวอร์สำหรับ GPU อื่น</string>
     <string name="gpu_ubwc_title">ความเข้ากันได้ของ UBWC</string>
-    <string name="gpu_ubwc_hint">ลองเปิดหรือปิดหาก Steam หรือ Android แสดงเป็นแถบลายหรือกะพริบ มีผลกับไดรเวอร์ทั้งสองหลังรีสตาร์ท DroidDeck</string>
-    <string name="gpu_ubwc_restart">รีสตาร์ท DroidDeck เพื่อใช้การเปลี่ยนแปลง</string>
+    <string name="gpu_ubwc_hint">ลองเปิดหรือปิดหาก Steam หรือ Android แสดงเป็นแถบลายหรือกะพริบ มีผลกับไดรเวอร์ทั้งสองหลังรีสตาร์ท Kestrel</string>
+    <string name="gpu_ubwc_restart">รีสตาร์ท Kestrel เพื่อใช้การเปลี่ยนแปลง</string>
     <string name="gpu_runtime_hint">ใช้โดยเกมและเดสก์ท็อป</string>
     <string name="gpu_runtime_default">ค่าเริ่มต้นของรันไทม์</string>
     <string name="gpu_auto_by_gpu">อัตโนมัติ - เลือกตาม GPU</string>
@@ -878,7 +878,7 @@
     <string name="unfolded_controls_with_controller_hint">แสดงปุ่มสัมผัสเหล่านี้ด้วยขณะเชื่อมต่อคอนโทรลเลอร์</string>
     <string name="pip_suspended">หยุดชั่วคราว</string>
     <string name="pip_not_ready">ภาพซ้อนภาพจะพร้อมใช้งานเมื่อเซสชันพร้อม</string>
-    <string name="pip_permission">อนุญาตภาพซ้อนภาพสำหรับ DroidDeck ในการตั้งค่า Android</string>
+    <string name="pip_permission">อนุญาตภาพซ้อนภาพสำหรับ Kestrel ในการตั้งค่า Android</string>
     <string name="pip_unavailable">Android ไม่สามารถเปิดภาพซ้อนภาพได้</string>
     <string name="game_more">เพิ่มเติม</string>
     <string name="game_edit_art">แก้ไขภาพปก</string>
@@ -891,7 +891,7 @@
     <string name="game_link_copied">คัดลอกลิงก์เปิดเกมแล้ว</string>
     <string name="game_shortcut_unsupported">ตัวเปิดแอปนี้ไม่สามารถเพิ่มช็อตคัตได้ ใช้คัดลอกลิงก์เปิดเกมแทน</string>
     <string name="game_link_invalid">ลิงก์เปิดเกมไม่ถูกต้อง</string>
-    <string name="game_link_missing">เกมนี้ไม่มีอยู่ในไลบรารี DroidDeck ของคุณแล้ว</string>
+    <string name="game_link_missing">เกมนี้ไม่มีอยู่ในไลบรารี Kestrel ของคุณแล้ว</string>
     <string name="game_link_session_busy">หยุดเซสชันปัจจุบันก่อนเปิดเกม Steam</string>
     <string name="game_link_failed">ไม่สามารถส่งเกมไปยัง Steam ได้ ลองเปิดอีกครั้ง</string>
     <string name="setup_retry_removal">ลองลบใหม่</string>
@@ -986,22 +986,22 @@
     <string name="drivers_recommended_unpublished">ไดรเวอร์ที่แนะนำยังไม่ได้เผยแพร่ในขณะนี้</string>
     <string name="drivers_downloading_pair">กำลังดาวน์โหลด %1$s %2$s…</string>
     <string name="drivers_updated_to">อัปเดตเป็น %1$s %2$s แล้ว</string>
-    <string name="drivers_updated_to_restart">อัปเดตเป็น %1$s %2$s แล้ว ไดรเวอร์แสดงผลจะมีผลหลัง DroidDeck รีสตาร์ท</string>
+    <string name="drivers_updated_to_restart">อัปเดตเป็น %1$s %2$s แล้ว ไดรเวอร์แสดงผลจะมีผลหลัง Kestrel รีสตาร์ท</string>
     <string name="drivers_auto_waits_for_session">การอัปเดตไดรเวอร์จะรอจนกว่าเซสชันจะหยุด</string>
     <string name="drivers_auto_waits_for_network">%1$s %2$s จะดาวน์โหลดเมื่อคุณออกจากข้อมูลมือถือและโหมดประหยัดแบตเตอรี่</string>
     <string name="drivers_skipping_bad">%1$s %2$s ไม่ได้เริ่มเซสชันที่นี่ อัตโนมัติจึงใช้ไดรเวอร์ที่เริ่มได้</string>
     <string name="drivers_rolled_back">%1$s เริ่มเซสชันไม่สำเร็จสองครั้ง อัตโนมัติจึงกลับไปใช้ไดรเวอร์ที่ทำงานได้</string>
     <string name="drivers_switched_to">สลับเป็น %1$s %2$s แล้ว</string>
-    <string name="drivers_switched_to_restart">สลับเป็น %1$s %2$s แล้ว ไดรเวอร์แสดงผลจะมีผลหลัง DroidDeck รีสตาร์ท</string>
+    <string name="drivers_switched_to_restart">สลับเป็น %1$s %2$s แล้ว ไดรเวอร์แสดงผลจะมีผลหลัง Kestrel รีสตาร์ท</string>
     <string name="drivers_using">กำลังใช้ %1$s %2$s</string>
-    <string name="drivers_using_restart">กำลังใช้ %1$s %2$s ไดรเวอร์แสดงผลจะมีผลหลัง DroidDeck รีสตาร์ท</string>
+    <string name="drivers_using_restart">กำลังใช้ %1$s %2$s ไดรเวอร์แสดงผลจะมีผลหลัง Kestrel รีสตาร์ท</string>
     <string name="drivers_using_quest">กำลังใช้ไดรเวอร์จอที่มากับ Quest และรันไทม์ค่าเริ่มต้น</string>
-    <string name="drivers_using_quest_restart">กำลังใช้ไดรเวอร์จอที่มากับ Quest และรันไทม์ค่าเริ่มต้น ไดรเวอร์จอจะมีผลหลังรีสตาร์ต DroidDeck</string>
+    <string name="drivers_using_quest_restart">กำลังใช้ไดรเวอร์จอที่มากับ Quest และรันไทม์ค่าเริ่มต้น ไดรเวอร์จอจะมีผลหลังรีสตาร์ต Kestrel</string>
     <string name="drivers_not_a_driver">ไม่ใช่ไฟล์ zip ไดรเวอร์: ไม่ใช่ไดรเวอร์ AdrenoTools, Turnip -Linux หรือแพ็ก Android + Linux</string>
     <string name="drivers_import_failed">นำเข้าล้มเหลว: %1$s</string>
     <string name="drivers_imported_unnamed">นำเข้าไดรเวอร์แล้ว</string>
     <string name="drivers_using_bundle">กำลังใช้ %1$s เป็นทั้งไดรเวอร์รันไทม์และแสดงผล</string>
-    <string name="drivers_using_bundle_restart">กำลังใช้ %1$s เป็นทั้งไดรเวอร์รันไทม์และแสดงผล ไดรเวอร์แสดงผลจะมีผลหลัง DroidDeck รีสตาร์ท</string>
+    <string name="drivers_using_bundle_restart">กำลังใช้ %1$s เป็นทั้งไดรเวอร์รันไทม์และแสดงผล ไดรเวอร์แสดงผลจะมีผลหลัง Kestrel รีสตาร์ท</string>
     <string name="drivers_deleted_bundle">ลบ %1$s แล้ว (ไดรเวอร์ทั้งสอง)</string>
     <string name="drivers_deleted">ลบ %1$s แล้ว</string>
     <string name="drivers_release_status">ล่าสุด: %1$s · ตรวจสอบเมื่อ %2$s</string>
@@ -1193,7 +1193,7 @@
     <string name="fm_decline">ปฏิเสธ</string>
     <string name="fm_drive_not_readable">%1$s ติดตั้งอยู่แต่อ่านไม่ได้ในขณะนี้</string>
     <string name="fm_drive_access_title">อนุญาตให้เข้าถึง %1$s</string>
-    <string name="fm_drive_access_text">Android ให้ DroidDeck เห็นไดรฟ์นี้แต่อ่านไม่ได้ เปิดสิทธิ์เข้าถึงไฟล์ทั้งหมดให้ DroidDeck แล้วกลับมาที่นี่</string>
+    <string name="fm_drive_access_text">Android ให้ Kestrel เห็นไดรฟ์นี้แต่อ่านไม่ได้ เปิดสิทธิ์เข้าถึงไฟล์ทั้งหมดให้ Kestrel แล้วกลับมาที่นี่</string>
     <string name="fm_list_view">มุมมองรายการ</string>
     <string name="fm_grid_view">มุมมองตาราง</string>
     <string name="fm_search">ค้นหา</string>
@@ -1313,12 +1313,12 @@
     <string name="bottom_page_chat">แชทและเสียง</string>
     <string name="bottom_chat_why">อ่านและตอบแชท Steam ที่นี่ขณะที่เกมยังทำงานบนหน้าจอหลัก โดยใช้บัญชีที่ลงชื่อเข้าใช้ Steam อยู่</string>
     <string name="bottom_chat_not_signed_in">Steam ยังไม่มีการลงชื่อเข้าใช้เว็บที่แชร์ได้ โปรดลงชื่อเข้าใช้ที่นี่หนึ่งครั้ง</string>
-    <string name="bottom_chat_stopped">Android ปิดหน้าแชทขณะที่ DroidDeck ทำงานอยู่ในเบื้องหลัง หน้าแชทจะเปิดอีกครั้งเมื่อคุณกลับมาที่ DroidDeck</string>
+    <string name="bottom_chat_stopped">Android ปิดหน้าแชทขณะที่ Kestrel ทำงานอยู่ในเบื้องหลัง หน้าแชทจะเปิดอีกครั้งเมื่อคุณกลับมาที่ Kestrel</string>
     <string name="bottom_chat_open">เปิด Steam Chat</string>
     <string name="bottom_chat_close">ปิดแชท</string>
     <string name="bottom_chat_mic_on">ไมค์เปิด</string>
     <string name="bottom_chat_mic_off">ไมค์ปิด</string>
-    <string name="bottom_chat_mic_unavailable">ไมค์ปิดอยู่สำหรับเกมนี้ หากต้องการพูด ให้เปิดไมโครโฟนในการตั้งค่า Steam ของ DroidDeck (เสียง) แล้วเริ่มเกมอีกครั้ง</string>
+    <string name="bottom_chat_mic_unavailable">ไมค์ปิดอยู่สำหรับเกมนี้ หากต้องการพูด ให้เปิดไมโครโฟนในการตั้งค่า Steam ของ Kestrel (เสียง) แล้วเริ่มเกมอีกครั้ง</string>
     <string name="bottom_chat_volume">ระดับเสียง %1$d%%</string>
     <string name="bottom_page_telemetry">สถิติในเกม</string>
     <string name="bottom_telemetry_battery">แบตเตอรี่</string>
@@ -1366,7 +1366,7 @@
     <string name="adbfix_no_pairing">ไม่มีการจับคู่ Wireless debugging ที่บันทึกไว้</string>
     <string name="adbfix_enter_address">กรอกที่อยู่ IP และพอร์ตปัจจุบันของ Wireless debugging</string>
 
-    <string name="adbpair_timed_out">รอป๊อปอัปการจับคู่หมดเวลา ลองใหม่จาก DroidDeck</string>
+    <string name="adbpair_timed_out">รอป๊อปอัปการจับคู่หมดเวลา ลองใหม่จาก Kestrel</string>
     <string name="adbpair_discovery_failed_code">ไม่สามารถค้นหาป๊อปอัปการจับคู่ได้ (%1$d) ตรวจสอบว่าเปิด Wi-Fi อยู่</string>
     <string name="adbpair_discovery_failed">ไม่สามารถค้นหาป๊อปอัปการจับคู่ได้: %1$s</string>
     <string name="adbpair_six_digits">กรอกรหัสให้ครบทั้ง 6 หลัก</string>
@@ -1389,7 +1389,7 @@
     <string name="adbpair_enter_code">กรอกรหัส</string>
     <string name="adbpair_title_working">กำลังตั้งค่า Steam</string>
     <string name="adbpair_title_done">Steam พร้อมแล้ว</string>
-    <string name="adbpair_done_text">แตะเพื่อกลับไปที่ DroidDeck คุณสามารถปิด Wireless debugging ได้แล้วตอนนี้</string>
+    <string name="adbpair_done_text">แตะเพื่อกลับไปที่ Kestrel คุณสามารถปิด Wireless debugging ได้แล้วตอนนี้</string>
     <string name="adbpair_title_failed">การตั้งค่า Wireless debugging หยุดแล้ว</string>
 
 
@@ -1538,7 +1538,7 @@
     <string name="cmgr_not_component_package">%1$s ไม่ใช่แพ็กเกจคอมโพเนนต์ Linux (ประเภท %2$s)</string>
     <string name="gstore_volume_free">%1$s · เหลือ %2$s</string>
     <string name="mode_storage_auto_short">อัตโนมัติ</string>
-    <string name="main_adb_clip_label">การตั้งค่าโพรเซสลูกของ DroidDeck</string>
+    <string name="main_adb_clip_label">การตั้งค่าโพรเซสลูกของ Kestrel</string>
     <string name="setup_signed_in_offline_unnamed">ลงชื่อเข้าใช้แล้ว · โหมดออฟไลน์</string>
     <string name="setup_signed_in_unnamed">ลงชื่อเข้าใช้แล้ว</string>
     <string name="driver_tag_bundled">มีในตัว</string>
@@ -1692,7 +1692,7 @@
     <string name="gpu_display_next">วาดหน้าจอ มีผลตั้งแต่เซสชันถัดไป</string>
     <string name="gpu_previous_driver">ไดรเวอร์ก่อนหน้า</string>
     <string name="gpu_restart_banner">รีสตาร์ตเพื่อเปลี่ยนไดรเวอร์จอ</string>
-    <string name="gpu_restart_blocked">หยุดเซสชันปัจจุบันและรีสตาร์ต DroidDeck เพื่อเปลี่ยนไดรเวอร์จอ</string>
+    <string name="gpu_restart_blocked">หยุดเซสชันปัจจุบันและรีสตาร์ต Kestrel เพื่อเปลี่ยนไดรเวอร์จอ</string>
     <string name="gpu_restart_now">รีสตาร์ตเลย</string>
     <string name="gpu_restart_later">ไว้ทีหลัง</string>
     <string name="gpu_auto_title">อัตโนมัติเลือกคู่นี้สำหรับ %1$s ของคุณ</string>
@@ -1744,7 +1744,7 @@
     <string name="touch_speed_normal">ปกติ</string>
     <string name="touch_speed_fast">เร็ว</string>
     <string name="touch_edit_layout">แก้ไขเค้าโครง</string>
-    <string name="touch_droiddeck_menu">เมนู DroidDeck</string>
+    <string name="touch_droiddeck_menu">เมนู Kestrel</string>
     <string name="touch_drag_hint">ลากปุ่มควบคุมไปวางบนหน้าจอ</string>
     <string name="touch_arrange">จัดเรียง</string>
     <string name="touch_discard">ละทิ้ง</string>
@@ -1802,7 +1802,7 @@
     <string name="storage_internal">พื้นที่จัดเก็บภายใน</string>
     <string name="storage_used_of">ใช้ %1$s จาก %2$s</string>
     <string name="storage_free">ว่าง %1$s</string>
-    <string name="storage_droiddeck_uses">DroidDeck ใช้ %1$s วัดเมื่อ %2$s</string>
+    <string name="storage_droiddeck_uses">Kestrel ใช้ %1$s วัดเมื่อ %2$s</string>
     <string name="storage_rescanning">กำลังสแกนใหม่…</string>
     <string name="storage_other_apps">แอป Android อื่น</string>
     <string name="storage_safe_now">ล้างได้ตอนนี้</string>
@@ -1817,13 +1817,13 @@
     <string name="storage_tools_unused">%1$s ไม่ได้ใช้</string>
     <string name="storage_system">ระบบ Linux และไคลเอนต์ Steam</string>
     <string name="storage_system_hint">จำเป็นต่อการทำงานของทุกอย่าง</string>
-    <string name="storage_app_data">ข้อมูล DroidDeck</string>
+    <string name="storage_app_data">ข้อมูล Kestrel</string>
     <string name="storage_app_data_hint">ล็อกเซสชันเก่า %1$s · แคช · ไดรเวอร์</string>
     <string name="storage_legend_games">เกม</string>
     <string name="storage_legend_data">ข้อมูลเกม</string>
     <string name="storage_legend_tools">Proton และรันไทม์</string>
     <string name="storage_legend_system">ระบบ Linux</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">Kestrel</string>
     <string name="storage_clean_up_title">ล้าง</string>
     <string name="storage_clean_up_lede">ไม่มีอะไรตรงนี้แตะเกมที่ติดตั้งหรือดาวน์โหลดที่กำลังทำงาน</string>
     <string name="storage_nothing_to_clean">ไม่มีอะไรให้ล้างตอนนี้</string>
@@ -1872,8 +1872,8 @@
     <string name="storage_tool_redist">ตัวติดตั้ง VC++ และ DirectX ที่เกมต้องใช้</string>
     <string name="storage_tool_fex">รันเกม Linux x86</string>
     <string name="storage_tool_steam">เครื่องมือ Steam</string>
-    <string name="storage_tool_old_runtime">DroidDeck รันเกมได้โดยไม่ต้องใช้รันไทม์นี้</string>
-    <string name="storage_tool_x86_proton">Proton x86 ซึ่ง DroidDeck รันไม่ได้</string>
+    <string name="storage_tool_old_runtime">Kestrel รันเกมได้โดยไม่ต้องใช้รันไทม์นี้</string>
+    <string name="storage_tool_x86_proton">Proton x86 ซึ่ง Kestrel รันไม่ได้</string>
     <string name="storage_tool_custom_default">ค่าเริ่มต้นสำหรับทุกเกม</string>
     <string name="storage_tool_custom_unused">ไม่มีเกมใช้</string>
     <string name="storage_tool_custom_unknown">อ่านการตั้งค่า Steam ไม่ได้ จึงเก็บไว้</string>
@@ -1908,8 +1908,8 @@
         <item quantity="one">%d เกม</item>
         <item quantity="other">%d เกม</item>
     </plurals>
-    <string name="storage_tool_default_proton">Proton ค่าเริ่มต้นของ DroidDeck</string>
-    <string name="storage_tool_proton">ตัวเลือก Proton 11 ของ DroidDeck</string>
+    <string name="storage_tool_default_proton">Proton ค่าเริ่มต้นของ Kestrel</string>
+    <string name="storage_tool_proton">ตัวเลือก Proton 11 ของ Kestrel</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">%d เกมใช้</item>
         <item quantity="other">%d เกมใช้</item>
@@ -1960,11 +1960,11 @@
     <string name="boot_movie_imported_silent">%1$s เป็นวิดีโอบูตแล้ว แบบไม่มีเสียง</string>
     <string name="boot_movie_too_long">วิดีโอที่ต้องแปลงต้องยาวไม่เกิน %1$d วินาที</string>
     <string name="boot_movie_converting">กำลังแปลง %1$d%%</string>
-    <string name="boot_movie_converting_started">กำลังแปลง %1$s สำหรับ Steam โปรดเปิด DroidDeck ค้างไว้</string>
+    <string name="boot_movie_converting_started">กำลังแปลง %1$s สำหรับ Steam โปรดเปิด Kestrel ค้างไว้</string>
     <string name="boot_movie_unsupported">อุปกรณ์นี้ถอดรหัสวิดีโอนั้นไม่ได้</string>
     <string name="boot_movie_import_failed">นำเข้าวิดีโอนี้ไม่ได้</string>
     <string name="boot_movie_remove_confirm">ลบ %1$s หรือไม่?</string>
-    <string name="boot_movie_remove_confirm_body">วิดีโอจะถูกลบออกจาก DroidDeck และจากโฟลเดอร์วิดีโอของ Steam</string>
+    <string name="boot_movie_remove_confirm_body">วิดีโอจะถูกลบออกจาก Kestrel และจากโฟลเดอร์วิดีโอของ Steam</string>
     <string name="boot_movie_tab_installed">ติดตั้งแล้ว</string>
     <string name="boot_movie_tab_import">นำเข้า</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
@@ -1977,7 +1977,7 @@
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">ร้านค้าแต้ม</string>
     <string name="boot_movie_report">รายงานวิดีโอเปิดเครื่อง</string>
-    <string name="boot_movie_report_hint">บันทึกสิ่งที่ DroidDeck และ Steam รู้เกี่ยวกับวิดีโอเปิดเครื่องลงในไฟล์ข้อความ เพื่อแนบกับรายงานข้อบกพร่อง</string>
+    <string name="boot_movie_report_hint">บันทึกสิ่งที่ Kestrel และ Steam รู้เกี่ยวกับวิดีโอเปิดเครื่องลงในไฟล์ข้อความ เพื่อแนบกับรายงานข้อบกพร่อง</string>
     <string name="boot_movie_report_save">บันทึก</string>
     <string name="boot_movie_report_saved">บันทึกไปที่ %1$s แล้ว</string>
     <string name="boot_movie_report_failed">ไม่สามารถบันทึกรายงานได้</string>
@@ -2012,22 +2012,22 @@
     <string name="session_end_vulkan_device">ไดรเวอร์กราฟิก Linux ไม่พบอุปกรณ์ Vulkan ที่ใช้งานได้ ตรวจสอบว่าไดรเวอร์ GPU ของ Linux ที่เลือกรองรับ GPU นี้</string>
     <string name="setup_group_memory">หน่วยความจำ</string>
     <string name="setup_clear_cached">ปิดแอปที่แคชไว้ก่อนเริ่มเซสชัน</string>
-    <string name="setup_clear_cached_hint">เมื่อเซสชันเริ่ม DroidDeck จะปิดแอปที่ Android พักไว้ในพื้นหลัง เพื่อให้เกมมีหน่วยความจำมากขึ้น ต้องเปิด Wireless debugging ไว้</string>
-    <string name="setup_clear_cached_unpaired">ต้องจับคู่ DroidDeck กับ Wireless debugging ก่อน (จับคู่ ด้านล่าง)</string>
+    <string name="setup_clear_cached_hint">เมื่อเซสชันเริ่ม Kestrel จะปิดแอปที่ Android พักไว้ในพื้นหลัง เพื่อให้เกมมีหน่วยความจำมากขึ้น ต้องเปิด Wireless debugging ไว้</string>
+    <string name="setup_clear_cached_unpaired">ต้องจับคู่ Kestrel กับ Wireless debugging ก่อน (จับคู่ ด้านล่าง)</string>
     <string name="setup_memory_hud">การแสดงหน่วยความจำ</string>
-    <string name="setup_memory_hud_hint">หน่วยความจำและ swap ที่ใช้อยู่ บนหน้าจอเซสชัน โหมดขั้นสูงจะแยกเป็นเกม, DroidDeck, Android และ GPU</string>
+    <string name="setup_memory_hud_hint">หน่วยความจำและ swap ที่ใช้อยู่ บนหน้าจอเซสชัน โหมดขั้นสูงจะแยกเป็นเกม, Kestrel, Android และ GPU</string>
     <string name="setup_memory_hud_simple">แบบง่าย</string>
     <string name="setup_memory_hud_advanced">ขั้นสูง</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">เกม %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">เกม %1$s · Kestrel %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">แอปพื้นหลังระหว่างเซสชัน</string>
-    <string name="setup_bg_limit_hint">ระหว่างที่เซสชันทำงาน Android จะเก็บแอปไว้ในแคชไม่เกินจำนวนนี้และปิดแอปที่เหลือ เพื่อให้เกมได้หน่วยความจำของแอปเหล่านั้น DroidDeck จะคืนค่าขีดจำกัดเดิมเมื่อเซสชันสิ้นสุด ต้องเปิด Wireless debugging ไว้</string>
+    <string name="setup_bg_limit_hint">ระหว่างที่เซสชันทำงาน Android จะเก็บแอปไว้ในแคชไม่เกินจำนวนนี้และปิดแอปที่เหลือ เพื่อให้เกมได้หน่วยความจำของแอปเหล่านั้น Kestrel จะคืนค่าขีดจำกัดเดิมเมื่อเซสชันสิ้นสุด ต้องเปิด Wireless debugging ไว้</string>
     <string name="setup_bg_limit_4">ไม่เกิน 4</string>
     <string name="setup_bg_limit_1">ไม่เกิน 1</string>
     <string name="setup_bg_limit_0">ไม่มี</string>
     <string name="setup_adb_pair">การแก้ไขข้อบกพร่องแบบไร้สาย</string>
-    <string name="setup_adb_pair_hint">จับคู่ DroidDeck กับ Wireless debugging ของ Android สำหรับตัวเลือกด้านบน ขีดจำกัดโพรเซสลูกยังคงปิดอยู่</string>
+    <string name="setup_adb_pair_hint">จับคู่ Kestrel กับ Wireless debugging ของ Android สำหรับตัวเลือกด้านบน ขีดจำกัดโพรเซสลูกยังคงปิดอยู่</string>
     <string name="setup_adb_pair_button">จับคู่</string>
     <string name="game_tab_about">เกี่ยวกับ</string>
     <string name="game_resources_browser">เปิดในเบราว์เซอร์ของคุณ</string>
@@ -2059,8 +2059,8 @@
     <string name="integration_shortcuts_hint">Alt+Tab ปุ่ม Win และปุ่มโฮมทำงานในเซสชัน</string>
     <string name="integration_shortcuts_maybe_restricted">เป็นสีเทาใน Android? ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
     <string name="integration_shortcuts_restricted">ถูกบล็อกโดย Android · ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่จำกัด</string>
-    <string name="integration_shortcuts_service">ปุ่มระบบของ DroidDeck</string>
-    <string name="integration_shortcuts_service_description">ให้ Alt+Tab ปุ่ม Win และปุ่มโฮมทำงานในเซสชัน DroidDeck ที่ใช้งานอยู่แทน Android</string>
+    <string name="integration_shortcuts_service">ปุ่มระบบของ Kestrel</string>
+    <string name="integration_shortcuts_service_description">ให้ Alt+Tab ปุ่ม Win และปุ่มโฮมทำงานในเซสชัน Kestrel ที่ใช้งานอยู่แทน Android</string>
     <string name="integration_brightness_needed">เปิดความสว่างในการตั้งค่า → การผสานรวม Steam</string>
     <string name="setup_gpu_bridge_off">บริดจ์ Mali: ปิด</string>
     <string name="setup_gpu_bridge_on">บริดจ์ Mali: เปิด</string>

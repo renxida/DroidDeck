@@ -32,7 +32,7 @@ serial=$(python3 "${repo_root}/tools/adb_device.py" --adb "${adb_bin}")
 if ! out=$("${adb_bin}" -s "${serial}" install -r --no-incremental "${cache}/app-release.apk" 2>&1); then
     echo "${out}" >&2
     if grep -q INSTALL_FAILED_UPDATE_INCOMPATIBLE <<<"${out}"; then
-        echo "The installed DroidDeck has another signer. CI builds use the public testkey; uninstalling the" >&2
+        echo "The installed Kestrel has another signer. CI builds use the public testkey; uninstalling the" >&2
         echo "current build deletes its data (Steam sign-in, runtime, games in app storage). Do that by hand." >&2
     fi
     exit 1

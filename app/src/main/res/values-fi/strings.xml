@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">Kestrel</string>
     <string-array name="loading_hints">
         <item>Ensimmäinen käynnistys lataa Steamin. Tämä voi kestää muutaman minuutin.</item>
         <item>Oletuksena sovelluksesta poistuminen keskeyttää Steamin; se jatkuu siitä mihin jäit, kun palaat takaisin.</item>
@@ -118,7 +118,7 @@
     <string name="user_apps_runtime_required">Asenna Linux-ajoympäristö ensin</string>
     <string name="user_apps_downloading">Ladataan: %1$s</string>
     <string name="user_apps_download_failed">Lataus epäonnistui</string>
-    <string name="session_proot_missing">DroidDeckin proota ei voitu ladata. Tarkista yhteys ja yritä uudelleen. Istuntoa ei käynnistetty, koska varaproot on liian hidas pelaamiseen.</string>
+    <string name="session_proot_missing">Kestrelin proota ei voitu ladata. Tarkista yhteys ja yritä uudelleen. Istuntoa ei käynnistetty, koska varaproot on liian hidas pelaamiseen.</string>
     <string name="session_powervr_missing">PowerVR-grafiikkaympäristöä ei voitu ladata. Tarkista yhteys ja yritä uudelleen.</string>
     <string name="session_directaudio_missing">DirectAudiota ei voitu ladata, joten pelin ääni käyttää tässä istunnossa hitaampaa reittiä.</string>
     <string name="session_end_program">Tämä ohjelma</string>
@@ -174,7 +174,7 @@
     <string name="back_double_tap_window">Kaksoisnapautuksen aikaikkuna</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">Salli kirkkauden säätö</string>
-    <string name="brightness_permission_text">Ota kirkkauden säätö käyttöön DroidDeckissä.</string>
+    <string name="brightness_permission_text">Ota kirkkauden säätö käyttöön Kestrelissä.</string>
     <string name="back_menu_then_qam">Valikko → QAM</string>
     <string name="back_qam_then_menu">QAM → Valikko</string>
     <string name="mode_session">Istunto</string>
@@ -188,12 +188,12 @@
     <string name="mode_suspend_note">Automaattinen keskeyttää taustalla ja jatkaa, kun sovellus tulee näkyviin. Manuaalinen odottaa Jatka-painiketta. Ei koskaan pitää sovelluksen aina käynnissä.</string>
     <string name="mode_startup">Käynnistys</string>
     <string name="mode_startup_session">Avaa käynnistyksessä</string>
-    <string name="mode_startup_session_hint">Käynnistää tämän istunnon, kun DroidDeck avataan.</string>
+    <string name="mode_startup_session_hint">Käynnistää tämän istunnon, kun Kestrel avataan.</string>
     <string name="mode_client">Asiakasohjelma</string>
     <string name="mode_mangoapp">Suorituskyvyn peittokuva</string>
     <string name="mode_mangoapp_hint">Poista käytöstä, jos pelit kaatuvat tai näyttö mustuu Deck-tilassa. Tulee voimaan seuraavassa istunnossa.</string>
-    <string name="mode_return_after_game">Palaa DroidDeckiin pelin jälkeen</string>
-    <string name="mode_return_after_game_hint">Kun DroidDeckistä tai muusta käynnistimestä aloittamasi peli sulkeutuu, Steam sulkeutuu hallitusti (pilvitallennukset valmistuvat ensin) ja palaat sinne. Pois: pysy Steamissa.</string>
+    <string name="mode_return_after_game">Palaa Kestreliin pelin jälkeen</string>
+    <string name="mode_return_after_game_hint">Kun Kestrelistä tai muusta käynnistimestä aloittamasi peli sulkeutuu, Steam sulkeutuu hallitusti (pilvitallennukset valmistuvat ensin) ja palaat sinne. Pois: pysy Steamissa.</string>
     <string name="mode_shader_precache">Sävyttimien esivälimuistitus</string>
     <string name="mode_shader_precache_hint">Steam lataa peleillesi valmiiksi käännetyt sävyttimet ja käsittelee ne taustalla, joten pelit nykivät vähemmän. Pois päältä säästää dataa, tallennustilaa ja akkua; pelit kääntävät sävyttimet pelatessa. Sama asetus kuin Steamin Lataukset > Shader Pre-Caching. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="mode_steam_repair">Korjaa Steam-asiakasohjelma</string>
@@ -661,7 +661,7 @@
     <string name="setup_language_system">Järjestelmän oletus (%1$s)</string>
     <string name="setup_language_system_short">Järjestelmän oletus</string>
     <string name="setup_app_scale">Sovelluksen skaalaus</string>
-    <string name="setup_app_scale_hint">DroidDeckin tekstit ja säätimet</string>
+    <string name="setup_app_scale_hint">Kestrelin tekstit ja säätimet</string>
     <string name="setup_app_scale_default">%1$d %% (Oletus)</string>
     <string name="setup_theme">Teema</string>
     <string name="setup_theme_hint">Käynnistimen ulkoasu</string>
@@ -704,13 +704,13 @@
     <string name="gate_fix_for_me">Korjaa se puolestani</string>
     <string name="gate_toggle_steps">Ota käyttöön ”Poista käytöstä alatason prosessirajoitukset” ja palaa takaisin. Jätä Kehittäjäasetukset päälle, tai kytkin kytkeytyy taas pois päältä.</string>
     <string name="gate_open_dev">Avaa Kehittäjäasetukset</string>
-    <string name="gate_no_toggle">Tässä Android-versiossa ei ole kytkintä tälle, niin DroidDeck muuttaa sen Langattoman virheenkorjauksen kautta. Kestää noin minuutin, ei tarvita tietokonetta.</string>
+    <string name="gate_no_toggle">Tässä Android-versiossa ei ole kytkintä tälle, niin Kestrel muuttaa sen Langattoman virheenkorjauksen kautta. Kestää noin minuutin, ei tarvita tietokonetta.</string>
     <string name="gate_needs_wifi">Langaton virheenkorjaus vaatii Wi-Fi-yhteyden. Mikä tahansa verkko käy; internet-yhteyttä ei tarvita.</string>
-    <string name="gate_needs_notifications">Pariutuskoodi tulee ilmoitukseen. Salli ilmoitukset DroidDeckille, tai käytä Muita tapoja.</string>
+    <string name="gate_needs_notifications">Pariutuskoodi tulee ilmoitukseen. Salli ilmoitukset Kestrelille, tai käytä Muita tapoja.</string>
     <string name="gate_allow_notifications">Salli ilmoitukset</string>
     <string name="gate_step1">Avaa Asetukset → Kehittäjäasetukset → Langaton virheenkorjaus ja kytke se päälle</string>
     <string name="gate_step2">Napauta ”Pariuta laite pariutuskoodilla”</string>
-    <string name="gate_step3">Kirjoita koodi DroidDeckin ilmoitukseen</string>
+    <string name="gate_step3">Kirjoita koodi Kestrelin ilmoitukseen</string>
     <string name="pairguide_build_number">Napauta Tietoa puhelimesta -kohdassa Koontiversiota 7 kertaa</string>
     <string name="pairguide_wireless">Ota Langaton virheenkorjaus käyttöön</string>
     <string name="pairguide_pair">Avaa Langaton virheenkorjaus ja napauta ”Muodosta laitepari laiteparikoodilla”</string>
@@ -811,8 +811,8 @@
     <string name="gpu_hide_other">Piilota muiden GPU:iden ajurit</string>
     <string name="gpu_show_other">Näytä muiden GPU:iden ajurit</string>
     <string name="gpu_ubwc_title">UBWC-yhteensopivuus</string>
-    <string name="gpu_ubwc_hint">Kokeile Päällä tai Pois, jos Steamissa tai Androidissa näkyy raitoja tai välkyntää. Koskee molempia ajureita DroidDeckin uudelleenkäynnistyksen jälkeen.</string>
-    <string name="gpu_ubwc_restart">Käynnistä DroidDeck uudelleen, jotta muutos tulee voimaan.</string>
+    <string name="gpu_ubwc_hint">Kokeile Päällä tai Pois, jos Steamissa tai Androidissa näkyy raitoja tai välkyntää. Koskee molempia ajureita Kestrelin uudelleenkäynnistyksen jälkeen.</string>
+    <string name="gpu_ubwc_restart">Käynnistä Kestrel uudelleen, jotta muutos tulee voimaan.</string>
     <string name="gpu_runtime_hint">Käytetään peleissä ja työpöydällä.</string>
     <string name="gpu_runtime_default">Ajoympäristön oletus</string>
     <string name="gpu_auto_by_gpu">Automaattinen - valittu GPU:n mukaan</string>
@@ -881,7 +881,7 @@
     <string name="unfolded_controls_with_controller_hint">Näytä nämä kosketusohjaimet myös, kun ohjain on kytketty.</string>
     <string name="pip_suspended">Keskeytetty</string>
     <string name="pip_not_ready">Kuva kuvassa -tila on käytettävissä, kun istunto on valmis.</string>
-    <string name="pip_permission">Salli kuva kuvassa -tila DroidDeckille Android-asetuksissa.</string>
+    <string name="pip_permission">Salli kuva kuvassa -tila Kestrelille Android-asetuksissa.</string>
     <string name="pip_unavailable">Android ei pystynyt avaamaan kuva kuvassa -tilaa.</string>
     <string name="game_more">Lisää</string>
     <string name="game_edit_art">Muokkaa kuvitusta</string>
@@ -894,7 +894,7 @@
     <string name="game_link_copied">Käynnistyslinkki kopioitu</string>
     <string name="game_shortcut_unsupported">Tämä käynnistin ei voi lisätä pikakuvakkeita. Käytä sen sijaan Kopioi käynnistyslinkki -toimintoa.</string>
     <string name="game_link_invalid">Virheellinen pelin käynnistyslinkki.</string>
-    <string name="game_link_missing">Tämä peli ei ole enää DroidDeck-kirjastossasi.</string>
+    <string name="game_link_missing">Tämä peli ei ole enää Kestrel-kirjastossasi.</string>
     <string name="game_link_session_busy">Pysäytä nykyinen istunto ennen Steam-pelin käynnistämistä.</string>
     <string name="game_link_failed">Pelin lähettäminen Steamiin epäonnistui. Yritä käynnistää se uudelleen.</string>
     <string name="setup_retry_removal">Yritä poistoa uudelleen</string>
@@ -993,22 +993,22 @@
     <string name="drivers_recommended_unpublished">Suositeltuja ajureita ei ole julkaistu juuri nyt</string>
     <string name="drivers_downloading_pair">Ladataan %1$s %2$s…</string>
     <string name="drivers_updated_to">Päivitetty versioon %1$s %2$s.</string>
-    <string name="drivers_updated_to_restart">Päivitetty versioon %1$s %2$s. Näyttöajuri otetaan käyttöön, kun DroidDeck käynnistyy uudelleen.</string>
+    <string name="drivers_updated_to_restart">Päivitetty versioon %1$s %2$s. Näyttöajuri otetaan käyttöön, kun Kestrel käynnistyy uudelleen.</string>
     <string name="drivers_auto_waits_for_session">Ajuripäivitykset odottavat, kunnes istunto pysäytetään.</string>
     <string name="drivers_auto_waits_for_network">%1$s %2$s ladataan, kun poistut mobiilidatasta ja virransäästöstä.</string>
     <string name="drivers_skipping_bad">%1$s %2$s ei käynnistänyt istuntoa täällä, joten Automaattinen pysyy ajureissa, jotka käynnistivät.</string>
     <string name="drivers_rolled_back">%1$s ei käynnistänyt istuntoa kahdesti, joten Automaattinen palasi toimineisiin ajureihin.</string>
     <string name="drivers_switched_to">Vaihdettu versioon %1$s %2$s.</string>
-    <string name="drivers_switched_to_restart">Vaihdettu versioon %1$s %2$s. Näyttöajuri otetaan käyttöön, kun DroidDeck käynnistyy uudelleen.</string>
+    <string name="drivers_switched_to_restart">Vaihdettu versioon %1$s %2$s. Näyttöajuri otetaan käyttöön, kun Kestrel käynnistyy uudelleen.</string>
     <string name="drivers_using">Käytössä %1$s %2$s.</string>
-    <string name="drivers_using_restart">Käytössä %1$s %2$s. Näyttöajuri otetaan käyttöön, kun DroidDeck käynnistyy uudelleen.</string>
+    <string name="drivers_using_restart">Käytössä %1$s %2$s. Näyttöajuri otetaan käyttöön, kun Kestrel käynnistyy uudelleen.</string>
     <string name="drivers_using_quest">Käytössä ovat Questin mukana tuleva kuva-ajuri ja oletusajonaikaympäristö.</string>
-    <string name="drivers_using_quest_restart">Käytössä ovat Questin mukana tuleva kuva-ajuri ja oletusajonaikaympäristö. Kuva-ajuri astuu voimaan, kun DroidDeck käynnistetään uudelleen.</string>
+    <string name="drivers_using_quest_restart">Käytössä ovat Questin mukana tuleva kuva-ajuri ja oletusajonaikaympäristö. Kuva-ajuri astuu voimaan, kun Kestrel käynnistetään uudelleen.</string>
     <string name="drivers_not_a_driver">Ei ajuri-zip: ei AdrenoTools-ajuri, -Linux-Turnip eikä Android + Linux -paketti</string>
     <string name="drivers_import_failed">Tuonti epäonnistui: %1$s</string>
     <string name="drivers_imported_unnamed">Ajuri tuotu</string>
     <string name="drivers_using_bundle">Käytetään %1$s sekä ajoympäristön että näytön ajurina.</string>
-    <string name="drivers_using_bundle_restart">Käytetään %1$s sekä ajoympäristön että näytön ajurina. Näyttöajuri otetaan käyttöön, kun DroidDeck käynnistyy uudelleen.</string>
+    <string name="drivers_using_bundle_restart">Käytetään %1$s sekä ajoympäristön että näytön ajurina. Näyttöajuri otetaan käyttöön, kun Kestrel käynnistyy uudelleen.</string>
     <string name="drivers_deleted_bundle">Poistettu %1$s (molemmat ajurit)</string>
     <string name="drivers_deleted">Poistettu %1$s</string>
     <string name="drivers_release_status">Uusimmat: %1$s · tarkistettu %2$s</string>
@@ -1210,7 +1210,7 @@
     <string name="fm_decline">Hylkää</string>
     <string name="fm_drive_not_readable">%1$s on liitetty, mutta ei ole luettavissa juuri nyt</string>
     <string name="fm_drive_access_title">Salli pääsy kohteeseen %1$s</string>
-    <string name="fm_drive_access_text">Android antaa DroidDeckin nähdä tämän aseman mutta ei lukea sitä. Ota DroidDeckille käyttöön Pääsy kaikkiin tiedostoihin ja palaa sitten takaisin.</string>
+    <string name="fm_drive_access_text">Android antaa Kestrelin nähdä tämän aseman mutta ei lukea sitä. Ota Kestrelille käyttöön Pääsy kaikkiin tiedostoihin ja palaa sitten takaisin.</string>
     <string name="fm_list_view">Luettelonäkymä</string>
     <string name="fm_grid_view">Ruudukkonäkymä</string>
     <string name="fm_search">Hae</string>
@@ -1331,12 +1331,12 @@
     <string name="bottom_page_chat">Chat &amp; ääni</string>
     <string name="bottom_chat_why">Lue Steam-chattia ja vastaa siihen täällä, kun peli jatkuu päänäytöllä. Se käyttää tiliä, jolla Steamiin on kirjauduttu.</string>
     <string name="bottom_chat_not_signed_in">Steamilla ei ole vielä jaettavaa verkkokirjautumista, joten kirjaudu tässä kerran.</string>
-    <string name="bottom_chat_stopped">Android sulki chat-sivun, kun DroidDeck oli taustalla. Se avautuu uudelleen, kun palaat DroidDeckiin.</string>
+    <string name="bottom_chat_stopped">Android sulki chat-sivun, kun Kestrel oli taustalla. Se avautuu uudelleen, kun palaat Kestreliin.</string>
     <string name="bottom_chat_open">Avaa Steam Chat</string>
     <string name="bottom_chat_close">Sulje chat</string>
     <string name="bottom_chat_mic_on">Mikrofoni päällä</string>
     <string name="bottom_chat_mic_off">Mikrofoni pois</string>
-    <string name="bottom_chat_mic_unavailable">Mikrofoni on pois päältä tässä pelissä. Jos haluat puhua, kytke Mikrofoni päälle DroidDeckin Steam-asetuksissa (Ääni) ja käynnistä peli uudelleen.</string>
+    <string name="bottom_chat_mic_unavailable">Mikrofoni on pois päältä tässä pelissä. Jos haluat puhua, kytke Mikrofoni päälle Kestrelin Steam-asetuksissa (Ääni) ja käynnistä peli uudelleen.</string>
     <string name="bottom_chat_volume">Äänenvoimakkuus %1$d %%</string>
     <string name="bottom_page_telemetry">Pelinsisäiset tilastot</string>
     <string name="bottom_telemetry_battery">Akku</string>
@@ -1385,7 +1385,7 @@
     <string name="adbfix_no_pairing">Langattoman virheenkorjauksen laiteparitusta ei ole tallennettu</string>
     <string name="adbfix_enter_address">Anna langattoman virheenkorjauksen nykyinen IP-osoite ja portti</string>
 
-    <string name="adbpair_timed_out">Paritusikkunan odotus aikakatkaistiin. Yritä uudelleen DroidDeckistä.</string>
+    <string name="adbpair_timed_out">Paritusikkunan odotus aikakatkaistiin. Yritä uudelleen Kestrelistä.</string>
     <string name="adbpair_discovery_failed_code">Paritusikkunaa ei voitu etsiä (%1$d). Tarkista, että Wi-Fi on päällä.</string>
     <string name="adbpair_discovery_failed">Paritusikkunaa ei voitu etsiä: %1$s</string>
     <string name="adbpair_six_digits">Anna koodin kaikki 6 numeroa</string>
@@ -1408,7 +1408,7 @@
     <string name="adbpair_enter_code">Syötä koodi</string>
     <string name="adbpair_title_working">Otetaan Steamia käyttöön</string>
     <string name="adbpair_title_done">Steam on valmis</string>
-    <string name="adbpair_done_text">Napauta palataksesi DroidDeckiin. Voit sammuttaa langattoman virheenkorjauksen nyt.</string>
+    <string name="adbpair_done_text">Napauta palataksesi Kestreliin. Voit sammuttaa langattoman virheenkorjauksen nyt.</string>
     <string name="adbpair_title_failed">Langattoman virheenkorjauksen käyttöönotto pysähtyi</string>
 
 
@@ -1557,7 +1557,7 @@
     <string name="cmgr_not_component_package">%1$s ei ole Linux-komponenttipaketti (tyyppi %2$s)</string>
     <string name="gstore_volume_free">%1$s · %2$s vapaana</string>
     <string name="mode_storage_auto_short">Automaattinen</string>
-    <string name="main_adb_clip_label">DroidDeckin lapsiprosessiasetus</string>
+    <string name="main_adb_clip_label">Kestrelin lapsiprosessiasetus</string>
     <string name="setup_signed_in_offline_unnamed">Kirjautunut · offline-tila</string>
     <string name="setup_signed_in_unnamed">Kirjautunut</string>
     <string name="driver_tag_bundled">MUKANA</string>
@@ -1713,7 +1713,7 @@
     <string name="gpu_display_next">Piirtää näytön. Astuu voimaan seuraavasta istunnosta.</string>
     <string name="gpu_previous_driver">edellinen ajuri</string>
     <string name="gpu_restart_banner">Käynnistä uudelleen vaihtaaksesi kuva-ajurin.</string>
-    <string name="gpu_restart_blocked">Pysäytä nykyinen istunto ja käynnistä DroidDeck uudelleen vaihtaaksesi kuva-ajurin.</string>
+    <string name="gpu_restart_blocked">Pysäytä nykyinen istunto ja käynnistä Kestrel uudelleen vaihtaaksesi kuva-ajurin.</string>
     <string name="gpu_restart_now">Käynnistä uudelleen</string>
     <string name="gpu_restart_later">Myöhemmin</string>
     <string name="gpu_auto_title">Automaattinen valitsi tämän parin GPU:lle %1$s</string>
@@ -1765,7 +1765,7 @@
     <string name="touch_speed_normal">Normaali</string>
     <string name="touch_speed_fast">Nopea</string>
     <string name="touch_edit_layout">Muokkaa asettelua</string>
-    <string name="touch_droiddeck_menu">DroidDeck-valikko</string>
+    <string name="touch_droiddeck_menu">Kestrel-valikko</string>
     <string name="touch_drag_hint">Vedä ohjaimia näytölle</string>
     <string name="touch_arrange">Järjestä</string>
     <string name="touch_discard">Hylkää</string>
@@ -1824,7 +1824,7 @@
     <string name="storage_internal">Sisäinen tallennustila</string>
     <string name="storage_used_of">%1$s / %2$s käytössä</string>
     <string name="storage_free">%1$s vapaana</string>
-    <string name="storage_droiddeck_uses">DroidDeck käyttää %1$s. Mitattu %2$s.</string>
+    <string name="storage_droiddeck_uses">Kestrel käyttää %1$s. Mitattu %2$s.</string>
     <string name="storage_rescanning">mitataan uudelleen…</string>
     <string name="storage_other_apps">Muut Android-sovellukset</string>
     <string name="storage_safe_now">Vapautettavissa nyt</string>
@@ -1839,13 +1839,13 @@
     <string name="storage_tools_unused">%1$s käyttämätön</string>
     <string name="storage_system">Linux-järjestelmä ja Steam-asiakas</string>
     <string name="storage_system_hint">Tarvitaan, jotta mitään voi ajaa</string>
-    <string name="storage_app_data">DroidDeckin tiedot</string>
+    <string name="storage_app_data">Kestrelin tiedot</string>
     <string name="storage_app_data_hint">Vanhojen istuntojen lokit %1$s · välimuisti · ajurit</string>
     <string name="storage_legend_games">Pelit</string>
     <string name="storage_legend_data">Pelidata</string>
     <string name="storage_legend_tools">Proton ja ajonaikaympäristöt</string>
     <string name="storage_legend_system">Linux-järjestelmä</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">Kestrel</string>
     <string name="storage_clean_up_title">Siivoa</string>
     <string name="storage_clean_up_lede">Mikään tässä ei koske asennettuihin peleihin tai käynnissä oleviin latauksiin.</string>
     <string name="storage_nothing_to_clean">Nyt ei ole siivottavaa.</string>
@@ -1894,8 +1894,8 @@
     <string name="storage_tool_redist">Pelien tarvitsemat VC++- ja DirectX-asennukset</string>
     <string name="storage_tool_fex">Ajaa Linux x86 -pelejä</string>
     <string name="storage_tool_steam">Steam-työkalu</string>
-    <string name="storage_tool_old_runtime">DroidDeck ajaa pelejä ilman tätä ajonaikaympäristöä</string>
-    <string name="storage_tool_x86_proton">Proton x86, jota DroidDeck ei pysty ajamaan</string>
+    <string name="storage_tool_old_runtime">Kestrel ajaa pelejä ilman tätä ajonaikaympäristöä</string>
+    <string name="storage_tool_x86_proton">Proton x86, jota Kestrel ei pysty ajamaan</string>
     <string name="storage_tool_custom_default">Oletus kaikille peleille</string>
     <string name="storage_tool_custom_unused">Mikään peli ei käytä tätä</string>
     <string name="storage_tool_custom_unknown">Steam-asetuksia ei voi lukea, joten se säilytetään</string>
@@ -1930,8 +1930,8 @@
         <item quantity="one">%d peli</item>
         <item quantity="other">%d peliä</item>
     </plurals>
-    <string name="storage_tool_default_proton">DroidDeckin oletus-Proton</string>
-    <string name="storage_tool_proton">DroidDeckin Proton 11 -vaihtoehto</string>
+    <string name="storage_tool_default_proton">Kestrelin oletus-Proton</string>
+    <string name="storage_tool_proton">Kestrelin Proton 11 -vaihtoehto</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">%d peli käyttää</item>
         <item quantity="other">%d peliä käyttää</item>
@@ -1982,11 +1982,11 @@
     <string name="boot_movie_imported_silent">%1$s on nyt käynnistysvideo, ilman ääntä</string>
     <string name="boot_movie_too_long">Muunnettavan videon pituus saa olla enintään %1$d sekuntia</string>
     <string name="boot_movie_converting">Muunnetaan %1$d %%</string>
-    <string name="boot_movie_converting_started">Muunnetaan %1$s Steamille. Pidä DroidDeck auki.</string>
+    <string name="boot_movie_converting_started">Muunnetaan %1$s Steamille. Pidä Kestrel auki.</string>
     <string name="boot_movie_unsupported">Laite ei pysty purkamaan videota.</string>
     <string name="boot_movie_import_failed">Videon tuonti epäonnistui</string>
     <string name="boot_movie_remove_confirm">Poistetaanko %1$s?</string>
-    <string name="boot_movie_remove_confirm_body">Tämä poistaa videon DroidDeckistä ja Steamin videokansiosta.</string>
+    <string name="boot_movie_remove_confirm_body">Tämä poistaa videon Kestrelistä ja Steamin videokansiosta.</string>
     <string name="boot_movie_tab_installed">Asennetut</string>
     <string name="boot_movie_tab_import">Tuo</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
@@ -1999,7 +1999,7 @@
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">Pisteputiikki</string>
     <string name="boot_movie_report">Käynnistyselokuvaraportti</string>
-    <string name="boot_movie_report_hint">Tallentaa tekstitiedostoon, mitä DroidDeck ja Steam tietävät käynnistyselokuvista, liitettäväksi virheilmoitukseen.</string>
+    <string name="boot_movie_report_hint">Tallentaa tekstitiedostoon, mitä Kestrel ja Steam tietävät käynnistyselokuvista, liitettäväksi virheilmoitukseen.</string>
     <string name="boot_movie_report_save">Tallenna</string>
     <string name="boot_movie_report_saved">Tallennettu: %1$s</string>
     <string name="boot_movie_report_failed">Raportin tallennus epäonnistui.</string>
@@ -2034,22 +2034,22 @@
     <string name="session_end_vulkan_device">Linux-grafiikka-ajuri ei löytänyt käyttökelpoista Vulkan-laitetta. Tarkista, että valittu Linux-GPU-ajuri tukee tätä GPU:ta.</string>
     <string name="setup_group_memory">Muisti</string>
     <string name="setup_clear_cached">Sulje välimuistissa olevat sovellukset ennen istuntoa</string>
-    <string name="setup_clear_cached_hint">Kun istunto alkaa, DroidDeck sulkee sovellukset, joita Android pitää taustalla, jotta pelillä on enemmän muistia. Langattoman virheenkorjauksen on oltava päällä.</string>
-    <string name="setup_clear_cached_unpaired">Vaatii, että DroidDeck on pariutettu Langattoman virheenkorjauksen kautta (Pariuta, alla).</string>
+    <string name="setup_clear_cached_hint">Kun istunto alkaa, Kestrel sulkee sovellukset, joita Android pitää taustalla, jotta pelillä on enemmän muistia. Langattoman virheenkorjauksen on oltava päällä.</string>
+    <string name="setup_clear_cached_unpaired">Vaatii, että Kestrel on pariutettu Langattoman virheenkorjauksen kautta (Pariuta, alla).</string>
     <string name="setup_memory_hud">Muistinäyttö</string>
-    <string name="setup_memory_hud_hint">Käytössä oleva muisti ja swap istuntonäytöllä. Laajennettu näyttää erikseen pelin, DroidDeckin, Androidin ja GPU:n osuuden.</string>
+    <string name="setup_memory_hud_hint">Käytössä oleva muisti ja swap istuntonäytöllä. Laajennettu näyttää erikseen pelin, Kestrelin, Androidin ja GPU:n osuuden.</string>
     <string name="setup_memory_hud_simple">Yksinkertainen</string>
     <string name="setup_memory_hud_advanced">Laajennettu</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">peli %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">peli %1$s · Kestrel %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">Taustasovellukset istunnon aikana</string>
-    <string name="setup_bg_limit_hint">Istunnon aikana Android pitää välimuistissa enintään näin monta sovellusta ja sulkee loput, jotta peli saa niiden muistin. DroidDeck palauttaa rajan ennalleen, kun istunto päättyy. Langattoman virheenkorjauksen on oltava päällä.</string>
+    <string name="setup_bg_limit_hint">Istunnon aikana Android pitää välimuistissa enintään näin monta sovellusta ja sulkee loput, jotta peli saa niiden muistin. Kestrel palauttaa rajan ennalleen, kun istunto päättyy. Langattoman virheenkorjauksen on oltava päällä.</string>
     <string name="setup_bg_limit_4">Enintään 4</string>
     <string name="setup_bg_limit_1">Enintään 1</string>
     <string name="setup_bg_limit_0">Ei mitään</string>
     <string name="setup_adb_pair">Langaton virheenkorjaus</string>
-    <string name="setup_adb_pair_hint">Pariuttaa DroidDeckin Androidin Langattomaan virheenkorjaukseen yllä olevia asetuksia varten. Lapsiprosessien raja pysyy pois päältä.</string>
+    <string name="setup_adb_pair_hint">Pariuttaa Kestrelin Androidin Langattomaan virheenkorjaukseen yllä olevia asetuksia varten. Lapsiprosessien raja pysyy pois päältä.</string>
     <string name="setup_adb_pair_button">Pariuta</string>
     <string name="game_tab_about">Tietoja</string>
     <string name="game_resources_browser">Avautuu selaimessa</string>
@@ -2081,8 +2081,8 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win-näppäin ja Koti-painike pysyvät istunnossa</string>
     <string name="integration_shortcuts_maybe_restricted">Harmaana Androidissa? Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
     <string name="integration_shortcuts_restricted">Androidin estämä · Sovelluksen tiedot → ⋮ → Salli rajoitetut asetukset</string>
-    <string name="integration_shortcuts_service">DroidDeckin järjestelmänäppäimet</string>
-    <string name="integration_shortcuts_service_description">Pitää Alt+Tabin, Win-näppäimen ja Koti-painikkeen aktiivisessa DroidDeck-istunnossa Androidin sijaan.</string>
+    <string name="integration_shortcuts_service">Kestrelin järjestelmänäppäimet</string>
+    <string name="integration_shortcuts_service_description">Pitää Alt+Tabin, Win-näppäimen ja Koti-painikkeen aktiivisessa Kestrel-istunnossa Androidin sijaan.</string>
     <string name="integration_brightness_needed">Ota Kirkkaus käyttöön kohdassa Käyttöönotto → Steam-integraatio</string>
     <string name="setup_gpu_bridge_off">Mali-silta: pois</string>
     <string name="setup_gpu_bridge_on">Mali-silta: päällä</string>

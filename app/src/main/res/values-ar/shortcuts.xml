@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">اختصارات الأزرار الفعلية</string>
-    <string name="shortcuts_dd_menu">قائمة DroidDeck</string>
+    <string name="shortcuts_dd_menu">قائمة Kestrel</string>
     <string name="shortcuts_capture">تعيين: %1$s</string>
     <string name="shortcuts_press">اضغط على زر ثم حرره. يُحفظ التعيين تلقائيًا.</string>
     <string name="shortcuts_release">أفلت الزر للمتابعة.</string>

@@ -87,7 +87,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
-                <action android:name="com.droiddeck.launcher.LAUNCH_GAME" />
+                <action android:name="dev.renxida.kestrel.LAUNCH_GAME" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.CAR_LAUNCHER" />
             </intent-filter>

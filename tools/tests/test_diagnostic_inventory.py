@@ -56,12 +56,12 @@ class DiagnosticInventoryTest(unittest.TestCase):
                 "/usr/lib/libvulkan.so.1",
             ])
             write_process(proc, 101, 100, 11, "steam", "/secret/account/steam -login private-token", [
-                "/data/user/0/com.droiddeck.launcher/files/components/system-vulkan/abc/libVkLayer_hybris_compat.so",
-                "/data/user/0/com.droiddeck.launcher/files/components/system-vulkan/abc/libvulkan-private-account.so",
-                "/data/user/0/com.droiddeck.launcher/files/components/system-vulkan/abc/libdrm_accountSecret.so",
-                "/data/user/0/com.droiddeck.launcher/files/components/system-vulkan/abc/libxcb-sessionSecret.so",
-                "/data/user/0/com.droiddeck.launcher/files/components/system-vulkan/abc/libvkd3d-userSecret.so",
-                "/data/user/0/com.droiddeck.launcher/files/components/system-vulkan/abc/libdrm_amdgpu.so.1.0.0",
+                "/data/user/0/dev.renxida.kestrel/files/components/system-vulkan/abc/libVkLayer_hybris_compat.so",
+                "/data/user/0/dev.renxida.kestrel/files/components/system-vulkan/abc/libvulkan-private-account.so",
+                "/data/user/0/dev.renxida.kestrel/files/components/system-vulkan/abc/libdrm_accountSecret.so",
+                "/data/user/0/dev.renxida.kestrel/files/components/system-vulkan/abc/libxcb-sessionSecret.so",
+                "/data/user/0/dev.renxida.kestrel/files/components/system-vulkan/abc/libvkd3d-userSecret.so",
+                "/data/user/0/dev.renxida.kestrel/files/components/system-vulkan/abc/libdrm_amdgpu.so.1.0.0",
                 "/home/private-user/not-graphics-secret.so",
                 "/home/private-user/libvulkan-private-user.so",
             ])

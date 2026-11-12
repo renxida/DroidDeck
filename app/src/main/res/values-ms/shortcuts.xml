@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Pintasan butang fizikal</string>
-    <string name="shortcuts_dd_menu">Menu DroidDeck</string>
+    <string name="shortcuts_dd_menu">Menu Kestrel</string>
     <string name="shortcuts_capture">Tetapkan: %1$s</string>
     <string name="shortcuts_press">Tekan dan lepaskan butang. Penetapan disimpan secara automatik.</string>
     <string name="shortcuts_release">Lepaskan butang untuk meneruskan.</string>
