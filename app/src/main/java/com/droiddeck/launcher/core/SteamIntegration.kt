@@ -8,14 +8,13 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
-import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.input.HomeButtonService
 import com.droiddeck.launcher.session.SessionPrefs
 
 object SteamIntegration {
     const val ACTION_SETUP = "com.droiddeck.launcher.STEAM_INTEGRATION"
     const val EXTRA_FEATURE = "integration_feature"
-    enum class Feature { WIFI, BRIGHTNESS, HOME, SHORTCUTS }
+    enum class Feature { WIFI, BRIGHTNESS, SHORTCUTS }
 
     data class State(
         val wifi: Boolean = false,
@@ -23,7 +22,6 @@ object SteamIntegration {
         val locationOn: Boolean = false,
         val locationBlocked: Boolean = false,
         val brightness: Boolean = false,
-        val home: Boolean = false,
         val shortcuts: Boolean = false,
         val shortcutsRestricted: Boolean = false,
         val shortcutsTried: Boolean = false,
@@ -35,7 +33,6 @@ object SteamIntegration {
         locationPermission = WifiDiscovery.permissionGranted(context),
         locationOn = WifiDiscovery.locationEnabled(context),
         brightness = Settings.System.canWrite(context),
-        home = HomeApp.isDefault(context),
         shortcuts = context.getSystemService(AccessibilityManager::class.java)
             .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any {
                 val service = it.resolveInfo.serviceInfo

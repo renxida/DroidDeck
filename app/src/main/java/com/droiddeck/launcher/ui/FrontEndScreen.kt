@@ -14,7 +14,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import android.provider.Settings
-import android.view.Display
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -76,7 +75,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
@@ -133,12 +131,8 @@ class FrontEndState(
     val theme: String = Themes.GRAPHITE,
     val language: String = "",
     val appScale: Int = com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE,
-    val isHomeApp: Boolean = false,
-    val homeScreenEnabled: Boolean = false,
-    val defaultHomeLabel: String? = null,
     val integration: com.droiddeck.launcher.core.SteamIntegration.State = com.droiddeck.launcher.core.SteamIntegration.State(suggested = false),
     val integrationFocus: com.droiddeck.launcher.core.SteamIntegration.Feature? = null,
-    val androidApps: List<HomeApp.LaunchableApp> = emptyList(),
     val secondScreenDisplays: List<SecondScreenDisplay> = emptyList(),
     val dualScreen: Boolean = false,
     val dualScreenDevice: Boolean = false,
@@ -175,7 +169,6 @@ class FrontEndState(
     val downloadProxy: String = "",
     val animationsEnabled: Boolean = true,
     val lowStorageWarning: Boolean = true,
-    val launcherIcon: String = com.droiddeck.launcher.LauncherIcon.DARK,
     val navigate: String? = null,
     val addedGamesArt: Boolean = true,
     val sgdbUserKey: Boolean = false,
@@ -254,7 +247,6 @@ class FrontEndActions(
     val onTheme: (String) -> Unit = {},
     val onLanguage: (String) -> Unit = {},
     val onAppScale: (Int) -> Unit = {},
-    val onLauncherIcon: (String) -> Unit = {},
     val onOrientation: (Int) -> Unit = {},
     val onLauncherOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
@@ -272,14 +264,11 @@ class FrontEndActions(
     val onStoresSort: (String) -> Unit = {},
     val onStoresView: (String) -> Unit = {},
     val onLibraryChanged: () -> Unit = {},
-    val onHomeApp: () -> Unit = {},
-    val onHomeScreen: (Boolean) -> Unit = {},
     val onSteamIntegration: (com.droiddeck.launcher.core.SteamIntegration.Feature?) -> Unit = {},
     val onDismissIntegration: () -> Unit = {},
     val onIntegration: (com.droiddeck.launcher.core.SteamIntegration.Feature) -> Unit = {},
     val onIntegrationAppInfo: () -> Unit = {},
     val onIntegrationLocation: () -> Unit = {},
-    val onAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit = { _, _ -> },
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onRefreshPhantomStatus: () -> Unit = {},
     val onOpenDeveloperOptions: (Int?) -> Unit = {},
@@ -456,7 +445,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     var developerChoiceGuided by rememberSaveable { mutableStateOf(false) }
     var developerChoiceToggle by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }
-    var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val ctx = LocalContext.current
@@ -533,7 +521,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     ) {
         selected = if (selected.startsWith("rom:")) "emu:" + selected.removePrefix("rom:").substringBefore(':') else "desktop"
     }
-    LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
     LaunchedEffect(s.steamGames.isEmpty()) {
         if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.appId(selected) != null) selected = "games"
     }
@@ -689,7 +676,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         ) {
                 Pane(
                     s, selected, a, page,
-                    Modifier.fillMaxSize().then(paneFocus).pageSwipe({ !processSettingsPageVisible && appToChooseDisplay == null }) { dir ->
+                    Modifier.fillMaxSize().then(paneFocus).pageSwipe({ !processSettingsPageVisible }) { dir ->
                         val keys = navigationKeys(s)
                         val at = keys.indexOf(railSelectionNow.value)
                         if (at >= 0) keys.getOrNull(at + dir)?.let { key ->
@@ -698,10 +685,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                         }
                     },
                     { selected = it },
-                    onAndroidAppClick = { app ->
-                        if (s.secondScreenDisplays.isEmpty()) a.onAndroidApp(app, null)
-                        else appToChooseDisplay = app
-                    },
                     onOpenDeveloperOptions = requestChildProcessToggle,
                     onRequestWirelessAdb = requestWirelessAdbFix,
                     onPairWirelessDebugging = startGuidedPairing,
@@ -713,22 +696,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         GamesDialogs(a, s.steamGames)
         StepsLayer(screenAt)
 
-        appToChooseDisplay?.let { app ->
-            val secondaryDisplay = s.secondScreenDisplays.firstOrNull()
-            ChooseAppDisplayDialog(
-                app = app,
-                secondaryDisplay = secondaryDisplay,
-                onPrimary = {
-                    appToChooseDisplay = null
-                    a.onAndroidApp(app, Display.DEFAULT_DISPLAY)
-                },
-                onSecondary = {
-                    appToChooseDisplay = null
-                    secondaryDisplay?.let { a.onAndroidApp(app, it.id) }
-                },
-                onDismiss = { appToChooseDisplay = null },
-            )
-        }
         if (phantomGateVisible && !showWirelessAdbFix) {
             Box(Modifier.fillMaxSize().background(colors.background)) {
                 PhantomProcessGatePage(

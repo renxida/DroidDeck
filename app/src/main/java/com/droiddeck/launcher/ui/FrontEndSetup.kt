@@ -429,11 +429,6 @@ internal fun SetupPanel(
                                         )
                                     }, s.appScale, onPick = a.onAppScale,
                                 )
-                                ChoiceRow(
-                                    host, "launcher-icon", stringResource(R.string.setup_launcher_icon), null,
-                                    com.droiddeck.launcher.LauncherIcon.options.map { (style, label) -> style to stringResource(label) },
-                                    s.launcherIcon, onPick = a.onLauncherIcon,
-                                )
                                 ToggleRow(host, "launcher-animations", stringResource(R.string.setup_animations), null,
                                     s.animationsEnabled, onChange = a.onAnimationsEnabled)
                                 ToggleRow(host, "low-storage-warning", stringResource(R.string.setup_low_storage_warning), stringResource(R.string.setup_low_storage_warning_hint),
@@ -446,14 +441,6 @@ internal fun SetupPanel(
                         }
                         val device: @Composable () -> Unit = {
                             SettingsGroup(stringResource(R.string.setup_group_device)) {
-                                ToggleRow(
-                                    host, "home-screen", stringResource(R.string.setup_home),
-                                    if (s.homeScreenEnabled) stringResource(R.string.setup_home_on) else stringResource(R.string.setup_home_off),
-                                    s.homeScreenEnabled,
-                                ) { a.onHomeScreen(it) }
-                                if (s.homeScreenEnabled) {
-                                    ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
-                                }
                                 ChoiceRow(
                                     host, "launcher-orientation", stringResource(R.string.setup_launcher_orientation), null,
                                     com.droiddeck.launcher.core.AppUiPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },

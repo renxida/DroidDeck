@@ -328,149 +328,6 @@ class PadBridgeQamTest {
         }
     }
 
-    @Test fun homeGuidePrecedesEarlyPartnerInputAndDoesNotGenerateABareButton() {
-        bridge.setHomeGuidePressed(true)
-        assertTrue(pad().isDown(PadState.GUIDE))
-        bridge.applyExternal({ it.press(PadState.X, true) }, true)
-        assertFalse(pad().isDown(PadState.X))
-        advance(80)
-        assertTrue(pad().isDown(PadState.GUIDE))
-        assertTrue(pad().isDown(PadState.X))
-        bridge.applyExternal({ it.press(PadState.X, false) }, true)
-        bridge.setHomeGuidePressed(false)
-        advance(1000)
-        assertFalse(pad().isDown(PadState.GUIDE))
-        assertFalse(pad().isDown(PadState.X))
-    }
-
-    @Test fun homeGuideHoldsOnThePrimaryPlayerWithoutABuiltinPad() {
-        PadBridge.setFirstSlot(1)
-        try {
-            bridge.setBuiltinPad(false)
-            bridge.setHomeGuidePressed(true)
-            assertTrue(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
-            bridge.setHomeGuidePressed(false)
-            assertFalse(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
-        } finally {
-            PadBridge.setFirstSlot(0)
-        }
-    }
-
-    @Test fun homeGuideAndControllerGuideReleaseIndependentlyOnThePrimaryPlayer() {
-        PadBridge.setFirstSlot(1)
-        try {
-            bridge.setBuiltinPad(false)
-            val device = controller()
-            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_MODE))
-            bridge.setHomeGuidePressed(true)
-            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.ACTION_UP))
-            assertTrue(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
-            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_MODE))
-            bridge.setHomeGuidePressed(false)
-            assertTrue(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
-            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.ACTION_UP))
-            assertFalse(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
-        } finally {
-            PadBridge.setFirstSlot(0)
-        }
-    }
-
-    @Test fun playerSlotHomeGuidePreservesRemappedInputAndTheEnableGate() {
-        PadBridge.setFirstSlot(1)
-        try {
-            bridge.setBuiltinPad(false)
-            routed(InputProfile.defaults(InputProfile.GAME)
-                .withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.Native(InputControl.B))
-                .withBinding(InputRole.PHYSICAL, InputControl.LS, InputAction.Native(InputControl.RS)))
-            val device = controller()
-            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_A))
-            motion(device, MotionEvent.AXIS_X, .6f)
-            bridge.setHomeGuidePressed(true)
-            val held = requireNotNull(JoyConPadTest.RecordingWriter.pads[1])
-            assertTrue(held.isDown(PadState.GUIDE))
-            assertTrue(held.isDown(PadState.B))
-            assertFalse(held.isDown(PadState.A))
-            assertEquals(0f, held.leftX)
-            assertEquals(.6f, held.rightX)
-            bridge.setInputEnabled(false)
-            val disabled = requireNotNull(JoyConPadTest.RecordingWriter.pads[1])
-            assertTrue(disabled.isDown(PadState.GUIDE))
-            assertFalse(disabled.isDown(PadState.A))
-            assertFalse(disabled.isDown(PadState.B))
-            assertEquals(0f, disabled.leftX)
-            assertEquals(0f, disabled.rightX)
-            bridge.cancelHomeGuide()
-            assertFalse(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
-        } finally {
-            PadBridge.setFirstSlot(0)
-        }
-    }
-
-    @Test fun removingThePrimaryPlayerForgetsItsHomeGuide() {
-        PadBridge.setFirstSlot(1)
-        try {
-            bridge.setBuiltinPad(false)
-            val device = controller()
-            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_A, KeyEvent.ACTION_UP))
-            bridge.setHomeGuidePressed(true)
-            bridge.onDeviceRemoved(device.id)
-            JoyConPadTest.RecordingWriter.pads.remove(1)
-            bridge.cancelHomeGuide()
-            bridge.setHomeGuidePressed(false)
-            assertNull(JoyConPadTest.RecordingWriter.pads[1])
-        } finally {
-            PadBridge.setFirstSlot(0)
-        }
-    }
-
-    @Test fun cancellingHomeGuideOnAPlayerSlotKeepsItsHeldControls() {
-        PadBridge.setFirstSlot(1)
-        try {
-            bridge.setBuiltinPad(false)
-            val device = controller()
-            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_A))
-            bridge.setHomeGuidePressed(true)
-            bridge.cancelHomeGuide()
-            val pad = requireNotNull(JoyConPadTest.RecordingWriter.pads[1])
-            assertFalse(pad.isDown(PadState.GUIDE))
-            assertTrue(pad.isDown(PadState.A))
-        } finally {
-            PadBridge.setFirstSlot(0)
-        }
-    }
-
-    @Test fun cancellingHomeDiscardsQueuedPartnersAndReleasesGuideImmediately() {
-        bridge.setHomeGuidePressed(true)
-        bridge.applyExternal({ it.press(PadState.LB, true); it.leftY = -1f }, true)
-        bridge.cancelHomeGuide()
-        advance(1000)
-        assertFalse(pad().isDown(PadState.GUIDE))
-        assertFalse(pad().isDown(PadState.LB))
-        assertEquals(0f, pad().leftY)
-    }
-
-    @Test fun homeAndTouchGuideHaveIndependentReleases() {
-        bridge.setHomeGuidePressed(true)
-        bridge.setSystemButtons(true, false)
-        bridge.setHomeGuidePressed(false)
-        advance(1000)
-        assertTrue(pad().isDown(PadState.GUIDE))
-        bridge.setSystemButtons(false, false)
-        advance(1000)
-        assertFalse(pad().isDown(PadState.GUIDE))
-    }
-
-    @Test fun releasingHomeStopsHeldAxesFromBecomingNavigation() {
-        bridge.setHomeGuidePressed(true)
-        bridge.applyExternal({ it.leftY = -1f }, true)
-        advance(80)
-        assertEquals(-1f, pad().leftY)
-        bridge.setHomeGuidePressed(false)
-        advance(1000)
-        assertEquals(0f, pad().leftY)
-        assertFalse(pad().isDown(PadState.GUIDE))
-    }
-
     @Test fun ordinaryRoutedInputDoesNotWaitForTheChordQueue() {
         routed(InputProfile.defaults(InputProfile.GAME))
         bridge.applyExternal({ it.press(PadState.A, true); it.leftX = .6f }, true)
@@ -515,15 +372,6 @@ class PadBridgeQamTest {
         assertEquals(-.25f, pad().rightY)
     }
 
-    @Test fun queuedChordsDoNotLeakDesktopAxesToSteam() {
-        routed(InputProfile.defaults(InputProfile.DESKTOP))
-        bridge.setHomeGuidePressed(true)
-        bridge.applyExternal({ it.leftY = -1f; it.rightY = .8f }, true)
-        advance(80)
-        assertEquals(0f, pad().leftY)
-        assertEquals(0f, pad().rightY)
-    }
-
     @Test fun disablingRoutingDiscardsQueuedNativeButtons() {
         routed(InputProfile.defaults(InputProfile.GAME))
         bridge.setBackQamPressed(true)
@@ -538,24 +386,12 @@ class PadBridgeQamTest {
 
     @Test fun changingProfileDiscardsQueuedNativeButtons() {
         routed(InputProfile.defaults(InputProfile.GAME))
-        bridge.setHomeGuidePressed(true)
+        bridge.setBackQamPressed(true)
         bridge.applyExternal({ it.press(PadState.A, true) }, true)
         advance(20)
         bridge.setInputProfile(InputProfile.defaults(InputProfile.DESKTOP))
         advance(60)
         assertFalse(pad().isDown(PadState.A))
-    }
-
-    @Test fun cancellingHomeKeepsHeldInputBlockedUntilNeutral() {
-        routed(InputProfile.defaults(InputProfile.GAME))
-        bridge.setHomeGuidePressed(true)
-        bridge.applyExternal({ it.leftY = -1f }, true)
-        bridge.cancelHomeGuide()
-        bridge.applyExternal({ it.leftY = -.9f }, true)
-        assertEquals(0f, pad().leftY)
-        bridge.applyExternal({ it.leftY = 0f }, true)
-        bridge.applyExternal({ it.leftY = -.9f }, true)
-        assertEquals(-.9f, pad().leftY)
     }
 
     @Test fun cancellingBackKeepsHeldInputBlockedUntilNeutral() {

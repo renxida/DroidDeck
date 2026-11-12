@@ -501,3 +501,12 @@ internal fun roleLabel(role: InputRole) = stringResource(when (role) {
 private fun InputHint(text: String) {
     Text(text, Modifier.padding(14.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
+
+internal fun Context.findActivity(): android.app.Activity? {
+    var c: Context? = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
+}

@@ -56,7 +56,6 @@ import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.TurnipDriver
-import com.droiddeck.launcher.input.HomeGuideInput
 import com.droiddeck.launcher.input.InputSpace
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.ControllerPrefs
@@ -563,8 +562,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (output.displayId != displayId) return
         applyOutputPacing()
     }
-    private var isHomeApp by mutableStateOf(false)
-    private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
 
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) {
@@ -782,7 +779,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         pip = com.droiddeck.launcher.session.SessionPipController(this, ::pipBounds, ::showPipUi)
         surfaceView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> pip.refresh() }
         pip.refresh()
-        handleHomeGuideIntent(intent)
 
         updateOnScreenControls()
         WaylandCompositor.setFirstFrameListener(firstFrameListener)
@@ -898,7 +894,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     padBridge?.setInputEnabled(resumed && !drawerOpen && !pcKeyboardOpen && !gestureSettingsOpen && !inputSettingsOpen && !pipUi && !SessionState.suspended)
                     if (drawerOpen || pcKeyboardOpen || gestureSettingsOpen || inputSettingsOpen || pipUi || SessionState.suspended) {
                         backQamInput.cancel()
-                        com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this@SessionActivity)
                         cancelTouchGestures()
                     }
                 }
@@ -1008,8 +1003,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             direct = noSteamSession(),
             title = if (SessionState.mode == SessionService.MODE_RUN)
                 com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_title_game) else null,
-            isHomeApp = isHomeApp,
-            androidApps = androidApps,
             hudOn = hudOn,
             hudConfig = hudConfig,
             upscaler = upscaler, upscaleSharpness = upscaleSharpness,
@@ -1179,20 +1172,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 selectSecondScreenMode(mode)
             },
             onSecondScreenDisplay = ::selectSecondScreenDisplay,
-            onLaunchAndroidApp = { app, displayId ->
-                drawerOpen = false
-                try {
-                    HomeApp.launch(this@SessionActivity, app, displayId)
-                } catch (_: Exception) {
-                    val label = secondScreenDisplays.firstOrNull { it.id == displayId }?.label
-                    val message = when {
-                        displayId == null || displayId == Display.DEFAULT_DISPLAY -> getString(R.string.android_app_open_failed_primary, app.label)
-                        label != null -> getString(R.string.android_app_open_failed_on, app.label, label)
-                        else -> getString(R.string.android_app_open_failed_display, app.label, displayId)
-                    }
-                    Toast.makeText(this@SessionActivity, message, Toast.LENGTH_SHORT).show()
-                }
-            },
             pipSupported = com.droiddeck.launcher.session.SessionPipController.supported(this@SessionActivity),
             pipAutoEnter = pipAutoEnter,
             onPip = { pip.enter() },
@@ -1271,11 +1250,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         ))
     }
 
-    private fun refreshHomeApp() {
-        isHomeApp = HomeApp.isDefault(this)
-        androidApps = if (isHomeApp) HomeApp.launchableApps(this) else emptyList()
-    }
-
     private fun sendSteamGuide() {
         drawerOpen = false
         padBridge?.triggerSteamMenu()
@@ -1320,15 +1294,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val opensQam = isSteam && (double xor backActionsInverted)
         if (opensQam) triggerSteamQam() else drawerOpen = !drawerOpen
     }
-
-    private fun handleHomeGuideIntent(incoming: Intent?) {
-        if (incoming?.action != SessionService.ACTION_HOME_GUIDE) return
-        incoming.action = null
-        setIntent(incoming)
-        if (SessionState.suspended) SessionService.resume(this)
-        else if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) sendSteamGuide()
-    }
-
 
     private fun refreshDrawerComponents() {
         Thread({
@@ -2210,7 +2175,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun releasePads() {
         inputMotion.stop()
         physicalInputBindings?.release()
-        com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this)
         backQamInput.cancel()
         padBridge?.releaseAll()
     }
@@ -2461,7 +2425,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         val resumeKey = event.keyCode == KeyEvent.KEYCODE_BUTTON_A || event.keyCode == KeyEvent.KEYCODE_BUTTON_START ||
-            event.keyCode == KeyEvent.KEYCODE_BUTTON_MODE || HomeGuideInput.isHome(event.keyCode)
+            event.keyCode == KeyEvent.KEYCODE_BUTTON_MODE || event.keyCode == KeyEvent.KEYCODE_HOME ||
+            event.keyCode == KeyEvent.KEYCODE_MOVE_HOME
         val resumeKeyId = event.deviceId to event.keyCode
         if (fromController && resumeKey && (SessionState.suspended || resumeKeyId in resumeKeysDown)) {
             if (event.action == KeyEvent.ACTION_DOWN) {
@@ -4187,9 +4152,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (this.intent.getBooleanExtra(EXTRA_RETURN_HOME, false)) intent.putExtra(EXTRA_RETURN_HOME, true)
         if (!intent.hasExtra(EXTRA_LINK_TASK)) intent.putExtra(EXTRA_LINK_TASK, this.intent.getIntExtra(EXTRA_LINK_TASK, -1))
         setIntent(intent)
-        if (intent.action == SessionService.ACTION_HOME_GUIDE) {
-            handleHomeGuideIntent(intent)
-        } else if (intent.action == SessionService.ACTION_RESUME) {
+        if (intent.action == SessionService.ACTION_RESUME) {
             intent.action = null
             SessionService.resume(this)
         }
@@ -4207,7 +4170,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (runtimeRemovalBlocked) return
         if (!SessionState.suspended) pausedFrame = null
         com.droiddeck.launcher.ui.Motion.refresh(this)
-        refreshHomeApp()
         if (::memoryHud.isInitialized && SessionState.running && SessionState.firstFrameSeen) memoryHud.refresh()
         if (intent?.action == SessionService.ACTION_RESUME) {
             intent.action = null
@@ -4222,15 +4184,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
         updateDesktopKeyboardButton()
-        com.droiddeck.launcher.input.HomeButtonShortcuts.attach(this,
-            enabled = {
-                resumed && window.decorView.hasWindowFocus() && !ended && !drawerOpen && !pcKeyboardOpen &&
-                    !gestureSettingsOpen && !inputSettingsOpen && !pipUi && SessionState.running && !SessionState.suspended &&
-                    SessionState.mode == SessionService.MODE_STEAM && padBridge != null
-            },
-            setPressed = { padBridge?.setHomeGuidePressed(it) },
-            onCancel = { padBridge?.cancelHomeGuide() },
-        )
         updatePointerCapture()
         if (!pipUi) sessionClipboard.start()
         updatePadMotion()
@@ -4244,7 +4197,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onPause() {
         com.droiddeck.launcher.input.SystemKeyCapture.detach(this)
-        com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         if (runtimeRemovalBlocked) { super.onPause(); return }
         physicalShortcuts.clear()
         backQamInput.cancel()
@@ -4489,7 +4441,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus) com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this)
         if (!hasFocus) backQamInput.cancel()
         if (!hasFocus) mouseBackInput.cancel()
         if (runtimeRemovalBlocked) return
@@ -4544,7 +4495,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         if (AgentGuest.readyListener === agentReadyListener) AgentGuest.readyListener = null
-        com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         relativeMouseRequests.shutdownNow()
         backQamInput.cancel()
         uiHandler.removeCallbacks(steamTouchRetry)

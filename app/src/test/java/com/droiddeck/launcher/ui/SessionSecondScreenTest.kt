@@ -355,7 +355,7 @@ class SessionSecondScreenTest {
         onClose: () -> Unit = {},
         select: (SecondScreenMode) -> Unit = {}) =
         DrawerActions(steam = steam, desktop = desktop, direct = direct, onInputSelection = onInputSelection,
-            isHomeApp = false, androidApps = emptyList(), hudOn = false,
+            hudOn = false,
             micAvailable = micAvailable, micEnabled = micEnabled, onMicEnabled = onMic,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
             suspendPolicy = "auto", backActionsInverted = false,
@@ -364,5 +364,5 @@ class SessionSecondScreenTest {
             onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
             onSteamMenu = null, onQam = null, onOsc = {}, onSuspendPolicy = {}, onBackActionsInverted = {},
             onTouch = {}, onFexPreset = {}, onSecondScreenMode = select, onSecondScreenDisplay = {},
-            onLaunchAndroidApp = { _, _ -> }, onBackground = {}, onShareLogs = {}, onStop = {}, onClose = onClose)
+            onBackground = {}, onShareLogs = {}, onStop = {}, onClose = onClose)
 }

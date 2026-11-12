@@ -2337,7 +2337,6 @@ class SessionService : Service() {
         private const val ACTION_PAUSE_NOW = "com.droiddeck.launcher.PAUSE_NOW"
         private const val ACTION_PIP_BEGIN = "com.droiddeck.launcher.PIP_BEGIN"
         const val ACTION_LAUNCH_GAME = "com.droiddeck.launcher.LAUNCH_STEAM_GAME"
-        const val ACTION_HOME_GUIDE = "com.droiddeck.launcher.HOME_GUIDE"
         const val ACTION_AGENT_START = "com.droiddeck.launcher.AGENT_START"
         private const val ACTION_MIC_CHANGED = "com.droiddeck.launcher.MIC_CHANGED"
         private const val ACTION_SUSPEND_POLICY_CHANGED = "com.droiddeck.launcher.SUSPEND_POLICY_CHANGED"

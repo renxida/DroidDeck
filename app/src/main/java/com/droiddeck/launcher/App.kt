@@ -23,7 +23,6 @@ class App : Application() {
         Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)
-        HomeApp.trackRecents(this)
         val process = if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName()
             else (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)
                 .runningAppProcesses?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName

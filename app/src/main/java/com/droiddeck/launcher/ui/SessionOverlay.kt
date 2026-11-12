@@ -58,9 +58,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clipToBounds
-import android.view.Display
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
@@ -94,10 +92,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.droiddeck.launcher.HomeApp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -209,8 +205,6 @@ class DrawerActions(
     val desktop: Boolean,
     val direct: Boolean = false,
     val title: String? = null,
-    val isHomeApp: Boolean,
-    val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
@@ -287,7 +281,6 @@ class DrawerActions(
     val onTextureLodBias: (String?) -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
     val onSecondScreenDisplay: (Int) -> Unit,
-    val onLaunchAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit,
     val onBackground: () -> Unit,
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
@@ -346,9 +339,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val host = rememberMenuHost()
-    var androidAppsExpanded by rememberSaveable { mutableStateOf(false) }
     var advancedEffectsExpanded by rememberSaveable { mutableStateOf(false) }
-    var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     var confirmStop by remember { mutableStateOf(false) }
     var sheetCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var stopCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -361,7 +352,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         if (host.open != null) host.open = null else a.onClose()
     }
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
-    val layerOpen = open && (host.open != null || appToChooseDisplay != null || confirmStop)
+    val layerOpen = open && (host.open != null || confirmStop)
     LaunchedEffect(layerOpen) { onLayerChange(layerOpen) }
     var seenBackRequest by remember { mutableStateOf(backRequest) }
     LaunchedEffect(backRequest) {
@@ -369,11 +360,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         seenBackRequest = backRequest
         when {
             confirmStop -> confirmStop = false
-            appToChooseDisplay != null -> appToChooseDisplay = null
             host.open != null -> host.open = null
         }
     }
-    LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
+    LaunchedEffect(page) { host.open = null }
     LaunchedEffect(a.selectedGameProfileId) {
         if (host.open == "fex") host.open = null
     }
@@ -391,17 +381,16 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         if (open && !controllerActive) focusManager.clearFocus(force = true)
     }
     var focusedPage by remember { mutableStateOf(page) }
-    LaunchedEffect(open, page, controllerActive, host.open, appToChooseDisplay, confirmStop) {
+    LaunchedEffect(open, page, controllerActive, host.open, confirmStop) {
         if (!open) {
             host.open = null
             confirmStop = false
         } else if (controllerActive) {
             inputModeManager.requestInputMode(InputMode.Keyboard)
-            if (host.open != null || appToChooseDisplay != null || confirmStop) return@LaunchedEffect
+            if (host.open != null || confirmStop) return@LaunchedEffect
             val turned = page != focusedPage
             focusedPage = page
             val first = when {
-                page == SessionDrawerPage.SESSION && a.isHomeApp -> "apps"
                 page == SessionDrawerPage.SECOND_SCREEN -> "second-screen:" +
                     (if (a.secondScreenMode == SecondScreenMode.NONE && !a.secondScreenNone) SecondScreenMode.KEYBOARD_TRACKPAD else a.secondScreenMode).id
                 else -> page.firstControl
@@ -713,34 +702,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.AGENT -> Unit
                         SessionDrawerPage.SESSION -> {
-                            if (a.isHomeApp) SettingsGroup(stringResource(R.string.drawer_android_apps)) {
-                                SettingsRow(stringResource(R.string.drawer_launch_app), null) {
-                                    DrawerOutlineButton(if (androidAppsExpanded) stringResource(R.string.common_hide) else stringResource(R.string.common_show), modifier = focus.track(page, "apps")) {
-                                        androidAppsExpanded = !androidAppsExpanded
-                                    }
-                                }
-                                if (androidAppsExpanded) {
-                                    if (a.androidApps.isEmpty()) {
-                                        Text(stringResource(R.string.drawer_no_apps), fontSize = 12.sp, color = colors.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
-                                    } else for (app in a.androidApps) {
-                                        MenuItem(
-                                            app.label, checked = false,
-                                            modifier = focus.track(page, "app:${app.packageName}/${app.className}"),
-                                            leading = {
-                                                app.icon?.let { icon ->
-                                                    Image(bitmap = icon.asImageBitmap(), contentDescription = null,
-                                                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp)))
-                                                }
-                                            },
-                                        ) {
-                                            host.open = null
-                                            if (a.secondScreenDisplays.isEmpty()) a.onLaunchAndroidApp(app, null)
-                                            else appToChooseDisplay = app
-                                        }
-                                    }
-                                }
-                            }
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
                                 if (a.micAvailable) ToggleRow(host, "microphone", stringResource(R.string.mode_mic),
                                     stringResource(R.string.drawer_mic_hint), a.micEnabled,
@@ -781,7 +742,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     a.pipAutoEnter, onChange = a.onPipAutoEnter)
                             }
                             Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (!a.isHomeApp) DrawerActionButton(stringResource(R.string.drawer_background), Icons.AutoMirrored.Outlined.ExitToApp,
+                                DrawerActionButton(stringResource(R.string.drawer_background), Icons.AutoMirrored.Outlined.ExitToApp,
                                     modifier = focus.track(page, "background")) { host.open = null; a.onBackground() }
                             }
                         }
@@ -801,24 +762,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             )
             } }
         }
-    }
-
-    appToChooseDisplay?.let { app ->
-        val secondaryDisplay = a.secondScreenDisplays.firstOrNull { it.id == a.selectedSecondScreenDisplay }
-            ?: a.secondScreenDisplays.firstOrNull()
-        ChooseAppDisplayDialog(
-            app = app,
-            secondaryDisplay = secondaryDisplay,
-            onPrimary = {
-                appToChooseDisplay = null
-                a.onLaunchAndroidApp(app, Display.DEFAULT_DISPLAY)
-            },
-            onSecondary = {
-                appToChooseDisplay = null
-                secondaryDisplay?.let { a.onLaunchAndroidApp(app, it.id) }
-            },
-            onDismiss = { appToChooseDisplay = null },
-        )
     }
 }
 

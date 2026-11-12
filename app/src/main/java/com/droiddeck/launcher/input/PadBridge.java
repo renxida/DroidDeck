@@ -58,7 +58,6 @@ public final class PadBridge {
     private final boolean[][] keyTriggers = new boolean[SLOTS][2];
     private final int[] retainedSticks = new int[SLOTS];
     private final PadState effectiveState = new PadState();
-    private final PadState homeGuideReport = new PadState();
     private final PadState combinedState = new PadState();
     private InputRouter inputRouter;
     private final InputRouter.PadSource[] physicalRoutes = new InputRouter.PadSource[SLOTS];
@@ -78,8 +77,6 @@ public final class PadBridge {
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
     private boolean backQamPressed;
-    private boolean homeGuidePressed;
-    private int homeGuideSlot = -1;
     private final PadState lastBackQamReport = new PadState();
     private final PadState lastWrittenReport = new PadState();
     private final PadState liveReport = new PadState();
@@ -186,7 +183,6 @@ public final class PadBridge {
     }
 
     private void resetBuiltin() {
-        homeGuidePressed = false;
         clearBackQamWrites();
         for (TouchSource source : touchSources.values()) {
             source.raw.clear();
@@ -223,8 +219,6 @@ public final class PadBridge {
         for (InputRouter.PadSource route : physicalRoutes) if (route != null) route.close();
         Arrays.fill(physicalRoutes, null);
         inputRouter = null;
-        homeGuidePressed = false;
-        homeGuideSlot = -1;
         clearBackQamWrites();
         releaseBackPaddles();
         activeControllerId = NO_CONTROLLER;
@@ -681,8 +675,6 @@ public final class PadBridge {
         if (inputRouter == null) for (TouchSource source : touchSources.values()) source.raw.clear();
         DeckControls.INSTANCE.suspend();
         if (inputRouter == null) clearPlayerState(0);
-        homeGuidePressed = false;
-        homeGuideSlot = -1;
         clearBackQamWrites();
         backQamPressed = false;
         if (inputRouter == null) releaseBackPaddles();
@@ -708,35 +700,6 @@ public final class PadBridge {
         return builtinPad && nativeQam();
     }
 
-    public synchronized void setHomeGuidePressed(boolean pressed) {
-        int slot = pressed ? firstPlayerSlot() : homeGuideSlot;
-        if (slot > 0) {
-            homeGuideSlot = pressed ? slot : -1;
-            publish(slot);
-            return;
-        }
-        if (homeGuidePressed == pressed) return;
-        homeGuidePressed = pressed;
-        updateHeldModifier(PadState.GUIDE, pressed);
-    }
-
-    public synchronized void cancelHomeGuide() {
-        int slot = homeGuideSlot;
-        if (slot > 0) {
-            homeGuideSlot = -1;
-            publish(slot);
-        }
-        if (!homeGuidePressed) return;
-        clearBackQamWrites();
-        homeGuidePressed = false;
-        if (inputRouter == null) clearPlayerState(0);
-        else {
-            inputRouter.releaseAll();
-            DeckControls.INSTANCE.suspend();
-        }
-        publish();
-    }
-
     public synchronized void setBackQamPressed(boolean pressed) {
         if (pressed && !canHoldQam()) return;
         if (backQamPressed == pressed) return;
@@ -755,7 +718,7 @@ public final class PadBridge {
             modifier.press(button, true);
             writeBackQamReport(modifier, modifierAt);
         }
-        if (!pressed && !backQamPressed && !homeGuidePressed) {
+        if (!pressed && !backQamPressed) {
             backQamAxesBlocked = hasQamAxes();
             if (!backQamWrites.isEmpty()) {
                 PadState neutral = new PadState();
@@ -815,7 +778,7 @@ public final class PadBridge {
         liveReport.copyFrom(report);
         if (backQamAxesBlocked && !hasQamAxes()) backQamAxesBlocked = false;
         long at = android.os.SystemClock.uptimeMillis();
-        if (backQamPressed || homeGuidePressed || !backQamWrites.isEmpty()) at += backQamDelayMs;
+        if (backQamPressed || !backQamWrites.isEmpty()) at += backQamDelayMs;
         writeBackQamReport(report, at);
     }
 
@@ -849,7 +812,7 @@ public final class PadBridge {
             live.rightX = liveReport.rightX; live.rightY = liveReport.rightY;
             live.leftTrigger = liveReport.leftTrigger; live.rightTrigger = liveReport.rightTrigger;
         }
-        boolean held = (backQamPressed && report.isDown(PadState.QAM)) || (homeGuidePressed && report.isDown(PadState.GUIDE));
+        boolean held = backQamPressed && report.isDown(PadState.QAM);
         if ((queued && !held) || backQamAxesBlocked) clearAxes(live);
         lastWrittenReport.copyFrom(live);
         writer.writePad(live);
@@ -1012,7 +975,6 @@ public final class PadBridge {
         partners[slot] = NO_CONTROLLER;
         clearJoyCons(slot);
         slotControllers.set(slot, NO_CONTROLLER);
-        if (slot == homeGuideSlot) homeGuideSlot = -1;
         if (slot == firstPlayerSlot()) releaseBackPaddles();
         if (slot == 0) {
             clearPlayerState(0);
@@ -1070,11 +1032,6 @@ public final class PadBridge {
             }
             playerWriters[slot] = player;
         }
-        if (slot == homeGuideSlot) {
-            homeGuideReport.copyFrom(output);
-            homeGuideReport.press(PadState.GUIDE, true);
-            output = homeGuideReport;
-        }
         player.writePad(output);
     }
 
@@ -1089,7 +1046,7 @@ public final class PadBridge {
             }
             output = combinedState;
         }
-        boolean guide = systemGuidePressed || qamChordActive || guideTapPressed || homeGuidePressed;
+        boolean guide = systemGuidePressed || qamChordActive || guideTapPressed;
         boolean routedQam = output.isDown(PadState.QAM);
         boolean routedQamStarted = routedQam && !routedQamPressed;
         routedQamPressed = routedQam;

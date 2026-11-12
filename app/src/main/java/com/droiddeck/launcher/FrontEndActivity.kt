@@ -200,7 +200,6 @@ class FrontEndActivity : ComponentActivity() {
     private var downloadProxy by mutableStateOf("")
     private var animationsEnabled by mutableStateOf(true)
     private var lowStorageWarning by mutableStateOf(true)
-    private var launcherIcon by mutableStateOf(LauncherIcon.DARK)
     private var navRequest by mutableStateOf<String?>(null)
     private val gameLaunchRequest = java.util.concurrent.atomic.AtomicLong()
     private var preparingGames by mutableStateOf(emptySet<String>())
@@ -340,7 +339,6 @@ class FrontEndActivity : ComponentActivity() {
                 refreshWifiDiscovery()
             }
             SteamIntegration.Feature.BRIGHTNESS -> integrationSettings(SteamIntegration.brightnessSettings(this))
-            SteamIntegration.Feature.HOME -> if (HomeApp.isDefault(this)) HomeApp.openSystemHomeSettings(this) else offerHomeScreen()
             SteamIntegration.Feature.SHORTCUTS -> {
                 if (!integrationState.shortcuts) shortcutsTried = true
                 SteamIntegration.setShortcutsListed(this, true)
@@ -568,25 +566,6 @@ class FrontEndActivity : ComponentActivity() {
     private var memoryHud by mutableStateOf(SessionPrefs.MEMORY_HUD_OFF)
     private var backgroundAppLimit by mutableStateOf(com.droiddeck.launcher.core.BackgroundAppLimit.OFF)
     private var showRoms by mutableStateOf(false)
-    private var homeAppSelected by mutableStateOf(false)
-    private var homeScreenEnabled by mutableStateOf(false)
-    private var defaultHomeLabel by mutableStateOf<String?>(null)
-    private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
-    private var androidAppsListing = 0
-    private val packageCallback = object : android.content.pm.LauncherApps.Callback() {
-        private fun changed() {
-            refreshAndroidApps()
-            if (HomeWidgets.providers != null) HomeWidgets.refreshProviders(this@FrontEndActivity)
-        }
-        override fun onPackageRemoved(packageName: String, user: android.os.UserHandle) = changed()
-        override fun onPackageAdded(packageName: String, user: android.os.UserHandle) = changed()
-        override fun onPackageChanged(packageName: String, user: android.os.UserHandle) = changed()
-        override fun onPackagesAvailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = changed()
-        override fun onPackagesUnavailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = changed()
-        override fun onShortcutsChanged(packageName: String, shortcuts: MutableList<android.content.pm.ShortcutInfo>, user: android.os.UserHandle) {
-            if (homeAppSelected) HomePins.refresh(this@FrontEndActivity)
-        }
-    }
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var dualDisplayId by mutableStateOf(-1)
     private var dualScreenDevice by mutableStateOf(false)
@@ -607,19 +586,6 @@ class FrontEndActivity : ComponentActivity() {
         override fun onInputDeviceRemoved(deviceId: Int) = refreshSecondScreenDisplays()
         override fun onInputDeviceChanged(deviceId: Int) = refreshSecondScreenDisplays()
     }
-
-    private val homeRoleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        homeChoiceOpen = false
-        HomeApp.releaseUnusedHomeEntry(this)
-        refreshHomeAppState()
-    }
-    private val gameSpaceAdd = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        homeChoiceOpen = false
-        if (HomeApp.inGameSpace(this)) enableHomeScreen()
-        else refreshHomeAppState()
-    }
-    private var homeChoiceOpen = false
-    private var gameSpaceOffered = false
 
     override fun startActivity(intent: Intent?) {
         val compat = protons.protonBusyId != null || ProtonExtras.installInProgress
@@ -778,19 +744,6 @@ class FrontEndActivity : ComponentActivity() {
             }
         }
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
-    }
-
-    private fun switchLauncherIcon(style: String): Boolean {
-        val before = LauncherIcon.current(this)
-        LauncherIcon.set(this, style)
-        launcherIcon = LauncherIcon.current(this)
-        if (launcherIcon == before) return false
-        startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            .setComponent(LauncherIcon.activity(this))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
-            .putExtra(EXTRA_NAV, "setup:launcher"))
-        finishAndRemoveTask()
-        return true
     }
 
     private fun readGameIntent(request: Intent) {
@@ -972,8 +925,6 @@ class FrontEndActivity : ComponentActivity() {
         drivers.restartBlocked = ::runtimeChangesBlocked
         drivers.loadTpUbwcMode()
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
-        homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
-        gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
         // A Lab build is usually the agent's work, so the app comes back where the agent is.
@@ -1000,8 +951,6 @@ class FrontEndActivity : ComponentActivity() {
         DownloadSource.probe()
         animationsEnabled = SessionPrefs.animationsEnabled(this)
         lowStorageWarning = SessionPrefs.lowStorageWarning(this)
-        LauncherIcon.repair(this, intent?.component)
-        launcherIcon = LauncherIcon.current(this)
         storesSort = SessionPrefs.storesSort(this)
         storesView = SessionPrefs.storesView(this)
         applyLauncherFullscreen()
@@ -1053,12 +1002,8 @@ class FrontEndActivity : ComponentActivity() {
                         theme = theme,
                         language = com.droiddeck.launcher.core.AppLanguage.chosen(this),
                         appScale = appScale,
-                        isHomeApp = homeAppSelected,
-                        homeScreenEnabled = homeScreenEnabled,
-                        defaultHomeLabel = defaultHomeLabel,
                         integration = integrationState,
                         integrationFocus = integrationFocus,
-                        androidApps = androidApps,
                         secondScreenDisplays = secondScreenDisplays,
                         dualScreen = dualDisplayId >= 0 && com.droiddeck.launcher.ui.DualScreenPanel.available,
                         dualScreenDevice = dualScreenDevice,
@@ -1088,7 +1033,6 @@ class FrontEndActivity : ComponentActivity() {
                         downloadProxy = downloadProxy,
                         animationsEnabled = animationsEnabled,
                         lowStorageWarning = lowStorageWarning,
-                        launcherIcon = launcherIcon,
                         navigate = navRequest,
                         addedGamesArt = addedGamesArt,
                         sgdbUserKey = sgdbUserKey,
@@ -1325,7 +1269,6 @@ class FrontEndActivity : ComponentActivity() {
                         },
                         onPageBack = { showPerformance = false; showComponents = false; showMapping = false },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
-                        onLauncherIcon = { style -> switchLauncherIcon(style) },
                         onLanguage = { tag ->
                             if (tag != com.droiddeck.launcher.core.AppLanguage.chosen(this)) {
                                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, tag)
@@ -1395,7 +1338,6 @@ class FrontEndActivity : ComponentActivity() {
                             DownloadSource.setProxy(this, value)
                             downloadProxy = DownloadSource.proxyHostPort(this)
                         },
-                        onHomeApp = { manageHomeApp() },
                         onSteamIntegration = ::openIntegration,
                         onIntegration = { integrationFocus = null; configureIntegration(it) },
                         onIntegrationAppInfo = ::openAppInfo,
@@ -1404,14 +1346,6 @@ class FrontEndActivity : ComponentActivity() {
                             SteamIntegration.dismissSuggestion(this)
                             integrationState = readIntegration()
                         },
-                        onHomeScreen = { on ->
-                            if (on && HomeApp.hasGameSpace(this)) offerHomeScreen()
-                            else {
-                                HomeApp.setHomeScreenEnabled(this, on)
-                                refreshHomeAppState()
-                            }
-                        },
-                        onAndroidApp = { app, displayId -> launchAndroidApp(app, displayId) },
                         onBackActionsInverted = { inverted ->
                             SessionPrefs.setBackActionsInverted(this, inverted)
                             backActionsInverted = inverted
@@ -1710,10 +1644,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!homeChoiceOpen) {
-            HomeApp.releaseUnusedHomeEntry(this)
-            refreshHomeAppState()
-        }
+        integrationState = readIntegration()
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
@@ -1757,7 +1688,7 @@ class FrontEndActivity : ComponentActivity() {
         } else if (showComponents) components.refreshComponents()
         oscMode = SessionPrefs.oscMode(this)
         refreshController()
-        refreshHomeAppState()
+        integrationState = readIntegration()
         refreshSecondScreenDisplays()
         refresh()
         refreshAddedGames()
@@ -1778,21 +1709,11 @@ class FrontEndActivity : ComponentActivity() {
         getSystemService(android.hardware.input.InputManager::class.java)?.registerInputDeviceListener(secondScreenTouchListener, ui)
         launcherStarted = true
         refreshSecondScreenDisplays()
-        getSystemService(android.content.pm.LauncherApps::class.java).registerCallback(packageCallback, ui)
-        HomeWidgets.startListening(this)
     }
 
-    @Suppress("OVERRIDE_DEPRECATION")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (HomeWidgets.onActivityResult(this, requestCode, resultCode)) return
-        @Suppress("DEPRECATION")
-        super.onActivityResult(requestCode, resultCode, data)
-    }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
-        outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
@@ -1824,17 +1745,9 @@ class FrontEndActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    override fun onRestart() {
-        super.onRestart()
-        homeChoiceOpen = false
-    }
-
     override fun onStop() {
-        if (!homeChoiceOpen) HomeApp.releaseUnusedHomeEntry(this)
         unregisterReceiver(wifiLocationReceiver)
         unregisterReceiver(mediaReceiver)
-        getSystemService(android.content.pm.LauncherApps::class.java).unregisterCallback(packageCallback)
-        HomeWidgets.stopListening(this)
         ui.removeCallbacks(mediaRefresh)
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
         com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
@@ -1846,28 +1759,6 @@ class FrontEndActivity : ComponentActivity() {
         floodProgress = 0f
         com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
         super.onStop()
-    }
-
-    private fun refreshHomeAppState() {
-        homeScreenEnabled = HomeApp.isHomeScreenEnabled(this)
-        homeAppSelected = homeScreenEnabled && HomeApp.isDefault(this)
-        defaultHomeLabel = HomeApp.defaultLabel(this)
-        refreshAndroidApps()
-        integrationState = readIntegration()
-    }
-
-    private fun refreshAndroidApps() {
-        if (!homeAppSelected) {
-            ++androidAppsListing
-            androidApps = emptyList()
-            return
-        }
-        val seq = ++androidAppsListing
-        HomePins.refresh(this)
-        Thread({
-            val apps = runCatching { HomeApp.launchableApps(this) }.getOrDefault(emptyList())
-            ui.post { if (seq == androidAppsListing) androidApps = apps }
-        }, "home-apps").start()
     }
 
     private fun refreshSecondScreenDisplays() {
@@ -1891,52 +1782,6 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun launchPending(): Boolean = gameLinkReading || (pendingGameLink != null && !gameLinkTried)
-
-    private fun launchAndroidApp(app: HomeApp.LaunchableApp, displayId: Int?) {
-        val onOwnScreen = displayId == null || displayId == (display?.displayId ?: Display.DEFAULT_DISPLAY)
-        if (onOwnScreen) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, true)
-        try {
-            HomeApp.launch(this, app, displayId)
-        } catch (_: Exception) {
-            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
-            val label = secondScreenDisplays.firstOrNull { it.id == displayId }?.label
-            val message = when {
-                displayId == null || displayId == Display.DEFAULT_DISPLAY -> getString(R.string.android_app_open_failed_primary, app.label)
-                label != null -> getString(R.string.android_app_open_failed_on, app.label, label)
-                else -> getString(R.string.android_app_open_failed_display, app.label, displayId)
-            }
-            android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun offerHomeScreen() {
-        if (!gameSpaceOffered && HomeApp.hasGameSpace(this) && !HomeApp.inGameSpace(this)) {
-            gameSpaceOffered = true
-            val opened = runCatching { gameSpaceAdd.launch(HomeApp.gameSpaceAddIntent()) }.isSuccess
-            if (opened) {
-                homeChoiceOpen = true
-                android.widget.Toast.makeText(this, R.string.setup_home_game_space_first, android.widget.Toast.LENGTH_LONG).show()
-                return
-            }
-        }
-        enableHomeScreen()
-    }
-
-    private fun enableHomeScreen() {
-        HomeApp.setHomeScreenEnabled(this, true)
-        refreshHomeAppState()
-        manageHomeApp()
-    }
-
-    private fun manageHomeApp() {
-        homeChoiceOpen = true
-        val request = HomeApp.roleRequestIntent(this)
-        if (request != null) {
-            homeRoleRequest.launch(request)
-        } else if (runCatching { homeRoleRequest.launch(HomeApp.settingsIntent()) }.isFailure) {
-            homeChoiceOpen = false
-        }
-    }
 
     private fun loadDesktopCatalog() {
         if (catalogLoading || catalog != null) return
@@ -2774,7 +2619,7 @@ class FrontEndActivity : ComponentActivity() {
                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
                 if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()
                 com.droiddeck.launcher.ui.Motion.refresh(this)
-                if (!switchLauncherIcon(LauncherIcon.DARK)) recreate()
+                recreate()
             }
         }, "reset-settings").start()
     }
@@ -2841,9 +2686,7 @@ class FrontEndActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_NAV = "droiddeck.nav"
-        private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
         private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
-        private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L
         private const val COMPONENT_RESTORE_MS = 60_000L

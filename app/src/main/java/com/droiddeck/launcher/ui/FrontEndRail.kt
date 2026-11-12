@@ -46,7 +46,6 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
@@ -126,7 +125,6 @@ internal fun navigationKeys(s: FrontEndState) = buildList {
     add("desktop")
     if (com.droiddeck.launcher.agent.AgentHost.available) add("agent")
     add("components")
-    if (s.isHomeApp) add("android-apps")
     add("setup"); add("updates")
 }
 
@@ -199,7 +197,6 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
     "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
-    "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
     "setup" -> R.string.rail_setup to Icons.Outlined.Tune
     else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
 }

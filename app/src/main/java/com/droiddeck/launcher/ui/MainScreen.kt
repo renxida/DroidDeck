@@ -27,34 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.droiddeck.launcher.HomeApp
-import com.droiddeck.launcher.input.SecondScreenDisplay
-
-@Composable
-fun ChooseAppDisplayDialog(
-    app: HomeApp.LaunchableApp,
-    secondaryDisplay: SecondScreenDisplay?,
-    onPrimary: () -> Unit,
-    onSecondary: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.main_launch_named, app.label)) },
-        text = {
-            Text(
-                secondaryDisplay?.let { stringResource(R.string.main_choose_screen, it.label) }
-                    ?: stringResource(R.string.main_secondary_gone),
-            )
-        },
-        confirmButton = { TextButton(onClick = onPrimary, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.main_primary)) } },
-        dismissButton = {
-            TextButton(onClick = onSecondary, enabled = secondaryDisplay != null, modifier = Modifier.focusGlide(CircleShape)) {
-                Text(stringResource(R.string.main_secondary))
-            }
-        },
-    )
-}
 
 @Composable
 fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {

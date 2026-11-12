@@ -94,7 +94,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.UserApps
@@ -106,7 +105,7 @@ import java.io.File
 @Composable
 internal fun Pane(
     s: FrontEndState, selected: String, a: FrontEndActions, page: (@Composable () -> Unit)?, modifier: Modifier,
-    onSelect: (String) -> Unit, onAndroidAppClick: (HomeApp.LaunchableApp) -> Unit,
+    onSelect: (String) -> Unit,
     onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit, onPairWirelessDebugging: () -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier) {
@@ -171,7 +170,7 @@ internal fun Pane(
             label = "pane",
         ) { key ->
             val drawn = (if (page != null && key == s.pageKey) page else pages[key])
-                ?: { Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging) }
+                ?: { Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging) }
             val hopSink by androidx.compose.animation.core.animateFloatAsState(
                 if (Hops.sinking == key) 1f else 0f, Motion.tw(260), label = "hopSink",
             )
@@ -231,7 +230,7 @@ private fun romFor(s: FrontEndState, selected: String): Pair<Library.Emulator, L
 @Composable
 private fun Content(
     s: FrontEndState, selected: String, a: FrontEndActions, modifier: Modifier,
-    onSelect: (String) -> Unit, onAndroidAppClick: (HomeApp.LaunchableApp) -> Unit,
+    onSelect: (String) -> Unit,
     onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit, onPairWirelessDebugging: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -268,10 +267,6 @@ private fun Content(
     }
     if (selected == "agent") {
         AgentPage(modifier.padding(horizontal = padH).padding(top = padV))
-        return
-    }
-    if (selected == "android-apps" && s.isHomeApp) {
-        AndroidAppsPage(s, modifier, onAndroidAppClick)
         return
     }
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {
