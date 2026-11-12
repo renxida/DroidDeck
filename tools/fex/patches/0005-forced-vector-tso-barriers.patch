@@ -1,0 +1,30 @@
+diff --git a/FEXCore/Source/Interface/Core/JIT/MemoryOps.cpp b/FEXCore/Source/Interface/Core/JIT/MemoryOps.cpp
+index d7b716cab..08c84d7a5 100644
+--- a/FEXCore/Source/Interface/Core/JIT/MemoryOps.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/MemoryOps.cpp
+@@ -845,10 +845,8 @@ DEF_OP(LoadMemTSO) {
+     }
+     default: LOGMAN_MSG_A_FMT("Unhandled LoadMemTSO size: {}", OpSize); break;
+     }
+-    if (CTX->IsVectorAtomicTSOEnabled()) {
+-      // Half-barrier.
+-      dmb(ARMEmitter::BarrierScope::ISHLD);
+-    }
++    // Vector loads only become LoadMemTSO when vector TSO is on or volatile metadata forces TSO.
++    dmb(ARMEmitter::BarrierScope::ISHLD);
+   }
+ }
+ 
+@@ -1838,10 +1836,8 @@ DEF_OP(StoreMemTSO) {
+       }
+     }
+   } else {
+-    if (CTX->IsVectorAtomicTSOEnabled()) {
+-      // Half-Barrier.
+-      dmb(ARMEmitter::BarrierScope::ISH);
+-    }
++    // Vector stores only become StoreMemTSO when vector TSO is on or volatile metadata forces TSO.
++    dmb(ARMEmitter::BarrierScope::ISH);
+     const auto Src = GetVReg(Op->Value);
+     const auto MemSrc = GenerateMemOperand(OpSize, MemReg, Op->Offset, Op->OffsetType, Op->OffsetScale);
+     switch (OpSize) {
