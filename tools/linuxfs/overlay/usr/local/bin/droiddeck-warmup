@@ -1,0 +1,247 @@
+#!/usr/bin/python3
+"""Start-up and warm-up settings for one Proton game launch, and the lines that show them in the session log.
+
+Loaded by droiddeck-game-env. Every line it prints starts with "droiddeck-game-env: warmup:".
+docs/research/startup-and-warmup.md explains each setting and how to check it on a device.
+"""
+import mmap
+import os
+import re
+import sys
+import time
+from pathlib import Path
+
+PREFIX = "droiddeck-game-env: warmup: "
+
+# Slay the Spire 2. FEX's disk cache is on for it unless DROIDDECK_FEX_DISKCACHE=0.
+FEX_DISK_CACHE_GAMES = frozenset(("2868840",))
+FEX_DISK_CACHE_SINCE = 2609
+FEX_DLL = "files/lib/wine/aarch64-windows/libarm64ecfex.dll"
+FEX_VERSION = re.compile(rb"FEX-(\d{4})(?:\.\d+)?(?:-\d+-g[0-9a-f]{6,40})?")
+CACHE_DIR = "droiddeck-fex-cache"
+SCAN_LIMIT = 5000
+
+# Values for DROIDDECK_DOTNET_WARMUP. A DOTNET_ or COMPlus_ variable already set keeps its value.
+# W^X is not here: the app's defaults already set DOTNET_EnableWriteXorExecute=0 for every game.
+DOTNET_PROFILES = {
+    # No instrumented tier: one JIT pass and one FEX translation fewer per hot method.
+    "pgo-off": {"DOTNET_TieredPGO": "0"},
+    # Also JIT methods with loops fully at once (no OSR) and start counting calls at once.
+    "lean": {
+        "DOTNET_TieredPGO": "0",
+        "DOTNET_TC_QuickJitForLoops": "0",
+        "DOTNET_TC_CallCountingDelayMs": "0",
+    },
+    # Optimised code at the first call: the slowest start, no tier-up later in play.
+    "single-tier": {"DOTNET_TieredCompilation": "0"},
+}
+OFF = ("", "0", "off", "none", "default")
+
+
+def say(message):
+    print(PREFIX + message, file=sys.stderr, flush=True)
+
+
+def process_age_ms(stat_path="/proc/self/stat", uptime_path="/proc/uptime"):
+    """Milliseconds since this process started, interpreter start-up included."""
+    try:
+        with open(stat_path) as f:
+            fields = f.read().rsplit(")", 1)[1].split()
+        with open(uptime_path) as f:
+            uptime = float(f.read().split()[0])
+        started = int(fields[19]) / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError):
+        return None
+    return max(0, int((uptime - started) * 1000))
+
+
+class Timer:
+    def __init__(self):
+        self.phases = []
+
+    def time(self, name, function, *args, **kwargs):
+        start = time.monotonic()
+        try:
+            return function(*args, **kwargs)
+        finally:
+            self.phases.append((name, int((time.monotonic() - start) * 1000)))
+
+    def report(self, app_id, age_ms=None):
+        age = process_age_ms() if age_ms is None else age_ms
+        parts = ", ".join("%s %d ms" % phase for phase in self.phases)
+        say("launch prep for app %s: %s ms before Proton starts%s" % (
+            app_id or "-", "?" if age is None else age, " (" + parts + ")" if parts else ""))
+
+
+def dotnet_profile(files, env):
+    """The DOTNET_ variables a .NET (CoreCLR) game gets for DROIDDECK_DOTNET_WARMUP, and a note."""
+    if "coreclr.dll" not in files:
+        return {}, None
+    name = env.get("DROIDDECK_DOTNET_WARMUP", "").strip().lower()
+    if name in OFF:
+        return {}, None
+    profile = DOTNET_PROFILES.get(name)
+    if profile is None:
+        return {}, ".NET profile %r unknown (choices: %s); runtime defaults kept" % (name, ", ".join(sorted(DOTNET_PROFILES)))
+    chosen, kept = {}, []
+    for key, value in profile.items():
+        knob = key[len("DOTNET_"):]
+        if key in env or "COMPlus_" + knob in env:
+            kept.append(key)
+        else:
+            chosen[key] = value
+    note = ".NET profile %s: %s" % (name, " ".join("%s=%s" % item for item in sorted(chosen.items())) or "nothing to set")
+    if kept:
+        note += " (already set, kept: %s)" % " ".join(sorted(kept))
+    return chosen, note
+
+
+def fex_version(proton):
+    """The FEX release (FEX-YYMM...) in this Proton's ARM64EC FEX library, or None."""
+    path = Path(proton).parent / FEX_DLL
+    try:
+        with open(path, "rb") as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            found = FEX_VERSION.search(data)
+            return bytes(found.group(0)).decode("ascii") if found else None
+    except (OSError, ValueError):
+        return None
+
+
+def fex_release(version):
+    found = version and re.match(r"FEX-(\d{4})", version)
+    return int(found.group(1)) if found else None
+
+
+def windows_path(path):
+    return "Z:" + str(path).replace("/", "\\") + "\\"
+
+
+def z_drive_is_root(prefix):
+    link = Path(prefix) / "pfx/dosdevices/z:"
+    try:
+        return os.readlink(link).rstrip("/") == ""
+    except FileNotFoundError:
+        # Proton maps Z: to / when it makes the prefix on this launch.
+        return not (Path(prefix) / "pfx").exists()
+    except OSError:
+        return False
+
+
+def tree_size(root, limit=SCAN_LIMIT):
+    count = size = 0
+    for top, dirs, files in os.walk(root):
+        for name in files:
+            try:
+                size += os.lstat(os.path.join(top, name)).st_size
+            except OSError:
+                continue
+            count += 1
+            if count >= limit:
+                return count, size, True
+    return count, size, False
+
+
+def describe(count, size, partial):
+    return "%d file%s, %.1f MB%s" % (count, "" if count == 1 else "s", size / 1048576, "+" if partial else "")
+
+
+def fex_disk_cache(app_id, prefix, proton, env):
+    """FEX's persistent code cache (FEX-2609 and later): the variables to set and the lines to log."""
+    setting = env.get("DROIDDECK_FEX_DISKCACHE", "").strip()
+    if setting == "0" or (setting != "1" and app_id not in FEX_DISK_CACHE_GAMES):
+        if setting == "0" and app_id in FEX_DISK_CACHE_GAMES:
+            return {}, ["FEX disk cache off for app %s (DROIDDECK_FEX_DISKCACHE=0)" % app_id]
+        return {}, []
+    version = fex_version(proton)
+    release = fex_release(version)
+    notes = []
+    if release is not None and release < FEX_DISK_CACHE_SINCE:
+        return {}, ["FEX disk cache not set: this Proton's FEX is %s, the cache came in FEX-%d" % (version, FEX_DISK_CACHE_SINCE)]
+    chosen = {}
+    if "FEX_DISKCACHE" not in env:
+        chosen["FEX_DISKCACHE"] = "1"
+    elif env["FEX_DISKCACHE"] != "1":
+        return {}, ["FEX disk cache left off: FEX_DISKCACHE=%s is set for this game" % env["FEX_DISKCACHE"]]
+    where = None
+    if "FEX_APP_CACHE_LOCATION" in env:
+        notes.append("FEX cache folder from FEX_APP_CACHE_LOCATION=%s" % env["FEX_APP_CACHE_LOCATION"])
+    elif prefix and z_drive_is_root(prefix):
+        where = Path(prefix) / CACHE_DIR
+        try:
+            where.mkdir(exist_ok=True)
+            chosen["FEX_APP_CACHE_LOCATION"] = windows_path(where)
+        except OSError as error:
+            notes.append("FEX cache folder %s not made (%s); FEX picks its own" % (where, error))
+            where = None
+    else:
+        notes.append("the prefix's Z: drive is not /, so FEX keeps its cache in its own folder")
+    state = "no cache yet"
+    if where is not None and (where / "DiskCache").is_dir():
+        state = describe(*tree_size(where / "DiskCache"))
+    notes.insert(0, "FEX disk cache on for app %s (%s, %s%s)" % (
+        app_id, version or "FEX version not found", state, ", folder " + str(where) if where is not None else ""))
+    return chosen, notes
+
+
+GODOT_PIPELINES = ("*/vulkan/pipelines.*.cache", "Godot/app_userdata/*/vulkan/pipelines.*.cache")
+GODOT_SHADERS = ("*/shader_cache", "Godot/app_userdata/*/shader_cache")
+
+
+def godot_caches(prefix):
+    """Godot's own Vulkan pipeline cache and SPIR-V shader cache in the prefix, as one line."""
+    roaming = Path(prefix) / "pfx/drive_c/users/steamuser/AppData/Roaming"
+    if not roaming.is_dir():
+        return None
+    pipelines = []
+    for pattern in GODOT_PIPELINES:
+        for path in roaming.glob(pattern):
+            try:
+                pipelines.append("%s %d KB" % (path.relative_to(roaming), path.stat().st_size // 1024))
+            except OSError:
+                continue
+    shaders = []
+    for pattern in GODOT_SHADERS:
+        for path in roaming.glob(pattern):
+            if path.is_dir():
+                shaders.append("%s %s" % (path.relative_to(roaming), describe(*tree_size(path))))
+    return "Godot caches: pipelines %s; shaders %s" % ("; ".join(sorted(pipelines)) or "none",
+                                                       "; ".join(sorted(shaders)) or "none")
+
+
+def wine_update_pending(prefix, proton):
+    """A line when Wine will run wineboot --update in this prefix: Proton keeps .update-timestamp
+    equal to wine.inf's mtime so that it does not, and a different value means it will."""
+    stamp = Path(prefix) / "pfx/.update-timestamp"
+    inf = Path(proton).parent / "files/share/wine/wine.inf"
+    try:
+        recorded = stamp.read_text().strip()
+        mtime = int(inf.stat().st_mtime)
+    except (OSError, ValueError):
+        return None
+    if recorded == "disable" or recorded == str(mtime):
+        return None
+    return "Wine will update this prefix (wineboot) before the game: .update-timestamp %s, wine.inf %d" % (recorded or "empty", mtime)
+
+
+def apply(command, env, app_id, prefix, files):
+    """Settings for a waitforexitandrun launch. Returns the environment to start Proton with."""
+    if len(command) < 3 or not app_id:
+        return env
+    result = dict(env)
+    chosen, note = dotnet_profile(files, env)
+    result.update(chosen)
+    if note:
+        say(note)
+    chosen, notes = fex_disk_cache(app_id, prefix, command[0], env)
+    result.update(chosen)
+    for line in notes:
+        say(line)
+    if prefix:
+        line = wine_update_pending(prefix, command[0])
+        if line:
+            say(line)
+        if command[2] and (Path(command[2]).stem.lower() + ".pck" in files or "godotsharp.dll" in files):
+            line = godot_caches(prefix)
+            if line:
+                say(line)
+    return result

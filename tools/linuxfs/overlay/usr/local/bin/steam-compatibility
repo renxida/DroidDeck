@@ -115,6 +115,7 @@ bl_components() {
     echo "droiddeck-proton: components: invalid game prefix, left as it is" >&2
     return 0
   fi
+  cm_began=${EPOCHREALTIME/[.,]/}
   cm_tool=${base##*/}
   cm_build=$(awk 'NR == 1 { print $2 }' "$base/version" 2>/dev/null)
   cm_fixed=0
@@ -162,7 +163,9 @@ bl_components() {
     case "$rel" in *.so) chmod 755 "$f" ;; *) chmod 644 "$f" ;; esac
     cm_fixed=$((cm_fixed + 1))
   done
-  [ "$cm_checked" -gt 0 ] && echo "droiddeck-proton: components: checked $cm_checked file(s) in $cm_tool for app $cm_app" >&2
+  cm_ms=
+  [ -n "$cm_began" ] && cm_ms=" in $(( (10#${EPOCHREALTIME/[.,]/} - 10#$cm_began) / 1000 )) ms"
+  [ "$cm_checked" -gt 0 ] && echo "droiddeck-proton: components: checked $cm_checked file(s) in $cm_tool for app $cm_app$cm_ms" >&2
   if [ "$cm_fixed" -gt 0 ]; then
     echo "droiddeck-proton: components: re-applied $cm_fixed of $cm_checked file(s) in $cm_tool before this launch" >&2
     printf '%s\\t%s\\t%s\\n' "$(date +%s)" "$cm_tool" "$cm_fixed" >> "$cm_dir/reapplied.log"
