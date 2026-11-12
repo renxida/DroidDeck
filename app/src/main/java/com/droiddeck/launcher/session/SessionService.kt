@@ -63,6 +63,7 @@ class SessionService : Service() {
     private val stopLock = Any()
     private var wakeLock: PowerManager.WakeLock? = null
     @Volatile private var lastPressureAt = 0L
+    @Volatile private var lmkWatch: Thread? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var sessionPid = -1
     private val auxiliaryProcesses = HashMap<Int, Long>()
@@ -821,6 +822,8 @@ class SessionService : Service() {
         SessionLogCapture.start(File(sessionDir, "app.log"))
         lastPressureAt = 0L
         MemoryLog.start(File(sessionDir, "memory.csv"))
+        AppCaches.drop(this, "session_start")
+        startLmkWatch()
         com.droiddeck.launcher.telemetry.TelemetryUploader.sessionStarted(this, sessionDir)
         return sessionDir
     }
@@ -1864,6 +1867,7 @@ class SessionService : Service() {
                     .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
                 releaseLocks()
                 MemoryLog.stop()
+                stopLmkWatch()
                 com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
                 if (status == 0) {
                     SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
@@ -2036,6 +2040,39 @@ class SessionService : Service() {
         )
         Log.i(TAG, "DROIDDECK_MEMORY_PRESSURE " + fields.entries.joinToString(" ") { "${it.key}=${it.value ?: "-"}" })
         SessionEvents.record("memory.trim", fields)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE) AppCaches.drop(this, "trim_$level")
+    }
+
+    private fun startLmkWatch() {
+        stopLmkWatch()
+        val gate = LmkRisk.Gate()
+        lmkWatch = Thread({
+            while (!Thread.currentThread().isInterrupted) {
+                runCatching {
+                    val device = MemoryReadout.device() ?: return@runCatching
+                    if (!SessionState.running) return@runCatching
+                    val (some, full) = runCatching { ExitCause.parsePsi(File("/proc/pressure/memory").readText()) }
+                        .getOrDefault(null to null)
+                    val reading = LmkRisk.Reading(device.totalKb, device.availableKb, device.swapTotalKb, device.swapFreeKb, some, full)
+                    if (gate.warn(LmkRisk.atRisk(reading), android.os.SystemClock.elapsedRealtime())) warnLmkRisk(reading)
+                }
+                try { Thread.sleep(LMK_POLL_MS) } catch (e: InterruptedException) { break }
+            }
+        }, "lmk-risk").apply { isDaemon = true; start() }
+    }
+
+    private fun stopLmkWatch() {
+        lmkWatch?.interrupt()
+        lmkWatch = null
+    }
+
+    private fun warnLmkRisk(reading: LmkRisk.Reading) {
+        Log.i(TAG, LmkRisk.line(reading))
+        SessionEvents.record("memory.lmk_risk", LmkRisk.fields(reading))
+        AppCaches.drop(this, "lmk_risk")
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(this, R.string.session_memory_lmk_risk, Toast.LENGTH_LONG).show()
+        }
     }
 
     /** Logs why the guest ended on its own; a kill with a known culprit gets a user-facing explanation. */
@@ -2312,6 +2349,7 @@ class SessionService : Service() {
         private const val GAME_START_TIMEOUT_MS = 20 * 60_000L
         private const val GAME_EXIT_GRACE_MS = 10_000L
         private const val PRESSURE_RECENT_MS = 60_000L
+        private const val LMK_POLL_MS = 2_000L
         private const val GAME_EXIT_POLL_MS = 2_000L
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"
