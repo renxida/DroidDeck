@@ -74,7 +74,7 @@ class PortraitLayoutTest {
         compose.onNodeWithText("Count 1").assertExists()
     }
 
-    @Test fun narrowBottomBarScrollsToEveryDestinationWithAppsAndResumeVisible() {
+    @Test fun narrowBottomBarScrollsToEveryDestinationWithResumeVisible() {
         val selected = mutableStateOf("steam")
         compose.setContent {
             DroidDeckTheme {
@@ -82,7 +82,7 @@ class PortraitLayoutTest {
             }
         }
         compose.mainClock.advanceTimeBy(1_000)
-        for (key in listOf("games", "desktop", "components", "setup", "steam")) {
+        for (key in listOf("games", "components", "setup", "steam")) {
             compose.onNodeWithTag("rail-$key").performScrollTo()
             compose.mainClock.advanceTimeBy(1_000)
             compose.onNodeWithTag("rail-$key").assertIsDisplayed().performClick()

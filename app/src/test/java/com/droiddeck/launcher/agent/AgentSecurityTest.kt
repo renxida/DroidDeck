@@ -81,7 +81,6 @@ class AgentSecurityTest {
     @Test fun runCannotBypassTheToggle() {
         refused("AGENT_COMMANDS_DISABLED") { AgentAccess.requireStart(context, JSONObject().put("mode", "run")) }
         AgentAccess.requireStart(context, JSONObject().put("mode", "steam"))
-        AgentAccess.requireStart(context, JSONObject().put("mode", "desktop"))
         val blocked = Robolectric.buildActivity(AgentStartActivity::class.java).get()
         val start = AgentStartActivity::class.java.getDeclaredMethod("startSession", JSONObject::class.java).apply { isAccessible = true }
         val request = JSONObject().put("mode", "run").put("program", "/usr/bin/sh")
