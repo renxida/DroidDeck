@@ -28,11 +28,11 @@ class UpdateCatalogTest(unittest.TestCase):
     def test_variants(self):
         rows = parse_variants("""
 # name package suffix
-standard com.droiddeck.launcher -
+standard dev.renxida.kestrel -
 pubg com.tencent.ig -pubg
 """)
         self.assertEqual(
-            [("com.droiddeck.launcher", ""), ("com.tencent.ig", "-pubg")],
+            [("dev.renxida.kestrel", ""), ("com.tencent.ig", "-pubg")],
             rows,
         )
 
@@ -90,7 +90,7 @@ pubg com.tencent.ig -pubg
         )
 
     def test_preview_history_keeps_only_complete_signed_main_releases(self):
-        variants = [("com.droiddeck.launcher", ""), ("com.example.variant", "-variant")]
+        variants = [("dev.renxida.kestrel", ""), ("com.example.variant", "-variant")]
         commit = "a" * 40
         entry = {
             "commit": commit,
@@ -120,7 +120,7 @@ pubg com.tencent.ig -pubg
         ):
             self.assertIsNone(preview_history_entry(invalid_release, entry, variants))
         self.assertIsNone(preview_history_entry(release, {**entry, "commit": "a" * 12}, variants))
-        self.assertIsNone(preview_history_entry(release, {**entry, "apks": {"com.droiddeck.launcher": {}}}, variants))
+        self.assertIsNone(preview_history_entry(release, {**entry, "apks": {"dev.renxida.kestrel": {}}}, variants))
         unsigned = {**entry, "apks": {package: {"sha256": "a" * 64} for package, _ in variants}}
         self.assertIsNone(preview_history_entry(release, unsigned, variants))
 

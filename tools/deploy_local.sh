@@ -18,5 +18,5 @@ fi
 serial=$(python3 "${repo_root}/tools/adb_device.py" --adb "${adb_bin}")
 
 "${adb_bin}" -s "${serial}" install -r --no-incremental "${apk}"
-installed_path=$("${adb_bin}" -s "${serial}" shell pm path com.droiddeck.launcher | tr -d '\r')
+installed_path=$("${adb_bin}" -s "${serial}" shell pm path "$("${repo_root}/tools/app-id")" | tr -d '\r')
 printf 'Installed on %s: %s\n' "${serial}" "${installed_path}"

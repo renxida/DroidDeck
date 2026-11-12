@@ -4,7 +4,7 @@ export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
 
 usage() {
   cat <<'EOF'
-Smoke test of a DroidDeck build on a real device, over plain adb (no python, no root).
+Smoke test of a Kestrel build on a real device, over plain adb (no python, no root).
 
 What it does, in order, and restores afterwards:
   1. prints the device (model, Android, kernel, page size, SoC);
@@ -26,7 +26,7 @@ this covers what that does not: display changes and foldable states.
 EOF
 }
 
-pkg=com.droiddeck.launcher
+pkg=$("$(dirname "$0")/app-id")
 serial=${ANDROID_SERIAL:-}
 apk=
 do_density=1
@@ -161,8 +161,8 @@ if [ -n "$apk" ]; then
 fi
 packages=$(sh_ pm list packages "$pkg") || { echo "could not query installed packages" >&2; exit 2; }
 if ! printf '%s\n' "$packages" | grep -Fxq "package:$pkg"; then echo "package $pkg is not installed" >&2; exit 2; fi
-if ! launch=$(sh_ am start -n "$pkg/.MainActivity") || printf '%s\n' "$launch" | grep -q '^Error'; then
-  bad "could not launch $pkg/.MainActivity"
+if ! launch=$(sh_ am start -n "$pkg/com.droiddeck.launcher.MainActivity") || printf '%s\n' "$launch" | grep -q '^Error'; then
+  bad "could not launch $pkg/com.droiddeck.launcher.MainActivity"
 fi
 sleep 6
 pid=$(app_pid)

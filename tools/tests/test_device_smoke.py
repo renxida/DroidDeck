@@ -35,10 +35,13 @@ elif a[:1] == ["shell"]:
     elif a[:1] == ["getconf"]: print("4096")
     elif a[:1] == ["pidof"]: print("123")
     elif a[:2] == ["dumpsys", "activity"]:
-        print("topResumedActivity=ActivityRecord{abc u0 com.droiddeck.launcher/.MainActivity t1}")
+        print("topResumedActivity=ActivityRecord{abc u0 dev.renxida.kestrel/com.droiddeck.launcher.MainActivity t1}")
     elif a[:3] == ["pm", "list", "packages"]:
         if s.get("query_failed"): sys.exit(1)
-        print("package:" + s.get("package", "com.droiddeck.launcher"))
+        print("package:" + s.get("package", "dev.renxida.kestrel"))
+    elif a[:2] == ["am", "start"] and not s.get("launch_failed"):
+        s.setdefault("starts", []).append(a)
+        p.write_text(json.dumps(s))
     elif a[:2] == ["am", "start"] and s.get("launch_failed"):
         print("Error: activity could not be started")
         sys.exit(1 if s["launch_failed"] == "exit" else 0)
@@ -75,6 +78,11 @@ class DeviceSmokeTest(unittest.TestCase):
         self.assertEqual("420", state["density"])
         self.assertEqual("1000x1800", state["size"])
 
+    def test_launches_the_installed_package_with_the_activity_class_name(self):
+        result, state = self.run_smoke()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual([["am", "start", "-n", "dev.renxida.kestrel/com.droiddeck.launcher.MainActivity"]], state["starts"])
+
     def test_ignored_display_changes_do_not_pass(self):
         for kind in ("density", "size"):
             with self.subTest(kind=kind):
@@ -101,7 +109,7 @@ class DeviceSmokeTest(unittest.TestCase):
                 self.assertFalse(any(item[0] == kind for item in state["writes"]))
 
     def test_package_filter_does_not_accept_another_variant_or_a_failed_query(self):
-        for scenario in ({"package": "com.droiddeck.launcher.debug"}, {"query_failed": True}):
+        for scenario in ({"package": "dev.renxida.kestrel.debug"}, {"query_failed": True}):
             with self.subTest(scenario=scenario):
                 result, state = self.run_smoke(**scenario)
                 self.assertEqual(2, result.returncode, result.stdout)
@@ -128,7 +136,7 @@ class DeviceSmokeTest(unittest.TestCase):
         session = "x';id;#"
         result, state = self.run_smoke(session=session)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertIn(["run-as", "com.droiddeck.launcher", "cat", "files/logs/" + session + "/events.jsonl"], state["log_commands"])
+        self.assertIn(["run-as", "dev.renxida.kestrel", "cat", "files/logs/" + session + "/events.jsonl"], state["log_commands"])
 
 
 if __name__ == "__main__":

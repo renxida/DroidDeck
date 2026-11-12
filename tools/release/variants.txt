@@ -1,1 +1,1 @@
-standard    com.droiddeck.launcher       -
+standard    dev.renxida.kestrel          -

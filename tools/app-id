@@ -1,0 +1,3 @@
+#!/bin/sh
+# Prints the applicationId from app/build.gradle: the package name the host tools talk to.
+sed -n 's/^[[:space:]]*applicationId[[:space:]][[:space:]]*"\([^"]*\)".*/\1/p' "$(dirname "$0")/../app/build.gradle"

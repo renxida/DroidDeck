@@ -24,7 +24,16 @@ from adb_device import DeviceResolutionError, resolve_serial
 from proot_profile import report as proot_profile_report
 
 
-PACKAGE = os.environ.get("DROIDDECK_PACKAGE", "com.droiddeck.launcher")
+def build_app_id() -> str:
+    gradle = (Path(__file__).resolve().parents[1] / "app" / "build.gradle").read_text(encoding="utf-8")
+    found = re.search(r'^\s*applicationId\s+"([^"]+)"', gradle, re.M)
+    if not found:
+        raise RuntimeError("app/build.gradle has no applicationId")
+    return found.group(1)
+
+
+PACKAGE = os.environ.get("DROIDDECK_PACKAGE") or build_app_id()
+CLASS_PACKAGE = "com.droiddeck.launcher"
 AUTHORITY = f"content://{PACKAGE}.agent"
 PACKAGE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+")
 STEAM_CLIENT_APP = 769
@@ -102,7 +111,7 @@ def receiver_call(adb: str, serial: str, method: str, arg: str | None, request: 
     # Its receiver is registered by the running app; a broadcast does not start the app the way `content call` does
     running = run_adb(adb, serial, "shell", f"pidof {PACKAGE}", timeout=30)
     if not running.stdout.decode(errors="replace").strip():
-        raise ControlError(f"{PACKAGE} is not running and this shell has no `content` command to start it; open DroidDeck once", "APP_NOT_RUNNING")
+        raise ControlError(f"{PACKAGE} is not running and this shell has no `content` command to start it; open Kestrel once", "APP_NOT_RUNNING")
     call_id = uuid.uuid4().hex[:16]
     remote = f"/sdcard/Android/data/{PACKAGE}/files/agent-calls/{call_id}.json"
     command = ["shell", "am", "broadcast", "-a", f"{PACKAGE}.AGENT_CALL", "-p", PACKAGE,
@@ -160,7 +169,7 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
         "start",
         "-W",
         "-n",
-        f"{PACKAGE}/com.droiddeck.launcher.agent.AgentStartActivity",
+        f"{PACKAGE}/{CLASS_PACKAGE}.agent.AgentStartActivity",
         "--es",
         "request",
         encoded,
@@ -170,7 +179,7 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
     if result.returncode != 0 or "status: ok" not in output.lower():
         raise ControlError(output.strip() or "The agent start Activity did not launch", "ACTIVITY_START_FAILED")
     if "activity not started" in output.lower():
-        raise ControlError("Android handed the start request to an existing DroidDeck task instead of starting it: "
+        raise ControlError("Android handed the start request to an existing Kestrel task instead of starting it: "
                            + output.strip(), "ACTIVITY_START_FAILED")
 
 
