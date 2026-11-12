@@ -826,6 +826,7 @@ internal object EnhancedSessionLogShare {
         "steam", "graphics", "games", "battlenet", "client", "agent", "setup", "stores", "tools",
         "droiddeck", "droiddeck-esync", "session.log", "app.log", "wayland.log", "audio.log",
         "device.txt", "network.txt", "events.jsonl", "memory.csv", "capture.json", "crash.log",
+        "build.txt", "clocks.log", "frames.csv", "graphics-report.txt",
         "frame-trace.log", "process-trace.log", "game-lifecycle.log", "launches.log", "tools.tsv", "wanted.tsv", "prefixes.json",
         "battlenet.log", "spawned.log", "cef_log.txt", "cef_log.previous.txt",
         "console_log.txt", "webhelper_js.txt", "controller_support.txt", "systemperfmanager.txt",
@@ -842,6 +843,7 @@ internal object EnhancedSessionLogShare {
     private val CRITICAL_SESSION_FILES = listOf(
         "session.log", "app.log", "wayland.log", "audio.log", "device.txt", "network.txt",
         "events.jsonl", "memory.csv", "capture.json", "crash.log",
+        "build.txt", "clocks.log", "frames.csv", "graphics-report.txt",
     )
     private const val RECENT_MILLIS = 7L * 24 * 60 * 60 * 1000
     private const val COPY_BUFFER_BYTES = 64 * 1024
