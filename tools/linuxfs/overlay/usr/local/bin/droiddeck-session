@@ -87,6 +87,31 @@ BUSCONF
   rm -f /run/dbus/system_bus_socket
 }
 
+# Started before the client's setup helpers so that the buses and login1 come up while those run;
+# the client waits for them just before it starts.
+start_steam_buses() {
+  bl_login_manager=
+  bl_session_bus=
+  command -v dbus-daemon >/dev/null 2>&1 && command -v droiddeck-netmanager >/dev/null 2>&1 || return 0
+  write_system_bus_config
+  dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork --nopidfile &
+  # Without a session bus libdbus autolaunches one under the game; it never exits and Steam's
+  # reaper waits on it, so the launch or exit never finishes.
+  if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    bl_session_bus=${XDG_RUNTIME_DIR:-/run/droiddeck}/bus
+    rm -f "$bl_session_bus"
+    dbus-daemon --session --address="unix:path=$bl_session_bus" --nofork --nopidfile &
+  fi
+  rm -f "$BL_LAUNCH_DIR/steam-sleep-ready"
+  (
+    for ((_i = 0; _i < 100; _i++)); do
+      [ -S /run/dbus/system_bus_socket ] && exec droiddeck-login1 --with-netmanager
+      nap 0.05
+    done
+  ) &
+  bl_login_manager=$!
+}
+
 prepare_locale() {
   local dir=/usr/lib/locale stamp=/usr/lib/locale/.droiddeck-archive want have= pkg
   if [ -d /var/lib/pacman/local ]; then
@@ -1037,6 +1062,7 @@ case $mode in
       /usr/local/bin/droiddeck-launcher-cores "$BL_LAUNCH_DIR/agent/focus.json" 2>&1 &
     fi
 
+    start_steam_buses
     if [ "$steam_x64" = 0 ]; then
     step "registering the app's game library with Steam"
     droiddeck-steam-library "$steam_root" || true
@@ -1247,23 +1273,17 @@ case $mode in
       echo "== autolaunch $_bl_url"
       set -- "$@" "$_bl_url"
     fi
-    if command -v dbus-daemon >/dev/null 2>&1 && command -v droiddeck-netmanager >/dev/null 2>&1; then
-      write_system_bus_config
-      dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork --nopidfile &
-      system_bus=$!
-      for _ in $(seq 1 50); do
+    if [ -n "${bl_login_manager:-}" ]; then
+      for ((_i = 0; _i < 100; _i++)); do
         [ -S /run/dbus/system_bus_socket ] && break
-        sleep 0.1
+        nap 0.05
       done
       if [ -S /run/dbus/system_bus_socket ]; then
         echo "== network: system bus up, NetworkManager stand-in running"
-        rm -f "$BL_LAUNCH_DIR/steam-sleep-ready"
-        droiddeck-login1 --with-netmanager &
-        login_manager=$!
-        for ((_i = 0; _i < 50; _i++)); do
+        for ((_i = 0; _i < 100; _i++)); do
           [ -f "$BL_LAUNCH_DIR/steam-sleep-ready" ] && break
-          kill -0 "$login_manager" 2>/dev/null || break
-          nap 0.1
+          kill -0 "$bl_login_manager" 2>/dev/null || break
+          nap 0.05
         done
         if [ ! -f "$BL_LAUNCH_DIR/steam-sleep-ready" ]; then
           echo "== sleep: login1 did not start; refusing a client that cannot resume"
@@ -1278,19 +1298,14 @@ case $mode in
       echo "== network: no dbus-daemon or netmanager in this runtime; the client will show no connection"
       exit 69
     fi
-    # Without a session bus libdbus autolaunches one under the game; it never exits and Steam's
-    # reaper waits on it, so the launch or exit never finishes.
-    if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
-      _bl_bus=${XDG_RUNTIME_DIR:-/run/droiddeck}/bus
-      rm -f "$_bl_bus"
-      dbus-daemon --session --address="unix:path=$_bl_bus" --nofork --nopidfile &
-      for _ in $(seq 1 50); do
-        [ -S "$_bl_bus" ] && break
-        nap 0.1
+    if [ -n "${bl_session_bus:-}" ]; then
+      for ((_i = 0; _i < 100; _i++)); do
+        [ -S "$bl_session_bus" ] && break
+        nap 0.05
       done
-      if [ -S "$_bl_bus" ]; then
-        export DBUS_SESSION_BUS_ADDRESS="unix:path=$_bl_bus"
-        echo "== session bus up at $_bl_bus"
+      if [ -S "$bl_session_bus" ]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=$bl_session_bus"
+        echo "== session bus up at $bl_session_bus"
       else
         echo "== session bus did not come up; programs may start their own"
       fi
