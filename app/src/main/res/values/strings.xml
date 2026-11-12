@@ -2167,6 +2167,8 @@
     <string name="setup_bridge_safe_off">Safe mode: off</string>
     <string name="setup_bridge_safe_on_detail">Most compatible. Recommended for a new device.</string>
     <string name="setup_bridge_safe_off_detail">Faster where this GPU passed its checks.</string>
+    <string name="session_end_phantom_killed">Android most likely stopped the session\'s Linux programs (signal 9): its limit on child processes is on. %1$s</string>
+    <string name="session_end_vendor_memory_killed">The phone\'s own memory watchdog most likely stopped the session\'s Linux programs (signal 9). Xiaomi, Redmi and POCO system software kills native programs that use several GB of memory. Close other apps, lower the game\'s settings or set a RAM cap in Performance.</string>
     <string name="session_end_steam_sigill">Steam stopped with an illegal instruction (SIGILL). This can be a CPU instruction compatibility problem or a client crash. Share the logs with your device details.</string>
     <string name="session_end_steam_try_x64">You can try Steam settings → Steam client → x86-64 (experimental). It needs an additional download and may run more slowly.</string>
     <string name="session_end_vulkan_device">The Linux graphics driver could not find a usable Vulkan device. Check that the selected Linux GPU driver supports this GPU.</string>
