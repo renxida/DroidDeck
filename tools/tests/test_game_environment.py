@@ -1110,7 +1110,9 @@ class GameEnvironmentTest(unittest.TestCase):
             for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll", "data_game_windows_x86_64/coreclr.dll"):
                 (game / name).touch()
             env, extra, notes = MODULE["engine_fixes"](str(game / "Game.exe"), [])
-            self.assertEqual(env["FEX_TSOENABLED"], "1")
+            self.assertEqual(
+                [env[name] for name in ("FEX_TSOENABLED", "FEX_VECTORTSOENABLED", "FEX_MEMCPYSETTSOENABLED", "FEX_HALFBARRIERTSOENABLED")],
+                ["1", "0", "0", "1"])
             self.assertNotIn("FEX_MULTIBLOCK", env)
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
@@ -1126,6 +1128,34 @@ class GameEnvironmentTest(unittest.TestCase):
             other.mkdir()
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
+
+    def test_launch_logs_the_tso_settings_the_game_runs_with(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "Slay the Spire 2"
+            (game / "data").mkdir(parents=True)
+            for name in ("SlayTheSpire2.exe", "data/coreclr.dll"):
+                (game / name).touch()
+            proton = Path(tmp) / "proton"
+            proton.write_text("#!" + sys.executable + "\nimport os\n"
+                              "print(os.environ.get('FEX_VECTORTSOENABLED'), os.environ.get('FEX_MEMCPYSETTSOENABLED'))\n")
+            proton.chmod(0o755)
+            home = Path(tmp) / "home"
+            (home / ".config/droiddeck").mkdir(parents=True)
+            command = [sys.executable, str(BIN / "droiddeck-game-env"), str(proton), "waitforexitandrun", str(game / "SlayTheSpire2.exe")]
+            prefix = Path(tmp) / "compatdata/2868840"
+            prefix.mkdir(parents=True)
+            env = {**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(prefix)}
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.split(), ["0", "0"])
+            self.assertIn("FEX TSO for this game: FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 "
+                          "FEX_HALFBARRIERTSOENABLED=1", result.stderr)
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "games": {"2868840": {"FEX_VECTORTSOENABLED": "1"}}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.split(), ["1", "0"])
+            self.assertIn("FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=0", result.stderr)
 
     def test_easy_anti_cheat_games_start_offline_only_when_opted_in(self):
         with tempfile.TemporaryDirectory() as tmp:
