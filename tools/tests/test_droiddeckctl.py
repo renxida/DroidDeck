@@ -364,6 +364,7 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(16, summary["cadenceMs"])
         self.assertEqual(248, summary["offCadence"])
         self.assertEqual(13.8, summary["offCadencePercent"])
+        self.assertEqual((16, 33, 33), (summary["p50Ms"], summary["p95Ms"], summary["p99Ms"]))
 
     def test_pacing_reads_a_dump_with_windows_line_ends(self):
         summary = ctl.pacing_summary(TIMESTATS_SPLIT.replace("\n", "\r\n"), "com.droiddeck.launcher")
@@ -835,6 +836,46 @@ class ScenarioTest(FakeAdbTest):
         self.assertEqual(1, code)
         self.assertEqual(2, len(report["runs"]))
         self.assertEqual([{"appId": 7, "timeout": 15.0}] * 2, [c["request"] for c in self.calls("quit")])
+
+
+    def test_numeric_bounds_and_metrics_summary(self):
+        self.configure({"state": state(focused=489830, focusable=[489830])})
+        path = self.write({"name": "t", "repeat": 3, "vars": {"low": 489000},
+                           "steps": [["state"],
+                                     {"assert": "session.focus.focusedApp", "min": "${low}", "max": 490000},
+                                     {"metric": "app", "from": "session.focus.focusedApp"}]})
+        code, report = self.run_scenario(path)
+        self.assertEqual(0, code)
+        self.assertEqual({"app": {"values": [489830] * 3, "min": 489830, "median": 489830, "max": 489830}},
+                         report["metrics"])
+        self.assertEqual({"app": 489830}, report["runs"][0]["metrics"])
+
+    def test_a_bound_fails_the_run(self):
+        self.configure({"state": state(focused=769, focusable=[769])}, dumpsys_display=DUMPSYS_DISPLAY)
+        path = self.write({"name": "t", "steps": [["state"], {"assert": "session.focus.focusedApp", "min": 1000}]})
+        code, report = self.run_scenario(path)
+        self.assertEqual(1, code)
+        self.assertIn("expected at least 1000", report["runs"][0]["error"])
+        self.assertEqual({}, report["metrics"])
+
+    def test_a_metric_that_is_not_a_number_fails_the_run(self):
+        self.configure({"state": state(focused=769, focusable=[769])}, dumpsys_display=DUMPSYS_DISPLAY)
+        path = self.write({"name": "t", "steps": [["state"], {"metric": "m", "from": "session.nothing"}]})
+        code, report = self.run_scenario(path)
+        self.assertEqual(1, code)
+        self.assertIn("expected a number", report["runs"][0]["error"])
+
+    def test_bundled_scenarios_are_valid(self):
+        for path in sorted((TOOLS / "scenarios").glob("*.json")):
+            body = json.loads(path.read_text())
+            resolved = scenario.substitute(body, body.get("vars", {}))
+            parser = ctl.build_parser()
+            for section in ("setup", "before", "steps", "after", "teardown"):
+                for step in resolved.get(section, []):
+                    if isinstance(step, list):
+                        parser.parse_args([str(word) for word in step])
+                    else:
+                        self.assertTrue({"assert", "metric", "sleep", "screenshot", "record"} & step.keys(), (path, step))
 
 
 class ProviderFallbackTest(unittest.TestCase):

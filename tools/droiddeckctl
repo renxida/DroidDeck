@@ -360,6 +360,14 @@ def pacing_summary(text: str, package: str = PACKAGE) -> dict:
             off += sum(count for ms, count in bins.items() if abs(ms - mode) > 1)
     intervals = sum(histogram.values())
     cadence = max(histogram, key=histogram.get) if histogram else None
+
+    def percentile(share: float) -> int | None:
+        seen = 0
+        for ms in sorted(histogram):
+            seen += histogram[ms]
+            if seen >= share * intervals:
+                return ms
+        return None
     return {
         "layers": sorted({name for name, _, _, _ in chosen}),
         "frames": sum(frames for _, frames, _, _ in chosen),
@@ -368,6 +376,9 @@ def pacing_summary(text: str, package: str = PACKAGE) -> dict:
         "cadenceMs": cadence,
         "offCadence": off,
         "offCadencePercent": round(100.0 * off / intervals, 1) if intervals else None,
+        "p50Ms": percentile(0.50),
+        "p95Ms": percentile(0.95),
+        "p99Ms": percentile(0.99),
     }
 
 
