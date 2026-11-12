@@ -488,6 +488,17 @@ jobs:
           test -f app/src/main/assets/venus/libvulkan_virtio.so
           rm venus.tzst
 
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build the .NET memory-ordering test (tools/tso-litmus)
+        run: |
+          set -euo pipefail
+          D=app/src/main/assets/linuxfs/usr/local/lib/droiddeck-tso-litmus
+          bash tools/tso-litmus/build.sh "$D" --smoke 20
+          test -f "$D/tso-litmus.exe" && test -f "$D/tso-litmus.dll"
+          PYTHONPATH=tools/tests python3 -m unittest test_tso_litmus test_game_environment.KeepCallerEnvTest
+
       - name: Build
         id: build
         env:
