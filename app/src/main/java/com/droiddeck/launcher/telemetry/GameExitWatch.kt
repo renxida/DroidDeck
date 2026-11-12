@@ -65,7 +65,7 @@ class GameExitWatch(private val alive: (Int) -> Boolean) {
             wrapperExitMs = nowMs
             return
         }
-        if (isCrashLine(text) && evidence.size < MAX_EVIDENCE) {
+        if ((execMs > 0 || games.isNotEmpty()) && evidence.size < MAX_EVIDENCE && isCrashLine(text)) {
             evidence.add(text.trim().take(MAX_LINE))
             evidenceMs = nowMs
             if (FATAL_MARKERS.any { text.contains(it) }) fatal = true

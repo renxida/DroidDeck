@@ -60,6 +60,18 @@ class GameExitWatchTest {
         assertTrue(exit.abnormal)
     }
 
+    @Test fun crashOutputWithNoGameRunningIsNotEvidence() {
+        watch.line("Segmentation fault (core dumped)", 1_000)
+        live += 5
+        watch.line("DROIDDECK_TIMELINE event=game_exec app_id=42 wall_ms=2000", 2_000)
+        watch.focus(5, "DXVK", steam = false, nowMs = 3_000)
+        live.clear()
+        watch.poll(4_000)
+        val exit = watch.poll(8_000).single()
+        assertFalse(exit.abnormal)
+        assertTrue(watch.poll(30_000).isEmpty())
+    }
+
     @Test fun steamTheCompositorAndDeadPidsAreNotGames() {
         live += listOf(1, 2)
         watch.focus(1, "GAMESCOPE", steam = false, nowMs = 0)
