@@ -1,8 +1,6 @@
 package com.droiddeck.launcher.session
 
 import java.io.File
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.util.concurrent.AbstractExecutorService
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
@@ -269,40 +267,6 @@ class SessionSuspendControllerTest {
         assertFalse(fixture.signals.drop(before).any { it.pid == helper.pid })
     }
 
-    @Test fun frozenTimeIsAddedToTheGuestClockBeforeItContinues() {
-        val fixture = fixture(17)
-        fixture.clock.writeBytes(shift(5_000_000L))
-        fixture.controller.freeze { assertTrue(it) }
-        fixture.now += 90_000L
-        fixture.controller.resume { assertTrue(it) }
-        val expected = 5_000_000L + 90_000L * 1_000_000L
-        assertEquals(expected, fixture.clockAtContinue)
-        assertEquals(expected, shift(fixture.clock))
-        fixture.controller.resume { assertTrue(it) }
-        assertEquals(expected, shift(fixture.clock))
-        fixture.controller.freeze { assertTrue(it) }
-        fixture.now += 1_000L
-        fixture.controller.closeAndResume {}
-        assertEquals(expected + 1_000L * 1_000_000L, shift(fixture.clock))
-    }
-
-    @Test fun rolledBackFreezeLeavesTheGuestClockAlone() {
-        val fixture = fixture(17)
-        fixture.clock.writeBytes(shift(0L))
-        fixture.neverStop = true
-        fixture.controller.freeze { assertFalse(it) }
-        fixture.controller.resume { }
-        assertEquals(0L, shift(fixture.clock))
-    }
-
-    @Test fun missingClockFileIsNotCreated() {
-        val fixture = fixture(17)
-        fixture.controller.freeze { assertTrue(it) }
-        fixture.now += 5_000L
-        fixture.controller.resume { assertTrue(it) }
-        assertFalse(fixture.clock.exists())
-    }
-
     @Test fun timeoutRollsBackAllKnownProcessesAndAudio() {
         val fixture = fixture(17)
         fixture.neverStop = true
@@ -447,10 +411,6 @@ class SessionSuspendControllerTest {
         assertEquals(0, fixture.audioSuspends)
     }
 
-    private fun shift(value: Long) = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(value).array()
-
-    private fun shift(file: File) = ByteBuffer.wrap(file.readBytes()).order(ByteOrder.LITTLE_ENDIAN).long
-
     private fun fixture(count: Int, executor: QueueExecutor = InlineExecutor()) =
         Fixture(temporary.newFolder(), temporary.newFolder(), count, executor)
 
@@ -476,8 +436,6 @@ class SessionSuspendControllerTest {
         var rootGone = false
         var afterSleep: (() -> Unit)? = null
         val control = File(tmp, ".bl-zram")
-        val clock = File(tmp, ".bl-clock")
-        var clockAtContinue: Long? = null
         val pagedOut = mutableListOf<Triple<Int, Long, Long>>()
         val pagedIn = mutableListOf<Triple<Int, Long, Long>>()
         var availableKb = 8_000_000L
@@ -495,8 +453,6 @@ class SessionSuspendControllerTest {
             { rootPid }, { helpers }, { audioSuspends++ }, { audioResumes++ },
             proc, ::signal, ::threadSignal, ::sleep, { now }, executor,
             zramControl = control,
-            clockControl = clock,
-            nowNanos = { now * 1_000_000L },
             pagedOut = { processes, unacknowledged, resident, swap, _, _ ->
                 pagedOut += Triple(processes, resident, swap)
                 this.unacknowledged = unacknowledged
@@ -519,9 +475,6 @@ class SessionSuspendControllerTest {
             } else if (signal == URG) {
                 if (control.readText() == "0") { pagingOut = false; pagingIn = true } else pagingOut = true
             } else if (signal == CONT) {
-                if (clockAtContinue == null && clock.isFile) {
-                    clockAtContinue = ByteBuffer.wrap(clock.readBytes()).order(ByteOrder.LITTLE_ENDIAN).long
-                }
                 continuing = true
                 if (!(pid == GAME && blockGameContinue)) group.threads.forEach { if (it.state != 'Z') it.state = 'S' }
             }
