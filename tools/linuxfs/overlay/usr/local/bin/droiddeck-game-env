@@ -53,7 +53,7 @@ def shortcut_number(value):
 
 DOTNET_FEX = {
     "FEX_TSOENABLED": "1",
-    "FEX_VECTORTSOENABLED": "0",
+    "FEX_VECTORTSOENABLED": "1",
     "FEX_MEMCPYSETTSOENABLED": "0",
     "FEX_HALFBARRIERTSOENABLED": "1",
     "FEX_X87REDUCEDPRECISION": "0",
@@ -105,7 +105,7 @@ def is_godot(game):
 @fix
 def dotnet_memory_ordering(game):
     if "coreclr.dll" in game.files:
-        return DOTNET_FEX, [], ".NET runtime: FEX with TSO, vector and memcpy/memset TSO off (experiment)"
+        return DOTNET_FEX, [], ".NET runtime: FEX with TSO, memcpy/memset TSO off (experiment)"
 
 
 @fix
