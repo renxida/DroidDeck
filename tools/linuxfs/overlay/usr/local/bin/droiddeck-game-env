@@ -1103,18 +1103,80 @@ def diagnostic_game_exit(app_id, raw_code):
     })
 
 
+# Low byte of the NTSTATUS a Windows process ended with: Wine's ntdll exits with
+# get_unix_exit_code(status), the status truncated to 8 bits. A program's own exit(n)
+# can collide, so these are likely causes, not proof.
+WINE_EXIT_BYTES = {
+    0x05: ("access_violation", "0xC0000005 access violation"),
+    0x06: ("dotnet_internal_error", "0x80131506 .NET internal runtime error (or 0xC0000006 in-page error)"),
+    0x09: ("fail_fast", "0xC0000409 fail-fast: a /GS check or .NET Environment.FailFast"),
+    0x0E: ("out_of_memory", "0x8007000E E_OUTOFMEMORY, e.g. the .NET runtime could not reserve its heap"),
+    0x17: ("out_of_memory", "0xC0000017 no memory"),
+    0x1D: ("illegal_instruction", "0xC000001D illegal instruction (an x86 instruction the emulator did not run)"),
+    0x52: ("dotnet_unhandled_exception", "0xE0434352 unhandled .NET exception"),
+    0x94: ("divide_by_zero", "0xC0000094 integer divide by zero"),
+    0x96: ("privileged_instruction", "0xC0000096 privileged instruction"),
+    0xFD: ("stack_overflow", "0xC00000FD stack overflow"),
+}
+EXIT_SIGNALS = (4, 6, 7, 8, 9, 11, 15)
+
+
+def signal_name(number):
+    try:
+        return signal.Signals(number).name
+    except ValueError:
+        return "signal %d" % number
+
+
+def classify_game_exit(raw_code, seconds):
+    """(class, detail) for the exit status of Proton's waitforexitandrun run."""
+    if raw_code < 0:
+        return "signal", "the Proton wrapper was ended by %s" % signal_name(-raw_code)
+    if raw_code == 0:
+        if seconds < 30:
+            return "clean_early", "exit 0 after %d s: a quick quit, or the game's process was killed " \
+                "(Wine records a Windows process killed from outside as exit 0)" % seconds
+        return "clean", "exit 0 (also what Wine records when the game's process is killed from outside)"
+    if 256 - raw_code in EXIT_SIGNALS:
+        return "wine_signal", "Wine's steam.exe process was ended by %s (Proton exits with 256 - signal)" % \
+            signal_name(256 - raw_code)
+    if raw_code in WINE_EXIT_BYTES:
+        name, text = WINE_EXIT_BYTES[raw_code]
+        return name, "likely " + text
+    return "exit_code", "exit code %d" % raw_code
+
+
+# Games whose launches wait for Proton by default, so the exit status reaches the log
+# (docs/research/crash-catalogue.md, C5 and I3): Slay the Spire 2.
+EXIT_WATCH_GAMES = frozenset({"2868840"})
+
+
+def exit_watch(app_id, env):
+    """Wait for Proton instead of exec'ing it: DROIDDECK_GAME_EXIT_WATCH=1 or 0, else the per-game default."""
+    setting = env.get("DROIDDECK_GAME_EXIT_WATCH", "")
+    if setting in ("0", "1"):
+        return setting == "1"
+    return app_id in EXIT_WATCH_GAMES
+
+
+def report_game_exit(app_id, raw_code, seconds):
+    kind, detail = classify_game_exit(raw_code, seconds)
+    print('DROIDDECK_GAME_EXIT app=%s status=%d class=%s seconds=%d detail="%s"' %
+          (app_id, raw_code, kind, seconds, detail.replace('"', "'")), file=sys.stderr, flush=True)
+
+
 def timeline_game_exit(app_id, raw_code, started):
     print("DROIDDECK_TIMELINE event=game_exit app_id=%s status=%d signal=%d run_ms=%d wall_ms=%d" % (
         app_id, 128 - raw_code if raw_code < 0 else raw_code, -raw_code if raw_code < 0 else 0,
         int((time.monotonic() - started) * 1000), int(time.time() * 1000)), file=sys.stderr, flush=True)
 
 
-def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None):
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
     started = time.monotonic()
-    if after or diagnostic_app_id is not None:
+    if after or diagnostic_app_id is not None or watch:
         process = subprocess.Popen(launch, env=launch_env)
         if diagnostic_app_id is not None:
             diagnostic_game_event("game_start", diagnostic_app_id)
@@ -1134,11 +1196,13 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
             diagnostic_game_exit(diagnostic_app_id, raw_code)
         if timeline_app_id:
             timeline_game_exit(timeline_app_id, raw_code, started)
+            report_game_exit(timeline_app_id, raw_code, int(time.monotonic() - started))
         return code
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
         if timeline_app_id:
             timeline_game_exit(timeline_app_id, code, started)
+            report_game_exit(timeline_app_id, code, int(time.monotonic() - started))
         if code == 0:
             record_install_scripts(digest, launch_env)
         return code
@@ -1394,6 +1458,7 @@ def main():
                 except OSError as undo:
                     print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); Wine uses its own copy "
                           "and the next launch puts the file back" % undo, file=sys.stderr)
+    watch = bool(waiting and app_id and exit_watch(app_id, env))
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if waiting:
@@ -1401,13 +1466,13 @@ def main():
               file=sys.stderr, flush=True)
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None)
+            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None)
+        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch)
     except OSError:
         if after:
             try:
