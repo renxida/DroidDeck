@@ -394,10 +394,7 @@ private fun PanelClock() {
 
 @Composable
 internal fun DualPanelPublisher(s: FrontEndState, selected: String, onSelect: (String) -> Unit, a: FrontEndActions) {
-    val badges = buildSet {
-        if (setupNeedsAttention(s)) add("setup")
-        if (s.updates.hasUpdate) add("updates")
-    }
+    val badges = if (setupNeedsAttention(s)) setOf("setup") else emptySet()
     val model = DualPanelModel(navigationKeys(s), selected, badges, s.running, s.theme, s.appScale, onSelect, a.onResume)
     androidx.compose.runtime.SideEffect { DualScreenPanel.model = model }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { DualScreenPanel.model = null } }

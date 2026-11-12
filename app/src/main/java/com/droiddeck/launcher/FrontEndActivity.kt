@@ -92,7 +92,6 @@ class FrontEndActivity : ComponentActivity() {
     private val ui = Handler(Looper.getMainLooper())
     private val drivers = DriverMenus(this, ui)
     private val components = ComponentsMenu(this, ui)
-    private val updates = UpdatesMenu(this, ui)
     private val protons = ProtonMenu(
         this, ui,
         idle = { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null },
@@ -954,7 +953,6 @@ class FrontEndActivity : ComponentActivity() {
         storesSort = SessionPrefs.storesSort(this)
         storesView = SessionPrefs.storesView(this)
         applyLauncherFullscreen()
-        updates.start()
         setContent {
             val prootPack by com.droiddeck.launcher.core.AddonPack.PROOT.state.collectAsState()
             androidx.compose.runtime.LaunchedEffect(prootPack) {
@@ -1021,7 +1019,6 @@ class FrontEndActivity : ComponentActivity() {
                         buildLabel = BuildConfig.BUILD_LABEL,
                         oscMode = oscMode,
                         controller = controllerSettings,
-                        updates = updates.state(),
                         phantomProcessStatus = phantomProcessStatus,
                         showPhantomGate = showPhantomGate,
                         orientation = orientation,
@@ -1405,7 +1402,6 @@ class FrontEndActivity : ComponentActivity() {
                                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                         },
-                        updates = updates.actions(),
                         controller = ControllerActions(
                             onMapping = { showPerformance = false; showComponents = false; showMapping = true },
                         ),
@@ -1660,7 +1656,6 @@ class FrontEndActivity : ComponentActivity() {
         }
         refreshPhantomStatus()
         syncLossless()
-        updates.onResume()
         drivers.checkOnOpen()
         resumeInterruptedPackages()
         protons.checkUpdates()
@@ -1741,7 +1736,6 @@ class FrontEndActivity : ComponentActivity() {
     override fun onDestroy() {
         gameLaunchRequest.incrementAndGet()
         cancelCompatLaunch()
-        updates.unregister()
         super.onDestroy()
     }
 

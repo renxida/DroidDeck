@@ -52,7 +52,6 @@ import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
-import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -125,7 +124,7 @@ internal fun navigationKeys(s: FrontEndState) = buildList {
     add("desktop")
     if (com.droiddeck.launcher.agent.AgentHost.available) add("agent")
     add("components")
-    add("setup"); add("updates")
+    add("setup")
 }
 
 internal object RailLabels {
@@ -197,8 +196,7 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
     "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
-    "setup" -> R.string.rail_setup to Icons.Outlined.Tune
-    else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
+    else -> R.string.rail_setup to Icons.Outlined.Tune
 }
 
 internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
@@ -214,7 +212,7 @@ private fun NavigationItems(
         val (label, icon) = railLabelIcon(key)
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
-                badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),
+                badge = key == "setup" && setupNeedsAttention,
                 place = place, onFocus = { onFocusSelect(key) }) { onSelect(key) }
         }
     }

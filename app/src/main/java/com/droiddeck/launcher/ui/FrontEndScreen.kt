@@ -174,7 +174,6 @@ class FrontEndState(
     val sgdbUserKey: Boolean = false,
     val storesSort: String = SessionPrefs.STORES_SORTS.first(),
     val storesView: String = SessionPrefs.DEFAULT_STORES_VIEW,
-    val updates: UpdatesState = UpdatesState(),
 )
 
 class FrontEndActions(
@@ -283,7 +282,6 @@ class FrontEndActions(
     val onShowPhantomGate: () -> Unit = {},
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
-    val updates: UpdatesActions = UpdatesActions(),
 )
 
 internal object Motion {

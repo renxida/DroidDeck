@@ -245,10 +245,6 @@ private fun Content(
         }
         return
     }
-    if (selected == "updates") {
-        UpdatesPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
-        return
-    }
     if (selected == "steam") {
         SteamHome(s, a, modifier)
         return
