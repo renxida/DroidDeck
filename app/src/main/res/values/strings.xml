@@ -883,6 +883,14 @@
     <string name="proton_cancel_queued">Cancel queued</string>
     <string name="pckb_android">Android keyboard</string>
     <string name="pckb_hide">Hide  ✕</string>
+    <string name="pckb_paste">Paste</string>
+    <string name="pckb_sign_in">Sign in…</string>
+    <string name="signin_sheet_title">Type a sign-in into the session</string>
+    <string name="signin_sheet_note">Tap the account name box in Steam first. Your password manager can fill these boxes. Kestrel types them into Steam (account name, Tab, password) and keeps nothing.</string>
+    <string name="signin_sheet_account">Account name</string>
+    <string name="signin_sheet_password">Password</string>
+    <string name="signin_sheet_type">Type into Steam</string>
+    <string name="signin_sheet_skipped">%1$d characters have no key on a US keyboard and were not typed</string>
     <string name="pckb_size">Size on screen</string>
     <string name="pckb_size_hint">Share of the screen the keyboard takes, header included.</string>
     <string name="pckb_opacity">Opacity</string>
