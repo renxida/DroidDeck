@@ -56,23 +56,8 @@ import java.io.File
 private fun installable(name: String, all: Map<String, WinComponents.Component>): String = WinComponents.installable(name, all)
 
 @Composable
-private fun originName(origin: String): String = if (origin == WinCompSources.Origin.XBOX.name) "Xbox" else if (origin == WinCompSources.Origin.UBISOFT.name) "Ubisoft Connect" else stringResource(
-    when (origin) {
-        WinCompSources.Origin.GOG.name -> R.string.wincomp_src_gog
-        WinCompSources.Origin.EPIC.name -> R.string.wincomp_src_epic
-        WinCompSources.Origin.AMAZON.name -> R.string.wincomp_src_amazon
-        else -> R.string.wincomp_src_steam
-    },
-)
-
-@Composable
 private fun autoReason(r: WinComponents.AutoReason): String = when (r.kind) {
     WinCompSources.Origin.STEAM.name -> stringResource(R.string.wincomp_auto_steam, r.args.getOrElse(1) { "" }, r.args.getOrElse(2) { "" }, r.args.getOrElse(3) { "" })
-    WinCompSources.Origin.GOG.name -> stringResource(R.string.wincomp_auto_gog)
-    WinCompSources.Origin.EPIC.name -> stringResource(R.string.wincomp_auto_epic)
-    WinCompSources.Origin.AMAZON.name -> stringResource(R.string.wincomp_auto_amazon)
-    WinCompSources.Origin.UBISOFT.name -> "From Ubisoft's install steps for this game"
-    WinCompSources.Origin.XBOX.name -> "Xbox games install it with the game (${r.args.getOrElse(0) { "VC14" }})"
     else -> ""
 }
 
@@ -365,7 +350,7 @@ internal fun WinComponentsDialog(
                             if (i > 0) Divider()
                             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
                                 Text(f.original, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
-                                Text(stringResource(R.string.wincomp_suggestion_reason, originName(f.origin.name)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.wincomp_suggestion_reason, stringResource(R.string.wincomp_src_steam)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }

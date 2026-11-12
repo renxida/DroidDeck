@@ -6,11 +6,8 @@ repo=$(cd "$here/../.." && pwd)
 out=${1:?usage: build.sh <out-dir>}
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
-linuxfs="$repo/app/src/main/assets/linuxfs/usr/local/lib"
 # shellcheck source=tracking/release.env
 source "$here/tracking/release.env"
-# shellcheck source=butler/release.env
-source "$here/butler/release.env"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -74,14 +71,5 @@ pack directaudio "$repo/app/src/main/assets/directaudio" \
     linux-wine11/version.txt linux-wine11-systhread/version.txt
 pack tracking "$work/tracking" hand_landmarker.task hand_landmarker_lite.task pose_landmarker_lite.task \
     libopencv_java4.so libmediapipe_tasks_jni.so
-pack xbox "$linuxfs/droiddeck-xbox" version xodus-cli xodus-service
-pack comet "$linuxfs/droiddeck-comet" version comet
 pack powervr "$repo/app/src/main/assets/hybris" runtime.tzst version.txt
-[ ! -f "$linuxfs/droiddeck-ubisoft/droiddeck-upc.exe" ] || pack ubisoft "$linuxfs/droiddeck-ubisoft" droiddeck-upc.exe
 
-mkdir "$work/butler"
-fetch "https://broth.itch.zone/butler/linux-arm64/${BUTLER_VERSION}/archive/default" \
-    "$BUTLER_ZIP_SHA256" "$work/butler.zip"
-unzip -q -j "$work/butler.zip" butler 7z.so libc7zip.so -d "$work/butler"
-printf '%s\n' "$BUTLER_VERSION" > "$work/butler/version"
-pack butler "$work/butler" version butler 7z.so libc7zip.so

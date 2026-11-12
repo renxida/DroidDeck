@@ -1,7 +1,0 @@
-query downloadUrl($offerId: String!, $buildId: String) {
-    downloadUrl(offerId: $offerId, buildId: $buildId) {
-        url
-        syncUrl
-        __typename
-    }
-}

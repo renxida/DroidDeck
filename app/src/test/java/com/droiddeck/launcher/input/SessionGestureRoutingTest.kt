@@ -31,17 +31,13 @@ class SessionGestureRoutingTest {
     private lateinit var activity: SessionActivity
     private lateinit var gestures: TouchscreenGestures
     private lateinit var steamTap: ThreeFingerTap
-    private lateinit var launcherScroll: ScrollTouchGestures
     private lateinit var directHold: DirectTouchHold
     private val keys = mutableListOf<Pair<Int, Boolean>>()
     private val directButtons = mutableListOf<Pair<Int, Boolean>>()
-    private val scrollPositions = mutableListOf<Pair<Float, Float>>()
-    private val scrollDeltas = mutableListOf<Pair<Float, Float>>()
     private var keyboards = 0
 
     @After fun tearDown() {
         if (::gestures.isInitialized) gestures.cancel()
-        if (::launcherScroll.isInitialized) launcherScroll.cancel()
         if (::directHold.isInitialized) directHold.cancel()
         SessionState.mode = SessionService.MODE_STEAM
         SessionState.steamUi = null
@@ -69,27 +65,10 @@ class SessionGestureRoutingTest {
         assertTrue(keys.isEmpty())
     }
 
-    @Test fun gestureModeKeepsItsBindingsWhileLauncherMouseIsAvailable() {
+    @Test fun gestureModeKeepsItsBindings() {
         prepare(SessionPrefs.TOUCH_GESTURES, TouchGestureConfig(threeFingerTapAction = "key_E"))
-        setField("padMouseOn", true)
         tapThreeFingers(expectSteamGesture = false)
         assertEquals(listOf(18 to true, 18 to false), keys)
-        assertTrue(scrollPositions.isEmpty())
-        assertTrue(scrollDeltas.isEmpty())
-    }
-
-    @Test fun directModeStillRoutesLauncherTouchesToScrolling() {
-        prepare(SessionPrefs.TOUCH_DIRECT)
-        setField("padMouseOn", true)
-        val down = SystemClock.uptimeMillis()
-        for ((index, action) in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP).withIndex()) {
-            val event = MotionEvent.obtain(down, down + index * 32L, action, 400f, if (index == 0) 300f else 200f, 0)
-            try { assertTrue(activity.onTouchEvent(event)) } finally { event.recycle() }
-        }
-        assertEquals(listOf(400f to 300f), scrollPositions)
-        assertTrue(scrollDeltas.isNotEmpty())
-        assertTrue(keys.isEmpty())
-        assertFalse(steamTap.active)
     }
 
     @Test fun upstreamSteamShortcutStillReceivesTouchesInLegacyModes() {
@@ -227,13 +206,6 @@ class SessionGestureRoutingTest {
             override fun cancel() {}
         }).also { it.configure(config) }
         setField("directTouchHold", directHold)
-        launcherScroll = ScrollTouchGestures(8f, 50f, object : ScrollTouchGestures.Listener {
-            override fun onMove(x: Float, y: Float) { scrollPositions += x to y }
-            override fun onButton(button: Int, pressed: Boolean) {}
-            override fun onScroll(dx: Float, dy: Float) { scrollDeltas += dx to dy }
-            override fun onLongPress() {}
-        })
-        setField("scrollTouch", launcherScroll)
     }
 
     private fun tapThreeFingers(expectSteamGesture: Boolean) {

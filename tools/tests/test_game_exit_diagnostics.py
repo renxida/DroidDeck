@@ -43,15 +43,6 @@ class GameExitDiagnosticsTest(unittest.TestCase):
             "event=game_exit app_id=42 raw_status=-15 normalized_status=143 wrapper_status=143 signal=15", said,
         )
 
-    def test_xbox_exit_is_recorded_without_inventing_a_start(self):
-        with contextlib.redirect_stderr(io.StringIO()) as said:
-            MODULE["diagnostic_game_exit"]("42", -signal.SIGTERM, "xbox", 241)
-        self.assertNotIn("event=game_start", said.getvalue())
-        self.assertIn(
-            "event=game_exit app_id=42 raw_status=-15 normalized_status=143 wrapper_status=241 signal=15 source=xbox",
-            said.getvalue(),
-        )
-
     def test_signal_handler_forwards_to_the_child(self):
         class Process:
             def __init__(self):
@@ -141,45 +132,6 @@ class GameExitDiagnosticsTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 7, result.stderr)
                 self.assertNotIn("DROIDDECK_DIAGNOSTICS", result.stderr)
-
-    def test_main_records_xbox_result_without_changing_it(self):
-        launch = lambda command, env: 23
-        with tempfile.TemporaryDirectory(prefix="xbox-exit-diagnostics-") as directory, \
-             mock.patch.dict(os.environ, {
-                 "HOME": directory,
-                 "PATH": os.defpath,
-                 "STEAM_COMPAT_DATA_PATH": "/compatdata/42",
-                 "DROIDDECK_ENHANCED_DIAGNOSTICS": "1",
-             }, clear=True), \
-             mock.patch("sys.argv", ["droiddeck-game-env", "/proton", "waitforexitandrun", "game.exe"]), \
-             mock.patch("runpy.run_path", return_value={"launch": launch}), \
-             contextlib.redirect_stderr(io.StringIO()) as said:
-            status = MODULE["main"]()
-        self.assertEqual(status, 23)
-        self.assertNotIn("event=game_start", said.getvalue())
-        self.assertIn(
-            "event=game_exit app_id=42 raw_status=23 normalized_status=23 wrapper_status=23 signal=0 source=xbox",
-            said.getvalue(),
-        )
-
-    def test_main_preserves_negative_xbox_result_and_reports_wrapper_status(self):
-        launch = lambda command, env: -signal.SIGTERM
-        with tempfile.TemporaryDirectory(prefix="xbox-signal-diagnostics-") as directory, \
-             mock.patch.dict(os.environ, {
-                 "HOME": directory,
-                 "PATH": os.defpath,
-                 "STEAM_COMPAT_DATA_PATH": "/compatdata/42",
-                 "DROIDDECK_ENHANCED_DIAGNOSTICS": "1",
-             }, clear=True), \
-             mock.patch("sys.argv", ["droiddeck-game-env", "/proton", "waitforexitandrun", "game.exe"]), \
-             mock.patch("runpy.run_path", return_value={"launch": launch}), \
-             contextlib.redirect_stderr(io.StringIO()) as said:
-            status = MODULE["main"]()
-        self.assertEqual(status, -signal.SIGTERM)
-        self.assertIn(
-            "event=game_exit app_id=42 raw_status=-15 normalized_status=143 wrapper_status=241 signal=15 source=xbox",
-            said.getvalue(),
-        )
 
 
 if __name__ == "__main__":

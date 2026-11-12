@@ -65,7 +65,6 @@ internal fun CardDetailHost(
     modifier: Modifier = Modifier,
     bleedHorizontal: Dp = 0.dp,
     bleedTop: Dp = 0.dp,
-    wrap: @Composable (key: String, content: @Composable () -> Unit) -> Unit = { _, content -> content() },
     grid: @Composable () -> Unit,
     detail: @Composable (key: String) -> Unit,
 ) {
@@ -80,10 +79,10 @@ internal fun CardDetailHost(
     var viewportH by remember { mutableStateOf(0) }
     LaunchedEffect(open) {
         if (open != null) {
-            val mark = StoresMotion.takeCard(open)
+            val mark = CardMotion.takeCard(open)
             from = mark?.let { Origin(it.bounds.translate(-viewportAt), it.corner) }
             art = mark?.art
-            StoresMotion.heroLands = mark != null
+            CardMotion.heroLands = mark != null
             leaving = false
             shown = open
         } else if (shown != null) {
@@ -124,36 +123,34 @@ internal fun CardDetailHost(
             ) { grid() }
         }
         shown?.let { key ->
-            wrap(key) {
-                val body: @Composable () -> Unit = {
+            val body: @Composable () -> Unit = {
+                Column(
+                    Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } }
+                        .verticalScroll(detailScroll).padding(bottom = 16.dp),
+                ) {
                     Column(
-                        Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } }
-                            .verticalScroll(detailScroll).padding(bottom = 16.dp),
+                        Modifier.fillMaxWidth()
+                            .onFocusChanged { onDetailFocus(it.hasFocus) }
+                            .focusProperties { exit = { if (coveringNow.value && Steps.step == null) FocusRequester.Cancel else FocusRequester.Default } }
+                            .focusGroup(),
                     ) {
-                        Column(
-                            Modifier.fillMaxWidth()
-                                .onFocusChanged { onDetailFocus(it.hasFocus) }
-                                .focusProperties { exit = { if (coveringNow.value && Steps.step == null && StoresMotion.step == null) FocusRequester.Cancel else FocusRequester.Default } }
-                                .focusGroup(),
-                        ) {
-                            val floor = { viewportAt.y + viewportH - with(density) { 16.dp.toPx() } - detailScroll.value }
-                            CompositionLocalProvider(LocalDetailFloor provides floor, LocalDetailInset provides DetailInset(bleedHorizontal, bleedTop + 4.dp)) { detail(key) }
-                        }
+                        val floor = { viewportAt.y + viewportH - with(density) { 16.dp.toPx() } - detailScroll.value }
+                        CompositionLocalProvider(LocalDetailFloor provides floor, LocalDetailInset provides DetailInset(bleedHorizontal, bleedTop + 4.dp)) { detail(key) }
                     }
                 }
-                val origin = from
-                if (origin == null) body()
-                else {
-                    val painter = art?.let { url ->
-                        coil.compose.rememberAsyncImagePainter(
-                            remember(url) {
-                                coil.request.ImageRequest.Builder(ctx).data(url).size(1280, 720)
-                                    .placeholderMemoryCacheKey(url).build()
-                            },
-                        )
-                    }
-                    PageFlood(origin, leaving, painter, onto = { StoresMotion.heroAt }, ontoCorner = 16.dp) { body() }
+            }
+            val origin = from
+            if (origin == null) body()
+            else {
+                val painter = art?.let { url ->
+                    coil.compose.rememberAsyncImagePainter(
+                        remember(url) {
+                            coil.request.ImageRequest.Builder(ctx).data(url).size(1280, 720)
+                                .placeholderMemoryCacheKey(url).build()
+                        },
+                    )
                 }
+                PageFlood(origin, leaving, painter, onto = { CardMotion.heroAt }, ontoCorner = 16.dp) { body() }
             }
         }
     }

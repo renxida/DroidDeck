@@ -1,7 +1,7 @@
 package com.droiddeck.launcher.frontend
 
 import com.droiddeck.launcher.BuildConfig
-import com.droiddeck.launcher.stores.CredentialCipher
+import com.droiddeck.launcher.core.CredentialCipher
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
@@ -194,10 +194,5 @@ class AddedGameArtLookupTest {
         assertEquals("heroes/game/5?nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.BACKGROUND))
         assertEquals("grids/game/5?dimensions=600x900&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.COVER))
         assertEquals("grids/game/5?dimensions=460x215,920x430&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.WIDE))
-    }
-
-    @Test fun anExactLookupDoesNotTakeTheBaseGameForASubtitledOne() {
-        assertNull(SteamGridDb.exactMatch("World of Warcraft: Forever", listOf(1 to "World of Warcraft")))
-        assertEquals(2, SteamGridDb.exactMatch("World of Warcraft: Forever", listOf(1 to "World of Warcraft", 2 to "World of Warcraft: Forever")))
     }
 }

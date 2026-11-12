@@ -195,26 +195,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("androidTextFieldKeyboard", on).apply()
     }
 
-    fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", true)
-
-    fun setGameStoresEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("gameStoresEnabled", on).apply()
-    }
-
-    fun gameStoresSpeedTier(context: Context): String = prefs(context).getString("gameStoresSpeedTier", "fast") ?: "fast"
-
-    fun setGameStoresSpeedTier(context: Context, tier: String) {
-        prefs(context).edit().putString("gameStoresSpeedTier", tier).apply()
-    }
-
-    fun storesEpicMode(context: Context): String = prefs(context).getString("storesEpicMode", "adaptive") ?: "adaptive"
-
-    fun storesShowMature(context: Context): Boolean = prefs(context).getBoolean("storesShowMature", false)
-
-    fun setStoresShowMature(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean("storesShowMature", show).apply()
-    }
-
     fun storesSort(context: Context): String =
         prefs(context).getString("storesSort", null)?.takeIf { it in STORES_SORTS } ?: STORES_SORTS.first()
 
@@ -253,75 +233,11 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
-    fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
-
-    fun setLibraryShowUninstalled(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean("libraryShowUninstalled", show).apply()
-    }
-
-    fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
-
-    fun setStoresTabOrder(context: Context, order: List<String>) {
-        prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
-    }
-
-    fun storesTabHidden(context: Context): Set<String> = idList(prefs(context).getString("storesTabHidden", null)).toSet()
-
-    fun setStoresTabHidden(context: Context, hidden: Set<String>) {
-        prefs(context).edit().putString("storesTabHidden", hidden.joinToString(",")).apply()
-    }
-
     private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
-    val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
+    val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc")
     val STORES_VIEWS = listOf("cards", "capsules", "list")
     const val DEFAULT_STORES_VIEW = "capsules"
-
-    fun storesInstallTarget(context: Context): String = prefs(context).getString("storesInstallTarget", "") ?: ""
-
-    fun setStoresInstallTarget(context: Context, path: String) {
-        prefs(context).edit().putString("storesInstallTarget", path).apply()
-    }
-
-    fun storesInstallLanguage(context: Context): String = prefs(context).getString("storesInstallLanguage", "") ?: ""
-
-    fun setStoresInstallLanguage(context: Context, code: String) {
-        prefs(context).edit().putString("storesInstallLanguage", code).apply()
-    }
-
-    const val DEFAULT_STORAGE_ASK = "ask"
-    const val DEFAULT_STORAGE_INTERNAL = "internal"
-    const val DEFAULT_STORAGE_EXTERNAL = "external"
-    private val DEFAULT_STORAGE_VALUES = setOf(DEFAULT_STORAGE_ASK, DEFAULT_STORAGE_INTERNAL, DEFAULT_STORAGE_EXTERNAL)
-
-    fun defaultStorage(context: Context): String =
-        prefs(context).getString("defaultStorage", DEFAULT_STORAGE_ASK)
-            ?.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK
-
-    fun setDefaultStorage(context: Context, value: String) {
-        prefs(context).edit().putString("defaultStorage", value.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK).apply()
-    }
-
-    fun defaultStorageFolder(context: Context): String = prefs(context).getString("defaultStorageFolder", "") ?: ""
-
-    fun defaultStorageFolderLabel(context: Context): String = prefs(context).getString("defaultStorageFolderLabel", "") ?: ""
-
-    fun setDefaultStorageFolder(context: Context, path: String, label: String) {
-        prefs(context).edit()
-            .putString("defaultStorageFolder", path)
-            .putString("defaultStorageFolderLabel", label)
-            .apply()
-    }
-
-    fun clearDefaultStorageFolder(context: Context) {
-        prefs(context).edit().remove("defaultStorageFolder").remove("defaultStorageFolderLabel").apply()
-    }
-
-    fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
-
-    fun setGameStoresParallel(context: Context, count: Int) {
-        prefs(context).edit().putInt("gameStoresParallel", count.coerceIn(1, 3)).apply()
-    }
 
     fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
@@ -362,8 +278,6 @@ object SessionPrefs {
     }
 
     const val PC_KEYBOARD_SIZE_DEFAULT = 47
-    const val WOW_CHAT_VOICE = "voice"
-    const val WOW_CHAT_KEYBOARD = "keyboard"
     val PC_KEYBOARD_SIZE_RANGE = 25..70
     const val PC_KEYBOARD_OPACITY_DEFAULT = 100
     val PC_KEYBOARD_OPACITY_RANGE = 30..100
@@ -373,13 +287,6 @@ object SessionPrefs {
 
     fun setPcKeyboardSize(context: Context, percent: Int) {
         prefs(context).edit().putInt("pcKeyboardSize", percent.coerceIn(PC_KEYBOARD_SIZE_RANGE)).apply()
-    }
-
-    fun wowChatInput(context: Context): String? =
-        prefs(context).getString("wowChatInput", null)?.takeIf { it == WOW_CHAT_VOICE || it == WOW_CHAT_KEYBOARD }
-
-    fun setWowChatInput(context: Context, mode: String?) {
-        prefs(context).edit().apply { if (mode == null) remove("wowChatInput") else putString("wowChatInput", mode) }.apply()
     }
 
     fun pcKeyboardOpacity(context: Context): Int =
@@ -1005,12 +912,6 @@ object SessionPrefs {
     ): Boolean = EnhancedDiagnostics.isCurrentSessionActive(context) ||
         (logs && gameLogs && SessionPaths.currentSessionLogsRetained(context))
 
-    fun battleNetNoSteamSet(context: Context): Boolean = prefs(context).getBoolean("battleNetNoSteamSet", false)
-    fun setBattleNetNoSteamSet(context: Context) { prefs(context).edit().putBoolean("battleNetNoSteamSet", true).apply() }
-
-    fun battleNetFolder(context: Context, code: String): String? = prefs(context).getString("battleNetFolder:$code", null)
-    fun setBattleNetFolder(context: Context, code: String, path: String) { prefs(context).edit().putString("battleNetFolder:$code", path).apply() }
-
     fun clearCachedApps(context: Context): Boolean = prefs(context).getBoolean("clearCachedApps", false)
     fun setClearCachedApps(context: Context, on: Boolean) { prefs(context).edit().putBoolean("clearCachedApps", on).apply() }
 
@@ -1245,22 +1146,6 @@ object SessionPrefs {
     fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
         prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
 
-    fun followStoreGame(context: Context, key: String, folderPath: String, gone: (String) -> Boolean) = synchronized(addedGameLock) {
-        val p = prefs(context)
-        val previous = p.getString("storeFolder:$key", null)
-        if (previous == folderPath) return@synchronized
-        if (previous != null && !gone(previous)) return@synchronized
-        val edit = p.edit().putString("storeFolder:$key", folderPath)
-        if (previous != null && !p.contains("addedAppId:$folderPath")) {
-            val moved = movedAddedGame(p.all, previous, folderPath)
-            moved.keys.forEach { edit.remove(it) }
-            moved.values.forEach { (name, value) -> edit.putValue(name, value) }
-            val removed = removedAddedGames(context)
-            if (previous in removed) edit.putString("removedAddedGames", removed.map { if (it == previous) folderPath else it }.joinToString("\n"))
-        }
-        edit.apply()
-    }
-
     fun inheritAddedGame(context: Context, from: String, to: String) = synchronized(addedGameLock) {
         val p = prefs(context)
         val all = p.all
@@ -1281,12 +1166,6 @@ object SessionPrefs {
             is Float -> putFloat(name, value)
         }
     }
-
-    internal fun movedAddedGame(all: Map<String, *>, from: String, to: String): Map<String, Pair<String, Any?>> =
-        all.filterKeys { it.startsWith("added") && it.endsWith(":$from") }.mapValues { (name, value) ->
-            val moved = if (value is String && (value == from || value.startsWith("$from/"))) to + value.removePrefix(from) else value
-            name.removeSuffix(from) + to to moved
-        }
 
     fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
         val p = prefs(context)

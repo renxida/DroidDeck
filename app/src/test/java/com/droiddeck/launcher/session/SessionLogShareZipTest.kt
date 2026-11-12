@@ -2,10 +2,7 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
-import java.text.SimpleDateFormat
 import java.util.UUID
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import org.junit.Assert.assertEquals
@@ -116,7 +113,7 @@ class SessionLogShareZipTest {
         }
     }
 
-    @Test fun everyTextFileInTheZipIsScrubbedAndTheStoresAndToolsLogsComeAlong() {
+    @Test fun everyTextFileInTheZipIsScrubbedAndTheToolsLogsComeAlong() {
         val logs = LinuxRuntime.logDir(app)
         val session = File(logs, "2026-10-08-01-steam").apply { mkdirs() }
         File(session, "session.log").writeText(
@@ -126,16 +123,14 @@ class SessionLogShareZipTest {
                 "Authorization: Bearer abc.def.ghi\n" +
                 "kept: EResult 5, app 1086940, steamapps/common/Game\n"
         )
-        val storesLog = "stores-" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + ".log"
-        File(logs, "stores").apply { mkdirs() }.resolve(storesLog).writeText("epic: f_token=zzzzzzzz12 window 32\n")
         File(logs, SessionPaths.TOOLS_DIR).apply { mkdirs() }.resolve("flatpak-install.log").writeText("== install\nCookie: steamLoginSecure=76561198000000000%7C%7Ceyabc\n")
 
         val zip = SessionLogShare.zipFolder(app, session)!!
         assertTrue(zip.path.startsWith(File(app.cacheDir, "share").path))
         val text = ZipFile(zip).use { z -> z.entries().toList().associate { e -> e.name to z.getInputStream(e).bufferedReader().readText() } }
-        assertTrue(text.keys.containsAll(listOf("2026-10-08-01-steam/session.log", "stores/$storesLog", "tools/flatpak-install.log")))
+        assertTrue(text.keys.containsAll(listOf("2026-10-08-01-steam/session.log", "tools/flatpak-install.log")))
         val all = text.values.joinToString("\n")
-        for (secret in listOf("0a1b2c3d4e5f", "deadbeefcafe", "abcdef123456", "someone@example.com", "AUTHCODE123", "abc.def.ghi", "zzzzzzzz12", "eyabc")) {
+        for (secret in listOf("0a1b2c3d4e5f", "deadbeefcafe", "abcdef123456", "someone@example.com", "AUTHCODE123", "abc.def.ghi", "eyabc")) {
             assertFalse("$secret survived", all.contains(secret))
         }
         assertTrue(all.contains("kept: EResult 5, app 1086940, steamapps/common/Game"))
@@ -143,34 +138,6 @@ class SessionLogShareZipTest {
 
         SessionLogShare.clear(app)
         assertFalse(zip.exists())
-    }
-
-    @Test fun battleNetAndBlizzardLogsComeAlongScrubbedAndNewestFirst() {
-        val session = File(LinuxRuntime.logDir(app), "2026-10-25-05-battle-net").apply { mkdirs() }
-        File(session, "session.log").writeText("droiddeck-battlenet: open (from the menu)\n")
-        val root = LinuxRuntime.rootDir(app)
-        File(root, "root/.cache/droiddeck/battlenet").apply { mkdirs() }.apply {
-            resolve("battlenet.log").writeText("launching WoW\n")
-            resolve("other.log").writeText("other\n")
-        }
-        val drive = File(com.droiddeck.launcher.runtime.BattleNet.prefix(app), "pfx/drive_c")
-        val client = File(drive, "users/steamuser/AppData/Local/Battle.net/Logs").apply { mkdirs() }
-        val now = System.currentTimeMillis()
-        for (i in 1..8) client.resolve("battle.net-$i.log").apply { writeText("client $i accountId=1:0:5ca1ab1e\n"); setLastModified(now - i * 60_000L) }
-        client.resolve("battle.net-old.log").apply { writeText("old\n"); setLastModified(now - 30L * 86_400_000L) }
-        File(drive, "ProgramData/Battle.net/Agent/Agent.9824/Logs").apply { mkdirs() }.resolve("Agent-1.log").writeText("agent someone@example.com\n")
-        File(drive, "ProgramData/Battle.net/Agent/Agent.9900/Logs").apply { mkdirs() }.resolve("Agent-1.log").writeText("agent 9900\n")
-        File(drive, "ProgramData/Battle.net/Setup/bna_2/Logs").apply { mkdirs() }.resolve("battle.net-setup-1.log").writeText("setup\n")
-
-        val zip = SessionLogShare.zipFolder(app, session)!!
-        val text = ZipFile(zip).use { z -> z.entries().toList().associate { e -> e.name to z.getInputStream(e).bufferedReader().readText() } }
-        assertTrue(text.keys.containsAll(listOf("battlenet/droiddeck/battlenet.log", "battlenet/agent/Agent.9824/Agent-1.log", "battlenet/agent/Agent.9900/Agent-1.log", "battlenet/setup/bna_2/battle.net-setup-1.log")))
-        assertFalse(text.containsKey("battlenet/droiddeck/other.log"))
-        assertEquals((1..6).map { "battlenet/client/battle.net-$it.log" }.toSet(), text.keys.filter { it.startsWith("battlenet/client/") }.toSet())
-        val all = text.values.joinToString("\n")
-        assertFalse(all.contains("5ca1ab1e"))
-        assertFalse(all.contains("someone@example.com"))
-        SessionLogShare.clear(app)
     }
 
     @Test fun theSharePassChangesNothingInACleanLine() {

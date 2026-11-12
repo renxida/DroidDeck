@@ -17,7 +17,6 @@ class LibraryPermsTest(unittest.TestCase):
         self.home = self.root / "home"
         self.steam = self.home / ".local/share/Steam"
         self.card = self.root / "card"
-        self.stores = self.root / "stores"
         (self.steam / "steamapps").mkdir(parents=True)
         (self.steam / "steamapps/libraryfolders.vdf").write_text(
             '"libraryfolders"\n{\n\t"0"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n\t"1"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n}\n'
@@ -46,7 +45,7 @@ class LibraryPermsTest(unittest.TestCase):
         return path
 
     def run_script(self):
-        env = dict(os.environ, HOME=str(self.home), DROIDDECK_STORES_ROOT=str(self.stores))
+        env = dict(os.environ, HOME=str(self.home))
         for path in reversed(self.locked):
             if path.is_dir():
                 path.chmod(0o500)
@@ -60,13 +59,12 @@ class LibraryPermsTest(unittest.TestCase):
         data = self.folder(self.steam / "steamapps/common/Game/Data")
         game = self.file(data / "game.esm", 0o444)
         card = self.file(self.card / "steamapps/common/Other/settings.ini")
-        gog = self.file(self.home / "Games/Stores/GOG/Fallout New Vegas/Fallout_default.ini")
-        store = self.file(self.stores / "abc/Game/config.cfg")
+        added = self.file(self.home / "Games/Fallout New Vegas/Fallout_default.ini")
         out = self.run_script()
         self.assertEqual(self.mode(ini) & 0o600, 0o600)
         self.assertEqual(self.mode(game), 0o644)
         self.assertEqual(self.mode(data) & 0o700, 0o700)
-        for path in (card, gog, store):
+        for path in (card, added):
             self.assertEqual(self.mode(path) & 0o600, 0o600, path)
         self.assertIn("made writable", out)
 

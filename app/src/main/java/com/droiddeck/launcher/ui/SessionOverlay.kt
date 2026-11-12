@@ -267,13 +267,8 @@ class DrawerActions(
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
-    val wowChatShown: Boolean = false,
-    val wowChat: String? = null,
-    val onWowChat: (String?) -> Unit = {},
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
-    val onAchievements: (() -> Unit)? = null,
-    val achievementsProgress: Pair<Int, Int>? = null,
     val onOsc: (String) -> Unit,
     val onEditSteamTouch: (() -> Unit)? = null,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
@@ -531,11 +526,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     )
                     if (!docked) StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
-                a.onAchievements?.let { show ->
-                    DrawerAchievementsRow(a.achievementsProgress, Modifier.padding(top = if (short) 6.dp else 10.dp).then(focus.track(page, "achievements"))) {
-                        host.open = null; show()
-                    }
-                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -700,15 +690,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         host.open = null; a.onKeyboard()
                                     }
                                 }
-                                if (a.wowChatShown) ChoiceRow(
-                                    host, "wow-chat", stringResource(R.string.wow_chat_title), null,
-                                    listOf(
-                                        null to stringResource(R.string.wow_chat_ask),
-                                        SessionPrefs.WOW_CHAT_VOICE to stringResource(R.string.wow_chat_voice),
-                                        SessionPrefs.WOW_CHAT_KEYBOARD to stringResource(R.string.pckb_android),
-                                    ),
-                                    a.wowChat, chipModifier = focus.track(page, "wow-chat"), onPick = a.onWowChat,
-                                )
                                 val keyboardContext = LocalContext.current
                                 remember { PcKeyboardPrefs.load(keyboardContext) }
                                 SliderRow(

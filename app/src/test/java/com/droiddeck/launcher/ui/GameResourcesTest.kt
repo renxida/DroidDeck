@@ -28,8 +28,6 @@ class GameResourcesTest {
         assertEquals("https://store.steampowered.com/account/remotestorageapp/?appid=292030", links.single { it.label == R.string.game_resource_steam_cloud }.url)
         val others = listOf(
             Library.SteamGame(292030, steam.name, null, Library.ADDED),
-            Library.SteamGame(292030, steam.name, null, Library.ADDED, source = "gog", storeId = "292030"),
-            Library.SteamGame(292030, steam.name, null, Library.XBOX_CLOUD, source = "xbox"),
             Library.SteamGame(-1, steam.name, null, "/steam"),
         )
         others.forEach { game ->

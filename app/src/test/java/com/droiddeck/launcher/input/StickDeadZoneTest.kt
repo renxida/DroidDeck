@@ -186,17 +186,6 @@ class StickDeadZoneTest {
         assertEquals(0f, pad().rightX)
     }
 
-    @Test fun routedTouchStickWritesKeepSeparatePhysicalInput() {
-        motion(device(), MotionEvent.AXIS_X to 0.05f)
-        bridge.setTouchRoute(object : PadBridge.TouchRoute {
-            override fun active() = true
-            override fun accept(state: PadState) { assertEquals(0f, state.leftX) }
-        })
-        bridge.applyTouch(PadBridge.LEFT_STICK) { it.leftX = 0f; it.leftY = 0f }
-        bridge.setStickDeadZone(0)
-        assertEquals(0.05f, pad().leftX)
-    }
-
     @Test fun touchButtonOnlyWritesKeepFilteredPhysicalSticks() {
         motion(device(), MotionEvent.AXIS_X to 0.05f)
         bridge.applyTouch { it.press(PadState.A, true) }
@@ -304,32 +293,6 @@ class StickDeadZoneTest {
         motion(device(joyCon = true), MotionEvent.AXIS_X to 0.01f, MotionEvent.AXIS_Y to -0.02f)
         assertEquals(0.01f, pad().leftX)
         assertEquals(-0.02f, pad().leftY)
-    }
-
-    @Test fun stickSettingDoesNotChangeMouseAxisHelpers() {
-        bridge.setStickDeadZone(0)
-        for (wired in listOf(false, true)) {
-            var horizontal = 0f
-            var vertical = 0f
-            val mouse = PadMouse(object : PadMouse.Listener {
-                override fun active() = true
-                override fun onScrollStart() {}
-                override fun onScroll(dx: Float, dy: Float) { horizontal += dx; vertical += dy }
-                override fun onKey(evdev: Int, pressed: Boolean) {}
-                override fun onKeyboard() {}
-                override fun onNavigate() {}
-                override fun scrollSpeed() = 2000f
-            }) { 1000L }
-            val event = if (wired) event(device(wired = true, id = 62), MotionEvent.AXIS_RX to 0.02f,
-                MotionEvent.AXIS_RY to 0.6f, MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
-            else event(device(), MotionEvent.AXIS_Z to 0.02f, MotionEvent.AXIS_RZ to 0.6f)
-            try {
-                assertTrue(mouse.onMotion(event))
-                mouse.step(0.1f)
-                assertEquals(0f, horizontal)
-                assertTrue(vertical > 0f)
-            } finally { event.recycle(); mouse.reset() }
-        }
     }
 
     @Test fun zeroDeadZoneDriftDoesNotConsumeBackTap() {

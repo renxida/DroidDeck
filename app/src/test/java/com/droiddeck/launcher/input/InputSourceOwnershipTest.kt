@@ -211,21 +211,6 @@ class InputSourceOwnershipTest {
         override fun requestMotion() { events += "motion" }
     }
 
-    @Test fun removingLastTouchSurfaceReleasesLegacyMouseRoute() {
-        val routed = PadState()
-        bridge.setTouchRoute(object : PadBridge.TouchRoute {
-            override fun active() = true
-            override fun accept(state: PadState) { routed.copyFrom(state) }
-        })
-        val first = Any(); val second = Any()
-        bridge.applyTouch(first, InputRole.PRIMARY) { it.press(PadState.A, true) }
-        bridge.applyTouch(second, InputRole.SECONDARY) { it.press(PadState.A, true) }
-        bridge.releaseTouch(first)
-        assertTrue(routed.isDown(PadState.A))
-        bridge.releaseTouch(second)
-        assertFalse(routed.isDown(PadState.A))
-    }
-
     @Test fun nativeTrackpadKeepsItsOwnerUntilThatContactEnds() {
         val first = DeckControls.source(InputRole.PRIMARY)
         val second = DeckControls.source(InputRole.SECONDARY)

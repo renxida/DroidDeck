@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.stores.download.StoreDownloadService
 
 /**
  * Says what happened to a Lab build when the app starts, so a restart onto a new build does not
@@ -43,7 +42,7 @@ object LabNotice {
         manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, app.getString(R.string.upd_lab), NotificationManager.IMPORTANCE_DEFAULT))
         val open = PendingIntent.getActivity(
             app, NOTIFICATION_ID,
-            Intent(app, FrontEndActivity::class.java).putExtra(StoreDownloadService.EXTRA_NAV, nav)
+            Intent(app, FrontEndActivity::class.java).putExtra(FrontEndActivity.EXTRA_NAV, nav)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )

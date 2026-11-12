@@ -52,7 +52,6 @@ class AddedExesTest {
         assertEquals(pick.path, game.exe.path)
         assertEquals("/root/Storage/Download/Celeste/Celeste.exe", game.guestExe)
         assertEquals("/root/Storage/Download/Celeste", game.guestDir)
-        assertEquals(Library.ADDED, game.source)
         assertTrue(File(app.filesDir, "session/added-games.json").readText().contains("Celeste.exe"))
 
         val again = AddedGames.addExe(app, pick)

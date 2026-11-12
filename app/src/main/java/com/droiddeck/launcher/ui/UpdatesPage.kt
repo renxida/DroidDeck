@@ -298,7 +298,7 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions, sessionRunning: B
         LabBuilds(sessionRunning, onRebuild = if (agentReady) { info ->
             com.droiddeck.launcher.agent.AgentHost.send(context, context.getString(R.string.agent_rebuild_lab, info.label))
             context.startActivity(android.content.Intent(context, com.droiddeck.launcher.FrontEndActivity::class.java)
-                .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "agent")
+                .putExtra(com.droiddeck.launcher.FrontEndActivity.EXTRA_NAV, "agent")
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
         } else null)
     }

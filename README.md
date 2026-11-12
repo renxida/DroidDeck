@@ -47,13 +47,13 @@ Help, Preview builds and device reports are on [Discord](https://discord.gg/JRGA
 
 ## Build
 
-Needs Docker, Java 17, the Android SDK and NDK, Rust via rustup, GitHub CLI, Python 3 and `zstd`.
+Needs Docker, Java 17, the Android SDK and NDK, GitHub CLI, Python 3 and `zstd`.
 
 ```bash
 tools/build_local.sh
 ```
 
-The APK lands in `app/build/outputs/apk/release/`. Install it with `tools/deploy_local.sh`. After the first run, `./gradlew :app:assembleRelease` reuses the prepared inputs. Unit tests run with `./gradlew -PskipRust=true :app:testDebugUnitTest`, and the helper and preload suite with `bash tools/test_local.sh`.
+The APK lands in `app/build/outputs/apk/release/`. Install it with `tools/deploy_local.sh`. After the first run, `./gradlew :app:assembleRelease` reuses the prepared inputs. Unit tests run with `./gradlew :app:testDebugUnitTest`, and the helper and preload suite with `bash tools/test_local.sh`.
 
 On Windows, see `tools/run_windows.ps1` and `tools/prepare_windows_runtime.py`.
 
@@ -90,16 +90,6 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 <details>
 <summary><b>Stores</b></summary>
 
-- Epic Games and GOG build on [Phobos](https://github.com/phobos665)'s adaptation of [Legendary](https://github.com/legendary-gl/legendary) and [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl). GOG install script registry entries are read the way [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher) (GPL-3.0) reads them.
-- Epic's official Linux launcher preview runs through FEX. That setup is outside Epic's listed Linux support.
-- Battle.net is by [@kayakyakr](https://github.com/kayakyakr). It runs Blizzard's own client in Proton (downloaded from Blizzard, not included) and shows key art from the [Battle.net Shop](https://shop.battle.net). Without Steam, its games see the pad as an Xbox 360 controller via `PROTON_SPOOF_STEAMINPUT_VIDPID` in [Proton](https://github.com/ValveSoftware/wine)'s `dlls/winebus.sys`.
-- The EA store follows the EA app's protocols as documented by [ArmchairDevelopers](https://github.com/ArmchairDevelopers)' [Maxima](https://github.com/ArmchairDevelopers/Maxima) (GPL-3.0): sign-in, the GraphQL queries (included verbatim, since EA matches them by hash), build archives, online activation licences and the LSX game endpoint. The code is DroidDeck's own.
-- Battle.net installs drive Blizzard's Agent the way [@barncastle](https://github.com/barncastle)'s [Battle.Net-Installer](https://github.com/barncastle/Battle.Net-Installer) does, with requests from [wowdev.wiki](https://wowdev.wiki/Agent). Read without taking code: [@mubaraknumann](https://github.com/mubaraknumann)'s [unifideck](https://github.com/mubaraknumann/unifideck), [@djmittens](https://github.com/djmittens)'s [neo-mittens](https://github.com/djmittens/neo-mittens) `bnetswitch`, [@BCD1210](https://github.com/BCD1210)'s [soju](https://github.com/BCD1210/soju) and [Lutris](https://github.com/lutris/lutris)'s `product.db` reader.
-- World of Warcraft addon imports replace an addon's folder from a temporary copy, as [WowUp](https://github.com/WowUp/WowUp) does, and read flavour folders the way [WoWDeck](https://github.com/sigboe/wowdeck) does. No code from either is used.
-- The World of Warcraft addon Download window searches [WoWInterface](https://www.wowinterface.com) through its MMOUI API. [CurseForge](https://www.curseforge.com/wow) opens in the user's browser, with no API and no key.
-- Xbox games load [@domsvoboda](https://github.com/domsvoboda)'s [xodus-nexus](https://github.com/domsvoboda/xodus-nexus) modules (LGPL-2.1-or-later), including `wintypes.dll`. Minecraft's GameInput setup was checked against [@Wyze3306](https://github.com/Wyze3306)'s [BedrockOnLinux](https://github.com/Wyze3306/BedrockOnLinux) (MIT).
-- The Xbox Cloud Gaming player uses the WebRTC client of [@unknownskl](https://github.com/unknownskl)'s [Greenlight](https://github.com/unknownskl/greenlight) (MIT), and its offer tweaks and sharpening follow [@redphx](https://github.com/redphx)'s [Better xCloud](https://github.com/redphx/better-xcloud) (MIT). See `tools/xcloud-player/NOTICE.md`.
-- The itch.io butler pack ships butler's `7z.so`, itch.io's build of [7-Zip](https://www.7-zip.org) by Igor Pavlov (LGPL-2.1, unRAR restriction on RAR code), unmodified. Other archives use Apache Commons Compress and the runtime's bsdtar (libarchive).
 - The Store uses [Flatpak](https://github.com/flatpak/flatpak) (LGPL-2.1) through DroidDeck's own bubblewrap shim. Chromium and Electron apps start directly, since [zypak](https://github.com/refi64/zypak) by [@refi64](https://github.com/refi64) (BSD-3-Clause) always uses Flatpak's spawn portal.
 - Folder sync runs [Syncthing](https://github.com/syncthing/syncthing) (MPL-2.0), built from [@researchxxl](https://github.com/researchxxl)'s [syncthing-android](https://github.com/researchxxl/syncthing-android) fork (MPL-2.0).
 

@@ -92,7 +92,7 @@ class AgentHostService : Service() {
             val open = PendingIntent.getActivity(context, 0,
                 Intent(context, FrontEndActivity::class.java)
                     .setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                    .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "agent"),
+                    .putExtra(FrontEndActivity.EXTRA_NAV, "agent"),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             val stop = PendingIntent.getService(context, 1, Intent(context, AgentHostService::class.java).setAction(ACTION_STOP),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

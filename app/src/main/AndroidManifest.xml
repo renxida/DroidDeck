@@ -199,7 +199,6 @@
             </intent-filter>
         </activity>
 
-
         <activity
             android:name=".sync.SyncthingWebActivity"
             android:exported="false"
@@ -216,38 +215,6 @@
 
         <activity
             android:name=".files.FilePickerActivity"
-            android:exported="false"
-            android:screenOrientation="user"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
-            android:theme="@style/AppTheme" />
-
-        <activity android:name=".stores.xbox.XboxLoginActivity" android:exported="false"
-            android:process=":xboxlogin" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
-            android:theme="@style/AppTheme" />
-
-        <activity android:name=".stores.xbox.XboxCloudPlayerActivity" android:exported="false"
-            android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
-            android:theme="@style/AppTheme" />
-
-        <service android:name=".stores.xbox.XboxCloudTokenService" android:exported="false" />
-
-        <activity android:name=".stores.xbox.XboxNativePlayerActivity" android:exported="false"
-            android:process=":xcloudnative" android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
-            android:theme="@style/AppTheme" />
-
-        <activity android:name=".stores.xbox.XboxCloudActivity" android:exported="false"
-            android:process=":xboxcloud" android:launchMode="singleTop" android:screenOrientation="sensorLandscape"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
-            android:theme="@style/AppTheme" />
-
-        <activity android:name=".stores.xbox.XboxCloudSettingsActivity" android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
-            android:theme="@style/AppTheme" />
-
-        <activity
-            android:name=".stores.StoreLoginActivity"
             android:exported="false"
             android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
@@ -319,10 +286,6 @@
         <service
             android:name=".core.WirelessAdbPairingService"
             android:exported="false" />
-        <service
-            android:name=".stores.download.StoreDownloadService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
         <service
             android:name=".sync.SyncthingService"
             android:exported="false"

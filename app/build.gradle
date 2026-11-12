@@ -93,7 +93,7 @@ def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLine
 def prootPackPin = rootProject.file('tools/packs/proot/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
-def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft'].collectEntries { name ->
+def addonPacks = ['proot', 'directaudio', 'tracking', 'powervr'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
@@ -205,7 +205,7 @@ android {
     }
 
     androidResources {
-        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>droiddeck-ubisoft:<dir>directaudio:<dir>hybris'
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>directaudio:<dir>hybris'
     }
 
     packagingOptions {
@@ -292,13 +292,6 @@ if (uvcDir) {
 }
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
-def stageGogNotices = tasks.register('stageGogNotices', Copy) {
-    from(layout.projectDirectory.dir('src/main/rust/stores/vendor/xdelta3')) { include 'LICENSE', 'README.droiddeck.md' }
-    into(layout.buildDirectory.dir('gogNotices/licenses/xdelta3'))
-}
-android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('gogNotices'))
-tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
-
 if (!ciBuild) {
     def stageLocalPacks = tasks.register('stageLocalPacks', Sync) {
         from(layout.buildDirectory.dir('packs')) { include '*.tar.zst' }
@@ -318,38 +311,6 @@ def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
 tasks.configureEach { task ->
     if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
 }
-
-def rustCrateDir = layout.projectDirectory.dir('src/main/rust/stores')
-def rustJniLibsDir = layout.buildDirectory.dir('rustJniLibs')
-def skipRust = (project.findProperty('skipRust')
-    ?: localBuildOptions.getProperty('droiddeck.skipRust', 'false')).toString().toBoolean()
-def buildRustStores = tasks.register('buildRustStores', Exec) {
-    description = 'Cross-compiles the store download engines (libdroiddeckstores.so) with cargo-ndk.'
-    onlyIf { !skipRust }
-    inputs.dir(rustCrateDir.dir('src'))
-    inputs.dir(rustCrateDir.dir('vendor'))
-    inputs.file(rustCrateDir.file('build.rs'))
-    inputs.files(rustCrateDir.file('Cargo.toml'), rustCrateDir.file('Cargo.lock'))
-    inputs.property('ndkVersion', android.ndkVersion)
-    if (!skipRust) inputs.property('rustToolchain', providers.exec {
-        environment 'PATH', "${System.getProperty('user.home')}/.cargo/bin${File.pathSeparator}${System.getenv('PATH')}"
-        commandLine 'rustup', 'run', 'stable', 'rustc', '-Vv'
-    }.standardOutput.asText)
-    outputs.dir(rustJniLibsDir)
-    workingDir rustCrateDir
-    def cargoBin = "${System.getProperty('user.home')}/.cargo/bin"
-    environment 'PATH', "${cargoBin}${File.pathSeparator}${System.getenv('PATH')}"
-    environment 'ANDROID_NDK_HOME', android.ndkDirectory.absolutePath
-    environment 'CARGO_TERM_COLOR', 'never'
-    if (!skipRust) environment 'RUSTC', providers.exec {
-        commandLine 'rustup', 'which', '--toolchain', 'stable', 'rustc'
-    }.standardOutput.asText.get().trim()
-    commandLine 'rustup', 'run', 'stable', 'cargo', 'ndk', '--target', 'arm64-v8a', '--platform', '26',
-        '--output-dir', rustJniLibsDir.get().asFile.absolutePath,
-        'build', '--release', '--locked'
-}
-if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
-tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 def maliBridgeDir = rootProject.file('external/MaliBridge')
 def vkbridgeJniLibsDir = layout.buildDirectory.dir('vkbridgeJniLibs')

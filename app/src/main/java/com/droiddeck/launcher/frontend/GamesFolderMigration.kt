@@ -3,8 +3,6 @@ package com.droiddeck.launcher.frontend
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.stores.StoreGameSidecar
-import com.droiddeck.launcher.stores.StoreInstallRoot
 import java.io.File
 import java.util.zip.CRC32
 
@@ -20,13 +18,11 @@ object GamesFolderMigration {
         SessionPrefs.setGameFolderBinds(context, SessionPrefs.gameFolderBinds(context) + roots.map { it.host.path to it.guest })
         val removed = SessionPrefs.removedAddedGames(context).toSet()
         val entries = AddedExes.list(context).map { it.folder }.toMutableSet()
-        val storeRoots = StoreInstallRoot.roots(context).map { it.absolutePath }
         for (root in roots) {
             var n = 0
             val steamInstalls = AddedGames.steamInstallDirs(root.host)
             for (top in root.host.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() }.orEmpty()) {
                 if (AddedGames.isSteamLibraryFolder(top.name) || top.name.lowercase() in steamInstalls) continue
-                if (top.absolutePath in storeRoots || StoreGameSidecar.read(top) != null) continue
                 if (top.path in entries) continue
                 val topPick = SessionPrefs.addedGameExe(context, top.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
                 val groups = AddedGames.groupGames(top)
@@ -39,7 +35,6 @@ object GamesFolderMigration {
                     else -> (groups + owner).sortedBy { it.name.lowercase() }
                 }
                 for (folder in folders) {
-                    if (folder.absolutePath in storeRoots || StoreGameSidecar.read(folder) != null) continue
                     if (folder.path in entries) continue
                     val picked = SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
                         ?: topPick?.takeIf { it.path.startsWith(folder.path + File.separator) }

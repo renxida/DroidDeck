@@ -5,7 +5,6 @@ import android.util.Log
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
-import com.droiddeck.launcher.stores.SteamLiveShortcuts
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption

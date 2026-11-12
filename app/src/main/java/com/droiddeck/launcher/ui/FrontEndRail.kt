@@ -123,7 +123,6 @@ internal fun BottomBar(
 
 internal fun navigationKeys(s: FrontEndState) = buildList {
     add("steam"); add("games")
-    if (s.gameStoresEnabled) add("stores")
     add("desktop")
     if (com.droiddeck.launcher.agent.AgentHost.available) add("agent")
     add("components")
@@ -197,7 +196,6 @@ internal fun SideRail(
 internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
-    "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
     "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
@@ -220,7 +218,6 @@ private fun NavigationItems(
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
                 badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),
-                count = if (key == "stores") s.storeDownloadsActive else 0,
                 place = place, onFocus = { onFocusSelect(key) }) { onSelect(key) }
         }
     }
@@ -231,7 +228,6 @@ private fun NavigationItems(
 private fun RailItem(
     label: String, icon: ImageVector, key: String, current: Boolean, compact: Boolean, iconOnly: Boolean, height: Dp, width: Dp,
     badge: Boolean = false,
-    count: Int = 0,
     place: (String) -> Modifier = { Modifier },
     onFocus: () -> Unit = {}, onClick: () -> Unit,
 ) {
@@ -285,12 +281,6 @@ private fun RailItem(
         if (badge) Box(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = if (iconOnly) 7.dp else 8.dp, end = if (iconOnly) 9.dp else 18.dp)
                 .size(8.dp).clip(CircleShape).background(AttentionAmber),
-        )
-        if (count > 0) Text(
-            if (count > 9) "9+" else count.toString(),
-            fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.onSignal, maxLines = 1,
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = if (iconOnly) 4.dp else 6.dp, end = if (iconOnly) 5.dp else 12.dp)
-                .landingPop().clip(RoundedCornerShape(8.dp)).background(pal.signal).padding(horizontal = 5.dp, vertical = 1.dp),
         )
     }
 }

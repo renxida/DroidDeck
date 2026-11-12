@@ -205,24 +205,6 @@ class SessionSecondScreenTest {
         } finally { panel.closeControls() }
     }
 
-    @Test fun profileRefreshPreservesTheLowerScreenChatPanel() {
-        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
-        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
-        var lost = 0
-        val panel = SecondScreenPresentation(activity, display, {}, {}, {})
-        try {
-            panel.show()
-            panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
-            panel.showChat(onLost = { lost++ }) { androidx.compose.material3.Text("Chat draft") }
-            val chat: View? = ReflectionHelpers.getField(panel, "chatView")
-            assertNotNull(chat)
-            panel.refreshControls()
-            assertSame(chat, ReflectionHelpers.getField<View?>(panel, "chatView"))
-            assertTrue(descendants(panel.window!!.decorView).any { it === chat })
-            assertEquals(0, lost)
-        } finally { panel.closeControls() }
-    }
-
     @Test
     @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class])
     fun controllerBumpersReachTheSecondScreenInBothSessionModes() {

@@ -392,52 +392,12 @@ tar -cf - -C "${bundle_dir}" . | zstd -19 -T0 -c > "${staging_dir}/pulseaudio.tz
 mkdir -p "${repo_root}/app/build/prepared-assets"
 mv "${staging_dir}/pulseaudio.tzst" "${repo_root}/app/build/prepared-assets/pulseaudio.tzst"
 
-gradle_rust_arg=""
-if [[ "${DROIDDECK_SKIP_RUST:-0}" == 1 ]]; then
-    gradle_rust_arg="-PskipRust=true"
-else
-    export PATH="${HOME}/.cargo/bin:${PATH}"
-    for tool in rustup cargo; do
-        if ! command -v "${tool}" >/dev/null 2>&1; then
-            echo "${tool} is required for the store engines (https://rustup.rs); set DROIDDECK_SKIP_RUST=1 to build without them." >&2
-            exit 1
-        fi
-    done
-    rustup target add --toolchain stable aarch64-linux-android
-    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${cache_dir}/stores-target}"
-    if ! command -v cargo-ndk >/dev/null 2>&1; then
-        cargo install cargo-ndk --locked
-    fi
-fi
-
 cd "${repo_root}"
 python3 tools/quest/build-driver.py "${NDK}"
-xbox_out="${linuxfs_dir}/usr/local/lib/droiddeck-xbox"
-xbox_key=$(inputs_hash "native-arm64-ubuntu24.04" tools/xbox)
-if ! restore_step xbox "${xbox_key}" "${xbox_out}"; then
-    bash tools/xbox/build-local.sh
-    save_step xbox "${xbox_key}" "${xbox_out}"
-fi
-
-comet_out="${linuxfs_dir}/usr/local/lib/droiddeck-comet"
-comet_key=$(inputs_hash "${image_id}" tools/comet)
-if ! restore_step comet "${comet_key}" "${comet_out}"; then
-    DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
-    save_step comet "${comet_key}" "${comet_out}"
-fi
-if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
-    upc_out="${linuxfs_dir}/usr/local/lib/droiddeck-ubisoft"
-    upc_key=$(inputs_hash "x86_64-pc-windows-gnu" tools/ubisoft-launcher/src tools/ubisoft-launcher/Cargo.toml tools/ubisoft-launcher/Cargo.lock tools/ubisoft-launcher/build.sh)
-    if ! restore_step ubisoft "${upc_key}" "${upc_out}"; then
-        command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { echo "x86_64-w64-mingw32-gcc is required for the Ubisoft launcher service (droiddeck-upc.exe)." >&2; exit 1; }
-        CARGO_TARGET_DIR="${cache_dir}/ubisoft-target" bash tools/ubisoft-launcher/build.sh "${upc_out}"
-        save_step ubisoft "${upc_key}" "${upc_out}"
-    fi
-fi
 python3 tools/powervr/fetch.py
 bash tools/packs/build.sh app/build/packs
 python3 tools/release/runtime_inputs.py record
-./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
+./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}"
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 python3 tools/release/runtime_inputs.py apk "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 
@@ -457,10 +417,7 @@ done
 
 readelf_path=$(find "${NDK}/toolchains/llvm/prebuilt" -name llvm-readelf | head -1)
 [[ -x "${readelf_path}" ]] || { echo "NDK llvm-readelf is missing" >&2; exit 1; }
-stores_check=()
-[[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]] || stores_check+=(--without-stores)
-python3 tools/release/check_android_libraries.py "${apk}" --readelf "${readelf_path}" "${stores_check[@]}"
-git diff --exit-code -- app/src/main/rust/stores/Cargo.lock
+python3 tools/release/check_android_libraries.py "${apk}" --readelf "${readelf_path}"
 
 build_tools=$(find "${sdk_dir}/build-tools" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)
 if [[ ! -x "${build_tools}/zipalign" || ! -x "${build_tools}/apksigner" ]]; then

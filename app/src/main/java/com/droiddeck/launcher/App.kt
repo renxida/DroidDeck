@@ -27,18 +27,6 @@ class App : Application() {
         val process = if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName()
             else (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)
                 .runningAppProcesses?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName
-        if (process == "$packageName:xboxlogin") {
-            if (android.os.Build.VERSION.SDK_INT >= 28) android.webkit.WebView.setDataDirectorySuffix("xbox")
-            return
-        }
-        if (process == "$packageName:xboxcloud") {
-            if (android.os.Build.VERSION.SDK_INT >= 28) android.webkit.WebView.setDataDirectorySuffix("xboxcloud")
-            return
-        }
-        if (process == "$packageName:xcloudnative") {
-            com.droiddeck.launcher.stores.StoresState.init(this)
-            return
-        }
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic" ||
             process == "$packageName:shortcuts_sync" || process == "$packageName:bottom_desktop") return
         CrashHandler.install(this)
@@ -58,18 +46,7 @@ class App : Application() {
         BwrapSpawner.start(this)
         com.droiddeck.launcher.runtime.RootSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
-        com.droiddeck.launcher.stores.StoresState.init(this)
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gog.GogBackend)
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.epic.EpicBackend)
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.amazon.AmazonBackend)
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.itch.ItchBackend)
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gamejolt.GameJoltBackend)
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
         com.droiddeck.launcher.sync.Syncthing.init(this)
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.battlenet.BattleNetBackend)
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.ubisoft.UbisoftBackend)
-        com.droiddeck.launcher.stores.ea.EaBackend.app = this
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.ea.EaBackend)
     }
 
     private fun prefetchAddonPacks() {
@@ -80,11 +57,6 @@ class App : Application() {
                     com.droiddeck.launcher.core.AddonPack.PROOT.ensure(app)
                     com.droiddeck.launcher.core.AddonPack.DIRECTAUDIO.ensure(app)
                 }
-                if (com.droiddeck.launcher.stores.gog.GogComet.enabled(app)) com.droiddeck.launcher.core.AddonPack.COMET.ensure(app)
-                if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.XBOX) != null)
-                    com.droiddeck.launcher.core.AddonPack.XBOX.ensure(app)
-                if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.UBISOFT) != null)
-                    com.droiddeck.launcher.session.SessionFiles.ensureUbisoftService(app)
                 com.droiddeck.launcher.handtracking.HandTracking.load(app)
             }.onFailure { android.util.Log.w("App", "add-on pack prefetch failed", it) }
         }, "addon-packs").start()

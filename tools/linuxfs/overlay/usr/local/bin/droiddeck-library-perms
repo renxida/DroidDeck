@@ -6,7 +6,6 @@ import sys
 
 HOME = os.environ.get("HOME", "/root")
 STEAM = os.path.join(HOME, ".local/share/Steam")
-STORES = os.environ.get("DROIDDECK_STORES_ROOT", "/mnt/droiddeck-stores")
 TOOLS = re.compile(r"^(Proton |Proton$|SteamLinuxRuntime|Steamworks Shared$)")
 
 
@@ -31,10 +30,6 @@ def roots():
         for name in ("common", "compatdata"):
             found.append((os.path.join(library, "steamapps", name), name == "common"))
     found.append((os.path.join(HOME, "Games"), False))
-    try:
-        found += [(entry.path, False) for entry in os.scandir(STORES) if entry.is_dir(follow_symlinks=False)]
-    except OSError:
-        pass
     return [(path, skip_tools) for path, skip_tools in found if os.path.isdir(path)]
 
 

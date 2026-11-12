@@ -26,10 +26,6 @@ object AgentGuest {
         private set
     var keyboardRequests by mutableIntStateOf(0)
         private set
-    var gameTextField by mutableStateOf(false)
-        private set
-    var gameProgram by mutableStateOf<String?>(null)
-        private set
     var keyboardDismissals by mutableIntStateOf(0)
         private set
     @Volatile private var keyboardRoute = false
@@ -48,7 +44,7 @@ object AgentGuest {
             observer?.stopWatching()
             observer = null
             lastFocusKey = null
-            main.post { steamKeyboard = false; desktopTextField = false; gameTextField = false; gameProgram = null }
+            main.post { steamKeyboard = false; desktopTextField = false }
             val dir = dir(context)
             dir.deleteRecursively()
             dir.mkdirs()
@@ -78,7 +74,7 @@ object AgentGuest {
         synchronized(lock) {
             observer?.stopWatching()
             observer = null
-            main.post { steamKeyboard = false; desktopTextField = false; gameTextField = false; gameProgram = null }
+            main.post { steamKeyboard = false; desktopTextField = false }
         }
     }
 
@@ -139,10 +135,7 @@ object AgentGuest {
     private fun recordGameTextField(source: FileObserver, snapshot: JSONObject) {
         val focused = snapshot.optBoolean("textField")
         val program = snapshot.optString("program").takeIf { it.isNotEmpty() }
-        synchronized(lock) {
-            if (source !== observer) return
-            main.post { gameProgram = program; gameTextField = focused }
-        }
+        synchronized(lock) { if (source !== observer) return }
         SessionEvents.record("game.ime.changed", mapOf("textField" to focused, "program" to program, "seq" to snapshot.optInt("seq")))
     }
 

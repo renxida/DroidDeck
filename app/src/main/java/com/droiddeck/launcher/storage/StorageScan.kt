@@ -14,7 +14,7 @@ import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 
-enum class Bucket { GAMES, GAME_DATA, TOOLS, COMPONENTS, STORES, DESKTOP, SYSTEM, DROIDDECK }
+enum class Bucket { GAMES, GAME_DATA, TOOLS, COMPONENTS, DESKTOP, SYSTEM, DROIDDECK }
 
 class GameUsage(
     val appId: Int, val name: String, val art: File?, val library: String, val internal: Boolean, val lastPlayed: Long,
@@ -260,12 +260,11 @@ object StorageScan {
         val prefixes = inApps("compatdata") + privatePrefixes
         val shaders = inApps("shadercache") + privateShaders
         val workshop = inApps("workshop")
-        val stores = m(File(rootfs, "root/Games"))
         val flatpak = m(File(rootfs, "root/.local/share/flatpak"))
         val rootfsBytes = m(rootfs)
         val privateBytes = privateRoots.sumOf { m(it) }
         val system = rootfsBytes - installs - inApps("compatdata") - inApps("shadercache") - workshop -
-            compatTools - stores - flatpak
+            compatTools - flatpak
         val componentBytes = m(componentsDir)
         val droiddeck = m(files) + m(context.cacheDir) - rootfsBytes - privateBytes - componentBytes +
             (privateBytes - toolsPrivate - privatePrefixes - privateShaders)
@@ -277,7 +276,6 @@ object StorageScan {
                 Bucket.GAME_DATA to (prefixes + shaders + workshop),
                 Bucket.TOOLS to toolsInApps + toolsPrivate + compatTools,
                 Bucket.COMPONENTS to componentBytes,
-                Bucket.STORES to stores,
                 Bucket.DESKTOP to flatpak,
                 Bucket.SYSTEM to system.coerceAtLeast(0),
                 Bucket.DROIDDECK to droiddeck.coerceAtLeast(0),

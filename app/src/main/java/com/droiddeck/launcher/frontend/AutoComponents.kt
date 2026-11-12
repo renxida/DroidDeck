@@ -11,7 +11,6 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.WinComponents
-import com.droiddeck.launcher.stores.StoreGameSidecar
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
@@ -23,7 +22,6 @@ object AutoComponents {
 
     fun appKey(game: Library.SteamGame): String? =
         when {
-            game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id -> game.profileKey
             game.library == Library.ADDED -> Integer.toUnsignedString(game.appId)
             else -> game.appId.takeIf { it > 0 }?.toString()
         }
@@ -218,11 +216,9 @@ object AutoComponents {
         knownCatalog: Map<String, WinComponents.Component>? = null) {
         val key = appKey(game) ?: return
         val folder = game.gameFiles
-        if (game.library == Library.ADDED && game.source == Library.ADDED && folder != null && SteamMatch.get(context, folder.path) == null) {
+        if (game.library == Library.ADDED && folder != null && SteamMatch.get(context, folder.path) == null) {
             AddedGames.single(context, folder.path)?.let { SteamMatch.resolve(context, folder.path, it.exe, it.name) }
         }
-        val store = com.droiddeck.launcher.stores.Store.byId(game.source)
-        if (folder != null && (store == com.droiddeck.launcher.stores.Store.GOG || store == com.droiddeck.launcher.stores.Store.EPIC)) StoreListBackfill.fill(context, folder)
         if (knownCatalog == null && asked && online(context)) steamAppOf(context, game)?.let { SteamAppInfo.lookup(context, listOf(it)) }
         val findings = findings(context, game)
         val refreshed = if (knownCatalog == null && asked && online(context)) catalogOf(context, true) else null
@@ -380,8 +376,6 @@ object AutoComponents {
             DETECTORS,
             folder?.lastModified(),
             folder?.let { SteamRedists.manifest(it, game.appId)?.lastModified() },
-            folder?.let { StoreGameSidecar.file(it).lastModified() },
-            folder?.let { File(it, "fuel.json").lastModified() },
             folder?.listFiles { f -> f.name.lowercase().let { it.startsWith("installscript") && it.endsWith(".vdf") } }
                 ?.maxOfOrNull { it.lastModified() },
             SteamAppInfo.appinfoFile(context).lastModified(),

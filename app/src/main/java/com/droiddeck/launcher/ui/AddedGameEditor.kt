@@ -200,16 +200,6 @@ internal fun SteamGameArtEditor(
 }
 
 @Composable
-internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Unit, onChanged: () -> Unit) {
-    val app = LocalContext.current.applicationContext
-    var game by remember(folder) { mutableStateOf<AddedGames.Game?>(null) }
-    LaunchedEffect(folder) { game = withContext(Dispatchers.IO) { AddedGameEdits.game(app, folder) } }
-    val g = game
-    val target = remember(g?.appId) { g?.let { ArtTarget.of(it) } }
-    ArtOnlyEditor(name, target, g, { c -> g?.let { AddedGameArt.describe(c, it) }.orEmpty() }, onClose, onChanged)
-}
-
-@Composable
 private fun ArtOnlyEditor(
     name: String, target: ArtTarget?, refresh: Any?, describe: (Context) -> List<AddedGameArt.SlotState>,
     onClose: () -> Unit, onChanged: () -> Unit,

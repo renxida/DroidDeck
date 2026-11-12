@@ -34,7 +34,6 @@ public final class PadBridge {
             KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR,
             KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2
     };
-    private static final int[] ROUTED_PASS_THROUGH = {PadState.GUIDE, PadState.QAM, PadState.SELECT};
     private static final long QAM_GUIDE_LEAD_MIN_MS = 80;
     private static final long QAM_GUIDE_LEAD_MAX_MS = 1500;
     private static final int QAM_GUIDE_LEAD_FRAMES = 8;
@@ -68,7 +67,6 @@ public final class PadBridge {
 
     private static final class TouchSource {
         final PadState raw = new PadState();
-        final PadState passthrough = new PadState();
         final InputRole role;
         boolean routed;
         InputRouter.PadSource route;
@@ -77,9 +75,6 @@ public final class PadBridge {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean open;
     private volatile boolean builtinPad = true;
-    private TouchRoute touchRoute;
-    private boolean touchMouseActive;
-    private final PadState routedTouch = new PadState();
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
     private boolean backQamPressed;
@@ -195,7 +190,6 @@ public final class PadBridge {
     private void resetBuiltin() {
         homeGuidePressed = false;
         clearBackQamWrites();
-        routedTouch.clear();
         for (TouchSource source : touchSources.values()) {
             source.raw.clear();
             if (source.route != null) source.route.release();
@@ -596,18 +590,6 @@ public final class PadBridge {
         return false;
     }
 
-    public interface TouchRoute {
-        boolean active();
-
-        void accept(PadState state);
-    }
-
-    public synchronized void setTouchRoute(TouchRoute route) {
-        touchRoute = route;
-        touchMouseActive = false;
-        routedTouch.clear();
-    }
-
     public synchronized void applyTouch(java.util.function.Consumer<PadState> mutation) {
         applyTouch(defaultTouchSource, InputRole.PRIMARY, 0, mutation);
     }
@@ -631,7 +613,7 @@ public final class PadBridge {
         }
         float lx = source.raw.leftX, ly = source.raw.leftY, rx = source.raw.rightX, ry = source.raw.rightY;
         mutation.accept(source.raw);
-        if (inputRouter == null && (touchRoute == null || !touchRoute.active())) {
+        if (inputRouter == null) {
             if ((stickWrites & LEFT_STICK) != 0 || source.raw.leftX != lx || source.raw.leftY != ly) {
                 retainedSticks[0] &= ~LEFT_STICK;
                 state.leftX = state.leftY = 0f;
@@ -705,7 +687,6 @@ public final class PadBridge {
         qamChordGeneration++;
         if (inputRouter != null) inputRouter.releaseAll();
         if (inputRouter == null) for (TouchSource source : touchSources.values()) source.raw.clear();
-        routedTouch.clear();
         DeckControls.INSTANCE.suspend();
         if (inputRouter == null) clearPlayerState(0);
         homeGuidePressed = false;
@@ -1122,23 +1103,14 @@ public final class PadBridge {
     private void publish() {
         if (!builtinPad && !open && owners[0] == NO_CONTROLLER && partners[0] == NO_CONTROLLER) return;
         PadState output = physicalRoutes[0] == null ? state : physicalRoutes[0].route(state);
-        boolean mouseRoute = (!touchSources.isEmpty() || touchMouseActive) && touchRoute != null && touchRoute.active();
-        touchMouseActive = mouseRoute && !touchSources.isEmpty();
-        if (mouseRoute) routedTouch.clear();
         if (!touchSources.isEmpty()) {
             combinedState.copyFrom(output);
             for (TouchSource source : touchSources.values()) {
                 PadState touch = source.route == null ? source.raw : source.route.route(source.raw);
-                if (mouseRoute) {
-                    routedTouch.merge(touch);
-                    source.passthrough.clear();
-                    for (int button : ROUTED_PASS_THROUGH) source.passthrough.press(button, touch.isDown(button));
-                    combinedState.merge(source.passthrough);
-                } else combinedState.merge(touch);
+                combinedState.merge(touch);
             }
             output = combinedState;
         }
-        if (mouseRoute) touchRoute.accept(routedTouch);
         boolean guide = systemGuidePressed || qamChordActive || guideTapPressed || homeGuidePressed;
         boolean routedQam = output.isDown(PadState.QAM);
         boolean routedQamStarted = routedQam && !routedQamPressed;

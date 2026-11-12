@@ -80,7 +80,6 @@ import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.stores.download.StoreDownloadTier
 import com.droiddeck.launcher.R
 
 
@@ -456,7 +455,6 @@ internal fun SetupPanel(
                                 remember { RailLabels.load(railContext) }
                                 ToggleRow(host, "rail-labels", stringResource(R.string.setup_rail_labels), stringResource(R.string.setup_rail_labels_hint), RailLabels.shown) { RailLabels.set(railContext, it) }
                                 LanguageRow(host, s.language, a.onLanguage)
-                                ToggleRow(host, "show-stores", stringResource(R.string.setup_stores), null, s.gameStoresEnabled, onChange = a.onGameStoresEnabled)
                             }
                         }
                         val device: @Composable () -> Unit = {
@@ -745,7 +743,7 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     val steamCard: (@Composable (Modifier) -> Unit)? = if (game != null && steamScope != null) { m ->
         Box(m) { GameSettingsCard(host, game, steamScope) }
     } else null
-    val cards = if (game?.library == com.droiddeck.launcher.frontend.Library.EPIC_LAUNCHER) listOfNotNull(steamCard) else buildList<@Composable (Modifier) -> Unit> {
+    val cards = buildList<@Composable (Modifier) -> Unit> {
         add { m ->
             val back = stringResource(R.string.hop_from_games)
             SettingCard(stringResource(R.string.setup_card_components), stringResource(R.string.setup_card_components_hint), "card:components", m.hopSource("card:components")) {
@@ -765,12 +763,6 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
         }
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
         if (steamCard != null) add(steamCard)
-        val cardStore = com.droiddeck.launcher.stores.Store.byId(game?.source.orEmpty())?.takeIf { it == com.droiddeck.launcher.stores.Store.EPIC || it == com.droiddeck.launcher.stores.Store.GOG }
-        if (cardStore != null && game?.gameFiles != null) add { m ->
-            Box(m) {
-                StoreLaunchCard(host, game.gameFiles!!, cardStore)
-            }
-        }
         if (wincompKey != null) add { m ->
             SettingCard(
                 stringResource(R.string.wincomp_title),
@@ -807,7 +799,7 @@ internal class GameSettingsState(private val appContext: android.content.Context
             val written = runCatching { change(appContext) }
                 .onFailure { android.util.Log.w("GameSettingsCard", "could not save the settings of $scope: ${it.message}") }.getOrNull()
             val next = written ?: runCatching { com.droiddeck.launcher.session.GameEnvironmentStore.read(appContext) }.getOrNull()
-            com.droiddeck.launcher.stores.StoresState.post {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
                 config = next
                 saving = false
             }
@@ -840,7 +832,6 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
     val fex = current?.let { runCatching { com.droiddeck.launcher.core.GameEnvironment.gameFexPreset(it, scope) }.getOrNull() }
     val sync = current?.let { runCatching { com.droiddeck.launcher.core.GameEnvironment.gameSync(it, scope) }.getOrNull() }
     val ready = current != null && !state.saving
-    val launcher = game.library == com.droiddeck.launcher.frontend.Library.EPIC_LAUNCHER
     fun save(change: (android.content.Context) -> com.droiddeck.launcher.core.GameEnvironment.Config?) = state.save(change)
     val key = GAME_SETTINGS_MENU
     val fexKey = "game-settings-fex"
@@ -863,32 +854,30 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
             val on = !noSteam
             save { com.droiddeck.launcher.session.GameEnvironmentStore.setGameNoSteam(it, scope, on) }
         }
-        if (!launcher) {
-            val chosen = com.droiddeck.launcher.core.FexPreset.all.firstOrNull { it.id == fex }
-            MenuItem(
-                stringResource(R.string.fex_preset_title), checked = false, enabled = ready,
-                detail = when {
-                    fex == null -> "$useDefault · ${stringResource(generalFex.label)}"
-                    chosen == null -> custom
-                    else -> stringResource(chosen.label)
-                },
-                trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
-            ) { host.open = fexKey }
-            MenuItem(
-                stringResource(R.string.sync_backend_title), checked = false, enabled = ready,
-                detail = when (sync) {
-                    null -> useDefault
-                    com.droiddeck.launcher.core.GameEnvironment.CUSTOM_SYNC -> customSync
-                    else -> syncLabels[sync]
-                },
-                trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
-            ) { host.open = syncKey }
-        }
+        val chosen = com.droiddeck.launcher.core.FexPreset.all.firstOrNull { it.id == fex }
+        MenuItem(
+            stringResource(R.string.fex_preset_title), checked = false, enabled = ready,
+            detail = when {
+                fex == null -> "$useDefault · ${stringResource(generalFex.label)}"
+                chosen == null -> custom
+                else -> stringResource(chosen.label)
+            },
+            trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
+        ) { host.open = fexKey }
+        MenuItem(
+            stringResource(R.string.sync_backend_title), checked = false, enabled = ready,
+            detail = when (sync) {
+                null -> useDefault
+                com.droiddeck.launcher.core.GameEnvironment.CUSTOM_SYNC -> customSync
+                else -> syncLabels[sync]
+            },
+            trailing = { Text("›", fontSize = 16.sp, color = colors.onSurfaceVariant) },
+        ) { host.open = syncKey }
         MenuItem(stringResource(R.string.game_settings_default), checked = false, enabled = ready,
             detail = stringResource(R.string.game_settings_default_detail)) {
             save {
                 val failure = runCatching { com.droiddeck.launcher.session.GameProfileManager.reset(it, scope) }.exceptionOrNull()
-                com.droiddeck.launcher.stores.StoresState.post {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
                     android.widget.Toast.makeText(
                         it,
                         if (failure == null) resetDone else it.getString(R.string.comp_game_reset_failed, failure.message.orEmpty()),
@@ -932,64 +921,6 @@ internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.fron
 }
 
 internal const val GAME_SETTINGS_MENU = "game-settings"
-
-private const val EPIC_RESOLVE_URL = "https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Faccount%2Fpersonal"
-
-@Composable
-private fun StoreLaunchCard(host: MenuHost, folder: java.io.File, store: com.droiddeck.launcher.stores.Store) {
-    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    var sidecar by remember(folder) { mutableStateOf(com.droiddeck.launcher.stores.StoreGameSidecar.read(folder)) }
-    val options = sidecar?.epic ?: com.droiddeck.launcher.stores.EpicOptions()
-    val epic = store == com.droiddeck.launcher.stores.Store.EPIC
-    val key = "store-" + store.id
-    val value = if (!epic) stringResource(when {
-        !com.droiddeck.launcher.stores.gog.GogComet.enabled(appContext) || sidecar?.achievements == false -> R.string.gog_achievements_off
-        com.droiddeck.launcher.stores.gog.GogComet.status == "sign-in-needed" -> R.string.gog_achievements_signin
-        com.droiddeck.launcher.stores.gog.GogComet.status in listOf("service-unavailable", "credentials-unavailable", "not-installed") -> R.string.gog_achievements_unavailable
-        com.droiddeck.launcher.stores.gog.GogComet.status == "uploaded" -> R.string.gog_achievements_uploaded
-        com.droiddeck.launcher.stores.gog.GogComet.status == "pending-upload" || com.droiddeck.launcher.stores.gog.GogComet.status == "unlocked-locally" -> R.string.gog_achievements_pending
-        else -> R.string.gog_achievements_on
-    }) else buildList {
-        if (epic && options.offline) add(stringResource(R.string.epic_card_offline))
-        else if (epic && options.eos) add(stringResource(R.string.epic_card_eos))
-    }.ifEmpty { listOf(stringResource(R.string.epic_card_none)) }.joinToString(" · ")
-    fun set(change: (com.droiddeck.launcher.stores.EpicOptions) -> com.droiddeck.launcher.stores.EpicOptions) {
-        Thread({
-            val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateEpic(folder, change) }
-                .onFailure { android.util.Log.w("EpicLaunchCard", "could not write ${folder.name}: ${it.message}") }.getOrNull()
-            if (written != null) android.util.Log.i("EpicLaunchCard", "epic options ${written.id} eos=${written.epic.eos} offline=${written.epic.offline}")
-            else android.util.Log.w("EpicLaunchCard", "epic options not saved for ${folder.name}")
-            com.droiddeck.launcher.stores.StoresState.post { sidecar = written ?: com.droiddeck.launcher.stores.StoreGameSidecar.read(folder) }
-        }, "epic-options").start()
-    }
-    SettingCard(store.shortLabel, value, "card:$key", Modifier.fillMaxSize()) {
-        host.open = if (host.open == key) null else key
-    }
-    AnchoredMenu(host.open == key, onDismiss = { if (host.open == key) host.open = null }, title = store.shortLabel) { first ->
-        if (!epic) {
-            MenuItem(stringResource(R.string.gog_achievements), checked = sidecar?.achievements != false, focusRequester = first,
-                detail = if (!com.droiddeck.launcher.stores.gog.GogComet.enabled(appContext)) stringResource(R.string.gog_achievements_enable_store) else null) {
-                val on = sidecar?.achievements == false
-                Thread({
-                    val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateAchievements(folder, on) }.getOrNull()
-                    com.droiddeck.launcher.stores.StoresState.post { sidecar = written ?: sidecar }
-                }, "gog-game-achievements").start()
-            }
-        }
-        if (epic) {
-            MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set { it.copy(eos = !it.eos) } }
-            MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set { it.copy(offline = !it.offline) } }
-        }
-        if (epic) {
-        MenuItem(stringResource(R.string.epic_resolve), checked = false) {
-            host.open = null
-            runCatching {
-                appContext.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(EPIC_RESOLVE_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-        }
-        }
-    }
-}
 
 @Composable
 private fun SettingCard(label: String, value: String, id: String, modifier: Modifier, onClick: () -> Unit) {

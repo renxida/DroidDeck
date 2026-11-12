@@ -742,7 +742,6 @@ class GameEnvironmentTest(unittest.TestCase):
                 "game_cores": lambda env: None,
                 "cpu_topology": lambda env, command: None,
                 "ego_core_plan": lambda *args: None,
-                "runpy": mock.Mock(run_path=lambda *args: {"launch": lambda command, env: None}),
                 "load_sync": lambda: {},
                 "select_sync": lambda command, env, sync: (command, env),
                 "start": lambda command, env, *args: seen_start.append(env) or 7,
@@ -755,17 +754,6 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_components])
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_repair])
             self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_start])
-
-    def test_optional_xbox_loader_failure_keeps_stock_launch(self):
-        from unittest.mock import patch
-        for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
-            calls = []
-            with patch.dict(os.environ, {}, clear=True), patch('sys.argv', ['droiddeck-game-env', '/stock', 'run']), \
-                 patch('runpy.run_path', side_effect=error), patch('os.execvpe', side_effect=lambda *args: calls.append(args)), \
-                 patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda command, env, sync: (command, env)):
-                MODULE['main']()
-            self.assertEqual(calls[0][0:2], ('/stock', ['/stock', 'run']))
-
 
     def test_directaudio_capture_follows_the_session_microphone_setting(self):
         with tempfile.TemporaryDirectory() as tmp:

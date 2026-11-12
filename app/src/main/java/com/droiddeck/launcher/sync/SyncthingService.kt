@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.IBinder
 import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.stores.download.StoreDownloadService
 
 class SyncthingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
@@ -55,7 +54,7 @@ class SyncthingService : Service() {
             getString(R.string.sync_summary, it.folders.size, it.devices.count { d -> d.connected }, it.devices.size)
         }.orEmpty()
         val open = PendingIntent.getActivity(this, 0, Intent(this, FrontEndActivity::class.java)
-            .putExtra(StoreDownloadService.EXTRA_NAV, NAV).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            .putExtra(FrontEndActivity.EXTRA_NAV, NAV).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL) else @Suppress("DEPRECATION") Notification.Builder(this)
         return builder.setSmallIcon(R.drawable.ic_stat_session)
