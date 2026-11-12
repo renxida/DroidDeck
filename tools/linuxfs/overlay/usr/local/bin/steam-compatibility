@@ -706,6 +706,8 @@ def installed_apps(steam_root):
 
 APPINFO_CACHE = {}
 STEAM_PLAY_MANIFESTS = 891390
+APP_FIELDS = {"appinfo": {"common": {"steam_deck_compatibility": {"configuration": {}}}, "config": {"launch": None}}}
+MANIFEST_FIELDS = {"appinfo": dict(APP_FIELDS["appinfo"], extended={"app_mappings": None})}
 
 
 def launch_programs(config):
@@ -741,8 +743,47 @@ def launch_options(config):
     return found
 
 
+def appinfo_entry_version(magic):
+    try:
+        with open(globals()["__file__"], "rb") as f:
+            source = f.read()
+    except (KeyError, OSError):
+        return None
+    import zlib
+    return "%x-%x" % (magic, zlib.crc32(source))
+
+
+def read_appinfo_entry_cache(path, version):
+    import marshal
+    try:
+        with open(path, "rb") as f:
+            saved = marshal.load(f)
+    except (OSError, EOFError, ValueError, TypeError):
+        return {}
+    if not isinstance(saved, tuple) or len(saved) != 2 or saved[0] != version or not isinstance(saved[1], dict):
+        return {}
+    return saved[1]
+
+
+def write_appinfo_entry_cache(path, version, records):
+    import marshal
+    temporary = "%s.%d.tmp" % (path, os.getpid())
+    try:
+        with open(temporary, "wb") as f:
+            marshal.dump((version, records), f)
+        os.replace(temporary, path)
+    except (OSError, ValueError):
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+
+
 def appinfo_entries(path, wanted=None):
-    """Read metadata for all apps, or only the requested app-id strings."""
+    """Read metadata for all apps, or only the requested app-id strings.
+
+    A full read keeps each app's entry beside the file, keyed on the record's own SHA-1 and change
+    number, so later reads decode only the records Steam changed."""
     import struct
     if wanted is not None:
         wanted = set(wanted)
@@ -789,7 +830,33 @@ def appinfo_entries(path, wanted=None):
         return {}
     header = 4 + 4 + 8 + 20 + 4 + (20 if magic >= 0x07564428 else 0)
 
-    def section(position):
+    def skip(position):
+        depth = 1
+        while True:
+            kind = data[position]
+            position += 1
+            if kind == 8:
+                depth -= 1
+                if not depth:
+                    return position
+                continue
+            if strings is not None:
+                strings[struct.unpack_from("<I", data, position)[0]]
+                position += 4
+            else:
+                position = data.index(b"\0", position) + 1
+            if kind == 0:
+                depth += 1
+            elif kind == 1:
+                position = data.index(b"\0", position) + 1
+            elif kind == 2:
+                position += 4
+            elif kind == 7:
+                position += 8
+            else:
+                raise ValueError("unknown appinfo field type %d" % kind)
+
+    def section(position, keep=None, enough=False):
         result = {}
         while True:
             kind = data[position]
@@ -804,7 +871,14 @@ def appinfo_entries(path, wanted=None):
                 key = data[position:end].decode("utf-8", "replace")
                 position = end + 1
             if kind == 0:
-                result[key], position = section(position)
+                if keep is None:
+                    result[key], position = section(position)
+                elif key in keep:
+                    result[key], position = section(position, keep[key], key == "appinfo")
+                    if enough and keep.keys() <= result.keys():
+                        return result, position
+                else:
+                    position = skip(position)
             elif kind == 1:
                 end = data.index(b"\0", position)
                 result[key] = data[position:end].decode("utf-8", "replace")
@@ -819,6 +893,11 @@ def appinfo_entries(path, wanted=None):
                 raise ValueError("unknown appinfo field type %d" % kind)
 
     found = {}
+    version = appinfo_entry_version(magic) if needed is None and cached is None else None
+    entry_cache = path + ".droiddeck-entries"
+    saved_records = read_appinfo_entry_cache(entry_cache, version) if version else {}
+    records = {}
+    changed = False
     while offset + 8 <= len(data):
         try:
             app, size = struct.unpack_from("<II", data, offset)
@@ -830,8 +909,15 @@ def appinfo_entries(path, wanted=None):
         offset = start + size
         if needed is not None and str(app) not in needed:
             continue
+        key = data[start + 16:start + header]
+        saved = saved_records.get(app)
+        if isinstance(saved, tuple) and len(saved) == 2 and saved[0] == key and isinstance(saved[1], dict):
+            found[str(app)] = saved[1]
+            records[app] = saved
+            continue
         try:
-            info = section(start + header)[0].get("appinfo", {})
+            fields = MANIFEST_FIELDS if app == STEAM_PLAY_MANIFESTS else APP_FIELDS
+            info = section(start + header, fields, True)[0].get("appinfo", {})
         except (ValueError, IndexError, struct.error):
             continue
         if not isinstance(info, dict):
@@ -854,6 +940,11 @@ def appinfo_entries(path, wanted=None):
             entry["app_mappings"] = {str(m.get("appid", key)): str(m.get("tool", "")) for key, m in mappings.items()
                                      if isinstance(m, dict)} if isinstance(mappings, dict) else {}
         found[str(app)] = entry
+        if version and any(key[:20]):
+            records[app] = (key, entry)
+            changed = True
+    if version and (changed or len(records) != len(saved_records)):
+        write_appinfo_entry_cache(entry_cache, version, records)
     covered = wanted
     if cached is not None and wanted is not None:
         cached[1].update(found)

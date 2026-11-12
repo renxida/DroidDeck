@@ -1,4 +1,5 @@
 import contextlib
+import marshal
 import os
 from pathlib import Path
 import runpy
@@ -170,6 +171,23 @@ class AppInfoLookupTest(unittest.TestCase):
                     self.assertEqual(selected, {"1": full["1"]})
                     self.assertEqual(selected["1"]["launch"][0], "last.exe" if corrupt_last else "final.exe")
 
+    def test_sections_the_entries_do_not_use_are_skipped_wherever_they_are(self):
+        extra = {"depots": {"10": {"manifests": {"public": {"gid": "1"}}}, "branches": {"public": {"buildid": "2"}}},
+                 "localization": {"richpresence": {"english": {"tokens": {"#a": "b"}}}}, "ufs": {"quota": "1"}}
+        plain = entry("One")
+        for magic in FORMATS:
+            for name, record in (("before", {**extra, **plain}), ("after", {**plain, **extra}),
+                                 ("between", {"common": plain["common"], **extra, "config": plain["config"]})):
+                with self.subTest(magic=magic, order=name):
+                    self.write({1: plain}, magic)
+                    COMPAT["APPINFO_CACHE"].clear()
+                    expected = self.lookup()
+                    self.write({1: record}, magic)
+                    COMPAT["APPINFO_CACHE"].clear()
+                    self.assertEqual(self.lookup(), expected)
+                    COMPAT["APPINFO_CACHE"].clear()
+                    self.assertEqual(self.lookup({"1"}), expected)
+
     def test_requested_steam_play_manifest_keeps_extended_mappings(self):
         manifests = COMPAT["STEAM_PLAY_MANIFESTS"]
         record = {"common": {"type": "Tool"}, "extended": {"app_mappings": {
@@ -212,6 +230,123 @@ class AppInfoLookupTest(unittest.TestCase):
                     self.assertLessEqual(len(calls), 16)
                     counts.append(len(calls))
         self.assertEqual(len(set(counts)), 1)
+
+
+def signed(data, magic):
+    """Give every record the SHA-1 Steam stores for it, which the test builder leaves zero."""
+    import hashlib
+    data = bytearray(data)
+    offset = 16 if magic == 0x07564429 else 8
+    header = 60 if magic >= 0x07564428 else 40
+    while offset + 8 <= len(data):
+        app, size = struct.unpack_from("<II", data, offset)
+        if app == 0:
+            break
+        start = offset + 8
+        digest = hashlib.sha1(bytes(data[start + header:start + size])).digest()
+        data[start + 16:start + 36] = digest
+        if header == 60:
+            data[start + 40:start + 60] = digest
+        offset = start + size
+    return bytes(data)
+
+
+class AppInfoEntryCacheTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "appinfo.vdf"
+        self.saved = Path(str(self.path) + ".droiddeck-entries")
+        COMPAT["APPINFO_CACHE"].clear()
+        self.addCleanup(COMPAT["APPINFO_CACHE"].clear)
+
+    def write(self, records, magic):
+        stamp = self.path.stat().st_mtime_ns if self.path.exists() else 0
+        self.path.write_bytes(signed(APPINFO(records, magic), magic))
+        os.utime(self.path, ns=(stamp + 1_000_000_000, stamp + 1_000_000_000))
+
+    def full(self):
+        COMPAT["APPINFO_CACHE"].clear()
+        with decoded_sections() as calls:
+            result = COMPAT["appinfo_entries"](str(self.path))
+        return result, len(calls)
+
+    def uncached(self):
+        self.saved.unlink(missing_ok=True)
+        result, _ = self.full()
+        self.saved.unlink()
+        return result
+
+    def test_a_second_read_decodes_only_the_records_steam_changed(self):
+        for magic in FORMATS:
+            with self.subTest(magic=magic):
+                self.saved.unlink(missing_ok=True)
+                games = {app: entry("Game" + str(app)) for app in range(1, 33)}
+                self.write(games, magic)
+                first, cold = self.full()
+                self.assertTrue(self.saved.is_file())
+                again, warm = self.full()
+                self.assertEqual(again, first)
+                self.assertEqual(warm, 0)
+                games[7] = entry("Changed")
+                del games[9]
+                games[40] = entry("Added")
+                self.write(games, magic)
+                changed, calls = self.full()
+                self.assertEqual(changed, self.uncached())
+                self.assertEqual(changed["7"]["launch"][0], "changed.exe")
+                self.assertNotIn("9", changed)
+                self.assertEqual(changed["40"]["launch"][0], "added.exe")
+                self.assertGreater(calls, 0)
+                self.assertLess(calls * 8, cold)
+
+    def test_unusable_saved_entries_are_decoded_again(self):
+        magic = FORMATS[-1]
+        self.write({1: entry("One"), 2: entry("Two")}, magic)
+        expected = self.uncached()
+        for saved in (b"", b"garbage", __import__("marshal").dumps(("other", {1: (b"", {})})),
+                      __import__("marshal").dumps([1, 2])):
+            with self.subTest(saved=saved):
+                self.saved.write_bytes(saved)
+                result, calls = self.full()
+                self.assertEqual(result, expected)
+                self.assertGreater(calls, 0)
+
+    def test_records_without_a_digest_and_partial_reads_are_not_kept(self):
+        magic = FORMATS[-1]
+        self.path.write_bytes(APPINFO({1: entry("One")}, magic))
+        self.assertEqual(self.full()[0]["1"]["launch"][0], "one.exe")
+        self.assertFalse(self.saved.exists())
+        self.write({1: entry("One")}, magic)
+        COMPAT["APPINFO_CACHE"].clear()
+        self.assertEqual(set(COMPAT["appinfo_entries"](str(self.path), wanted={"1"})), {"1"})
+        self.assertFalse(self.saved.exists())
+
+    def test_a_changed_record_replaces_its_saved_entry(self):
+        unused = {"depots": {"10": {"manifests": {"public": {"gid": "1"}}}}}
+        for magic in FORMATS:
+            with self.subTest(magic=magic):
+                self.saved.unlink(missing_ok=True)
+                self.write({1: entry("Aaaa"), 2: entry("Same")}, magic)
+                size = self.path.stat().st_size
+                self.assertEqual(self.full()[0]["1"]["launch"][0], "aaaa.exe")
+                before = marshal.loads(self.saved.read_bytes())[1]
+
+                self.write({1: entry("Bbbb"), 2: entry("Same")}, magic)
+                self.assertEqual(self.path.stat().st_size, size)
+                result, calls = self.full()
+                self.assertEqual(result["1"]["launch"][0], "bbbb.exe")
+                self.assertGreater(calls, 0)
+                after = marshal.loads(self.saved.read_bytes())[1]
+                self.assertNotEqual(after[1][0], before[1][0])
+                self.assertEqual(after[1][1]["launch"][0], "bbbb.exe")
+                self.assertEqual(after[2], before[2])
+
+                self.write({1: entry("Bbbb"), 2: {**unused, **entry("Same")}}, magic)
+                result, calls = self.full()
+                self.assertGreater(calls, 0)
+                self.assertNotEqual(marshal.loads(self.saved.read_bytes())[1][2][0], after[2][0])
+                self.assertEqual(result, self.uncached())
 
 
 class LaunchLookupTest(unittest.TestCase):
