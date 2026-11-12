@@ -205,24 +205,6 @@ class SessionSecondScreenTest {
         } finally { panel.closeControls() }
     }
 
-    @Test fun profileRefreshPreservesTheLowerScreenChatPanel() {
-        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
-        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
-        var lost = 0
-        val panel = SecondScreenPresentation(activity, display, {}, {}, {})
-        try {
-            panel.show()
-            panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
-            panel.showChat(onLost = { lost++ }) { androidx.compose.material3.Text("Chat draft") }
-            val chat: View? = ReflectionHelpers.getField(panel, "chatView")
-            assertNotNull(chat)
-            panel.refreshControls()
-            assertSame(chat, ReflectionHelpers.getField<View?>(panel, "chatView"))
-            assertTrue(descendants(panel.window!!.decorView).any { it === chat })
-            assertEquals(0, lost)
-        } finally { panel.closeControls() }
-    }
-
     @Test
     @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class])
     fun controllerBumpersReachTheSecondScreenInBothSessionModes() {
@@ -373,7 +355,7 @@ class SessionSecondScreenTest {
         onClose: () -> Unit = {},
         select: (SecondScreenMode) -> Unit = {}) =
         DrawerActions(steam = steam, desktop = desktop, direct = direct, onInputSelection = onInputSelection,
-            isHomeApp = false, androidApps = emptyList(), hudOn = false,
+            hudOn = false,
             micAvailable = micAvailable, micEnabled = micEnabled, onMicEnabled = onMic,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
             suspendPolicy = "auto", backActionsInverted = false,
@@ -382,5 +364,5 @@ class SessionSecondScreenTest {
             onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
             onSteamMenu = null, onQam = null, onOsc = {}, onSuspendPolicy = {}, onBackActionsInverted = {},
             onTouch = {}, onFexPreset = {}, onSecondScreenMode = select, onSecondScreenDisplay = {},
-            onLaunchAndroidApp = { _, _ -> }, onBackground = {}, onShareLogs = {}, onStop = {}, onClose = onClose)
+            onBackground = {}, onShareLogs = {}, onStop = {}, onClose = onClose)
 }

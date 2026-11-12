@@ -10,9 +10,8 @@ class GameScreenSwapTest {
         activityStarted: Boolean = true,
         sessionEnded: Boolean = false,
         inPip: Boolean = false,
-        glassesOutput: Boolean = false,
         bottomScreenFree: Boolean = true,
-    ) = GameScreenSwap.wanted(requested, activityStarted, sessionEnded, inPip, glassesOutput, bottomScreenFree)
+    ) = GameScreenSwap.wanted(requested, activityStarted, sessionEnded, inPip, bottomScreenFree)
 
     @Test fun thePickedSwapPutsTheGameOnTheBottomScreen() {
         assertTrue(wanted())
@@ -28,8 +27,7 @@ class GameScreenSwapTest {
         assertFalse(wanted(inPip = true))
     }
 
-    @Test fun glassesAndAHeldBottomScreenWin() {
-        assertFalse(wanted(glassesOutput = true))
+    @Test fun aHeldBottomScreenWins() {
         assertFalse(wanted(bottomScreenFree = false))
     }
 }

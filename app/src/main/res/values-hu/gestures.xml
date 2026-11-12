@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Dupla koppintás időköze</string>
     <string name="gesture_reset">Eredeti gesztusbeállítások visszaállítása</string>
     <string name="gesture_cancel">Mégse</string>
-    <string name="gesture_action">Művelet kiválasztása</string>
     <string name="gesture_left_click">Bal kattintás</string>
     <string name="gesture_right_click">Jobb kattintás</string>
     <string name="gesture_middle_click">Középső kattintás</string>

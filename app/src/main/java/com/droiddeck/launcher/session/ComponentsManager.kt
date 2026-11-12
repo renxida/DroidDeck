@@ -57,7 +57,6 @@ object ComponentsManager {
         "dxvk" to setOf("d3d8.dll", "d3d9.dll", "d3d10.dll", "d3d10_1.dll", "d3d10core.dll", "d3d11.dll", "dxgi.dll"),
         "vkd3d" to setOf("d3d12.dll", "d3d12core.dll"),
     )
-    private const val PLUGIN_DATA = "root/homebrew/data/decky-components-manager"
 
     data class Proton(val id: String, val name: String, val dir: File, val guestPath: String, val version: String, val valve: Boolean)
     data class Component(
@@ -237,29 +236,6 @@ object ComponentsManager {
         profiles.remove(scope)
         saveState(context, state)
     }
-
-    private fun migratePlugin(context: Context) {
-        val marker = File(dataDir(context), ".plugin-imported")
-        if (marker.isFile) return
-        val plugin = File(root(context), PLUGIN_DATA)
-        if (plugin.isDirectory) {
-            runCatching {
-                File(plugin, "packages").listFiles()?.forEach { f ->
-                    if (f.isFile && f.name.endsWith(".wcp")) {
-                        val dst = File(packagesDir(context), f.name)
-                        if (!dst.exists()) f.copyTo(dst)
-                    }
-                }
-                val originals = File(plugin, "originals")
-                if (originals.isDirectory) originals.copyRecursively(originalsDir(context), overwrite = false)
-                val ps = File(plugin, "state.json")
-                if (ps.isFile && !stateFile(context).isFile) ps.copyTo(stateFile(context))
-                Log.i(TAG, "took over the Decky plugin's data from $plugin")
-            }.onFailure { Log.w(TAG, "plugin data import", it) }
-        }
-        marker.writeText("1\n")
-    }
-
 
     private fun libraryRoots(context: Context): List<File> {
         val roots = mutableListOf(steam(context))
@@ -484,7 +460,6 @@ object ComponentsManager {
     }
 
     fun snapshotAll(context: Context) = synchronized(lock) {
-        migratePlugin(context)
         val state = loadState(context)
         for (p in protons(context)) for (comp in COMPONENTS) {
             runCatching { ensureOriginal(context, p, comp, state) }.onFailure { Log.w(TAG, "original $comp of ${p.name}", it) }
@@ -494,7 +469,6 @@ object ComponentsManager {
 
 
     fun snapshot(context: Context): Snapshot = synchronized(lock) {
-        migratePlugin(context)
         val state = loadState(context)
         val reapplied = HashMap<String, Long>()
         runCatching {

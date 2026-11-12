@@ -59,6 +59,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -755,4 +756,18 @@ private fun PillButton(label: String, selected: Boolean, onClick: () -> Unit) {
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
     )
+}
+
+internal fun flathubPalette(base: Palette): Palette = Palette(
+    base.id, base.label, base.detail, base.background, base.surface, base.surfaceVariant, base.line, base.line2,
+    base.onBackground, base.onSurfaceVariant, primary = FlathubTeal, primary2 = Color(0xFF2E958D), onPrimary = FlathubInk, signal = FlathubTeal,
+    good = base.good, error = base.error,
+)
+
+@Composable
+internal fun FlathubTheme(content: @Composable () -> Unit) {
+    val base = LocalPalette.current
+    val p = remember(base) { flathubPalette(base) }
+    val scheme = MaterialTheme.colorScheme.copy(primary = p.primary, onPrimary = p.onPrimary)
+    CompositionLocalProvider(LocalPalette provides p) { MaterialTheme(colorScheme = scheme, typography = MaterialTheme.typography, content = content) }
 }

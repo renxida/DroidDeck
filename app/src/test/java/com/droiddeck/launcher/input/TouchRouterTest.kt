@@ -8,16 +8,16 @@ class TouchRouterTest {
     @Test fun gesturesAndOffAreNotTouchpadRoutes() {
         for (mode in listOf(SessionPrefs.TOUCH_GESTURES, SessionPrefs.TOUCH_OFF)) {
             assertEquals(TouchRouter.Route.GESTURES.takeIf { mode == SessionPrefs.TOUCH_GESTURES } ?: TouchRouter.Route.OFF,
-                TouchRouter.decide(TouchRouter.Snapshot(false, mode, false, false, false)))
+                TouchRouter.decide(TouchRouter.Snapshot(false, mode, false, false)))
             assertEquals(TouchRouter.Route.GESTURES.takeIf { mode == SessionPrefs.TOUCH_GESTURES } ?: TouchRouter.Route.OFF,
-                TouchRouter.decide(TouchRouter.Snapshot(false, mode, false, true, true)))
+                TouchRouter.decide(TouchRouter.Snapshot(false, mode, true, true)))
         }
     }
 
     @Test fun autoUsesTouchpadOnlyWhenRouterSelectsTouchpad() {
         assertEquals(TouchRouter.Route.TOUCHPAD,
-            TouchRouter.decide(TouchRouter.Snapshot(false, SessionPrefs.TOUCH_AUTO, false, false, false)))
+            TouchRouter.decide(TouchRouter.Snapshot(false, SessionPrefs.TOUCH_AUTO, false, false)))
         assertEquals(TouchRouter.Route.DIRECT,
-            TouchRouter.decide(TouchRouter.Snapshot(false, SessionPrefs.TOUCH_AUTO, false, true, false)))
+            TouchRouter.decide(TouchRouter.Snapshot(false, SessionPrefs.TOUCH_AUTO, true, false)))
     }
 }

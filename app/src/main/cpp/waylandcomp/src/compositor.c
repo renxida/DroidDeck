@@ -32,7 +32,6 @@
 #include "framegen_bridge.h"
 #include <pthread.h>
 #include "effects_chain.h"
-#include "cardboard.h"
 #include "droiddeck_ext.h"
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
@@ -242,7 +241,6 @@ struct surface {
 
     int mapped;
     struct wl_list toplevel_link;
-    int keep_on_top;
     int x, y, placed;
     uint32_t hwnd;
 
@@ -520,7 +518,7 @@ static int g_cursor_w, g_cursor_h;
 static int g_cursor_hidden = 1;
 static int g_cursor_serial;
 
-#define CURSOR_MAX_DRAWS 2
+#define CURSOR_MAX_DRAWS 1
 static struct vkp_image *g_cursor_img;
 static int g_cursor_img_w, g_cursor_img_h, g_cursor_img_serial = -1;
 static atomic_int g_cursor_composite;
@@ -644,8 +642,6 @@ static struct surface *toplevel_by_hwnd(uint32_t hwnd) {
     return NULL;
 }
 
-static void raise_kept_on_top(void);
-
 static void apply_zorder(void) {
     for (size_t i = g_zorder_count; i-- > 0;) {
         struct surface *s = toplevel_by_hwnd(g_zorder[i]);
@@ -653,16 +649,6 @@ static void apply_zorder(void) {
         wl_list_remove(&s->toplevel_link);
         wl_list_insert(g_toplevels.prev, &s->toplevel_link);
     }
-    raise_kept_on_top();
-}
-
-static void raise_kept_on_top(void) {
-    struct surface *s, *tmp, *kept[4];
-    int n = 0;
-    wl_list_for_each_safe(s, tmp, &g_toplevels, toplevel_link) {
-        if (s->keep_on_top && n < 4) { wl_list_remove(&s->toplevel_link); kept[n++] = s; }
-    }
-    for (int i = 0; i < n; i++) wl_list_insert(g_toplevels.prev, &kept[i]->toplevel_link);
 }
 
 static void map_toplevel(struct surface *s) {
@@ -677,7 +663,6 @@ static void map_toplevel(struct surface *s) {
                    s->placed ? "" : " (no desktop position yet)");
     }
     wl_list_insert(g_toplevels.prev, &s->toplevel_link);
-    raise_kept_on_top();
     if (!g_desktop) g_key_target = s;
     apply_zorder();
     publish_query_state();
@@ -1582,8 +1567,6 @@ static void xdg_toplevel_set_title(struct wl_client *c, struct wl_resource *r, c
     }
 }
 static void xdg_toplevel_set_app_id(struct wl_client *c, struct wl_resource *r, const char *id) {
-    struct surface *s = wl_resource_get_user_data(r);
-    if (s && id && !strcmp(id, "droiddeck-cardboard-vr")) s->keep_on_top = 1;
 }
 static void xdg_toplevel_show_menu(struct wl_client *c, struct wl_resource *r, struct wl_resource *seat,
                                    uint32_t serial, int32_t x, int32_t y) {}
@@ -1822,7 +1805,7 @@ static void bind_output(struct wl_client *c, void *data, uint32_t ver, uint32_t 
 
 struct draw_list { struct vkp_draw *d; int n, cap; };
 
-static int add_cursor(struct draw_list *dl, int scene_w);
+static int add_cursor(struct draw_list *dl);
 
 static struct vkp_image *surface_image(struct surface *s) {
     if (!s->has_content) return NULL;
@@ -2256,7 +2239,6 @@ static void render_scene(void) {
     int rendered = 0;
     int fx_on = vkp_effects_active();
     int framegen = vkp_framegen_active();
-    const int cardboard = vkp_cardboard_active();
     struct hdr_scene hs;
     int hdr_route = hdr_plan(&dl, w, h, fx_on, framegen, &hs);
     const char *hdr_copy = NULL;
@@ -2267,7 +2249,7 @@ static void render_scene(void) {
     if (hdr_route == 3) { fx_on = 0; framegen = 0; }
     struct surface *ahb_only = ahb_layer_only_candidate(w, h);
     struct surface *layer_only = ahb_only ? ahb_only : hdr_unimported_fullscreen(&dl, w, h);
-    const int cursor_on = hdr_route == 3 || layer_only ? 0 : add_cursor(&dl, w);
+    const int cursor_on = hdr_route == 3 || layer_only ? 0 : add_cursor(&dl);
     static int cursor_layer_said;
     if (layer_only && atomic_load(&g_cursor_composite) && !cursor_layer_said) {
         cursor_layer_said = 1;
@@ -2277,7 +2259,7 @@ static void render_scene(void) {
         cursor_layer_said = 0;
     }
     static int cursor_hdr_said;
-    if (cursor_on && hdr_route == 0 && hs.n_hdr > 0 && !cardboard) {
+    if (cursor_on && hdr_route == 0 && hs.n_hdr > 0) {
         hdr_route = 2;
         if (!cursor_hdr_said) {
             cursor_hdr_said = 1;
@@ -2312,12 +2294,12 @@ static void render_scene(void) {
         else if (rendered && how == 2) droiddeck_color_frame_shown(hs.color, DROIDDECK_HDR_TONEMAPPED, 0);
         else if (rendered) hdr_copy = "the HDR composition pass is unavailable on this driver";
     }
-    if (hdr_route == 0 && vkp_quest_layer_presentation() && !framegen && !cardboard && !cursor_on &&
+    if (hdr_route == 0 && vkp_quest_layer_presentation() && !framegen && !cursor_on &&
         !ahb_only) {
         rendered = vkp_render(w, h, dl.d, dl.n) == 0;
     } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
-    int li = (g_zero_copy && !framegen && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
+    int li = (g_zero_copy && !framegen && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0;
     const int fx_blocks = (li >= 0 && fx_on && over > 0);
     if (fx_blocks) { li = -1; over = 0; }
@@ -2338,7 +2320,6 @@ static void render_scene(void) {
     }
     struct surface *ls = li >= 0 ? surface_for_image(dl.d[li].img) : NULL;
     if (li < 0) ls = layer_only;
-    if (cardboard) ls = NULL;
     if (cursor_on) ls = NULL;
     if (ls && pass_on && li < 0 && !g_zero_copy_fx_skip_said) {
         g_zero_copy_fx_skip_said = 1;
@@ -2478,7 +2459,6 @@ static void on_vsync(int64_t frame_time_ns) {
     int tick_change = 0;
     if (vkp_apply_window_request()) tick_change = 1;
     if (vkp_effects_sync()) tick_change = 1;
-    if (vkp_cardboard_pose_changed()) tick_change = 1;
     if (tick_change) g_dirty = 1;
     if (g_tick_held && g_dirty) g_hold_missed_ns = now;
     g_tick_held = 0;
@@ -2711,30 +2691,7 @@ static int pointer_locked_for_cursor(void) {
     return g_active_constraint && g_active_constraint->is_lock;
 }
 
-static int cursor_scene_positions(int scene_w, int source, int ptr_x, int hx, int out[2]) {
-    out[0] = ptr_x - hx; out[1] = -1;
-    if (source != CARDBOARD_SOURCE_SBS || scene_w <= 1) return 1;
-    const int half = scene_w / 2;
-    out[1] = (ptr_x < half ? ptr_x + half : ptr_x - half) - hx;
-    return 2;
-}
-
-static int cursor_clip_to_eye(int scene_w, int eye, int x0, int w, int *dx, int *sx, int *dw) {
-    int left = x0, right = x0 + w;
-    if (eye >= 0 && scene_w > 1) {
-        const int half = scene_w / 2;
-        const int band = eye ? half : 0;
-        if (left < band) left = band;
-        if (right > band + half) right = band + half;
-    }
-    if (right <= left) return 0;
-    *dx = left;
-    *sx = left - x0;
-    *dw = right - left;
-    return 1;
-}
-
-static int add_cursor(struct draw_list *dl, int scene_w) {
+static int add_cursor(struct draw_list *dl) {
     if (!atomic_load(&g_cursor_composite) || !g_ptr_known || pointer_locked_for_cursor()) return 0;
 
     int hidden, w, h, hx, hy, serial;
@@ -2767,35 +2724,15 @@ static int add_cursor(struct draw_list *dl, int scene_w) {
     }
     if (!g_cursor_img || g_cursor_img_serial != serial) return 0;
 
-    int xs[CURSOR_MAX_DRAWS];
-    const int source = vkp_cardboard_source();
-    const int ptr_x = (int)(g_ptr_x + 0.5);
-    const int count = cursor_scene_positions(scene_w, source, ptr_x, hx, xs);
-    static int said_w = -1, said_source = -1, said_count = -1;
-    if (scene_w != said_w || source != said_source || count != said_count) {
-        said_w = scene_w; said_source = source; said_count = count;
-        droiddeck_log("cursor", "pointer drawn %d time(s) in a %d wide scene (%s picture)", count, scene_w,
-                      source == CARDBOARD_SOURCE_SBS ? "side-by-side" : "single");
-    }
-    if (dl->n + count > dl->cap) {
-        int cap = dl->cap ? dl->cap : 32;
-        while (cap < dl->n + count) cap *= 2;
+    if (dl->n + 1 > dl->cap) {
+        int cap = dl->cap ? dl->cap * 2 : 32;
         struct vkp_draw *d = realloc(dl->d, (size_t)cap * sizeof(*d));
         if (!d) return 0;
         dl->d = d; dl->cap = cap;
     }
-    const int sbs = source == CARDBOARD_SOURCE_SBS && scene_w > 1;
-    const int pointer_eye = ptr_x < scene_w / 2 ? 0 : 1;
-    int appended = 0;
-    for (int i = 0; i < count; i++) {
-        int dx, sx, cw;
-        const int eye = sbs ? (i ? 1 - pointer_eye : pointer_eye) : -1;
-        if (!cursor_clip_to_eye(scene_w, eye, xs[i], w, &dx, &sx, &cw)) continue;
-        dl->d[dl->n++] = (struct vkp_draw){g_cursor_img, (float)sx, 0, (float)cw, (float)h,
-                                           dx, (int)(g_ptr_y + 0.5) - hy, cw, h, 1};
-        appended++;
-    }
-    return appended ? 1 : 0;
+    dl->d[dl->n++] = (struct vkp_draw){g_cursor_img, 0, 0, (float)w, (float)h,
+                                       (int)(g_ptr_x + 0.5) - hx, (int)(g_ptr_y + 0.5) - hy, w, h, 1};
+    return 1;
 }
 
 extern void droiddeck_on_pointer_lock(int locked, int x, int y);

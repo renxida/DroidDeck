@@ -33,9 +33,6 @@ class RuntimeInputsTest(unittest.TestCase):
         self.source = self.root / 'tools/linuxfs/preload/test.c'
         self.source.parent.mkdir(parents=True)
         self.source.write_text('current source')
-        service = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe'
-        service.parent.mkdir(parents=True)
-        service.write_bytes(b'MZ service')
         self.audio(['pactl', 'modules/arm64/module-aaudio-sink.so', 'modules/arm64/module-directaudio-native-sink.so'])
         self.packs()
 
@@ -51,12 +48,10 @@ class RuntimeInputsTest(unittest.TestCase):
         path.write_bytes(subprocess.run(['zstd', '-q', '-c'], input=stream.getvalue(), capture_output=True, check=True).stdout)
 
     def packs(self):
-        self.pack('tracking', {library.rsplit('/', 1)[1]: b'library' for library in runtime.PACKED_LIBRARIES})
         proot = {}
         for name, (pack, rel) in runtime.PACKED_FILES.items():
             proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
         self.pack('proot', proot)
-        self.pack('butler', {'butler': b'butler', '7z.so': b'7z', 'libc7zip.so': b'c7zip', 'version': b'15.32.0'})
         for prefix, name in runtime.PACKED.items():
             base = self.root / 'app/src/main' / prefix
             self.pack(name, {path.relative_to(base).as_posix(): path.read_bytes() for path in base.rglob('*') if path.is_file()})
@@ -178,15 +173,8 @@ class RuntimeInputsTest(unittest.TestCase):
         return path
 
     def test_an_apk_still_carrying_a_packed_tree_is_rejected(self):
-        apk = self.current_apk(self.root / 'bundled.apk', {'assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-cli': b'prepared runtime'})
-        with self.assertRaisesRegex(ValueError, 'xbox pack provides'):
-            runtime.check_apk(apk, self.root)
-
-    def test_an_apk_still_carrying_the_ubisoft_service_is_rejected(self):
-        name = 'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe'
-        self.assertIn(name, runtime.outputs(self.root))
-        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ service'})
-        with self.assertRaisesRegex(ValueError, 'ubisoft pack provides'):
+        apk = self.current_apk(self.root / 'bundled.apk', {'assets/directaudio/linux-wine11/version.txt': b'prepared runtime'})
+        with self.assertRaisesRegex(ValueError, 'directaudio pack provides'):
             runtime.check_apk(apk, self.root)
 
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
@@ -194,21 +182,16 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'powervr pack provides'):
             runtime.check_apk(apk, self.root)
 
-    def test_an_apk_still_carrying_tracking_libraries_is_rejected(self):
-        apk = self.current_apk(self.root / 'bundled.apk', {runtime.PACKED_LIBRARIES[0]: b'library'})
-        with self.assertRaisesRegex(ValueError, 'tracking pack provides'):
-            runtime.check_apk(apk, self.root)
-
     def test_a_stale_pack_is_rejected(self):
         apk = self.current_apk(self.root / 'current.apk')
-        self.pack('comet', {'comet': b'old build', 'version': b'old'})
-        with self.assertRaisesRegex(ValueError, 'comet is missing or has a stale'):
+        self.pack('powervr', {'runtime.tzst': b'old build', 'version.txt': b'old'})
+        with self.assertRaisesRegex(ValueError, 'powervr is missing or has a stale'):
             runtime.check_apk(apk, self.root)
 
     def test_a_missing_pack_is_rejected(self):
         apk = self.current_apk(self.root / 'current.apk')
-        (self.root / runtime.PACKS / 'xbox.tar.zst').unlink()
-        with self.assertRaisesRegex(ValueError, 'Missing add-on pack xbox'):
+        (self.root / runtime.PACKS / 'powervr.tar.zst').unlink()
+        with self.assertRaisesRegex(ValueError, 'Missing add-on pack powervr'):
             runtime.check_apk(apk, self.root)
 
     def test_windows_manifest_matches_portable_apk_paths(self):

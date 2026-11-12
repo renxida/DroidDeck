@@ -24,32 +24,26 @@ class AddedGameArtFillTest {
 
     private val coverBytes = byteArrayOf(9, 9, 9)
 
-    private fun game(name: String, appId: Long, cover: Boolean = true, source: String = Library.ADDED, storeId: String? = null): AddedGames.Game {
+    private fun game(name: String, appId: Long, cover: Boolean = true): AddedGames.Game {
         val dir = tmp.newFolder(name)
         File(dir, "steam_appid.txt").writeText("504230")
         if (cover) File(dir, "cover.jpg").writeBytes(coverBytes)
         val exe = File(dir, "$name.exe").apply { writeText("x") }
-        return AddedGames.Game(dir, name, exe, "/g/$name.exe", "/g", appId, appId, emptyList(), source = source, storeId = storeId)
+        return AddedGames.Game(dir, name, exe, "/g/$name.exe", "/g", appId, appId, emptyList())
     }
 
     private class Calls {
         val steam = ArrayList<Set<Slot>>()
         val sgdb = ArrayList<Set<Slot>>()
         var lookups = 0
-        var store = 0
     }
 
     private val steamNames = mapOf(Slot.COVER to "p.jpg", Slot.WIDE to "header.jpg", Slot.BACKGROUND to "hero.jpg", Slot.LOGO to "logo.png")
 
     private fun sources(
         calls: Calls, steamHas: Set<Slot> = emptySet(), sgdbHas: Set<Slot> = emptySet(),
-        storeHas: Boolean = false, sgdbFails: Boolean = false,
+        sgdbFails: Boolean = false,
     ) = AddedGameArt.Sources(
-        storeLogo = { g ->
-            calls.store++
-            if (storeHas) File(g.folder, "logo.png").writeBytes(byteArrayOf(4))
-            storeHas
-        },
         steamSearch = { fail("searched although the game names its appid"); null },
         steam = { id, cache, slots ->
             assertEquals("504230", id)
@@ -75,7 +69,6 @@ class AddedGameArtFillTest {
         assertTrue(AddedGameArt.fetchMissing(app, listOf(g), "key", sources(calls, steamHas = setOf(Slot.LOGO), sgdbHas = setOf(Slot.ICON))))
         assertEquals(listOf(setOf(Slot.LOGO)), calls.steam)
         assertEquals(listOf(setOf(Slot.ICON)), calls.sgdb)
-        assertEquals(0, calls.store)
         val cache = AddedGameArt.cacheDir(app, g)
         assertFalse(File(cache, "p.jpg").exists())
         assertArrayEquals(coverBytes, File(g.folder, "cover.jpg").readBytes())
@@ -123,16 +116,6 @@ class AddedGameArtFillTest {
         assertFalse(tried.exists())
     }
 
-    @Test fun theStoresOwnLogoComesFirst() {
-        val g = game("Metalstorm", 0x81000005L, source = "gog")
-        val calls = Calls()
-        assertTrue(AddedGameArt.fetchMissing(app, listOf(g), "key", sources(calls, storeHas = true, steamHas = setOf(Slot.LOGO), sgdbHas = setOf(Slot.ICON))))
-        assertEquals(1, calls.store)
-        assertTrue(calls.steam.isEmpty())
-        assertEquals(listOf(setOf(Slot.ICON)), calls.sgdb)
-        assertEquals(File(g.folder, "logo.png"), AddedGameArt.resolve(app, g).logo)
-    }
-
     @Test fun aGameWithoutACoverStillGetsEverySlot() {
         val g = game("Tunic", 0x81000006L, cover = false)
         val calls = Calls()
@@ -155,7 +138,6 @@ class AddedGameArtFillTest {
     }
 
     private fun steamFrom(asked: MutableList<String>, bytes: Byte, search: Int? = null, slotsAsked: MutableList<Set<Slot>> = ArrayList()) = AddedGameArt.Sources(
-        storeLogo = { false },
         steamSearch = { if (search == null) fail("searched although the game names its appid"); search },
         steam = { id, cache, slots ->
             asked += id
@@ -166,29 +148,6 @@ class AddedGameArtFillTest {
         sgdbGame = { _, _, _ -> null },
         sgdb = { _, _, _, _ -> false },
     )
-
-    @Test fun nameMatchedBattleNetArtIsForgottenOnce() {
-        val game = game("World of Warcraft: Forever", 9001, source = com.droiddeck.launcher.stores.Store.BATTLENET.id, storeId = "wow_forever")
-        val cache = AddedGameArt.cacheDir(app, game).apply { mkdirs() }
-        File(cache, "logo.png").writeBytes(byteArrayOf(1))
-        File(cache, "p.jpg").writeBytes(byteArrayOf(3))
-        File(cache, "sgdb-id").writeText("5")
-        assertTrue(AddedGameArt.forgetNameMatchedBattleNetArt(app, game))
-        assertFalse(File(cache, "logo.png").isFile)
-        assertTrue(File(cache, "p.jpg").isFile)
-        assertFalse(File(cache, "sgdb-id").isFile)
-        File(cache, "logo.png").writeBytes(byteArrayOf(2))
-        assertFalse(AddedGameArt.forgetNameMatchedBattleNetArt(app, game))
-        assertTrue(File(cache, "logo.png").isFile)
-    }
-
-    @Test fun battleNetArtFoundByItsSteamIdIsKept() {
-        val game = game("Call of Duty: Modern Warfare III", 9002, source = com.droiddeck.launcher.stores.Store.BATTLENET.id, storeId = "pinta")
-        val cache = AddedGameArt.cacheDir(app, game).apply { mkdirs() }
-        File(cache, "logo.png").writeBytes(byteArrayOf(1))
-        assertFalse(AddedGameArt.forgetNameMatchedBattleNetArt(app, game))
-        assertTrue(File(cache, "logo.png").isFile)
-    }
 
     @Test fun artOfTheAppTheFilesNamedBeforeIsFetchedAgain() {
         val g = game("Peak", 0x8100000AL, cover = false)

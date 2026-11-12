@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Intervall for dobbelttrykk</string>
     <string name="gesture_reset">Gjenopprett de opprinnelige bevegelsesinnstillingene</string>
     <string name="gesture_cancel">Avbryt</string>
-    <string name="gesture_action">Velg handling</string>
     <string name="gesture_left_click">Venstreklikk</string>
     <string name="gesture_right_click">Høyreklikk</string>
     <string name="gesture_middle_click">Midtklikk</string>

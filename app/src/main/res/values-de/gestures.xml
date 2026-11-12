@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Doppeltipp-Intervall</string>
     <string name="gesture_reset">Ursprüngliche Gesteneinstellungen wiederherstellen</string>
     <string name="gesture_cancel">Abbrechen</string>
-    <string name="gesture_action">Aktion auswählen</string>
     <string name="gesture_left_click">Linksklick</string>
     <string name="gesture_right_click">Rechtsklick</string>
     <string name="gesture_middle_click">Mittelklick</string>

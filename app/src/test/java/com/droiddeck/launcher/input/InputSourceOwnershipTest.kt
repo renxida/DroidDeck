@@ -185,22 +185,6 @@ class InputSourceOwnershipTest {
         assertEquals(DeckControls.L4, JoyConPadTest.RecordingWriter.grips)
     }
 
-    @Test fun cancellingHomeReleasesDeckOutputAndKeepsGripsBlockedUntilNeutral() {
-        val router = InputRouter(RecordingOutput())
-        bridge.setInputRouter(router)
-        DeckControls.setRouter(router)
-        bridge.setHomeGuidePressed(true)
-        DeckControls.setGrip(DeckControls.L4, true)
-        assertEquals(DeckControls.L4, JoyConPadTest.RecordingWriter.grips)
-        bridge.cancelHomeGuide()
-        assertEquals(0, JoyConPadTest.RecordingWriter.grips)
-        DeckControls.setGrip(DeckControls.L4, true)
-        assertEquals(0, JoyConPadTest.RecordingWriter.grips)
-        DeckControls.setGrip(DeckControls.L4, false)
-        DeckControls.setGrip(DeckControls.L4, true)
-        assertEquals(DeckControls.L4, JoyConPadTest.RecordingWriter.grips)
-    }
-
     private class RecordingOutput : InputOutput {
         val events = mutableListOf<String>()
         override fun key(code: Int, down: Boolean) { events += "key $code $down" }
@@ -209,21 +193,6 @@ class InputSourceOwnershipTest {
         override fun scroll(steps: Int) { events += "scroll" }
         override fun command(command: InputCommand) { events += command.name }
         override fun requestMotion() { events += "motion" }
-    }
-
-    @Test fun removingLastTouchSurfaceReleasesLegacyMouseRoute() {
-        val routed = PadState()
-        bridge.setTouchRoute(object : PadBridge.TouchRoute {
-            override fun active() = true
-            override fun accept(state: PadState) { routed.copyFrom(state) }
-        })
-        val first = Any(); val second = Any()
-        bridge.applyTouch(first, InputRole.PRIMARY) { it.press(PadState.A, true) }
-        bridge.applyTouch(second, InputRole.SECONDARY) { it.press(PadState.A, true) }
-        bridge.releaseTouch(first)
-        assertTrue(routed.isDown(PadState.A))
-        bridge.releaseTouch(second)
-        assertFalse(routed.isDown(PadState.A))
     }
 
     @Test fun nativeTrackpadKeepsItsOwnerUntilThatContactEnds() {

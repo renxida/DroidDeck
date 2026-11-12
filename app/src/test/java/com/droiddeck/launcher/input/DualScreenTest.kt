@@ -15,7 +15,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowDisplayManager
-import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
@@ -59,8 +58,7 @@ class DualScreenTest {
         assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY))
     }
 
-    @Test @Config(sdk = [34]) fun glassesVirtualOverlayAndSwitchedOffDisplaysDoNotDock() {
-        withDisplay(EXTERNAL, "VITURE Luma Ultra") { assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
+    @Test @Config(sdk = [34]) fun virtualOverlayAndSwitchedOffDisplaysDoNotDock() {
         withDisplay(VIRTUAL, "Screen recording") { assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
         withDisplay(OVERLAY, "Overlay #1") { assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
         withDisplay(EXTERNAL, "HDMI Screen") { display ->
@@ -78,23 +76,6 @@ class DualScreenTest {
                 assertNull(DualScreen.display(context, displays, Display.DEFAULT_DISPLAY, DualScreen.MODE_OFF))
             }
         }
-    }
-
-    @Test @Config(sdk = [34]) fun glassesOnUsbDoNotHideAnUnnamedDockDisplay() {
-        val state = ReflectionHelpers.getField<kotlinx.coroutines.flow.MutableStateFlow<com.droiddeck.launcher.glasses.GlassesState>>(
-            com.droiddeck.launcher.glasses.Glasses, "_state")
-        val before = state.value
-        try {
-            state.value = before.copy(present = true)
-            withDisplay(EXTERNAL, "") { assertFalse(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
-            withDisplay(EXTERNAL, "VITURE Luma Ultra") {
-                withDisplay(EXTERNAL, "") { assertTrue(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
-            }
-            withDisplay(EXTERNAL, "") { glasses ->
-                state.value = before.copy(present = true, displayId = glasses.displayId)
-                withDisplay(EXTERNAL, "") { assertTrue(DualScreen.dockedToDisplay(displays, Display.DEFAULT_DISPLAY)) }
-            }
-        } finally { state.value = before }
     }
 
     @Test fun onlyTheMomentOfDockingClosesAnAutomaticBottomPanel() {

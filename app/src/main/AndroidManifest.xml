@@ -1,24 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <queries>
-        <package android:name="cn.nubia.gamelauncher" />
-        <intent>
-            <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
-        </intent>
-        <intent>
-            <action android:name="android.content.pm.action.CONFIRM_PERMISSIONS" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.HOME" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.SECONDARY_HOME" />
-        </intent>
-    </queries>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.REORDER_TASKS" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -39,17 +20,10 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.CAMERA" />
 
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-    <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="false" />
 
     <application
         android:name=".App"
@@ -67,21 +41,6 @@
         android:isGame="true">
 
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
-        <service android:name=".glasses.LumaRgbCaptureService" android:exported="false"
-            android:process=":rgb_diagnostic" />
-        <service android:name=".wallpaper.SteamWallService"
-            android:label="@string/steam_wall_label"
-            android:permission="android.permission.BIND_WALLPAPER"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.wallpaper.WallpaperService" />
-            </intent-filter>
-            <meta-data android:name="android.service.wallpaper" android:resource="@xml/steam_wall_wallpaper" />
-        </service>
-        <activity android:name=".wallpaper.WallpaperSettingsActivity"
-            android:label="@string/steam_wall_label"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:exported="true" />
         <service android:name=".input.HomeButtonService"
             android:label="@string/integration_shortcuts_service"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -98,18 +57,6 @@
             </intent-filter>
         </receiver>
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
-        <activity android:name=".QuestXrActivity" android:exported="true" android:launchMode="singleTask"
-            android:permission="android.permission.DUMP"
-            android:resizeableActivity="false" android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
-            <meta-data android:name="android.app.lib_name" android:value="droiddeckxr" />
-            <intent-filter>
-                <action android:name="com.droiddeck.launcher.XR" />
-                <category android:name="com.oculus.intent.category.VR" />
-                <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
-            </intent-filter>
-        </activity>
 
         <activity
             android:name=".PairingGuideActivity"
@@ -158,55 +105,6 @@
             </intent-filter>
         </activity-alias>
 
-        <activity-alias
-            android:name=".LauncherLight"
-            android:targetActivity=".FrontEndActivity"
-            android:icon="@mipmap/ic_launcher_light"
-            android:enabled="false"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.CAR_LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity
-            android:name=".HomeActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:taskAffinity="${applicationId}.home"
-            android:screenOrientation="user"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.HOME" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".PinRequestActivity"
-            android:exported="true"
-            android:excludeFromRecents="true"
-            android:taskAffinity="${applicationId}.pin"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen">
-            <intent-filter>
-                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
-                <action android:name="android.content.pm.action.CONFIRM_PIN_APPWIDGET" />
-            </intent-filter>
-        </activity>
-
-
-        <activity
-            android:name=".sync.SyncthingWebActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
-            android:theme="@style/AppTheme" />
-
         <activity
             android:name=".files.FileManagerActivity"
             android:exported="false"
@@ -216,38 +114,6 @@
 
         <activity
             android:name=".files.FilePickerActivity"
-            android:exported="false"
-            android:screenOrientation="user"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
-            android:theme="@style/AppTheme" />
-
-        <activity android:name=".stores.xbox.XboxLoginActivity" android:exported="false"
-            android:process=":xboxlogin" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
-            android:theme="@style/AppTheme" />
-
-        <activity android:name=".stores.xbox.XboxCloudPlayerActivity" android:exported="false"
-            android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
-            android:theme="@style/AppTheme" />
-
-        <service android:name=".stores.xbox.XboxCloudTokenService" android:exported="false" />
-
-        <activity android:name=".stores.xbox.XboxNativePlayerActivity" android:exported="false"
-            android:process=":xcloudnative" android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
-            android:theme="@style/AppTheme" />
-
-        <activity android:name=".stores.xbox.XboxCloudActivity" android:exported="false"
-            android:process=":xboxcloud" android:launchMode="singleTop" android:screenOrientation="sensorLandscape"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
-            android:theme="@style/AppTheme" />
-
-        <activity android:name=".stores.xbox.XboxCloudSettingsActivity" android:exported="false"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
-            android:theme="@style/AppTheme" />
-
-        <activity
-            android:name=".stores.StoreLoginActivity"
             android:exported="false"
             android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
@@ -293,17 +159,6 @@
             android:windowSoftInputMode="stateAlwaysHidden|adjustNothing"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
-        <activity
-            android:name=".gpu.SteamVrRestartActivity"
-            android:exported="false"
-            android:process=":vr_recovery"
-            android:taskAffinity="${applicationId}.vr_recovery"
-            android:excludeFromRecents="true"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
-            android:theme="@style/SessionTheme" />
-
-        <service android:name=".agent.AgentHostService" android:exported="false" />
         <service
             android:name=".session.SessionService"
             android:exported="false"
@@ -319,14 +174,6 @@
         <service
             android:name=".core.WirelessAdbPairingService"
             android:exported="false" />
-        <service
-            android:name=".stores.download.StoreDownloadService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-        <service
-            android:name=".sync.SyncthingService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.logs"
@@ -360,13 +207,5 @@
             android:exported="true"
             android:permission="android.permission.DUMP"
             android:grantUriPermissions="false" />
-        <activity android:name=".ui.SpatialTrackingActivity" android:exported="false" />
-        <service
-            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
-            tools:node="merge">
-            <meta-data
-                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
-                tools:node="remove" />
-        </service>
     </application>
 </manifest>

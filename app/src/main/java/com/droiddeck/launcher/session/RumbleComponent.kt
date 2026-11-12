@@ -134,7 +134,6 @@ class RumbleComponent : SessionPart() {
     }
 
     private fun target(slot: Int): Motors? {
-        JoyCon.vrRumbleDevice(slot)?.let { hand -> return if (hand == PadBridge.NO_CONTROLLER) null else motors(hand) }
         val left = PadBridge.joyConForSlot(slot, JoyCon.LEFT)
         val right = PadBridge.joyConForSlot(slot, JoyCon.RIGHT)
         if (left != PadBridge.NO_CONTROLLER && right != PadBridge.NO_CONTROLLER) {

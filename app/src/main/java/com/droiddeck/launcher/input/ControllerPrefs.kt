@@ -50,7 +50,6 @@ object ControllerPrefs {
         val qamButton: Boolean,
         val keyboardButton: Boolean,
         val selectSteam: Boolean,
-        val joyConVr: Boolean,
         val snap: Boolean,
         val customLayout: Boolean,
         val mapping: Map<String, String>,
@@ -72,7 +71,6 @@ object ControllerPrefs {
             qamButton = p.getBoolean("qamButton", true),
             keyboardButton = p.getBoolean("keyboardButton", true),
             selectSteam = p.getBoolean("selectSteam", false),
-            joyConVr = joyConVr(context),
             snap = snap(context),
             customLayout = p.all.keys.any { it.startsWith("layout.") },
             mapping = mappable.associate { (id, _) -> id to target(context, id) },
@@ -130,12 +128,6 @@ object ControllerPrefs {
 
     fun setSelectSteam(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("selectSteam", on).apply()
-    }
-
-    fun joyConVr(context: Context): Boolean = prefs(context).getBoolean("joyConVr", true)
-
-    fun setJoyConVr(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("joyConVr", on).apply()
     }
 
     fun snap(context: Context): Boolean = prefs(context).getBoolean("snap", true)

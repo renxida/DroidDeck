@@ -24,8 +24,6 @@ object LibraryCache {
                 library = o.getString("library"), gameId = o.getLong("gameId"), hero = o.file("hero"),
                 lastPlayed = o.optLong("lastPlayed"), gameFiles = o.file("gameFiles"), protonPrefix = o.file("protonPrefix"),
                 icon = o.file("icon"),
-                source = o.optString("source").ifEmpty { if (o.getString("library") == Library.ADDED) Library.ADDED else Library.SOURCE_STEAM },
-                storeId = o.optString("storeId").ifEmpty { null },
                 logo = o.file("logo"),
                 installedAt = o.optLong("installedAt"),
             )
@@ -45,7 +43,7 @@ object LibraryCache {
                 JSONObject().put("appId", g.appId).put("name", g.name).put("library", g.library).put("gameId", g.gameId)
                     .put("lastPlayed", g.lastPlayed).putFile("art", g.art).putFile("hero", g.hero)
                     .putFile("gameFiles", g.gameFiles).putFile("protonPrefix", g.protonPrefix).putFile("icon", g.icon).putFile("logo", g.logo)
-                    .put("source", g.source).put("installedAt", g.installedAt).apply { g.storeId?.let { put("storeId", it) } },
+                    .put("installedAt", g.installedAt),
             )
             val f = file(context)
             val tmp = File(f.path + ".tmp")

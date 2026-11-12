@@ -13,16 +13,11 @@
       "tools/mangoapp",
       "tools/msitools",
       "tools/pipewire",
-      "tools/vr",
       "tools/gpuload",
-      "app/src/main/cpp/waylandcomp/generated",
-      "app/src/main/cpp/waylandcomp/src/headpose_shm.h",
-      "app/src/main/cpp/waylandcomp/src/spatialpose_shm.h",
       "app/src/main/cpp/venc/venc_proto.h"
     ],
     "outputs": [
       "app/src/main/assets/linuxfs/usr/local/bin/gamescope",
-      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/bin/linuxarm64/driver_droiddeck.so",
       "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
       "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so"
     ],
@@ -67,7 +62,6 @@
       "app/src/main/assets/linuxfs/i386/libfakeinput.so",
       "app/src/main/assets/linuxfs/i386/libblsession.so",
       "app/src/main/assets/linuxfs/i386/libfaultreport.so",
-      "app/src/main/assets/linuxfs/x86_64/libwebkitinput.so",
       "app/src/main/assets/linuxfs/x86_64/libvulkan-thunk.so"
     ],
     "source_inputs": [
@@ -88,7 +82,6 @@
       "i386/libfakeinput.so",
       "i386/libblsession.so",
       "i386/libfaultreport.so",
-      "x86_64/libwebkitinput.so",
       "x86_64/libvulkan-thunk.so"
     ]
   },
@@ -143,20 +136,6 @@
       "gawk"
     ],
     "ndk": true
-  },
-  "comet": {
-    "script": "tools/components/recipes/comet.sh",
-    "inputs": [
-      "tools/comet",
-      "tools/components/recipes/comet.sh"
-    ],
-    "outputs": [
-      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet/comet",
-      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet/version"
-    ],
-    "packages": [
-      "gcc-aarch64-linux-gnu"
-    ]
   },
   "arm64-preloads": {
     "script": "tools/components/recipes/arm64-preloads.sh",
@@ -213,25 +192,6 @@
       "tools/components/preloads.lock.json"
     ],
     "outputs": []
-  },
-  "xbox": {
-    "script": "tools/components/recipes/xbox.sh",
-    "inputs": [
-      "tools/xbox",
-      "tools/components/recipes/xbox.sh"
-    ],
-    "outputs": [
-      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-cli",
-      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-service"
-    ],
-    "packages": [
-      "build-essential",
-      "pkg-config",
-      "libssl-dev",
-      "protobuf-compiler",
-      "cmake",
-      "xz-utils"
-    ]
   },
   "vkbridge": {
     "script": "tools/components/recipes/vkbridge.sh",

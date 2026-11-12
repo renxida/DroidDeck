@@ -3,7 +3,7 @@ package com.droiddeck.launcher.frontend
 import android.content.Context
 import android.util.Log
 import androidx.annotation.VisibleForTesting
-import com.droiddeck.launcher.stores.CredentialCipher
+import com.droiddeck.launcher.core.CredentialCipher
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -72,8 +72,6 @@ object SteamGridDb {
 
     fun gameId(key: String, steamAppId: Int?, name: String): Int? = gameId(key, steamAppId, name, ::match)
 
-    fun exactGameId(key: String, steamAppId: Int?, name: String): Int? = gameId(key, steamAppId, name, ::exactMatch)
-
     private fun gameId(key: String, steamAppId: Int?, name: String, pick: (String, List<Pair<Int, String>>) -> Int?): Int? {
         if (steamAppId != null) {
             json(key, "$API/games/steam/$steamAppId")?.optJSONObject("data")?.optInt("id")?.takeIf { it > 0 }?.let { return it }
@@ -82,9 +80,6 @@ object SteamGridDb {
         val results = json(key, "$API/search/autocomplete/$term")?.optJSONArray("data") ?: return null
         return pick(name, (0 until results.length()).map { results.getJSONObject(it) }.map { it.optInt("id") to it.optString("name") })
     }
-
-    internal fun exactMatch(name: String, results: List<Pair<Int, String>>): Int? =
-        results.firstOrNull { (id, got) -> id > 0 && AddedGameArt.nameMatch(name, got) == 3 }?.first
 
     internal fun match(name: String, results: List<Pair<Int, String>>): Int? =
         results.map { (id, got) -> id to AddedGameArt.nameMatch(name, got) }

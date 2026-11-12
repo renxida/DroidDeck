@@ -145,14 +145,7 @@ internal class SheetBeat(private val pieces: List<Animatable<Float, AnimationVec
 
 internal val LocalSheetBeat = staticCompositionLocalOf<SheetBeat?> { null }
 
-internal val LocalSheetChipWidth = compositionLocalOf { Dp.Unspecified }
-
-internal val LocalPlayRect = compositionLocalOf<Rect?> { null }
-
 private val ChipGap = 6.dp
-
-internal fun sheetChipWidth(row: Dp, count: Int): Dp =
-    if (count > 0 && row / count >= 96.dp) (row - ChipGap * (count - 1)) / count else 0.dp
 
 @Composable
 internal fun Modifier.sheetPiece(): Modifier {
@@ -189,8 +182,6 @@ internal fun LiftHero(
     onOpenChange: (Boolean) -> Unit = {},
     start: Dp = 44.dp,
     bottom: Dp = 44.dp,
-    drop: DropSheetState? = null,
-    overlay: @Composable BoxWithConstraintsScope.(lifted: () -> Float) -> Unit = {},
 ) {
     val density = LocalDensity.current
     val inputMode = LocalInputModeManager.current
@@ -324,7 +315,7 @@ internal fun LiftHero(
     val lipFocus = remember { FocusRequester() }
     val settingsLabel = stringResource(R.string.drawer_page_settings)
     var lipFocused by remember { mutableStateOf(false) }
-    val lipWanted = !open && (!shown || lipBack) && (playFocused || playHovered || touchOnly || lipFocused) && drop?.let { it.open || it.shown } != true
+    val lipWanted = !open && (!shown || lipBack) && (playFocused || playHovered || touchOnly || lipFocused)
     LaunchedEffect(lipWanted) {
         if (lipWanted) {
             if (!lipBack) delay(Motion.ms(160).toLong())
@@ -403,35 +394,18 @@ internal fun LiftHero(
     }
     BoxWithConstraints(
         modifier.fillMaxSize().onGloballyPositioned { heroAt = it.boundsInRoot().topLeft }
-            .pointerInput(drop) {
+            .pointerInput(Unit) {
                 val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                 var decided = false
-                val dropFlick = 600.dp.toPx()
                 detectVerticalDragGestures(
                     onDragStart = { tracker.resetTracking(); decided = false; drag.engaged = false },
-                    onDragEnd = {
-                        if (drag.engaged) settleDrag(tracker.calculateVelocity().y)
-                        else if (drop?.engaged == true) drop.settle(tracker.calculateVelocity().y, dropFlick)
-                    },
-                    onDragCancel = {
-                        if (drag.engaged) settleDrag(0f)
-                        else if (drop?.engaged == true) drop.settle(0f, dropFlick)
-                    },
+                    onDragEnd = { if (drag.engaged) settleDrag(tracker.calculateVelocity().y) },
+                    onDragCancel = { if (drag.engaged) settleDrag(0f) },
                 ) { change, amount ->
                     if (launching) return@detectVerticalDragGestures
                     if (!decided) {
                         decided = true
-                        when {
-                            drop != null && (drop.open || drop.shown) -> if (drop.open && amount < 0f) drop.beginDrag()
-                            open || shown || amount < 0f -> if (if (open) amount > 0f else amount < 0f) beginDrag()
-                            drop != null && amount > 0f -> drop.beginDrag()
-                        }
-                    }
-                    if (drop?.engaged == true) {
-                        change.consume()
-                        tracker.addPosition(change.uptimeMillis, change.position)
-                        drop.drag(amount)
-                        return@detectVerticalDragGestures
+                        if (open || shown || amount < 0f) { if (if (open) amount > 0f else amount < 0f) beginDrag() }
                     }
                     if (!drag.engaged) return@detectVerticalDragGestures
                     change.consume()
@@ -452,11 +426,9 @@ internal fun LiftHero(
         val chipsX = with(density) {
             if (narrow || pill == null) 16.dp.toPx() else pill.right + 20.dp.toPx() - inset
         }
-        val chipWidth = with(density) { sheetChipWidth((w - 2 * inset - chipsX - 64.dp.toPx()).coerceAtLeast(0f).toDp(), tabs.size) }
 
         val foot = h
-        val wallSink = { maxOf(sink.value, drop?.sink?.value ?: 0f) }
-        Box(Modifier.fillMaxSize().clipToBounds().graphicsLayer { val k = 1f - 0.05f * wallSink(); scaleX = k; scaleY = k }) { background() }
+        Box(Modifier.fillMaxSize().clipToBounds().graphicsLayer { val k = 1f - 0.05f * sink.value; scaleX = k; scaleY = k }) { background() }
         scrim { sink.value }
         if (shown || open) Box(
             Modifier.fillMaxSize()
@@ -574,13 +546,13 @@ internal fun LiftHero(
         }
 
         Column(Modifier.align(Alignment.BottomStart).padding(start = start, bottom = bottom, end = 20.dp)) {
-            Box(Modifier.graphicsLayer { alpha = 1f - wallSink() }) { words() }
+            Box(Modifier.graphicsLayer { alpha = 1f - sink.value }) { words() }
             Spacer(Modifier.height(18.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(
                 Modifier
                     .onGloballyPositioned { rest = it.boundsInRoot() }
-                    .graphicsLayer { translationY = raise * ride.value; alpha = 1f - (drop?.sink?.value ?: 0f) }
+                    .graphicsLayer { translationY = raise * ride.value }
                     .onFocusChanged {
                         if (it.hasFocus && leftForPlay[0]) { leftForPlay[0] = false; if (openState.value && !launchingState.value) close() }
                         playFocused = it.hasFocus
@@ -607,7 +579,7 @@ internal fun LiftHero(
             val besideShown = !(open || shown)
             Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.graphicsLayer { alpha = 1f - wallSink() }
+                modifier = Modifier.graphicsLayer { alpha = 1f - sink.value }
                     .focusProperties { canFocus = besideShown },
             ) { if (besideShown || sink.value < 0.99f) beside() }
             }
@@ -622,7 +594,7 @@ internal fun LiftHero(
                 Modifier
                     .offset { IntOffset((r0.center.x - handleW / 2f).roundToInt(), (r0.bottom + raise * ride.value + (lipShow.value - 1f) * 8.dp.toPx()).roundToInt()) }
                     .onSizeChanged { handleW = it.width.toFloat() }
-                    .graphicsLayer { alpha = lipShow.value * (1f - lipGone.value) * (1f - (drop?.sink?.value ?: 0f)) }
+                    .graphicsLayer { alpha = lipShow.value * (1f - lipGone.value) }
                     .heightIn(min = 44.dp).testTag("sheet-open")
                     .semantics { contentDescription = settingsLabel }
                     .then(
@@ -636,7 +608,6 @@ internal fun LiftHero(
                 }
             }
         }
-        CompositionLocalProvider(LocalSheetChipWidth provides chipWidth, LocalPlayRect provides restRect) { overlay { sink.value } }
     }
 }
 

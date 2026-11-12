@@ -65,10 +65,6 @@ def source_stamp(game):
         return None
 
 
-def store_game(game):
-    return bool(game.get("store"))
-
-
 def manifest_ids(steamapps, name):
     matches = []
     for manifest in Path(steamapps).glob("appmanifest_*.acf"):
@@ -216,7 +212,7 @@ def remember_tried(steam_root, account, appids):
 
 
 def watch(steam_root, listing):
-    games = [game for game in read_json(listing, []) if not store_game(game) and not game.get("native")]
+    games = [game for game in read_json(listing, []) if not game.get("native")]
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
@@ -524,13 +520,6 @@ def route(steam_root, acct, games):
     except OSError as error:
         print(f"droiddeck-steam-games: set-aside installs not restored ({error})")
     for game in games:
-        if store_game(game):
-            try:
-                release(steam_root, game, lambda old: True, f"came from {game['store']}")
-            except OSError as error:
-                print(f"droiddeck-steam-games: store import not undone ({error})")
-            shortcuts.append(game)
-            continue
         if game.get("native"):
             shortcuts.append(game)
             continue

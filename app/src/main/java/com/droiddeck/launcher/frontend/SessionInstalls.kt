@@ -57,7 +57,7 @@ object SessionInstalls {
 
     internal fun gameOf(m: Manifest): Library.SteamGame =
         Library.SteamGame(m.appId, m.name.ifEmpty { m.appId.toString() }, null, m.steamapps.parentFile?.path ?: "steam",
-            gameFiles = File(m.steamapps, "common/${m.installDir}"), source = Library.SOURCE_STEAM)
+            gameFiles = File(m.steamapps, "common/${m.installDir}"))
 
     fun watch(context: Context) {
         val app = context.applicationContext

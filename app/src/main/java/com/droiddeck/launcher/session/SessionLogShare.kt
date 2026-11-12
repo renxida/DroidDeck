@@ -79,8 +79,6 @@ object SessionLogShare {
         return EnhancedSessionLogShare.createLegacy(context, folder, onProgress, out)
     }
 
-    const val STORES_DIR = "stores"
-
     internal fun shareDir(context: Context): File = File(context.cacheDir, "share")
 
     fun clear(context: Context) {

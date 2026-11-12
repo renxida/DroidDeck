@@ -46,14 +46,11 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
-import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -123,12 +120,9 @@ internal fun BottomBar(
 
 internal fun navigationKeys(s: FrontEndState) = buildList {
     add("steam"); add("games")
-    if (s.gameStoresEnabled) add("stores")
     add("desktop")
-    if (com.droiddeck.launcher.agent.AgentHost.available) add("agent")
     add("components")
-    if (s.isHomeApp) add("android-apps")
-    add("setup"); add("updates")
+    add("setup")
 }
 
 internal object RailLabels {
@@ -197,17 +191,13 @@ internal fun SideRail(
 internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
-    "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
-    "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
-    "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
-    "setup" -> R.string.rail_setup to Icons.Outlined.Tune
-    else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
+    else -> R.string.rail_setup to Icons.Outlined.Tune
 }
 
 internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
-    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus) || com.droiddeck.launcher.sync.Syncthing.needsAttention
+    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
 
 @Composable
 private fun NavigationItems(
@@ -219,8 +209,7 @@ private fun NavigationItems(
         val (label, icon) = railLabelIcon(key)
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
-                badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),
-                count = if (key == "stores") s.storeDownloadsActive else 0,
+                badge = key == "setup" && setupNeedsAttention,
                 place = place, onFocus = { onFocusSelect(key) }) { onSelect(key) }
         }
     }
@@ -231,7 +220,6 @@ private fun NavigationItems(
 private fun RailItem(
     label: String, icon: ImageVector, key: String, current: Boolean, compact: Boolean, iconOnly: Boolean, height: Dp, width: Dp,
     badge: Boolean = false,
-    count: Int = 0,
     place: (String) -> Modifier = { Modifier },
     onFocus: () -> Unit = {}, onClick: () -> Unit,
 ) {
@@ -285,12 +273,6 @@ private fun RailItem(
         if (badge) Box(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = if (iconOnly) 7.dp else 8.dp, end = if (iconOnly) 9.dp else 18.dp)
                 .size(8.dp).clip(CircleShape).background(AttentionAmber),
-        )
-        if (count > 0) Text(
-            if (count > 9) "9+" else count.toString(),
-            fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.onSignal, maxLines = 1,
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = if (iconOnly) 4.dp else 6.dp, end = if (iconOnly) 5.dp else 12.dp)
-                .landingPop().clip(RoundedCornerShape(8.dp)).background(pal.signal).padding(horizontal = 5.dp, vertical = 1.dp),
         )
     }
 }

@@ -227,8 +227,6 @@ call can be answered in-process with the 0014 design.
    - They report Steam's first window 7× faster and about 5% more FPS, with proot having used 60–65%
      of a core.
    - **They still run Proton and the games under proot.**
-   - DroidDeck also has four package names (`tools/release/variants.txt`), so a relocated prefix
-     would need four builds or Winlator-style padded path rewriting.
 2. **Hybrid by process (Steam in proot, game on glibc, or the reverse).** The game side is the
    *harder* half. Wine re-execs itself and `wineserver`, which hits `PT_INTERP`. Its server
    directory is hard-coded under `/tmp`, and Proton's esync and fsync use `shm_open` (`/dev/shm`)

@@ -3,11 +3,10 @@
 #include <stdio.h>
 
 struct vkp_draw { int unused; };
-static int quest, framegen, cardboard, pass_result, base_result, pass_shown;
+static int quest, framegen, pass_result, base_result, pass_shown;
 static int first_frames, pass_calls, base_calls, fallback_calls;
 static int vkp_quest_layer_presentation(void) { return quest; }
 static int vkp_framegen_active(void) { return framegen; }
-static int vkp_cardboard_active(void) { return cardboard; }
 static void vkp_apply_window_request(void) {}
 static void sc_layer_hide_overlay(void) {}
 static void sc_layer_hide(void) {}
@@ -26,7 +25,7 @@ static int render_impl(int w, int h, const struct vkp_draw *draws, int n,
 
 static void reset(void) {
     quest = 1;
-    framegen = cardboard = pass_result = base_result = pass_shown = 0;
+    framegen = pass_result = base_result = pass_shown = 0;
     first_frames = pass_calls = base_calls = fallback_calls = 0;
 }
 
@@ -53,11 +52,10 @@ int main(void) {
     assert(vkp_render(1280, 720, NULL, 0) == -1);
     assert(first_frames == 0);
 
-    for (int mode = 0; mode < 3; mode++) {
+    for (int mode = 0; mode < 2; mode++) {
         reset();
         if (mode == 0) quest = 0;
         if (mode == 1) framegen = 1;
-        if (mode == 2) cardboard = 1;
         assert(vkp_render(1280, 720, &draw, 1) == 17);
         assert(fallback_calls == 1 && pass_calls == 0 && base_calls == 0);
         assert(first_frames == 0);

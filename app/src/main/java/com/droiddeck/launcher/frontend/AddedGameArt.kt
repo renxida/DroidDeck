@@ -4,11 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import com.droiddeck.launcher.files.PeIconExtractor
-import com.droiddeck.launcher.runtime.BattleNet
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.stores.Store
-import com.droiddeck.launcher.stores.StoreArt
-import com.droiddeck.launcher.stores.StoreGameSidecar
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -77,18 +73,14 @@ object AddedGameArt {
         )
     }
 
-    private fun storeArt(context: Context, game: AddedGames.Game): BattleNet.Art? =
-        if (game.source != Store.BATTLENET.id) null else game.storeId?.let(BattleNet::title)?.let { BattleNet.art(context, it) }
-
     fun resolve(context: Context, game: AddedGames.Game): Art {
         val own = local(game)
         val cache = cacheDir(context, game)
-        val store = storeArt(context, game)
         fun cached(name: String) = File(cache, name).takeIf { it.isFile }
         return Art(
-            portrait = chosen(cache, Slot.COVER) ?: own.portrait ?: store?.cover ?: cached("p.jpg") ?: exeArt(context, game, cover = true),
-            header = chosen(cache, Slot.WIDE) ?: own.header ?: store?.header ?: cached("header.jpg") ?: exeArt(context, game, cover = false),
-            hero = chosen(cache, Slot.BACKGROUND) ?: own.hero ?: store?.header ?: cached("hero.jpg"),
+            portrait = chosen(cache, Slot.COVER) ?: own.portrait ?: cached("p.jpg") ?: exeArt(context, game, cover = true),
+            header = chosen(cache, Slot.WIDE) ?: own.header ?: cached("header.jpg") ?: exeArt(context, game, cover = false),
+            hero = chosen(cache, Slot.BACKGROUND) ?: own.hero ?: cached("hero.jpg"),
             logo = chosen(cache, Slot.LOGO) ?: own.logo ?: cached("logo.png"),
             icon = chosen(cache, Slot.ICON) ?: own.icon ?: cached("icon-sgdb.png") ?: exeIcon(context, game),
         )
@@ -97,16 +89,15 @@ object AddedGameArt {
     fun describe(context: Context, game: AddedGames.Game): List<SlotState> {
         val own = local(game)
         val cache = cacheDir(context, game)
-        val store = storeArt(context, game)
         fun cached(name: String): Pair<File, String>? = File(cache, name).takeIf { it.isFile }?.let { f ->
             f to (File(cache, "$name.src").takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() } ?: STEAM)
         }
         return Slot.values().map { slot ->
             chosen(cache, slot)?.let { return@map SlotState(slot, it, chosenSource(context, game, slot).first.ifEmpty { FILE }, true) }
             val auto: Pair<File, String>? = when (slot) {
-                Slot.COVER -> own.portrait?.let { it to FOLDER } ?: store?.cover?.let { it to AUTO } ?: cached("p.jpg") ?: exeArt(context, game, cover = true)?.let { it to EXE }
-                Slot.WIDE -> own.header?.let { it to FOLDER } ?: store?.header?.let { it to AUTO } ?: cached("header.jpg") ?: exeArt(context, game, cover = false)?.let { it to EXE }
-                Slot.BACKGROUND -> own.hero?.let { it to FOLDER } ?: store?.header?.let { it to AUTO } ?: cached("hero.jpg")
+                Slot.COVER -> own.portrait?.let { it to FOLDER } ?: cached("p.jpg") ?: exeArt(context, game, cover = true)?.let { it to EXE }
+                Slot.WIDE -> own.header?.let { it to FOLDER } ?: cached("header.jpg") ?: exeArt(context, game, cover = false)?.let { it to EXE }
+                Slot.BACKGROUND -> own.hero?.let { it to FOLDER } ?: cached("hero.jpg")
                 Slot.LOGO -> own.logo?.let { it to FOLDER } ?: cached("logo.png")
                 Slot.ICON -> own.icon?.let { it to FOLDER } ?: File(cache, "icon-sgdb.png").takeIf { it.isFile }?.let { it to SGDB }
                     ?: exeIcon(context, game)?.let { it to EXE }
@@ -238,23 +229,17 @@ object AddedGameArt {
     }
 
     internal class Sources(
-        val storeLogo: (AddedGames.Game) -> Boolean,
         val steamSearch: (String) -> Int?,
         val steam: (String, File, Set<Slot>) -> Boolean,
         val sgdbGame: (String, Int?, String) -> Int?,
         val sgdb: (String, Int, File, Set<Slot>) -> Boolean,
-        val sgdbExactGame: (String, Int?, String) -> Int? = { _, _, _ -> null },
-        val battleNetArt: (Context, BattleNet.Title) -> Boolean = { _, _ -> false },
     )
 
     private val network = Sources(
-        storeLogo = ::storeLogo,
         steamSearch = { name -> search(name)?.toIntOrNull() },
         steam = ::download,
         sgdbGame = SteamGridDb::gameId,
         sgdb = SteamGridDb::download,
-        sgdbExactGame = SteamGridDb::exactGameId,
-        battleNetArt = { context, title -> BattleNet.fetchCovers(context, listOf(BattleNet.artTitle(title))) },
     )
 
     private val EXTRAS = setOf(Slot.LOGO, Slot.ICON)
@@ -264,22 +249,16 @@ object AddedGameArt {
     internal fun missing(context: Context, game: AddedGames.Game): Set<Slot> {
         val own = local(game)
         val cache = cacheDir(context, game)
-        val store = storeArt(context, game)
         fun has(slot: Slot, mine: File?, cached: String) = chosen(cache, slot) != null || mine != null || File(cache, cached).isFile
         return Slot.values().filterNot { slot ->
             when (slot) {
-                Slot.COVER -> has(slot, own.portrait ?: store?.cover, "p.jpg")
-                Slot.WIDE -> has(slot, own.header ?: store?.header, "header.jpg")
-                Slot.BACKGROUND -> has(slot, own.hero ?: store?.header, "hero.jpg")
+                Slot.COVER -> has(slot, own.portrait, "p.jpg")
+                Slot.WIDE -> has(slot, own.header, "header.jpg")
+                Slot.BACKGROUND -> has(slot, own.hero, "hero.jpg")
                 Slot.LOGO -> has(slot, own.logo, "logo.png")
                 Slot.ICON -> has(slot, own.icon, "icon-sgdb.png")
             }
         }.toSet()
-    }
-
-    private fun storeLogo(game: AddedGames.Game): Boolean {
-        val url = StoreGameSidecar.read(game.folder)?.logo ?: return false
-        return StoreArt.fetchLogo(game.folder, url)
     }
 
     fun fetchMissing(context: Context, games: List<AddedGames.Game>): Boolean =
@@ -292,9 +271,6 @@ object AddedGameArt {
         var changed = false
         for (game in games) {
             if (forgetOtherAppsArt(context, game)) changed = true
-            if (forgetNameMatchedBattleNetArt(context, game)) changed = true
-            val battleNetTitle = game.storeId?.takeIf { game.source == Store.BATTLENET.id }?.let(BattleNet::title)
-            if (battleNetTitle != null && runCatching { sources.battleNetArt(context, battleNetTitle) }.getOrDefault(false)) changed = true
             val cache = cacheDir(context, game)
             val start = missing(context, game)
             val again = refetch(cache) intersect start
@@ -306,10 +282,6 @@ object AddedGameArt {
             val tried = File(cache, EXTRAS_TRIED)
             if (!full && again.isEmpty() && tried.isFile && tried.lastModified() >= keyChangedAt && System.currentTimeMillis() - tried.lastModified() < RETRY_AFTER_MS) continue
             cache.mkdirs()
-            if (Slot.LOGO in need && game.source != Library.ADDED && runCatching { sources.storeLogo(game) }.getOrDefault(false)) {
-                changed = true
-                need = need - Slot.LOGO
-            }
             val match by lazy {
                 steamMatch(context, game) { name ->
                     runCatching { sources.steamSearch(name) }.onFailure { Log.w(TAG, "${game.name}: store search failed (${it.message})") }.getOrNull()
@@ -325,7 +297,7 @@ object AddedGameArt {
             if (need.isNotEmpty() && sgdbKey.isNotEmpty()) {
                 if (sgdbDown) asked = false else try {
                     val gridId = remembered(File(cache, "sgdb-id"), keyChangedAt) {
-                        (if (battleNetTitle != null) sources.sgdbExactGame else sources.sgdbGame)(sgdbKey, match.appId, game.name)?.toString()
+                        sources.sgdbGame(sgdbKey, match.appId, game.name)?.toString()
                     }?.toIntOrNull()
                     if (gridId != null && sources.sgdb(sgdbKey, gridId, cache, need)) changed = true
                 } catch (e: Exception) {
@@ -350,21 +322,6 @@ object AddedGameArt {
         if (slots.isEmpty()) File(cache, REFETCH).delete() else File(cache, REFETCH).writeText(slots.joinToString(",") { it.key })
     }
 
-    internal const val BATTLENET_ART_CHECKED = "battlenet-art-2"
-
-    internal fun forgetNameMatchedBattleNetArt(context: Context, game: AddedGames.Game): Boolean {
-        val title = game.storeId?.takeIf { game.source == Store.BATTLENET.id }?.let(BattleNet::title) ?: return false
-        val cache = cacheDir(context, game)
-        val checked = File(cache, BATTLENET_ART_CHECKED)
-        if (title.steam != null || checked.isFile) return false
-        val dropped = EXTRAS.filter { File(cache, SteamGridDb.cacheName(it)).delete() }
-        EXTRAS.forEach { File(cache, SteamGridDb.cacheName(it) + ".src").delete() }
-        listOf("sgdb-id", EXTRAS_TRIED).forEach { File(cache, it).delete() }
-        cache.mkdirs()
-        checked.writeText("")
-        return dropped.isNotEmpty()
-    }
-
     internal fun forgetOtherAppsArt(context: Context, game: AddedGames.Game): Boolean {
         val cache = cacheDir(context, game)
         val recorded = SteamMatch.get(context, game.folder.path)?.takeIf { it.appId != null }
@@ -386,10 +343,6 @@ object AddedGameArt {
     }
 
     internal fun steamMatch(context: Context, game: AddedGames.Game, search: (String) -> Int?): SteamMatch.Match {
-        if (game.source == Store.BATTLENET.id) {
-            val id = game.storeId?.let(BattleNet::title)?.steam
-            return SteamMatch.Match(id, if (id == null) SteamMatch.Certainty.NONE else SteamMatch.Certainty.FILES, Store.BATTLENET.id, System.currentTimeMillis())
-        }
         val match = SteamMatch.resolve(context, game.folder.path, game.exe, game.name, legacy = File(cacheDir(context, game), "steam-appid"), search = search)
         match.appId?.let { Log.i(TAG, "${game.name}: Steam app $it (${match.certainty.name.lowercase()})") }
         return match

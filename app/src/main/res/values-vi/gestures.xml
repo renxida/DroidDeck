@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Khoảng thời gian chạm hai lần</string>
     <string name="gesture_reset">Khôi phục cài đặt cử chỉ ban đầu</string>
     <string name="gesture_cancel">Hủy</string>
-    <string name="gesture_action">Chọn thao tác</string>
     <string name="gesture_left_click">Nhấp chuột trái</string>
     <string name="gesture_right_click">Nhấp chuột phải</string>
     <string name="gesture_middle_click">Nhấp chuột giữa</string>

@@ -185,13 +185,6 @@ if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
     save_step x86-preloads "${x86_key}" "${x86_stage}"
 fi
 
-vr_out="${linuxfs_dir}/usr/local/lib/droiddeck-vr"
-vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
-if ! restore_step vr "${vr_key}" "${vr_out}"; then
-    DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${vr_out}"
-    save_step vr "${vr_key}" "${vr_out}"
-fi
-
 gpuload_out="${linuxfs_dir}/usr/local/lib/droiddeck-gpuload"
 gpuload_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/gpuload)
 if ! restore_step gpuload "${gpuload_key}" "${gpuload_out}"; then
@@ -355,27 +348,6 @@ else
     (cd "${proot_out}" && shasum -a 256 libproot.so libproot-loader.so > .proot-outputs)
 fi
 
-syncthing_src="${repo_root}/tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing"
-git -C "${repo_root}" submodule update --init --recursive tools/syncthing/syncthing-android
-syncthing_inputs=$(printf '%s\n' "$(cd "${repo_root}" && shasum -a 256 tools/syncthing/build.sh \
-    tools/syncthing/syncthing-android/gradle/libs.versions.toml)" \
-    "$(git -C "${syncthing_src}" rev-parse HEAD)" \
-    "$(git -C "${syncthing_src}" diff --binary HEAD | shasum -a 256)" \
-    "$(cd "${syncthing_src}" && git ls-files -z --others --exclude-standard | xargs -0 shasum -a 256)" \
-    "${ndk_version}" | shasum -a 256 | cut -d' ' -f1)
-if [[ -f "${proot_out}/libsyncthingnative.so" \
-        && "$(cat "${proot_out}/.syncthing-inputs" 2>/dev/null)" = "${syncthing_inputs}" ]]; then
-    echo "syncthing: sources unchanged, keeping ${proot_out}/libsyncthingnative.so"
-else
-    syncthing_stage="${staging_dir}/syncthing"
-    if ! restore_step syncthing "${syncthing_inputs}" "${syncthing_stage}"; then
-        "${repo_root}/tools/syncthing/build.sh" "${syncthing_stage}"
-        save_step syncthing "${syncthing_inputs}" "${syncthing_stage}"
-    fi
-    install -m755 "${syncthing_stage}/libsyncthingnative.so" "${proot_out}/"
-    echo "${syncthing_inputs}" > "${proot_out}/.syncthing-inputs"
-fi
-
 bundle_dir="${staging_dir}/pulseaudio-bundle"
 mkdir -p "${bundle_dir}"
 zstd -dc "${bundle_asset}" | tar -xf - -C "${bundle_dir}"
@@ -392,52 +364,12 @@ tar -cf - -C "${bundle_dir}" . | zstd -19 -T0 -c > "${staging_dir}/pulseaudio.tz
 mkdir -p "${repo_root}/app/build/prepared-assets"
 mv "${staging_dir}/pulseaudio.tzst" "${repo_root}/app/build/prepared-assets/pulseaudio.tzst"
 
-gradle_rust_arg=""
-if [[ "${DROIDDECK_SKIP_RUST:-0}" == 1 ]]; then
-    gradle_rust_arg="-PskipRust=true"
-else
-    export PATH="${HOME}/.cargo/bin:${PATH}"
-    for tool in rustup cargo; do
-        if ! command -v "${tool}" >/dev/null 2>&1; then
-            echo "${tool} is required for the store engines (https://rustup.rs); set DROIDDECK_SKIP_RUST=1 to build without them." >&2
-            exit 1
-        fi
-    done
-    rustup target add --toolchain stable aarch64-linux-android
-    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${cache_dir}/stores-target}"
-    if ! command -v cargo-ndk >/dev/null 2>&1; then
-        cargo install cargo-ndk --locked
-    fi
-fi
-
 cd "${repo_root}"
 python3 tools/quest/build-driver.py "${NDK}"
-xbox_out="${linuxfs_dir}/usr/local/lib/droiddeck-xbox"
-xbox_key=$(inputs_hash "native-arm64-ubuntu24.04" tools/xbox)
-if ! restore_step xbox "${xbox_key}" "${xbox_out}"; then
-    bash tools/xbox/build-local.sh
-    save_step xbox "${xbox_key}" "${xbox_out}"
-fi
-
-comet_out="${linuxfs_dir}/usr/local/lib/droiddeck-comet"
-comet_key=$(inputs_hash "${image_id}" tools/comet)
-if ! restore_step comet "${comet_key}" "${comet_out}"; then
-    DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
-    save_step comet "${comet_key}" "${comet_out}"
-fi
-if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
-    upc_out="${linuxfs_dir}/usr/local/lib/droiddeck-ubisoft"
-    upc_key=$(inputs_hash "x86_64-pc-windows-gnu" tools/ubisoft-launcher/src tools/ubisoft-launcher/Cargo.toml tools/ubisoft-launcher/Cargo.lock tools/ubisoft-launcher/build.sh)
-    if ! restore_step ubisoft "${upc_key}" "${upc_out}"; then
-        command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { echo "x86_64-w64-mingw32-gcc is required for the Ubisoft launcher service (droiddeck-upc.exe)." >&2; exit 1; }
-        CARGO_TARGET_DIR="${cache_dir}/ubisoft-target" bash tools/ubisoft-launcher/build.sh "${upc_out}"
-        save_step ubisoft "${upc_key}" "${upc_out}"
-    fi
-fi
 python3 tools/powervr/fetch.py
 bash tools/packs/build.sh app/build/packs
 python3 tools/release/runtime_inputs.py record
-./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
+./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}"
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 python3 tools/release/runtime_inputs.py apk "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 
@@ -457,10 +389,7 @@ done
 
 readelf_path=$(find "${NDK}/toolchains/llvm/prebuilt" -name llvm-readelf | head -1)
 [[ -x "${readelf_path}" ]] || { echo "NDK llvm-readelf is missing" >&2; exit 1; }
-stores_check=()
-[[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]] || stores_check+=(--without-stores)
-python3 tools/release/check_android_libraries.py "${apk}" --readelf "${readelf_path}" "${stores_check[@]}"
-git diff --exit-code -- app/src/main/rust/stores/Cargo.lock
+python3 tools/release/check_android_libraries.py "${apk}" --readelf "${readelf_path}"
 
 build_tools=$(find "${sdk_dir}/build-tools" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)
 if [[ ! -x "${build_tools}/zipalign" || ! -x "${build_tools}/apksigner" ]]; then

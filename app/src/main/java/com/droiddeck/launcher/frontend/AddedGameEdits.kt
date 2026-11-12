@@ -2,7 +2,6 @@ package com.droiddeck.launcher.frontend
 
 import android.content.Context
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.stores.SteamLiveShortcuts
 import java.io.File
 
 object AddedGameEdits {

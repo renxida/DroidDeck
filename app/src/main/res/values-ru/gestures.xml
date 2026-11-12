@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Интервал двойного касания</string>
     <string name="gesture_reset">Восстановить исходные настройки жестов</string>
     <string name="gesture_cancel">Отмена</string>
-    <string name="gesture_action">Выберите действие</string>
     <string name="gesture_left_click">Левая кнопка мыши</string>
     <string name="gesture_right_click">Правая кнопка мыши</string>
     <string name="gesture_middle_click">Средняя кнопка мыши</string>

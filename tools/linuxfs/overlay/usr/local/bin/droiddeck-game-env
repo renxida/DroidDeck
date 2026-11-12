@@ -1084,17 +1084,14 @@ def diagnostic_game_event(event, app_id, values=None):
     print("DROIDDECK_DIAGNOSTICS " + " ".join(fields), file=sys.stderr, flush=True)
 
 
-def diagnostic_game_exit(app_id, raw_code, source=None, wrapper_status=None):
+def diagnostic_game_exit(app_id, raw_code):
     normalized = 128 - raw_code if raw_code < 0 else raw_code
-    values = {
+    diagnostic_game_event("game_exit", app_id, {
         "raw_status": raw_code,
         "normalized_status": normalized,
-        "wrapper_status": normalized if wrapper_status is None else wrapper_status,
+        "wrapper_status": normalized,
         "signal": -raw_code if raw_code < 0 else 0,
-    }
-    if source is not None:
-        values["source"] = source
-    diagnostic_game_event("game_exit", app_id, values)
+    })
 
 
 def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
@@ -1356,20 +1353,6 @@ def main():
             note = "no thread plan added for this core count (%s)" % error
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
-    try:
-        xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
-    except Exception as error:
-        print("droiddeck-game-env: Xbox support unavailable (%s); stock launch" % error, file=sys.stderr)
-        xbox = {"launch": lambda command, env: None}
-    try:
-        xbox_result = xbox["launch"](command, env)
-    except (OSError, ValueError, KeyError, RuntimeError) as error:
-        print("droiddeck-game-env: Xbox launch could not start (%s)" % error, file=sys.stderr)
-        return 1
-    if xbox_result is not None:
-        if diagnostic_app_id is not None and isinstance(xbox_result, int):
-            diagnostic_game_exit(diagnostic_app_id, xbox_result, "xbox", xbox_result % 256)
-        return xbox_result
     after = None
     prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     if app_id and prefix and len(command) > 1 and command[1] == "waitforexitandrun":

@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.frontend
 
 import android.content.Context
-import com.droiddeck.launcher.stores.SteamLiveShortcuts
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 
@@ -26,7 +25,7 @@ object SteamGameArt {
         if (cover == null && hero == null && icon == null && logo == null) return game
         return Library.SteamGame(
             game.appId, game.name, cover ?: game.art, game.library, game.gameId,
-            hero ?: game.hero, game.lastPlayed, game.gameFiles, game.protonPrefix, icon ?: game.icon, game.source, game.storeId,
+            hero ?: game.hero, game.lastPlayed, game.gameFiles, game.protonPrefix, icon ?: game.icon,
             logo ?: game.logo,
         )
     }

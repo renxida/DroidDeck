@@ -78,11 +78,11 @@ class PortraitLayoutTest {
         val selected = mutableStateOf("steam")
         compose.setContent {
             DroidDeckTheme {
-                BottomBar(stateWithAppsAndSession, selected.value, { selected.value = it }, {}, actions, Modifier.size(320.dp, 64.dp))
+                BottomBar(stateWithSession, selected.value, { selected.value = it }, {}, actions, Modifier.size(320.dp, 64.dp))
             }
         }
         compose.mainClock.advanceTimeBy(1_000)
-        for (key in listOf("games", "stores", "desktop", "components", "android-apps", "setup", "updates", "steam")) {
+        for (key in listOf("games", "desktop", "components", "setup", "steam")) {
             compose.onNodeWithTag("rail-$key").performScrollTo()
             compose.mainClock.advanceTimeBy(1_000)
             compose.onNodeWithTag("rail-$key").assertIsDisplayed().performClick()
@@ -116,14 +116,13 @@ class PortraitLayoutTest {
         compose.onNodeWithText("Filter").assertIsDisplayed()
     }
 
-    private fun state(home: Boolean = false, running: String? = null) = FrontEndState(
+    private fun state(running: String? = null) = FrontEndState(
         installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
         desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
         romsDir = null, logsEnabled = false, steamGames = emptyList(), emulators = emptyList(), running = running,
-        isHomeApp = home,
     )
     private val state get() = state()
-    private val stateWithAppsAndSession get() = state(home = true, running = "Steam")
+    private val stateWithSession get() = state(running = "Steam")
 
     private val actions = FrontEndActions(
         onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {}, onEmulator = {},

@@ -60,7 +60,6 @@ object GameScreenSwap {
         activityStarted: Boolean,
         sessionEnded: Boolean,
         inPip: Boolean,
-        glassesOutput: Boolean,
         bottomScreenFree: Boolean,
-    ): Boolean = requested && activityStarted && !sessionEnded && !inPip && !glassesOutput && bottomScreenFree
+    ): Boolean = requested && activityStarted && !sessionEnded && !inPip && bottomScreenFree
 }

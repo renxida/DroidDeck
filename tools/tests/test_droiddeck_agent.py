@@ -163,37 +163,6 @@ class AgentTest(unittest.TestCase):
         self.assertFalse(path.exists(), "the request file is consumed")
         return json.loads((self.dir / "resp" / "req.json").read_text())
 
-    def vr_helper(self, body):
-        helper = self.dir / "droiddeck-steamvr"
-        helper.write_text("#!/bin/sh\n" + body)
-        old = os.environ.get("DROIDDECK_VR_HELPER")
-        os.environ["DROIDDECK_VR_HELPER"] = str(helper)
-        self.addCleanup(lambda: os.environ.pop("DROIDDECK_VR_HELPER") if old is None
-                        else os.environ.__setitem__("DROIDDECK_VR_HELPER", old))
-        return helper
-
-    def test_vr_status_is_parsed(self):
-        self.vr_helper('echo "installed=1 running=0 installing=0 driver=1"\n')
-        answer = self.ask({"kind": "vr", "action": "status"})
-        self.assertTrue(answer["ok"])
-        self.assertEqual((True, False, False, True),
-                         (answer["installed"], answer["running"], answer["installing"], answer["driver"]))
-
-    def test_vr_runs_only_its_own_actions(self):
-        log = self.dir / "args"
-        self.vr_helper('echo "$@" > %s\n' % log)
-        self.assertTrue(self.ask({"kind": "vr", "action": "start"})["ok"])
-        self.assertEqual("start", log.read_text().strip())
-        answer = self.ask({"kind": "vr", "action": "rm -rf /"})
-        self.assertFalse(answer["ok"])
-        self.assertEqual("INVALID_REQUEST", answer["error"]["code"])
-
-    def test_vr_without_a_helper_is_unavailable(self):
-        os.environ["DROIDDECK_VR_HELPER"] = str(self.dir / "missing")
-        self.addCleanup(os.environ.pop, "DROIDDECK_VR_HELPER")
-        answer = self.ask({"kind": "vr", "action": "status"})
-        self.assertEqual("UNAVAILABLE", answer["error"]["code"])
-
     def fake_proc(self, pid, parent, comm, env):
         root = self.dir / "proc" / str(pid)
         root.mkdir(parents=True)
@@ -486,18 +455,6 @@ class AgentTest(unittest.TestCase):
                 self.assertFalse(ask.call_args.kwargs["await_promise"])
             with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")):
                 self.assertEqual(1, agent.main(["--steam-asleep"]))
-
-    def test_supports_vr_command_separates_vr_flat_and_unknown_apps(self):
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
-            for value, code in ((True, 0), (False, 5), (None, 1)):
-                with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
-                    self.assertEqual(code, agent.main(["--steam-supports-vr", "204360"]))
-                self.assertIn('GetAppOverviewByGameID?.("204360")', ask.call_args.args[1])
-                self.assertIn("vr_supported", ask.call_args.args[1])
-            with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")):
-                self.assertEqual(1, agent.main(["--steam-supports-vr", "204360"]))
-            for bad in ([], ["1;x"], ["-1"], ["1", "2"]):
-                self.assertEqual(2, agent.main(["--steam-supports-vr"] + bad))
 
     def test_idle_inhibit_command_reports_whether_steam_reached_the_state(self):
         with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
@@ -865,35 +822,6 @@ const value = subscribe => {
             call()
         except Exception as e:
             return e
-
-
-class VrFocusTest(unittest.TestCase):
-    def test_scene_dashboard_and_external_focus_changes(self):
-        focus = agent.VrSceneFocus()
-        self.assertEqual(focus.order([9, 7], [7, 42], 42), [42, 9, 7])
-        self.assertIsNone(focus.order([42, 9, 7], [7, 42], 42))
-        self.assertEqual(focus.order([42, 9, 7], [7, 42], None), [9, 7])
-        self.assertIsNone(focus.order([9, 7], [7], 42))
-        self.assertEqual(focus.order([9, 7], [7, 42], 42), [42, 9, 7])
-        self.assertIsNone(focus.order([123, 7], [7, 42], None))
-
-    def test_scene_requires_live_server_and_game_environment(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            state = root / 'scene.json'
-            for pid in (100, 200):
-                (root / str(pid)).mkdir()
-            (root / '100/comm').write_text('vrserver\n')
-            (root / '200/environ').write_bytes(b'SteamAppId=42\0Other=value\0')
-            state.write_text(json.dumps(dict(serverPid=100, scenePid=200, dashboard=False)))
-            self.assertEqual(agent.vr_scene_app(state, root), 42)
-            state.write_text(json.dumps(dict(serverPid=100, scenePid=200, dashboard=True)))
-            self.assertIsNone(agent.vr_scene_app(state, root))
-            state.write_text(json.dumps(dict(serverPid=100, scenePid=200, dashboard=False)))
-            (root / '100/comm').write_text('other\n')
-            self.assertIsNone(agent.vr_scene_app(state, root))
-            (root / '100/comm').unlink()
-            self.assertIsNone(agent.vr_scene_app(state, root))
 
 
 if __name__ == "__main__":

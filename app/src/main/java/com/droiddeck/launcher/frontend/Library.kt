@@ -15,29 +15,17 @@ object Library {
         val hero: File? = null, val lastPlayed: Long = 0L,
         val gameFiles: File? = null, val protonPrefix: File? = null,
         val icon: File? = null,
-        val source: String = SOURCE_STEAM,
-        val storeId: String? = null,
         val logo: File? = null,
         val installedAt: Long = 0L,
     ) {
         fun withArt(art: File?, hero: File?, icon: File?, logo: File? = this.logo) =
-            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo, installedAt)
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, logo, installedAt)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
-        val launchKey: String get() = if (storeId != null) "$source:$storeId" else gameIdString
-        val profileKey: String get() = when {
-            source == com.droiddeck.launcher.stores.Store.BATTLENET.id -> com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
-            library == ADDED -> java.lang.Integer.toUnsignedString(appId)
-            else -> appId.toString()
-        }
+        val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
     }
     const val ADDED = "added"
     private const val PLAYED = "added_games_played"
-    const val EPIC_LAUNCHER = "epic-launcher"
-    const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"
-    const val BATTLENET_LAUNCHER = "battlenet-launcher"
-    const val XBOX_CLOUD = "xbox-cloud"
-    const val SOURCE_STEAM = "steam"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
     class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {
@@ -202,7 +190,7 @@ object Library {
         return hidden + private
     }
 
-    fun fromSteamClient(g: SteamGame): Boolean = g.library != ADDED && g.source == SOURCE_STEAM
+    fun fromSteamClient(g: SteamGame): Boolean = g.library != ADDED
 
     fun launchableGames(
         context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null,
@@ -264,10 +252,8 @@ object Library {
             SteamGame(
                 g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
                 hero = art.hero ?: art.header, lastPlayed = maxOf(lastPlayed, recordedPlay(context, g.gameId)), gameFiles = g.folder,
-                protonPrefix = if (g.source == com.droiddeck.launcher.stores.Store.BATTLENET.id) File(com.droiddeck.launcher.runtime.BattleNet.prefix(context), "pfx").takeIf { it.isDirectory }
-                    else protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
+                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
-                source = g.source, storeId = g.storeId,
                 logo = art.logo,
                 installedAt = g.folder.lastModified(),
             )

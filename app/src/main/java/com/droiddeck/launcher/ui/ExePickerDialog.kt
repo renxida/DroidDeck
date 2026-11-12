@@ -61,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.GameStorage
-import com.droiddeck.launcher.stores.formatBytes
 import java.io.File
 
 internal enum class PickKind(val extensions: Set<String>) {

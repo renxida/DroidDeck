@@ -17,14 +17,14 @@ class PerfModeTest {
         ShadowDisplayManager.ModeBuilder.modeBuilder(id)
             .setWidth(width).setHeight(2520).setRefreshRate(hz).build()
 
-    @Test fun sixtyHzMirrorChoosesSixtyEvenThoughOneTwentyHasMatchingCadence() {
+    @Test fun aSixtyHzCapChoosesSixtyEvenThoughOneTwentyHasMatchingCadence() {
         val low = mode(1, 60f)
         val high = mode(2, 120f)
         assertEquals(low, PerfMode.selectMode(arrayOf(low, high), high, 60, 60f))
         assertEquals(high, PerfMode.selectMode(arrayOf(low, high), low, 0, Float.POSITIVE_INFINITY))
     }
 
-    @Test fun aLowerGameLimitDoesNotOverrideTheGlassesRefreshCeiling() {
+    @Test fun aLowerGameLimitDoesNotOverrideTheRefreshCeiling() {
         val modes = arrayOf(mode(1, 60f), mode(2, 90f), mode(3, 120f))
         assertEquals(modes[0], PerfMode.selectMode(modes, modes[2], 30, 60f))
         assertEquals(modes[1], PerfMode.selectMode(modes, modes[2], 45, 90f))

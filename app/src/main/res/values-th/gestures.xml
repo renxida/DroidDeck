@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">ช่วงเวลาแตะสองครั้ง</string>
     <string name="gesture_reset">คืนค่าการตั้งค่าท่าทางเดิม</string>
     <string name="gesture_cancel">ยกเลิก</string>
-    <string name="gesture_action">เลือกการกระทำ</string>
     <string name="gesture_left_click">คลิกซ้าย</string>
     <string name="gesture_right_click">คลิกขวา</string>
     <string name="gesture_middle_click">คลิกกลาง</string>

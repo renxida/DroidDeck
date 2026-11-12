@@ -34,10 +34,6 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SteamDownload
 import com.droiddeck.launcher.session.SteamDownloads
-import com.droiddeck.launcher.stores.StoresState
-import com.droiddeck.launcher.stores.download.DownloadState
-import com.droiddeck.launcher.stores.formatBytes
-import com.droiddeck.launcher.stores.formatSpeed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -71,8 +67,7 @@ fun BottomDownloadsPage() {
             delay(STEAM_POLL_MS)
         }
     }
-    val store = StoresState.downloads.filter { it.isActive }
-    if (steam.isEmpty() && store.isEmpty()) {
+    if (steam.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.bottom_downloads_none), fontSize = 15.sp, color = colors.onSurfaceVariant)
         }
@@ -89,18 +84,6 @@ fun BottomDownloadsPage() {
             }
             BottomDownloadRow(d.name, stringResource(R.string.bottom_downloads_steam), detail,
                 if (d.total > 0L) (d.done.toFloat() / d.total).coerceIn(0f, 1f) else null)
-        }
-        items(store, key = { "store:${it.key}" }) { entry ->
-            val e = StoresState.download(entry.key) ?: entry
-            val detail = when (e.state) {
-                DownloadState.PAUSED -> stringResource(R.string.bottom_downloads_paused)
-                DownloadState.QUEUED -> stringResource(R.string.bottom_downloads_queued)
-                else -> listOf(
-                    if (e.bytesTotal > 0L) "${formatBytes(e.bytesDone)} / ${formatBytes(e.bytesTotal)}" else "",
-                    formatSpeed(e.speedBps),
-                ).filter { it.isNotEmpty() }.joinToString(" · ")
-            }
-            BottomDownloadRow(e.name, e.store.label, detail, e.stageFraction.takeIf { it >= 0f })
         }
     }
 }

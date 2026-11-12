@@ -5,7 +5,6 @@ import android.os.ParcelFileDescriptor
 import android.system.Os
 import android.system.OsConstants
 import com.droiddeck.launcher.core.LogRedactor
-import com.droiddeck.launcher.runtime.BattleNet
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONArray
 import org.json.JSONObject
@@ -107,14 +106,6 @@ internal object EnhancedSessionLogShare {
         val partial: Boolean = false,
     )
 
-    private data class LegacySource(val file: File, val root: File, val entry: String)
-
-    private data class LegacyDiscovery(
-        val sources: List<LegacySource>,
-        val truncated: Boolean,
-        val partial: Boolean,
-    )
-
     private class Budget(val limit: Long, var remaining: Long = limit)
 
     private val sourceOpenerOverride = object : ThreadLocal<SecureSourceOpener?>() {
@@ -210,7 +201,7 @@ internal object EnhancedSessionLogShare {
         val stage = stageLease.directory
         return try {
             val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-            val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = false)
+            val discovery = collect(context, folder, limits.maxDiscoveredFiles)
             val candidates = discovery.candidates
             val totalCandidates = candidates.size.coerceAtLeast(1)
             val share = limits.maxBytesTotal / Category.values().size
@@ -267,7 +258,7 @@ internal object EnhancedSessionLogShare {
         }
         val out = outputDirectory.apply { deleteRecursively(); mkdirs() }
         val redactionLearningComplete = LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-        val discovery = collect(context, folder, limits.maxDiscoveredFiles, legacy = true)
+        val discovery = collect(context, folder, limits.maxDiscoveredFiles)
         val candidates = discovery.candidates.filter { it.linePrefix == null }
         if (candidates.isEmpty()) {
             out.deleteRecursively()
@@ -655,7 +646,7 @@ internal object EnhancedSessionLogShare {
         archive.closeEntry()
     }
 
-    private fun collect(context: Context, folder: File, maxFiles: Int, legacy: Boolean): CollectionResult {
+    private fun collect(context: Context, folder: File, maxFiles: Int): CollectionResult {
         val out = LinkedHashMap<String, Candidate>()
         val categoryCounts = HashMap<Category, Int>()
         val perCategory = (maxFiles / Category.values().size).coerceAtLeast(1)
@@ -706,33 +697,12 @@ internal object EnhancedSessionLogShare {
                 add(it, steam, "${folder.name}/steam/${it.name}", "live-steam")
             }
         }
-        val logs = LinuxRuntime.logDir(context)
-        for ((name, root) in listOf(SessionLogShare.STORES_DIR to File(logs, SessionLogShare.STORES_DIR), SessionPaths.TOOLS_DIR to File(logs, SessionPaths.TOOLS_DIR))) {
-            val scan = directFiles(root, remaining(maxFiles, out.size))
-            truncated = truncated || scan.truncated
-            partial = partial || scan.partial
-            scan.files.asSequence().filter { recent(it) }
-                .forEach { add(it, root, "$name/${it.name}", name) }
-        }
-        if (legacy) {
-            val scan = legacyBattleNet(context)
-            truncated = truncated || scan.truncated
-            partial = partial || scan.partial
-            scan.sources.forEach { source ->
-                add(source.file, source.root, source.entry, "battlenet")
-            }
-        } else {
-            battleNetRoots(context).forEach { (prefix, root) ->
-                val scan = walk(root, remaining(maxFiles, out.size))
-                truncated = truncated || scan.truncated
-                partial = partial || scan.partial
-                scan.files.asSequence().filter { recent(it) && it.name.endsWith(".log", true) }
-                    .forEach { file ->
-                        val relative = root.toPath().toAbsolutePath().normalize().relativize(file.toPath().toAbsolutePath().normalize()).joinToString("/")
-                        add(file, root, "battlenet/$prefix/$relative", "battlenet")
-                    }
-            }
-        }
+        val tools = File(LinuxRuntime.logDir(context), SessionPaths.TOOLS_DIR)
+        val toolScan = directFiles(tools, remaining(maxFiles, out.size))
+        truncated = truncated || toolScan.truncated
+        partial = partial || toolScan.partial
+        toolScan.files.asSequence().filter { recent(it) }
+            .forEach { add(it, tools, "${SessionPaths.TOOLS_DIR}/${it.name}", SessionPaths.TOOLS_DIR) }
         val sessionScan = walk(folder, remaining(maxFiles, out.size))
         truncated = truncated || sessionScan.truncated
         partial = partial || sessionScan.partial
@@ -816,97 +786,6 @@ internal object EnhancedSessionLogShare {
         return ScanResult(files, truncated, partial)
     }
 
-    private fun battleNetRoots(context: Context): List<Pair<String, File>> {
-        val drive = File(BattleNet.prefix(context), "pfx/drive_c")
-        val data = File(drive, "ProgramData/Battle.net")
-        return listOf(
-            "droiddeck" to File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet"),
-            "client" to File(drive, "users/steamuser/AppData/Local/Battle.net/Logs"),
-            "agent" to File(data, "Agent"),
-            "setup" to File(data, "Setup"),
-        )
-    }
-
-    private fun legacyBattleNet(context: Context): LegacyDiscovery {
-        val drive = File(BattleNet.prefix(context), "pfx/drive_c")
-        val data = File(drive, "ProgramData/Battle.net")
-        val agent = File(data, "Agent")
-        val setup = File(data, "Setup")
-        val agentChildren = childDirectories(agent, "Agent.")
-        val setupChildren = childDirectories(setup, "")
-        val scans = listOf(
-            legacyNewest(
-                "droiddeck",
-                listOf(File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet")),
-                2,
-                setOf("battlenet.log", "spawned.log"),
-            ),
-            legacyNewest("client", listOf(File(drive, "users/steamuser/AppData/Local/Battle.net/Logs")), 6),
-            legacyNewest(
-                "agent", listOf(File(agent, "Logs")) + agentChildren.files.map { File(it, "Logs") }, 10,
-                byDir = true,
-            ),
-            legacyNewest("setup", setupChildren.files.map { File(it, "Logs") }, 3, byDir = true),
-        )
-        return LegacyDiscovery(
-            scans.flatMap { it.sources },
-            scans.any { it.truncated } || agentChildren.truncated || setupChildren.truncated,
-            scans.any { it.partial } || agentChildren.partial || setupChildren.partial,
-        )
-    }
-
-    private fun legacyNewest(
-        folder: String,
-        roots: List<File>,
-        count: Int,
-        names: Set<String>? = null,
-        byDir: Boolean = false,
-    ): LegacyDiscovery {
-        val found = ArrayList<Pair<File, File>>()
-        var truncated = false
-        var partial = false
-        roots.forEach { root ->
-            val scan = directFiles(root, MAX_BATTLENET_SCAN)
-            truncated = truncated || scan.truncated
-            partial = partial || scan.partial
-            found += scan.files.asSequence()
-                .filter { recent(it) && it.name.endsWith(".log") && it.length() <= LEGACY_LOG_MAX_BYTES }
-                .filter { names == null || it.name in names }
-                .map { it to root }
-                .toList()
-        }
-        val ordered = found.sortedByDescending { it.first.lastModified() }
-        return LegacyDiscovery(
-            ordered.take(count).map { (file, root) ->
-                val relative = if (byDir) "$folder/${file.parentFile?.parentFile?.name}/${file.name}" else "$folder/${file.name}"
-                LegacySource(file, root, "battlenet/$relative")
-            },
-            truncated || ordered.size > count,
-            partial,
-        )
-    }
-
-    private fun childDirectories(root: File, prefix: String): ScanResult {
-        if (!root.isDirectory || Files.isSymbolicLink(root.toPath())) return ScanResult(emptyList(), false)
-        val found = ArrayList<File>()
-        var truncated = false
-        var partial = false
-        try {
-            Files.newDirectoryStream(root.toPath()).use { entries ->
-                val iterator = entries.iterator()
-                while (iterator.hasNext() && found.size < MAX_BATTLENET_DIRECTORIES) {
-                    val path = iterator.next()
-                    if (path.fileName.toString().startsWith(prefix) &&
-                        Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(path)) found += path.toFile()
-                }
-                truncated = iterator.hasNext()
-            }
-        } catch (_: Exception) {
-            partial = true
-        }
-        return ScanResult(found, truncated, partial)
-    }
-
     private fun recent(file: File): Boolean = file.lastModified() >= System.currentTimeMillis() - RECENT_MILLIS
 
     private fun anchorFor(context: Context, root: File): File {
@@ -967,9 +846,6 @@ internal object EnhancedSessionLogShare {
     private const val RECENT_MILLIS = 7L * 24 * 60 * 60 * 1000
     private const val COPY_BUFFER_BYTES = 64 * 1024
     private const val TRACE_SCAN_BYTES = 16L * 1024 * 1024
-    private const val LEGACY_LOG_MAX_BYTES = 8L * 1024 * 1024
-    private const val MAX_BATTLENET_SCAN = 64
-    private const val MAX_BATTLENET_DIRECTORIES = 64
     private const val MAX_MANIFEST_RECORDS = 512
     private const val MAX_DISCOVERY_VISITS = 4096
 }

@@ -43,7 +43,6 @@ import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ScreenShare
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
@@ -58,9 +57,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clipToBounds
-import android.view.Display
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
@@ -94,10 +91,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.droiddeck.launcher.HomeApp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -150,8 +145,6 @@ import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
-import com.droiddeck.launcher.gpu.Cardboard
-import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.ComponentsManager
@@ -166,27 +159,21 @@ import java.util.Locale
 
 private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.CONTROLLER -> R.string.drawer_page_controller
-    SessionDrawerPage.GLASSES -> R.string.drawer_page_glasses
     SessionDrawerPage.SECOND_SCREEN -> R.string.drawer_second_screen
     SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
     SessionDrawerPage.HUD -> R.string.drawer_hud
-    SessionDrawerPage.VR -> R.string.vr_title
     SessionDrawerPage.EFFECTS -> R.string.drawer_page_effects
     SessionDrawerPage.GAMES -> R.string.game_settings_title
-    SessionDrawerPage.AGENT -> R.string.rail_agent
     SessionDrawerPage.SESSION -> R.string.mode_session
 }
 
 private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.CONTROLLER -> Icons.Outlined.SportsEsports
-    SessionDrawerPage.GLASSES -> GlassesIcon
     SessionDrawerPage.SECOND_SCREEN -> Icons.Outlined.ScreenShare
     SessionDrawerPage.DISPLAY -> Icons.Outlined.DesktopWindows
     SessionDrawerPage.HUD -> Icons.Outlined.Speed
-    SessionDrawerPage.VR -> VrHeadsetIcon
     SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
-    SessionDrawerPage.AGENT -> Icons.Outlined.AutoAwesome
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
 }
 
@@ -215,8 +202,6 @@ class DrawerActions(
     val desktop: Boolean,
     val direct: Boolean = false,
     val title: String? = null,
-    val isHomeApp: Boolean,
-    val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
@@ -240,12 +225,6 @@ class DrawerActions(
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val effects: ScreenEffects = ScreenEffects.OFF,
-    val cardboard: Cardboard = Cardboard.OFF,
-    val cardboardSensor: Boolean = false,
-    val steamVr: SteamVr.Status? = null,
-    val glassesPresent: Boolean = false,
-    val glassesOutput: Boolean = false,
-    val immersiveSteamVr: Boolean = false,
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
@@ -267,13 +246,8 @@ class DrawerActions(
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
-    val wowChatShown: Boolean = false,
-    val wowChat: String? = null,
-    val onWowChat: (String?) -> Unit = {},
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
-    val onAchievements: (() -> Unit)? = null,
-    val achievementsProgress: Pair<Int, Int>? = null,
     val onOsc: (String) -> Unit,
     val onEditSteamTouch: (() -> Unit)? = null,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
@@ -300,15 +274,10 @@ class DrawerActions(
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
-    val onCardboard: (Cardboard) -> Unit = {},
-    val onCardboardRecenter: () -> Unit = {},
-    val onGlassesRecenter: () -> Unit = {},
-    val onSteamVr: (String) -> Unit = {},
     val onTextureAnisotropy: (Int?) -> Unit = {},
     val onTextureLodBias: (String?) -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
     val onSecondScreenDisplay: (Int) -> Unit,
-    val onLaunchAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit,
     val onBackground: () -> Unit,
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
@@ -361,27 +330,17 @@ class DrawerActions(
 @Composable
 internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions, docked: Boolean = false,
     backRequest: Int = 0, onLayerChange: (Boolean) -> Unit = {}) {
-    val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
+    val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty())
     val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val host = rememberMenuHost()
-    val (glasses, glassesSettings) = rememberGlasses()
-    val glassesPages = glassesTabs(glasses) + (GlassesTab.CONTROLLERS to stringResource(R.string.vr_controllers_tab))
-    var selectedGlassesTab by rememberSaveable { mutableStateOf(GlassesTab.DISPLAY) }
-    val glassesTab = selectedGlassesTab.takeIf { key -> glassesPages.any { it.first == key } } ?: GlassesTab.DISPLAY
-    var androidAppsExpanded by rememberSaveable { mutableStateOf(false) }
     var advancedEffectsExpanded by rememberSaveable { mutableStateOf(false) }
-    var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     var confirmStop by remember { mutableStateOf(false) }
     var sheetCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var stopCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val pageScroll = remember { SessionDrawerPage.entries.associateWith { ScrollState(0) } }
-    LaunchedEffect(glassesTab) {
-        if (page == SessionDrawerPage.GLASSES) host.open = null
-        pageScroll.getValue(SessionDrawerPage.GLASSES).scrollTo(0)
-    }
     val veil by animateFloatAsState(if (open) 1f else 0f, Motion.tw(260), label = "veil")
     val focus = remember { DrawerFocus() }
     val inputModeManager = LocalInputModeManager.current
@@ -390,7 +349,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         if (host.open != null) host.open = null else a.onClose()
     }
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
-    val layerOpen = open && (host.open != null || appToChooseDisplay != null || confirmStop)
+    val layerOpen = open && (host.open != null || confirmStop)
     LaunchedEffect(layerOpen) { onLayerChange(layerOpen) }
     var seenBackRequest by remember { mutableStateOf(backRequest) }
     LaunchedEffect(backRequest) {
@@ -398,11 +357,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         seenBackRequest = backRequest
         when {
             confirmStop -> confirmStop = false
-            appToChooseDisplay != null -> appToChooseDisplay = null
             host.open != null -> host.open = null
         }
     }
-    LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
+    LaunchedEffect(page) { host.open = null }
     LaunchedEffect(a.selectedGameProfileId) {
         if (host.open == "fex") host.open = null
     }
@@ -420,18 +378,16 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         if (open && !controllerActive) focusManager.clearFocus(force = true)
     }
     var focusedPage by remember { mutableStateOf(page) }
-    LaunchedEffect(open, page, glassesTab, controllerActive, host.open, appToChooseDisplay, confirmStop) {
+    LaunchedEffect(open, page, controllerActive, host.open, confirmStop) {
         if (!open) {
             host.open = null
             confirmStop = false
         } else if (controllerActive) {
             inputModeManager.requestInputMode(InputMode.Keyboard)
-            if (host.open != null || appToChooseDisplay != null || confirmStop) return@LaunchedEffect
+            if (host.open != null || confirmStop) return@LaunchedEffect
             val turned = page != focusedPage
             focusedPage = page
             val first = when {
-                page == SessionDrawerPage.GLASSES -> "glasses-tab-$glassesTab"
-                page == SessionDrawerPage.SESSION && a.isHomeApp -> "apps"
                 page == SessionDrawerPage.SECOND_SCREEN -> "second-screen:" +
                     (if (a.secondScreenMode == SecondScreenMode.NONE && !a.secondScreenNone) SecondScreenMode.KEYBOARD_TRACKPAD else a.secondScreenMode).id
                 else -> page.firstControl
@@ -531,11 +487,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     )
                     if (!docked) StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
-                a.onAchievements?.let { show ->
-                    DrawerAchievementsRow(a.achievementsProgress, Modifier.padding(top = if (short) 6.dp else 10.dp).then(focus.track(page, "achievements"))) {
-                        host.open = null; show()
-                    }
-                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -549,16 +500,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
                 }
-                if (page == SessionDrawerPage.GLASSES) SegmentedTabs(
-                    glassesPages, glassesTab, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    tabModifier = { key -> focus.track(page, "glasses-tab-$key").testTag("glasses-tab-$key") },
-                ) { selectedGlassesTab = it }
-                // The agent's chat scrolls itself and keeps its composer at the bottom, so it takes the height left.
-                if (page == SessionDrawerPage.AGENT) AgentPage(
-                    Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
-                    inputModifier = focus.track(page, "agent-input"),
-                    visible = open,
-                ) else Column(
+                Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
                     when (page) {
@@ -595,10 +537,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.EFFECTS -> {
                             ScreenEffectsGroup(host, a, advancedEffectsExpanded,
                                 onAdvancedToggle = { advancedEffectsExpanded = !advancedEffectsExpanded }) { key -> focus.track(page, key) }
-                        }
-                        SessionDrawerPage.VR -> {
-                            SteamVrGroup(a) { key -> focus.track(page, key) }
-                            if (!a.glassesOutput) CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
@@ -700,15 +638,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         host.open = null; a.onKeyboard()
                                     }
                                 }
-                                if (a.wowChatShown) ChoiceRow(
-                                    host, "wow-chat", stringResource(R.string.wow_chat_title), null,
-                                    listOf(
-                                        null to stringResource(R.string.wow_chat_ask),
-                                        SessionPrefs.WOW_CHAT_VOICE to stringResource(R.string.wow_chat_voice),
-                                        SessionPrefs.WOW_CHAT_KEYBOARD to stringResource(R.string.pckb_android),
-                                    ),
-                                    a.wowChat, chipModifier = focus.track(page, "wow-chat"), onPick = a.onWowChat,
-                                )
                                 val keyboardContext = LocalContext.current
                                 remember { PcKeyboardPrefs.load(keyboardContext) }
                                 SliderRow(
@@ -735,13 +664,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.SECOND_SCREEN -> {
                             SecondScreenGroup(host, a) { key -> focus.track(page, key) }
-                        }
-                        SessionDrawerPage.GLASSES -> if (glassesTab == GlassesTab.CONTROLLERS) {
-                            VrControllerGroups(host) { key -> focus.track(page, key) }
-                        } else {
-                            GlassesGroups(host, glasses, glassesSettings, { key -> focus.track(page, key) }, onRecenter = a.onGlassesRecenter,
-                                tab = glassesTab, outputActive = a.glassesOutput, steamVrRunning = a.steamVr == SteamVr.Status.RUNNING,
-                                steamVr = { SteamVrRow(a) })
                         }
                         SessionDrawerPage.GAMES -> {
                             if (a.steam || a.direct) SelectedGameProfileGroup(host, a) { key -> focus.track(page, key) }
@@ -770,36 +692,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 track = { key -> focus.track(page, key) },
                             )
                         }
-                        SessionDrawerPage.AGENT -> Unit
                         SessionDrawerPage.SESSION -> {
-                            if (a.isHomeApp) SettingsGroup(stringResource(R.string.drawer_android_apps)) {
-                                SettingsRow(stringResource(R.string.drawer_launch_app), null) {
-                                    DrawerOutlineButton(if (androidAppsExpanded) stringResource(R.string.common_hide) else stringResource(R.string.common_show), modifier = focus.track(page, "apps")) {
-                                        androidAppsExpanded = !androidAppsExpanded
-                                    }
-                                }
-                                if (androidAppsExpanded) {
-                                    if (a.androidApps.isEmpty()) {
-                                        Text(stringResource(R.string.drawer_no_apps), fontSize = 12.sp, color = colors.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
-                                    } else for (app in a.androidApps) {
-                                        MenuItem(
-                                            app.label, checked = false,
-                                            modifier = focus.track(page, "app:${app.packageName}/${app.className}"),
-                                            leading = {
-                                                app.icon?.let { icon ->
-                                                    Image(bitmap = icon.asImageBitmap(), contentDescription = null,
-                                                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp)))
-                                                }
-                                            },
-                                        ) {
-                                            host.open = null
-                                            if (a.secondScreenDisplays.isEmpty()) a.onLaunchAndroidApp(app, null)
-                                            else appToChooseDisplay = app
-                                        }
-                                    }
-                                }
-                            }
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
                                 if (a.micAvailable) ToggleRow(host, "microphone", stringResource(R.string.mode_mic),
                                     stringResource(R.string.drawer_mic_hint), a.micEnabled,
@@ -840,7 +733,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     a.pipAutoEnter, onChange = a.onPipAutoEnter)
                             }
                             Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (!a.isHomeApp) DrawerActionButton(stringResource(R.string.drawer_background), Icons.AutoMirrored.Outlined.ExitToApp,
+                                DrawerActionButton(stringResource(R.string.drawer_background), Icons.AutoMirrored.Outlined.ExitToApp,
                                     modifier = focus.track(page, "background")) { host.open = null; a.onBackground() }
                             }
                         }
@@ -860,24 +753,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             )
             } }
         }
-    }
-
-    appToChooseDisplay?.let { app ->
-        val secondaryDisplay = a.secondScreenDisplays.firstOrNull { it.id == a.selectedSecondScreenDisplay }
-            ?: a.secondScreenDisplays.firstOrNull()
-        ChooseAppDisplayDialog(
-            app = app,
-            secondaryDisplay = secondaryDisplay,
-            onPrimary = {
-                appToChooseDisplay = null
-                a.onLaunchAndroidApp(app, Display.DEFAULT_DISPLAY)
-            },
-            onSecondary = {
-                appToChooseDisplay = null
-                secondaryDisplay?.let { a.onLaunchAndroidApp(app, it.id) }
-            },
-            onDismiss = { appToChooseDisplay = null },
-        )
     }
 }
 
@@ -1096,80 +971,6 @@ private fun ScreenEffectsGroup(
             SliderRow(stringResource(R.string.drawer_saturation), null, e.saturation, 0..200, step = 5,
                 format = { "$it%" }, modifier = track("saturation")) { a.onEffects(e.copy(saturation = it)) }
         }
-    }
-}
-
-@Composable
-private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
-    val c = a.cardboard
-    SettingsGroup(stringResource(R.string.cardboard_title)) {
-        ToggleRow(host, "cardboard", stringResource(R.string.cardboard_mode), stringResource(R.string.cardboard_mode_hint),
-            c.enabled, chipModifier = track("cardboard")) { a.onCardboard(c.copy(enabled = it)) }
-        if (!c.enabled) return@SettingsGroup
-        ChoiceRow(host, "cardboard-source", stringResource(R.string.cardboard_source), null,
-            listOf(Cardboard.SOURCE_SCREEN to stringResource(R.string.cardboard_source_screen),
-                Cardboard.SOURCE_SBS to stringResource(R.string.cardboard_source_sbs)),
-            c.source, chipModifier = track("cardboard-source")) { a.onCardboard(c.copy(source = it)) }
-        ChoiceRow(host, "cardboard-viewer", stringResource(R.string.cardboard_viewer), null,
-            listOf(Cardboard.Viewer.CARDBOARD_V2.id to stringResource(R.string.cardboard_viewer_v2),
-                Cardboard.Viewer.CARDBOARD_V1.id to stringResource(R.string.cardboard_viewer_v1),
-                Cardboard.Viewer.NONE.id to stringResource(R.string.cardboard_viewer_none)),
-            c.viewer, chipModifier = track("cardboard-viewer")) { a.onCardboard(c.copy(viewer = it)) }
-        SliderRow(stringResource(R.string.cardboard_ipd), null, c.ipdMm, 50..80, step = 1,
-            format = { "$it mm" }, modifier = track("cardboard-ipd")) { a.onCardboard(c.copy(ipdMm = it)) }
-        if (c.source == Cardboard.SOURCE_SCREEN) {
-            SliderRow(stringResource(R.string.cardboard_screen_width), null, c.screenWidthDm, 5..200, step = 5,
-                format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("cardboard-width")) { a.onCardboard(c.copy(screenWidthDm = it)) }
-            SliderRow(stringResource(R.string.cardboard_screen_distance), null, c.screenDistanceDm, 5..200, step = 5,
-                format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("cardboard-distance")) { a.onCardboard(c.copy(screenDistanceDm = it)) }
-        }
-        ToggleRow(host, "cardboard-tracking", stringResource(R.string.cardboard_head_tracking),
-            if (a.cardboardSensor) null else stringResource(R.string.cardboard_no_sensor),
-            c.headTracking && a.cardboardSensor, enabled = a.cardboardSensor, chipModifier = track("cardboard-tracking")) {
-            a.onCardboard(c.copy(headTracking = it))
-        }
-        if (c.headTracking && a.cardboardSensor)
-            ActionRow(stringResource(R.string.cardboard_recenter), null, stringResource(R.string.cardboard_recenter_button), a.onCardboardRecenter)
-    }
-}
-
-@Composable
-private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
-    SettingsGroup(stringResource(R.string.steamvr_title)) {
-        val vrLabel = stringResource(R.string.cardboard_steamvr)
-        val enterLabel = stringResource(if (a.immersiveSteamVr) R.string.steamvr_enter else R.string.cardboard_steamvr_start)
-        @Composable fun button(label: String, text: String, action: String) {
-            SettingsRow(label, null) {
-                SecondaryButton(text, modifier = track("steamvr"), onClick = { a.onSteamVr(action) })
-            }
-        }
-        when (a.steamVr) {
-            SteamVr.Status.NOT_INSTALLED -> button(vrLabel, stringResource(R.string.cardboard_steamvr_install), "install")
-            SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
-            SteamVr.Status.READY -> button(vrLabel, enterLabel, "start")
-            SteamVr.Status.RUNNING -> {
-                if (a.immersiveSteamVr) button(vrLabel, enterLabel, "start")
-                SettingsRow(vrLabel, null) {
-                    SecondaryButton(stringResource(R.string.cardboard_steamvr_stop),
-                        modifier = track(if (a.immersiveSteamVr) "steamvr-stop" else "steamvr"), onClick = { a.onSteamVr("stop") })
-                }
-            }
-            SteamVr.Status.UNAVAILABLE -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_unavailable)) {}
-            null -> SettingsRow(vrLabel, stringResource(R.string.steamvr_checking)) {}
-        }
-    }
-}
-
-@Composable
-private fun SteamVrRow(a: DrawerActions) {
-    val vrLabel = stringResource(R.string.cardboard_steamvr)
-    when (a.steamVr) {
-        SteamVr.Status.NOT_INSTALLED -> ActionRow(vrLabel, null, stringResource(R.string.cardboard_steamvr_install), { a.onSteamVr("install") })
-        SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
-        SteamVr.Status.READY -> ActionRow(vrLabel, null, stringResource(R.string.cardboard_steamvr_start), { a.onSteamVr("start") })
-        SteamVr.Status.RUNNING -> ActionRow(vrLabel, null, stringResource(R.string.cardboard_steamvr_stop), { a.onSteamVr("stop") })
-        SteamVr.Status.UNAVAILABLE -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_unavailable)) {}
-        null -> {}
     }
 }
 

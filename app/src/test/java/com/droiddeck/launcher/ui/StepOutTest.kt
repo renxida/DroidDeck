@@ -84,10 +84,10 @@ class StepOutTest {
     }
 
     @Test fun aCardMarkIsTakenOnceAndOnlyForItsGame() {
-        StoresMotion.markCard(CardMark("gog:1", pill, 10f, null))
-        assertNull(StoresMotion.takeCard("gog:2"))
-        StoresMotion.markCard(CardMark("gog:1", pill, 10f, null))
-        assertNotNull(StoresMotion.takeCard("gog:1"))
-        assertNull(StoresMotion.takeCard("gog:1"))
+        CardMotion.markCard(CardMark("app:1", pill, 10f, null))
+        assertNull(CardMotion.takeCard("app:2"))
+        CardMotion.markCard(CardMark("app:1", pill, 10f, null))
+        assertNotNull(CardMotion.takeCard("app:1"))
+        assertNull(CardMotion.takeCard("app:1"))
     }
 }

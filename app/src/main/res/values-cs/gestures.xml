@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Interval dvojitého klepnutí</string>
     <string name="gesture_reset">Obnovit původní nastavení gest</string>
     <string name="gesture_cancel">Zrušit</string>
-    <string name="gesture_action">Vybrat akci</string>
     <string name="gesture_left_click">Levé kliknutí</string>
     <string name="gesture_right_click">Pravé kliknutí</string>
     <string name="gesture_middle_click">Prostřední kliknutí</string>

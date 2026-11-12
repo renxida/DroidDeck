@@ -8,10 +8,8 @@ Builders live in `recipes/`; the workflow describes scheduling and gates.
 ```mermaid
 flowchart LR
     Source[Pin source tree] --> Components[Prepare verified components]
-    Source --> Xbox[Xbox ARM64 backend]
     Source --> Tests[Python and native tests]
     Components --> APK[Compile APK and Android tests]
-    Xbox --> APK
     APK --> Gate[Compile and test APK gate]
     Tests --> Gate
     Gate --> Publish[Main only: signing and publishing]
@@ -32,8 +30,8 @@ the relevant component cache; ordinary caches remain performance aids.
 `preloads.lock.json` pins a small immutable preload archive. It records each
 binary's hash, its producing main CI run, the original APK artifact identity and
 digest, source/header hashes, the ARM64 build recipe and x86 compiler-image inputs.
-It covers core ARM64 preloads and the x86 preload libraries. VR, Android native
-libraries, Comet and Xbox use their registered recipes and existing release pins
+It covers core ARM64 preloads and the x86 preload libraries. VR and Android native
+libraries use their registered recipes and existing release pins
 or component caches.
 
 Every build compares current source inputs, including transitive quoted headers,

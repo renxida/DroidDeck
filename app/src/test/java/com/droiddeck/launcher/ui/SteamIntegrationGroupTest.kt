@@ -36,30 +36,23 @@ class SteamIntegrationGroupTest {
     }
 
     @Test fun everySwitchRequestsOnlyItsOwnFeature() {
-        state.value = SteamIntegration.State(home = true)
         show()
         compose.onNodeWithTag("integration-action-brightness").performClick()
-        compose.onNodeWithTag("integration-action-home").performClick()
         compose.onNodeWithTag("integration-action-shortcuts").performClick()
-        assertEquals(listOf(Feature.BRIGHTNESS, Feature.HOME, Feature.SHORTCUTS), requests)
+        assertEquals(listOf(Feature.BRIGHTNESS, Feature.SHORTCUTS), requests)
     }
 
     @Test fun switchesReflectAndroidGrants() {
-        state.value = SteamIntegration.State(brightness = true, home = true, shortcuts = true)
+        state.value = SteamIntegration.State(brightness = true, shortcuts = true)
         show()
         compose.onNodeWithTag("integration-action-brightness").assert(stateIs("On"))
         compose.onNodeWithTag("integration-action-shortcuts").assert(stateIs("On"))
         compose.onNodeWithTag("integration-action-wifi").assert(stateIs("Off"))
-        compose.onNodeWithText("3 of 4 on").assertExists()
-    }
-
-    @Test fun shortcutsDoNotNeedHome() {
-        show()
-        compose.onNodeWithTag("integration-action-shortcuts").assertIsEnabled()
+        compose.onNodeWithText("2 of 3 on").assertExists()
     }
 
     @Test fun restrictedShortcutsPointToAppInfo() {
-        state.value = SteamIntegration.State(home = true, shortcutsRestricted = true)
+        state.value = SteamIntegration.State(shortcutsRestricted = true)
         show()
         compose.onNodeWithTag("integration-action-shortcuts").assertIsNotEnabled()
         compose.onNodeWithText("App info").performClick()
@@ -70,7 +63,6 @@ class SteamIntegrationGroupTest {
     }
 
     @Test fun unconfirmedRestrictionOffersAppInfoAfterAnAttempt() {
-        state.value = SteamIntegration.State(home = true)
         show()
         compose.onNodeWithText("App info").assertDoesNotExist()
         compose.runOnIdle { state.value = state.value.copy(shortcutsTried = true) }

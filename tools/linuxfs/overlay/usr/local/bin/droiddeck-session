@@ -146,7 +146,7 @@ s.bind(("127.0.0.1", int(sys.argv[1])))' "$1" 2>/dev/null; then
       BL_CDP_PORT=$1
       return 0
     fi
-    echo "== steam: port $1 is held by another app; Decky cannot load this session and Steam's devtools use another port"
+    echo "== steam: port $1 is held by another app; Steam's devtools use another port"
   fi
   BL_CDP_PORT=$((20000 + RANDOM % 30000))
   _bl_cdp=(-cef-enable-debugging -devtools-port "$BL_CDP_PORT")
@@ -399,9 +399,7 @@ export XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
-rm -f "${XDG_RUNTIME_DIR:-/run/droiddeck}/droiddeck-steamvr/active"
 rm -f "${XDG_RUNTIME_DIR:-/run/droiddeck}/droiddeck-remote-play"
-/usr/local/bin/droiddeck-steamvr unregister >/dev/null 2>&1 || true
 if [ "$mode" = lxqt ] || [ "$mode" = desktop ]; then
   /usr/local/bin/droiddeck-desktop-bookmarks || true
   /usr/local/bin/droiddeck-downloads || true
@@ -748,7 +746,7 @@ case $mode in
     fi
     if [ "${BL_ZRAM:-0}" = 1 ]; then
       step "zRAM compression: on"
-      [ "${BL_ZRAM_CLIENT:-1}" = 1 ] || step "zRAM: Steam, the hidden Epic Games Launcher and Battle.net are not compressed while games run (turned off in Performance)"
+      [ "${BL_ZRAM_CLIENT:-1}" = 1 ] || step "zRAM: Steam is not compressed while games run (turned off in Performance)"
       _bl_ram_cap=0
       case ${BL_RAM_CAP_MB:-} in
         ''|0) ;;
@@ -758,15 +756,15 @@ case $mode in
       (
         bl_zram_scan() {
           _bl_game=0 _bl_pids=() _bl_others=() _bl_apps=
-          local _d _c _args _name _a _id _fex _lower _bnet=() _bnet_game=0
+          local _d _c _args _name _a _id
           for _d in /proc/[0-9]*; do
             [ "${_d##*/}" != "$BASHPID" ] || continue
             _args=()
             while IFS= read -r -d '' _c; do _args+=("$_c"); done 2>/dev/null < "$_d/cmdline" || true
             [ "${#_args[@]}" -gt 0 ] || continue
-            _name=${_args[0]} _fex=0
+            _name=${_args[0]}
             if [ "${#_args[@]}" -gt 1 ]; then
-              case ${_name##*/} in FEX|FEXInterpreter) _name=${_args[1]} _fex=1 ;; esac
+              case ${_name##*/} in FEX|FEXInterpreter) _name=${_args[1]} ;; esac
             fi
             case ${_name##*/} in
               reaper)
@@ -782,34 +780,10 @@ case $mode in
                 ;;
               steam|steamwebhelper) _bl_pids+=("${_d##*/}") ;;
               *)
-                _lower=${_name,,}
-                if [ "$_fex" = 1 ] && grep -qz '^DROIDDECK_EPIC_HIDDEN=1$' "$_d/environ" 2>/dev/null; then
-                  _bl_pids+=("${_d##*/}")
-                elif [[ $_lower == [a-z]:[\\/]'program files (x86)'[\\/]battle.net[\\/]* ||
-                        $_lower == [a-z]:[\\/]programdata[\\/]battle.net[\\/]* ]]; then
-                  _bnet+=("${_d##*/}")
-                else
-                  _bl_others+=("${_d##*/}")
-                  if [[ $_lower == [a-z]:[\\/]* ]]; then
-                    case ${_lower##*[\\/]} in
-                      agent.exe|conhost.exe|explorer.exe|lsass.exe|plugplay.exe|rpcss.exe|services.exe|start.exe|\
-                      steam.exe|svchost.exe|tabtip.exe|winedevice.exe|rundll32.exe|wineboot.exe|winemenubuilder.exe) ;;
-                      *)
-                        for _a in "${_args[@]:1}"; do
-                          [ "${_a,,}" = -uid ] && _bnet_game=1
-                        done
-                        ;;
-                    esac
-                  fi
-                fi
+                _bl_others+=("${_d##*/}")
                 ;;
             esac
           done
-          if [ "$_bnet_game" = 1 ]; then
-            _bl_pids+=("${_bnet[@]}")
-          else
-            _bl_others+=("${_bnet[@]}")
-          fi
         }
         bl_zram_usage() {
           local _p _k _v _u _rss=0 _swap=0
@@ -1387,49 +1361,10 @@ case $mode in
       echo "== steam: open driver pair - software CEF compositing, GPU raster"
     fi
     _bl_cef=(-cef-force-gpu "${bl_steam_presentation[@]}" -cef-use-gl=angle "-cef-use-angle=$bl_steam_angle")
-    decky_loader=$HOME/homebrew/services/PluginLoader
-    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ -x "$decky_loader" ]; then
-      decky_arch=$(cat "$HOME/homebrew/services/.droiddeck-decky-arch" 2>/dev/null || echo unknown)
-      if [ "$decky_arch" = arm64 ] || { [ "$decky_arch" = x86_64 ] && /usr/local/bin/droiddeck-fex prepare >/dev/null; }; then
-        (
-          decky_child=
-          decky_stop() { [ -z "$decky_child" ] || kill "$decky_child" 2>/dev/null; [ -z "$decky_child" ] || wait "$decky_child" 2>/dev/null; exit 0; }
-          trap decky_stop TERM INT HUP
-          decky_exits=0
-          # The guest has no "deck" user, which Decky otherwise requires at startup.
-          export UNPRIVILEGED_USER=root
-          while :; do
-            if [ "$decky_arch" = x86_64 ]; then /usr/local/bin/droiddeck-fex run --mode on -- "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
-            else "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
-            fi
-            decky_child=$!
-            decky_status=0
-            wait "$decky_child" || decky_status=$?
-            decky_child=
-            decky_exits=$((decky_exits + 1))
-            if [ "$decky_exits" -ge 5 ]; then
-              echo "== Decky: stopped after $decky_exits loader exits (last status $decky_status)"
-              break
-            fi
-            decky_delay=$((decky_exits * 3))
-            echo "== Decky: loader exited with status $decky_status; restart $((decky_exits + 1))/5 in ${decky_delay}s"
-            sleep "$decky_delay"
-          done
-        ) &
-        decky_supervisor=$!
-        echo "== Decky: session supervisor started ($decky_arch)"
-      else
-        echo "== Decky: installed loader architecture is unsupported by this guest; not starting"
-      fi
-    fi
     steam_devtools 8080
     export BL_CDP_PORT
-    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ "${decky_arch:-}" = x86_64 ] && [ ${#_bl_cdp[@]} = 0 ]; then
-      echo "== steam: devtools port $BL_CDP_PORT left open for the x86_64 Decky loader"
-    else
-      export BL_CDP_GUARD=$BL_CDP_PORT
-      echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
-    fi
+    export BL_CDP_GUARD=$BL_CDP_PORT
+    echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
     [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
     if [ "$steam_x64" = 1 ]; then
       { droiddeck-steam-compat --files-only "$steam_root" 2>&1 & }
@@ -1511,13 +1446,11 @@ case $mode in
     steam_update_stamp=$(stat -c '%n %Y %s' "$steam_root"/package/*.installed 2>/dev/null)
     rm -f "$HOME/.bl-stop-requested" "$STEAMOS_STEAM_SHUTDOWN_SENTINEL" "$STEAMOS_STEAM_REBOOT_SENTINEL"
     steam_other_game_running() {
-      local line value n open
-      open=$(cat "$BL_LAUNCH_DIR/epic-open" 2>/dev/null)
-      case $open in ?|*[!0-9]*) open=${BL_EPIC_APP_ID:-$open} ;; esac
+      local line value n
       line=$(xprop -root GAMESCOPE_FOCUSABLE_APPS 2>/dev/null) || return 1
       case $line in *=*) value=${line#*= } ;; *) return 1 ;; esac
       for n in ${value//,/ }; do
-        [ "$n" = 769 ] || [ "$n" = "$open" ] || return 0
+        [ "$n" = 769 ] || return 0
       done
       return 1
     }
@@ -1940,20 +1873,10 @@ case $mode in
       wait "$games_watcher" 2>/dev/null || true
     fi
     if [ -n "${BL_DESKTOP:-}" ]; then
-      if [ -n "${decky_supervisor:-}" ]; then
-        kill "$decky_supervisor" 2>/dev/null || true
-        wait "$decky_supervisor" 2>/dev/null || true
-        echo "== Decky: session supervisor stopped"
-      fi
       _bl_jobs=$(jobs -p)
       [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
       echo "== steam: the client on the desktop has exited"
     else
-      if [ -n "${decky_supervisor:-}" ]; then
-        kill "$decky_supervisor" 2>/dev/null || true
-        wait "$decky_supervisor" 2>/dev/null || true
-        echo "== Decky: session supervisor stopped"
-      fi
       _bl_jobs=$(jobs -p)
       [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
       reap_orphans

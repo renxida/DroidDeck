@@ -59,36 +59,6 @@ internal fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions) {
 
 
 @Composable
-internal fun UninstallEpicLauncher(s: FrontEndState, a: FrontEndActions) {
-    var asking by remember { androidx.compose.runtime.mutableStateOf(false) }
-    SecondaryButton(stringResource(R.string.common_uninstall), enabled = !s.busy, compact = true) { asking = true }
-    if (asking) {
-        val body = stringResource(R.string.epic_client_uninstall_body)
-        ConfirmDialog(
-            title = stringResource(R.string.stores_uninstall_title, stringResource(R.string.epic_client_title)),
-            text = if (s.sessionRunning) body + "\n\n" + stringResource(R.string.epic_client_uninstall_stops) else body,
-            confirm = stringResource(R.string.common_uninstall),
-            onConfirm = { a.onUninstallEpicLauncher() },
-            onDismiss = { asking = false },
-        )
-    }
-}
-
-internal fun cloudMessage(context: android.content.Context, r: com.droiddeck.launcher.stores.CloudSaves.Result): String = when (r.result) {
-    "ok" -> when {
-        r.conflicts > 0 -> context.getString(R.string.cloud_conflict_files, r.conflicts)
-        r.files == 0 -> context.getString(R.string.cloud_up_to_date)
-        else -> context.getString(R.string.cloud_done, r.files)
-    }
-    "skipped" -> context.getString(when (r.reason) {
-        "not-signed-in" -> R.string.cloud_signed_out
-        "no-cloud-saves" -> R.string.cloud_none
-        else -> R.string.cloud_not_synced
-    })
-    else -> context.getString(R.string.cloud_not_synced)
-}
-
-@Composable
 internal fun ClientTag() {
     Box(Modifier.testTag("games-client-x64")) { StateChip(stringResource(R.string.mode_client_arch_x64), ChipTone.PLAIN) }
 }
@@ -99,7 +69,6 @@ internal object GamesDialogState {
     var editing by androidx.compose.runtime.mutableStateOf<EditRequest?>(null)
     var checking by androidx.compose.runtime.mutableStateOf<String?>(null)
     var steamArt by androidx.compose.runtime.mutableStateOf<Library.SteamGame?>(null)
-    var storeArt by androidx.compose.runtime.mutableStateOf<Library.SteamGame?>(null)
     var behindEditor: Pair<List<com.droiddeck.launcher.frontend.AddedGames.Game>, Int>? = null
 }
 
@@ -141,10 +110,6 @@ internal fun GamesDialogs(a: FrontEndActions, games: List<Library.SteamGame>) {
     }
     st.steamArt?.let { game ->
         SteamGameArtEditor(games.firstOrNull { it.appId == game.appId && it.library != Library.ADDED } ?: game, onClose = { st.steamArt = null }, onChanged = { a.onSteamGameArtChanged(game.appId) })
-    }
-    st.storeArt?.let { game ->
-        val folder = game.gameFiles?.path
-        if (folder != null) StoreGameArtEditor(folder, game.name, onClose = { st.storeArt = null }, onChanged = { a.onAddedGamesChanged(listOf(folder)) })
     }
     st.editing?.let { request ->
         AddedGameEditor(
@@ -214,8 +179,7 @@ internal fun playedSpan(lastPlayed: Long): String? {
 
 @Composable
 internal fun libraryLabel(g: Library.SteamGame): String = when {
-    g.library == Library.XBOX_CLOUD -> stringResource(R.string.xbox_cloud_gaming)
-    g.library != Library.ADDED -> if (g.library == "internal") stringResource(R.string.games_internal) else g.library
-    g.source != Library.ADDED -> stringResource(R.string.games_store_storage)
-    else -> ""
+    g.library == Library.ADDED -> ""
+    g.library == "internal" -> stringResource(R.string.games_internal)
+    else -> g.library
 }

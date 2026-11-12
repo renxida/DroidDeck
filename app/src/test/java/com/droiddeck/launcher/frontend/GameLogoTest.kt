@@ -78,7 +78,7 @@ class GameLogoTest {
         val dir = tmp.newFolder("Celeste")
         val own = File(dir, "logo.png").apply { writeBytes(ByteArray(4) { 1 }) }
         val exe = File(dir, "Celeste.exe").apply { writeText("x") }
-        val g = AddedGames.Game(dir, "Celeste", exe, "/g/Celeste.exe", "/g", 0x82000001L, 0x82000001L, emptyList(), source = "gog")
+        val g = AddedGames.Game(dir, "Celeste", exe, "/g/Celeste.exe", "/g", 0x82000001L, 0x82000001L, emptyList())
         assertEquals(own, Library.addedGame(app, g, emptyList()).logo)
         val picked = image("pick.png")
         assertTrue(AddedGameArt.choose(app, g, AddedGameArt.Slot.LOGO, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path)))

@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.droiddeck.launcher.stores.StoreNet
+import com.droiddeck.launcher.core.Downloader
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
@@ -36,7 +36,7 @@ object SteamFeatured {
         Thread({
             try {
                 val cc = Locale.getDefault().country.takeIf { it.length == 2 } ?: "US"
-                val body = StoreNet.get("https://store.steampowered.com/api/featuredcategories?cc=$cc&l=english") ?: return@Thread
+                val body = Downloader.downloadString("https://store.steampowered.com/api/featuredcategories?cc=$cc&l=english") ?: return@Thread
                 val root = JSONObject(body)
                 val ids = LinkedHashSet<Int>()
                 for (section in SECTIONS) {
@@ -67,7 +67,7 @@ object SteamFeatured {
             .put("ids", JSONArray(ids.map { JSONObject().put("appid", it) }))
             .put("context", JSONObject().put("language", "english").put("country_code", cc))
             .put("data_request", JSONObject().put("include_assets", true))
-        val body = StoreNet.get(
+        val body = Downloader.downloadString(
             "https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=" + java.net.URLEncoder.encode(input.toString(), "UTF-8"),
         ) ?: return emptyList()
         val items = JSONObject(body).optJSONObject("response")?.optJSONArray("store_items") ?: return emptyList()

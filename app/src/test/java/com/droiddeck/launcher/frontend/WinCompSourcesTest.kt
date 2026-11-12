@@ -2,8 +2,6 @@ package com.droiddeck.launcher.frontend
 
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.WinComponents
-import com.droiddeck.launcher.stores.Store
-import com.droiddeck.launcher.stores.StoreGameSidecar
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
@@ -26,54 +24,10 @@ class WinCompSourcesTest {
     private val app get() = RuntimeEnvironment.getApplication()
     @get:Rule val tmp = TemporaryFolder()
 
-    private fun game(folder: File?, source: String, appId: Int = 0x8123_4567.toInt(), library: String = Library.ADDED, name: String = "Game") =
-        Library.SteamGame(appId, name, null, library, gameFiles = folder, source = source)
-
-    private fun sidecar(folder: File, store: Store, extra: Map<String, String>) =
-        StoreGameSidecar(store, "1", "Game", exe = "Game.exe", extra = extra).write(folder)
+    private fun game(folder: File?, appId: Int = 0x8123_4567.toInt(), library: String = Library.ADDED, name: String = "Game") =
+        Library.SteamGame(appId, name, null, library, gameFiles = folder)
 
     private fun auto(findings: List<WinCompSources.Finding>) = findings.filter { it.auto }.map { it.component to it.origin }
-
-    @Test fun battleNetRepairKeysMatchRuntimeProfileKeys() {
-        val battlenet = game(null, Store.BATTLENET.id, 4242, library = "battlenet")
-        val steam = game(null, Library.SOURCE_STEAM, 4242, library = "steam")
-
-        assertEquals(battlenet.profileKey, AutoComponents.appKey(battlenet))
-        assertEquals("4242", AutoComponents.appKey(steam))
-    }
-
-
-    @Test fun gogDependencyIdsMapToComponents() {
-        assertEquals(listOf("vcredist2015"), WinCompSources.gog("MSVC2017_x64"))
-        assertEquals(listOf("vcredist2022"), WinCompSources.gog("MSVC2022"))
-        assertEquals(listOf("vcredist2013"), WinCompSources.gog("msvc2013"))
-        assertEquals(listOf("d3dx9"), WinCompSources.gog("DirectX"))
-        assertEquals(listOf("dotnet48"), WinCompSources.gog("DOTNET48"))
-        assertEquals(listOf("dotnet472"), WinCompSources.gog("DotNet471"))
-        assertEquals(listOf("physx"), WinCompSources.gog("PhysX"))
-        assertEquals(listOf("oalinst"), WinCompSources.gog("OpenAL"))
-        assertEquals(listOf("xna40"), WinCompSources.gog("XNA4"))
-        assertEquals(emptyList<String>(), WinCompSources.gog("ISI"))
-    }
-
-    @Test fun epicPrerequisitesMapToComponents() {
-        assertEquals(listOf("vcredist2022", "d3dx9"), WinCompSources.epic("Engine/Extras/Redist/en-us/UEPrereqSetup_x64.exe", ""))
-        assertEquals(listOf("vcredist2022", "d3dx9"), WinCompSources.epic("Engine/Extras/Redist/en-us/UE4PrereqSetup_x64.exe", "UE4 Prerequisites (x64)"))
-        assertEquals(listOf("vcredist2022", "d3dx9"), WinCompSources.epic("", "UE4 Prerequisites (x64)"))
-        assertEquals(listOf("vcredist2013"), WinCompSources.epic("Redist/vcredist/2013/vcredist_x64.exe", "Visual C++"))
-        assertEquals(emptyList<String>(), WinCompSources.epic("Installers/LauncherHelper.exe", "Launcher Helper"))
-    }
-
-    @Test fun xboxGamesAlwaysGetVisualCppAndTheirDeclaredRuntimes() {
-        val folder = tmp.newFolder("xbox")
-        val vc = listOf("vcredist2022" to "VC14", "vcredist2022_arm64" to "VC14")
-        assertEquals(vc, WinCompSources.xbox(folder))
-        File(folder, "MicrosoftGame.Config").writeText("""<Game><DesktopRegistration><DependencyList><KnownDependency Name="VC14"/></DependencyList></DesktopRegistration></Game>""")
-        assertEquals(vc, WinCompSources.xbox(folder))
-        sidecar(folder, Store.XBOX, emptyMap())
-        assertEquals(listOf("vcredist2022" to WinCompSources.Origin.XBOX, "vcredist2022_arm64" to WinCompSources.Origin.XBOX),
-            auto(WinCompSources.forGame(app, game(folder, Store.XBOX.id))).distinct())
-    }
 
     @Test fun steamworksSharedDepotsMapToComponents() {
         assertEquals(listOf("vcredist2015_dll" to "VC++ 2015", "d3dx9" to "DirectX (June 2010)"), WinCompSources.steamDepots(listOf("228986", "228990", "999")))
@@ -88,40 +42,10 @@ class WinCompSourcesTest {
         File(steamapps, "appmanifest_570.acf").writeText(
             "\"AppState\"\n{\n\t\"appid\"\t\t\"570\"\n\t\"SharedDepots\"\n\t{\n\t\t\"228986\"\t\t\"228980\"\n\t\t\"228990\"\t\t\"228980\"\n\t}\n}\n",
         )
-        val findings = WinCompSources.forGame(app, game(folder, Library.SOURCE_STEAM, 570, library = "steam", name = "Dota"))
+        val findings = WinCompSources.forGame(app, game(folder, 570, library = "steam", name = "Dota"))
         assertEquals(listOf("vcredist2015_dll" to WinCompSources.Origin.STEAM, "d3dx9" to WinCompSources.Origin.STEAM), auto(findings))
         assertEquals(listOf("VC++ 2015", "Dota", "570"), findings.first().args)
     }
-
-    @Test fun gogTakesTheBuildsDependencies() {
-        val folder = tmp.newFolder("GogGame")
-        sidecar(folder, Store.GOG, mapOf(WinCompSources.GOG_DEPENDENCIES to "MSVC2017_x64,DirectX,ISI"))
-        val findings = WinCompSources.forGame(app, game(folder, "gog"))
-        assertEquals(listOf("vcredist2015" to WinCompSources.Origin.GOG, "d3dx9" to WinCompSources.Origin.GOG), auto(findings))
-        assertEquals(listOf("ISI"), findings.filter { it.component == null }.map { it.original })
-    }
-
-    @Test fun epicTakesTheManifestsPrerequisite() {
-        val folder = tmp.newFolder("EpicGame")
-        sidecar(folder, Store.EPIC, mapOf(WinCompSources.EPIC_PREREQ_PATH to "Engine/Extras/Redist/en-us/UEPrereqSetup_x64.exe", WinCompSources.EPIC_PREREQ_NAME to "UE Prerequisites"))
-        assertEquals(listOf("vcredist2022" to WinCompSources.Origin.EPIC, "d3dx9" to WinCompSources.Origin.EPIC), auto(WinCompSources.forGame(app, game(folder, "epic"))))
-    }
-
-    @Test fun amazonTakesFuelJsonsPostInstall() {
-        val folder = tmp.newFolder("AmazonGame")
-        sidecar(folder, Store.AMAZON, emptyMap())
-        File(folder, "fuel.json").writeText(JSONObject()
-            .put("Main", JSONObject().put("Command", "Game.exe"))
-            .put("PostInstall", org.json.JSONArray()
-                .put(JSONObject().put("Command", "_CommonRedist\\vcredist\\2015\\vc_redist.x64.exe").put("Args", org.json.JSONArray().put("/q")))
-                .put(JSONObject().put("Command", "_CommonRedist\\DirectX\\Jun2010\\DXSETUP.exe"))
-                .put(JSONObject().put("Command", "Tools\\Activate.exe")))
-            .toString())
-        val findings = WinCompSources.forGame(app, game(folder, "amazon"))
-        assertEquals(listOf("vcredist2015" to WinCompSources.Origin.AMAZON, "d3dx9" to WinCompSources.Origin.AMAZON), auto(findings))
-        assertEquals(listOf("Activate.exe"), findings.filter { it.component == null }.map { it.original })
-    }
-
 
     private fun appinfo(file: File, appId: Int) = writeAppinfo(file, appId)
 
@@ -165,7 +89,7 @@ class WinCompSourcesTest {
         File(folder, "steam_appid.txt").writeText("1145360")
         val exe = File(folder, "Hades.exe").apply { writeText("x") }
         assertEquals(SteamMatch.Certainty.FILES, SteamMatch.resolve(app, folder.path, exe, "Hades").certainty)
-        val findings = WinCompSources.forGame(app, game(folder, Library.ADDED, name = "Hades"))
+        val findings = WinCompSources.forGame(app, game(folder, name = "Hades"))
         assertEquals(listOf("vcredist2015_dll" to WinCompSources.Origin.STEAM, "d3dx9" to WinCompSources.Origin.STEAM), auto(findings))
     }
 
@@ -174,7 +98,7 @@ class WinCompSourcesTest {
         val folder = tmp.newFolder("Hades Named")
         val exe = File(folder, "Hades.exe").apply { writeText("x") }
         assertEquals(SteamMatch.Certainty.NAME, SteamMatch.resolve(app, folder.path, exe, "Hades") { 1145360 }.certainty)
-        val findings = WinCompSources.forGame(app, game(folder, Library.ADDED, name = "Hades"))
+        val findings = WinCompSources.forGame(app, game(folder, name = "Hades"))
         assertTrue(auto(findings).isEmpty())
         assertEquals(listOf("vcredist2015_dll", "d3dx9"), findings.filter { it.origin == WinCompSources.Origin.STEAM_NAME }.map { it.component })
     }
@@ -183,7 +107,7 @@ class WinCompSourcesTest {
         val folder = tmp.newFolder("Unknown")
         File(folder, "_CommonRedist/vcredist/2013").mkdirs()
         File(folder, "_CommonRedist/vcredist/2013/vcredist_x64.exe").writeText("x")
-        val findings = WinCompSources.forGame(app, game(folder, Library.ADDED))
+        val findings = WinCompSources.forGame(app, game(folder))
         assertTrue(auto(findings).isEmpty())
         assertEquals(listOf("vcredist2013" to WinCompSources.Origin.FOLDER), findings.map { it.component to it.origin })
     }
@@ -196,13 +120,13 @@ class WinCompSourcesTest {
         val catalog = listOf(ready("vcredist2015_dll"), ready("vcredist2015"), ready("d3dx9"),
             WinComponents.Component("physx", "", "", "broken", emptyList(), emptyList())).associateBy { it.name }
         val findings = listOf(
-            WinCompSources.Finding("vcredist2015", "MSVC2017", WinCompSources.Origin.GOG, true),
-            WinCompSources.Finding("physx", "PhysX", WinCompSources.Origin.GOG, true),
+            WinCompSources.Finding("vcredist2015", "VC++ 2015", WinCompSources.Origin.STEAM, true),
+            WinCompSources.Finding("physx", "PhysX", WinCompSources.Origin.STEAM, true),
             WinCompSources.Finding("d3dx9", "d3dx9_43.dll", WinCompSources.Origin.FOLDER, false),
         )
         val picks = AutoComponents.autoPicks(findings, catalog)
         assertEquals(listOf("vcredist2015_dll"), picks.keys.toList())
-        assertEquals("GOG", picks.getValue("vcredist2015_dll").kind)
+        assertEquals("STEAM", picks.getValue("vcredist2015_dll").kind)
     }
 
     @Test fun theUsersSwitchWinsOverAnAutoPickEitherWay() {
@@ -234,7 +158,7 @@ class WinCompSourcesTest {
         assertEquals(4242, match.appId)
         assertEquals(4242, SteamMatch.get(app, folder.path)!!.appId)
         assertEquals(SteamMatch.Certainty.NAME, SteamMatch.get(app, folder.path)!!.certainty)
-        assertFalse(WinCompSources.forGame(app, game(folder, Library.ADDED)).any { it.auto })
+        assertFalse(WinCompSources.forGame(app, game(folder)).any { it.auto })
     }
 
     private val catalog3 = listOf(ready("d3dx9"), ready("vcredist2013_dll"), ready("vcredist2019_dll"))
@@ -249,7 +173,7 @@ class WinCompSourcesTest {
         File(steamapps, "appmanifest_$appId.acf").writeText(
             "\"AppState\"\n{\n\t\"SharedDepots\"\n\t{\n\t\t\"228985\"\t\t\"228980\"\n\t\t\"228988\"\t\t\"228980\"\n\t\t\"228990\"\t\t\"228980\"\n\t}\n}\n",
         )
-        return game(folder, Library.SOURCE_STEAM, appId, library = "steam", name = "Need for Speed Payback")
+        return game(folder, appId, library = "steam", name = "Need for Speed Payback")
     }
 
     private fun <T> withFakeWorker(block: () -> T): T {
@@ -368,7 +292,7 @@ class WinCompSourcesTest {
         AutoComponents.catalogOf = { _, network -> requests.add(network); catalog }
         WinComponents.setUser(app, appId.toString(), manual.name, true)
 
-        assertTrue(AutoComponents.prepareLaunch(app, game(null, Library.SOURCE_STEAM, appId, library = "steam")))
+        assertTrue(AutoComponents.prepareLaunch(app, game(null, appId, library = "steam")))
 
         assertTrue(requests.contains(true))
         assertEquals(setOf("manual_component", "d3dx9"), AutoComponents.Pending.ids(app, appId.toString()).toSet())
@@ -389,11 +313,11 @@ class WinCompSourcesTest {
 
     @Test fun launchCanProceedWithoutCatalogOnlyWhenNoRepairIsPending() = withFakeWorker {
         AutoComponents.catalogOf = { _, _ -> null }
-        val noPending = game(null, Library.SOURCE_STEAM, 9876545, library = "steam")
+        val noPending = game(null, 9876545, library = "steam")
         assertTrue(AutoComponents.prepareLaunch(app, noPending))
 
         AutoComponents.Pending.add(app, "9876546", listOf("vcredist2010_dll"), mapOf("vcredist2010_dll" to 2))
-        val pending = game(null, Library.SOURCE_STEAM, 9876546, library = "steam")
+        val pending = game(null, 9876546, library = "steam")
         assertFalse(AutoComponents.prepareLaunch(app, pending))
         assertEquals(listOf("vcredist2010_dll"), AutoComponents.Pending.ids(app, "9876546"))
     }
@@ -405,7 +329,7 @@ class WinCompSourcesTest {
         val id = "vcredist2010_dll"
         WinComponents.setUser(app, appId.toString(), id, true)
 
-        assertFalse(AutoComponents.prepareLaunch(app, game(null, Library.SOURCE_STEAM, appId, library = "steam")))
+        assertFalse(AutoComponents.prepareLaunch(app, game(null, appId, library = "steam")))
         assertEquals(listOf(id), AutoComponents.Pending.ids(app, appId.toString()))
         AutoComponents.catalogOf = { _, _ -> catalog3 + ready(id) }
         AutoComponents.online = { true }
@@ -454,7 +378,7 @@ class WinCompSourcesTest {
         assertEquals(listOf(repair.name), AutoComponents.Pending.ids(app, "4242"))
         assertEquals(2, AutoComponents.Pending.revision(app, repair.name))
         WinComponents.setUser(app, "4242", repair.name, false)
-        AutoComponents.queueInSession(app, game(null, Library.SOURCE_STEAM, 4242, library = "steam"))
+        AutoComponents.queueInSession(app, game(null, 4242, library = "steam"))
         assertTrue(AutoComponents.Pending.ids(app, "4242").isEmpty())
     }
 
@@ -483,7 +407,7 @@ class WinCompSourcesTest {
         pendingFile.writeText(JSONObject().put("games", JSONObject().put("4242", org.json.JSONArray(listOf(id)))).toString())
         session = true
         gameUp = true
-        AutoComponents.queueInSession(app, game(null, Library.SOURCE_STEAM, 4242, library = "steam"))
+        AutoComponents.queueInSession(app, game(null, 4242, library = "steam"))
         AutoComponents.Pending.add(app, "other", listOf(id), mapOf(id to 2))
         gameUp = false
         AutoComponents.drain(app)
@@ -584,7 +508,7 @@ class WinCompSourcesTest {
 
     @Test fun aGameAndAComponentAreQueuedOnceEach() = withFakeWorker {
         val first = payback()
-        val other = game(first.gameFiles, Library.SOURCE_STEAM, 1262580, library = "steam", name = "Same app again")
+        val other = game(first.gameFiles, 1262580, library = "steam", name = "Same app again")
         session = true
         AutoComponents.queueGame(app, first, asked = false)
         AutoComponents.queueGame(app, other, asked = false)
@@ -598,8 +522,8 @@ class WinCompSourcesTest {
         val lookedUp = ArrayList<List<Int>>()
         SteamAppInfo.pics = { ids -> lookedUp.add(ids); ids.associateWith { null } }
         session = true
-        val first = game(null, Library.SOURCE_STEAM, 810001, library = "steam")
-        val second = game(null, Library.SOURCE_STEAM, 810002, library = "steam")
+        val first = game(null, 810001, library = "steam")
+        val second = game(null, 810002, library = "steam")
 
         AutoComponents.sweep(app, listOf(first))
         AutoComponents.sweep(app, listOf(second))
@@ -621,62 +545,6 @@ class WinCompSourcesTest {
     }
 
 
-    @Test fun anOlderGogInstallGetsItsListFromTheStoreOnce() {
-        val folder = tmp.newFolder("DOOM I Enhanced")
-        StoreGameSidecar(Store.GOG, "2015545325", "DOOM", exe = "DOOM.exe", installVersion = "123").write(folder)
-        var fetches = 0
-        StoreListBackfill.fetcher = StoreListBackfill.Fetcher { _, sc -> fetches++; assertEquals("123", sc.installVersion); mapOf(WinCompSources.GOG_DEPENDENCIES to "MSVC2019_x64,DirectX") }
-        AutoComponents.online = { true }
-        try {
-            assertTrue(StoreListBackfill.fill(app, folder))
-            assertEquals("MSVC2019_x64,DirectX", StoreGameSidecar.read(folder)!!.extra[WinCompSources.GOG_DEPENDENCIES])
-            assertFalse(StoreListBackfill.fill(app, folder))
-            assertEquals(1, fetches)
-            assertEquals(listOf("vcredist2019" to WinCompSources.Origin.GOG, "d3dx9" to WinCompSources.Origin.GOG), auto(WinCompSources.forGame(app, game(folder, "gog"))))
-        } finally {
-            StoreListBackfill.fetcher = StoreListBackfill.storeFetcher
-            AutoComponents.online = { c -> AutoComponents.isOnline(c) }
-        }
-    }
-
-    @Test fun anOlderEpicInstallGetsItsPrerequisite() {
-        val folder = tmp.newFolder("DOOMBLADE")
-        StoreGameSidecar(Store.EPIC, "abc", "DOOMBLADE", exe = "DOOMBLADE.exe", extra = mapOf("namespace" to "ns", "catalogItemId" to "cat")).write(folder)
-        StoreListBackfill.fetcher = StoreListBackfill.Fetcher { _, _ ->
-            mapOf(WinCompSources.EPIC_PREREQ_NAME to "UE4 Prerequisites (x64)", WinCompSources.EPIC_PREREQ_PATH to "Engine/Extras/Redist/en-us/UE4PrereqSetup_x64.exe")
-        }
-        AutoComponents.online = { true }
-        try {
-            assertTrue(StoreListBackfill.fill(app, folder))
-            assertEquals("ns", StoreGameSidecar.read(folder)!!.extra["namespace"])
-            assertEquals(listOf("vcredist2022" to WinCompSources.Origin.EPIC, "d3dx9" to WinCompSources.Origin.EPIC), auto(WinCompSources.forGame(app, game(folder, "epic"))))
-        } finally {
-            StoreListBackfill.fetcher = StoreListBackfill.storeFetcher
-            AutoComponents.online = { c -> AutoComponents.isOnline(c) }
-        }
-    }
-
-    @Test fun aFailedFetchWaitsAWeekAndOfflineIsNoTry() {
-        val folder = tmp.newFolder("Metalstorm")
-        StoreGameSidecar(Store.EPIC, "m", "Metalstorm", exe = "M.exe").write(folder)
-        var fetches = 0
-        StoreListBackfill.fetcher = StoreListBackfill.Fetcher { _, _ -> fetches++; null }
-        try {
-            AutoComponents.online = { false }
-            assertFalse(StoreListBackfill.fill(app, folder))
-            assertEquals(0, fetches)
-            AutoComponents.online = { true }
-            assertFalse(StoreListBackfill.fill(app, folder))
-            assertFalse(StoreListBackfill.fill(app, folder))
-            assertEquals(1, fetches)
-            assertTrue(StoreListBackfill.needs(StoreGameSidecar.read(folder)!!))
-        } finally {
-            StoreListBackfill.fetcher = StoreListBackfill.storeFetcher
-            AutoComponents.online = { c -> AutoComponents.isOnline(c) }
-        }
-    }
-
-
     @Test fun anAppTheClientLearnsLaterIsReadOnceItsCacheIsWritten() {
         val file = SteamAppInfo.appinfoFile(app)
         appinfo(file, 1)
@@ -695,16 +563,6 @@ class WinCompSourcesTest {
         File(folder, "DOOMBLADE_Data/Managed/System.Net.Http.dll").writeText("x")
         assertTrue(DependencyDetector.detect(folder).isEmpty())
     }
-
-    @Test fun aListReadWholeIsNotFetchedAgainButAnUnmarkedEmptyOneIs() {
-        val read = tmp.newFolder("Read")
-        StoreGameSidecar(Store.EPIC, "a", "A", exe = "A.exe", extra = mapOf(WinCompSources.EPIC_PREREQ_NAME to "", WinCompSources.EPIC_PREREQ_PATH to "", WinCompSources.LIST_READ to "1")).write(read)
-        val older = tmp.newFolder("Older")
-        StoreGameSidecar(Store.EPIC, "b", "B", exe = "B.exe", extra = mapOf(WinCompSources.EPIC_PREREQ_NAME to "", WinCompSources.EPIC_PREREQ_PATH to "")).write(older)
-        assertFalse(StoreListBackfill.needs(StoreGameSidecar.read(read)!!))
-        assertTrue(StoreListBackfill.needs(StoreGameSidecar.read(older)!!))
-    }
-
 
     private fun manifest(dir: File, appId: Int, state: Int, time: Long) =
         File(dir, "appmanifest_$appId.acf").apply {
@@ -733,7 +591,7 @@ class WinCompSourcesTest {
         gameUp = true
         AutoComponents.queueInSession(app, installed)
         assertTrue(downloaded.isEmpty())
-        val other = game(tmp.newFolder("Other"), Library.ADDED)
+        val other = game(tmp.newFolder("Other"))
         AutoComponents.queueGame(app, other, asked = false)
         gameUp = false
         AutoComponents.drain(app)
@@ -767,7 +625,7 @@ class WinCompSourcesTest {
     @Test fun aRestoreRunsADownloadQueuedBeforeTheSessionWithoutWaitingForItToEnd() = withFakeWorker {
         WinComponents.setUser(app, "4243", "vcredist2019_dll", true)
         session = true
-        AutoComponents.queueGame(app, game(tmp.newFolder("Wait"), Library.ADDED), asked = true)
+        AutoComponents.queueGame(app, game(tmp.newFolder("Wait")), asked = true)
         AutoComponents.restoreMissing(app)
         AutoComponents.restoreMissing(app)
         assertEquals(listOf("vcredist2019_dll"), downloaded)

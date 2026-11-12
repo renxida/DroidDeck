@@ -69,10 +69,6 @@ class SteamDevtoolsPortTest(unittest.TestCase):
         self.assertNotEqual(taken, port)
         self.assertEqual(["-cef-enable-debugging", "-devtools-port", str(port)], args)
 
-    def test_the_x86_64_decky_exemption_only_covers_the_fixed_port(self):
-        text = SESSION.read_text()
-        self.assertIn('[ "${decky_arch:-}" = x86_64 ] && [ ${#_bl_cdp[@]} = 0 ]', text)
-
 
 if __name__ == "__main__":
     unittest.main()

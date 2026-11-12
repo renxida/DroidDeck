@@ -33,37 +33,6 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
-    private const val UBISOFT_SERVICE = "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe"
-
-    /** Fetches the Ubisoft pack and, once it lands, stages the service so a running session gets it without restarting. */
-    fun ensureUbisoftService(context: Context) {
-        AddonPack.UBISOFT.ensure(context) { app ->
-            com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).takeIf { it.isDirectory }
-                ?.let { stageUbisoftService(app, it, null) }
-        }
-    }
-
-    @Synchronized
-    private fun stageUbisoftService(context: Context, root: File, ledger: StageLedger?) {
-        val pack = AddonPack.UBISOFT.takeIf { it.installed(context) }?.dir(context) ?: return
-        val target = File(root, UBISOFT_SERVICE)
-        if (ledger?.current(UBISOFT_SERVICE, target) == true) return
-        val staged = File(target.parentFile, target.name + ".staged")
-        var installed = false
-        try {
-            target.parentFile?.mkdirs()
-            File(pack, "droiddeck-upc.exe").inputStream().use { input ->
-                staged.outputStream().use { output -> FileUtils.copy(input, output) }
-            }
-            installed = staged.setExecutable(true, false) && staged.renameTo(target)
-        } catch (e: Exception) {
-            Log.w(TAG, "could not stage the Ubisoft launcher service", e)
-        } finally {
-            if (!installed) staged.delete()
-        }
-        if (installed) ledger?.staged(UBISOFT_SERVICE, target) else Log.e(TAG, "$UBISOFT_SERVICE NOT staged")
-    }
-
     fun stage(context: Context, root: File, startsSession: Boolean = false) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
@@ -121,12 +90,6 @@ object SessionFiles {
             "usr/local/bin/droiddeck-snap-cli" to "usr/local/bin/snap",
             "usr/local/bin/droiddeck-steam-shim" to "usr/local/bin/droiddeck-steam-shim",
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
-            "usr/local/bin/droiddeck-xbox" to "usr/local/bin/droiddeck-xbox",
-            "usr/local/bin/droiddeck-store-launch" to "usr/local/bin/droiddeck-store-launch",
-            "usr/local/bin/droiddeck-gog-maintenance" to "usr/local/bin/droiddeck-gog-maintenance",
-            "usr/local/bin/droiddeck-battlenet" to "usr/local/bin/droiddeck-battlenet",
-            "usr/local/bin/droiddeck-epic" to "usr/local/bin/droiddeck-epic",
-            "usr/local/bin/droiddeck-epic-steam" to "usr/local/bin/droiddeck-epic-steam",
             "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
@@ -136,11 +99,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-x64-arm-proton" to "usr/local/bin/droiddeck-x64-arm-proton",
             "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
             "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
-            "usr/local/bin/droiddeck-steamvr" to "usr/local/bin/droiddeck-steamvr",
             "usr/local/bin/droiddeck-pipewire" to "usr/local/bin/droiddeck-pipewire",
-            "usr/local/bin/droiddeck-steamvr-settings" to "usr/local/bin/droiddeck-steamvr-settings",
-            "usr/local/bin/droiddeck-steamvr-game" to "usr/local/bin/droiddeck-steamvr-game",
-            "usr/local/bin/droiddeck-steamvr-flat" to "usr/local/bin/droiddeck-steamvr-flat",
             "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
             "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
@@ -184,22 +143,6 @@ object SessionFiles {
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
-        val handModels = listOf("left", "right").flatMap { side ->
-            listOf("droiddeck_hand_$side.json", "hand.mtl", "hand.png", "hand_open.obj", "hand_fist.obj", "thumb_index_open.obj",
-                "thumb_index_pinch.obj")
-                .map { "droiddeck/resources/rendermodels/droiddeck_hand_$side/$it" }
-        }
-        val vr = (listOf(
-            "droiddeck/bin/linuxarm64/driver_droiddeck.so",
-            "droiddeck/bin/linuxarm64/xr-display-mode",
-            "droiddeck/driver.vrdrivermanifest",
-            "droiddeck/resources/settings/default.vrsettings",
-            "layer/libVkLayer_droiddeck_vr.so",
-            "layer/libdroiddeck_vr_scheduling.so",
-            "layer/VK_LAYER_DROIDDECK_vr.json",
-        ) + handModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
-            listOf("usr/local/lib/droiddeck-vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json" to
-                "usr/share/vulkan/implicit_layer.d/droiddeck_vr.json")
         // HUD GPU load where Android hides it (GpuStatsComponent.guestEnv turns the layer on).
         val gpuLoad = listOf(
             "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
@@ -209,7 +152,7 @@ object SessionFiles {
         )
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
-        } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
+        } + ("x86_64/libvulkan-thunk.so" to "usr/local/lib/droiddeck-fex/x86_64/libvulkan-thunk.so")
         // The Mali compatibility layer (tools/venus/layer, David Cimo): an implicit Vulkan layer that
         // fills in the features DXVK requires and Mali lacks. Idle outside Wine and on GPUs that have them.
         // Never staged on an Adreno: an implicit layer is loaded into every Vulkan program there.
@@ -228,7 +171,7 @@ object SessionFiles {
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
-        ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
@@ -283,7 +226,6 @@ object SessionFiles {
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
-        stageUbisoftService(context, root, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")

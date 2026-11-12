@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">الفاصل بين النقرتين</string>
     <string name="gesture_reset">استعادة إعدادات الإيماءات الأصلية</string>
     <string name="gesture_cancel">إلغاء</string>
-    <string name="gesture_action">اختيار إجراء</string>
     <string name="gesture_left_click">نقر بالزر الأيسر</string>
     <string name="gesture_right_click">نقر بالزر الأيمن</string>
     <string name="gesture_middle_click">نقر بالزر الأوسط</string>

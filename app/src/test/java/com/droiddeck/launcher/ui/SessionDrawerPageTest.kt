@@ -21,16 +21,9 @@ class SessionDrawerPageTest {
         for (pages in listOf(connected, sessionDrawerPages(false))) {
             assertEquals(SessionDrawerPage.HUD, pages.step(SessionDrawerPage.DISPLAY, 1))
             assertEquals(SessionDrawerPage.EFFECTS, pages.step(SessionDrawerPage.HUD, 1))
-            assertEquals(SessionDrawerPage.VR, pages.step(SessionDrawerPage.EFFECTS, 1))
-            assertEquals(SessionDrawerPage.GAMES, pages.step(SessionDrawerPage.VR, 1))
+            assertEquals(SessionDrawerPage.GAMES, pages.step(SessionDrawerPage.EFFECTS, 1))
             assertEquals(SessionDrawerPage.SESSION, pages.step(SessionDrawerPage.GAMES, 1))
         }
     }
 
-    @Test fun theAgentPageComesBeforeSessionOnlyWhenTheAgentIsInstalled() {
-        val with = sessionDrawerPages(false, hasAgent = true)
-        assertEquals(SessionDrawerPage.AGENT, with.step(SessionDrawerPage.GAMES, 1))
-        assertEquals(SessionDrawerPage.SESSION, with.step(SessionDrawerPage.AGENT, 1))
-        assertFalse(SessionDrawerPage.AGENT in sessionDrawerPages(false, hasAgent = false))
-    }
 }

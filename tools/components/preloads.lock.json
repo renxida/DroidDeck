@@ -56,7 +56,6 @@
       "tools/linuxfs/debian-image.env": "1c79dea4314c784042a5c59208765c8401771098f293185d61a157d89edf6e52",
       "tools/linuxfs/fex/faultreport.c": "573bf780f32f7256dc2fbf40fe850d67e67c354509fdedcac3ff7f1a261daac3",
       "tools/linuxfs/fex/vulkanpin.c": "f2693ac2be8d15f7881115e61b1c6b3fe4aeec8f603584c6fce5b0f046563d51",
-      "tools/linuxfs/fex/webkitinput.c": "693ffd6c8c8c97e87156444ad2255c84dbf22cd0053d135fb8d9be094b5534d1",
       "tools/linuxfs/preload/binfmt.c": "0933cc49cb53f0aa1206e2eae516d38dc3337e74174be07e10619c42aa56792b",
       "tools/linuxfs/preload/dircache.c": "8e7f19ea4a1198783d53a3f357326c6177da157b0cc7e0d22e1670963e1c26e7",
       "tools/linuxfs/preload/drm.c": "e0eabab0d8ed9e841918e827bf87168efa7f2dfb8404169e9bed3ab5eda2836c",
@@ -114,8 +113,7 @@
     "x86_64/libblsession.so": "61d19f06aebab6a789f8c99f687af9903376bfc853e46b70c48a2ce5e497accc",
     "x86_64/libfakeinput.so": "8663dd2086bf8ae53069a480dd9ae4619109d32f0947a29e2ce38f07a21ae2e6",
     "x86_64/libfaultreport.so": "bb0dc9165d0d764473e552508650edd586df16d620fc5b16b8b1c5740a28ce22",
-    "x86_64/libvulkan-thunk.so": "74f01b652d7e8179561a096a552328b68da640cc4bad3981edd38e6afbf90243",
-    "x86_64/libwebkitinput.so": "9b07380a7b017397b9c56bb7bb1161e046b0c6a647fc413888904606b0def6d0"
+    "x86_64/libvulkan-thunk.so": "74f01b652d7e8179561a096a552328b68da640cc4bad3981edd38e6afbf90243"
   },
   "toolchain": {
     "arm64": "Ubuntu 24.04 GCC cross compiler; exact build commands pinned by arm64_recipe",
