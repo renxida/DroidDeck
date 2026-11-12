@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # Install the newest CI-built APK for a branch, then optionally run a device scenario.
-#   tools/ci_apk_loop.sh <branch> [scenario.json] [scenario args...]
+#   tools/ci_apk_loop.sh <branch | pr-number> [scenario.json] [scenario args...]
 # DROIDDECK_CI_REPO picks the repository whose Build APK runs to use (default: this checkout's origin).
 set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-branch=${1:?usage: tools/ci_apk_loop.sh <branch> [scenario.json] [scenario args...]}
+target=${1:?usage: tools/ci_apk_loop.sh <branch | pr-number> [scenario.json] [scenario args...]}
 shift
 repo=${DROIDDECK_CI_REPO:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}
+if [[ "${target}" =~ ^[0-9]+$ ]]; then
+    branch=$(gh pr view "${target}" -R "${repo}" --json headRefName --jq .headRefName)
+else
+    branch=${target}
+fi
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
 adb_bin=${ADB:-${sdk_dir}/platform-tools/adb}
 

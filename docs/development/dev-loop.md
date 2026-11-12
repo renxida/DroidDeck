@@ -20,6 +20,7 @@ runs on any Linux machine.
 gh auth login
 export DROIDDECK_CI_REPO=<owner>/DroidDeck
 tools/ci_apk_loop.sh my-branch                                    # install only
+tools/ci_apk_loop.sh 12                                           # a pull request's head branch
 tools/ci_apk_loop.sh my-branch tools/scenarios/slay-the-spire-2.json --out ./runs
 ```
 
