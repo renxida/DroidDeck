@@ -33,9 +33,9 @@ internal fun InputQuickSettings(host: MenuHost, onChanged: (InputRole?) -> Unit 
         runCatching { InputLibraries.update(context, change) }.onSuccess { library = it; onChanged(role) }
             .onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
     }
-    val selection = library.selection(false)
+    val selection = library.selection()
     val mixed = selection.parts.isNotEmpty()
-    val active = library.profile(library.activeId(false))
+    val active = library.profile(library.activeId())
     val profiles = listOf(InputProfiles.AUTO to stringResource(R.string.input_quick_auto, library.profile(library.steam).name)) +
         library.profiles.map { it.id to it.name } + if (mixed) listOf("mixed" to stringResource(R.string.input_quick_mixed, active.name)) else emptyList()
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -46,7 +46,7 @@ internal fun InputQuickSettings(host: MenuHost, onChanged: (InputRole?) -> Unit 
         }
         Box(Modifier.padding(end = 14.dp).widthIn(max = 280.dp)) {
             ChoiceChip(host, "input-profile", stringResource(R.string.input_profile), profiles, if (mixed) "mixed" else selection.profile,
-                modifier = track("input-profile")) { id -> if (id != "mixed") update(null) { it.selectProfile(false, id) } }
+                modifier = track("input-profile")) { id -> if (id != "mixed") update(null) { it.selectProfile(id) } }
         }
     }
     if (expanded) Surface(
@@ -61,8 +61,8 @@ internal fun InputQuickSettings(host: MenuHost, onChanged: (InputRole?) -> Unit 
             if (role == InputRole.PHYSICAL) binding.physical
             else !binding.physical && library.layouts.any { it.id == binding.layoutId && it.supports(role) }
         }.map { it.id to it.name }
-        ChoiceRow(host, "input-part-${role.name}", roleLabel(role), null, options, library.activePart(false, role).bindings,
-            chipModifier = track("input-part-${role.name}")) { id -> update(role) { it.selectPart(false, role, id) } }
+        ChoiceRow(host, "input-part-${role.name}", roleLabel(role), null, options, library.activePart(role).bindings,
+            chipModifier = track("input-part-${role.name}")) { id -> update(role) { it.selectPart(role, id) } }
     }
     if (mixed) SecondaryButton(stringResource(R.string.input_save_combination)) { naming = true }
         ActionRow(stringResource(R.string.input_settings), null, stringResource(R.string.ctrl_edit), onEdit,
@@ -73,7 +73,7 @@ internal fun InputQuickSettings(host: MenuHost, onChanged: (InputRole?) -> Unit 
         var name by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { naming = false }, title = { Text(stringResource(R.string.input_save_combination)) },
             text = { OutlinedTextField(name, { name = it.take(80) }, singleLine = true, label = { Text(stringResource(R.string.input_name)) }) },
-            confirmButton = { PadTextButton(enabled = name.isNotBlank(), onClick = { update(null) { it.saveSelection(false, name) }; naming = false }) { Text(stringResource(R.string.gesture_save_changes)) } },
+            confirmButton = { PadTextButton(enabled = name.isNotBlank(), onClick = { update(null) { it.saveSelection(name) }; naming = false }) { Text(stringResource(R.string.gesture_save_changes)) } },
             dismissButton = { PadTextButton(onClick = { naming = false }) { Text(stringResource(R.string.common_cancel)) } })
     }
     failure?.let { message -> AlertDialog(onDismissRequest = { failure = null }, title = { Text(stringResource(R.string.input_save_failed)) },

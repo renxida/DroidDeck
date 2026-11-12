@@ -53,7 +53,7 @@ class GamesClientTagTest {
                             offlineAccount = null, offline = false, frameGenLabel = "",
                             logsEnabled = false, steamGames = games, steamGamesX64 = x64, running = null,
                         ), FrontEndActions(
-                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {},
+                            onPlay = {}, onSteamGame = {},
                             onResume = {}, onSteamSettings = {},
                             onRuntime = {}, onFrameGenPick = {},
                             onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},

@@ -18,9 +18,10 @@ class SessionScalingPrefsTest {
         val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
         prefs.edit().putString("shape", SessionPrefs.SHAPE_AUTO).putInt("resolutionCap.steam", 900).commit()
         assertEquals("900p", SessionPrefs.resolutionChoice(context, "steam", 1920 to 1080))
-        val desktop = SessionPrefs.resolutionChoice(context, "lxqt", 1920 to 1080)
-        assertEquals("720p", desktop)
-        assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, desktop, portrait = true))
+        prefs.edit().remove("resolutionCap.steam").commit()
+        val uncapped = SessionPrefs.resolutionChoice(context, "steam", 1920 to 1080)
+        assertEquals("720p", uncapped)
+        assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, uncapped, portrait = true))
     }
 
     @Before fun clearSettings() {
@@ -38,16 +39,16 @@ class SessionScalingPrefsTest {
         assertTrue(SessionPrefs.resolutionChosen(context, "steam"))
     }
 
-    @Test fun matchScreenOverridesLegacyCustomAndAspectWithoutAffectingTheOtherMode() {
+    @Test fun matchScreenOverridesLegacyCustomAndAspectWithoutAffectingAnotherModeKey() {
         val context = RuntimeEnvironment.getApplication()
         val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
         prefs.edit().putString("shape", SessionPrefs.SHAPE_WIDE).putString("customRes.steam", "1024x768")
-            .putString("customRes.lxqt", "800x600").commit()
+            .putString("customRes.other", "800x600").commit()
         assertEquals("1024x768", SessionPrefs.resolutionChoice(context, "steam", 1440 to 1080))
         SessionPrefs.setResolutionChoice(context, "steam", SessionDisplay.MATCH_SCREEN)
         val choice = SessionPrefs.resolutionChoice(context, "steam", 1440 to 1080)
         assertEquals(1440 to 1080, SessionDisplay.resolveChoice(1440 to 1080, choice))
-        assertEquals("800x600", SessionPrefs.resolutionChoice(context, "lxqt", 1440 to 1080))
+        assertEquals("800x600", SessionPrefs.resolutionChoice(context, "other", 1440 to 1080))
     }
 
     @Test fun freshSettingsUseTheConcreteDefaultAndCustomSizesAreNormalized() {

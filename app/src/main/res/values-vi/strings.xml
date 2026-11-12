@@ -7,13 +7,11 @@
         <item>Tay cầm của bạn hiện ra như tay cầm Xbox 360. Nếu không, hãy dùng các nút điều khiển trên màn hình.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Lần chạy đầu thiết lập desktop. Quá trình này có thể mất vài phút.</item>
         <item>Theo mặc định, rời khỏi ứng dụng sẽ tạm dừng phiên; nó tiếp tục từ nơi bạn dừng lại khi bạn quay lại.</item>
         <item>Chạm hoạt động như touchpad: kéo để di chuyển con trỏ, chạm để nhấp.</item>
         <item>Tay cầm của bạn hiện ra như tay cầm Xbox 360. Nếu không, hãy dùng các nút điều khiển trên màn hình.</item>
     </string-array>
     <string name="session_channel">Phiên</string>
-    <string name="session_channel_description">Hiển thị khi có phiên Steam hoặc desktop đang mở</string>
     <string name="session_notification">Steam đang chạy</string>
     <string name="session_notification_downloads">Đang tải Steam</string>
     <string name="session_notification_paused">Phiên đã tạm dừng - nhấn Tiếp tục khi sẵn sàng</string>
@@ -280,10 +278,8 @@
     <string name="common_delete_named">Xóa %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Driver runtime</string>
-    <string name="comp_runtime_driver_hint">Dùng bởi Steam, game và desktop. Áp dụng từ phiên sau.</string>
     <string name="comp_import_turnip">Nhập tệp zip Turnip…</string>
     <string name="comp_display_driver">Driver hiển thị</string>
-    <string name="comp_display_driver_hint">Vẽ khung hình lên màn hình ở cả hai chế độ. Khởi động lại ứng dụng để áp dụng.</string>
     <string name="comp_import_adrenotools">Nhập tệp zip AdrenoTools…</string>
     <string name="comp_never">chưa bao giờ</string>
     <string name="comp_nightlies_checked">Đã kiểm tra Nightlies %1$s</string>
@@ -345,7 +341,6 @@
     <string name="comp_applies_next_game">Áp dụng vào lần game khởi động kế tiếp</string>
     <string name="comp_import_zip">Nhập tệp .zip</string>
     <string name="comp_reading">Đang đọc Proton…</string>
-    <string name="comp_no_proton">Chưa cài Proton nào. Khởi động Steam một lần để tải Proton ARM64 của nó, hoặc thêm GE-Proton, CachyOS hay DroidDeck-Proton từ Thiết lập.</string>
     <string name="comp_original">Gốc · %1$s</string>
     <string name="comp_this_build">%1$s · build này</string>
     <string name="comp_earlier_build">%1$s · build trước</string>
@@ -415,7 +410,6 @@
     <string name="perf_zram_client">Nén Steam khi game đang chạy</string>
     <string name="perf_zram_client_hint">20 giây sau khi game bắt đầu, client Steam được nén vào zRAM để game có thêm bộ nhớ, và được đọc lại khi game đóng. Tắt nếu phiên bị đóng ngay sau khi game bắt đầu. Giới hạn RAM ở trên vẫn nén Steam khi phiên vượt quá mức đó.</string>
     <string name="perf_ram_cap">Giới hạn RAM</string>
-    <string name="perf_ram_cap_hint">Áp dụng khi client Steam đang chạy, ở chế độ Steam hoặc từ desktop. Khi phiên dùng nhiều hơn mức này, Steam rồi đến các tiến trình được hỗ trợ khác của phiên sẽ bị nén vào zRAM. Giới hạn mềm: không có gì bị đóng, nhưng game có thể giật khi các trang được nạp lại.</string>
     <string name="perf_ram_cap_unavailable">Cần swap zRAM, thiết bị này không có.</string>
     <string name="perf_vram_cap">Giới hạn VRAM</string>
     <string name="perf_vram_cap_hint">Báo ngân sách bộ nhớ video này cho các trò chơi Direct3D 9 đến 12 để giảm mức dùng bộ nhớ. Trò chơi có thể vượt ngân sách; tính năng này không bổ sung phân trang GPU hay bảo đảm tránh lỗi do hết bộ nhớ. Có hiệu lực ở phiên tiếp theo.</string>
@@ -647,7 +641,6 @@
     <string name="setup_reset_settings_hint">Đưa mọi thiết lập về giá trị mặc định</string>
     <string name="setup_reset_settings_button">Đặt lại</string>
     <string name="setup_reset_settings_title">Đặt lại toàn bộ thiết lập?</string>
-    <string name="setup_reset_settings_body">Thiết lập hiển thị, hiệu năng, tay cầm, giao diện, ngôn ngữ và launcher sẽ trở về mặc định. Game, đăng nhập Steam, tài khoản cửa hàng, driver đã tải và thư mục lưu trữ vẫn giữ nguyên.</string>
     <string name="setup_reset_settings_profiles">Đặt lại cả hồ sơ game (Proton, FEX, thành phần và môi trường runtime cho từng game, cùng môi trường của hồ sơ Mặc định)</string>
     <string name="setup_reset_settings_session_running">Dừng phiên trước khi đặt lại thiết lập.</string>
     <string name="setup_reset_settings_partial">Đã đặt lại thiết lập, nhưng chưa phải tất cả. Chi tiết có trong log.</string>
@@ -666,7 +659,6 @@
     <string name="setup_launcher_orientation_auto">Theo hướng xoay thiết bị</string>
     <string name="setup_orientation_portrait">Dọc</string>
     <string name="setup_session_orientation">Hướng màn hình phiên</string>
-    <string name="setup_session_orientation_hint">Áp dụng cho Steam, game, desktop và trình chỉnh sửa tay cầm. Độ phân giải đặt sẵn xoay theo phiên; chiều rộng và chiều cao tùy chỉnh giữ nguyên như đã nhập.</string>
     <string name="setup_orientation_auto">Ngang tự động</string>
     <string name="setup_orientation_landscape">Ngang</string>
     <string name="setup_orientation_reverse">Ngang ngược</string>
@@ -810,7 +802,6 @@
     <string name="gpu_ubwc_title">Tương thích UBWC</string>
     <string name="gpu_ubwc_hint">Thử Bật hoặc Tắt nếu Steam hoặc Android hiện sọc hay nhấp nháy. Áp dụng cho cả hai driver sau khi khởi động lại Kestrel.</string>
     <string name="gpu_ubwc_restart">Khởi động lại Kestrel để áp dụng.</string>
-    <string name="gpu_runtime_hint">Dùng bởi game và desktop.</string>
     <string name="gpu_runtime_default">Mặc định runtime</string>
     <string name="gpu_auto_by_gpu">Tự động - chọn theo GPU</string>
     <string name="load_runtime">Runtime Linux</string>
@@ -908,7 +899,6 @@
     <string name="load_compat_wait">Đang chờ thiết lập tương thích hoàn tất</string>
     <string name="load_compat_hint">Phiên của bạn sẽ bắt đầu khi thiết lập hoàn tất.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Chờ việc cài ứng dụng desktop hoàn tất</string>
     <string name="main_wait_install_game">Chờ việc cài hoàn tất trước khi khởi chạy một game</string>
     <string name="main_saves_close_session">Hãy đóng phiên Steam trước, để game không ghi đè lên tệp vừa nhập</string>
     <string name="main_saves_importing">Đang nhập vào %1$s</string>
@@ -940,7 +930,6 @@
     <string name="main_remove_runtime_title">Gỡ runtime Linux</string>
     <string name="main_remove_runtime_text">Việc này xóa runtime, client Steam bên trong nó, và mọi game đã cài ở đó.</string>
     <string name="runtime_actions_title">Runtime Linux</string>
-    <string name="runtime_actions_text">Sửa chữa sẽ cài lại các tệp hệ thống của runtime và giữ lại Steam, game và thiết lập của bạn. Các phần thêm như desktop sẽ được cài lại khi bạn dùng lần tới. Gỡ bỏ sẽ xóa mọi thứ.</string>
     <string name="runtime_repair">Sửa chữa runtime</string>
     <string name="main_applied">Đã áp dụng: %1$s</string>
     <string name="comp_busy_importing">Đang nhập</string>
@@ -1933,7 +1922,6 @@
     <string name="storage_leftover_confirm">Xóa prefix Wine và bộ nhớ đệm shader (%1$s). Sao lưu trước những bản lưu quan trọng; bản lưu Steam Cloud vẫn ở trong tài khoản của bạn.</string>
     <string name="storage_data_other">Đã giữ</string>
     <string name="storage_data_other_title">Game ngoài Steam và prefix Steam dùng chung</string>
-    <string name="storage_data_other_detail">Prefix của game từ cửa hàng hoặc thêm thủ công</string>
     <string name="storage_components_packages">Gói đã tải</string>
     <string name="storage_components_originals">Bản gốc đã giữ</string>
     <string name="storage_components_none">Chưa tải gói thành phần nào.</string>

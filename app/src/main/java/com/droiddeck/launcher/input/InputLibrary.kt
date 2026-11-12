@@ -68,41 +68,40 @@ data class SavedInputProfile(val id: String, val name: String, val base: String,
 data class InputLibrary(
     val profiles: List<SavedInputProfile>, val layouts: List<SavedInputLayout>, val bindings: List<SavedInputBindings>,
     val selected: String = InputProfiles.AUTO,
-    val steam: String = InputProfile.GAME, val desktop: String = InputProfile.DESKTOP,
+    val steam: String = InputProfile.GAME,
     val selections: Map<String, InputSelection> = emptyMap(),
 ) {
     fun profile(id: String) = profiles.first { it.id == id }
     fun preset(id: String) = bindings.first { it.id == id }
     fun layout(profile: String, role: InputRole) = profiles.firstOrNull { it.id == profile }?.parts?.get(role)?.layout
         ?.let { id -> layouts.firstOrNull { it.id == id } }
-    private fun mode(isDesktop: Boolean) = if (isDesktop) InputProfile.DESKTOP else InputProfile.GAME
-    fun selection(isDesktop: Boolean) = selections[mode(isDesktop)] ?: InputSelection(selected)
-    fun activeId(isDesktop: Boolean): String {
-        val id = selection(isDesktop).profile
-        return if (id == InputProfiles.AUTO) { if (isDesktop) desktop else steam } else id
+    fun selection() = selections[InputProfile.GAME] ?: InputSelection(selected)
+    fun activeId(): String {
+        val id = selection().profile
+        return if (id == InputProfiles.AUTO) steam else id
     }
-    fun selectProfile(isDesktop: Boolean, id: String) = copy(selections = selections + (mode(isDesktop) to InputSelection(id, profileSelected = true)))
-    fun selectPart(isDesktop: Boolean, role: InputRole, bindingsId: String): InputLibrary {
-        val previous = selection(isDesktop)
-        return copy(selections = selections + (mode(isDesktop) to previous.copy(parts = previous.parts + (role to bindingsId))))
+    fun selectProfile(id: String) = copy(selections = selections + (InputProfile.GAME to InputSelection(id, profileSelected = true)))
+    fun selectPart(role: InputRole, bindingsId: String): InputLibrary {
+        val previous = selection()
+        return copy(selections = selections + (InputProfile.GAME to previous.copy(parts = previous.parts + (role to bindingsId))))
     }
-    fun activePart(isDesktop: Boolean, role: InputRole): InputPart {
-        val binding = selection(isDesktop).parts[role]?.let(::preset)
-        return if (binding != null) InputPart(binding.id, binding.layoutId) else profile(activeId(isDesktop)).parts.getValue(role)
+    fun activePart(role: InputRole): InputPart {
+        val binding = selection().parts[role]?.let(::preset)
+        return if (binding != null) InputPart(binding.id, binding.layoutId) else profile(activeId()).parts.getValue(role)
     }
-    fun activeLayout(isDesktop: Boolean, role: InputRole) = activePart(isDesktop, role).layout?.let { id -> layouts.first { it.id == id } }
-    fun panelPart(isDesktop: Boolean, panel: String?): InputPart =
-        panel?.let { id -> bindings.firstOrNull { it.id == id } }?.let { InputPart(it.id, it.layoutId) } ?: activePart(isDesktop, InputRole.SECONDARY)
-    fun panelLayout(isDesktop: Boolean, panel: String?) = panelPart(isDesktop, panel).layout?.let { id -> layouts.firstOrNull { it.id == id } }
-    fun compileActive(isDesktop: Boolean, panel: String? = null): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith {
-        preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel).bindings else activePart(isDesktop, it).bindings)
+    fun activeLayout(role: InputRole) = activePart(role).layout?.let { id -> layouts.first { it.id == id } }
+    fun panelPart(panel: String?): InputPart =
+        panel?.let { id -> bindings.firstOrNull { it.id == id } }?.let { InputPart(it.id, it.layoutId) } ?: activePart(InputRole.SECONDARY)
+    fun panelLayout(panel: String?) = panelPart(panel).layout?.let { id -> layouts.firstOrNull { it.id == id } }
+    fun compileActive(panel: String? = null): InputProfile = compileParts(activeId(), InputRole.entries.associateWith {
+        preset(if (it == InputRole.SECONDARY) panelPart(panel).bindings else activePart(it).bindings)
     })
 
-    fun saveSelection(isDesktop: Boolean, name: String, id: String = newInputId()): InputLibrary {
-        val current = profile(activeId(isDesktop))
-        var result = withProfile(SavedInputProfile(id, inputName(name), current.base, InputRole.entries.associateWith { activePart(isDesktop, it) }))
+    fun saveSelection(name: String, id: String = newInputId()): InputLibrary {
+        val current = profile(activeId())
+        var result = withProfile(SavedInputProfile(id, inputName(name), current.base, InputRole.entries.associateWith { activePart(it) }))
         for (role in InputRole.entries) result = result.usePart(id, role, id, shared = false)
-        return result.selectProfile(isDesktop, id)
+        return result.selectProfile(id)
     }
 
 
@@ -197,7 +196,7 @@ data class InputLibrary(
     fun removeProfile(id: String): InputLibrary {
         require(id != InputProfile.GAME && id != InputProfile.DESKTOP)
         return copy(profiles = profiles.filterNot { it.id == id }, selected = selected.takeUnless { it == id } ?: InputProfiles.AUTO,
-            steam = steam.takeUnless { it == id } ?: InputProfile.GAME, desktop = desktop.takeUnless { it == id } ?: InputProfile.DESKTOP,
+            steam = steam.takeUnless { it == id } ?: InputProfile.GAME,
             selections = selections.mapValues { (_, selection) -> if (selection.profile == id) selection.copy(profile = InputProfiles.AUTO) else selection })
     }
 
@@ -235,7 +234,7 @@ data class InputLibrary(
         unique(profiles.map { it.id }); unique(layouts.map { it.id }); unique(bindings.map { it.id })
         require(profiles.any { it.id == InputProfile.GAME } && profiles.any { it.id == InputProfile.DESKTOP })
         require(selected == InputProfiles.AUTO || profiles.any { it.id == selected })
-        require(profiles.any { it.id == steam } && profiles.any { it.id == desktop })
+        require(profiles.any { it.id == steam })
         for (layout in layouts) {
             require(layout.style.opacity in 1..100 && layout.style.hidden.all { it in QUICK_BUTTONS })
             require(layout.aspect == 0f || layout.aspect.isFinite() && layout.aspect in .05f..20f)
@@ -266,7 +265,7 @@ data class InputLibrary(
             require(preset.keys.all { it.key.device.isNotBlank() && it.key.keyCode >= 0 && it.key.scanCode >= 0 &&
                 it.action.validFor(InputControl.A) && (it.action !is InputAction.Native || it.action.target == null) })
         }
-        require(selections.keys.all { it == InputProfile.GAME || it == InputProfile.DESKTOP })
+        require(selections.keys.all { it == InputProfile.GAME })
         for (selection in selections.values) {
             require(selection.profile == InputProfiles.AUTO || profiles.any { it.id == selection.profile })
             for ((role, id) in selection.parts) {

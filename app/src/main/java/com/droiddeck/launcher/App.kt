@@ -1,7 +1,6 @@
 package com.droiddeck.launcher
 
 import android.app.Application
-import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.session.CrashHandler
 import com.droiddeck.launcher.session.EnhancedSessionLogShare
 import com.droiddeck.launcher.session.GpuClockPin
@@ -33,7 +32,6 @@ class App : Application() {
         com.droiddeck.launcher.core.DownloadSource.init(this)
         prefetchAddonPacks()
         GpuClockPin.clearLeftover(this)
-        BwrapSpawner.start(this)
         com.droiddeck.launcher.runtime.RootSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
     }

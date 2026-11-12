@@ -125,7 +125,7 @@ class PortraitLayoutTest {
     private val stateWithSession get() = state(running = "Steam")
 
     private val actions = FrontEndActions(
-        onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {},
+        onPlay = {}, onSteamGame = {},
         onResume = {}, onSteamSettings = {},
         onRuntime = {}, onFrameGenPick = {},
         onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},

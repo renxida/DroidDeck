@@ -113,12 +113,10 @@ public final class RuntimeFileTree {
     }
 
     private static final String[] STALE_HOME_STATE = {
-        ".local/share/droiddeck/pacman", ".cache/droiddeck/pacman-restore.log",
-        ".cache/appstream", ".cache/discover", ".cache/fontconfig", ".cache/kwin", ".cache/ksplash",
-        ".cache/ksvg-elements", ".cache/plasmashell", ".cache/kwinsession.kcache", ".cache/icon-cache.kcache",
+        ".local/share/droiddeck/pacman", ".cache/droiddeck/pacman-restore.log", ".cache/fontconfig",
     };
     private static final String[] STALE_HOME_CACHE_PREFIXES = {
-        "mesa_shader_cache", "ksycoca", "plasma_theme_", "qtshadercache", "event-sound-cache.tdb.",
+        "mesa_shader_cache", "qtshadercache", "event-sound-cache.tdb.",
     };
 
     static void dropStaleState(File runtimeRoot) throws IOException {

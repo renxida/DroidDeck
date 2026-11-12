@@ -55,17 +55,14 @@ internal object LegacyScreenKeyMigration {
         if (!old.optBoolean("screenKeysShown", true) || old.optString("screenKeys").isBlank()) return library
         val keys = library.layouts.firstOrNull { it.id == "$SHOWN.layout" } ?: return library
         val actions = library.bindings.firstOrNull { it.id == "$SHOWN.bindings" }?.elements.orEmpty()
-        var result = library
-        for (part in listOf(false, true).map { library.activePart(it, InputRole.PRIMARY) }.distinct()) {
-            val layout = result.layouts.firstOrNull { it.id == part.layout } ?: continue
-            val preset = result.preset(part.bindings)
-            if (!layout.editable || preset.layoutId != layout.id || layout.elements.any { e -> keys.elements.any { it.id == e.id } } ||
-                layout.elements.size + keys.elements.size > 64) continue
-            val added = keys.elements.mapNotNull { e -> actions[e.id]?.let { e.id to it } }.toMap()
-            result = result.withLayout(layout.copy(elements = layout.elements + keys.elements))
-                .withPreset(preset.copy(elements = added + preset.elements))
-        }
-        return result.validate()
+        val part = library.activePart(InputRole.PRIMARY)
+        val layout = library.layouts.firstOrNull { it.id == part.layout } ?: return library.validate()
+        val preset = library.preset(part.bindings)
+        if (!layout.editable || preset.layoutId != layout.id || layout.elements.any { e -> keys.elements.any { it.id == e.id } } ||
+            layout.elements.size + keys.elements.size > 64) return library.validate()
+        val added = keys.elements.mapNotNull { e -> actions[e.id]?.let { e.id to it } }.toMap()
+        return library.withLayout(layout.copy(elements = layout.elements + keys.elements))
+            .withPreset(preset.copy(elements = added + preset.elements)).validate()
     }
 
     fun pin(library: InputLibrary): InputLibrary {

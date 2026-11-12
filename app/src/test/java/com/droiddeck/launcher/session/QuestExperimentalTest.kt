@@ -2,7 +2,6 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.content.ContextWrapper
-import com.droiddeck.launcher.runtime.BwrapSpawner
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -103,17 +102,5 @@ class QuestExperimentalTest {
             assertEquals("chosen-display", SessionPrefs.androidDriver(context))
             assertEquals("chosen-linux", SessionPrefs.linuxDriver(context))
         }
-    }
-
-    @Test fun installedPackagesUseSeparateSandboxSockets() {
-        val packages = listOf("dev.renxida.kestrel", "com.tencent.ig",
-            "com.antutu.benchmark.full", "com.ludashi.benchmark")
-        val sockets = packages.map { name ->
-            val variant = object : ContextWrapper(context) {
-                override fun getPackageName() = name
-            }
-            BwrapSpawner.socket(variant).also { assertEquals("$name.bwrap", it) }
-        }
-        assertEquals(packages.size, sockets.toSet().size)
     }
 }

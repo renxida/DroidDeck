@@ -323,7 +323,8 @@ private fun LibraryGrid(
         }
         val picker = s.shortcutPicker
         val choose = if (picker) ({ a.onSteamGame(e.game) }) else null
-        if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL)
+        val showSource = source == LIBRARY_ALL && sources.size > 1
+        if (listMode) LibraryRow(e, first, navigation, choose, onOpen, showSource) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource)
     }
     LazyVerticalGrid(
         columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(tileWidth), state = grid,
@@ -475,8 +476,6 @@ internal val LibraryCardWidth = 150.dp
 private val CardWidth = 112.dp
 private val CapsuleWidth = 92.dp
 
-internal fun libraryTileWidth() = LibraryCardWidth * LibraryDisplay.scales[LibraryDisplay.level]
-
 @Composable
 private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, hot: Boolean, capsule: Boolean, showSource: Boolean) {
     ArtCard(
@@ -542,7 +541,7 @@ private fun LibrarySize(e: LibraryEntry) {
 }
 
 @Composable
-private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit) {
+private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit, showSource: Boolean) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -572,7 +571,7 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(e.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SourceChip(e.source, small = true)
+                if (showSource) SourceChip(e.source, small = true)
                 Text(meta.joinToString("  ·  "), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

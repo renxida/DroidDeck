@@ -1,6 +1,11 @@
 #define _GNU_SOURCE
+#include <dlfcn.h>
+#include <limits.h>
+#include <spawn.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #ifndef WEBHELPER_DEFAULT
@@ -104,3 +109,44 @@ char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const
   out[n] = NULL;
   return out;
 }
+
+#if defined(__aarch64__) || defined(BL_EXEC_ANY_ARCH)
+
+typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
+                        char *const[], char *const[]);
+
+static int lookup(const char *file, char *out, size_t size) {
+  if (!file || !*file) return 0;
+  if (strchr(file, '/')) return snprintf(out, size, "%s", file) < (int)size;
+  const char *paths = getenv("PATH");
+  if (!paths) paths = "/bin:/usr/bin";
+  for (const char *p = paths;; ) {
+    const char *end = strchrnul(p, ':');
+    int n = end > p ? snprintf(out, size, "%.*s/%s", (int)(end - p), p, file) : snprintf(out, size, "%s", file);
+    struct stat st;
+    if (n > 0 && n < (int)size && stat(out, &st) == 0 && S_ISREG(st.st_mode)) return 1;
+    if (!*end) return 0;
+    p = end + 1;
+  }
+}
+
+int execvpe(const char *file, char *const argv[], char *const envp[]) {
+  char resolved[PATH_MAX];
+  const char *path = lookup(file, resolved, sizeof resolved) ? resolved : file;
+  char *const *adjusted = bl_webhelper_argv(path, argv, envp);
+  static int (*real)(const char *, char *const[], char *const[]);
+  if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execvpe");
+  return real(file, (char *const *)adjusted, envp);
+}
+
+int posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *attr,
+                 char *const argv[], char *const envp[]) {
+  char path[PATH_MAX];
+  int found = lookup(file, path, sizeof path);
+  char *const *adjusted = bl_webhelper_argv(found ? path : file, argv, envp);
+  static spawn_fn real;
+  if (!real) real = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawnp");
+  return real(pid, file, fa, attr, (char *const *)adjusted, envp);
+}
+
+#endif

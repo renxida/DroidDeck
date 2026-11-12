@@ -78,7 +78,7 @@ class InputSettingsTest {
         compose.onNodeWithText("Trackpad + keyboard").performScrollTo().performClick()
         compose.runOnIdle {
             val changed = InputLibraries.read(context)
-            assertEquals(InputStockLayouts.TRACKPAD, changed.activePart(false, InputRole.SECONDARY).bindings)
+            assertEquals(InputStockLayouts.TRACKPAD, changed.activePart(InputRole.SECONDARY).bindings)
             assertEquals(original.profiles, changed.profiles)
         }
         compose.onNodeWithText(context.getString(R.string.input_save_combination)).performClick()
@@ -86,8 +86,8 @@ class InputSettingsTest {
         compose.onNodeWithText(context.getString(R.string.gesture_save_changes)).performClick()
         compose.runOnIdle {
             val saved = InputLibraries.read(context)
-            assertEquals("Reading", saved.profile(saved.activeId(false)).name)
-            assertTrue(saved.selection(false).parts.isEmpty())
+            assertEquals("Reading", saved.profile(saved.activeId()).name)
+            assertTrue(saved.selection().parts.isEmpty())
             assertEquals(original.profile(original.steam), saved.profile(original.steam))
         }
     }

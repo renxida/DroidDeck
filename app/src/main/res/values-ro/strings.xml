@@ -7,13 +7,11 @@
         <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Prima rulare configurează desktopul. Poate dura câteva minute.</item>
         <item>În mod implicit, la părăsirea aplicației, sesiunea este pusă pe pauză; continuă de unde ai rămas când te întorci.</item>
         <item>Atingerea funcționează ca un touchpad: trage pentru a mișca cursorul, apasă scurt pentru a face clic.</item>
         <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
     </string-array>
     <string name="session_channel">Sesiune</string>
-    <string name="session_channel_description">Apare cât timp o sesiune Steam sau desktop este activă</string>
     <string name="session_notification">Steam este în execuție</string>
     <string name="session_notification_downloads">Descărcare Steam activă</string>
     <string name="session_notification_paused">Sesiune pusă pe pauză - apasă Reluare când ești pregătit</string>
@@ -284,10 +282,8 @@
     <string name="common_delete_named">Șterge %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Driver pentru mediul de execuție</string>
-    <string name="comp_runtime_driver_hint">Folosit de Steam, jocuri și desktop. Se aplică la sesiunea următoare.</string>
     <string name="comp_import_turnip">Importă arhiva Turnip…</string>
     <string name="comp_display_driver">Driver de afișaj</string>
-    <string name="comp_display_driver_hint">Desenează cadrele pe ecran în ambele moduri. Repornește aplicația pentru a aplica.</string>
     <string name="comp_import_adrenotools">Importă o arhivă AdrenoTools…</string>
     <string name="comp_never">niciodată</string>
     <string name="comp_nightlies_checked">Versiunile nightly verificate %1$s</string>
@@ -349,7 +345,6 @@
     <string name="comp_applies_next_game">Se aplică la următoarea pornire a unui joc</string>
     <string name="comp_import_zip">Importă .zip</string>
     <string name="comp_reading">Se citesc versiunile Proton…</string>
-    <string name="comp_no_proton">Niciun Proton instalat încă. Pornește Steam o dată pentru a descărca Proton-ul său ARM64, sau adaugă GE-Proton, CachyOS sau DroidDeck-Proton din Configurare.</string>
     <string name="comp_original">Original · %1$s</string>
     <string name="comp_this_build">%1$s · această versiune</string>
     <string name="comp_earlier_build">%1$s · versiune anterioară</string>
@@ -419,7 +414,6 @@
     <string name="perf_zram_client">Comprimă Steam cât rulează un joc</string>
     <string name="perf_zram_client_hint">La 20 s după pornirea unui joc, clientul Steam este comprimat în zRAM pentru a lăsa jocului mai multă memorie și este citit înapoi când jocul se închide. Dezactivează dacă sesiunea se închide la scurt timp după pornirea jocurilor. O limită RAM de mai sus tot comprimă Steam când sesiunea o depășește.</string>
     <string name="perf_ram_cap">Limită RAM</string>
-    <string name="perf_ram_cap_hint">Se aplică cât rulează clientul Steam, în modul Steam sau de pe desktop. Când sesiunea folosește mai mult de atât, Steam și apoi celelalte procese acceptate ale sesiunii sunt comprimate în zRAM. O limită flexibilă: nimic nu se închide, dar jocurile pot sacada cât paginile revin.</string>
     <string name="perf_ram_cap_unavailable">Necesită swap zRAM, pe care acest dispozitiv nu îl are.</string>
     <string name="perf_vram_cap">Limită VRAM</string>
     <string name="perf_vram_cap_hint">Raportează acest buget de memorie video jocurilor Direct3D 9 până la 12 pentru a reduce utilizarea memoriei. Jocurile îl pot depăși; nu adaugă paginare GPU și nu garantează protecție împotriva blocărilor cauzate de lipsa memoriei. Se aplică din sesiunea următoare.</string>
@@ -653,7 +647,6 @@
     <string name="setup_reset_settings_hint">Readuce fiecare setare la valoarea implicită</string>
     <string name="setup_reset_settings_button">Resetează</string>
     <string name="setup_reset_settings_title">Resetezi toate setările?</string>
-    <string name="setup_reset_settings_body">Setările de afișare, performanță, controller, temă, limbă și launcher revin la valorile implicite. Jocurile, autentificarea Steam, conturile de magazine, driverele descărcate și folderele de stocare rămân.</string>
     <string name="setup_reset_settings_profiles">Resetează și profilurile jocurilor (Proton, FEX, componente și mediul de execuție pentru fiecare joc, plus mediul profilului Implicit)</string>
     <string name="setup_reset_settings_session_running">Oprește sesiunea înainte de a reseta setările.</string>
     <string name="setup_reset_settings_partial">Setările au fost resetate, dar nu toate. Detaliile sunt în jurnale.</string>
@@ -672,7 +665,6 @@
     <string name="setup_launcher_orientation_auto">Urmează rotirea dispozitivului</string>
     <string name="setup_orientation_portrait">Portret</string>
     <string name="setup_session_orientation">Orientarea sesiunii</string>
-    <string name="setup_session_orientation_hint">Se aplică pentru Steam, jocuri, desktop și editorul de controller. Presetările de rezoluție se rotesc odată cu sesiunea; lățimea și înălțimea personalizate rămân cum au fost introduse.</string>
     <string name="setup_orientation_auto">Peisaj automat</string>
     <string name="setup_orientation_landscape">Peisaj</string>
     <string name="setup_orientation_reverse">Peisaj inversat</string>
@@ -816,7 +808,6 @@
     <string name="gpu_ubwc_title">Compatibilitate UBWC</string>
     <string name="gpu_ubwc_hint">Încearcă Activat sau Dezactivat dacă Steam sau Android afișează dungi ori pâlpâiri. Se aplică ambelor drivere după repornirea Kestrel.</string>
     <string name="gpu_ubwc_restart">Repornește Kestrel pentru a aplica.</string>
-    <string name="gpu_runtime_hint">Folosit de jocuri și de desktop.</string>
     <string name="gpu_runtime_default">Implicit pentru mediul de execuție</string>
     <string name="gpu_auto_by_gpu">Automat - ales în funcție de GPU</string>
     <string name="load_runtime">Mediul de execuție Linux</string>
@@ -914,7 +905,6 @@
     <string name="load_compat_wait">Se așteaptă finalizarea configurării compatibilității</string>
     <string name="load_compat_hint">Sesiunea va porni după finalizarea configurării.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Așteaptă să se termine instalarea aplicației desktop</string>
     <string name="main_wait_install_game">Așteaptă să se termine instalarea înainte de a lansa un joc</string>
     <string name="main_saves_close_session">Închide mai întâi sesiunea Steam, ca jocul să nu poată salva peste import</string>
     <string name="main_saves_importing">Se importă în %1$s</string>
@@ -954,7 +944,6 @@
     <string name="main_remove_runtime_title">Elimină mediul de execuție Linux</string>
     <string name="main_remove_runtime_text">Aceasta șterge mediul de execuție, clientul Steam din interiorul lui și fiecare joc instalat acolo.</string>
     <string name="runtime_actions_title">Mediul de execuție Linux</string>
-    <string name="runtime_actions_text">Repararea reinstalează fișierele de sistem ale mediului de execuție și păstrează Steam, jocurile și setările. Extrasele, precum desktopul, se instalează din nou la următoarea utilizare. Eliminarea șterge tot.</string>
     <string name="runtime_repair">Repară mediul de execuție</string>
     <string name="main_applied">Aplicat: %1$s</string>
     <string name="comp_busy_importing">Se importă</string>
@@ -1984,7 +1973,6 @@
     <string name="storage_leftover_confirm">Șterge prefixul Wine și cache-ul de shadere (%1$s). Copiază întâi salvările importante; salvările Steam Cloud rămân în contul tău.</string>
     <string name="storage_data_other">Păstrate</string>
     <string name="storage_data_other_title">Jocuri non-Steam și prefixul Steam partajat</string>
-    <string name="storage_data_other_detail">Prefixele jocurilor din magazine sau adăugate manual</string>
     <string name="storage_components_packages">Pachete descărcate</string>
     <string name="storage_components_originals">Originale păstrate</string>
     <string name="storage_components_none">Niciun pachet de componente descărcat.</string>

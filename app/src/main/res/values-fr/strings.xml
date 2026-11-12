@@ -7,13 +7,11 @@
         <item>Votre manette apparaîtra comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Le premier lancement configure le bureau. Cela peut prendre quelques minutes.</item>
         <item>Par défaut, quitter l\'application met la session en pause ; y revenir reprend là où vous vous étiez arrêté.</item>
         <item>Le tactile fonctionne comme un pavé tactile : faites glisser pour déplacer le pointeur, tapotez pour cliquer.</item>
         <item>Votre manette apparaîtra comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
     </string-array>
     <string name="session_channel">Session</string>
-    <string name="session_channel_description">Affiché lorsqu\'une session Steam ou Bureau est ouverte</string>
     <string name="session_notification">Steam est en cours d\'exécution</string>
     <string name="session_notification_downloads">Téléchargement Steam en cours</string>
     <string name="session_notification_paused">Session en pause - Appuyez pour reprendre quand vous êtes prêt</string>
@@ -284,10 +282,8 @@
     <string name="common_delete_named">Supprimer %1$s</string>
     <string name="common_size_mb">%1$.1f Mo</string>
     <string name="comp_runtime_driver">Pilote d\'environnement d\'exécution</string>
-    <string name="comp_runtime_driver_hint">Utilisé par Steam, les jeux et le bureau. Prendra effet à la prochaine session.</string>
     <string name="comp_import_turnip">Importer Turnip zip…</string>
     <string name="comp_display_driver">Pilote d\'affichage</string>
-    <string name="comp_display_driver_hint">Responsable de la sortie vidéo vers l\'écran dans les deux modes. Prendra effet après le redémarrage de l\'application.</string>
     <string name="comp_import_adrenotools">Importer AdrenoTools zip…</string>
     <string name="comp_never">Jamais</string>
     <string name="comp_nightlies_checked">Nightlies vérifié le %1$s</string>
@@ -349,7 +345,6 @@
     <string name="comp_applies_next_game">Prendra effet au prochain lancement du jeu</string>
     <string name="comp_import_zip">Importer .zip</string>
     <string name="comp_reading">Lecture de Proton…</string>
-    <string name="comp_no_proton">Proton n\'est pas encore installé. Lancez Steam une fois pour télécharger son Proton ARM64, ou ajoutez GE-Proton, CachyOS ou DroidDeck-Proton depuis les « Paramètres ».</string>
     <string name="comp_original">Original · %1$s</string>
     <string name="comp_this_build">%1$s · Version actuelle</string>
     <string name="comp_earlier_build">%1$s · Version antérieure</string>
@@ -419,7 +414,6 @@
     <string name="perf_zram_client">Compresser Steam pendant un jeu</string>
     <string name="perf_zram_client_hint">20 s après le démarrage d\'un jeu, le client Steam est compressé dans zRAM pour laisser plus de mémoire au jeu, puis relu à la fermeture du jeu. Désactivez cette option si la session se ferme peu après le démarrage des jeux. Une limite de RAM ci-dessus compresse toujours Steam lorsque la session la dépasse.</string>
     <string name="perf_ram_cap">Limite de RAM</string>
-    <string name="perf_ram_cap_hint">S\'applique tant que le client Steam fonctionne, en mode Steam ou depuis le bureau. Lorsque la session dépasse cette valeur, Steam puis les autres processus pris en charge de la session sont compressés dans zRAM. Limite souple : rien n\'est fermé, mais les jeux peuvent saccader pendant le rechargement des pages.</string>
     <string name="perf_ram_cap_unavailable">Nécessite un swap zRAM, dont cet appareil ne dispose pas.</string>
     <string name="perf_vram_cap">Limite de VRAM</string>
     <string name="perf_vram_cap_hint">Signale ce budget de mémoire vidéo aux jeux Direct3D 9 à 12 pour réduire leur consommation. Les jeux peuvent le dépasser ; cela ne fournit pas de pagination GPU et ne garantit pas une protection contre les plantages par manque de mémoire. Prend effet à la prochaine session.</string>
@@ -653,7 +647,6 @@
     <string name="setup_reset_settings_hint">Remet chaque paramètre à sa valeur par défaut</string>
     <string name="setup_reset_settings_button">Réinitialiser</string>
     <string name="setup_reset_settings_title">Réinitialiser tous les paramètres ?</string>
-    <string name="setup_reset_settings_body">Les paramètres d\'affichage, de performances, de manette, de thème, de langue et du lanceur reprennent leurs valeurs par défaut. Vos jeux, votre connexion Steam, vos comptes de boutiques, les pilotes téléchargés et les dossiers de stockage sont conservés.</string>
     <string name="setup_reset_settings_profiles">Réinitialiser aussi les profils de jeu (Proton, FEX, composants et environnement de chaque jeu, ainsi que l\'environnement du profil par défaut)</string>
     <string name="setup_reset_settings_session_running">Arrêtez la session avant de réinitialiser les paramètres.</string>
     <string name="setup_reset_settings_partial">Les paramètres ont été réinitialisés, mais certaines parties n\'ont pas pu l\'être. Les journaux contiennent les détails.</string>
@@ -672,7 +665,6 @@
     <string name="setup_launcher_orientation_auto">Suivre la rotation de l\'appareil</string>
     <string name="setup_orientation_portrait">Portrait</string>
     <string name="setup_session_orientation">Orientation de la session</string>
-    <string name="setup_session_orientation_hint">S\'applique à Steam, aux jeux, au bureau et à l\'éditeur de manette. Les préréglages de résolution pivotent avec la session ; la largeur et la hauteur personnalisées restent telles que saisies.</string>
     <string name="setup_orientation_auto">Paysage automatique</string>
     <string name="setup_orientation_landscape">Paysage</string>
     <string name="setup_orientation_reverse">Paysage inversé</string>
@@ -816,7 +808,6 @@
     <string name="gpu_ubwc_title">Compatibilité UBWC</string>
     <string name="gpu_ubwc_hint">Essayez Activé ou Désactivé si Steam ou Android affiche des bandes ou des scintillements. S\'applique aux deux pilotes après le redémarrage de Kestrel.</string>
     <string name="gpu_ubwc_restart">Redémarrez Kestrel pour appliquer.</string>
-    <string name="gpu_runtime_hint">Utilisé par les jeux et le bureau.</string>
     <string name="gpu_runtime_default">Par défaut de l\'environnement d\'exécution</string>
     <string name="gpu_auto_by_gpu">Auto - Sélection par GPU</string>
     <string name="load_runtime">Environnement d\'exécution Linux</string>
@@ -914,7 +905,6 @@
     <string name="load_compat_wait">En attente de la fin de la configuration de compatibilité</string>
     <string name="load_compat_hint">Votre session démarrera une fois la configuration terminée.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Attendez la fin de l\'installation de l\'application de bureau</string>
     <string name="main_wait_install_game">Attendez la fin de l\'installation avant de lancer un jeu</string>
     <string name="main_saves_close_session">Fermez d\'abord la session Steam, pour que le jeu ne puisse pas écraser l\'importation</string>
     <string name="main_saves_importing">Importation dans %1$s</string>
@@ -954,7 +944,6 @@
     <string name="main_remove_runtime_title">Supprimer l\'environnement d\'exécution Linux</string>
     <string name="main_remove_runtime_text">Cela supprime l\'environnement d\'exécution, le client Steam qu\'il contient et tous les jeux qui y sont installés.</string>
     <string name="runtime_actions_title">Environnement d\'exécution Linux</string>
-    <string name="runtime_actions_text">Réparer réinstalle les fichiers système de l\'environnement d\'exécution et conserve Steam, vos jeux et vos paramètres. Les extras comme le bureau se réinstallent à leur prochaine utilisation. Supprimer efface tout.</string>
     <string name="runtime_repair">Réparer l\'environnement d\'exécution</string>
     <string name="main_applied">Appliqué : %1$s</string>
     <string name="comp_busy_importing">Importation</string>
@@ -1984,7 +1973,6 @@
     <string name="storage_leftover_confirm">Supprime son préfixe Wine et son cache de shaders (%1$s). Sauvegardez d\'abord les sauvegardes que vous voulez ; celles de Steam Cloud restent dans votre compte.</string>
     <string name="storage_data_other">Conservés</string>
     <string name="storage_data_other_title">Jeux hors Steam et préfixe partagé de Steam</string>
-    <string name="storage_data_other_detail">Préfixes de jeux ajoutés depuis les boutiques ou à la main</string>
     <string name="storage_components_packages">Paquets téléchargés</string>
     <string name="storage_components_originals">Originaux conservés</string>
     <string name="storage_components_none">Aucun paquet de composant téléchargé.</string>

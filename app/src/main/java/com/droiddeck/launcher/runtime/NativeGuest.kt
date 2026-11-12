@@ -28,7 +28,7 @@ object NativeGuest {
     @Volatile var sessionMode: Boolean? = null
 
     /**
-     * Whether a session's helpers (root commands, Flatpak sandboxes, installers) run natively: the
+     * Whether a session's helpers (root commands, installers) run natively: the
      * session's own mode while one runs, as the setting can change under it and the rootfs is only
      * prepared for native programs at a session's start.
      */
@@ -88,9 +88,23 @@ object NativeGuest {
         ).filterValues { it.isNotEmpty() }
     }
 
+    internal fun under(path: String, dir: String): Boolean =
+        dir == "/" || path == dir || path.startsWith(if (dir.endsWith("/")) dir else "$dir/")
+
+    /** The host path of guest path [guest] through the most specific of [binds] ("src:dst" or "path"), else inside [rootfs]. */
+    internal fun hostPath(binds: List<String>, rootfs: String, guest: String): String {
+        val bind = binds.map { spec ->
+            val colon = spec.indexOf(':')
+            if (colon < 0) spec to spec else spec.substring(0, colon) to spec.substring(colon + 1)
+        }.filter { under(guest, it.second) }.maxByOrNull { it.second.length }
+            ?: return rootfs.trimEnd('/') + guest
+        val rest = guest.substring(bind.second.length).trimStart('/')
+        return if (rest.isEmpty()) bind.first else bind.first.trimEnd('/') + "/" + rest
+    }
+
     /** Where guest directory [cwd] is, through the session's mounts ([binds], "src:dst"); the rootfs if it is nowhere. */
     fun workingDirectory(root: File, binds: List<String>, cwd: String): File =
-        File(BwrapSpawner.hostPath(binds.map { BwrapSpawner.Bind.parse(it) }, root.path, cwd)).takeIf { it.isDirectory } ?: root
+        File(hostPath(binds, root.path, cwd)).takeIf { it.isDirectory } ?: root
 
     /** A process for [guest] (argv) started as proot would with [binds], in guest directory [cwd]. */
     fun processBuilder(context: Context, root: File, binds: List<String>, guest: List<String>, cwd: String = "/root"): ProcessBuilder =

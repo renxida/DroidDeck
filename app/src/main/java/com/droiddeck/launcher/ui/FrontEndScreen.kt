@@ -16,7 +16,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -59,7 +58,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -169,7 +167,6 @@ class FrontEndState(
 
 class FrontEndActions(
     val onPlay: () -> Unit,
-    val onPlayDesktopUi: () -> Unit,
     val onSteamUrl: (String) -> Unit = {},
     val onSteamGame: (Library.SteamGame) -> Unit,
     val onGameShortcut: (Library.SteamGame) -> Unit = {},
@@ -297,26 +294,6 @@ internal fun Rise(i: Int, modifier: Modifier = Modifier, content: @Composable ()
         exit = fadeOut(Motion.tw(120)),
         label = "rise",
     ) { content() }
-}
-
-@Composable
-internal fun Modifier.shine(trigger: Boolean, strength: Float = 0.22f): Modifier {
-    val x = remember { Animatable(-1f) }
-    LaunchedEffect(trigger) { if (trigger) { x.snapTo(-1f); x.animateTo(1f, Motion.tw(800)) } }
-    return drawWithContent {
-        drawContent()
-        val p = x.value
-        if (p > -1f && p < 1f) {
-            val w = size.width
-            val c = w * 0.5f + p * w * 0.9f
-            drawRect(
-                Brush.linearGradient(
-                    listOf(Color.Transparent, Color.White.copy(alpha = strength), Color.Transparent),
-                    start = Offset(c - w * 0.35f, 0f), end = Offset(c + w * 0.35f, size.height),
-                ),
-            )
-        }
-    }
 }
 
 internal class FrontFocus {

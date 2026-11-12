@@ -7,13 +7,11 @@
         <item>Ваш контролер відображається як геймпад Xbox 360. Якщо контролера немає, скористайтеся екранним керуванням.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Під час першого запуску налаштовується робочий стіл. Це може зайняти кілька хвилин.</item>
         <item>За замовчуванням вихід із додатка ставить сеанс на паузу; коли ви повернетеся, усе продовжиться з того самого місця.</item>
         <item>Екран працює як сенсорна панель: проводьте пальцем, щоб рухати вказівник, і торкайтеся, щоб клацнути.</item>
         <item>Ваш контролер відображається як геймпад Xbox 360. Якщо контролера немає, скористайтеся екранним керуванням.</item>
     </string-array>
     <string name="session_channel">Сеанс</string>
-    <string name="session_channel_description">Відображається, поки відкрито сеанс Steam або робочого столу</string>
     <string name="session_notification">Steam працює</string>
     <string name="session_notification_downloads">Триває завантаження в Steam</string>
     <string name="session_notification_paused">Сеанс призупинено — торкніться «Відновити», коли будете готові</string>
@@ -286,10 +284,8 @@
     <string name="common_delete_named">Видалити %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Драйвер середовища</string>
-    <string name="comp_runtime_driver_hint">Використовується Steam, іграми та робочим столом. Застосовується в наступному сеансі.</string>
     <string name="comp_import_turnip">Імпортувати zip Turnip…</string>
     <string name="comp_display_driver">Драйвер відображення</string>
-    <string name="comp_display_driver_hint">Виводить кадри на екран в обох режимах. Перезапустіть додаток, щоб застосувати.</string>
     <string name="comp_import_adrenotools">Імпортувати zip AdrenoTools…</string>
     <string name="comp_never">ніколи</string>
     <string name="comp_nightlies_checked">Нічні збірки перевірено %1$s</string>
@@ -351,7 +347,6 @@
     <string name="comp_applies_next_game">Застосовується під час наступного запуску гри</string>
     <string name="comp_import_zip">Імпортувати .zip</string>
     <string name="comp_reading">Читання версій Proton…</string>
-    <string name="comp_no_proton">Proton ще не встановлено. Один раз запустіть Steam, щоб завантажити його Proton для ARM64, або додайте GE-Proton, CachyOS чи DroidDeck-Proton у розділі «Налаштування».</string>
     <string name="comp_original">Оригінал · %1$s</string>
     <string name="comp_this_build">%1$s · ця збірка</string>
     <string name="comp_earlier_build">%1$s · попередня збірка</string>
@@ -421,7 +416,6 @@
     <string name="perf_zram_client">Стискати Steam під час гри</string>
     <string name="perf_zram_client_hint">Через 20 с після запуску гри клієнт Steam стискається в zRAM, щоб залишити грі більше памʼяті, і зчитується назад, коли гра закривається. Вимкніть, якщо сеанс закривається невдовзі після запуску ігор. Ліміт RAM вище все одно стискає Steam, коли сеанс його перевищує.</string>
     <string name="perf_ram_cap">Ліміт RAM</string>
-    <string name="perf_ram_cap_hint">Діє, поки працює клієнт Steam, у режимі Steam або з робочого столу. Коли сеанс використовує більше цього значення, Steam, а потім інші підтримувані процеси сеансу стискаються в zRAM. Мʼякий ліміт: нічого не закривається, але ігри можуть підвисати, поки сторінки повертаються.</string>
     <string name="perf_ram_cap_unavailable">Потрібен своп zRAM, якого на цьому пристрої немає.</string>
     <string name="perf_vram_cap">Ліміт VRAM</string>
     <string name="perf_vram_cap_hint">Повідомляє іграм Direct3D 9–12 цей бюджет відеопам’яті для зменшення її використання. Ігри можуть його перевищити; це не додає підкачку пам’яті GPU й не гарантує захисту від збоїв через нестачу пам’яті. Діє з наступного сеансу.</string>
@@ -656,7 +650,6 @@
     <string name="setup_reset_settings_hint">Повернути кожне налаштування до типового значення</string>
     <string name="setup_reset_settings_button">Скинути</string>
     <string name="setup_reset_settings_title">Скинути всі налаштування?</string>
-    <string name="setup_reset_settings_body">Налаштування зображення, продуктивності, контролера, теми, мови й лаунчера повернуться до типових. Ігри, вхід у Steam, облікові записи магазинів, завантажені драйвери й теки сховища залишаться.</string>
     <string name="setup_reset_settings_profiles">Також скинути профілі ігор (Proton, FEX, компоненти й середовище виконання для кожної гри, а також середовище типового профілю)</string>
     <string name="setup_reset_settings_session_running">Зупиніть сеанс перед скиданням налаштувань.</string>
     <string name="setup_reset_settings_partial">Налаштування скинуто, але не всі. Подробиці в журналах.</string>
@@ -675,7 +668,6 @@
     <string name="setup_launcher_orientation_auto">Слідувати повороту пристрою</string>
     <string name="setup_orientation_portrait">Книжкова</string>
     <string name="setup_session_orientation">Орієнтація сеансу</string>
-    <string name="setup_session_orientation_hint">Застосовується до Steam, ігор, робочого столу й редактора контролера. Готові роздільні здатності повертаються разом із сеансом; власні ширина й висота залишаються як введено.</string>
     <string name="setup_orientation_auto">Автоматично альбомна</string>
     <string name="setup_orientation_landscape">Альбомна</string>
     <string name="setup_orientation_reverse">Перевернута альбомна</string>
@@ -819,7 +811,6 @@
     <string name="gpu_ubwc_title">Сумісність UBWC</string>
     <string name="gpu_ubwc_hint">Спробуйте «Увімк.» або «Вимк.», якщо в Steam чи Android зʼявляються смуги або мерехтіння. Застосовується до обох драйверів після перезапуску Kestrel.</string>
     <string name="gpu_ubwc_restart">Перезапустіть Kestrel, щоб застосувати.</string>
-    <string name="gpu_runtime_hint">Використовується іграми та робочим столом.</string>
     <string name="gpu_runtime_default">Стандартний для середовища</string>
     <string name="gpu_auto_by_gpu">Авто — вибирається за GPU</string>
     <string name="load_runtime">Середовище Linux</string>
@@ -917,7 +908,6 @@
     <string name="load_compat_wait">Очікування завершення налаштування сумісності</string>
     <string name="load_compat_hint">Сеанс запуститься, коли налаштування завершиться.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Дочекайтеся завершення встановлення програми для робочого столу</string>
     <string name="main_wait_install_game">Дочекайтеся завершення встановлення, перш ніж запускати гру</string>
     <string name="main_saves_close_session">Спершу закрийте сеанс Steam, щоб гра не перезаписала імпортовані збереження</string>
     <string name="main_saves_importing">Імпорт у %1$s</string>
@@ -961,7 +951,6 @@
     <string name="main_remove_runtime_title">Видалити середовище Linux</string>
     <string name="main_remove_runtime_text">Буде видалено середовище, клієнт Steam у ньому та всі встановлені там ігри.</string>
     <string name="runtime_actions_title">Середовище Linux</string>
-    <string name="runtime_actions_text">Відновлення перевстановлює системні файли середовища й зберігає Steam, ваші ігри та налаштування. Доповнення, як-от робочий стіл, установляться знову, коли ви їх наступного разу використаєте. Видалення стирає все.</string>
     <string name="runtime_repair">Відновити середовище</string>
     <string name="main_applied">Застосовано: %1$s</string>
     <string name="comp_busy_importing">Імпорт</string>
@@ -2013,7 +2002,6 @@
     <string name="storage_leftover_confirm">Видаляє префікс Wine і кеш шейдерів (%1$s). Спершу зробіть копію важливих збережень; збереження Steam Cloud залишаться у вашому обліковому записі.</string>
     <string name="storage_data_other">Збережено</string>
     <string name="storage_data_other_title">Не-Steam ігри та спільний префікс Steam</string>
-    <string name="storage_data_other_detail">Префікси ігор із магазинів або доданих вручну</string>
     <string name="storage_components_packages">Завантажені пакети</string>
     <string name="storage_components_originals">Збережені оригінали</string>
     <string name="storage_components_none">Жодного завантаженого пакета компонентів.</string>

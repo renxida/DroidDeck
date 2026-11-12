@@ -91,7 +91,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     val narrow = LocalNarrowPane.current
     var words by remember { mutableStateOf<Rect?>(null) }
     val mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
-    val tabs = modeSheetTabs(steam = true).map { it to sheetTabLabel(it) }
+    val tabs = modeSheetTabs().map { it to sheetTabLabel(it) }
     val back = stringResource(R.string.hop_from_play)
     val extras = SheetExtras(
         frameGen = { FrameGenGroup(s, a) },

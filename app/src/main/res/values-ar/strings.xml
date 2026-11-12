@@ -7,13 +7,11 @@
         <item>تظهر وحدة التحكم لديك كوحدة تحكم Xbox 360. وإلا، فاستخدم عناصر التحكم على الشاشة.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>يُعَدّ سطح المكتب عند التشغيل الأول. قد يستغرق ذلك بضع دقائق.</item>
         <item>افتراضيًا، يؤدي الخروج من التطبيق إلى إيقاف الجلسة مؤقتًا، وتُستأنف من حيث توقفت عند عودتك.</item>
         <item>يعمل اللمس كلوحة لمس: اسحب لتحريك المؤشر، وانقر لتنفيذ نقرة.</item>
         <item>تظهر وحدة التحكم لديك كوحدة تحكم Xbox 360. وإلا، فاستخدم عناصر التحكم على الشاشة.</item>
     </string-array>
     <string name="session_channel">الجلسة</string>
-    <string name="session_channel_description">يظهر أثناء فتح جلسة Steam أو جلسة سطح المكتب</string>
     <string name="session_notification">Steam قيد التشغيل</string>
     <string name="session_notification_downloads">يجري تنزيل في Steam</string>
     <string name="session_notification_paused">الجلسة متوقفة مؤقتًا - انقر على «استئناف» عندما تكون مستعدًا</string>
@@ -290,10 +288,8 @@
     <string name="common_delete_named">حذف %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">برنامج تشغيل بيئة التشغيل</string>
-    <string name="comp_runtime_driver_hint">يستخدمه Steam والألعاب وسطح المكتب. يُطبَّق في الجلسة التالية.</string>
     <string name="comp_import_turnip">استيراد ملف zip لـ Turnip…</string>
     <string name="comp_display_driver">برنامج تشغيل العرض</string>
-    <string name="comp_display_driver_hint">يرسم الإطارات على الشاشة في كلا الوضعين. أعد تشغيل التطبيق لتطبيق التغيير.</string>
     <string name="comp_import_adrenotools">استيراد ملف zip لـ AdrenoTools…</string>
     <string name="comp_never">لم يتم بعد</string>
     <string name="comp_nightlies_checked">آخر فحص للإصدارات الليلية: %1$s</string>
@@ -355,7 +351,6 @@
     <string name="comp_applies_next_game">يُطبَّق في المرة التالية التي تبدأ فيها لعبة</string>
     <string name="comp_import_zip">استيراد ملف ‎.zip</string>
     <string name="comp_reading">جارٍ قراءة إصدارات Proton…</string>
-    <string name="comp_no_proton">لم يتم تثبيت أي إصدار من Proton بعد. شغّل Steam مرة واحدة لتنزيل Proton لـ ARM64، أو أضف GE-Proton أو CachyOS أو DroidDeck-Proton من «الإعداد».</string>
     <string name="comp_original">الأصلي · %1$s</string>
     <string name="comp_this_build">%1$s · هذا الإصدار</string>
     <string name="comp_earlier_build">%1$s · إصدار سابق</string>
@@ -425,7 +420,6 @@
     <string name="perf_zram_client">ضغط Steam أثناء تشغيل لعبة</string>
     <string name="perf_zram_client_hint">بعد 20 ثانية من بدء اللعبة، يُضغط عميل Steam في zRAM لترك ذاكرة أكبر للعبة، ثم يُقرأ مجددًا عند إغلاقها. أوقف هذا الخيار إذا كانت الجلسة تُغلَق بعد بدء الألعاب بقليل. يظل حد RAM أعلاه يضغط Steam عندما تتجاوزه الجلسة.</string>
     <string name="perf_ram_cap">حد RAM</string>
-    <string name="perf_ram_cap_hint">يُطبَّق أثناء تشغيل عميل Steam، في جلسة Steam أو من سطح المكتب. عندما تستخدم الجلسة أكثر من هذا الحد، يُضغط Steam ثم عمليات الجلسة المدعومة الأخرى في zRAM. حد مرن: لا يُغلَق شيء، لكن قد تتقطّع الألعاب أثناء استعادة الصفحات.</string>
     <string name="perf_ram_cap_unavailable">يتطلب مساحة تبديل zRAM، وهي غير متوفرة على هذا الجهاز.</string>
     <string name="perf_vram_cap">حد VRAM</string>
     <string name="perf_vram_cap_hint">يُبلّغ ألعاب Direct3D من 9 إلى 12 بميزانية ذاكرة الفيديو هذه لتشجيع تقليل استخدامها. قد تتجاوزها الألعاب؛ لا يضيف هذا ترحيل ذاكرة GPU ولا يضمن منع الانهيار بسبب نفاد الذاكرة. يسري في الجلسة التالية.</string>
@@ -662,7 +656,6 @@
     <string name="setup_reset_settings_hint">إرجاع كل إعداد إلى قيمته الافتراضية</string>
     <string name="setup_reset_settings_button">إعادة تعيين</string>
     <string name="setup_reset_settings_title">إعادة تعيين كل الإعدادات؟</string>
-    <string name="setup_reset_settings_body">تعود إعدادات الصورة والأداء ووحدة التحكم والمظهر واللغة والمشغّل إلى الافتراضي. تبقى ألعابك وتسجيل الدخول إلى Steam وحسابات المتاجر وبرامج التشغيل المنزّلة ومجلدات التخزين.</string>
     <string name="setup_reset_settings_profiles">إعادة تعيين ملفات تعريف الألعاب أيضًا (Proton وFEX والمكوّنات وبيئة التشغيل لكل لعبة، وبيئة ملف التعريف الافتراضي)</string>
     <string name="setup_reset_settings_session_running">أوقف الجلسة قبل إعادة تعيين الإعدادات.</string>
     <string name="setup_reset_settings_partial">أُعيد تعيين الإعدادات، لكن ليس كلها. التفاصيل في السجلات.</string>
@@ -681,7 +674,6 @@
     <string name="setup_launcher_orientation_auto">اتّباع تدوير الجهاز</string>
     <string name="setup_orientation_portrait">عمودي</string>
     <string name="setup_session_orientation">اتجاه الجلسة</string>
-    <string name="setup_session_orientation_hint">يُطبَّق على Steam والألعاب وسطح المكتب ومحرّر وحدة التحكم. تدور الدقّات المُعدّة مسبقًا مع الجلسة، ويبقى العرض والارتفاع المخصّصان كما أُدخلا.</string>
     <string name="setup_orientation_auto">أفقي تلقائي</string>
     <string name="setup_orientation_landscape">أفقي</string>
     <string name="setup_orientation_reverse">أفقي معكوس</string>
@@ -825,7 +817,6 @@
     <string name="gpu_ubwc_title">توافق UBWC</string>
     <string name="gpu_ubwc_hint">جرّب التشغيل أو الإيقاف إذا ظهرت خطوط أو وميض في Steam أو Android. يُطبَّق على برنامجَي التشغيل كليهما بعد إعادة تشغيل Kestrel.</string>
     <string name="gpu_ubwc_restart">أعِد تشغيل Kestrel للتطبيق.</string>
-    <string name="gpu_runtime_hint">يُستخدَم في الألعاب وسطح المكتب.</string>
     <string name="gpu_runtime_default">الافتراضي لبيئة التشغيل</string>
     <string name="gpu_auto_by_gpu">تلقائي - يُحدَّد بحسب GPU</string>
     <string name="load_runtime">بيئة تشغيل Linux</string>
@@ -923,7 +914,6 @@
     <string name="load_compat_wait">في انتظار اكتمال إعداد التوافق</string>
     <string name="load_compat_hint">ستبدأ جلستك عند اكتمال الإعداد.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">انتظر حتى ينتهي تثبيت تطبيق سطح المكتب</string>
     <string name="main_wait_install_game">انتظر حتى ينتهي التثبيت قبل تشغيل لعبة</string>
     <string name="main_saves_close_session">أغلِق جلسة Steam أولاً حتى لا تحفظ اللعبة فوق الملفات المستورَدة</string>
     <string name="main_saves_importing">الاستيراد إلى %1$s</string>
@@ -975,7 +965,6 @@
     <string name="main_remove_runtime_title">إزالة بيئة تشغيل Linux</string>
     <string name="main_remove_runtime_text">سيؤدي هذا إلى حذف بيئة التشغيل وعميل Steam بداخلها وكل لعبة مثبَّتة فيها.</string>
     <string name="runtime_actions_title">بيئة تشغيل Linux</string>
-    <string name="runtime_actions_text">يعيد الإصلاح تثبيت ملفات النظام في بيئة التشغيل ويحتفظ بـ Steam وألعابك وإعداداتك. تُثبَّت الإضافات مثل سطح المكتب مجددًا عند استخدامها لاحقًا. أما الإزالة فتحذف كل شيء.</string>
     <string name="runtime_repair">إصلاح بيئة التشغيل</string>
     <string name="main_applied">تم التطبيق: %1$s</string>
     <string name="comp_busy_importing">الاستيراد</string>
@@ -2071,7 +2060,6 @@
     <string name="storage_leftover_confirm">يمسح بادئة Wine وذاكرة الشيدرات (%1$s). انسخ الحفظات التي تحتاجها أولًا؛ تبقى حفظات Steam Cloud في حسابك.</string>
     <string name="storage_data_other">محفوظة</string>
     <string name="storage_data_other_title">ألعاب خارج Steam وبادئة Steam المشتركة</string>
-    <string name="storage_data_other_detail">بادئات ألعاب أُضيفت من المتاجر أو يدويًا</string>
     <string name="storage_components_packages">حزم منزّلة</string>
     <string name="storage_components_originals">أصول محفوظة</string>
     <string name="storage_components_none">لا حزم مكوّنات منزّلة.</string>

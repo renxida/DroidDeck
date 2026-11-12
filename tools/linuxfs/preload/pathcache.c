@@ -144,7 +144,6 @@ static int (*next_faccessat(void))(int, const char *, int, int) {
   return real;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode);
 __attribute__((visibility("hidden"))) int bl_writable_access(int dirfd, const char *path, int mode, int flags);
 
 static int writable_as_owner(int (*real)(int, const char *, int, int), int dirfd, const char *path, int mode, int flags) {
@@ -165,8 +164,6 @@ static int check_cwd(const char *path, int mode, int flags) {
   result = real(AT_FDCWD, path, mode, flags);
   if (result == 0) return 0;
   err = errno;
-  if (err == EACCES && bl_binfmt_runnable(path, mode)) return 0;
-  errno = err;
   if (writable_as_owner(real, AT_FDCWD, path, mode, flags) == 0) return 0;
   errno = err;
   return result;

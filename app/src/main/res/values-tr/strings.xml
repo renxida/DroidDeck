@@ -7,13 +7,11 @@
         <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>İlk çalıştırmada masaüstü kurulur. Bu işlem birkaç dakika sürebilir.</item>
         <item>Varsayılan olarak uygulamadan çıkınca oturum duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
         <item>Dokunma, dokunmatik yüzey gibi çalışır: işaretçiyi taşımak için sürükleyin, tıklamak için dokunun.</item>
         <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
     </string-array>
     <string name="session_channel">Oturum</string>
-    <string name="session_channel_description">Steam veya masaüstü oturumu açıkken gösterilir</string>
     <string name="session_notification">Steam çalışıyor</string>
     <string name="session_notification_downloads">Steam indirmesi sürüyor</string>
     <string name="session_notification_paused">Oturum duraklatıldı - hazır olduğunuzda Devam et\'e dokunun</string>
@@ -282,10 +280,8 @@
     <string name="common_delete_named">Sil: %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Çalışma zamanı sürücüsü</string>
-    <string name="comp_runtime_driver_hint">Steam, oyunlar ve masaüstü tarafından kullanılır. Sonraki oturumda uygulanır.</string>
     <string name="comp_import_turnip">Turnip zip dosyası içe aktar…</string>
     <string name="comp_display_driver">Ekran sürücüsü</string>
-    <string name="comp_display_driver_hint">Her iki modda kareleri ekrana çizer. Uygulamak için uygulamayı yeniden başlatın.</string>
     <string name="comp_import_adrenotools">AdrenoTools zip dosyası içe aktar…</string>
     <string name="comp_never">hiçbir zaman</string>
     <string name="comp_nightlies_checked">Nightlies son kontrol: %1$s</string>
@@ -347,7 +343,6 @@
     <string name="comp_applies_next_game">Bir oyun bir sonraki başlatıldığında uygulanır</string>
     <string name="comp_import_zip">.zip içe aktar</string>
     <string name="comp_reading">Proton sürümleri okunuyor…</string>
-    <string name="comp_no_proton">Henüz Proton yüklü değil. ARM64 Proton\'u indirmesi için Steam\'i bir kez başlatın veya Kurulum sayfasından GE-Proton, CachyOS ya da DroidDeck-Proton ekleyin.</string>
     <string name="comp_original">Orijinal · %1$s</string>
     <string name="comp_this_build">%1$s · bu derleme</string>
     <string name="comp_earlier_build">%1$s · önceki derleme</string>
@@ -417,7 +412,6 @@
     <string name="perf_zram_client">Oyun çalışırken Steam\'i sıkıştır</string>
     <string name="perf_zram_client_hint">Oyun başladıktan 20 sn sonra oyuna daha fazla bellek kalması için Steam istemcisi zRAM\'e sıkıştırılır ve oyun kapanınca geri okunur. Oyunlar başladıktan kısa süre sonra oturum kapanıyorsa bunu kapatın. Yukarıdaki RAM sınırı, oturum onu aştığında Steam\'i yine sıkıştırır.</string>
     <string name="perf_ram_cap">RAM sınırı</string>
-    <string name="perf_ram_cap_hint">Steam istemcisi Steam oturumunda veya masaüstünden çalışırken uygulanır. Oturum bundan fazlasını kullandığında önce Steam, ardından oturumun desteklenen diğer işlemleri zRAM\'e sıkıştırılır. Yumuşak bir sınırdır: hiçbir şey kapatılmaz, ancak sayfalar geri yüklenirken oyunlar takılabilir.</string>
     <string name="perf_ram_cap_unavailable">Bu cihazda olmayan zRAM takası gerekir.</string>
     <string name="perf_vram_cap">VRAM sınırı</string>
     <string name="perf_vram_cap_hint">Bellek kullanımını azaltmak için Direct3D 9–12 oyunlarına bu video belleği bütçesini bildirir. Oyunlar bütçeyi aşabilir; GPU sayfalaması eklemez veya bellek yetersizliğinden kaynaklanan çökmeleri önlemeyi garanti etmez. Sonraki oturumda geçerli olur.</string>
@@ -661,7 +655,6 @@
     <string name="setup_launcher_orientation_auto">Cihaz dönüşünü izle</string>
     <string name="setup_orientation_portrait">Dikey</string>
     <string name="setup_session_orientation">Oturum yönü</string>
-    <string name="setup_session_orientation_hint">Steam, oyunlar, masaüstü ve kumanda düzenleyicisi için geçerlidir. Çözünürlük ön ayarları oturumla birlikte döner; özel genişlik ve yükseklik girildiği gibi kalır.</string>
     <string name="setup_orientation_auto">Otomatik yatay</string>
     <string name="setup_orientation_landscape">Yatay</string>
     <string name="setup_orientation_reverse">Ters yatay</string>
@@ -805,7 +798,6 @@
     <string name="gpu_ubwc_title">UBWC uyumluluğu</string>
     <string name="gpu_ubwc_hint">Steam veya Android\'de şeritler ya da titreme görülürse Açık veya Kapalı\'yı deneyin. Kestrel yeniden başlatıldıktan sonra iki sürücüye de uygulanır.</string>
     <string name="gpu_ubwc_restart">Uygulamak için Kestrel\'i yeniden başlatın.</string>
-    <string name="gpu_runtime_hint">Oyunlar ve masaüstü tarafından kullanılır.</string>
     <string name="gpu_runtime_default">Çalışma ortamı varsayılanı</string>
     <string name="gpu_auto_by_gpu">Otomatik - GPU\'ya göre seçilir</string>
     <string name="load_runtime">Linux çalışma ortamı</string>
@@ -903,7 +895,6 @@
     <string name="load_compat_wait">Uyumluluk kurulumunun bitmesi bekleniyor</string>
     <string name="load_compat_hint">Kurulum bitince oturumunuz başlayacak.</string>
     <string name="load_compat_progress">%1$s · %%%2$d</string>
-    <string name="main_wait_desktop_install">Masaüstü uygulaması yüklemesinin bitmesini bekleyin</string>
     <string name="main_wait_install_game">Oyun başlatmadan önce yüklemenin bitmesini bekleyin</string>
     <string name="main_saves_close_session">Önce Steam oturumunu kapatın; böylece oyun, içe aktarılan kayıtların üzerine yazamaz</string>
     <string name="main_saves_importing">İçe aktarılıyor: %1$s</string>
@@ -939,7 +930,6 @@
     <string name="main_remove_runtime_title">Linux çalışma ortamını kaldır</string>
     <string name="main_remove_runtime_text">Bu işlem çalışma ortamını, içindeki Steam istemcisini ve oraya yüklenen tüm oyunları siler.</string>
     <string name="runtime_actions_title">Linux çalışma zamanı</string>
-    <string name="runtime_actions_text">Onarma, çalışma zamanının sistem dosyalarını yeniden yükler; Steam, oyunlarınız ve ayarlarınız korunur. Masaüstü gibi ekler bir sonraki kullanımda yeniden yüklenir. Kaldırma her şeyi siler.</string>
     <string name="runtime_repair">Çalışma zamanını onar</string>
     <string name="main_applied">Uygulandı: %1$s</string>
     <string name="comp_busy_importing">İçe aktarılıyor</string>
@@ -1806,7 +1796,6 @@
     <string name="drawer_component_choose_download">İndirilecek sürümü seç</string>
     <string name="setup_reset_settings">Tüm ayarları sıfırla</string>
     <string name="setup_reset_settings_title">Tüm ayarlar sıfırlansın mı?</string>
-    <string name="setup_reset_settings_body">Ekran, performans, denetleyici, tema, dil ve başlatıcı ayarları varsayılanlarına döner. Oyunlarınız, Steam oturum bilgileriniz, mağaza hesaplarınız, indirilen sürücüler ve depolama klasörleriniz korunur.</string>
     <string name="setup_reset_settings_button">Sıfırla</string>
     <string name="setup_reset_settings_hint">Her ayarı varsayılanına döndürür</string>
     <string name="setup_reset_settings_partial">Ayarlar sıfırlandı, ancak bazı bölümler sıfırlanamadı. Ayrıntılar günlüklerde.</string>
@@ -1955,7 +1944,6 @@
     <string name="storage_leftover_confirm">Wine önekini ve gölgelendirici önbelleğini (%1$s) siler. Önce istediğiniz kayıtları yedekleyin; Steam Cloud kayıtları hesabınızda durur.</string>
     <string name="storage_data_other">Korunan</string>
     <string name="storage_data_other_title">Steam dışı oyunlar ve Steam\'in ortak öneki</string>
-    <string name="storage_data_other_detail">Mağazalardan veya elle eklenen oyunların önekleri</string>
     <string name="storage_components_packages">İndirilen paketler</string>
     <string name="storage_components_originals">Kaydedilen orijinaller</string>
     <string name="storage_components_none">İndirilmiş bileşen paketi yok.</string>

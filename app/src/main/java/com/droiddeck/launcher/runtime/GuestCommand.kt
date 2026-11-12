@@ -34,14 +34,14 @@ object GuestCommand {
         LinuxRuntime.writeAccounts(context)
         SessionFiles.stage(context, root)
         LinuxNetworkLinkComponent(context, root).publish()
-        val runtimeDir = File(context.filesDir, ".flatpak-rt").apply { mkdirs() }
+        val runtimeDir = File(context.filesDir, ".guest-rt").apply { mkdirs() }
         val binds = LinuxRuntime.binds(context, null, runtimeDir, Environment.getExternalStorageDirectory(), extraBinds)
         val native = NativeGuest.forSession(context)
         val fastPathKey = if (!native && fastPath && !fakeRoot && linkDir == null && ProotFastPath.enabled(context)) ProotFastPath.key(root, binds) else null
         val guest = mutableListOf(
             "/usr/bin/env", "-i", "HOME=/root", "USER=root", "LANG=C.UTF-8",
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", "XDG_RUNTIME_DIR=${LinuxRuntime.GUEST_RUNTIME_DIR}",
-            "XDG_DATA_HOME=/root/.local/share", "DROIDDECK_BWRAP_SOCKET=${BwrapSpawner.socket(context)}",
+            "XDG_DATA_HOME=/root/.local/share",
             "XDG_DATA_DIRS=/usr/local/share:/usr/share",
         )
         DownloadSource.proxyHostPort(context).takeIf { it.isNotEmpty() }?.let { hostPort ->

@@ -7,13 +7,11 @@
         <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muussa tapauksessa käytä näytön ohjaimia.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Ensimmäinen käynnistys määrittää työpöydän. Tämä voi kestää muutaman minuutin.</item>
         <item>Oletuksena sovelluksesta poistuminen keskeyttää istunnon; se jatkuu siitä mihin jäit, kun palaat takaisin.</item>
         <item>Kosketus toimii kosketuslevynä: vedä liikuttaaksesi osoitinta, napauta napsauttaaksesi.</item>
         <item>Ohjaimesi näkyy Xbox 360 -ohjaimena. Muussa tapauksessa käytä näytön ohjaimia.</item>
     </string-array>
     <string name="session_channel">Istunto</string>
-    <string name="session_channel_description">Näkyy, kun Steam- tai työpöytäistunto on käynnissä</string>
     <string name="session_notification">Steam on käynnissä</string>
     <string name="session_notification_downloads">Steamin lataus käynnissä</string>
     <string name="session_notification_paused">Istunto keskeytetty - napauta Jatka, kun olet valmis</string>
@@ -282,10 +280,8 @@
     <string name="common_delete_named">Poista %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Ajonaikainen ajuri</string>
-    <string name="comp_runtime_driver_hint">Käytössä Steamissa, peleissä ja työpöydällä. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="comp_import_turnip">Tuo Turnip-zip…</string>
     <string name="comp_display_driver">Näyttöajuri</string>
-    <string name="comp_display_driver_hint">Piirtää kuvat näytölle molemmissa tiloissa. Käynnistä sovellus uudelleen ottaaksesi käyttöön.</string>
     <string name="comp_import_adrenotools">Tuo AdrenoTools-zip…</string>
     <string name="comp_never">ei koskaan</string>
     <string name="comp_nightlies_checked">Nightlies tarkistettu %1$s</string>
@@ -347,7 +343,6 @@
     <string name="comp_applies_next_game">Tulee voimaan, kun peli käynnistyy seuraavan kerran</string>
     <string name="comp_import_zip">Tuo .zip</string>
     <string name="comp_reading">Luetaan Protoneja…</string>
-    <string name="comp_no_proton">Protonia ei ole vielä asennettu. Käynnistä Steam kerran, jotta sen ARM64-Proton latautuu, tai lisää GE-Proton, CachyOS tai DroidDeck-Proton Käyttöönotto-sivulta.</string>
     <string name="comp_original">Alkuperäinen · %1$s</string>
     <string name="comp_this_build">%1$s · tämä versio</string>
     <string name="comp_earlier_build">%1$s · aiempi versio</string>
@@ -417,7 +412,6 @@
     <string name="perf_zram_client">Pakkaa Steam pelin ollessa käynnissä</string>
     <string name="perf_zram_client_hint">20 s pelin käynnistymisen jälkeen Steam-asiakasohjelma pakataan zRAMiin, jotta pelille jää enemmän muistia, ja luetaan takaisin, kun peli sulkeutuu. Poista tämä käytöstä, jos istunto sulkeutuu pian pelien käynnistymisen jälkeen. Yllä oleva RAM-raja pakkaa silti Steamin, kun istunto ylittää sen.</string>
     <string name="perf_ram_cap">RAM-raja</string>
-    <string name="perf_ram_cap_hint">Koskee aikaa, jolloin Steam-asiakasohjelma on käynnissä, Steam-tilassa tai työpöydältä. Kun istunto käyttää tätä enemmän, Steam ja sen jälkeen istunnon muut tuetut prosessit pakataan zRAMiin. Pehmeä raja: mitään ei suljeta, mutta pelit voivat nykiä, kun sivuja luetaan takaisin.</string>
     <string name="perf_ram_cap_unavailable">Vaatii zRAM-swapin, jota tässä laitteessa ei ole.</string>
     <string name="perf_vram_cap">VRAM-raja</string>
     <string name="perf_vram_cap_hint">Ilmoittaa tämän videomuistibudjetin Direct3D 9–12 -peleille muistin käytön vähentämiseksi. Pelit voivat ylittää sen; tämä ei lisää GPU-sivutusta eikä takaa suojaa muistin loppumisesta johtuvilta kaatumisilta. Tulee voimaan seuraavassa istunnossa.</string>
@@ -650,7 +644,6 @@
     <string name="setup_reset_settings_hint">Palauta jokainen asetus oletusarvoon</string>
     <string name="setup_reset_settings_button">Palauta</string>
     <string name="setup_reset_settings_title">Palautetaanko kaikki asetukset?</string>
-    <string name="setup_reset_settings_body">Kuvan, suorituskyvyn, ohjaimen, teeman, kielen ja käynnistimen asetukset palaavat oletuksiin. Pelisi, Steam-kirjautuminen, kauppatilit, ladatut ajurit ja tallennuskansiot säilyvät.</string>
     <string name="setup_reset_settings_profiles">Palauta myös peliprofiilit (Proton, FEX, komponentit ja ajonaikainen ympäristö pelikohtaisesti sekä Oletus-profiilin ympäristö)</string>
     <string name="setup_reset_settings_session_running">Pysäytä istunto ennen asetusten palauttamista.</string>
     <string name="setup_reset_settings_partial">Asetukset palautettiin, mutta ei kaikkia. Tiedot ovat lokeissa.</string>
@@ -669,7 +662,6 @@
     <string name="setup_launcher_orientation_auto">Seuraa laitteen kiertoa</string>
     <string name="setup_orientation_portrait">Pystysuunta</string>
     <string name="setup_session_orientation">Istunnon suunta</string>
-    <string name="setup_session_orientation_hint">Koskee Steamia, pelejä, työpöytää ja ohjainmuokkainta. Resoluution esiasetukset kääntyvät istunnon mukana; mukautettu leveys ja korkeus pysyvät syötetyn mukaisina.</string>
     <string name="setup_orientation_auto">Automaattinen vaakasuunta</string>
     <string name="setup_orientation_landscape">Vaakasuunta</string>
     <string name="setup_orientation_reverse">Käänteinen vaakasuunta</string>
@@ -813,7 +805,6 @@
     <string name="gpu_ubwc_title">UBWC-yhteensopivuus</string>
     <string name="gpu_ubwc_hint">Kokeile Päällä tai Pois, jos Steamissa tai Androidissa näkyy raitoja tai välkyntää. Koskee molempia ajureita Kestrelin uudelleenkäynnistyksen jälkeen.</string>
     <string name="gpu_ubwc_restart">Käynnistä Kestrel uudelleen, jotta muutos tulee voimaan.</string>
-    <string name="gpu_runtime_hint">Käytetään peleissä ja työpöydällä.</string>
     <string name="gpu_runtime_default">Ajoympäristön oletus</string>
     <string name="gpu_auto_by_gpu">Automaattinen - valittu GPU:n mukaan</string>
     <string name="load_runtime">Linux-ajoympäristö</string>
@@ -911,7 +902,6 @@
     <string name="load_compat_wait">Odotetaan yhteensopivuusasetusten valmistumista</string>
     <string name="load_compat_hint">Istuntosi alkaa, kun asennus valmistuu.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Odota, että työpöytäsovelluksen asennus päättyy</string>
     <string name="main_wait_install_game">Odota, että asennus päättyy ennen pelin käynnistämistä</string>
     <string name="main_saves_close_session">Sulje Steam-istunto ensin, jotta peli ei voi tallentaa tuonnin päälle</string>
     <string name="main_saves_importing">Tuodaan kohteeseen %1$s</string>
@@ -947,7 +937,6 @@
     <string name="main_remove_runtime_title">Poista Linux-ajoympäristö</string>
     <string name="main_remove_runtime_text">Tämä poistaa ajoympäristön, siihen asennetun Steam-asiakasohjelman ja kaikki sinne asennetut pelit.</string>
     <string name="runtime_actions_title">Linux-ajoympäristö</string>
-    <string name="runtime_actions_text">Korjaa asentaa ajoympäristön järjestelmätiedostot uudelleen ja säilyttää Steamin, pelisi ja asetuksesi. Lisäosat, kuten työpöytä, asennetaan uudelleen, kun seuraavan kerran käytät niitä. Poista poistaa kaiken.</string>
     <string name="runtime_repair">Korjaa ajoympäristö</string>
     <string name="main_applied">Otettu käyttöön: %1$s</string>
     <string name="comp_busy_importing">Tuodaan</string>
@@ -1955,7 +1944,6 @@
     <string name="storage_leftover_confirm">Tyhjentää Wine-etuliitteen ja shadervälimuistin (%1$s). Ota ensin kopio tarvitsemistasi tallennuksista; Steam Cloud -tallennukset pysyvät tililläsi.</string>
     <string name="storage_data_other">Säilytetään</string>
     <string name="storage_data_other_title">Muut kuin Steam-pelit ja jaettu Steam-etuliite</string>
-    <string name="storage_data_other_detail">Kauppojen kautta tai käsin lisättyjen pelien etuliitteet</string>
     <string name="storage_components_packages">Ladatut paketit</string>
     <string name="storage_components_originals">Säilytetyt alkuperäiset</string>
     <string name="storage_components_none">Komponenttipaketteja ei ole ladattu.</string>

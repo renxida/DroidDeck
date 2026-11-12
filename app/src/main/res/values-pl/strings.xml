@@ -7,13 +7,11 @@
         <item>Twój kontroler jest widoczny jako pad Xbox 360. Bez niego użyj sterowania ekranowego.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Przy pierwszym uruchomieniu konfigurowany jest pulpit. Może to potrwać kilka minut.</item>
         <item>Domyślnie wyjście z aplikacji wstrzymuje sesję; po powrocie wznowi się ona tam, gdzie została przerwana.</item>
         <item>Ekran działa jak touchpad: przeciągnij, aby przesunąć kursor, dotknij, aby kliknąć.</item>
         <item>Twój kontroler jest widoczny jako pad Xbox 360. Bez niego użyj sterowania ekranowego.</item>
     </string-array>
     <string name="session_channel">Sesja</string>
-    <string name="session_channel_description">Widoczne, gdy otwarta jest sesja Steam lub pulpitu</string>
     <string name="session_notification">Steam działa</string>
     <string name="session_notification_downloads">Trwa pobieranie w Steam</string>
     <string name="session_notification_paused">Sesja wstrzymana – dotknij „Wznów”, aby kontynuować</string>
@@ -286,10 +284,8 @@
     <string name="common_delete_named">Usuń %1$s</string>
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Sterownik środowiska</string>
-    <string name="comp_runtime_driver_hint">Używany przez Steam, gry i pulpit. Działa od następnej sesji.</string>
     <string name="comp_import_turnip">Importuj plik zip Turnip…</string>
     <string name="comp_display_driver">Sterownik wyświetlania</string>
-    <string name="comp_display_driver_hint">Rysuje klatki na ekranie w obu trybach. Uruchom ponownie aplikację, aby zastosować.</string>
     <string name="comp_import_adrenotools">Importuj plik zip AdrenoTools…</string>
     <string name="comp_never">nigdy</string>
     <string name="comp_nightlies_checked">Wersje nightly sprawdzono: %1$s</string>
@@ -351,7 +347,6 @@
     <string name="comp_applies_next_game">Działa od następnego uruchomienia gry</string>
     <string name="comp_import_zip">Importuj .zip</string>
     <string name="comp_reading">Odczytywanie wersji Proton…</string>
-    <string name="comp_no_proton">Nie zainstalowano jeszcze żadnego Proton. Uruchom raz Steam, aby pobrać jego Proton ARM64, lub dodaj GE-Proton, CachyOS albo DroidDeck-Proton w sekcji Konfiguracja.</string>
     <string name="comp_original">Oryginał · %1$s</string>
     <string name="comp_this_build">%1$s · ta wersja</string>
     <string name="comp_earlier_build">%1$s · wcześniejsza wersja</string>
@@ -421,7 +416,6 @@
     <string name="perf_zram_client">Kompresuj Steam podczas gry</string>
     <string name="perf_zram_client_hint">20 s po starcie gry klient Steam jest kompresowany do zRAM, aby zostawić grze więcej pamięci, i wczytywany z powrotem po zamknięciu gry. Wyłącz, jeśli sesja zamyka się wkrótce po starcie gier. Powyższy limit RAM nadal kompresuje Steam, gdy sesja go przekroczy.</string>
     <string name="perf_ram_cap">Limit RAM</string>
-    <string name="perf_ram_cap_hint">Działa, gdy działa klient Steam, w trybie Steam lub z pulpitu. Gdy sesja używa więcej, Steam, a następnie inne obsługiwane procesy sesji są kompresowane do zRAM. Miękki limit: nic nie jest zamykane, ale gry mogą się zacinać podczas wczytywania stron z powrotem.</string>
     <string name="perf_ram_cap_unavailable">Wymaga swapu zRAM, którego to urządzenie nie ma.</string>
     <string name="perf_vram_cap">Limit VRAM</string>
     <string name="perf_vram_cap_hint">Zgłasza ten budżet pamięci wideo grom Direct3D od 9 do 12, aby ograniczyć zużycie pamięci. Gry mogą go przekroczyć; nie dodaje to stronicowania GPU ani nie gwarantuje ochrony przed awariami z powodu braku pamięci. Działa od następnej sesji.</string>
@@ -656,7 +650,6 @@
     <string name="setup_reset_settings_hint">Przywróć każde ustawienie do wartości domyślnej</string>
     <string name="setup_reset_settings_button">Resetuj</string>
     <string name="setup_reset_settings_title">Zresetować wszystkie ustawienia?</string>
-    <string name="setup_reset_settings_body">Ustawienia obrazu, wydajności, kontrolera, motywu, języka i aplikacji wracają do wartości domyślnych. Twoje gry, logowanie do Steam, konta sklepów, pobrane sterowniki i foldery pamięci pozostają.</string>
     <string name="setup_reset_settings_profiles">Zresetuj też profile gier (Proton, FEX, komponenty i środowisko dla każdej gry oraz środowisko profilu Domyślny)</string>
     <string name="setup_reset_settings_session_running">Zatrzymaj sesję, zanim zresetujesz ustawienia.</string>
     <string name="setup_reset_settings_partial">Ustawienia zostały zresetowane, ale nie wszystkie. Szczegóły są w logach.</string>
@@ -675,7 +668,6 @@
     <string name="setup_launcher_orientation_auto">Zgodnie z obrotem urządzenia</string>
     <string name="setup_orientation_portrait">Pionowa</string>
     <string name="setup_session_orientation">Orientacja sesji</string>
-    <string name="setup_session_orientation_hint">Dotyczy Steam, gier, pulpitu i edytora kontrolera. Presety rozdzielczości obracają się z sesją; własna szerokość i wysokość pozostają jak wpisano.</string>
     <string name="setup_orientation_auto">Automatyczna pozioma</string>
     <string name="setup_orientation_landscape">Pozioma</string>
     <string name="setup_orientation_reverse">Odwrócona pozioma</string>
@@ -819,7 +811,6 @@
     <string name="gpu_ubwc_title">Zgodność UBWC</string>
     <string name="gpu_ubwc_hint">Wypróbuj Włączone lub Wyłączone, jeśli Steam lub Android pokazuje pasy lub migotanie. Dotyczy obu sterowników po ponownym uruchomieniu Kestrel.</string>
     <string name="gpu_ubwc_restart">Uruchom ponownie Kestrel, aby zastosować.</string>
-    <string name="gpu_runtime_hint">Używany przez gry i pulpit.</string>
     <string name="gpu_runtime_default">Domyślny dla środowiska</string>
     <string name="gpu_auto_by_gpu">Auto – wybrany według GPU</string>
     <string name="load_runtime">Środowisko Linux</string>
@@ -917,7 +908,6 @@
     <string name="load_compat_wait">Oczekiwanie na zakończenie konfiguracji zgodności</string>
     <string name="load_compat_hint">Sesja uruchomi się po zakończeniu konfiguracji.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
-    <string name="main_wait_desktop_install">Poczekaj na zakończenie instalacji aplikacji desktopowej</string>
     <string name="main_wait_install_game">Poczekaj na zakończenie instalacji, zanim uruchomisz grę</string>
     <string name="main_saves_close_session">Najpierw zamknij sesję Steam, aby gra nie nadpisała importowanych zapisów</string>
     <string name="main_saves_importing">Importowanie do %1$s</string>
@@ -961,7 +951,6 @@
     <string name="main_remove_runtime_title">Usuń środowisko Linux</string>
     <string name="main_remove_runtime_text">Spowoduje to usunięcie środowiska, klienta Steam w nim i wszystkich zainstalowanych tam gier.</string>
     <string name="runtime_actions_title">Środowisko Linux</string>
-    <string name="runtime_actions_text">Naprawa ponownie instaluje pliki systemowe środowiska i zachowuje Steam, gry i ustawienia. Dodatki, takie jak pulpit, zainstalują się ponownie przy następnym użyciu. Usunięcie kasuje wszystko.</string>
     <string name="runtime_repair">Napraw środowisko</string>
     <string name="main_applied">Zastosowano: %1$s</string>
     <string name="comp_busy_importing">Importowanie</string>
@@ -2013,7 +2002,6 @@
     <string name="storage_leftover_confirm">Usuwa prefiks Wine i pamięć podręczną shaderów (%1$s). Najpierw zrób kopię potrzebnych zapisów; zapisy Steam Cloud pozostaną na koncie.</string>
     <string name="storage_data_other">Zachowane</string>
     <string name="storage_data_other_title">Gry poza Steam i współdzielony prefiks Steam</string>
-    <string name="storage_data_other_detail">Prefiksy gier dodanych przez sklepy lub ręcznie</string>
     <string name="storage_components_packages">Pobrane pakiety</string>
     <string name="storage_components_originals">Zachowane oryginały</string>
     <string name="storage_components_none">Nie pobrano żadnych pakietów komponentów.</string>

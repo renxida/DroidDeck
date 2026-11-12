@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.core.FexPreset
 import com.droiddeck.launcher.session.BootMovie
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SessionService
 
 class DriverRow(val id: String, val name: String, val detail: String, val removable: Boolean, val tag: String = "") {
     companion object {
@@ -162,9 +161,8 @@ private fun x64FexVersion(context: android.content.Context): String? = remember 
 private fun clientArchHint(hint: String, fex: String?): String =
     if (fex == null) hint else hint + " " + stringResource(R.string.mode_client_arch_fex, fex)
 
-internal fun modeSheetTabs(steam: Boolean): List<String> =
-    if (steam) listOf(SheetTab.STEAM, SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.AUDIO, SheetTab.SESSION, SheetTab.LIBRARY)
-    else listOf(SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.SESSION)
+internal fun modeSheetTabs(): List<String> =
+    listOf(SheetTab.STEAM, SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.AUDIO, SheetTab.SESSION, SheetTab.LIBRARY)
 
 @Composable
 internal fun sheetTabLabel(tab: String): String = when (tab) {
@@ -186,7 +184,6 @@ class SheetExtras(
 
 @Composable
 fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: SheetExtras = SheetExtras()) {
-    val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
     if (tab == SheetTab.DISPLAY) {
         val context = LocalContext.current
@@ -242,14 +239,14 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     }
     if (tab == SheetTab.CONTROLS) {
         InputQuickSettings(host, onEdit = a.onInputSettings)
-        SettingsGroup(if (steam) stringResource(R.string.mode_touch_controls) else stringResource(R.string.mode_touch)) {
+        SettingsGroup(stringResource(R.string.mode_touch_controls)) {
             ChoiceRow(
                 host, "touch", stringResource(R.string.mode_touch), null,
                 listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.common_auto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_GESTURES to stringResource(R.string.mode_touch_gestures), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)), s.touchMode,
                 note = stringResource(R.string.mode_touch_note),
                 onPick = a.onTouch,
             )
-            if (steam && s.oscMode != null) ChoiceRow(
+            if (s.oscMode != null) ChoiceRow(
                 host, "osc", stringResource(R.string.mode_osc), null,
                 listOf(
                     SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto),
@@ -260,7 +257,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 ), s.oscMode,
                 note = stringResource(R.string.mode_osc_note), onPick = a.onOsc,
             )
-            if (steam && s.steamController != null) ChoiceRow(
+            if (s.steamController != null) ChoiceRow(
                 host, "controller", stringResource(R.string.mode_controller), stringResource(R.string.mode_controller_hint),
                 listOf(
                     SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),
@@ -274,34 +271,34 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 else stringResource(R.string.mode_controller_note),
                 onPick = a.onSteamController,
             )
-            if (steam && s.unfoldedControls != null) ToggleRow(
+            if (s.unfoldedControls != null) ToggleRow(
                 host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                 stringResource(R.string.unfolded_controls_hint),
                 s.unfoldedControls, onChange = a.onUnfoldedControls,
             )
-            if (steam && s.unfoldedControls == true) ToggleRow(
+            if (s.unfoldedControls == true) ToggleRow(
                 host, "unfolded-controls-with-controller", stringResource(R.string.unfolded_controls_with_controller),
                 stringResource(R.string.unfolded_controls_with_controller_hint),
                 s.unfoldedControlsWithController, onChange = a.onUnfoldedControlsWithController,
             )
-            if (steam) ToggleRow(
+            ToggleRow(
                 host, "back-hold", stringResource(R.string.back_hold),
                 stringResource(R.string.back_hold_hint), s.backHold, onChange = a.onBackHold,
             )
-            if (steam) ChoiceRow(
+            ChoiceRow(
                 host, "back-actions", stringResource(R.string.mode_back), stringResource(SessionPrefs.backActionsOrder(s.backActionsInverted)),
                 listOf(
                     false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM),
                     true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU),
                 ), s.backActionsInverted, onPick = a.onBackActionsInverted,
             )
-            if (steam && s.backHold && s.steamController in listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM)) {
+            if (s.backHold && s.steamController in listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM)) {
                 Note(stringResource(R.string.back_native_qam_hint))
             }
             PhysicalShortcutRows()
         }
     }
-    if (tab == SheetTab.AUDIO && steam) {
+    if (tab == SheetTab.AUDIO) {
         if (s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {
             ToggleRow(host, "da", stringResource(R.string.mode_directaudio), stringResource(R.string.mode_directaudio_hint), s.directAudio, onChange = a.onDirectAudio)
             ToggleRow(host, "mic", stringResource(R.string.mode_mic), stringResource(R.string.mode_mic_hint), s.mic, onChange = a.onMic)
@@ -316,14 +313,13 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                     SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
                     SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
-                ) + if (steam) listOf(
                     SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native),
-                ) else emptyList(),
+                ),
                 s.suspendPolicy,
-                note = stringResource(if (steam) R.string.mode_suspend_steam_note else R.string.mode_suspend_note),
+                note = stringResource(R.string.mode_suspend_steam_note),
                 onPick = a.onSuspendPolicy,
             )
-            if (steam && s.suspendPolicy != SessionPrefs.SUSPEND_NEVER) ToggleRow(
+            if (s.suspendPolicy != SessionPrefs.SUSPEND_NEVER) ToggleRow(
                 host, "background-downloads", stringResource(R.string.mode_background_downloads),
                 stringResource(R.string.mode_background_downloads_hint),
                 s.steamDownloadsInBackground, onChange = a.onSteamDownloadsInBackground,
@@ -343,18 +339,15 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 s.pipAutoEnter, onChange = a.onPipAutoEnter)
         }
         SettingsGroup(stringResource(R.string.mode_startup)) {
-            ChoiceRow(
+            ToggleRow(
                 host, "startup-session", stringResource(R.string.mode_startup_session),
-                stringResource(R.string.mode_startup_session_hint),
-                listOf(
-                    SessionPrefs.STARTUP_OFF to stringResource(R.string.common_never),
-                    SessionPrefs.STARTUP_STEAM to stringResource(R.string.rail_steam),
-                ), s.startupSession, onPick = a.onStartupSession,
+                stringResource(R.string.mode_startup_session_hint), s.startupSession == SessionPrefs.STARTUP_STEAM,
+                onChange = { a.onStartupSession(if (it) SessionPrefs.STARTUP_STEAM else SessionPrefs.STARTUP_OFF) },
             )
         }
         extras.performance()
     }
-    if (tab == SheetTab.LIBRARY && steam) {
+    if (tab == SheetTab.LIBRARY) {
         if (s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
             val custom = s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
             class StorageChoice(val path: String, val label: String, val chip: String, val saved: String)
@@ -438,7 +431,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
         }
     }
-    if (tab == SheetTab.STEAM && steam) {
+    if (tab == SheetTab.STEAM) {
         extras.account(host)
         SettingsGroup(stringResource(R.string.mode_client)) {
             ToggleRow(
