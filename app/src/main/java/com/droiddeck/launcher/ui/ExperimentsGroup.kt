@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.Experiments
 
-/** Settings > Advanced > Experiments: one switch per perf change, all off by default. */
+/** Settings > Advanced > Experiments: one switch per perf change. */
 @Composable
 internal fun ExperimentsGroup(host: MenuHost) {
     val ctx = LocalContext.current.applicationContext
@@ -44,7 +44,7 @@ internal fun ExperimentsGroup(host: MenuHost) {
             Experiments.fexOrder.firstOrNull { it.id in on }?.id ?: "",
         ) { picked -> save(if (picked.isEmpty()) on - Experiments.fexOrder.map { it.id }.toSet() else Experiments.with(on, picked, true)) }
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SecondaryButton(stringResource(R.string.exp_safe_on), compact = true, modifier = Modifier.weight(1f)) { save(Experiments.safeOn(on)) }
+            SecondaryButton(stringResource(R.string.exp_all_on), compact = true, modifier = Modifier.weight(1f)) { save(Experiments.defaults) }
             SecondaryButton(stringResource(R.string.exp_reset), compact = true, modifier = Modifier.weight(1f)) { save(emptySet()) }
         }
     }

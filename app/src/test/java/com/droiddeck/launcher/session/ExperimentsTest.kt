@@ -49,6 +49,7 @@ class ExperimentsTest {
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())
+        Experiments.set(context, emptySet())
         for ((id, name) in expected) {
             Experiments.setOne(context, id, true)
             assertEquals(mapOf(name to "1"), Experiments.env(Experiments.enabled(context)))
@@ -59,7 +60,24 @@ class ExperimentsTest {
         }
     }
 
-    @Test fun aFreshInstallPublishesMainsEnvironment() {
+    @Test fun aFreshInstallTurnsEverythingOnButLayerFenceAndTheFrameCap() {
+        val everything = setOf("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames",
+            "fex-codegen", "fex-fast")
+        assertEquals(everything, Experiments.defaults)
+        assertEquals(everything, Experiments.enabled(context))
+        assertEquals(1, Experiments.presentMode(Experiments.enabled(context)))
+        assertEquals("godot-render,warmup,all,compat-quiet,memory,adpf-all,two-frames,fex-codegen,fex-fast",
+            Experiments.line(Experiments.enabled(context)))
+        GameEnvironmentStore.publish(context)
+        assertEquals(everything.map { Experiments.envName(it) }.toSet(),
+            shared().keys().asSequence().filter { it.startsWith("DROIDDECK_EXP_") }.toSet())
+        Experiments.set(context, setOf(Experiments.SCHED))
+        Experiments.set(context, Experiments.defaults)
+        assertEquals(everything, Experiments.enabled(context))
+    }
+
+    @Test fun resetToBaselinePublishesMainsEnvironment() {
+        Experiments.set(context, emptySet())
         assertEquals(emptySet<String>(), Experiments.enabled(context))
         assertEquals("none", Experiments.line(Experiments.enabled(context)))
         assertEquals(0, Experiments.presentMode(Experiments.enabled(context)))
@@ -73,6 +91,7 @@ class ExperimentsTest {
     }
 
     @Test fun eachGroupKeepsAtMostOneOn() {
+        Experiments.set(context, emptySet())
         Experiments.setOne(context, Experiments.TWO_FRAMES, true)
         Experiments.setOne(context, Experiments.LAYER_FENCE, true)
         assertEquals(setOf(Experiments.LAYER_FENCE), Experiments.enabled(context))
@@ -84,22 +103,8 @@ class ExperimentsTest {
         assertEquals("warmup,layer-fence,fex-fast", Experiments.line(Experiments.enabled(context)))
     }
 
-    @Test fun safeOnesLeaveOutFexOrderingLayerFenceAndTheFrameCap() {
-        assertEquals(
-            setOf("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "fex-codegen"),
-            Experiments.safe,
-        )
-        Experiments.set(context, setOf(Experiments.LAYER_FENCE, Experiments.FEX_TSO, Experiments.SCHED))
-        Experiments.set(context, Experiments.safeOn(Experiments.enabled(context)))
-        assertEquals(Experiments.safe + Experiments.FEX_TSO + Experiments.SCHED, Experiments.enabled(context))
-        assertEquals(1, Experiments.presentMode(Experiments.enabled(context)))
-        assertEquals(Experiments.safe, Experiments.safeOn(emptySet()))
-        Experiments.set(context, emptySet())
-        assertEquals("none", Experiments.line(Experiments.enabled(context)))
-        assertTrue(shared().keys().asSequence().none { it.startsWith("DROIDDECK_EXP_") })
-    }
-
     @Test fun buildTxtNamesTheSessionsExperiments() {
+        Experiments.set(context, emptySet())
         assertTrue(com.droiddeck.launcher.telemetry.BuildInfo.text(context).lines().contains("experiments: none"))
         Experiments.setOne(context, Experiments.WARMUP, true)
         Experiments.setOne(context, Experiments.FEX_FAST, true)
@@ -108,6 +113,7 @@ class ExperimentsTest {
     }
 
     @Test fun theSessionKeepsTheSwitchesItStartedWith() {
+        Experiments.set(context, emptySet())
         Experiments.setOne(context, Experiments.MEMORY, true)
         assertEquals(setOf(Experiments.MEMORY), Experiments.beginSession(context))
         Experiments.setOne(context, Experiments.MEMORY, false)

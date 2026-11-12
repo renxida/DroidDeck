@@ -7,7 +7,7 @@ import com.droiddeck.launcher.R
 
 /**
  * Settings > Advanced > Experiments. Each id is the perf/ branch the change came from and reaches the
- * guest as DROIDDECK_EXP_<ID>=1. All are off on a fresh install. Game-level parts follow the saved
+ * guest as DROIDDECK_EXP_<ID>=1. A fresh install starts with [defaults]; all off is main. Game-level parts follow the saved
  * switches at each game launch; Steam-side and app-side parts follow the switches the session started with.
  */
 object Experiments {
@@ -55,8 +55,8 @@ object Experiments {
     val ids = listOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, LAYER_FENCE,
         SCHED, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST)
 
-    /** "Turn all safe ones on": everything but the FEX memory-ordering choice, layer-fence and the frame cap. */
-    val safe = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, FEX_CODEGEN)
+    /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
+    val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, FEX_CODEGEN, FEX_FAST)
 
     fun envName(id: String) = "DROIDDECK_EXP_" + id.uppercase().replace('-', '_')
 
@@ -71,9 +71,6 @@ object Experiments {
         return on - groups.firstOrNull { id in it }.orEmpty().toSet() + id
     }
 
-    /** [on] with every safe one turned on; two-frames replaces layer-fence. */
-    fun safeOn(on: Set<String>): Set<String> = ids.filter { it in safe }.fold(on) { acc, id -> with(acc, id, true) }
-
     fun presentMode(on: Set<String>): Int = when {
         TWO_FRAMES in on -> 1
         LAYER_FENCE in on -> 2
@@ -83,7 +80,7 @@ object Experiments {
     private fun prefs(context: Context) = context.getSharedPreferences("experiments", Context.MODE_PRIVATE)
 
     fun enabled(context: Context): Set<String> =
-        prefs(context).getStringSet("on", null).orEmpty().filterTo(LinkedHashSet()) { it in ids }
+        (prefs(context).getStringSet("on", null) ?: defaults).filterTo(LinkedHashSet()) { it in ids }
 
     fun set(context: Context, on: Set<String>) {
         val kept = on.filterTo(LinkedHashSet()) { it in ids }

@@ -2109,7 +2109,7 @@
     <string name="session_end_steam_try_x64">You can try Steam settings → Steam client → x86-64 (experimental). It needs an additional download and may run more slowly.</string>
     <string name="session_end_vulkan_device">The Linux graphics driver could not find a usable Vulkan device. Check that the selected Linux GPU driver supports this GPU.</string>
     <string name="exp_group">Experiments</string>
-    <string name="exp_hint">All off is the same as the main build. Game parts apply at the next game launch, Steam parts at the next session.</string>
+    <string name="exp_hint">Reset to baseline turns them all off, the same as the main build. Game parts apply at the next game launch, Steam parts at the next session.</string>
     <string name="exp_godot_render">Godot: Mobile renderer on PowerVR, pipeline cache saved more often</string>
     <string name="exp_warmup">.NET start: FEX code cache, lighter JIT tiering, quicker launch polls</string>
     <string name="exp_launch">Steam start: early session bus, cached app info and file checks</string>
@@ -2128,7 +2128,7 @@
     <string name="exp_fex_vector_tso">Vector ordering off</string>
     <string name="exp_fex_tso">Both off</string>
     <string name="exp_fex_fast">Fast (both off, background GC off)</string>
-    <string name="exp_safe_on">Turn all safe ones on</string>
+    <string name="exp_all_on">Turn everything on</string>
     <string name="exp_reset">Reset to baseline</string>
     <string name="setup_group_memory">Memory</string>
     <string name="setup_clear_cached">Clear cached apps before a session</string>
