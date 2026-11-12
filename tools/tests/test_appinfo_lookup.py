@@ -170,6 +170,23 @@ class AppInfoLookupTest(unittest.TestCase):
                     self.assertEqual(selected, {"1": full["1"]})
                     self.assertEqual(selected["1"]["launch"][0], "last.exe" if corrupt_last else "final.exe")
 
+    def test_sections_the_entries_do_not_use_are_skipped_wherever_they_are(self):
+        extra = {"depots": {"10": {"manifests": {"public": {"gid": "1"}}}, "branches": {"public": {"buildid": "2"}}},
+                 "localization": {"richpresence": {"english": {"tokens": {"#a": "b"}}}}, "ufs": {"quota": "1"}}
+        plain = entry("One")
+        for magic in FORMATS:
+            for name, record in (("before", {**extra, **plain}), ("after", {**plain, **extra}),
+                                 ("between", {"common": plain["common"], **extra, "config": plain["config"]})):
+                with self.subTest(magic=magic, order=name):
+                    self.write({1: plain}, magic)
+                    COMPAT["APPINFO_CACHE"].clear()
+                    expected = self.lookup()
+                    self.write({1: record}, magic)
+                    COMPAT["APPINFO_CACHE"].clear()
+                    self.assertEqual(self.lookup(), expected)
+                    COMPAT["APPINFO_CACHE"].clear()
+                    self.assertEqual(self.lookup({"1"}), expected)
+
     def test_requested_steam_play_manifest_keeps_extended_mappings(self):
         manifests = COMPAT["STEAM_PLAY_MANIFESTS"]
         record = {"common": {"type": "Tool"}, "extended": {"app_mappings": {

@@ -28,6 +28,12 @@ snapshot; a complete decode drops that byte snapshot, and a file timestamp chang
 invalidates the cache. Bulk callers still request all entries. Launch selection,
 prefix/Proton choices and saved settings are unchanged.
 
+Within each record the reader builds only what the launcher uses: `common`'s scalars and
+its Steam Deck runtime, `config.launch`, and `extended.app_mappings` for app 891390. Other
+sections (`depots`, `localization`, `ufs` and the rest) are walked without being built, and a
+record stops being read once those sections are in hand. Session start's full decode for
+Valve's runtime picks costs about 40% of what it did on a synthetic 23 MB cache.
+
 Each game can also override the stored FEX, DXVK and VKD3D-Proton package used
 by its selected Proton. The launch wrapper applies that game’s component files
 immediately before Proton starts, removes managed files that are absent from the
