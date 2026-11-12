@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
@@ -1223,6 +1224,30 @@ def game_logs(command, env, app_id, now=None):
     return result
 
 
+def load_warmup():
+    try:
+        return runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-warmup"))
+    except Exception as error:  # optional settings: a fault here must not stop the game
+        print("droiddeck-game-env: warmup: settings skipped (%s)" % error, file=sys.stderr)
+        return None
+
+
+def warmup_launch(command, env, app_id, phases):
+    """FEX disk cache, .NET tiering profile and launch-prep timing (droiddeck-warmup)."""
+    warmup = load_warmup()
+    if warmup is None:
+        return env
+    timer = warmup["Timer"]()
+    timer.phases = list(phases)
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    try:
+        env = timer.time("warmup", warmup["apply"], command, env, app_id, prefix, game_files(command[2]))
+    except Exception as error:  # optional settings: a fault here must not stop the game
+        print("droiddeck-game-env: warmup: settings skipped (%s)" % error, file=sys.stderr)
+    timer.report(app_id)
+    return env
+
+
 def exec_proton(command, env):
     # Synchronization selection has already picked the actual Proton executable.
     command, env = system_graphics_launch(command, env)
@@ -1261,14 +1286,19 @@ def main():
                 launch_config_valid = False
         if not launch_config_valid:
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    phases = []
     if waiting:
+        began = time.monotonic()
         components = win_components(prefix_path, app_id, command[0], effective_env)
+        phases.append(("components", int((time.monotonic() - began) * 1000)))
     if prefix_path and command:
+        began = time.monotonic()
         try:
             fixed = repair_foreign_system_dlls(prefix_path, command[0], effective_env)
         except OSError as error:
             fixed = []
             print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)
+        phases.append(("prefix DLL check", int((time.monotonic() - began) * 1000)))
         if fixed:
             print("droiddeck-game-env: replaced foreign-architecture system DLLs with this Proton's own: %s" % ", ".join(fixed),
                   file=sys.stderr)
@@ -1373,6 +1403,8 @@ def main():
                 except OSError as undo:
                     print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); Wine uses its own copy "
                           "and the next launch puts the file back" % undo, file=sys.stderr)
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        env = warmup_launch(command, env, app_id, phases)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
