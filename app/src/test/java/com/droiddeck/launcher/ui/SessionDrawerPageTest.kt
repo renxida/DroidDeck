@@ -26,10 +26,4 @@ class SessionDrawerPageTest {
         }
     }
 
-    @Test fun theAgentPageComesBeforeSessionOnlyWhenTheAgentIsInstalled() {
-        val with = sessionDrawerPages(false, hasAgent = true)
-        assertEquals(SessionDrawerPage.AGENT, with.step(SessionDrawerPage.GAMES, 1))
-        assertEquals(SessionDrawerPage.SESSION, with.step(SessionDrawerPage.AGENT, 1))
-        assertFalse(SessionDrawerPage.AGENT in sessionDrawerPages(false, hasAgent = false))
-    }
 }

@@ -43,7 +43,6 @@ import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ScreenShare
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
@@ -165,7 +164,6 @@ private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.HUD -> R.string.drawer_hud
     SessionDrawerPage.EFFECTS -> R.string.drawer_page_effects
     SessionDrawerPage.GAMES -> R.string.game_settings_title
-    SessionDrawerPage.AGENT -> R.string.rail_agent
     SessionDrawerPage.SESSION -> R.string.mode_session
 }
 
@@ -176,7 +174,6 @@ private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.HUD -> Icons.Outlined.Speed
     SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
-    SessionDrawerPage.AGENT -> Icons.Outlined.AutoAwesome
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
 }
 
@@ -503,12 +500,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
                 }
-                // The agent's chat scrolls itself and keeps its composer at the bottom, so it takes the height left.
-                if (page == SessionDrawerPage.AGENT) AgentPage(
-                    Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
-                    inputModifier = focus.track(page, "agent-input"),
-                    visible = open,
-                ) else Column(
+                Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
                     when (page) {
@@ -700,7 +692,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 track = { key -> focus.track(page, key) },
                             )
                         }
-                        SessionDrawerPage.AGENT -> Unit
                         SessionDrawerPage.SESSION -> {
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
                                 if (a.micAvailable) ToggleRow(host, "microphone", stringResource(R.string.mode_mic),

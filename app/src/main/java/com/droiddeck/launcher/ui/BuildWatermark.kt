@@ -79,9 +79,7 @@ object BuildWatermark {
         val decor = activity.window.decorView as? ViewGroup ?: return
         decor.findViewWithTag<View>(TAG)?.let(decor::removeView)
         if (!com.droiddeck.launcher.session.SessionPrefs.buildWatermarkEnabled(activity)) return
-        val lab = com.droiddeck.launcher.lab.LabOverlay.active?.let { "LAB | ${truncate(it.label)}" }
-        val build = lineProvider().orEmpty()
-        val content = (listOfNotNull(lab) + build).ifEmpty { return }
+        val content = lineProvider().orEmpty().ifEmpty { return }
         val margin = (8 * activity.resources.displayMetrics.density).toInt()
         decor.addView(
             MarkView(activity, content).apply { tag = TAG },

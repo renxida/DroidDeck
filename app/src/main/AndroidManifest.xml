@@ -159,7 +159,6 @@
             android:windowSoftInputMode="stateAlwaysHidden|adjustNothing"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
-        <service android:name=".agent.AgentHostService" android:exported="false" />
         <service
             android:name=".session.SessionService"
             android:exported="false"

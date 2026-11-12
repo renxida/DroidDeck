@@ -261,10 +261,6 @@ private fun Content(
         DesktopPage(s, a, modifier, onSelect)
         return
     }
-    if (selected == "agent") {
-        AgentPage(modifier.padding(horizontal = padH).padding(top = padV))
-        return
-    }
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {
         when {
             selected.startsWith("user:") -> {

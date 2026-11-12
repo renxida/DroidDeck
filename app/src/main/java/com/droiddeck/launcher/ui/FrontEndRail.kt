@@ -46,7 +46,6 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
@@ -122,7 +121,6 @@ internal fun BottomBar(
 internal fun navigationKeys(s: FrontEndState) = buildList {
     add("steam"); add("games")
     add("desktop")
-    if (com.droiddeck.launcher.agent.AgentHost.available) add("agent")
     add("components")
     add("setup")
 }
@@ -195,7 +193,6 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
-    "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
     else -> R.string.rail_setup to Icons.Outlined.Tune
 }
 
