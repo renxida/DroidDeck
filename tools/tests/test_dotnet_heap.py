@@ -69,9 +69,17 @@ class DotnetHeapTest(unittest.TestCase):
             for name in list(base):
                 if name.startswith(("DOTNET_", "COMPlus_", "DROIDDECK_DOTNET_")):
                     base.pop(name)
-            sts2 = subprocess.run([sys.executable, str(GAME_ENV), str(probe), "waitforexitandrun"],
-                                  env={**base, "STEAM_COMPAT_DATA_PATH": "/compatdata/2868840"},
-                                  capture_output=True, text=True, timeout=15)
+            def launch():
+                return subprocess.run([sys.executable, str(GAME_ENV), str(probe), "waitforexitandrun"],
+                                      env={**base, "STEAM_COMPAT_DATA_PATH": "/compatdata/2868840"},
+                                      capture_output=True, text=True, timeout=15)
+            off = launch()
+            self.assertEqual((off.returncode, off.stdout.strip()), (0, "None"), off.stderr)
+            self.assertNotIn("DROIDDECK_DOTNET_HEAP", off.stderr)
+            config = Path(directory) / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text('{"version": 1, "shared": {"DROIDDECK_EXP_MEMORY": "1"}}')
+            sts2 = launch()
             self.assertEqual(sts2.returncode, 0, sts2.stderr)
             self.assertEqual(sts2.stdout.strip(), "5")
             self.assertIn("DROIDDECK_DOTNET_HEAP app=2868840 conserve=5 limit_mb=- source=default\n", sts2.stderr)

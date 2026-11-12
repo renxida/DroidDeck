@@ -55,12 +55,54 @@ def shortcut_number(value):
 
 DOTNET_FEX = {
     "FEX_TSOENABLED": "1",
-    "FEX_VECTORTSOENABLED": "0",
-    "FEX_MEMCPYSETTSOENABLED": "0",
+    "FEX_VECTORTSOENABLED": "1",
+    "FEX_MEMCPYSETTSOENABLED": "1",
     "FEX_HALFBARRIERTSOENABLED": "1",
     "FEX_X87REDUCEDPRECISION": "0",
-    "DOTNET_gcConcurrent": "0",
 }
+# The four memory-ordering experiments for .NET games; the app lets at most one be on.
+DOTNET_FEX_EXPERIMENTS = (
+    ("fex-memcpy-tso", {"FEX_MEMCPYSETTSOENABLED": "0"}, "memcpy/memset TSO off"),
+    ("fex-vector-tso", {"FEX_VECTORTSOENABLED": "0"}, "vector TSO off"),
+    ("fex-tso", {"FEX_VECTORTSOENABLED": "0", "FEX_MEMCPYSETTSOENABLED": "0"}, "vector and memcpy/memset TSO off"),
+    ("fex-fast", {"FEX_VECTORTSOENABLED": "0", "FEX_MEMCPYSETTSOENABLED": "0", "DOTNET_gcConcurrent": "0"},
+     "vector and memcpy/memset TSO off, background GC off"),
+)
+
+# Settings > Advanced > Experiments, one DROIDDECK_EXP_<NAME>=1 each. The game-level parts follow the
+# saved settings at each launch; the Steam-side parts follow the values the Steam session started with.
+EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
+               "sched", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso", "fex-tso", "fex-fast")
+
+
+def experiment_name(experiment):
+    return "DROIDDECK_EXP_" + experiment.upper().replace("-", "_")
+
+
+def experiment(env, name):
+    return (env or {}).get(experiment_name(name)) == "1"
+
+
+def experiments(env):
+    return [name for name in EXPERIMENTS if experiment(env, name)]
+
+
+def without_experiments(env):
+    return {k: v for k, v in env.items() if not k.startswith("DROIDDECK_EXP_")}
+
+
+def experiments_line(launch, steam):
+    line = "experiments: " + (",".join(launch) or "none")
+    if steam != launch:
+        line += "; Steam session started with: " + (",".join(steam) or "none")
+    return line
+
+
+def dotnet_fex(env):
+    for name, values, described in DOTNET_FEX_EXPERIMENTS:
+        if experiment(env, name):
+            return dict(DOTNET_FEX, **values), ".NET runtime: FEX with TSO, %s (experiment %s)" % (described, name)
+    return DOTNET_FEX, ".NET runtime: FEX with full TSO"
 
 
 def game_files(exe):
@@ -232,7 +274,8 @@ def is_godot(game):
 @fix
 def dotnet_memory_ordering(game):
     if "coreclr.dll" in game.files:
-        return DOTNET_FEX, [], ".NET runtime: FEX with TSO, vector and memcpy/memset TSO off, background GC off (experiment)"
+        values, note = dotnet_fex(game.env)
+        return values, [], note
 
 
 @fix
@@ -260,6 +303,10 @@ def godot_vulkan(game):
     """Godot 4 draws through Vulkan straight to the device's driver. Its D3D12 driver, which some games
     (Slay the Spire 2) pick on Windows, needs vkd3d-proton and shows a black window there."""
     if not is_godot(game):
+        return None
+    if not experiment(game.env, "godot-render"):
+        if not game.has_arg("--rendering-driver"):
+            return {}, ["--rendering-driver", "vulkan"], "Godot: Vulkan renderer"
         return None
     choice = godot_renderer_choice(game)
     project = game.godot()
@@ -310,7 +357,7 @@ def godot_sentry(game):
 
 @fix
 def slay_the_spire_2_pacing(game):
-    if game.stem == "slaythespire2" and is_godot(game):
+    if game.stem == "slaythespire2" and is_godot(game) and experiment(game.env, "sched"):
         return ({"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": "60"}, [],
                 "Slay the Spire 2: game threads kept off the little cores, 60 fps cap "
                 "(DROIDDECK_GAME_CPU_BUDGET=all or DROIDDECK_FPS_CAP=0 in the game's environment undoes them)")
@@ -613,7 +660,10 @@ def godot_override(game):
         except OSError as error:
             return "Godot: override.cfg unreadable (%s); left as is" % error
     ours = text is not None and text.startswith(GODOT_OVERRIDE.split("\n", 1)[0])
-    version = game.godot().get("version")
+    if not experiment(game.env, "godot-render"):
+        version = None
+    else:
+        version = game.godot().get("version")
     if godot_renderer_choice(game) == "off" or not version or version[0] != 4:
         if ours:
             try:
@@ -1851,6 +1901,8 @@ def main():
     if command[0] == THREAD_CHECK and len(command) == 2:
         return thread_check(command[1])
     env = game_gpu(os.environ.copy())
+    steam_experiments = experiments(env)
+    env = without_experiments(env)
     mic_enabled = env.get("BL_MIC_ENABLED")
     debug_dir = env.get("BL_DEBUG_DIR", "")
     prefix_path = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
@@ -1878,6 +1930,8 @@ def main():
                 launch_config_valid = False
         if not launch_config_valid:
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+        print("droiddeck-game-env: " + experiments_line(experiments(effective_env), steam_experiments),
+              file=sys.stderr, flush=True)
     phases = []
     if waiting:
         began = time.monotonic()
@@ -1922,14 +1976,17 @@ def main():
                 game = Game(command[2], command[3:], effective_env)
                 if is_godot(game):
                     try:
-                        notes += godot_files(game)
+                        if experiment(effective_env, "godot-render"):
+                            notes += godot_files(game)
+                        else:
+                            notes += [note for note in (godot_override(game),) if note]
                     except (OSError, ValueError) as error:
                         notes.append("Godot: cache and log check skipped (%s)" % error)
             if not gl_default:
                 fixes.pop("vblank_mode", None)
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
-            command = with_args(command, extra)
+            command = with_args(command, extra) if experiment(effective_env, "godot-render") else command + extra
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
@@ -1962,15 +2019,16 @@ def main():
             print("droiddeck-game-env: OpenGL does not wait for the screen refresh (vblank_mode=0)", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
-        env, notes = fex_memory_model(command, env)
-        for note in notes:
-            print("droiddeck-game-env: " + note, file=sys.stderr)
+        if experiment(env, "fex-codegen"):
+            env, notes = fex_memory_model(command, env)
+            for note in notes:
+                print("droiddeck-game-env: " + note, file=sys.stderr)
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)
     env = vram_cap(env)
-    if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
+    if app_id and len(command) > 1 and command[1] == "waitforexitandrun" and experiment(env, "memory"):
         env, note = dotnet_heap(env, app_id)
         if note:
             print(note, file=sys.stderr)
@@ -2018,7 +2076,7 @@ def main():
                 except OSError as undo:
                     print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); Wine uses its own copy "
                           "and the next launch puts the file back" % undo, file=sys.stderr)
-    if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun" and experiment(env, "warmup"):
         env = warmup_launch(command, env, app_id, phases)
     env, note = keep_caller_env(os.environ, env)
     if note:

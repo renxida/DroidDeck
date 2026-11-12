@@ -30,6 +30,7 @@ class DeferDuringGameTest(unittest.TestCase):
             mock.patch.dict(GLOBALS, {"say": self.said.append}),
             mock.patch.object(GLOBALS["time"], "monotonic", lambda: self.clock[0]),
             mock.patch.object(GLOBALS["time"], "sleep", lambda seconds: None),
+            mock.patch.dict(os.environ, {"DROIDDECK_EXP_COMPAT_QUIET": "1"}),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -86,6 +87,12 @@ class DeferDuringGameTest(unittest.TestCase):
     def test_a_change_made_in_the_steam_menu_runs_at_once_during_a_game(self):
         self.helper.reconcile_or_defer("Steam menu change", True)
         self.assertEqual(self.helper.reconcile.call_count, 1)
+
+    def test_without_the_experiment_steam_file_writes_reconcile_at_once_as_on_main(self):
+        with mock.patch.dict(os.environ, {"DROIDDECK_EXP_COMPAT_QUIET": "0"}):
+            self.serve([{"appinfo.vdf"}, {"appmanifest_2868840.acf"}, set()])
+        self.assertEqual(self.helper.reconcile.call_count, 3)
+        self.assertEqual(self.helper.deferred, 0)
 
     def test_nothing_waits_without_a_game(self):
         self.running[0] = False

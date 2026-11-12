@@ -1060,7 +1060,7 @@ case $mode in
       /usr/local/bin/droiddeck-launcher-cores "$BL_LAUNCH_DIR/agent/focus.json" 2>&1 &
     fi
 
-    start_steam_buses
+    [ "${DROIDDECK_EXP_ALL:-}" = 1 ] && start_steam_buses
     if [ "$steam_x64" = 0 ]; then
     _bl_setup_at=$(bl_now_ms)
     _bl_setup=
@@ -1202,21 +1202,22 @@ case $mode in
       _bl_ms() {
         if [ -n "${EPOCHREALTIME:-}" ]; then local t=${EPOCHREALTIME/[.,]/}; echo $((10#$t / 1000)); else date +%s%3N; fi
       }
-      local began front
+      local began front front_poll=1 ready_poll=1 ready_tries=30
+      # The warm-up experiment polls every 0.25 s and 0.5 s: each poll is cheap, and the hand-off
+      # to the game waits for both.
+      if [ "${DROIDDECK_EXP_WARMUP:-}" = 1 ]; then front_poll=0.25 ready_poll=0.5 ready_tries=60; fi
       began=$(_bl_ms)
-      # Polled every 0.25 s and 0.5 s rather than every second: each poll is cheap, and the
-      # hand-off to the game waits for both.
       _bl_end=$((SECONDS + 120))
       until [ "$(_bl_focused)" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
-        sleep 0.25
+        sleep "$front_poll"
       done
       front=$(($(_bl_ms) - began))
       [ "${#game}" -gt 10 ] && shortcut=1
       _bl_ready_end=$((SECONDS + 30))
-      while [ "$waited" -lt 60 ] && [ "$((_bl_ready_end - SECONDS))" -gt 0 ]; do
+      while [ "$waited" -lt "$ready_tries" ] && [ "$((_bl_ready_end - SECONDS))" -gt 0 ]; do
         timeout "$((_bl_ready_end - SECONDS))" /usr/local/bin/droiddeck-agent --steam-ready >/dev/null 2>&1 && break
         [ "$((_bl_ready_end - SECONDS))" -gt 1 ] || break
-        sleep 0.5
+        sleep "$ready_poll"
         waited=$((waited + 1))
       done
       waited=0
@@ -1284,6 +1285,7 @@ case $mode in
       echo "== autolaunch $_bl_url"
       set -- "$@" "$_bl_url"
     fi
+    [ "${DROIDDECK_EXP_ALL:-}" = 1 ] || start_steam_buses
     if [ -n "${bl_login_manager:-}" ]; then
       for ((_i = 0; _i < 100; _i++)); do
         [ -S /run/dbus/system_bus_socket ] && break

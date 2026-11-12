@@ -172,6 +172,9 @@ class AppInfoLookupTest(unittest.TestCase):
                     self.assertEqual(selected["1"]["launch"][0], "last.exe" if corrupt_last else "final.exe")
 
     def test_sections_the_entries_do_not_use_are_skipped_wherever_they_are(self):
+        experiment = mock.patch.dict(os.environ, {"DROIDDECK_EXP_ALL": "1"})
+        experiment.start()
+        self.addCleanup(experiment.stop)
         extra = {"depots": {"10": {"manifests": {"public": {"gid": "1"}}}, "branches": {"public": {"buildid": "2"}}},
                  "localization": {"richpresence": {"english": {"tokens": {"#a": "b"}}}}, "ufs": {"quota": "1"}}
         plain = entry("One")
@@ -259,6 +262,9 @@ class AppInfoEntryCacheTest(unittest.TestCase):
         self.saved = Path(str(self.path) + ".droiddeck-entries")
         COMPAT["APPINFO_CACHE"].clear()
         self.addCleanup(COMPAT["APPINFO_CACHE"].clear)
+        experiment = mock.patch.dict(os.environ, {"DROIDDECK_EXP_ALL": "1"})
+        experiment.start()
+        self.addCleanup(experiment.stop)
 
     def write(self, records, magic):
         stamp = self.path.stat().st_mtime_ns if self.path.exists() else 0
@@ -276,6 +282,12 @@ class AppInfoEntryCacheTest(unittest.TestCase):
         result, _ = self.full()
         self.saved.unlink()
         return result
+
+    def test_without_the_launch_experiment_nothing_is_kept_beside_the_file(self):
+        self.write({1: entry("A")}, FORMATS[-1])
+        with mock.patch.dict(os.environ, {"DROIDDECK_EXP_ALL": "0"}):
+            self.assertIn("1", self.full()[0])
+        self.assertFalse(self.saved.exists())
 
     def test_a_second_read_decodes_only_the_records_steam_changed(self):
         for magic in FORMATS:

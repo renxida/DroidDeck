@@ -71,12 +71,19 @@ class SessionBusTest(unittest.TestCase):
 
     def test_buses_start_before_the_client_setup_helpers_and_are_awaited_before_the_client(self):
         text = SESSION.read_text()
-        started = text.index("    start_steam_buses\n")
+        started = text.index('    [ "${DROIDDECK_EXP_ALL:-}" = 1 ] && start_steam_buses\n')
         self.assertLess(started, text.index("step \"registering the app's game library with Steam\""))
         self.assertLess(started, text.index("droiddeck-steam-x64 --default-tool"))
         awaited = text.index('    if [ -n "${bl_login_manager:-}" ]; then')
         self.assertGreater(awaited, text.index("droiddeck-seed-redists"))
         self.assertLess(awaited, text.index("_bl_compat_env=(env -u LD_LIBRARY_PATH"))
+
+    def test_without_the_launch_experiment_the_buses_start_just_before_the_client_as_on_main(self):
+        text = SESSION.read_text()
+        late = text.index('    [ "${DROIDDECK_EXP_ALL:-}" = 1 ] || start_steam_buses\n')
+        self.assertGreater(late, text.index("droiddeck-seed-redists"))
+        self.assertEqual(late + len('    [ "${DROIDDECK_EXP_ALL:-}" = 1 ] || start_steam_buses\n'),
+                         text.index('    if [ -n "${bl_login_manager:-}" ]; then'))
 
 
 if __name__ == "__main__":

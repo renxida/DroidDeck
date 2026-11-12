@@ -56,13 +56,16 @@ class SteamColdLaunchTest(unittest.TestCase):
         pgrep.chmod(0o755)
         self.block = LAUNCH_BLOCK.replace("/usr/local/bin/droiddeck-agent", str(agent))
 
-    def run_launch(self, target, focus="769", helper_status=0, running_after=999, ready_status=0):
+    def run_launch(self, target, focus="769", helper_status=0, running_after=999, ready_status=0, warmup=False):
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch_dir),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    AGENT_ARGS=str(self.agent_args), SLEEP_ARGS=str(self.sleep_args),
                    AGENT_COUNT=str(self.agent_count), AGENT_STATUS=str(helper_status),
                    FOCUS=focus, FOCUS_COUNT=str(self.focus_count), RUNNING_AFTER=str(running_after),
                    READY_STATUS=str(ready_status))
+        env.pop("DROIDDECK_EXP_WARMUP", None)
+        if warmup:
+            env["DROIDDECK_EXP_WARMUP"] = "1"
         script = self.block + "\nprintf 'ARG:%s\n' \"$@\"\nwait\n"
         url = target if target.startswith("steam://") else "steam://rungameid/" + target
         result = subprocess.run(["bash", "-c", script, "cold-launch", url],
@@ -97,12 +100,17 @@ class SteamColdLaunchTest(unittest.TestCase):
         result = self.run_launch("413150", ready_status=1)
         self.assertEqual("413150", (self.launch_dir / "steam-game").read_text().strip())
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
+
+    def test_the_warmup_experiment_polls_steam_more_often(self):
+        result = self.run_launch("413150", ready_status=1, warmup=True)
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
         self.assertEqual(["0.5"] * 60, self.sleep_args.read_text().split())
 
     def test_a_focus_change_does_not_end_the_readiness_wait(self):
         result = self.run_launch("413150", focus="769 4242", ready_status=1)
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertEqual(["0.5"] * 60, self.sleep_args.read_text().split())
+        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
 
     def test_a_game_still_starting_without_a_window_is_not_launched_twice(self):
         result = self.run_launch(SHORTCUT, running_after=1)

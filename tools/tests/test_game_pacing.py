@@ -129,13 +129,14 @@ class FrameCapTest(unittest.TestCase):
         self.assertEqual(env, {"DROIDDECK_FPS_CAP": "sixty"})
 
     def test_slay_the_spire_2_gets_the_budget_and_cap_by_default(self):
-        game = mock.Mock(stem="slaythespire2", files={"slaythespire2.pck", "godotsharp.dll"})
+        game = mock.Mock(stem="slaythespire2", files={"slaythespire2.pck", "godotsharp.dll"}, env={"DROIDDECK_EXP_SCHED": "1"})
+        self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="slaythespire2", files=game.files, env={})))
         env, extra, note = MODULE["slay_the_spire_2_pacing"](game)
         self.assertEqual(env, {"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": "60"})
         self.assertEqual(extra, [])
         self.assertTrue(note.startswith("Slay the Spire 2:"))
-        self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="slaythespire2", files=set())))
-        self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="brotato", files={"brotato.pck"})))
+        self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="slaythespire2", files=set(), env=game.env)))
+        self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="brotato", files={"brotato.pck"}, env=game.env)))
 
     def test_launch_applies_the_cap_and_a_game_profile_can_undo_it(self):
         home = Path(self.tmp.name)
@@ -152,7 +153,7 @@ class FrameCapTest(unittest.TestCase):
         for profile, args, cap in (({}, ["--max-fps", "60"], "60"), ({"DROIDDECK_FPS_CAP": "0"}, [], "0"),
                                    ({"DROIDDECK_FPS_CAP": "30", "DROIDDECK_FPS_GOVERNOR": "0"}, ["--max-fps", "30"], "30")):
             with self.subTest(profile=profile):
-                config.write_text(json.dumps({"version": 1, "games": {"2868840": profile}}))
+                config.write_text(json.dumps({"version": 1, "shared": {"DROIDDECK_EXP_SCHED": "1"}, "games": {"2868840": profile}}))
                 result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
                                          str(proton), "waitforexitandrun", str(self.godot)],
                                         env=env, text=True, capture_output=True, check=True)

@@ -215,6 +215,12 @@ class GameEnvironmentWarmupTest(unittest.TestCase):
             config.write_text(json.dumps({"version": 1, "games": {STS2: {"DROIDDECK_DOTNET_WARMUP": "pgo-off"}}}))
             env = {k: v for k, v in os.environ.items() if not k.startswith(("FEX_", "DOTNET_", "COMPlus_", "DROIDDECK_"))}
             env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH=str(tool.prefix))
+            off = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],
+                                 env=env, text=True, capture_output=True, check=True)
+            self.assertEqual(off.stdout.strip(), "", off.stderr)
+            self.assertNotIn("warmup:", off.stderr)
+            config.write_text(json.dumps({"version": 1, "shared": {"DROIDDECK_EXP_WARMUP": "1"},
+                                          "games": {STS2: {"DROIDDECK_DOTNET_WARMUP": "pgo-off"}}}))
             result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],
                                     env=env, text=True, capture_output=True, check=True)
             folder = "Z:" + str(tool.prefix / "droiddeck-fex-cache").replace("/", "\\") + "\\"

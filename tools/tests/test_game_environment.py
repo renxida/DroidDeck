@@ -1111,10 +1111,15 @@ class GameEnvironmentTest(unittest.TestCase):
             for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll", "data_game_windows_x86_64/coreclr.dll"):
                 (game / name).touch()
             env, extra, notes = MODULE["engine_fixes"](str(game / "Game.exe"), [])
-            self.assertEqual(
-                [env[name] for name in ("FEX_TSOENABLED", "FEX_VECTORTSOENABLED", "FEX_MEMCPYSETTSOENABLED", "FEX_HALFBARRIERTSOENABLED")],
-                ["1", "0", "0", "1"])
-            self.assertEqual(env["DOTNET_gcConcurrent"], "0")
+            tso = ("FEX_TSOENABLED", "FEX_VECTORTSOENABLED", "FEX_MEMCPYSETTSOENABLED", "FEX_HALFBARRIERTSOENABLED")
+            self.assertEqual([env[name] for name in tso], ["1", "1", "1", "1"])
+            self.assertNotIn("DOTNET_gcConcurrent", env)
+            for experiment, values, gc in (("FEX_MEMCPY_TSO", ["1", "1", "0", "1"], None), ("FEX_VECTOR_TSO", ["1", "0", "1", "1"], None),
+                                           ("FEX_TSO", ["1", "0", "0", "1"], None), ("FEX_FAST", ["1", "0", "0", "1"], "0")):
+                with self.subTest(experiment=experiment):
+                    found = MODULE["engine_fixes"](str(game / "Game.exe"), [], {"DROIDDECK_EXP_" + experiment: "1"})[0]
+                    self.assertEqual([found[name] for name in tso], values)
+                    self.assertEqual(found.get("DOTNET_gcConcurrent"), gc)
             self.assertNotIn("FEX_MULTIBLOCK", env)
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
@@ -1149,11 +1154,29 @@ class GameEnvironmentTest(unittest.TestCase):
             env = {**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(prefix)}
             result = subprocess.run(command, env=env, text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.split(), ["1", "1"])
+            self.assertIn("FEX TSO for this game: FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 "
+                          "FEX_HALFBARRIERTSOENABLED=1 DOTNET_gcConcurrent=unset", result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: none\n", result.stderr)
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_FAST": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.split(), ["0", "0"])
             self.assertIn("FEX TSO for this game: FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 "
                           "FEX_HALFBARRIERTSOENABLED=1 DOTNET_gcConcurrent=0", result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-fast; Steam session started with: none\n", result.stderr)
+            # The saved settings decide a launch; values the Steam session inherited are only reported.
+            result = subprocess.run(command, env={**env, "DROIDDECK_EXP_FEX_FAST": "1", "DROIDDECK_EXP_TWO_FRAMES": "1"},
+                                    text=True, capture_output=True)
+            self.assertIn("droiddeck-game-env: experiments: fex-fast; Steam session started with: two-frames,fex-fast\n",
+                          result.stderr)
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps({"version": 1}))
+            result = subprocess.run(command, env={**env, "DROIDDECK_EXP_FEX_FAST": "1"}, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["1", "1"])
+            self.assertIn("droiddeck-game-env: experiments: none; Steam session started with: fex-fast\n", result.stderr)
             (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
-                {"version": 1, "games": {"2868840": {"FEX_VECTORTSOENABLED": "1"}}}))
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_FAST": "1"}, "games": {"2868840": {"FEX_VECTORTSOENABLED": "1"}}}))
             result = subprocess.run(command, env=env, text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.split(), ["1", "0"])
@@ -2901,6 +2924,7 @@ STS2_SETTINGS = {
     "display/window/size/viewport_width": 1920,
 }
 POWERVR = {"HYBRIS_VULKAN_HAL": "/vendor/lib64/hw/vulkan.powervr.so"}
+GODOT_RENDER = {"DROIDDECK_EXP_GODOT_RENDER": "1"}
 
 
 class GodotRendererTest(unittest.TestCase):
@@ -2923,7 +2947,12 @@ class GodotRendererTest(unittest.TestCase):
         return str(exe)
 
     def args(self, exe, env=None, args=()):
-        return MODULE["engine_fixes"](exe, list(args), env)
+        return MODULE["engine_fixes"](exe, list(args), dict(GODOT_RENDER, **(env or {})))
+
+    def test_with_the_experiment_off_godot_games_get_mains_vulkan_driver_only(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        self.assertEqual(MODULE["engine_fixes"](exe, [], POWERVR), ({}, ["--rendering-driver", "vulkan"], ["Godot: Vulkan renderer"]))
+        self.assertEqual(MODULE["engine_fixes"](exe, ["--rendering-driver", "d3d12"], POWERVR), ({}, [], []))
 
     def test_the_pack_gives_the_version_and_project_settings(self):
         project = MODULE["godot_project"](self.game(godot_pack(STS2_SETTINGS)))
@@ -2982,7 +3011,7 @@ class GodotRendererTest(unittest.TestCase):
     def test_override_cfg_saves_the_pipeline_cache_in_small_steps_and_is_removed_when_off(self):
         exe = self.game(godot_pack(STS2_SETTINGS))
         override = Path(exe).with_name("override.cfg")
-        game = MODULE["Game"](exe, [], {})
+        game = MODULE["Game"](exe, [], GODOT_RENDER)
         self.assertEqual(MODULE["godot_override"](game), "Godot: pipeline cache saved every 0.5 MiB (override.cfg)")
         text = override.read_text()
         self.assertIn("[rendering]\n\nrendering_device/pipeline_cache/save_chunk_size_mb=0.5\n", text)
@@ -2991,14 +3020,17 @@ class GodotRendererTest(unittest.TestCase):
         MODULE["godot_override"](game)
         self.assertEqual(override.stat().st_mtime_ns, stamp)
         self.assertEqual(sorted(p.name for p in override.parent.iterdir() if p.name.startswith(".")), [])
-        off = MODULE["Game"](exe, [], {"DROIDDECK_GODOT_RENDERER": "off"})
+        off = MODULE["Game"](exe, [], dict(GODOT_RENDER, DROIDDECK_GODOT_RENDERER="off"))
         self.assertEqual(MODULE["godot_override"](off), "Godot: DroidDeck's override.cfg removed")
+        self.assertFalse(override.exists())
+        MODULE["godot_override"](game)
+        self.assertEqual(MODULE["godot_override"](MODULE["Game"](exe, [], {})), "Godot: DroidDeck's override.cfg removed")
         self.assertFalse(override.exists())
         override.write_text("[display]\nwindow/vsync/vsync_mode=0\n")
         self.assertIn("own override.cfg left as is", MODULE["godot_override"](game))
         self.assertIsNone(MODULE["godot_override"](off))
         self.assertEqual(override.read_text(), "[display]\nwindow/vsync/vsync_mode=0\n")
-        godot3 = MODULE["Game"](self.game(godot_pack({}, (3, 5, 3)), "Godot3"), [], {})
+        godot3 = MODULE["Game"](self.game(godot_pack({}, (3, 5, 3)), "Godot3"), [], GODOT_RENDER)
         self.assertIsNone(MODULE["godot_override"](godot3))
         self.assertFalse(Path(godot3.exe).with_name("override.cfg").exists())
 
@@ -3007,7 +3039,8 @@ class GodotRendererTest(unittest.TestCase):
         home = Path(self.tmp.name)
         config = home / ".config/droiddeck/game-environment.json"
         config.parent.mkdir(parents=True)
-        config.write_text(json.dumps({"version": 1, "games": {"2868840": {"DROIDDECK_GODOT_RENDERER": "forward_plus"}}}))
+        config.write_text(json.dumps({"version": 1, "shared": GODOT_RENDER,
+                                      "games": {"2868840": {"DROIDDECK_GODOT_RENDERER": "forward_plus"}}}))
         started = []
         stubs = {
             "game_gpu": lambda env: env, "mark_install_scripts": lambda command, env: [],
@@ -3037,7 +3070,7 @@ class GodotRendererTest(unittest.TestCase):
         exe = self.game(godot_pack(STS2_SETTINGS))
         prefix = Path(self.tmp.name) / "compatdata/2868840"
         user = prefix / "pfx/drive_c/users/steamuser/AppData/Roaming/SlayTheSpire2"
-        game = MODULE["Game"](exe, [], {"STEAM_COMPAT_DATA_PATH": str(prefix) + "/"})
+        game = MODULE["Game"](exe, [], dict(GODOT_RENDER, STEAM_COMPAT_DATA_PATH=str(prefix) + "/"))
         self.assertEqual(MODULE["godot_user_dir"](game), user)
         notes = MODULE["godot_files"](game)
         self.assertIn("Godot pipeline cache in %s: none yet" % user, notes)

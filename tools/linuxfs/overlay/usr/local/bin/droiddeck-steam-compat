@@ -1089,7 +1089,7 @@ class Helper:
 
     def reconcile_or_defer(self, why, explicit):
         """Reconcile now, or, for Steam's own file writes while a game runs, count it and reconcile once the game exits."""
-        if not explicit and COMPAT["game_running"]():
+        if not explicit and os.environ.get("DROIDDECK_EXP_COMPAT_QUIET") == "1" and COMPAT["game_running"]():
             self.deferred += 1
             self.deferred_checked = time.monotonic()
             say("reconcile deferred while a game runs (%s; %d deferred so far)" % (why, self.deferred))

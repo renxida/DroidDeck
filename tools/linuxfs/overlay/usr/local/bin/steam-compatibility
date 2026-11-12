@@ -893,7 +893,8 @@ def appinfo_entries(path, wanted=None):
                 raise ValueError("unknown appinfo field type %d" % kind)
 
     found = {}
-    version = appinfo_entry_version(magic) if needed is None and cached is None else None
+    quick = os.environ.get("DROIDDECK_EXP_ALL") == "1"
+    version = appinfo_entry_version(magic) if quick and needed is None and cached is None else None
     entry_cache = path + ".droiddeck-entries"
     saved_records = read_appinfo_entry_cache(entry_cache, version) if version else {}
     records = {}
@@ -916,8 +917,11 @@ def appinfo_entries(path, wanted=None):
             records[app] = saved
             continue
         try:
-            fields = MANIFEST_FIELDS if app == STEAM_PLAY_MANIFESTS else APP_FIELDS
-            info = section(start + header, fields, True)[0].get("appinfo", {})
+            if quick:
+                fields = MANIFEST_FIELDS if app == STEAM_PLAY_MANIFESTS else APP_FIELDS
+                info = section(start + header, fields, True)[0].get("appinfo", {})
+            else:
+                info = section(start + header)[0].get("appinfo", {})
         except (ValueError, IndexError, struct.error):
             continue
         if not isinstance(info, dict):
