@@ -187,18 +187,9 @@
     <string name="mode_steam_repair_hint">يُنزّل عميل Steam مجددًا في المرة التالية التي يبدأ فيها Steam. استخدمه إذا بقي Steam على شاشة التحميل. يتم الاحتفاظ بالألعاب وتسجيل الدخول والإعدادات.</string>
     <string name="mode_steam_repair_queued">سيتم تنزيل عميل Steam مجددًا في المرة التالية التي يبدأ فيها Steam.</string>
     <string name="mode_steam_repair_button">إصلاح</string>
-    <string name="mode_added_art">الصور الفنية</string>
     <string name="mode_sgdb_key">مفتاح API لـ SteamGridDB</string>
     <string name="mode_sgdb_key_yours">مفتاحك</string>
     <string name="mode_sgdb_edit">تعديل…</string>
-    <string name="mode_added_art_hint">يملأ الصور الناقصة من Steam، ثم من SteamGridDB. تكون الأولوية لملفات cover.jpg أو hero.jpg أو logo.png أو icon.png الخاصة بك في مجلد اللعبة.</string>
-    <string name="summary_remove_game">إزالة %1$s</string>
-    <string name="mode_added_remove_confirm">إزالة؟</string>
-    <string name="games_add">إضافة لعبة</string>
-    <string name="games_add_title">إضافة لعبة:</string>
-    <string name="games_pick_exe_title">اختر ملف exe:</string>
-    <string name="games_add_unreachable">هذا الموقع غير متاح في الجلسة</string>
-    <string name="mode_added_exe_check">فحص ملف exe هذا</string>
     <string name="wincomp_title">مكوّنات Windows</string>
     <string name="wincomp_pad_hint">يتنقل LB / RB بين الأقسام.</string>
     <string name="wincomp_card_none">لا شيء</string>
@@ -217,7 +208,6 @@
     </plurals>
     <string name="wincomp_auto_section">مفعّلة لهذه اللعبة</string>
     <string name="wincomp_auto_steam">يثبّت Steam %1$s مع %2$s (التطبيق %3$s)</string>
-    <string name="wincomp_steam_by_name">يثبّت Steam %1$s مع التطبيق %2$s، بالمطابقة حسب الاسم</string>
     <string name="wincomp_suggestions">مُدرجة أيضًا</string>
     <string name="wincomp_suggestion_reason">مُدرج من %1$s؛ ليس مكوّنًا هنا</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -775,24 +765,12 @@
     <string name="games_play_steam">تشغيل Steam</string>
     <string name="games_files">ملفات اللعبة</string>
     <string name="games_prefix">بادئة Proton</string>
-    <string name="games_saves_looking">جارٍ البحث عن الحفظ…</string>
-    <string name="games_saves_none">لم يتم العثور على مجلد حفظ بالاسم. يأخذ التصدير مجلد المستخدم بالكامل.</string>
-    <string name="games_saves_folders">%1$d مجلدات حفظ</string>
-    <string name="games_saves_summary">%1$s · %2$d ملفات · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">حفظ اللعبة</string>
-    <string name="games_import_saves">استيراد الحفظ…</string>
-    <string name="games_export_gamehub">تصدير بصيغة GameHub المضغوطة…</string>
-    <string name="games_export_winlator">تصدير بصيغة Winlator المضغوطة…</string>
-    <string name="games_open_save_folder">فتح مجلد الحفظ</string>
     <string name="games_never_played">لم يتم تشغيلها أبدًا</string>
     <string name="games_runtime_busy_percent">بيئة التشغيل مشغولة · %1$d%%</string>
     <string name="games_runtime_update">يتوفر تحديث لبيئة التشغيل</string>
     <string name="games_runtime_ready">● بيئة التشغيل جاهزة</string>
     <string name="games_internal">التخزين الداخلي</string>
     <string name="games_uninstall_body">يحذف ملفاتها ويزيلها من Steam.</string>
-    <string name="games_remove_title">إزالة %1$s؟</string>
-    <string name="games_remove_body">يحذف الاختصار وتبقى ملفات اللعبة.</string>
     <string name="gpu_checking">جارٍ البحث عن برامج التشغيل…</string>
     <string name="gpu_none_listed">لا توجد برامج تشغيل مُدرَجة حتى الآن. حدِّث للبحث عنها.</string>
     <string name="gpu_hide_other">إخفاء برامج التشغيل لوحدات GPU الأخرى</string>
@@ -871,7 +849,6 @@
     <string name="pip_unavailable">تعذّر على Android فتح نافذة ضمن النافذة.</string>
     <string name="game_more">المزيد</string>
     <string name="game_edit_art">تعديل الصور</string>
-    <string name="lib_in_steam_label">في Steam</string>
     <string name="game_shortcut">اختصار</string>
     <string name="game_shortcut_add">إضافة إلى الشاشة الرئيسية</string>
     <string name="game_shortcut_choose">اختيار لعبة</string>
@@ -898,35 +875,6 @@
     <string name="load_compat_hint">ستبدأ جلستك عند اكتمال الإعداد.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">انتظر حتى ينتهي التثبيت قبل تشغيل لعبة</string>
-    <string name="main_saves_close_session">أغلِق جلسة Steam أولاً حتى لا تحفظ اللعبة فوق الملفات المستورَدة</string>
-    <string name="main_saves_importing">الاستيراد إلى %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="zero">لم يتم استيراد أي ملف من %2$s إلى %3$s</item>
-        <item quantity="one">تم استيراد ملف واحد من %2$s إلى %3$s</item>
-        <item quantity="two">تم استيراد ملفين من %2$s إلى %3$s</item>
-        <item quantity="few">تم استيراد %1$d ملفات من %2$s إلى %3$s</item>
-        <item quantity="many">تم استيراد %1$d ملفًا من %2$s إلى %3$s</item>
-        <item quantity="other">تم استيراد %1$d ملف من %2$s إلى %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="zero">لم يتم استيراد أي ملف من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
-        <item quantity="one">تم استيراد ملف واحد من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
-        <item quantity="two">تم استيراد ملفين من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
-        <item quantity="few">تم استيراد %1$d ملفات من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
-        <item quantity="many">تم استيراد %1$d ملفًا من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">تم استيراد %1$d ملف من %2$s إلى %3$s. تم نسخ ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">اختر ملف zip لملفات حفظ %1$s</string>
-    <string name="main_saves_exporting">تصدير %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="zero">لم يتم تصدير أي ملف على هيئة %2$s: %3$s</item>
-        <item quantity="one">تم تصدير ملف واحد على هيئة %2$s: %3$s</item>
-        <item quantity="two">تم تصدير ملفين على هيئة %2$s: %3$s</item>
-        <item quantity="few">تم تصدير %1$d ملفات على هيئة %2$s: %3$s</item>
-        <item quantity="many">تم تصدير %1$d ملفًا على هيئة %2$s: %3$s</item>
-        <item quantity="other">تم تصدير %1$d ملف على هيئة %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">اختر مكان حفظ %1$s (%2$s)</string>
     <string name="main_action_failed">فشل %1$s: %2$s</string>
     <string name="main_no_logs_yet">لا توجد سجلات جلسات بعد: شغِّل جلسة أولاً.</string>
     <string name="main_no_logs_to_clear">لا توجد سجلات جلسات لمحوها.</string>
@@ -1132,7 +1080,6 @@
     <string name="game_sync_err_steam_library">مكتبة Steam غير متاحة</string>
     <string name="game_sync_err_previous_sd">مكتبة SD السابقة غير متاحة</string>
     <string name="game_sync_err_game_storage">مساحة تخزين الألعاب غير متاحة</string>
-    <string name="game_sync_err_added_games">مجلد الألعاب المضافة غير متاح</string>
     <string name="game_sync_err_manifests">ملفات البيان في Steam غير متاحة</string>
     <string name="fm_drive_internal">التخزين الداخلي</string>
     <string name="fm_drive_linux">نظام Linux</string>
@@ -1584,11 +1531,6 @@
     <string name="phantom_instructions_not_applicable">لا يستخدم إصدار Android هذا هذا الحدّ.</string>
     <string name="phantom_fix_toggle">فعِّل «إيقاف القيود المفروضة على العمليات الثانوية» في خيارات المطوّرين، واترك خيارات المطوّرين مفعَّلة بعد ذلك.</string>
     <string name="phantom_fix_no_toggle">لا يحتوي إصدار Android هذا على مفتاح لذلك. استخدِم تصحيح الأخطاء اللاسلكي لتغييره من هذا الجهاز.</string>
-    <string name="saves_layout_zip">ملف zip لـ %1$s</string>
-    <string name="saves_zip">ملف zip</string>
-    <string name="saves_not_launched">لم يتم تشغيل %1$s بعد</string>
-    <string name="saves_none_found">لم يتم العثور على ملفات حفظ لـ %1$s</string>
-    <string name="saves_not_save_zip">لا يحتوي %1$s على مجلد drive_c، فهو ليس ملف حفظ من GameHub أو Winlator</string>
     <string name="gstore_cannot_create">تعذّر إنشاء مجلدات في %1$s</string>
     <string name="gstore_cannot_write">تعذّرت الكتابة في %1$s</string>
     <string name="gstore_cannot_write_detail">تعذّرت الكتابة في %1$s (%2$s)</string>
@@ -1633,10 +1575,7 @@
     <string name="force_ssbs_title">فرض SSBS</string>
     <string name="force_ssbs_hint">يحافظ على إعداد سرعة لوحدة المعالجة (CPU) يستمر Wine في إيقافه. قد يجعل ألعاب Windows أسرع على Snapdragon 8 Elite؛ مع تغيّر طفيف على الشرائح الأقدم. يُطبَّق عند تشغيل اللعبة في المرة التالية.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">مخصَّص</string>
     <string name="lib_tab_library">المكتبة</string>
-    <string name="lib_tab_all">الكل</string>
     <string name="lib_search_library">البحث في مكتبتك…</string>
     <string name="lib_search_open">البحث</string>
     <string name="lib_nothing_matches">لا توجد ألعاب</string>
@@ -1666,16 +1605,10 @@
     <string name="lib_target_free">%1$s متاحة</string>
     <string name="common_close">إغلاق</string>
     <string name="common_back">رجوع</string>
-    <string name="games_add_all">إضافة كل الألعاب في هذا المجلد</string>
-    <string name="games_added_none">لا شيء جديد في هذا المجلد</string>
-    <string name="edit_name">الاسم</string>
-    <string name="edit_target">الهدف</string>
-    <string name="edit_start_in">بدء التشغيل في</string>
     <string name="edit_launch_options">خيارات التشغيل</string>
     <string name="edit_launch_options_steam_hint">مشتركة مع خصائص Steam: أي تغيير في أحدهما يظهر في كليهما.</string>
     <string name="edit_launch_options_not_saved">تعذّر حفظ خيارات التشغيل في Steam. حاول مرة أخرى.</string>
     <string name="edit_artwork">الصور الفنية</string>
-    <string name="edit_other_exe">ملف exe آخر…</string>
     <string name="edit_remove">إزالة</string>
     <string name="art_cover">الغلاف</string>
     <string name="art_wide_cover">غلاف عريض</string>
@@ -1696,11 +1629,9 @@
     <string name="art_background">الخلفية</string>
     <string name="art_logo">الشعار</string>
     <string name="art_icon">الأيقونة</string>
-    <string name="art_src_folder">مجلد اللعبة</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">ملفك</string>
-    <string name="art_src_exe">من ملف exe</string>
     <string name="art_src_auto">تلقائي</string>
     <string name="art_pick_image">اختيار صورة…</string>
     <string name="art_pick_title">اختيار صورة: %1$s</string>
@@ -1716,22 +1647,6 @@
     <string name="art_sgdb_offline">تعذّر الوصول إلى SteamGridDB. تحقق من الاتصال.</string>
     <string name="art_sgdb_server">حدث خطأ في SteamGridDB. حاول لاحقًا.</string>
     <string name="art_sgdb_no_game">لا نتائج لهذه اللعبة في SteamGridDB. جرّب البحث عنها.</string>
-    <plurals name="games_added_n">
-        <item quantity="zero">لم تتم إضافة أي لعبة</item>
-        <item quantity="one">تمت إضافة لعبة واحدة</item>
-        <item quantity="two">تمت إضافة لعبتين</item>
-        <item quantity="few">تمت إضافة %1$d ألعاب</item>
-        <item quantity="many">تمت إضافة %1$d لعبةً</item>
-        <item quantity="other">تمت إضافة %1$d لعبة</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="zero">لا توجد أي لعبة ضمن الألعاب بالفعل</item>
-        <item quantity="one">لعبة واحدة ضمن الألعاب بالفعل</item>
-        <item quantity="two">لعبتان ضمن الألعاب بالفعل</item>
-        <item quantity="few">%1$d ألعاب ضمن الألعاب بالفعل</item>
-        <item quantity="many">%1$d لعبةً ضمن الألعاب بالفعل</item>
-        <item quantity="other">%1$d لعبة ضمن الألعاب بالفعل</item>
-    </plurals>
     <string name="hop_back">B · العودة إلى %1$s</string>
     <string name="hop_from_games">اللعبة</string>
     <string name="sheet_graphics_drivers">برامج تشغيل الرسوميات</string>
@@ -2144,9 +2059,7 @@
     <string name="game_install_location">الموقع</string>
     <string name="game_install_folder">مجلد</string>
     <string name="game_install_size">الحجم على القرص</string>
-    <string name="library_filter_added">مُضافة</string>
     <string name="game_tab_launch">التشغيل</string>
-    <string name="game_launch_shortcut">اختصار Steam</string>
     <string name="game_install_played">آخر لعب</string>
     <string name="integration_title">تكامل Steam</string>
     <string name="integration_count">%1$d من %2$d مفعّلة</string>
@@ -2184,11 +2097,6 @@
     <string name="slow_usb_port">%1$s متصل عبر %2$s (%3$s ميغابت/ث، حوالي %4$d ميغابايت/ث). لا يدعم منفذ USB في هذا الجهاز سرعة أعلى، لذا ستُحمَّل الألعاب عليه ببطء. قد تكون الذاكرة الداخلية أو بطاقة microSD أسرع.</string>
     <string name="slow_usb_never">عدم الإظهار مرة أخرى</string>
     <string name="slow_usb_dismiss">إغلاق</string>
-    <string name="steam_import_title">هل تريد إعادة تشغيل Steam لإضافة ألعابك؟</string>
-    <string name="steam_import_body">يمكن لـ Steam إدراج هذه الألعاب التي تملكها كألعاب مثبتة: %1$s. يجب إعادة تشغيله لإظهارها. أعد التشغيل الآن، أو ستُضاف في المرة القادمة التي يبدأ فيها Steam.</string>
-    <string name="steam_import_names_more">%1$s و%2$d أخرى</string>
-    <string name="steam_import_now">إعادة التشغيل الآن</string>
-    <string name="steam_import_later">لاحقًا</string>
     <string name="input_reset_positions">إعادة تعيين المواضع</string>
     <string name="input_show_label">إظهار التسمية</string>
     <string name="input_layout_import_failed">تعذّر استيراد هذا التخطيط</string>

@@ -20,11 +20,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.SdCard
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material.icons.outlined.Visibility
@@ -63,10 +61,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.GameStorage
 import java.io.File
 
-internal enum class PickKind(val extensions: Set<String>) {
-    EXE(setOf("exe")),
-    IMAGE(setOf("png", "jpg", "jpeg", "webp", "ico")),
-}
+private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp", "ico")
 
 internal class PickVolume(val root: File, val label: String, val removable: Boolean) {
     val free: Long get() = runCatching { StatFs(root.path).availableBytes }.getOrDefault(0L)
@@ -82,19 +77,16 @@ internal class PickFolder(val dir: File, val readable: Boolean)
 
 internal class PickListing(val folders: List<PickFolder>, val files: List<File>)
 
-internal fun pickListing(dir: File, kind: PickKind, showHidden: Boolean = false): PickListing {
+internal fun pickListing(dir: File, showHidden: Boolean = false): PickListing {
     val all = dir.listFiles()?.filter { showHidden || !it.name.startsWith(".") }.orEmpty().sortedBy { it.name.lowercase() }
     return PickListing(
         all.filter { it.isDirectory }.map { PickFolder(it, it.canRead() && it.list() != null) },
-        all.filter { it.isFile && it.extension.lowercase() in kind.extensions },
+        all.filter { it.isFile && it.extension.lowercase() in IMAGE_EXTENSIONS },
     )
 }
 
 @Composable
-internal fun ExePickerDialog(
-    title: String, kind: PickKind = PickKind.EXE, start: File? = null,
-    onAddAll: ((File, Boolean) -> Unit)? = null, onPick: (File) -> Unit, onDismiss: () -> Unit,
-) {
+internal fun ImagePickerDialog(title: String, onPick: (File) -> Unit, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val density = LocalDensity.current
@@ -104,13 +96,13 @@ internal fun ExePickerDialog(
     val close = { shown.targetState = false }
     val volumes = remember { pickVolumes(ctx) }
     fun volumeOf(d: File) = volumes.filter { d.path == it.root.path || d.path.startsWith(it.root.path + "/") }.maxByOrNull { it.root.path.length }
-    var dir by remember { mutableStateOf(start?.takeIf { it.isDirectory && volumeOf(it) != null }) }
+    var dir by remember { mutableStateOf<File?>(null) }
     val volume = dir?.let { volumeOf(it) }
     val up = { dir = dir?.let { d -> if (volume == null || d.path == volume.root.path) null else d.parentFile } }
     val back = { if (dir == null) close() else up() }
     val first = remember(dir) { FocusRequester() }
     LaunchedEffect(dir) { focusWithinFrames({ false }) { first } }
-    val listing = remember(dir, showHidden) { dir?.let { pickListing(it, kind, showHidden) } }
+    val listing = remember(dir, showHidden) { dir?.let { pickListing(it, showHidden) } }
     var locked by remember { mutableStateOf<Dp?>(null) }
     AppDialog(
         shown, close, "filePicker", wide = false, maxWidth = 520.dp, width = locked, fitContent = locked == null, back = back,
@@ -146,14 +138,11 @@ internal fun ExePickerDialog(
                 } else {
                     val shownListing = listing ?: PickListing(emptyList(), emptyList())
                     PickerRow(Icons.AutoMirrored.Outlined.ArrowBack, "..", null, focus = first, onClick = up)
-                    if (onAddAll != null && shownListing.folders.any { it.readable }) {
-                        PickerRow(Icons.Filled.Add, stringResource(R.string.games_add_all), null, accent = true) { onAddAll(dir!!, showHidden); close() }
-                    }
                     for (f in shownListing.folders) key(f.dir.path) {
                         PickerRow(Icons.Outlined.Folder, f.dir.name, null, enabled = f.readable) { dir = f.dir }
                     }
                     for (f in shownListing.files) key(f.path) {
-                        PickerRow(if (kind == PickKind.IMAGE) Icons.Outlined.Image else Icons.Outlined.InsertDriveFile, f.name, formatBytes(f.length()), file = true) {
+                        PickerRow(Icons.Outlined.Image, f.name, formatBytes(f.length()), file = true) {
                             onPick(f); close()
                         }
                     }

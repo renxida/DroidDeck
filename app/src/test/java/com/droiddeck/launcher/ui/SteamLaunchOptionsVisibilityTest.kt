@@ -6,15 +6,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SteamLaunchOptionsVisibilityTest {
-    private fun game(library: String = "main") =
-        Library.SteamGame(42, "Test game", null, library)
+    private fun game() =
+        Library.SteamGame(42, "Test game", null, "main")
 
     @Test fun nativeSteamGamesExposeLaunchOptionsOutsideShortcutPicking() {
         assertTrue(canEditSteamLaunchOptions(game(), shortcutPicker = false))
     }
 
-    @Test fun pickerAndAddedGamesDoNotExposeSteamLaunchOptions() {
+    @Test fun shortcutPickingDoesNotExposeSteamLaunchOptions() {
         assertFalse(canEditSteamLaunchOptions(game(), shortcutPicker = true))
-        assertFalse(canEditSteamLaunchOptions(game(library = Library.ADDED), shortcutPicker = false))
     }
 }

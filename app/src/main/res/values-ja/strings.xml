@@ -187,18 +187,9 @@
     <string name="mode_steam_repair_hint">次回Steamの起動時にSteamクライアントを再ダウンロードします。Steamが読み込み画面のまま進まない場合に使用してください。ゲーム、ログイン情報、設定は保持されます。</string>
     <string name="mode_steam_repair_queued">次回Steamの起動時にSteamクライアントを再ダウンロードします。</string>
     <string name="mode_steam_repair_button">修復</string>
-    <string name="mode_added_art">アートワーク</string>
     <string name="mode_sgdb_key">SteamGridDB API キー</string>
     <string name="mode_sgdb_key_yours">自分のキー</string>
     <string name="mode_sgdb_edit">編集…</string>
-    <string name="mode_added_art_hint">不足しているアートワークをSteamから、次にSteamGridDBから補完します。ゲームフォルダ内のcover.jpg、hero.jpg、logo.png、icon.pngが優先されます。</string>
-    <string name="summary_remove_game">%1$sを削除</string>
-    <string name="mode_added_remove_confirm">削除？</string>
-    <string name="games_add">ゲームを追加</string>
-    <string name="games_add_title">ゲームを追加:</string>
-    <string name="games_pick_exe_title">exe を選択:</string>
-    <string name="games_add_unreachable">この場所はセッションから使えません</string>
-    <string name="mode_added_exe_check">この exe を確認</string>
     <string name="wincomp_title">Windowsコンポーネント</string>
     <string name="wincomp_pad_hint">LB / RBでセクション間を移動します。</string>
     <string name="wincomp_card_none">なし</string>
@@ -212,7 +203,6 @@
     </plurals>
     <string name="wincomp_auto_section">このゲームで有効</string>
     <string name="wincomp_auto_steam">Steamが%2$s（アプリ %3$s）と一緒に%1$sをインストールします</string>
-    <string name="wincomp_steam_by_name">Steamがアプリ %2$sと一緒に%1$sをインストールします（名前で一致）</string>
     <string name="wincomp_suggestions">その他のリスト</string>
     <string name="wincomp_suggestion_reason">%1$sのリストにあります。ここではコンポーネントではありません</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -760,24 +750,12 @@
     <string name="games_play_steam">Steamを実行</string>
     <string name="games_files">ゲームファイル</string>
     <string name="games_prefix">Protonプレフィックス</string>
-    <string name="games_saves_looking">セーブデータを検索中…</string>
-    <string name="games_saves_none">名前でセーブフォルダが見つかりませんでした。エクスポート時にはユーザーフォルダ全体が含まれます。</string>
-    <string name="games_saves_folders">%1$d 個のセーブフォルダ</string>
-    <string name="games_saves_summary">%1$s · %2$d 個のファイル · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">ゲームセーブデータ</string>
-    <string name="games_import_saves">セーブデータをインポート…</string>
-    <string name="games_export_gamehub">GameHubアーカイブとしてエクスポート…</string>
-    <string name="games_export_winlator">Winlatorアーカイブとしてエクスポート…</string>
-    <string name="games_open_save_folder">セーブフォルダを開く</string>
     <string name="games_never_played">未プレイ</string>
     <string name="games_runtime_busy_percent">実行環境は使用中 · %1$d%%</string>
     <string name="games_runtime_update">実行環境にアップデートがあります</string>
     <string name="games_runtime_ready">● 実行環境の準備完了</string>
     <string name="games_internal">内部ストレージ</string>
     <string name="games_uninstall_body">ファイルを削除し、Steamからも削除します。</string>
-    <string name="games_remove_title">%1$sを削除しますか？</string>
-    <string name="games_remove_body">ショートカットを削除します。ゲームファイルは残ります。</string>
     <string name="gpu_checking">ドライバーを確認中…</string>
     <string name="gpu_none_listed">ドライバーがまだ一覧表示されていません。更新してドライバーを検索してください。</string>
     <string name="gpu_hide_other">他のGPUのドライバーを非表示</string>
@@ -856,7 +834,6 @@
     <string name="pip_unavailable">Androidがピクチャーインピクチャーを開けませんでした。</string>
     <string name="game_more">その他</string>
     <string name="game_edit_art">アートを編集</string>
-    <string name="lib_in_steam_label">Steamに追加済み</string>
     <string name="game_shortcut">ショートカット</string>
     <string name="game_shortcut_add">ホーム画面に追加</string>
     <string name="game_shortcut_choose">ゲームを選択</string>
@@ -883,20 +860,6 @@
     <string name="load_compat_hint">セットアップが完了するとセッションが開始します。</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">インストールが完了してからゲームを起動してください</string>
-    <string name="main_saves_close_session">インポートしたデータがゲームに上書き保存されないよう、先にSteamセッションを終了してください</string>
-    <string name="main_saves_importing">%1$sにインポート中</string>
-    <plurals name="main_saves_imported">
-        <item quantity="other">%2$sから%1$d個のファイルを%3$sにインポートしました</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="other">%2$sから%1$d個のファイルを%3$sにインポートしました。以前のセーブデータはDownload/DroidDeck/Saves/backupsにバックアップされました</item>
-    </plurals>
-    <string name="main_saves_pick_zip">%1$sのセーブデータzipを選択</string>
-    <string name="main_saves_exporting">%1$sをエクスポート中</string>
-    <plurals name="main_saves_exported">
-        <item quantity="other">%1$d個のファイルを%2$sとしてエクスポートしました：%3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">%1$sの保存先を選択（%2$s）</string>
     <string name="main_action_failed">%1$sに失敗しました：%2$s</string>
     <string name="main_no_logs_yet">セッションログはまだありません。先にセッションを実行してください。</string>
     <string name="main_no_logs_to_clear">消去するセッションログはありません。</string>
@@ -1072,7 +1035,6 @@
     <string name="game_sync_err_steam_library">Steamライブラリを利用できません</string>
     <string name="game_sync_err_previous_sd">以前のSDライブラリを利用できません</string>
     <string name="game_sync_err_game_storage">ゲームストレージを利用できません</string>
-    <string name="game_sync_err_added_games">追加したゲームのフォルダを利用できません</string>
     <string name="game_sync_err_manifests">Steamのマニフェストを利用できません</string>
     <string name="fm_drive_internal">内部</string>
     <string name="fm_drive_linux">Linux システム</string>
@@ -1489,11 +1451,6 @@
     <string name="phantom_instructions_not_applicable">このAndroidバージョンではこの制限は使用されません。</string>
     <string name="phantom_fix_toggle">開発者向けオプションで「子プロセスの制限を無効化」をオンにし、その後も開発者向けオプションをオンのままにしてください。</string>
     <string name="phantom_fix_no_toggle">このAndroidバージョンにはこのスイッチがありません。ワイヤレスデバッグを使って、このデバイスから変更してください。</string>
-    <string name="saves_layout_zip">%1$s zip</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$sはまだ起動されていません</string>
-    <string name="saves_none_found">%1$sのセーブファイルが見つかりません</string>
-    <string name="saves_not_save_zip">%1$sにはdrive_cフォルダがないため、GameHubまたはWinlatorのセーブデータzipではありません</string>
     <string name="gstore_cannot_create">%1$sにフォルダを作成できません</string>
     <string name="gstore_cannot_write">%1$sに書き込めません</string>
     <string name="gstore_cannot_write_detail">%1$sに書き込めません（%2$s）</string>
@@ -1538,10 +1495,7 @@
     <string name="force_ssbs_title">SSBSを強制</string>
     <string name="force_ssbs_hint">Wineがオフにし続けるCPUの速度設定をオンに保ちます。Snapdragon 8 EliteではWindowsゲームが速くなることがあります。古いチップではほとんど変化がありません。次のゲーム起動時に反映されます。</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">カスタム</string>
     <string name="lib_tab_library">ライブラリ</string>
-    <string name="lib_tab_all">すべて</string>
     <string name="lib_search_library">ライブラリを検索…</string>
     <string name="lib_search_open">検索</string>
     <string name="lib_nothing_matches">ゲームがありません</string>
@@ -1571,16 +1525,10 @@
     <string name="lib_target_free">空き %1$s</string>
     <string name="common_close">閉じる</string>
     <string name="common_back">戻る</string>
-    <string name="games_add_all">このフォルダのゲームをすべて追加</string>
-    <string name="games_added_none">このフォルダに新しいゲームはありません</string>
-    <string name="edit_name">名前</string>
-    <string name="edit_target">ターゲット</string>
-    <string name="edit_start_in">開始フォルダ</string>
     <string name="edit_launch_options">起動オプション</string>
     <string name="edit_launch_options_steam_hint">Steam のプロパティと共通です。どちらかで変更すると両方に反映されます。</string>
     <string name="edit_launch_options_not_saved">起動オプションを Steam に保存できませんでした。もう一度お試しください。</string>
     <string name="edit_artwork">アートワーク</string>
-    <string name="edit_other_exe">別の exe…</string>
     <string name="edit_remove">削除</string>
     <string name="art_cover">カバー</string>
     <string name="art_wide_cover">ワイドカバー</string>
@@ -1601,11 +1549,9 @@
     <string name="art_background">背景</string>
     <string name="art_logo">ロゴ</string>
     <string name="art_icon">アイコン</string>
-    <string name="art_src_folder">ゲームフォルダ</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">自分のファイル</string>
-    <string name="art_src_exe">exe から</string>
     <string name="art_src_auto">自動</string>
     <string name="art_pick_image">画像を選択…</string>
     <string name="art_pick_title">画像を選択: %1$s</string>
@@ -1621,12 +1567,6 @@
     <string name="art_sgdb_offline">SteamGridDB に接続できません。ネットワーク接続を確認してください。</string>
     <string name="art_sgdb_server">SteamGridDB で問題が発生しました。しばらくしてからお試しください。</string>
     <string name="art_sgdb_no_game">SteamGridDB にこのゲームの一致がありません。検索をお試しください。</string>
-    <plurals name="games_added_n">
-        <item quantity="other">%1$d 本のゲームを追加しました</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="other">%1$d 本はすでにゲームにあります</item>
-    </plurals>
     <string name="hop_back">B · %1$sに戻る</string>
     <string name="hop_from_games">ゲーム</string>
     <string name="sheet_graphics_drivers">グラフィックドライバー</string>
@@ -2002,9 +1942,7 @@
     <string name="game_install_location">場所</string>
     <string name="game_install_folder">フォルダ</string>
     <string name="game_install_size">ディスク上のサイズ</string>
-    <string name="library_filter_added">追加したゲーム</string>
     <string name="game_tab_launch">起動</string>
-    <string name="game_launch_shortcut">Steam ショートカット</string>
     <string name="game_install_played">最終プレイ</string>
     <string name="integration_title">Steam連携</string>
     <string name="integration_count">%2$d件中%1$d件がオン</string>
@@ -2042,11 +1980,6 @@
     <string name="slow_usb_port">%1$s は %2$s（%3$s Mbps、約 %4$d MB/s）で接続されています。この端末の USB ポートはこれ以上速くならないため、ゲームの読み込みが遅くなります。内部ストレージや microSD カードの方が速い場合があります。</string>
     <string name="slow_usb_never">今後表示しない</string>
     <string name="slow_usb_dismiss">閉じる</string>
-    <string name="steam_import_title">ゲームを追加するために Steam を再起動しますか?</string>
-    <string name="steam_import_body">所有している次のゲームを Steam でインストール済みとして表示できます: %1$s。表示するには Steam の再起動が必要です。今すぐ再起動するか、次に Steam を起動したときに追加されます。</string>
-    <string name="steam_import_names_more">%1$s ほか %2$d 件</string>
-    <string name="steam_import_now">今すぐ再起動</string>
-    <string name="steam_import_later">後で</string>
     <string name="input_reset_positions">位置をリセット</string>
     <string name="input_show_label">ラベルを表示</string>
     <string name="input_layout_import_failed">このレイアウトをインポートできませんでした</string>

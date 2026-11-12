@@ -2,7 +2,6 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.os.storage.StorageManager
-import com.droiddeck.launcher.frontend.AddedGames
 import java.io.File
 
 object UsbLink {
@@ -49,7 +48,7 @@ object UsbLink {
             "" -> GameStorage.effective(context)?.path
             else -> pref
         }
-        val folders = runCatching { AddedGames.roots(context).map { it.host.absolutePath } }.getOrDefault(emptyList())
+        val folders = runCatching { GameFolders.roots(context).map { it.host.absolutePath } }.getOrDefault(emptyList())
         return (listOfNotNull(storage) + folders).map(::storagePath).filter { external(it) }.distinct()
     }
 

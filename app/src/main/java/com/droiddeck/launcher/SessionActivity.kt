@@ -255,8 +255,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var gestureGame: String? = null
     private var gameStarts by mutableIntStateOf(0)
     private var gestureSettingsOpen by mutableStateOf(false)
-    private var steamImportAsk by mutableStateOf<com.droiddeck.launcher.session.SteamImportPrompt.Ask?>(null)
-    private var steamImportAnswered: String? = null
     private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)
     private var relativeMouseMode by mutableIntStateOf(0)
     @Volatile private var appliedRelativeMouseMode: Int? = null
@@ -851,29 +849,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         refreshControls()
                     },
                 )
-                LaunchedEffect(Unit) {
-                    val root = LinuxRuntime.rootDir(this@SessionActivity)
-                    while (true) {
-                        val ask = if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) {
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.session.SteamImportPrompt.read(root) }
-                        } else null
-                        steamImportAsk = ask?.takeIf { it.token != steamImportAnswered }
-                        kotlinx.coroutines.delay(1500)
-                    }
-                }
-                steamImportAsk?.takeIf { !loading.visible }?.let { ask ->
-                    androidx.compose.runtime.key(ask.token) {
-                        com.droiddeck.launcher.ui.SteamImportDialog(ask.games) { now ->
-                            val root = LinuxRuntime.rootDir(this@SessionActivity)
-                            Thread({
-                                if (com.droiddeck.launcher.session.SteamImportPrompt.answer(root, ask.token, now)) runOnUiThread {
-                                    steamImportAnswered = ask.token
-                                    if (steamImportAsk?.token == ask.token) steamImportAsk = null
-                                }
-                            }, "steam-import-answer").start()
-                        }
-                    }
-                }
                 if (gestureSettingsOpen) com.droiddeck.launcher.ui.TouchGestureDialog(
                     game = gestureGame,
                     onDismiss = { gestureSettingsOpen = false },
@@ -1800,7 +1775,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 intent.getStringExtra(SessionService.EXTRA_GAME_ID),
                 sessionActivityDisplayId,
             )
-            intent.getStringExtra(EXTRA_PLAYED_GAME)?.let { com.droiddeck.launcher.frontend.Library.recordPlayed(this, it) }
         }
         applyFrameGen()
         applyGameAlignment()
@@ -4273,7 +4247,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     companion object {
         const val EXTRA_RETURN_HOME = "returnHome"
         const val EXTRA_LINK_TASK = "linkTask"
-        const val EXTRA_PLAYED_GAME = "com.droiddeck.launcher.PLAYED_GAME"
         const val EXTRA_REPAIR_RUNTIME = "repairRuntime"
         private const val PAUSED_FRAME_MAX_EDGE = 1920f
         private const val PAUSED_FRAME_REDRAW_MS = 150L

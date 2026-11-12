@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.storage.StorageManager
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.files.StorageRoots
-import com.droiddeck.launcher.frontend.AddedGames
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
@@ -57,7 +56,7 @@ object SteamLibraries {
         val host = canonical(File(path))
         if (taken(context, entries).any { overlaps(it, host) }) return AddResult.Refused(context.getString(R.string.libraries_overlap))
         // Adding a Games folder itself is fine; a child of one would make it overlap and hide the rest of that folder.
-        if (AddedGames.roots(context).any { host.startsWith(canonical(it.host) + "/") }) return AddResult.Refused(context.getString(R.string.libraries_overlap))
+        if (GameFolders.roots(context).any { host.startsWith(canonical(it.host) + "/") }) return AddResult.Refused(context.getString(R.string.libraries_overlap))
         GameStorage.prepare(context, path)?.let { return AddResult.Refused(it) }
         synchronized(lock) {
             val current = list(context)
@@ -83,7 +82,7 @@ object SteamLibraries {
     fun found(context: Context): List<Found> {
         val entries = list(context)
         val taken = taken(context, entries) + GameStorage.gamesFolderLibraries(context).map { canonical(it.host) }
-        val gamesFolders = AddedGames.roots(context).map { canonical(it.host) }
+        val gamesFolders = GameFolders.roots(context).map { canonical(it.host) }
         val hits = ArrayList<Pair<File, Int>>()
         for (root in StorageRoots.list(context)) {
             if (!root.readable) continue
@@ -138,12 +137,25 @@ object SteamLibraries {
 
     /** Finished downloads another client left without a Steam manifest; the importer registers them from depot.config. */
     fun depotInstalls(common: File): List<File> {
-        val managed = AddedGames.steamInstallDirs(common)
+        val managed = steamInstallDirs(common)
         return common.listFiles { f ->
             f.isDirectory && f.name.lowercase() !in managed &&
                 File(f, ".download_complete").isFile && depotRecord(File(f, ".DepotDownloader"))
         }.orEmpty().sortedBy { it.name.lowercase() }
     }
+
+    internal fun steamInstallDirs(dir: File): Set<String> {
+        val steamapps = dir.parentFile?.takeIf { dir.name == "common" && it.name == "steamapps" } ?: return emptySet()
+        return steamapps.listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }
+            .orEmpty()
+            .mapNotNull { manifest ->
+                runCatching { INSTALL_DIR.find(manifest.readText())?.groupValues?.get(1)?.trim()?.lowercase() }.getOrNull()
+            }
+            .filter { it.isNotEmpty() }
+            .toSet()
+    }
+
+    private val INSTALL_DIR = Regex("\"installdir\"\\s*\"([^\"]*)\"", RegexOption.IGNORE_CASE)
 
     private fun depotRecord(dir: File): Boolean = File(dir, "depot.config").isFile ||
         File(dir, "completed").list()?.any { it.matches(Regex("\\d+_\\d+\\.manifest")) } == true

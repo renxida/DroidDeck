@@ -48,3 +48,32 @@ spinner while real work runs (runtime install, session loading, resuming, compon
 shortcut label, second-screen "Desktop" hint; `main_wait_desktop_install` → `main_wait_install`;
 store-named prefs and functions (`storesSort` → `librarySort` etc.). Steam's own desktop UI
 mode, Wine's virtual desktop and the Desktop input profile (Steam desktop UI) stay.
+
+## Added games removed
+
+"I just want steam and steam games": the non-Steam **Add a Windows game** feature is gone, with
+its pickers (folder, EXE), the added-games scan, cache and publisher, SteamMatch, the per-game
+Saves tab (GameHub/Winlator save zips, reachable only for added games), the Library source
+filter and badges, the shortcut fields on game pages, the art toggle for added games, and
+their strings in every locale, tests and `docs/development/added-games.md`.
+
+Kept because Steam games use them: the art chooser (now `GameArt`/`GameArtEditor`, Steam and
+SteamGridDB images and a local image file), `SteamLive` (launch options, art and logo position
+in the running client), the image picker, launching without Steam (`--app <id>`), and the
+SteamGridDB key. Folders added as games folders before this build stay bound in the guest
+(`GameFolders`), so a Steam library inside one keeps working; nothing else is read from them.
+
+Guest side, the app no longer sets `BL_ADDED_GAMES`, so the session's shortcut writer, the
+import watcher (`droiddeck-steam-games watch`) and its "restart Steam to add games" prompt
+are removed. `droiddeck-steam-games` keeps only `probe` (Lossless Scaling ownership) and
+`droiddeck-steam-shortcuts` only the account and `shortcuts.vdf` helpers that
+`droiddeck-proton-run` reads for Steam launch options of the user's own Steam shortcuts.
+The import doc became `steam-ownership-and-art.md`.
+
+## Storage permission
+
+Asked at start only while `WRITE_EXTERNAL_STORAGE` is not granted (`StartupPermissions`,
+with a unit test). The app targets SDK 28, so the grant is permanent: storage has no
+"only this time" choice, and a return visit asks nothing. If the user denies it, Android
+asks again on the next start until they pick "Don't ask again" (API 26-29) or deny twice
+(API 30+), after which the request returns without a dialog.

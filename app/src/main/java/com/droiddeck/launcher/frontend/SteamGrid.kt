@@ -12,24 +12,20 @@ object SteamGrid {
 
     internal val lock = Any()
     private const val MANIFEST = ".droiddeck-art.json"
-    private val SUFFIX = mapOf(AddedGameArt.Slot.COVER to "p", AddedGameArt.Slot.WIDE to "", AddedGameArt.Slot.BACKGROUND to "_hero", AddedGameArt.Slot.LOGO to "_logo")
+    private val SUFFIX = mapOf(GameArt.Slot.COVER to "p", GameArt.Slot.WIDE to "", GameArt.Slot.BACKGROUND to "_hero", GameArt.Slot.LOGO to "_logo")
     private val EXTS = listOf("png", "jpg", "jpeg", "webp")
 
-    class Target(val artDir: File, val id: Long, val setSource: (AddedGameArt.Slot, String) -> Unit)
+    class Target(val artDir: File, val id: Long, val setSource: (GameArt.Slot, String) -> Unit)
 
     fun target(game: Library.SteamGame, context: Context) = Target(SteamGameArt.dir(context, game.appId), game.appId.toLong()) { slot, value ->
         SteamGameArt.setSource(context, game.appId, slot, value)
     }
 
-    fun target(game: AddedGames.Game, context: Context) = Target(AddedGameArt.cacheDir(context, game), game.appId and 0xFFFFFFFFL) { slot, value ->
-        SessionPrefs.setAddedGameArtSource(context, game.folder.path, slot.key, value)
-    }
-
     internal fun dir(context: Context): File? {
-        return AddedGames.accountConfig(SessionPrefs.activeSteamRoot(context))?.let { File(it, "grid") }
+        return Library.steamAccountConfig(SessionPrefs.activeSteamRoot(context))?.let { File(it, "grid") }
     }
 
-    private fun files(grid: File, id: Long, slot: AddedGameArt.Slot): List<File> =
+    private fun files(grid: File, id: Long, slot: GameArt.Slot): List<File> =
         EXTS.map { File(grid, "$id${SUFFIX[slot]}.$it") }.filter { it.isFile }
 
     private fun signature(file: File?) = if (file == null) "" else "${file.length()}:${file.lastModified()}"
@@ -37,7 +33,7 @@ object SteamGrid {
     private fun sigName(context: Context, key: String) =
         if (SessionPrefs.activeSteamClientArch(context) == "x86_64") "grid-x86_64-$key" else "grid-$key"
 
-    private fun sigFile(context: Context, target: Target, slot: AddedGameArt.Slot) = File(target.artDir, sigName(context, slot.key))
+    private fun sigFile(context: Context, target: Target, slot: GameArt.Slot) = File(target.artDir, sigName(context, slot.key))
 
     private const val GRID_ID = ".droiddeck-grid"
     private const val UNKNOWN_GRID = "?"
@@ -65,10 +61,10 @@ object SteamGrid {
         file.writeText("${gridId(grid)}\n$value")
     }
 
-    private fun recorded(context: Context, grid: File, target: Target, slot: AddedGameArt.Slot): String? =
+    private fun recorded(context: Context, grid: File, target: Target, slot: GameArt.Slot): String? =
         readRecord(grid, sigFile(context, target, slot))
 
-    private fun record(context: Context, grid: File, target: Target, slot: AddedGameArt.Slot, value: String) =
+    private fun record(context: Context, grid: File, target: Target, slot: GameArt.Slot, value: String) =
         writeRecord(grid, target, sigFile(context, target, slot), value)
 
     private fun writtenByDroidDeck(grid: File): Set<String> = runCatching {
@@ -76,9 +72,9 @@ object SteamGrid {
         manifest.keys().asSequence().filter { name -> File(grid, name).let { it.isFile && it.length() == manifest.optLong(name, -1L) } }.toSet()
     }.getOrDefault(emptySet())
 
-    fun write(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?): Boolean = synchronized(lock) { place(context, target, slot, file) }
+    fun write(context: Context, target: Target, slot: GameArt.Slot, file: File?): Boolean = synchronized(lock) { place(context, target, slot, file) }
 
-    private fun place(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?): Boolean {
+    private fun place(context: Context, target: Target, slot: GameArt.Slot, file: File?): Boolean {
         val suffix = SUFFIX[slot] ?: return true
         val grid = dir(context) ?: return true
         if (file == null) {
@@ -182,7 +178,7 @@ object SteamGrid {
         var changed = false
         for (target in targets) for (slot in SUFFIX.keys) {
             try {
-                val own = AddedGameArt.chosen(target.artDir, slot)
+                val own = GameArt.chosen(target.artDir, slot)
                 val present = files(grid, target.id, slot)
                 val theirs = present.filter { it.name !in ours }.maxByOrNull { it.lastModified() }
                 val now = signature(theirs)
@@ -192,8 +188,8 @@ object SteamGrid {
                     before == null || now != before -> {
                         if (theirs != null) {
                             if (own != null && own.length() == theirs.length() && own.readBytes().contentEquals(theirs.readBytes())) record(context, grid, target, slot, now)
-                            else if (AddedGameArt.store(target.artDir, slot, AddedGameArt.Option(AddedGameArt.STEAM, theirs.path, theirs.path))) {
-                                target.setSource(slot, AddedGameArt.STEAM + "|steam-client")
+                            else if (GameArt.store(target.artDir, slot, GameArt.Option(GameArt.STEAM, theirs.path, theirs.path))) {
+                                target.setSource(slot, GameArt.STEAM + "|steam-client")
                                 record(context, grid, target, slot, now)
                                 changed = true
                             }

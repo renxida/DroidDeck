@@ -187,18 +187,9 @@
     <string name="mode_steam_repair_hint">Downloader Steam-klienten igen, næste gang Steam starter. Brug det, hvis Steam bliver hængende på sin indlæsningsskærm. Spil, login og indstillinger bevares.</string>
     <string name="mode_steam_repair_queued">Steam-klienten downloades igen, næste gang Steam starter.</string>
     <string name="mode_steam_repair_button">Reparer</string>
-    <string name="mode_added_art">Grafik</string>
     <string name="mode_sgdb_key">SteamGridDB API-nøgle</string>
     <string name="mode_sgdb_key_yours">Din nøgle</string>
     <string name="mode_sgdb_edit">Rediger…</string>
-    <string name="mode_added_art_hint">Udfylder manglende grafik fra Steam, derefter SteamGridDB. Din egen cover.jpg, hero.jpg, logo.png eller icon.png i spillets mappe har forrang.</string>
-    <string name="summary_remove_game">Fjern %1$s</string>
-    <string name="mode_added_remove_confirm">Fjern?</string>
-    <string name="games_add">Tilføj spil</string>
-    <string name="games_add_title">Tilføj et spil:</string>
-    <string name="games_pick_exe_title">Vælg exe-filen:</string>
-    <string name="games_add_unreachable">Denne placering er ikke tilgængelig i sessionen</string>
-    <string name="mode_added_exe_check">Kontroller denne exe-fil</string>
     <string name="wincomp_title">Windows-komponenter</string>
     <string name="wincomp_pad_hint">LB/RB skifter mellem afsnittene.</string>
     <string name="wincomp_card_none">Ingen</string>
@@ -213,7 +204,6 @@
     </plurals>
     <string name="wincomp_auto_section">Til for dette spil</string>
     <string name="wincomp_auto_steam">Steam installerer %1$s med %2$s (app %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam installerer %1$s med app %2$s, matchet efter navn</string>
     <string name="wincomp_suggestions">Også på listen</string>
     <string name="wincomp_suggestion_reason">Angivet af %1$s; ikke en komponent her</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -763,24 +753,12 @@
     <string name="games_play_steam">Spil Steam</string>
     <string name="games_files">Spilfiler</string>
     <string name="games_prefix">Proton-prefix</string>
-    <string name="games_saves_looking">Søger efter gemte spil…</string>
-    <string name="games_saves_none">Ingen savemappe fundet ved navn. Eksport tager hele brugermappen.</string>
-    <string name="games_saves_folders">%1$d savemapper</string>
-    <string name="games_saves_summary">%1$s · %2$d filer · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Gemte spil</string>
-    <string name="games_import_saves">Importer gemte spil…</string>
-    <string name="games_export_gamehub">Eksporter som GameHub-zip…</string>
-    <string name="games_export_winlator">Eksporter som Winlator-zip…</string>
-    <string name="games_open_save_folder">Åbn savemappe</string>
     <string name="games_never_played">Aldrig spillet</string>
     <string name="games_runtime_busy_percent">Runtime optaget · %1$d%%</string>
     <string name="games_runtime_update">Runtimeopdatering tilgængelig</string>
     <string name="games_runtime_ready">● Runtime klar</string>
     <string name="games_internal">Internt lager</string>
     <string name="games_uninstall_body">Sletter dets filer og fjerner det fra Steam.</string>
-    <string name="games_remove_title">Fjern %1$s?</string>
-    <string name="games_remove_body">Sletter genvejen. Spillets filer bliver.</string>
     <string name="gpu_checking">Søger efter drivere…</string>
     <string name="gpu_none_listed">Ingen drivere på listen endnu. Opdater for at søge efter dem.</string>
     <string name="gpu_hide_other">Skjul drivere til andre GPU’er</string>
@@ -859,7 +837,6 @@
     <string name="pip_unavailable">Android kunne ikke åbne billede i billede.</string>
     <string name="game_more">Mere</string>
     <string name="game_edit_art">Rediger grafik</string>
-    <string name="lib_in_steam_label">I Steam</string>
     <string name="game_shortcut">Genvej</string>
     <string name="game_shortcut_add">Tilføj til hjemmeskærm</string>
     <string name="game_shortcut_choose">Vælg spil</string>
@@ -886,23 +863,6 @@
     <string name="load_compat_hint">Din session starter, når opsætningen er færdig.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Vent til installationen er færdig, før du starter et spil</string>
-    <string name="main_saves_close_session">Luk Steam-sessionen først, så spillet ikke overskriver importen</string>
-    <string name="main_saves_importing">Importerer til %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">Importerede %1$d fil fra %2$s til %3$s</item>
-        <item quantity="other">Importerede %1$d filer fra %2$s til %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">Importerede %1$d fil fra %2$s til %3$s. Gamle gemte spil sikkerhedskopieret til Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">Importerede %1$d filer fra %2$s til %3$s. Gamle gemte spil sikkerhedskopieret til Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Vælg en zip med gemte spil til %1$s</string>
-    <string name="main_saves_exporting">Eksporterer %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">Eksporterede %1$d fil som %2$s: %3$s</item>
-        <item quantity="other">Eksporterede %1$d filer som %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Vælg, hvor %1$s skal gemmes (%2$s)</string>
     <string name="main_action_failed">%1$s mislykkedes: %2$s</string>
     <string name="main_no_logs_yet">Ingen sessionslogs endnu: kør en session først.</string>
     <string name="main_no_logs_to_clear">Ingen sessionslogs at rydde.</string>
@@ -1084,7 +1044,6 @@
     <string name="game_sync_err_steam_library">Steam-biblioteket er ikke tilgængeligt</string>
     <string name="game_sync_err_previous_sd">Det tidligere SD-bibliotek er ikke tilgængeligt</string>
     <string name="game_sync_err_game_storage">Spillagring er ikke tilgængelig</string>
-    <string name="game_sync_err_added_games">Mappen med tilføjede spil er ikke tilgængelig</string>
     <string name="game_sync_err_manifests">Steam-manifester er ikke tilgængelige</string>
     <string name="fm_drive_internal">Intern</string>
     <string name="fm_drive_linux">Linux-system</string>
@@ -1508,11 +1467,6 @@
     <string name="phantom_instructions_not_applicable">Denne Android-version bruger ikke denne grænse.</string>
     <string name="phantom_fix_toggle">Tænd „Deaktiver begrænsningerne for underprocesser“ i Udvikleremuligheder, og lad Udvikleremuligheder være tændt bagefter.</string>
     <string name="phantom_fix_no_toggle">Denne Android-version har ingen kontakt til det. Brug Trådløs fejlretning til at ændre det fra denne enhed.</string>
-    <string name="saves_layout_zip">%1$s-zip</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s er ikke startet endnu</string>
-    <string name="saves_none_found">Ingen gemte filer fundet for %1$s</string>
-    <string name="saves_not_save_zip">%1$s har ingen drive_c-mappe, så det er ikke en gemt-zip fra GameHub eller Winlator</string>
     <string name="gstore_cannot_create">kan ikke oprette mapper i %1$s</string>
     <string name="gstore_cannot_write">kan ikke skrive i %1$s</string>
     <string name="gstore_cannot_write_detail">kan ikke skrive i %1$s (%2$s)</string>
@@ -1557,10 +1511,7 @@
     <string name="force_ssbs_title">Tving SSBS</string>
     <string name="force_ssbs_hint">Bevarer en CPU-hastighedsindstilling, som Wine hele tiden slår fra. Kan gøre Windows-spil hurtigere på Snapdragon 8 Elite; lille ændring set på ældre chips. Træder i kraft ved næste spilstart.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Brugerdefineret</string>
     <string name="lib_tab_library">Bibliotek</string>
-    <string name="lib_tab_all">Alle</string>
     <string name="lib_search_library">Søg i dit bibliotek…</string>
     <string name="lib_search_open">Søg</string>
     <string name="lib_nothing_matches">Ingen spil</string>
@@ -1590,16 +1541,10 @@
     <string name="lib_target_free">%1$s fri</string>
     <string name="common_close">Luk</string>
     <string name="common_back">Tilbage</string>
-    <string name="games_add_all">Tilføj alle spil i denne mappe</string>
-    <string name="games_added_none">Intet nyt i denne mappe</string>
-    <string name="edit_name">Navn</string>
-    <string name="edit_target">Mål</string>
-    <string name="edit_start_in">Start i</string>
     <string name="edit_launch_options">Startindstillinger</string>
     <string name="edit_launch_options_steam_hint">Delt med Egenskaber i Steam: en ændring det ene sted vises begge steder.</string>
     <string name="edit_launch_options_not_saved">Startindstillingerne kunne ikke gemmes i Steam. Prøv igen.</string>
     <string name="edit_artwork">Grafik</string>
-    <string name="edit_other_exe">Anden exe…</string>
     <string name="edit_remove">Fjern</string>
     <string name="art_cover">Omslag</string>
     <string name="art_wide_cover">Bredt omslag</string>
@@ -1620,11 +1565,9 @@
     <string name="art_background">Baggrund</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Ikon</string>
-    <string name="art_src_folder">Spilmappe</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Din fil</string>
-    <string name="art_src_exe">Fra exe-filen</string>
     <string name="art_src_auto">Automatisk</string>
     <string name="art_pick_image">Vælg billede…</string>
     <string name="art_pick_title">Vælg et billede: %1$s</string>
@@ -1640,14 +1583,6 @@
     <string name="art_sgdb_offline">SteamGridDB kan ikke nås. Tjek forbindelsen.</string>
     <string name="art_sgdb_server">Noget gik galt hos SteamGridDB. Prøv igen senere.</string>
     <string name="art_sgdb_no_game">SteamGridDB har ingen resultater for dette spil. Prøv at søge på det.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d spil tilføjet</item>
-        <item quantity="other">%1$d spil tilføjet</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d allerede i Spil</item>
-        <item quantity="other">%1$d allerede i Spil</item>
-    </plurals>
     <string name="hop_back">B · Tilbage til %1$s</string>
     <string name="hop_from_games">spillet</string>
     <string name="sheet_graphics_drivers">Grafikdrivere</string>
@@ -2024,9 +1959,7 @@
     <string name="game_install_location">Placering</string>
     <string name="game_install_folder">Mappe</string>
     <string name="game_install_size">Størrelse på disk</string>
-    <string name="library_filter_added">Tilføjet</string>
     <string name="game_tab_launch">Start</string>
-    <string name="game_launch_shortcut">Steam-genvej</string>
     <string name="game_install_played">Sidst spillet</string>
     <string name="integration_title">Steam-integration</string>
     <string name="integration_count">%1$d af %2$d til</string>
@@ -2064,11 +1997,6 @@
     <string name="slow_usb_port">%1$s er tilsluttet via %2$s (%3$s Mbps, ca. %4$d MB/s). Denne enheds USB-port kan ikke køre hurtigere, så spil på den indlæses langsomt. Intern lagerplads eller et microSD-kort kan være hurtigere.</string>
     <string name="slow_usb_never">Vis ikke igen</string>
     <string name="slow_usb_dismiss">Luk</string>
-    <string name="steam_import_title">Genstart Steam for at tilføje dine spil?</string>
-    <string name="steam_import_body">Steam kan vise disse spil, du ejer, som installerede: %1$s. Steam skal genstartes for at vise dem. Genstart nu, eller de bliver tilføjet næste gang Steam starter.</string>
-    <string name="steam_import_names_more">%1$s og %2$d mere</string>
-    <string name="steam_import_now">Genstart nu</string>
-    <string name="steam_import_later">Senere</string>
     <string name="input_reset_positions">Nulstil placeringer</string>
     <string name="input_show_label">Vis etiket</string>
     <string name="input_layout_import_failed">Dette layout kunne ikke importeres</string>

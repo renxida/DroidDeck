@@ -7,7 +7,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
-class AddedGamesAccountTest {
+class SteamAccountConfigTest {
     @get:Rule val tmp = TemporaryFolder()
 
     private fun steamRoot(vararg blocks: Pair<Long, Map<String, String>>): File = tmp.newFolder("Steam").also { root ->
@@ -23,21 +23,21 @@ class AddedGamesAccountTest {
     @Test fun theAccountMarkedMostRecentIsUsed() {
         val root = steamRoot(123L to mapOf("MostRecent" to "1", "AutoLogin" to "0", "timestamp" to "100"),
             456L to mapOf("MostRecent" to "0", "AutoLogin" to "1", "timestamp" to "200"))
-        assertEquals(File(root, "userdata/123/config"), AddedGames.accountConfig(root))
+        assertEquals(File(root, "userdata/123/config"), Library.steamAccountConfig(root))
     }
 
     @Test fun withoutMostRecentTheAccountThatSignsInIsUsed() {
         val root = steamRoot(123L to mapOf("AutoLogin" to "1", "timestamp" to "100"), 456L to mapOf("AutoLogin" to "0", "timestamp" to "200"))
-        assertEquals(File(root, "userdata/123/config"), AddedGames.accountConfig(root))
+        assertEquals(File(root, "userdata/123/config"), Library.steamAccountConfig(root))
     }
 
     @Test fun withoutEitherMarkTheAccountUsedLastIsUsed() {
         val root = steamRoot(456L to mapOf("AutoLogin" to "0", "timestamp" to "100"), 123L to mapOf("AutoLogin" to "0", "timestamp" to "200"))
-        assertEquals(File(root, "userdata/123/config"), AddedGames.accountConfig(root))
+        assertEquals(File(root, "userdata/123/config"), Library.steamAccountConfig(root))
     }
 
     @Test fun twoAccountsWithoutAnyMarkGiveNoAccount() {
         val root = steamRoot(123L to mapOf("AccountName" to "a"), 456L to mapOf("AccountName" to "b"))
-        assertNull(AddedGames.accountConfig(root))
+        assertNull(Library.steamAccountConfig(root))
     }
 }

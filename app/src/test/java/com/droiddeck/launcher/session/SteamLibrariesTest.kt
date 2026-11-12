@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.session
 
-import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import java.io.File
 import org.junit.Assert.*
@@ -57,9 +56,6 @@ class SteamLibrariesTest {
         assertTrue(GameStorage.gamesFolderLibraries(app).isEmpty())
         assertEquals(1, Library.steamLibraries(app, "arm64").count { it.first == pc })
         assertTrue(Library.steamLibraries(app, "x86_64").any { it.first == File(pc, GameStorage.X64_CARD_DIR) })
-        assertEquals(File(pc, "steamapps/common"), AddedGames.hostPath(app, "${lib.guest}/steamapps/common"))
-        val docs = added(tmp.newFolder("Documents").path)
-        assertEquals("${docs.guest}/steamapps", AddedGames.guestPath(app, File(docs.path, "steamapps")))
         val nested = File(pc, "Other").apply { mkdirs() }
         SteamLibraries.remove(app, lib.id)
         assertTrue(SteamLibraries.add(app, nested.path) is SteamLibraries.AddResult.Refused)
@@ -132,16 +128,6 @@ class SteamLibrariesTest {
         assertEquals(listOf(done, migrated), SteamLibraries.depotInstalls(common))
         assertEquals(3, SteamLibraries.gameCount(steam))
         assertEquals(steam, SteamLibraries.innerLibrary(steam.parentFile))
-    }
-
-    @Test fun addedLibrariesImportFinishedDownloadsWithoutManifests() {
-        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
-        val steam = tmp.newFolder("Steam")
-        val game = depotInstall(File(steam, "steamapps/common"), "Game")
-        val lib = added(steam.path)
-        val scanned = AddedGames.scan(app).single()
-        assertEquals(game, scanned.folder)
-        assertEquals("${lib.guest}/steamapps/common/Game", AddedGames.guestPath(app, scanned.folder))
     }
 
     @Test fun rawAndStorageMountViewsOverlapButDistinctFoldersDoNot() {

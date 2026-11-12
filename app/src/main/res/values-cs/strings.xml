@@ -187,18 +187,9 @@
     <string name="mode_steam_repair_hint">Při dalším spuštění znovu stáhne klienta Steam. Použijte, pokud Steam zůstává na načítací obrazovce. Hry, přihlášení a nastavení zůstanou zachovány.</string>
     <string name="mode_steam_repair_queued">Klient Steam se znovu stáhne při dalším spuštění Steamu.</string>
     <string name="mode_steam_repair_button">Opravit</string>
-    <string name="mode_added_art">Grafika</string>
     <string name="mode_sgdb_key">Klíč API SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Váš klíč</string>
     <string name="mode_sgdb_edit">Upravit…</string>
-    <string name="mode_added_art_hint">Doplní chybějící grafiku ze Steamu, poté ze SteamGridDB. Vlastní soubory cover.jpg, hero.jpg, logo.png nebo icon.png ve složce hry mají přednost.</string>
-    <string name="summary_remove_game">Odebrat %1$s</string>
-    <string name="mode_added_remove_confirm">Odebrat?</string>
-    <string name="games_add">Přidat hru</string>
-    <string name="games_add_title">Přidat hru:</string>
-    <string name="games_pick_exe_title">Vyberte exe:</string>
-    <string name="games_add_unreachable">Toto umístění není v relaci dostupné</string>
-    <string name="mode_added_exe_check">Zkontrolovat tento exe</string>
     <string name="wincomp_title">Komponenty Windows</string>
     <string name="wincomp_pad_hint">LB / RB přeskakují mezi sekcemi.</string>
     <string name="wincomp_card_none">Žádné</string>
@@ -215,7 +206,6 @@
     </plurals>
     <string name="wincomp_auto_section">Zapnuto pro tuto hru</string>
     <string name="wincomp_auto_steam">Steam instaluje %1$s s %2$s (aplikace %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam instaluje %1$s s aplikací %2$s, spárováno podle názvu</string>
     <string name="wincomp_suggestions">Také uvedeno</string>
     <string name="wincomp_suggestion_reason">Uvádí ho %1$s; zde to není komponenta</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -769,24 +759,12 @@
     <string name="games_play_steam">Hrát ve Steamu</string>
     <string name="games_files">Soubory hry</string>
     <string name="games_prefix">Prefix Protonu</string>
-    <string name="games_saves_looking">Hledání uložených pozic…</string>
-    <string name="games_saves_none">Podle názvu nebyla nalezena žádná složka s uloženými pozicemi. Export zabere celou uživatelskou složku.</string>
-    <string name="games_saves_folders">%1$d složek s uloženými pozicemi</string>
-    <string name="games_saves_summary">%1$s · %2$d souborů · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Uložené pozice hry</string>
-    <string name="games_import_saves">Importovat uložené pozice…</string>
-    <string name="games_export_gamehub">Exportovat jako GameHub zip…</string>
-    <string name="games_export_winlator">Exportovat jako Winlator zip…</string>
-    <string name="games_open_save_folder">Otevřít složku s uloženými pozicemi</string>
     <string name="games_never_played">Nikdy nehráno</string>
     <string name="games_runtime_busy_percent">Runtime zaneprázdněn · %1$d%%</string>
     <string name="games_runtime_update">K dispozici aktualizace runtime</string>
     <string name="games_runtime_ready">● Runtime připraven</string>
     <string name="games_internal">Interní úložiště</string>
     <string name="games_uninstall_body">Smaže její soubory a odebere ji ze Steamu.</string>
-    <string name="games_remove_title">Odebrat %1$s?</string>
-    <string name="games_remove_body">Smaže zástupce. Soubory hry zůstanou.</string>
     <string name="gpu_checking">Hledání ovladačů…</string>
     <string name="gpu_none_listed">Zatím žádné ovladače. Obnovte, aby se vyhledaly.</string>
     <string name="gpu_hide_other">Skrýt ovladače pro jiné GPU</string>
@@ -865,7 +843,6 @@
     <string name="pip_unavailable">Android nemohl otevřít obraz v obraze.</string>
     <string name="game_more">Další</string>
     <string name="game_edit_art">Upravit grafiku</string>
-    <string name="lib_in_steam_label">Ve Steamu</string>
     <string name="game_shortcut">Zkratka</string>
     <string name="game_shortcut_add">Přidat na domovskou obrazovku</string>
     <string name="game_shortcut_choose">Vybrat hru</string>
@@ -892,29 +869,6 @@
     <string name="load_compat_hint">Relace se spustí po dokončení nastavení.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Před spuštěním hry počkejte, až skončí instalace</string>
-    <string name="main_saves_close_session">Nejprve zavřete relaci Steamu, aby hra svým uložením nepřepsala import.</string>
-    <string name="main_saves_importing">Importování do %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">Importován %1$d soubor z %2$s do %3$s</item>
-        <item quantity="few">Importovány %1$d soubory z %2$s do %3$s</item>
-        <item quantity="many">Importováno %1$d souborů z %2$s do %3$s</item>
-        <item quantity="other">Importováno %1$d souborů z %2$s do %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">Importován %1$d soubor z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
-        <item quantity="few">Importovány %1$d soubory z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
-        <item quantity="many">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">Importováno %1$d souborů z %2$s do %3$s. Staré uložené pozice byly zálohovány do Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Vyberte ZIP s uloženou pozicí pro %1$s</string>
-    <string name="main_saves_exporting">Exportování %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">Exportován %1$d soubor jako %2$s: %3$s</item>
-        <item quantity="few">Exportovány %1$d soubory jako %2$s: %3$s</item>
-        <item quantity="many">Exportováno %1$d souborů jako %2$s: %3$s</item>
-        <item quantity="other">Exportováno %1$d souborů jako %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Vyberte, kam uložit %1$s (%2$s)</string>
     <string name="main_action_failed">%1$s se nezdařilo: %2$s</string>
     <string name="main_no_logs_yet">Zatím žádné logy relace: nejprve spusťte relaci.</string>
     <string name="main_no_logs_to_clear">Žádné logy relace k vymazání.</string>
@@ -1108,7 +1062,6 @@
     <string name="game_sync_err_steam_library">Knihovna Steamu není dostupná</string>
     <string name="game_sync_err_previous_sd">Předchozí knihovna na SD kartě není dostupná</string>
     <string name="game_sync_err_game_storage">Úložiště her není dostupné</string>
-    <string name="game_sync_err_added_games">Složka přidaných her není dostupná</string>
     <string name="game_sync_err_manifests">Manifesty Steamu nejsou dostupné</string>
     <string name="fm_drive_internal">Interní</string>
     <string name="fm_drive_linux">Systém Linuxu</string>
@@ -1546,11 +1499,6 @@
     <string name="phantom_instructions_not_applicable">Tato verze Androidu tento limit nepoužívá.</string>
     <string name="phantom_fix_toggle">Zapněte „Deaktivace omezení podřízených procesů“ v Možnostech pro vývojáře a pak je nechte zapnuté.</string>
     <string name="phantom_fix_no_toggle">Tato verze Androidu pro to nemá přepínač. Použijte bezdrátové ladění a změňte to z tohoto zařízení.</string>
-    <string name="saves_layout_zip">%1$s zip</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s ještě nebylo spuštěno</string>
-    <string name="saves_none_found">Pro %1$s nebyly nalezeny žádné soubory uložených pozic</string>
-    <string name="saves_not_save_zip">%1$s neobsahuje složku drive_c, takže to není zip s uloženou pozicí z GameHub nebo Winlator</string>
     <string name="gstore_cannot_create">nelze vytvářet složky v %1$s</string>
     <string name="gstore_cannot_write">nelze zapisovat do %1$s</string>
     <string name="gstore_cannot_write_detail">nelze zapisovat do %1$s (%2$s)</string>
@@ -1595,10 +1543,7 @@
     <string name="force_ssbs_title">Vynutit SSBS</string>
     <string name="force_ssbs_hint">Udržuje zapnuté nastavení rychlosti CPU, které Wine stále vypíná. Může zrychlit Windows hry na Snapdragonu 8 Elite; na starších čipech je rozdíl malý. Použije se při příštím spuštění hry.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Vlastní</string>
     <string name="lib_tab_library">Knihovna</string>
-    <string name="lib_tab_all">Vše</string>
     <string name="lib_search_library">Hledat ve vaší knihovně…</string>
     <string name="lib_search_open">Hledat</string>
     <string name="lib_nothing_matches">Žádné hry</string>
@@ -1628,16 +1573,10 @@
     <string name="lib_target_free">%1$s volných</string>
     <string name="common_close">Zavřít</string>
     <string name="common_back">Zpět</string>
-    <string name="games_add_all">Přidat všechny hry z této složky</string>
-    <string name="games_added_none">V této složce nic nového</string>
-    <string name="edit_name">Název</string>
-    <string name="edit_target">Cíl</string>
-    <string name="edit_start_in">Spustit v</string>
     <string name="edit_launch_options">Možnosti spuštění</string>
     <string name="edit_launch_options_steam_hint">Sdíleno s Vlastnostmi ve Steamu: změna na jednom místě se projeví na obou.</string>
     <string name="edit_launch_options_not_saved">Možnosti spuštění se nepodařilo uložit do Steamu. Zkuste to znovu.</string>
     <string name="edit_artwork">Grafika</string>
-    <string name="edit_other_exe">Jiný exe…</string>
     <string name="edit_remove">Odstranit</string>
     <string name="art_cover">Obálka</string>
     <string name="art_wide_cover">Široká obálka</string>
@@ -1658,11 +1597,9 @@
     <string name="art_background">Pozadí</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Ikona</string>
-    <string name="art_src_folder">Složka hry</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Váš soubor</string>
-    <string name="art_src_exe">Z exe souboru</string>
     <string name="art_src_auto">Automaticky</string>
     <string name="art_pick_image">Vybrat obrázek…</string>
     <string name="art_pick_title">Vyberte obrázek: %1$s</string>
@@ -1678,18 +1615,6 @@
     <string name="art_sgdb_offline">SteamGridDB není dostupný. Zkontroluj připojení.</string>
     <string name="art_sgdb_server">Na straně SteamGridDB se něco pokazilo. Zkus to později.</string>
     <string name="art_sgdb_no_game">SteamGridDB nemá pro tuto hru výsledky. Zkus ji vyhledat.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d hra přidána</item>
-        <item quantity="few">%1$d hry přidány</item>
-        <item quantity="many">%1$d her přidáno</item>
-        <item quantity="other">%1$d her přidáno</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d už je v Hrách</item>
-        <item quantity="few">%1$d už jsou v Hrách</item>
-        <item quantity="many">%1$d už je v Hrách</item>
-        <item quantity="other">%1$d už je v Hrách</item>
-    </plurals>
     <string name="hop_back">B · Zpět na %1$s</string>
     <string name="hop_from_games">hru</string>
     <string name="sheet_graphics_drivers">Grafické ovladače</string>
@@ -2084,9 +2009,7 @@
     <string name="game_install_location">Umístění</string>
     <string name="game_install_folder">Složka</string>
     <string name="game_install_size">Velikost na disku</string>
-    <string name="library_filter_added">Přidané</string>
     <string name="game_tab_launch">Spuštění</string>
-    <string name="game_launch_shortcut">Zástupce ve Steamu</string>
     <string name="game_install_played">Naposledy hráno</string>
     <string name="integration_title">Integrace se Steamem</string>
     <string name="integration_count">Zapnuto %1$d z %2$d</string>
@@ -2124,11 +2047,6 @@
     <string name="slow_usb_port">%1$s je připojen přes %2$s (%3$s Mb/s, asi %4$d MB/s). Port USB tohoto zařízení rychleji neumí, takže hry na něm se budou načítat pomalu. Interní úložiště nebo karta microSD může být rychlejší.</string>
     <string name="slow_usb_never">Už nezobrazovat</string>
     <string name="slow_usb_dismiss">Zavřít</string>
-    <string name="steam_import_title">Restartovat Steam a přidat vaše hry?</string>
-    <string name="steam_import_body">Steam může tyto vaše hry zobrazit jako nainstalované: %1$s. Aby je ukázal, musí se restartovat. Restartujte teď, nebo se přidají při příštím spuštění Steamu.</string>
-    <string name="steam_import_names_more">%1$s a %2$d dalších</string>
-    <string name="steam_import_now">Restartovat teď</string>
-    <string name="steam_import_later">Později</string>
     <string name="input_reset_positions">Obnovit pozice</string>
     <string name="input_show_label">Zobrazit popisek</string>
     <string name="input_layout_import_failed">Toto rozložení nelze importovat</string>

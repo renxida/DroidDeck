@@ -67,7 +67,6 @@ private fun findingReason(f: WinCompSources.Finding): String = when (f.origin) {
         if (f.args.getOrNull(1) == DependencyDetector.Kind.SHIPPED.name) R.string.wincomp_found_shipped else R.string.wincomp_found_bundled,
         f.args.getOrElse(0) { f.original },
     )
-    WinCompSources.Origin.STEAM_NAME -> stringResource(R.string.wincomp_steam_by_name, f.args.getOrElse(0) { f.original }, f.args.getOrElse(2) { "" })
     else -> autoReason(WinComponents.AutoReason(f.origin.name, listOf(f.original) + f.args))
 }
 

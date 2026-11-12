@@ -43,7 +43,7 @@ internal data class GameResource(@StringRes val label: Int, val url: String, @St
 internal fun gameResources(title: String, game: Library.SteamGame?): List<GameResource> {
     if (title.isBlank()) return emptyList()
     val query = URLEncoder.encode(title.trim(), "UTF-8").replace("+", "%20")
-    val steamId = game?.takeIf { Library.fromSteamClient(it) && it.appId > 0 }?.appId
+    val steamId = game?.takeIf { it.appId > 0 }?.appId
     return buildList {
         add(GameResource(R.string.game_resource_pcgw, "https://www.pcgamingwiki.com/w/index.php?search=$query"))
         add(GameResource(R.string.game_resource_guides, "https://gamefaqs.gamespot.com/search?game=$query"))

@@ -187,18 +187,9 @@
     <string name="mode_steam_repair_hint">Tải lại client Steam vào lần Steam khởi động kế tiếp. Dùng khi Steam bị kẹt ở màn hình tải. Game, đăng nhập và thiết lập được giữ lại.</string>
     <string name="mode_steam_repair_queued">Client Steam sẽ được tải lại vào lần Steam khởi động kế tiếp.</string>
     <string name="mode_steam_repair_button">Sửa chữa</string>
-    <string name="mode_added_art">Hình ảnh</string>
     <string name="mode_sgdb_key">API key SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Key của bạn</string>
     <string name="mode_sgdb_edit">Sửa…</string>
-    <string name="mode_added_art_hint">Điền hình ảnh còn thiếu từ Steam, sau đó từ SteamGridDB. Tệp cover.jpg, hero.jpg, logo.png hoặc icon.png của riêng bạn trong thư mục game được ưu tiên.</string>
-    <string name="summary_remove_game">Xóa %1$s</string>
-    <string name="mode_added_remove_confirm">Xóa?</string>
-    <string name="games_add">Thêm game</string>
-    <string name="games_add_title">Thêm một game:</string>
-    <string name="games_pick_exe_title">Chọn tệp exe:</string>
-    <string name="games_add_unreachable">Vị trí này không khả dụng trong phiên</string>
-    <string name="mode_added_exe_check">Kiểm tra tệp exe này</string>
     <string name="wincomp_title">Thành phần Windows</string>
     <string name="wincomp_pad_hint">LB / RB để chuyển giữa các mục.</string>
     <string name="wincomp_card_none">Không có</string>
@@ -212,7 +203,6 @@
     </plurals>
     <string name="wincomp_auto_section">Đang bật cho game này</string>
     <string name="wincomp_auto_steam">Steam cài %1$s cùng %2$s (app %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam cài %1$s cùng app %2$s, khớp theo tên</string>
     <string name="wincomp_suggestions">Cũng được liệt kê</string>
     <string name="wincomp_suggestion_reason">Được %1$s liệt kê; không phải thành phần ở đây</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -760,24 +750,12 @@
     <string name="games_play_steam">Chơi trên Steam</string>
     <string name="games_files">Tệp game</string>
     <string name="games_prefix">Prefix Proton</string>
-    <string name="games_saves_looking">Đang tìm các lần lưu…</string>
-    <string name="games_saves_none">Không tìm thấy thư mục lưu theo tên. Xuất sẽ lấy toàn bộ thư mục người dùng.</string>
-    <string name="games_saves_folders">%1$d thư mục lưu</string>
-    <string name="games_saves_summary">%1$s · %2$d tệp · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Tệp lưu game</string>
-    <string name="games_import_saves">Nhập tệp lưu…</string>
-    <string name="games_export_gamehub">Xuất dưới dạng zip GameHub…</string>
-    <string name="games_export_winlator">Xuất dưới dạng zip Winlator…</string>
-    <string name="games_open_save_folder">Mở thư mục lưu</string>
     <string name="games_never_played">Chưa chơi bao giờ</string>
     <string name="games_runtime_busy_percent">Runtime đang bận · %1$d%%</string>
     <string name="games_runtime_update">Có cập nhật runtime</string>
     <string name="games_runtime_ready">● Runtime đã sẵn sàng</string>
     <string name="games_internal">Bộ nhớ trong</string>
     <string name="games_uninstall_body">Xóa các tệp của nó và gỡ nó khỏi Steam.</string>
-    <string name="games_remove_title">Xóa %1$s?</string>
-    <string name="games_remove_body">Xóa shortcut của nó. Các tệp game vẫn còn.</string>
     <string name="gpu_checking">Đang kiểm tra driver…</string>
     <string name="gpu_none_listed">Chưa có driver nào được liệt kê. Làm mới để tìm.</string>
     <string name="gpu_hide_other">Ẩn driver cho GPU khác</string>
@@ -856,7 +834,6 @@
     <string name="pip_unavailable">Android không thể mở hình trong hình.</string>
     <string name="game_more">Thêm</string>
     <string name="game_edit_art">Sửa ảnh bìa</string>
-    <string name="lib_in_steam_label">Trong Steam</string>
     <string name="game_shortcut">Shortcut</string>
     <string name="game_shortcut_add">Thêm vào màn hình chính</string>
     <string name="game_shortcut_choose">Chọn game</string>
@@ -883,20 +860,6 @@
     <string name="load_compat_hint">Phiên của bạn sẽ bắt đầu khi thiết lập hoàn tất.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Chờ việc cài hoàn tất trước khi khởi chạy một game</string>
-    <string name="main_saves_close_session">Hãy đóng phiên Steam trước, để game không ghi đè lên tệp vừa nhập</string>
-    <string name="main_saves_importing">Đang nhập vào %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="other">Đã nhập %1$d tệp từ %2$s vào %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="other">Đã nhập %1$d tệp từ %2$s vào %3$s. Tệp lưu cũ đã được sao lưu vào Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Chọn một tệp zip lưu cho %1$s</string>
-    <string name="main_saves_exporting">Đang xuất %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="other">Đã xuất %1$d tệp dưới dạng %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Chọn nơi lưu %1$s (%2$s)</string>
     <string name="main_action_failed">%1$s thất bại: %2$s</string>
     <string name="main_no_logs_yet">Chưa có log phiên: hãy chạy một phiên trước.</string>
     <string name="main_no_logs_to_clear">Không có log phiên để xóa.</string>
@@ -1072,7 +1035,6 @@
     <string name="game_sync_err_steam_library">Thư viện Steam không khả dụng</string>
     <string name="game_sync_err_previous_sd">Thư viện SD trước đó không khả dụng</string>
     <string name="game_sync_err_game_storage">Lưu trữ game không khả dụng</string>
-    <string name="game_sync_err_added_games">Thư mục game đã thêm không khả dụng</string>
     <string name="game_sync_err_manifests">Manifest của Steam không khả dụng</string>
     <string name="fm_drive_internal">Nội bộ</string>
     <string name="fm_drive_linux">Hệ thống Linux</string>
@@ -1489,11 +1451,6 @@
     <string name="phantom_instructions_not_applicable">Phiên bản Android này không dùng giới hạn này.</string>
     <string name="phantom_fix_toggle">Bật “Tắt các mục hạn chế đối với tiến trình con” trong Developer options, và giữ Developer options luôn mở sau đó.</string>
     <string name="phantom_fix_no_toggle">Phiên bản Android này không có công tắc cho việc đó. Dùng Gỡ lỗi qua mạng không dây để đổi nó từ thiết bị này.</string>
-    <string name="saves_layout_zip">zip %1$s</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s chưa được khởi chạy</string>
-    <string name="saves_none_found">Không tìm thấy tệp lưu nào cho %1$s</string>
-    <string name="saves_not_save_zip">%1$s không có thư mục drive_c, nên nó không phải tệp zip lưu GameHub hoặc Winlator</string>
     <string name="gstore_cannot_create">không thể tạo thư mục trong %1$s</string>
     <string name="gstore_cannot_write">không thể ghi trong %1$s</string>
     <string name="gstore_cannot_write_detail">không thể ghi trong %1$s (%2$s)</string>
@@ -1538,10 +1495,7 @@
     <string name="force_ssbs_title">Buộc SSBS</string>
     <string name="force_ssbs_hint">Giữ một thiết lập tốc độ CPU mà Wine liên tục tắt. Có thể giúp game Windows nhanh hơn trên Snapdragon 8 Elite; thay đổi ít thấy trên chip cũ hơn. Áp dụng vào lần game khởi động kế tiếp.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Tùy chỉnh</string>
     <string name="lib_tab_library">Thư viện</string>
-    <string name="lib_tab_all">Tất cả</string>
     <string name="lib_search_library">Tìm trong thư viện của bạn…</string>
     <string name="lib_search_open">Tìm kiếm</string>
     <string name="lib_nothing_matches">Không có game</string>
@@ -1571,16 +1525,10 @@
     <string name="lib_target_free">%1$s trống</string>
     <string name="common_close">Đóng</string>
     <string name="common_back">Quay lại</string>
-    <string name="games_add_all">Thêm tất cả game trong thư mục này</string>
-    <string name="games_added_none">Không có gì mới trong thư mục này</string>
-    <string name="edit_name">Tên</string>
-    <string name="edit_target">Đích</string>
-    <string name="edit_start_in">Khởi chạy trong</string>
     <string name="edit_launch_options">Tùy chọn khởi chạy</string>
     <string name="edit_launch_options_steam_hint">Dùng chung với Thuộc tính của Steam: thay đổi ở một nơi sẽ hiện ở cả hai.</string>
     <string name="edit_launch_options_not_saved">Không thể lưu tùy chọn khởi chạy vào Steam. Hãy thử lại.</string>
     <string name="edit_artwork">Hình ảnh</string>
-    <string name="edit_other_exe">Exe khác…</string>
     <string name="edit_remove">Xóa</string>
     <string name="art_cover">Ảnh bìa</string>
     <string name="art_wide_cover">Ảnh bìa rộng</string>
@@ -1601,11 +1549,9 @@
     <string name="art_background">Hình nền</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Biểu tượng</string>
-    <string name="art_src_folder">Thư mục game</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Tệp của bạn</string>
-    <string name="art_src_exe">Từ exe</string>
     <string name="art_src_auto">Tự động</string>
     <string name="art_pick_image">Chọn hình ảnh…</string>
     <string name="art_pick_title">Chọn một hình ảnh: %1$s</string>
@@ -1621,12 +1567,6 @@
     <string name="art_sgdb_offline">Không kết nối được SteamGridDB. Kiểm tra kết nối.</string>
     <string name="art_sgdb_server">SteamGridDB gặp sự cố. Thử lại sau.</string>
     <string name="art_sgdb_no_game">SteamGridDB không có kết quả cho game này. Thử tự tìm.</string>
-    <plurals name="games_added_n">
-        <item quantity="other">%1$d game đã được thêm</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="other">%1$d đã có trong Games</item>
-    </plurals>
     <string name="hop_back">B · Về lại %1$s</string>
     <string name="hop_from_games">game đó</string>
     <string name="sheet_graphics_drivers">Driver đồ họa</string>
@@ -2002,9 +1942,7 @@
     <string name="game_install_location">Vị trí</string>
     <string name="game_install_folder">Thư mục</string>
     <string name="game_install_size">Dung lượng trên đĩa</string>
-    <string name="library_filter_added">Đã thêm</string>
     <string name="game_tab_launch">Khởi chạy</string>
-    <string name="game_launch_shortcut">Lối tắt Steam</string>
     <string name="game_install_played">Chơi lần cuối</string>
     <string name="integration_title">Tích hợp Steam</string>
     <string name="integration_count">Bật %1$d/%2$d</string>
@@ -2042,11 +1980,6 @@
     <string name="slow_usb_port">%1$s đang kết nối qua %2$s (%3$s Mbps, khoảng %4$d MB/s). Cổng USB của thiết bị này không thể nhanh hơn, nên trò chơi sẽ tải chậm. Bộ nhớ trong hoặc thẻ microSD có thể nhanh hơn.</string>
     <string name="slow_usb_never">Không hiển thị lại</string>
     <string name="slow_usb_dismiss">Đóng</string>
-    <string name="steam_import_title">Khởi động lại Steam để thêm trò chơi của bạn?</string>
-    <string name="steam_import_body">Steam có thể hiển thị các trò chơi bạn sở hữu này là đã cài đặt: %1$s. Steam cần khởi động lại để hiển thị chúng. Khởi động lại ngay, hoặc chúng sẽ được thêm vào lần tới Steam khởi động.</string>
-    <string name="steam_import_names_more">%1$s và %2$d trò chơi khác</string>
-    <string name="steam_import_now">Khởi động lại ngay</string>
-    <string name="steam_import_later">Để sau</string>
     <string name="input_reset_positions">Đặt lại vị trí</string>
     <string name="input_show_label">Hiện nhãn</string>
     <string name="input_layout_import_failed">Không thể nhập bố cục này</string>

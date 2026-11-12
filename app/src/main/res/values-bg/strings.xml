@@ -187,18 +187,9 @@
     <string name="mode_steam_repair_hint">Изтегля отново клиента на Steam при следващото стартиране на Steam. Използвайте, ако Steam остава на екрана за зареждане. Игрите, влизането в профила и настройките се запазват.</string>
     <string name="mode_steam_repair_queued">Клиентът на Steam ще бъде изтеглен отново при следващото стартиране на Steam.</string>
     <string name="mode_steam_repair_button">Поправка</string>
-    <string name="mode_added_art">Изображения</string>
     <string name="mode_sgdb_key">API ключ за SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Вашият ключ</string>
     <string name="mode_sgdb_edit">Редактиране…</string>
-    <string name="mode_added_art_hint">Попълва липсващите изображения от Steam, а след това от SteamGridDB. Собствените ви файлове cover.jpg, hero.jpg, logo.png или icon.png в папката на играта имат предимство.</string>
-    <string name="summary_remove_game">Премахване на %1$s</string>
-    <string name="mode_added_remove_confirm">Премахване?</string>
-    <string name="games_add">Добавяне на игра</string>
-    <string name="games_add_title">Добавяне на игра:</string>
-    <string name="games_pick_exe_title">Изберете .exe файла:</string>
-    <string name="games_add_unreachable">Това местоположение не е достъпно в сесията</string>
-    <string name="mode_added_exe_check">Проверка на този .exe файл</string>
     <string name="wincomp_title">Компоненти на Windows</string>
     <string name="wincomp_pad_hint">LB / RB преминават между разделите.</string>
     <string name="wincomp_card_none">Няма</string>
@@ -213,7 +204,6 @@
     </plurals>
     <string name="wincomp_auto_section">Включени за тази игра</string>
     <string name="wincomp_auto_steam">Steam инсталира %1$s с %2$s (приложение %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam инсталира %1$s с приложение %2$s, съпоставено по име</string>
     <string name="wincomp_suggestions">Също в списъка</string>
     <string name="wincomp_suggestion_reason">Посочено от %1$s; не е компонент тук</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -763,24 +753,12 @@
     <string name="games_play_steam">Пускане на Steam</string>
     <string name="games_files">Файлове на играта</string>
     <string name="games_prefix">Префикс на Proton</string>
-    <string name="games_saves_looking">Търсене на записи…</string>
-    <string name="games_saves_none">Не е намерена папка за записи по име. Експортирането взема цялата потребителска папка.</string>
-    <string name="games_saves_folders">%1$d папки за записи</string>
-    <string name="games_saves_summary">%1$s · %2$d файла · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Записи на играта</string>
-    <string name="games_import_saves">Импортиране на записи…</string>
-    <string name="games_export_gamehub">Експортиране като GameHub zip…</string>
-    <string name="games_export_winlator">Експортиране като Winlator zip…</string>
-    <string name="games_open_save_folder">Отваряне на папката за записи</string>
     <string name="games_never_played">Никога не е играна</string>
     <string name="games_runtime_busy_percent">Средата за изпълнение е заета · %1$d%%</string>
     <string name="games_runtime_update">Налична актуализация на средата за изпълнение</string>
     <string name="games_runtime_ready">● Средата за изпълнение е готова</string>
     <string name="games_internal">Вътрешна памет</string>
     <string name="games_uninstall_body">Изтрива файловете ѝ и я премахва от Steam.</string>
-    <string name="games_remove_title">Премахване на %1$s?</string>
-    <string name="games_remove_body">Изтрива пряката пътека. Файловете на играта остават.</string>
     <string name="gpu_checking">Проверка за драйвери…</string>
     <string name="gpu_none_listed">Все още няма изброени драйвери. Обновете, за да ги потърсите.</string>
     <string name="gpu_hide_other">Скриване на драйверите за други GPU</string>
@@ -859,7 +837,6 @@
     <string name="pip_unavailable">Android не можа да отвори картина в картината.</string>
     <string name="game_more">Още</string>
     <string name="game_edit_art">Редактиране на изображенията</string>
-    <string name="lib_in_steam_label">В Steam</string>
     <string name="game_shortcut">Пряк път</string>
     <string name="game_shortcut_add">Добавяне към началния екран</string>
     <string name="game_shortcut_choose">Избор на игра</string>
@@ -886,23 +863,6 @@
     <string name="load_compat_hint">Сесията ви ще започне, когато настройката завърши.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Изчакай инсталирането да приключи, преди да пуснеш игра.</string>
-    <string name="main_saves_close_session">Затвори сесията на Steam, за да играта не презапише импортираните файлове.</string>
-    <string name="main_saves_importing">Импортиране в %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">Импортиран %1$d файл от %2$s в %3$s</item>
-        <item quantity="other">Импортирани %1$d файла от %2$s в %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">Импортиран %1$d файл от %2$s в %3$s. Старите запазвания са архивирани в Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">Импортирани %1$d файла от %2$s в %3$s. Старите запазвания са архивирани в Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Избор на ZIP файл със запазвания за %1$s</string>
-    <string name="main_saves_exporting">Експортиране на %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">Експортиран %1$d файл като %2$s: %3$s</item>
-        <item quantity="other">Експортирани %1$d файла като %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Избор на папка за запазване на %1$s (%2$s)</string>
     <string name="main_action_failed">%1$s се провали: %2$s</string>
     <string name="main_no_logs_yet">Все още няма логове от сесии: пусни сесия първо.</string>
     <string name="main_no_logs_to_clear">Няма логове от сесии за изчистване.</string>
@@ -1084,7 +1044,6 @@
     <string name="game_sync_err_steam_library">Библиотеката на Steam не е достъпна</string>
     <string name="game_sync_err_previous_sd">Предишната SD библиотека не е достъпна</string>
     <string name="game_sync_err_game_storage">Хранилището за игри не е достъпно</string>
-    <string name="game_sync_err_added_games">Папката с добавени игри не е достъпна</string>
     <string name="game_sync_err_manifests">Манифестите на Steam не са достъпни</string>
     <string name="fm_drive_internal">Вътрешна</string>
     <string name="fm_drive_linux">Система на Linux</string>
@@ -1508,11 +1467,6 @@
     <string name="phantom_instructions_not_applicable">Тази версия на Android не използва това ограничение.</string>
     <string name="phantom_fix_toggle">Включи „Деактивиране на ограниченията за дъщерните процеси“ в Опции за програмисти и остави Опции за програмисти включени след това.</string>
     <string name="phantom_fix_no_toggle">Тази версия на Android няма превключвател за това. Използвай безжично отстраняване на грешки, за да го промениш от това устройство.</string>
-    <string name="saves_layout_zip">ZIP на %1$s</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s все още не е стартирана</string>
-    <string name="saves_none_found">Не са намерени файлове със записи за %1$s</string>
-    <string name="saves_not_save_zip">%1$s няма папка drive_c, затова не е zip със записи от GameHub или Winlator</string>
     <string name="gstore_cannot_create">не могат да се създават папки в %1$s</string>
     <string name="gstore_cannot_write">не може да се пише в %1$s</string>
     <string name="gstore_cannot_write_detail">не може да се пише в %1$s (%2$s)</string>
@@ -1557,10 +1511,7 @@
     <string name="force_ssbs_title">Принудително SSBS</string>
     <string name="force_ssbs_hint">Поддържа настройка за скоростта на процесора, която Wine непрекъснато изключва. Може да ускори Windows игрите на Snapdragon 8 Elite; при по-стари чипове промяната е малка. Прилага се при следващото стартиране на игра.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Персонализирана</string>
     <string name="lib_tab_library">Библиотека</string>
-    <string name="lib_tab_all">Всички</string>
     <string name="lib_search_library">Търсене в твоята библиотека…</string>
     <string name="lib_search_open">Търсене</string>
     <string name="lib_nothing_matches">Няма игри</string>
@@ -1590,16 +1541,10 @@
     <string name="lib_target_free">%1$s свободни</string>
     <string name="common_close">Затвори</string>
     <string name="common_back">Назад</string>
-    <string name="games_add_all">Добави всички игри от тази папка</string>
-    <string name="games_added_none">Нищо ново в тази папка</string>
-    <string name="edit_name">Име</string>
-    <string name="edit_target">Цел</string>
-    <string name="edit_start_in">Старт в</string>
     <string name="edit_launch_options">Настройки за стартиране</string>
     <string name="edit_launch_options_steam_hint">Общи са със „Свойства“ в Steam: промяна на едното място се вижда и на двете.</string>
     <string name="edit_launch_options_not_saved">Настройките за стартиране не можаха да бъдат запазени в Steam. Опитайте отново.</string>
     <string name="edit_artwork">Визия</string>
-    <string name="edit_other_exe">Друг exe…</string>
     <string name="edit_remove">Премахни</string>
     <string name="art_cover">Обложка</string>
     <string name="art_wide_cover">Широка обложка</string>
@@ -1620,11 +1565,9 @@
     <string name="art_background">Фон</string>
     <string name="art_logo">Лого</string>
     <string name="art_icon">Икона</string>
-    <string name="art_src_folder">Папка на играта</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Твой файл</string>
-    <string name="art_src_exe">От exe файла</string>
     <string name="art_src_auto">Автоматично</string>
     <string name="art_pick_image">Избери изображение…</string>
     <string name="art_pick_title">Избери изображение: %1$s</string>
@@ -1640,14 +1583,6 @@
     <string name="art_sgdb_offline">SteamGridDB не е достъпен. Провери връзката.</string>
     <string name="art_sgdb_server">Нещо се обърка в SteamGridDB. Опитай по-късно.</string>
     <string name="art_sgdb_no_game">SteamGridDB няма резултати за тази игра. Опитай да я потърсиш.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d игра добавена</item>
-        <item quantity="other">%1$d игри добавени</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d вече в Игри</item>
-        <item quantity="other">%1$d вече в Игри</item>
-    </plurals>
     <string name="hop_back">B · Назад към %1$s</string>
     <string name="hop_from_games">играта</string>
     <string name="sheet_graphics_drivers">Графични драйвери</string>
@@ -2024,9 +1959,7 @@
     <string name="game_install_location">Местоположение</string>
     <string name="game_install_folder">Папка</string>
     <string name="game_install_size">Размер на диска</string>
-    <string name="library_filter_added">Добавени</string>
     <string name="game_tab_launch">Стартиране</string>
-    <string name="game_launch_shortcut">Пряк път в Steam</string>
     <string name="game_install_played">Последно игране</string>
     <string name="integration_title">Интеграция със Steam</string>
     <string name="integration_count">%1$d от %2$d включени</string>
@@ -2064,11 +1997,6 @@
     <string name="slow_usb_port">%1$s е свързан чрез %2$s (%3$s Mbps, около %4$d MB/s). USB портът на това устройство не поддържа по-висока скорост, затова игрите ще се зареждат бавно. Вътрешната памет или microSD карта може да са по-бързи.</string>
     <string name="slow_usb_never">Не показвай отново</string>
     <string name="slow_usb_dismiss">Затвори</string>
-    <string name="steam_import_title">Да се рестартира ли Steam, за да добави игрите ви?</string>
-    <string name="steam_import_body">Steam може да покаже тези ваши игри като инсталирани: %1$s. Трябва да се рестартира, за да ги покаже. Рестартирайте сега или те ще бъдат добавени при следващото стартиране на Steam.</string>
-    <string name="steam_import_names_more">%1$s и още %2$d</string>
-    <string name="steam_import_now">Рестартиране сега</string>
-    <string name="steam_import_later">По-късно</string>
     <string name="input_reset_positions">Нулиране на позициите</string>
     <string name="input_show_label">Показване на етикета</string>
     <string name="input_layout_import_failed">Това разположение не можа да бъде импортирано</string>

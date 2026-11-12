@@ -2,21 +2,14 @@ package com.droiddeck.launcher.ui
 
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,12 +30,10 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
@@ -50,7 +41,6 @@ import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -72,7 +62,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
@@ -96,16 +85,11 @@ import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 
-internal class LibraryEntry(val key: String, val source: String, val title: String, val game: Library.SteamGame)
-
-internal fun librarySource(g: Library.SteamGame): String = if (g.library == Library.ADDED) Library.ADDED else SOURCE_STEAM
+internal class LibraryEntry(val key: String, val title: String, val game: Library.SteamGame)
 
 internal fun libraryEntries(games: List<Library.SteamGame>): List<LibraryEntry> =
-    games.map { LibraryEntry(GameRef.key(it), librarySource(it), it.name, it) }.distinctBy { it.key }
+    games.map { LibraryEntry(GameRef.key(it), it.name, it) }.distinctBy { it.key }
 
-internal const val LIBRARY_ALL = "all"
-internal fun librarySources(entries: List<LibraryEntry>): List<String> =
-    listOf(SOURCE_STEAM, Library.ADDED).filter { source -> entries.any { it.source == source } }
 
 internal object LibraryDisplay {
     val scales = listOf(0.75f, 0.875f, 1f, 1.2f, 1.45f)
@@ -139,7 +123,6 @@ internal object LibraryDisplay {
 }
 
 internal object LibraryView {
-    var source by mutableStateOf(LIBRARY_ALL)
     var query by mutableStateOf("")
     var focusFirst = false
 }
@@ -153,10 +136,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     remember { LibraryDisplay.load(ctx) }
     val all = remember(s.steamGames) { libraryEntries(s.steamGames) }
-    val sources = librarySources(all)
-    val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
-    val candidates = all.filter { (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) }
+    val candidates = all.filter { q.isEmpty() || it.title.lowercase().contains(q) }
     val sort = s.librarySort
     val sizeSort = sort == "sizeAsc" || sort == "sizeDesc"
     fun sizeOf(e: LibraryEntry): Long? = e.game.gameFiles.let { if (it == null) 0L else FolderSizes.known[it.path] }
@@ -224,15 +205,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     }
     val grid = remember { LazyGridState() }
     val detailScroll = rememberScrollState()
-    var cycled by remember { mutableIntStateOf(0) }
     var gridFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(source, sort) { grid.scrollToItem(0) }
-    LaunchedEffect(cycled) {
-        if (cycled == 0 || ff == null || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
-        focusWithinFrames({ gridFocused }) {
-            if (ff.firstTileAttached > 0) ff.firstTile else ff.items["libchip:$source"] ?: FocusRequester.Default
-        }
-    }
+    LaunchedEffect(sort) { grid.scrollToItem(0) }
     CardDetailHost(
         open, detailScroll,
         gridScrolled = { grid.firstVisibleItemIndex > 0 || grid.firstVisibleItemScrollOffset > 0 },
@@ -241,13 +215,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         bleedHorizontal = if (narrow) 14.dp else 22.dp, bleedTop = if (narrow) 10.dp else 14.dp,
         grid = {
             LibraryGrid(
-                s, a, grid, visible, sources, source, sizesPending,
-                onSource = { LibraryView.source = it },
-                onCycle = { step ->
-                    val ids = listOf(LIBRARY_ALL) + sources
-                    LibraryView.source = ids[(ids.indexOf(source).coerceAtLeast(0) + step + ids.size) % ids.size]
-                    cycled++
-                },
+                s, a, grid, visible, sizesPending,
                 onOpen = { focusManager.clearFocus(force = true); onSelect(it) },
                 searchCleared = open != null,
                 onFocus = { gridFocused = it },
@@ -263,7 +231,6 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         Box {
             PageHeader(stringResource(R.string.rail_games)) {
                 if (s.steamGamesX64) ClientTag()
-                if (!s.shortcutPicker) AddGameButton { GamesDialogState.adding = true }
             }
         }
         Box { Note(stringResource(if (s.shortcutPicker && s.shortcutLibraryScanning) R.string.game_shortcut_scanning else R.string.games_empty)) }
@@ -279,8 +246,8 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
 @Composable
 private fun LibraryGrid(
     s: FrontEndState, a: FrontEndActions, grid: LazyGridState, visible: List<LibraryEntry>,
-    sources: List<String>, source: String, sizesPending: Boolean,
-    onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
+    sizesPending: Boolean,
+    onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
 ) {
     val listMode = s.libraryView == "list"
     val capsules = s.libraryView == "capsules"
@@ -289,7 +256,7 @@ private fun LibraryGrid(
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
     var columns by remember { mutableIntStateOf(1) }
-    val headerItems = 2 + (if (sizesPending) 1 else 0)
+    val headerItems = 1 + (if (sizesPending) 1 else 0)
     val tile: @Composable (LibraryEntry) -> Unit = { e ->
         val first = e.key == visible.firstOrNull()?.key
         val navigation = if (focus == null) Modifier else Modifier.onPreviewKeyEvent { event ->
@@ -322,12 +289,11 @@ private fun LibraryGrid(
         }
         val picker = s.shortcutPicker
         val choose = if (picker) ({ a.onSteamGame(e.game) }) else null
-        val showSource = source == LIBRARY_ALL && sources.size > 1
-        if (listMode) LibraryRow(e, first, navigation, choose, onOpen, showSource) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource)
+        if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen)
     }
     LazyVerticalGrid(
         columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(tileWidth), state = grid,
-        modifier = Modifier.fillMaxSize().onFocusChanged { onFocus(it.hasFocus) }.focusGroup().bumpers(onPrevious = { onCycle(-1) }, onNext = { onCycle(1) }).onSizeChanged {
+        modifier = Modifier.fillMaxSize().onFocusChanged { onFocus(it.hasFocus) }.focusGroup().onSizeChanged {
             val gap = with(density) { 10.dp.roundToPx() }
             val minimum = with(density) { (if (listMode) CardWidth * 2 else tileWidth).roundToPx() }
             columns = ((it.width + gap) / (minimum + gap)).coerceAtLeast(1)
@@ -337,9 +303,6 @@ private fun LibraryGrid(
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
             Box { LibraryHeader(s, a, visible.size, searchCleared) }
-        }
-        item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
-            Box { LibraryFilters(sources, source, onSource) }
         }
         if (sizesPending) item(key = "size-sort-progress", span = { GridItemSpan(maxLineSpan) }) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
@@ -396,45 +359,8 @@ private fun LibraryHeader(
         SortButton(s, a)
         ViewButton(s, a)
         GameFileFolderActions(s, a)
-        if (!s.shortcutPicker) AddGameButton { GamesDialogState.adding = true }
     }
     if (s.steamGamesX64 && narrow) Box(Modifier.padding(top = 4.dp)) { ClientTag() }
-}
-
-@Composable
-private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit) {
-    if (sources.size < 2) return
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),
-    ) {
-        SourceFilterChip(LIBRARY_ALL, stringResource(R.string.lib_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
-        for (src in sources) {
-            val dot = if (src == SOURCE_STEAM) sourceColours(src).dot else null
-            SourceFilterChip(src, if (src == Library.ADDED) stringResource(R.string.library_filter_added) else sourceLabel(src), source == src, dot) { onSource(src) }
-        }
-    }
-}
-
-@Composable
-private fun SourceFilterChip(key: String, label: String, on: Boolean, dot: Color?, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val shape = RoundedCornerShape(99.dp)
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
-        modifier = Modifier.paneItem("libchip:$key").testTag("library-source-$key").heightIn(min = 40.dp).clip(shape)
-            .background(if (on) pal.signal.copy(alpha = 0.16f) else colors.surface)
-            .glideBorder(hot, shape, pal.signal, if (on) pal.signal else pal.line)
-            .hoverable(src).selectable(selected = on, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
-            .controllerConfirm(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        if (dot != null) Box(Modifier.size(9.dp).background(dot, CircleShape))
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on || hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1)
-    }
 }
 
 private fun entryArt(e: LibraryEntry, tall: Boolean): Any? {
@@ -444,7 +370,7 @@ private fun entryArt(e: LibraryEntry, tall: Boolean): Any? {
 }
 
 @Composable
-private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit, showSource: Boolean) {
+private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit) {
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
@@ -459,7 +385,7 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
             .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
             .controllerConfirm(onClick = choose ?: open),
     ) {
-        LibraryArt(e, wide, tall, hot, capsule, showSource)
+        LibraryArt(e, wide, tall, hot, capsule)
     }
 }
 
@@ -468,17 +394,13 @@ private val CardWidth = 112.dp
 private val CapsuleWidth = 92.dp
 
 @Composable
-private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, hot: Boolean, capsule: Boolean, showSource: Boolean) {
-    ArtCard(
-        e.title, wide, tall, hot, capsule,
-        badge = if (showSource) ({ SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) }) else null,
-    ) { LibrarySize(e) }
+private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, hot: Boolean, capsule: Boolean) {
+    ArtCard(e.title, wide, tall, hot, capsule) { LibrarySize(e) }
 }
 
 @Composable
 internal fun ArtCard(
-    title: String, wide: Any?, tall: Any?, hot: Boolean, capsule: Boolean,
-    badge: (@Composable BoxScope.() -> Unit)? = null, detail: @Composable () -> Unit,
+    title: String, wide: Any?, tall: Any?, hot: Boolean, capsule: Boolean, detail: @Composable () -> Unit,
 ) {
     val url = if (capsule) tall ?: wide else wide ?: tall
     val art = cardArtRequest(url, tall)
@@ -505,7 +427,6 @@ internal fun ArtCard(
                 }
             },
         )
-        badge?.invoke(this)
         val showName = LibraryDisplay.title || hot
         val showDetail = LibraryDisplay.size || hot
         if (showName || showDetail) Column(
@@ -532,7 +453,7 @@ private fun LibrarySize(e: LibraryEntry) {
 }
 
 @Composable
-private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit, showSource: Boolean) {
+private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -557,7 +478,6 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(e.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (showSource) SourceChip(e.source, small = true)
                 Text(meta.joinToString("  ·  "), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

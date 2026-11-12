@@ -187,18 +187,9 @@
     <string name="mode_steam_repair_hint">Vuelve a descargar el cliente de Steam la próxima vez que se inicie Steam. Úsalo si Steam se queda en la pantalla de carga. Se conservan los juegos, la sesión iniciada y los ajustes.</string>
     <string name="mode_steam_repair_queued">El cliente de Steam se volverá a descargar la próxima vez que se inicie Steam.</string>
     <string name="mode_steam_repair_button">Reparar</string>
-    <string name="mode_added_art">Ilustraciones</string>
     <string name="mode_sgdb_key">Clave API de SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Tu clave</string>
     <string name="mode_sgdb_edit">Editar…</string>
-    <string name="mode_added_art_hint">Completa las imágenes que faltan desde Steam y, después, desde SteamGridDB. Tus propios cover.jpg, hero.jpg, logo.png o icon.png en la carpeta del juego tienen prioridad.</string>
-    <string name="summary_remove_game">Quitar %1$s</string>
-    <string name="mode_added_remove_confirm">¿Quitar?</string>
-    <string name="games_add">Agregar juego</string>
-    <string name="games_add_title">Agregar un juego:</string>
-    <string name="games_pick_exe_title">Elige el exe:</string>
-    <string name="games_add_unreachable">Esta ubicación no está disponible en la sesión</string>
-    <string name="mode_added_exe_check">Revisa este .exe</string>
     <string name="wincomp_title">Componentes de Windows</string>
     <string name="wincomp_pad_hint">LB / RB saltan entre las secciones.</string>
     <string name="wincomp_card_none">Ninguno</string>
@@ -214,7 +205,6 @@
     </plurals>
     <string name="wincomp_auto_section">Activados para este juego</string>
     <string name="wincomp_auto_steam">Steam instala %1$s con %2$s (app %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam instala %1$s con la app %2$s, encontrada por nombre</string>
     <string name="wincomp_suggestions">También en la lista</string>
     <string name="wincomp_suggestion_reason">En la lista de %1$s; no es un componente aquí</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -769,24 +759,12 @@
     <string name="games_play_steam">Jugar en Steam</string>
     <string name="games_files">Archivos del juego</string>
     <string name="games_prefix">Prefijo de Proton</string>
-    <string name="games_saves_looking">Buscando partidas guardadas…</string>
-    <string name="games_saves_none">No se encontró ninguna carpeta de guardado por nombre. Exportar toma toda la carpeta de usuario.</string>
-    <string name="games_saves_folders">%1$d carpetas de guardado</string>
-    <string name="games_saves_summary">%1$s · %2$d archivos · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Partidas guardadas</string>
-    <string name="games_import_saves">Importar partidas guardadas…</string>
-    <string name="games_export_gamehub">Exportar como zip de GameHub…</string>
-    <string name="games_export_winlator">Exportar como zip de Winlator…</string>
-    <string name="games_open_save_folder">Abrir carpeta de guardado</string>
     <string name="games_never_played">Nunca jugado</string>
     <string name="games_runtime_busy_percent">Runtime ocupado · %1$d%%</string>
     <string name="games_runtime_update">Actualización del runtime disponible</string>
     <string name="games_runtime_ready">● Runtime listo</string>
     <string name="games_internal">Almacenamiento interno</string>
     <string name="games_uninstall_body">Elimina sus archivos y la quita de Steam.</string>
-    <string name="games_remove_title">¿Quitar %1$s?</string>
-    <string name="games_remove_body">Elimina su acceso directo. Los archivos del juego se conservan.</string>
     <string name="gpu_checking">Buscando controladores…</string>
     <string name="gpu_none_listed">Aún no hay controladores listados. Actualiza para buscarlos.</string>
     <string name="gpu_hide_other">Ocultar controladores de otras GPU</string>
@@ -865,7 +843,6 @@
     <string name="pip_unavailable">Android no pudo abrir imagen en imagen.</string>
     <string name="game_more">Más</string>
     <string name="game_edit_art">Editar imágenes</string>
-    <string name="lib_in_steam_label">En Steam</string>
     <string name="game_shortcut">Acceso directo</string>
     <string name="game_shortcut_add">Agregar a la pantalla de inicio</string>
     <string name="game_shortcut_choose">Elegir juego</string>
@@ -891,26 +868,6 @@
     <string name="load_compat_hint">Tu sesión se iniciará cuando termine la configuración.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Espera a que termine la instalación antes de iniciar un juego</string>
-    <string name="main_saves_close_session">Cierra primero la sesión de Steam para que el juego no guarde encima de lo importado</string>
-    <string name="main_saves_importing">Importando en %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">Se importó %1$d archivo del %2$s en %3$s</item>
-        <item quantity="other">Se importaron %1$d archivos del %2$s en %3$s</item>
-        <item quantity="many">Se importaron %1$d archivos del %2$s en %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">Se importó %1$d archivo del %2$s en %3$s. Copia de las partidas anteriores en Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">Se importaron %1$d archivos del %2$s en %3$s. Copia de las partidas anteriores en Download/DroidDeck/Saves/backups</item>
-        <item quantity="many">Se importaron %1$d archivos del %2$s en %3$s. Copia de las partidas anteriores en Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Elige un zip de partidas guardadas para %1$s</string>
-    <string name="main_saves_exporting">Exportando %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">Se exportó %1$d archivo como %2$s: %3$s</item>
-        <item quantity="other">Se exportaron %1$d archivos como %2$s: %3$s</item>
-        <item quantity="many">Se exportaron %1$d archivos como %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Elige dónde guardar %1$s (%2$s)</string>
     <string name="main_action_failed">%1$s falló: %2$s</string>
     <string name="main_no_logs_yet">Aún no hay registros de sesión: inicia una sesión primero.</string>
     <string name="main_no_logs_to_clear">No hay registros de sesión que borrar.</string>
@@ -1093,7 +1050,6 @@
     <string name="game_sync_err_steam_library">La biblioteca de Steam no está disponible</string>
     <string name="game_sync_err_previous_sd">La biblioteca anterior de la SD no está disponible</string>
     <string name="game_sync_err_game_storage">El almacenamiento de juegos no está disponible</string>
-    <string name="game_sync_err_added_games">La carpeta de juegos agregados no está disponible</string>
     <string name="game_sync_err_manifests">Los manifiestos de Steam no están disponibles</string>
     <string name="fm_drive_internal">Interno</string>
     <string name="fm_drive_linux">Sistema Linux</string>
@@ -1505,11 +1461,6 @@
     <string name="phantom_instructions_not_applicable">Esta versión de Android no usa este límite.</string>
     <string name="phantom_fix_toggle">Activa “Inhabilitar restricciones de procesos secundarios” en Opciones de desarrollador y deja activadas las Opciones de desarrollador después.</string>
     <string name="phantom_fix_no_toggle">Esta versión de Android no tiene un interruptor para ello. Usa la Depuración inalámbrica para cambiarlo desde este dispositivo.</string>
-    <string name="saves_layout_zip">zip de %1$s</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s aún no se ha iniciado</string>
-    <string name="saves_none_found">No se encontraron partidas guardadas de %1$s</string>
-    <string name="saves_not_save_zip">%1$s no tiene carpeta drive_c, así que no es un zip de partidas de GameHub ni de Winlator</string>
     <string name="gstore_cannot_create">no se pueden crear carpetas en %1$s</string>
     <string name="gstore_cannot_write">no se puede escribir en %1$s</string>
     <string name="gstore_cannot_write_detail">no se puede escribir en %1$s (%2$s)</string>
@@ -1553,10 +1504,7 @@
     <string name="device_info_copied">Copiado.</string>
     <string name="force_ssbs_title">Forzar SSBS</string>
     <string name="force_ssbs_hint">Mantiene activado un ajuste de velocidad de la CPU que Wine sigue desactivando. Puede hacer más rápidos los juegos de Windows en Snapdragon 8 Elite; poco cambio en chips anteriores. Se aplica en el próximo inicio de un juego.</string>
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Personalizados</string>
     <string name="lib_tab_library">Biblioteca</string>
-    <string name="lib_tab_all">Todos</string>
     <string name="lib_search_library">Buscar en tu biblioteca…</string>
     <string name="lib_search_open">Buscar</string>
     <string name="lib_nothing_matches">No hay juegos</string>
@@ -1586,16 +1534,10 @@
     <string name="lib_target_free">%1$s libres</string>
     <string name="common_close">Cerrar</string>
     <string name="common_back">Atrás</string>
-    <string name="games_add_all">Agregar todos los juegos de esta carpeta</string>
-    <string name="games_added_none">Nada nuevo en esta carpeta</string>
-    <string name="edit_name">Nombre</string>
-    <string name="edit_target">Destino</string>
-    <string name="edit_start_in">Iniciar en</string>
     <string name="edit_launch_options">Opciones de lanzamiento</string>
     <string name="edit_launch_options_steam_hint">Se comparten con las Propiedades de Steam: un cambio en cualquiera de los dos se ve en ambos.</string>
     <string name="edit_launch_options_not_saved">No se pudieron guardar las opciones de lanzamiento en Steam. Inténtalo de nuevo.</string>
     <string name="edit_artwork">Ilustraciones</string>
-    <string name="edit_other_exe">Otro exe…</string>
     <string name="edit_remove">Quitar</string>
     <string name="art_cover">Portada</string>
     <string name="art_wide_cover">Portada ancha</string>
@@ -1616,11 +1558,9 @@
     <string name="art_background">Fondo</string>
     <string name="art_logo">Logotipo</string>
     <string name="art_icon">Icono</string>
-    <string name="art_src_folder">Carpeta del juego</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Tu archivo</string>
-    <string name="art_src_exe">Del exe</string>
     <string name="art_src_auto">Automático</string>
     <string name="art_pick_image">Elegir imagen…</string>
     <string name="art_pick_title">Elige una imagen: %1$s</string>
@@ -1636,16 +1576,6 @@
     <string name="art_sgdb_offline">No se pudo conectar con SteamGridDB. Comprueba la conexión.</string>
     <string name="art_sgdb_server">SteamGridDB tuvo un problema. Inténtalo más tarde.</string>
     <string name="art_sgdb_no_game">SteamGridDB no tiene ninguna coincidencia para este juego. Prueba a buscarlo.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d juego agregado</item>
-        <item quantity="many">%1$d juegos agregados</item>
-        <item quantity="other">%1$d juegos agregados</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d ya en Juegos</item>
-        <item quantity="other">%1$d ya en Juegos</item>
-        <item quantity="many">%1$d ya en Juegos</item>
-    </plurals>
     <string name="hop_back">B · Volver a %1$s</string>
     <string name="hop_from_games">la página del juego</string>
     <string name="sheet_graphics_drivers">Controladores gráficos</string>
@@ -2027,9 +1957,7 @@
     <string name="game_install_location">Ubicación</string>
     <string name="game_install_folder">Carpeta</string>
     <string name="game_install_size">Tamaño en disco</string>
-    <string name="library_filter_added">Agregados</string>
     <string name="game_tab_launch">Inicio</string>
-    <string name="game_launch_shortcut">Acceso directo de Steam</string>
     <string name="game_install_played">Jugado por última vez</string>
     <string name="integration_title">Integración con Steam</string>
     <string name="integration_count">%1$d de %2$d activadas</string>
@@ -2067,11 +1995,6 @@
     <string name="slow_usb_port">%1$s está conectado por %2$s (%3$s Mbps, unos %4$d MB/s). El puerto USB de este dispositivo no admite más velocidad, así que los juegos cargarán lento. El almacenamiento interno o una microSD pueden ser más rápidos.</string>
     <string name="slow_usb_never">No volver a mostrar</string>
     <string name="slow_usb_dismiss">Descartar</string>
-    <string name="steam_import_title">¿Reiniciar Steam para agregar tus juegos?</string>
-    <string name="steam_import_body">Steam puede mostrar como instalados estos juegos que tienes: %1$s. Tiene que reiniciarse para mostrarlos. Reinicia ahora o se agregarán la próxima vez que Steam se inicie.</string>
-    <string name="steam_import_names_more">%1$s y %2$d más</string>
-    <string name="steam_import_now">Reiniciar ahora</string>
-    <string name="steam_import_later">Más tarde</string>
     <string name="input_reset_positions">Restablecer posiciones</string>
     <string name="input_show_label">Mostrar etiqueta</string>
     <string name="input_layout_import_failed">No se pudo importar esta disposición</string>

@@ -1,4 +1,4 @@
-package com.droiddeck.launcher.frontend
+package com.droiddeck.launcher.session
 
 import java.io.File
 import org.junit.Assert.*
@@ -6,10 +6,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
-class AddedGamesTest {
+class SteamInstallDirsTest {
     @get:Rule val tmp = TemporaryFolder()
 
-    @Test fun steamInstallsInALibraryAreNotScannedAsAddedGames() {
+    @Test fun steamInstallDirsComeFromTheLibrarysManifests() {
         val library = tmp.newFolder("card")
         val common = File(library, "steamapps/common").apply { mkdirs() }
         File(library, "steamapps/appmanifest_2852190.acf").writeText(
@@ -18,7 +18,7 @@ class AddedGamesTest {
         File(library, "steamapps/appmanifest_17410.acf").writeText(
             "\"AppState\"\n{\n\t\"appid\"\t\t\"17410\"\n\t\"installdir\"\t\t\"Mirrors Edge\"\n}\n",
         )
-        assertEquals(setOf("monster_hunter_stories_3_twisted_reflection", "mirrors edge"), AddedGames.steamInstallDirs(common))
-        assertEquals(emptySet<String>(), AddedGames.steamInstallDirs(library))
+        assertEquals(setOf("monster_hunter_stories_3_twisted_reflection", "mirrors edge"), SteamLibraries.steamInstallDirs(common))
+        assertEquals(emptySet<String>(), SteamLibraries.steamInstallDirs(library))
     }
 }

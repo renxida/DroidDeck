@@ -187,18 +187,9 @@
     <string name="mode_steam_repair_hint">Retélécharge le client Steam au prochain démarrage de Steam. Utile si Steam reste bloqué sur son écran de chargement. Les jeux, la connexion et les paramètres sont conservés.</string>
     <string name="mode_steam_repair_queued">Le client Steam sera retéléchargé au prochain démarrage de Steam.</string>
     <string name="mode_steam_repair_button">Réparer</string>
-    <string name="mode_added_art">Illustrations</string>
     <string name="mode_sgdb_key">Clé API SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Votre clé</string>
     <string name="mode_sgdb_edit">Modifier…</string>
-    <string name="mode_added_art_hint">Complète les images manquantes depuis Steam, puis SteamGridDB. Les fichiers cover.jpg, hero.jpg, logo.png ou icon.png que vous placez dans le dossier du jeu sont prioritaires.</string>
-    <string name="summary_remove_game">Retirer %1$s</string>
-    <string name="mode_added_remove_confirm">Retirer ?</string>
-    <string name="games_add">Ajouter un jeu</string>
-    <string name="games_add_title">Ajouter un jeu :</string>
-    <string name="games_pick_exe_title">Choisir l’exe :</string>
-    <string name="games_add_unreachable">Cet emplacement n’est pas disponible dans la session</string>
-    <string name="mode_added_exe_check">Vérifier cet exécutable</string>
     <string name="wincomp_title">Composants Windows</string>
     <string name="wincomp_pad_hint">LB / RB pour passer d\'une section à l\'autre.</string>
     <string name="wincomp_card_none">Aucun</string>
@@ -214,7 +205,6 @@
     </plurals>
     <string name="wincomp_auto_section">Activés pour ce jeu</string>
     <string name="wincomp_auto_steam">Steam installe %1$s avec %2$s (application %3$s)</string>
-    <string name="wincomp_steam_by_name">Steam installe %1$s avec l\'application %2$s, identifiée par son nom</string>
     <string name="wincomp_suggestions">Également listés</string>
     <string name="wincomp_suggestion_reason">Listé par %1$s ; non disponible comme composant ici</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -766,24 +756,12 @@
     <string name="games_play_steam">Lancer Steam</string>
     <string name="games_files">Fichiers du jeu</string>
     <string name="games_prefix">Préfixe Proton</string>
-    <string name="games_saves_looking">Recherche des sauvegardes…</string>
-    <string name="games_saves_none">Aucun dossier de sauvegarde trouvé par nom. L\'exportation inclura l\'intégralité du dossier utilisateur.</string>
-    <string name="games_saves_folders">%1$d dossiers de sauvegarde</string>
-    <string name="games_saves_summary">%1$s · %2$d fichiers · %3$s</string>
-    <string name="games_kb">%1$d Ko</string>
-    <string name="games_saves">Sauvegardes de jeu</string>
-    <string name="games_import_saves">Importer des sauvegardes…</string>
-    <string name="games_export_gamehub">Exporter en tant qu\'archive GameHub…</string>
-    <string name="games_export_winlator">Exporter en tant qu\'archive Winlator…</string>
-    <string name="games_open_save_folder">Ouvrir le dossier de sauvegarde</string>
     <string name="games_never_played">Jamais lancé</string>
     <string name="games_runtime_busy_percent">Environnement d\'exécution occupé · %1$d%%</string>
     <string name="games_runtime_update">Mise à jour de l\'environnement d\'exécution disponible</string>
     <string name="games_runtime_ready">● Environnement d\'exécution prêt</string>
     <string name="games_internal">Stockage interne</string>
     <string name="games_uninstall_body">Supprime ses fichiers et le retire de Steam.</string>
-    <string name="games_remove_title">Retirer %1$s ?</string>
-    <string name="games_remove_body">Supprime son raccourci. Les fichiers du jeu restent.</string>
     <string name="gpu_checking">Vérification des pilotes…</string>
     <string name="gpu_none_listed">Aucun pilote répertorié pour le moment. Actualisez pour rechercher des pilotes.</string>
     <string name="gpu_hide_other">Masquer les pilotes des autres GPU</string>
@@ -862,7 +840,6 @@
     <string name="pip_unavailable">Android ne peut pas ouvrir le mode PiP.</string>
     <string name="game_more">Plus</string>
     <string name="game_edit_art">Modifier les illustrations</string>
-    <string name="lib_in_steam_label">Dans Steam</string>
     <string name="game_shortcut">Raccourci</string>
     <string name="game_shortcut_add">Ajouter à l\'écran d\'accueil</string>
     <string name="game_shortcut_choose">Choisir un jeu</string>
@@ -889,26 +866,6 @@
     <string name="load_compat_hint">Votre session démarrera une fois la configuration terminée.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Attendez la fin de l\'installation avant de lancer un jeu</string>
-    <string name="main_saves_close_session">Fermez d\'abord la session Steam, pour que le jeu ne puisse pas écraser l\'importation</string>
-    <string name="main_saves_importing">Importation dans %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">%1$d fichier importé (%2$s) dans %3$s</item>
-        <item quantity="many">%1$d fichiers importés (%2$s) dans %3$s</item>
-        <item quantity="other">%1$d fichiers importés (%2$s) dans %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">%1$d fichier importé (%2$s) dans %3$s. Anciennes sauvegardes copiées dans Download/DroidDeck/Saves/backups</item>
-        <item quantity="many">%1$d fichiers importés (%2$s) dans %3$s. Anciennes sauvegardes copiées dans Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">%1$d fichiers importés (%2$s) dans %3$s. Anciennes sauvegardes copiées dans Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Choisir un zip de sauvegarde pour %1$s</string>
-    <string name="main_saves_exporting">Exportation de %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">%1$d fichier exporté (%2$s) : %3$s</item>
-        <item quantity="many">%1$d fichiers exportés (%2$s) : %3$s</item>
-        <item quantity="other">%1$d fichiers exportés (%2$s) : %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Choisir où enregistrer %1$s (%2$s)</string>
     <string name="main_action_failed">%1$s : échec (%2$s)</string>
     <string name="main_no_logs_yet">Aucun journal de session pour l\'instant : lancez d\'abord une session.</string>
     <string name="main_no_logs_to_clear">Aucun journal de session à effacer.</string>
@@ -1096,7 +1053,6 @@
     <string name="game_sync_err_steam_library">La bibliothèque Steam n\'est pas disponible</string>
     <string name="game_sync_err_previous_sd">L\'ancienne bibliothèque SD n\'est pas disponible</string>
     <string name="game_sync_err_game_storage">Le stockage des jeux n\'est pas disponible</string>
-    <string name="game_sync_err_added_games">Le dossier des jeux ajoutés n\'est pas disponible</string>
     <string name="game_sync_err_manifests">Les manifestes Steam ne sont pas disponibles</string>
     <string name="fm_drive_internal">Interne</string>
     <string name="fm_drive_linux">Système Linux</string>
@@ -1527,11 +1483,6 @@
     <string name="phantom_instructions_not_applicable">Cette version d\'Android n\'utilise pas cette limite.</string>
     <string name="phantom_fix_toggle">Activez « Désactiver les limites pour les processus enfant » dans les options pour les développeurs, puis laissez les options pour les développeurs activées.</string>
     <string name="phantom_fix_no_toggle">Cette version d\'Android ne dispose pas de cet interrupteur. Utilisez le débogage sans fil pour le modifier depuis cet appareil.</string>
-    <string name="saves_layout_zip">Zip %1$s</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">%1$s n\'a pas encore été lancé</string>
-    <string name="saves_none_found">Aucune sauvegarde trouvée pour %1$s</string>
-    <string name="saves_not_save_zip">%1$s ne contient pas de dossier drive_c : ce n\'est donc pas un zip de sauvegarde GameHub ou Winlator</string>
     <string name="gstore_cannot_create">impossible de créer des dossiers dans %1$s</string>
     <string name="gstore_cannot_write">impossible d\'écrire dans %1$s</string>
     <string name="gstore_cannot_write_detail">impossible d\'écrire dans %1$s (%2$s)</string>
@@ -1576,10 +1527,7 @@
     <string name="force_ssbs_title">Forcer SSBS</string>
     <string name="force_ssbs_hint">Maintient activé un réglage de vitesse du CPU que Wine désactive sans cesse. Peut accélérer les jeux Windows sur Snapdragon 8 Elite ; peu de différence constatée sur les puces plus anciennes. Prendra effet au prochain lancement du jeu.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Personnalisé</string>
     <string name="lib_tab_library">Bibliothèque</string>
-    <string name="lib_tab_all">Tous</string>
     <string name="lib_search_library">Rechercher dans votre bibliothèque…</string>
     <string name="lib_search_open">Rechercher</string>
     <string name="lib_nothing_matches">Aucun jeu</string>
@@ -1609,16 +1557,10 @@
     <string name="lib_target_free">%1$s libres</string>
     <string name="common_close">Fermer</string>
     <string name="common_back">Retour</string>
-    <string name="games_add_all">Ajouter tous les jeux de ce dossier</string>
-    <string name="games_added_none">Rien de nouveau dans ce dossier</string>
-    <string name="edit_name">Nom</string>
-    <string name="edit_target">Cible</string>
-    <string name="edit_start_in">Démarrer dans</string>
     <string name="edit_launch_options">Options de lancement</string>
     <string name="edit_launch_options_steam_hint">Partagées avec les Propriétés de Steam : une modification d’un côté apparaît des deux.</string>
     <string name="edit_launch_options_not_saved">Impossible d’enregistrer les options de lancement dans Steam. Réessayez.</string>
     <string name="edit_artwork">Illustrations</string>
-    <string name="edit_other_exe">Autre exe…</string>
     <string name="edit_remove">Retirer</string>
     <string name="art_cover">Jaquette</string>
     <string name="art_wide_cover">Jaquette large</string>
@@ -1639,11 +1581,9 @@
     <string name="art_background">Arrière-plan</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Icône</string>
-    <string name="art_src_folder">Dossier du jeu</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Votre fichier</string>
-    <string name="art_src_exe">Depuis l’exe</string>
     <string name="art_src_auto">Automatique</string>
     <string name="art_pick_image">Choisir une image…</string>
     <string name="art_pick_title">Choisir une image : %1$s</string>
@@ -1659,16 +1599,6 @@
     <string name="art_sgdb_offline">Impossible de joindre SteamGridDB. Vérifiez la connexion.</string>
     <string name="art_sgdb_server">SteamGridDB a rencontré un problème. Réessayez plus tard.</string>
     <string name="art_sgdb_no_game">SteamGridDB n\'a pas de résultat pour ce jeu. Essayez une recherche.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d jeu ajouté</item>
-        <item quantity="many">%1$d jeux ajoutés</item>
-        <item quantity="other">%1$d jeux ajoutés</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d déjà dans Jeux</item>
-        <item quantity="many">%1$d déjà dans Jeux</item>
-        <item quantity="other">%1$d déjà dans Jeux</item>
-    </plurals>
     <string name="hop_back">B · Retour vers %1$s</string>
     <string name="hop_from_games">le jeu</string>
     <string name="sheet_graphics_drivers">Pilotes graphiques</string>
@@ -2054,9 +1984,7 @@
     <string name="game_install_location">Emplacement</string>
     <string name="game_install_folder">Dossier</string>
     <string name="game_install_size">Taille sur le disque</string>
-    <string name="library_filter_added">Ajoutés</string>
     <string name="game_tab_launch">Lancement</string>
-    <string name="game_launch_shortcut">Raccourci Steam</string>
     <string name="game_install_played">Dernière partie</string>
     <string name="integration_title">Intégration Steam</string>
     <string name="integration_count">%1$d sur %2$d activés</string>
@@ -2094,11 +2022,6 @@
     <string name="slow_usb_port">%1$s est connecté en %2$s (%3$s Mbit/s, environ %4$d Mo/s). Le port USB de cet appareil ne va pas plus vite, les jeux se chargeront donc lentement. Le stockage interne ou une carte microSD peut être plus rapide.</string>
     <string name="slow_usb_never">Ne plus afficher</string>
     <string name="slow_usb_dismiss">Fermer</string>
-    <string name="steam_import_title">Redémarrer Steam pour ajouter vos jeux ?</string>
-    <string name="steam_import_body">Steam peut afficher comme installés ces jeux que vous possédez : %1$s. Il doit redémarrer pour les afficher. Redémarrez maintenant, ou ils seront ajoutés au prochain démarrage de Steam.</string>
-    <string name="steam_import_names_more">%1$s et %2$d de plus</string>
-    <string name="steam_import_now">Redémarrer maintenant</string>
-    <string name="steam_import_later">Plus tard</string>
     <string name="input_reset_positions">Réinitialiser les positions</string>
     <string name="input_show_label">Afficher le libellé</string>
     <string name="input_layout_import_failed">Impossible d’importer cette disposition</string>

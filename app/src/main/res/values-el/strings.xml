@@ -187,18 +187,9 @@
     <string name="mode_steam_repair_hint">Κάνει ξανά λήψη του πελάτη Steam την επόμενη φορά που θα ξεκινήσει το Steam. Χρησιμοποιήστε το αν το Steam παραμένει στην οθόνη φόρτωσης. Τα παιχνίδια, η σύνδεση και οι ρυθμίσεις διατηρούνται.</string>
     <string name="mode_steam_repair_queued">Ο πελάτης Steam θα ληφθεί ξανά την επόμενη φορά που θα ξεκινήσει το Steam.</string>
     <string name="mode_steam_repair_button">Επιδιόρθωση</string>
-    <string name="mode_added_art">Εικαστικά</string>
     <string name="mode_sgdb_key">Κλειδί API SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Το κλειδί σας</string>
     <string name="mode_sgdb_edit">Επεξεργασία…</string>
-    <string name="mode_added_art_hint">Συμπληρώνει τα εικαστικά που λείπουν από το Steam, έπειτα από το SteamGridDB. Τα δικά σας cover.jpg, hero.jpg, logo.png ή icon.png στον φάκελο του παιχνιδιού έχουν προτεραιότητα.</string>
-    <string name="summary_remove_game">Αφαίρεση %1$s</string>
-    <string name="mode_added_remove_confirm">Αφαίρεση;</string>
-    <string name="games_add">Προσθήκη παιχνιδιού</string>
-    <string name="games_add_title">Προσθήκη παιχνιδιού:</string>
-    <string name="games_pick_exe_title">Επιλέξτε το exe:</string>
-    <string name="games_add_unreachable">Αυτή η τοποθεσία δεν είναι διαθέσιμη στη συνεδρία</string>
-    <string name="mode_added_exe_check">Έλεγχος αυτού του exe</string>
     <string name="wincomp_title">Στοιχεία Windows</string>
     <string name="wincomp_pad_hint">Τα LB / RB μεταπηδούν ανάμεσα στις ενότητες.</string>
     <string name="wincomp_card_none">Κανένα</string>
@@ -213,7 +204,6 @@
     </plurals>
     <string name="wincomp_auto_section">Ενεργό για αυτό το παιχνίδι</string>
     <string name="wincomp_auto_steam">Το Steam εγκαθιστά το %1$s με το %2$s (εφαρμογή %3$s)</string>
-    <string name="wincomp_steam_by_name">Το Steam εγκαθιστά το %1$s με την εφαρμογή %2$s, με αντιστοίχιση ονόματος</string>
     <string name="wincomp_suggestions">Αναφέρονται επίσης</string>
     <string name="wincomp_suggestion_reason">Αναφέρεται από %1$s· δεν είναι στοιχείο εδώ</string>
     <string name="wincomp_src_steam">Steam</string>
@@ -763,24 +753,12 @@
     <string name="games_play_steam">Αναπαραγωγή Steam</string>
     <string name="games_files">Αρχεία παιχνιδιού</string>
     <string name="games_prefix">Prefix Proton</string>
-    <string name="games_saves_looking">Αναζήτηση αποθηκευμένων αρχείων…</string>
-    <string name="games_saves_none">Δεν βρέθηκε φάκελος αποθήκευσης με όνομα. Η εξαγωγή λαμβάνει ολόκληρο τον φάκελο χρήστη.</string>
-    <string name="games_saves_folders">%1$d φάκελοι αποθήκευσης</string>
-    <string name="games_saves_summary">%1$s · %2$d αρχεία · %3$s</string>
-    <string name="games_kb">%1$d KB</string>
-    <string name="games_saves">Αποθηκευμένα παιχνιδιού</string>
-    <string name="games_import_saves">Εισαγωγή αποθηκευμένων…</string>
-    <string name="games_export_gamehub">Εξαγωγή ως zip GameHub…</string>
-    <string name="games_export_winlator">Εξαγωγή ως zip Winlator…</string>
-    <string name="games_open_save_folder">Άνοιγμα φακέλου αποθήκευσης</string>
     <string name="games_never_played">Δεν έχει παιχτεί ποτέ</string>
     <string name="games_runtime_busy_percent">Το runtime είναι απασχολημένο · %1$d%%</string>
     <string name="games_runtime_update">Υπάρχει ενημέρωση runtime</string>
     <string name="games_runtime_ready">● Το runtime είναι έτοιμο</string>
     <string name="games_internal">Εσωτερική αποθήκευση</string>
     <string name="games_uninstall_body">Διαγράφει τα αρχεία του και το αφαιρεί από το Steam.</string>
-    <string name="games_remove_title">Αφαίρεση του %1$s;</string>
-    <string name="games_remove_body">Διαγράφει τη συντόμευση. Τα αρχεία του παιχνιδιού παραμένουν.</string>
     <string name="gpu_checking">Έλεγχος για προγράμματα οδήγησης…</string>
     <string name="gpu_none_listed">Δεν υπάρχουν ακόμα προγράμματα οδήγησης. Ανανεώστε για να τα αναζητήσετε.</string>
     <string name="gpu_hide_other">Απόκρυψη προγραμμάτων οδήγησης για άλλες GPU</string>
@@ -859,7 +837,6 @@
     <string name="pip_unavailable">Το Android δεν μπόρεσε να ανοίξει τη λειτουργία εικόνας εντός εικόνας.</string>
     <string name="game_more">Περισσότερα</string>
     <string name="game_edit_art">Επεξεργασία εικαστικών</string>
-    <string name="lib_in_steam_label">Στο Steam</string>
     <string name="game_shortcut">Συντόμευση</string>
     <string name="game_shortcut_add">Προσθήκη στην αρχική οθόνη</string>
     <string name="game_shortcut_choose">Επιλογή παιχνιδιού</string>
@@ -886,23 +863,6 @@
     <string name="load_compat_hint">Η συνεδρία σας θα ξεκινήσει όταν ολοκληρωθεί η ρύθμιση.</string>
     <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_install_game">Περιμένετε να ολοκληρωθεί η εγκατάσταση πριν εκκινήσετε ένα παιχνίδι</string>
-    <string name="main_saves_close_session">Κλείστε πρώτα τη συνεδρία Steam, ώστε το παιχνίδι να μην αποθηκεύσει πάνω από την εισαγωγή</string>
-    <string name="main_saves_importing">Εισαγωγή στο %1$s</string>
-    <plurals name="main_saves_imported">
-        <item quantity="one">Έγινε εισαγωγή %1$d αρχείου από το %2$s στο %3$s</item>
-        <item quantity="other">Έγινε εισαγωγή %1$d αρχείων από το %2$s στο %3$s</item>
-    </plurals>
-    <plurals name="main_saves_imported_backup">
-        <item quantity="one">Έγινε εισαγωγή %1$d αρχείου από το %2$s στο %3$s. Τα παλιά αρχεία αποθήκευσης κρατήθηκαν ως αντίγραφο ασφαλείας στο Download/DroidDeck/Saves/backups</item>
-        <item quantity="other">Έγινε εισαγωγή %1$d αρχείων από το %2$s στο %3$s. Τα παλιά αρχεία αποθήκευσης κρατήθηκαν ως αντίγραφο ασφαλείας στο Download/DroidDeck/Saves/backups</item>
-    </plurals>
-    <string name="main_saves_pick_zip">Επιλέξτε ένα zip αποθηκευμένων αρχείων για το %1$s</string>
-    <string name="main_saves_exporting">Εξαγωγή %1$s</string>
-    <plurals name="main_saves_exported">
-        <item quantity="one">Έγινε εξαγωγή %1$d αρχείου ως %2$s: %3$s</item>
-        <item quantity="other">Έγινε εξαγωγή %1$d αρχείων ως %2$s: %3$s</item>
-    </plurals>
-    <string name="main_saves_pick_folder">Επιλέξτε πού θα αποθηκευτεί το %1$s (%2$s)</string>
     <string name="main_action_failed">Αποτυχία %1$s: %2$s</string>
     <string name="main_no_logs_yet">Δεν υπάρχουν ακόμα αρχεία καταγραφής συνεδρίας: εκτελέστε πρώτα μια συνεδρία.</string>
     <string name="main_no_logs_to_clear">Δεν υπάρχουν αρχεία καταγραφής συνεδρίας για εκκαθάριση.</string>
@@ -1084,7 +1044,6 @@
     <string name="game_sync_err_steam_library">Η βιβλιοθήκη Steam δεν είναι διαθέσιμη</string>
     <string name="game_sync_err_previous_sd">Η προηγούμενη βιβλιοθήκη SD δεν είναι διαθέσιμη</string>
     <string name="game_sync_err_game_storage">Ο χώρος αποθήκευσης παιχνιδιών δεν είναι διαθέσιμος</string>
-    <string name="game_sync_err_added_games">Ο φάκελος προστιθέμενων παιχνιδιών δεν είναι διαθέσιμος</string>
     <string name="game_sync_err_manifests">Τα manifest του Steam δεν είναι διαθέσιμα</string>
     <string name="fm_drive_internal">Εσωτερική</string>
     <string name="fm_drive_linux">Σύστημα Linux</string>
@@ -1508,11 +1467,6 @@
     <string name="phantom_instructions_not_applicable">Αυτή η έκδοση Android δεν χρησιμοποιεί αυτό το όριο.</string>
     <string name="phantom_fix_toggle">Ενεργοποιήστε την «Απενεργοπ. περιορισμών σε θυγατρικές διεργασίες» στις Επιλογές προγραμματιστή και αφήστε τις Επιλογές προγραμματιστή ενεργές μετά.</string>
     <string name="phantom_fix_no_toggle">Αυτή η έκδοση Android δεν έχει διακόπτη για αυτό. Χρησιμοποιήστε τον ασύρματο εντοπισμό σφαλμάτων για να το αλλάξετε από αυτή τη συσκευή.</string>
-    <string name="saves_layout_zip">zip %1$s</string>
-    <string name="saves_zip">zip</string>
-    <string name="saves_not_launched">Το %1$s δεν έχει εκκινηθεί ακόμα</string>
-    <string name="saves_none_found">Δεν βρέθηκαν αρχεία αποθήκευσης για το %1$s</string>
-    <string name="saves_not_save_zip">Το %1$s δεν έχει φάκελο drive_c, οπότε δεν είναι zip αποθήκευσης GameHub ή Winlator</string>
     <string name="gstore_cannot_create">δεν είναι δυνατή η δημιουργία φακέλων στο %1$s</string>
     <string name="gstore_cannot_write">δεν είναι δυνατή η εγγραφή στο %1$s</string>
     <string name="gstore_cannot_write_detail">δεν είναι δυνατή η εγγραφή στο %1$s (%2$s)</string>
@@ -1557,10 +1511,7 @@
     <string name="force_ssbs_title">Εξαναγκασμός SSBS</string>
     <string name="force_ssbs_hint">Διατηρεί μια ρύθμιση ταχύτητας CPU που το Wine απενεργοποιεί συνεχώς. Μπορεί να κάνει τα παιχνίδια Windows πιο γρήγορα σε Snapdragon 8 Elite· μικρή διαφορά σε παλαιότερα chip. Ισχύει από την επόμενη εκκίνηση παιχνιδιού.</string>
 
-    <string name="source_steam">Steam</string>
-    <string name="source_added">Προσαρμοσμένο</string>
     <string name="lib_tab_library">Βιβλιοθήκη</string>
-    <string name="lib_tab_all">Όλα</string>
     <string name="lib_search_library">Αναζήτηση στη βιβλιοθήκη σας…</string>
     <string name="lib_search_open">Αναζήτηση</string>
     <string name="lib_nothing_matches">Δεν υπάρχουν παιχνίδια</string>
@@ -1590,16 +1541,10 @@
     <string name="lib_target_free">%1$s ελεύθερα</string>
     <string name="common_close">Κλείσιμο</string>
     <string name="common_back">Πίσω</string>
-    <string name="games_add_all">Προσθήκη όλων των παιχνιδιών σε αυτόν τον φάκελο</string>
-    <string name="games_added_none">Τίποτα νέο σε αυτόν τον φάκελο</string>
-    <string name="edit_name">Όνομα</string>
-    <string name="edit_target">Προορισμός</string>
-    <string name="edit_start_in">Εκκίνηση σε</string>
     <string name="edit_launch_options">Επιλογές εκκίνησης</string>
     <string name="edit_launch_options_steam_hint">Κοινές με τις Ιδιότητες του Steam: μια αλλαγή στο ένα σημείο εμφανίζεται και στα δύο.</string>
     <string name="edit_launch_options_not_saved">Δεν ήταν δυνατή η αποθήκευση των επιλογών εκκίνησης στο Steam. Δοκιμάστε ξανά.</string>
     <string name="edit_artwork">Γραφικά</string>
-    <string name="edit_other_exe">Άλλο exe…</string>
     <string name="edit_remove">Κατάργηση</string>
     <string name="art_cover">Εξώφυλλο</string>
     <string name="art_wide_cover">Φαρδύ εξώφυλλο</string>
@@ -1620,11 +1565,9 @@
     <string name="art_background">Φόντο</string>
     <string name="art_logo">Λογότυπο</string>
     <string name="art_icon">Εικονίδιο</string>
-    <string name="art_src_folder">Φάκελος παιχνιδιού</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">Το αρχείο σας</string>
-    <string name="art_src_exe">Από το exe</string>
     <string name="art_src_auto">Αυτόματο</string>
     <string name="art_pick_image">Επιλογή εικόνας…</string>
     <string name="art_pick_title">Επιλέξτε μια εικόνα: %1$s</string>
@@ -1640,14 +1583,6 @@
     <string name="art_sgdb_offline">Το SteamGridDB δεν είναι προσβάσιμο. Έλεγξε τη σύνδεση.</string>
     <string name="art_sgdb_server">Κάτι πήγε στραβά στο SteamGridDB. Δοκίμασε αργότερα.</string>
     <string name="art_sgdb_no_game">Το SteamGridDB δεν έχει αποτελέσματα για αυτό το παιχνίδι. Δοκίμασε να το αναζητήσεις.</string>
-    <plurals name="games_added_n">
-        <item quantity="one">%1$d παιχνίδι προστέθηκε</item>
-        <item quantity="other">%1$d παιχνίδια προστέθηκαν</item>
-    </plurals>
-    <plurals name="games_already_n">
-        <item quantity="one">%1$d ήδη στα Παιχνίδια</item>
-        <item quantity="other">%1$d ήδη στα Παιχνίδια</item>
-    </plurals>
     <string name="hop_back">B · Πίσω στο %1$s</string>
     <string name="hop_from_games">το παιχνίδι</string>
     <string name="sheet_graphics_drivers">Προγράμματα οδήγησης γραφικών</string>
@@ -2024,9 +1959,7 @@
     <string name="game_install_location">Τοποθεσία</string>
     <string name="game_install_folder">Φάκελος</string>
     <string name="game_install_size">Μέγεθος στον δίσκο</string>
-    <string name="library_filter_added">Προστέθηκαν</string>
     <string name="game_tab_launch">Εκκίνηση</string>
-    <string name="game_launch_shortcut">Συντόμευση Steam</string>
     <string name="game_install_played">Τελευταίο παιχνίδι</string>
     <string name="integration_title">Ενσωμάτωση Steam</string>
     <string name="integration_count">%1$d από %2$d ενεργά</string>
@@ -2064,11 +1997,6 @@
     <string name="slow_usb_port">Η συσκευή %1$s συνδέεται μέσω %2$s (%3$s Mbps, περίπου %4$d MB/s). Η θύρα USB αυτής της συσκευής δεν υποστηρίζει μεγαλύτερη ταχύτητα, οπότε τα παιχνίδια θα φορτώνουν αργά. Ο εσωτερικός χώρος ή μια κάρτα microSD μπορεί να είναι ταχύτερα.</string>
     <string name="slow_usb_never">Να μην εμφανιστεί ξανά</string>
     <string name="slow_usb_dismiss">Κλείσιμο</string>
-    <string name="steam_import_title">Επανεκκίνηση του Steam για να προστεθούν τα παιχνίδια σας;</string>
-    <string name="steam_import_body">Το Steam μπορεί να εμφανίσει αυτά τα παιχνίδια που έχετε ως εγκατεστημένα: %1$s. Πρέπει να γίνει επανεκκίνηση για να εμφανιστούν. Κάντε επανεκκίνηση τώρα ή θα προστεθούν την επόμενη φορά που θα ξεκινήσει το Steam.</string>
-    <string name="steam_import_names_more">%1$s και %2$d ακόμη</string>
-    <string name="steam_import_now">Επανεκκίνηση τώρα</string>
-    <string name="steam_import_later">Αργότερα</string>
     <string name="input_reset_positions">Επαναφορά θέσεων</string>
     <string name="input_show_label">Εμφάνιση ετικέτας</string>
     <string name="input_layout_import_failed">Δεν ήταν δυνατή η εισαγωγή αυτής της διάταξης</string>

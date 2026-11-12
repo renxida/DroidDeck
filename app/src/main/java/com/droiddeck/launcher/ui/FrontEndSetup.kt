@@ -496,7 +496,6 @@ internal fun SetupPanel(
                         }
                         val art: @Composable () -> Unit = {
                             SettingsGroup(stringResource(R.string.setup_group_art)) {
-                                ToggleRow(host, "added-art", stringResource(R.string.mode_added_art), stringResource(R.string.mode_added_art_hint), s.addedGamesArt) { a.onAddedGamesArt(it) }
                                 ActionRow(
                                     stringResource(R.string.mode_sgdb_key), if (s.sgdbUserKey) stringResource(R.string.mode_sgdb_key_yours) else null,
                                     stringResource(R.string.mode_sgdb_edit), onClick = { editSgdbKey = true },
@@ -674,7 +673,7 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     val controller = a.controller
     val context = androidx.compose.ui.platform.LocalContext.current
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
-    val wincompKey = game?.takeIf { it.library == com.droiddeck.launcher.frontend.Library.ADDED || it.appId > 0 }?.profileKey
+    val wincompKey = game?.takeIf { it.appId > 0 }?.profileKey
     var wincompOpen by remember(wincompKey) { mutableStateOf<Boolean?>(null) }
     val wincompPicks = remember(wincompKey, wincompOpen) { wincompKey?.let { com.droiddeck.launcher.session.WinComponents.picks(context, it) }.orEmpty() }
     val steamScope = game?.let { com.droiddeck.launcher.session.NoSteamLaunch.scope(it) }
@@ -712,7 +711,7 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     val opened = wincompOpen
     if (opened != null && wincompKey != null && game != null) WinComponentsDialog(
         wincompKey, game.name, game.gameFiles, opened, compat = game.protonPrefix,
-        steamAppId = game.appId.takeIf { game.library != com.droiddeck.launcher.frontend.Library.ADDED },
+        steamAppId = game.appId,
         game = game,
     ) { wincompOpen = null }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {

@@ -82,35 +82,9 @@ object SteamGridDb {
     }
 
     internal fun match(name: String, results: List<Pair<Int, String>>): Int? =
-        results.map { (id, got) -> id to AddedGameArt.nameMatch(name, got) }
+        results.map { (id, got) -> id to GameArt.nameMatch(name, got) }
             .filter { it.second > 0 && it.first > 0 }
             .maxByOrNull { it.second }?.first
-
-    internal fun cacheName(slot: AddedGameArt.Slot): String =
-        when (slot) {
-            AddedGameArt.Slot.COVER -> "p.jpg"
-            AddedGameArt.Slot.WIDE -> "header.jpg"
-            AddedGameArt.Slot.BACKGROUND -> "hero.jpg"
-            AddedGameArt.Slot.LOGO -> "logo.png"
-            AddedGameArt.Slot.ICON -> "icon-sgdb.png"
-        }
-
-    fun download(key: String, id: Int, cache: File, slots: Set<AddedGameArt.Slot> = AddedGameArt.Slot.values().toSet()): Boolean {
-        var got = false
-        for (slot in AddedGameArt.Slot.values()) {
-            if (slot !in slots) continue
-            val local = cacheName(slot)
-            val dst = File(cache, local)
-            if (dst.isFile) continue
-            val items = json(key, "$API/${path(id, slot)}")?.optJSONArray("data") ?: continue
-            val url = best(items, local.endsWith(".png")) ?: continue
-            val bytes = AddedGameArt.get(url) ?: continue
-            val tmp = File(cache, "$local.tmp")
-            tmp.writeBytes(bytes)
-            if (tmp.renameTo(dst)) { got = true; File(cache, "$local.src").writeText(AddedGameArt.SGDB) }
-        }
-        return got
-    }
 
     fun search(key: String, term: String): List<Game> {
         val q = term.trim()
@@ -125,24 +99,24 @@ object SteamGridDb {
             .filter { it.optInt("id") > 0 && it.optString("name").isNotEmpty() }
             .map { Game(it.optInt("id"), it.optString("name"), it.optBoolean("verified")) }
 
-    internal fun path(id: Int, slot: AddedGameArt.Slot): String =
+    internal fun path(id: Int, slot: GameArt.Slot): String =
         when (slot) {
-            AddedGameArt.Slot.COVER -> "grids/game/$id?dimensions=600x900&$QUERY"
-            AddedGameArt.Slot.WIDE -> "grids/game/$id?dimensions=460x215,920x430&$QUERY"
-            AddedGameArt.Slot.BACKGROUND -> "heroes/game/$id?$QUERY"
-            AddedGameArt.Slot.LOGO -> "logos/game/$id?$QUERY"
-            AddedGameArt.Slot.ICON -> "icons/game/$id?$QUERY"
+            GameArt.Slot.COVER -> "grids/game/$id?dimensions=600x900&$QUERY"
+            GameArt.Slot.WIDE -> "grids/game/$id?dimensions=460x215,920x430&$QUERY"
+            GameArt.Slot.BACKGROUND -> "heroes/game/$id?$QUERY"
+            GameArt.Slot.LOGO -> "logos/game/$id?$QUERY"
+            GameArt.Slot.ICON -> "icons/game/$id?$QUERY"
         }
 
-    fun page(key: String, id: Int, slot: AddedGameArt.Slot): List<Pair<String, String>> {
+    fun page(key: String, id: Int, slot: GameArt.Slot): List<Pair<String, String>> {
         val items = json(key, "$API/${path(id, slot)}")?.optJSONArray("data") ?: return emptyList()
-        return ranked(items, pngOnly = slot == AddedGameArt.Slot.LOGO || slot == AddedGameArt.Slot.ICON)
+        return ranked(items, pngOnly = slot == GameArt.Slot.LOGO || slot == GameArt.Slot.ICON)
     }
 
     private const val PAGE_SIZE = 50
     private const val MAX_PAGES = 4
 
-    fun all(key: String, id: Int, slot: AddedGameArt.Slot): List<Pair<String, String>> {
+    fun all(key: String, id: Int, slot: GameArt.Slot): List<Pair<String, String>> {
         val raw = JSONArray()
         for (n in 0 until MAX_PAGES) {
             val url = "$API/${path(id, slot)}" + if (n > 0) "&page=$n" else ""
@@ -156,10 +130,10 @@ object SteamGridDb {
             for (i in 0 until items.length()) raw.put(items.get(i))
             if (items.length() < PAGE_SIZE) break
         }
-        return ranked(raw, pngOnly = slot == AddedGameArt.Slot.LOGO || slot == AddedGameArt.Slot.ICON)
+        return ranked(raw, pngOnly = slot == GameArt.Slot.LOGO || slot == GameArt.Slot.ICON)
     }
 
-    fun images(key: String, id: Int, slot: AddedGameArt.Slot, limit: Int): List<Pair<String, String>> =
+    fun images(key: String, id: Int, slot: GameArt.Slot, limit: Int): List<Pair<String, String>> =
         page(key, id, slot).take(limit)
 
     internal fun ranked(items: JSONArray, pngOnly: Boolean): List<Pair<String, String>> =
@@ -167,11 +141,6 @@ object SteamGridDb {
             .filter { it.optString("url").startsWith("https://") && (!pngOnly || it.optString("mime") == "image/png" || it.optString("url").endsWith(".png", true)) }
             .sortedByDescending { it.optInt("score", 0) }
             .map { (it.optString("thumb").takeIf { t -> t.startsWith("https://") } ?: it.optString("url")) to it.optString("url") }
-
-    internal fun best(items: JSONArray, pngOnly: Boolean): String? =
-        (0 until items.length()).map { items.getJSONObject(it) }
-            .filter { it.optString("url").startsWith("https://") && (!pngOnly || it.optString("mime") == "image/png" || it.optString("url").endsWith(".png", true)) }
-            .maxByOrNull { it.optInt("score", 0) }?.optString("url")
 
     internal fun failure(code: Int): Status? = when {
         code == 401 || code == 403 -> Status.BAD_KEY

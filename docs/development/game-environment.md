@@ -107,7 +107,7 @@ Run the batch/reference and work-budget regressions with
 Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
 before reproducing a Windows game problem. Game debug logs is off by default and
 is available when Session logs is enabled. It applies to the next game launch through DroidDeck's
-Valve or third-party Proton wrapper, including added games and store shortcuts.
+Valve or third-party Proton wrapper.
 A running game must be restarted. If the current session began with Session logs
 disabled, restart that session first: its existing log folder is disposable, and
 the UI shows a restart reminder instead of enabling logs that would be discarded.

@@ -1043,18 +1043,10 @@ case $mode in
     if [ "${BL_STEAM_UI:-}" != desktop ]; then
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
     fi
-    if [ -n "${BL_ADDED_GAMES:-}" ]; then
-      step "adding the app's own games to the client's library"
-      droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
-    fi
     droiddeck-seed-redists "$steam_root" || true
     else
     _bl_x64_tool=$(droiddeck-steam-x64 --default-tool)
     if [ -n "$_bl_x64_tool" ]; then
-      if [ -n "${BL_ADDED_GAMES:-}" ]; then
-        step "adding the app's own games to the x86-64 client's library"
-        BL_COMPAT_TOOL=$_bl_x64_tool droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
-      fi
       step "pointing the x86-64 client's Windows titles at $_bl_x64_tool"
       BL_COMPAT_TOOL=$_bl_x64_tool steam-compatibility "$steam_root" --x64 || true
     fi
@@ -1381,16 +1373,6 @@ case $mode in
     _bl_lang=()
     [ -n "${BL_STEAM_LANGUAGE:-}" ] && _bl_lang=(-language "$BL_STEAM_LANGUAGE")
     steam_beta=$steam_root/package/beta
-    if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
-      if [ "$steam_x64" = 0 ]; then
-        droiddeck-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
-      else
-        BL_STEAMCLIENT=$XDG_DATA_HOME/Steam/steamrtarm64/steamclient.so \
-          BL_STEAM_SHUTDOWN="droiddeck-steam-x64 --exec -shutdown" \
-          droiddeck-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
-      fi
-      games_watcher=$!
-    fi
     echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-ozone-platform=x11 ${_bl_cef[*]} $*$([ "$steam_x64" = 1 ] && echo ' (x86-64 client under FEX)')"
     steam_updates=0
     steam_installs=0
@@ -1750,13 +1732,6 @@ case $mode in
       if [ -f "$HOME/.config/droiddeck/fex-wanted" ] && [ -x /usr/local/bin/droiddeck-fex ]; then
         /usr/local/bin/droiddeck-fex status >/dev/null 2>&1 || true
       fi
-      if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
-        if [ "$steam_x64" = 0 ]; then
-          droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
-        elif [ -n "${_bl_x64_tool:-}" ]; then
-          BL_COMPAT_TOOL=$_bl_x64_tool droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
-        fi
-      fi
       if [ "$steam_x64" = 1 ]; then
         [ -z "${_bl_x64_tool:-}" ] ||
           BL_COMPAT_TOOL=$_bl_x64_tool steam-compatibility "$steam_root" --x64 >/dev/null 2>&1 || true
@@ -1818,10 +1793,6 @@ case $mode in
     if [ -n "${stop_watcher:-}" ]; then
       kill "$stop_watcher" 2>/dev/null || true
       wait "$stop_watcher" 2>/dev/null || true
-    fi
-    if [ -n "${games_watcher:-}" ]; then
-      kill "$games_watcher" 2>/dev/null || true
-      wait "$games_watcher" 2>/dev/null || true
     fi
     _bl_jobs=$(jobs -p)
     [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
