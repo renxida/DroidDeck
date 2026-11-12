@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Le premier lancement télécharge Steam. Cela peut prendre quelques minutes.</item>
-        <item>Par défaut, quitter l\'application met Steam en pause ; y revenir reprend là où vous vous étiez arrêté.</item>
-        <item>Votre manette apparaîtra comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Par défaut, quitter l\'application met la session en pause ; y revenir reprend là où vous vous étiez arrêté.</item>
-        <item>Le tactile fonctionne comme un pavé tactile : faites glisser pour déplacer le pointeur, tapotez pour cliquer.</item>
-        <item>Votre manette apparaîtra comme une manette Xbox 360. Sinon, utilisez les commandes à l\'écran.</item>
-    </string-array>
     <string name="session_channel">Session</string>
     <string name="session_notification">Steam est en cours d\'exécution</string>
     <string name="session_notification_downloads">Téléchargement Steam en cours</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Tactile</string>
     <string name="mode_touch_touchpad">Pavé tactile</string>
     <string name="mode_touch_direct">Direct</string>
-    <string name="mode_touch_note">Auto : pavé tactile pour le bureau, tactile direct pour Steam.</string>
     <string name="mode_osc">Commandes à l\'écran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Le mode automatique affiche les commandes à l\'écran lorsqu\'aucune manette n\'est connectée.</string>
@@ -457,7 +446,6 @@
     <string name="drawer_page_controls">Contrôles</string>
     <string name="drawer_page_components">Composants</string>
     <string name="drawer_page_controller">Manette</string>
-    <string name="drawer_page_settings">Paramètres</string>
     <string name="drawer_page_desc">Page %1$s</string>
     <string name="drawer_steam_menu">Menu Steam</string>
     <string name="drawer_open_qam">Ouvrir le menu d\'accès rapide</string>
@@ -602,9 +590,6 @@
     <string name="setup_limit_adb_failed">Veuillez vérifier l\'adresse IP et le port du débogage sans fil ; si Android a supprimé cet appareil, veuillez le réappairer.</string>
     <string name="setup_install">Installer</string>
     <string name="setup_manage">Gérer</string>
-    <string name="setup_tab_overview">Aperçu</string>
-    <string name="setup_tab_controller">Manette</string>
-    <string name="setup_tab_launcher">Lanceur</string>
     <string name="setup_title">Paramètres</string>
     <string name="setup_gpu_supported">Appareil pris en charge</string>
     <string name="setup_gpu_untested">GPU non testé</string>
@@ -631,7 +616,6 @@
     <string name="setup_signed_in">Connecté en tant que %1$s</string>
     <string name="setup_sign_in">Appuyez sur Play et connectez-vous à Steam</string>
     <string name="setup_controller">Manette</string>
-    <string name="setup_controller_unavailable">Les paramètres de la manette ne sont pas disponibles.</string>
     <string name="setup_logs">Journaux de session</string>
     <string name="setup_logs_hint">Enregistré après chaque fin de session</string>
     <string name="setup_game_debug_logs">Journaux de débogage des jeux</string>
@@ -685,11 +669,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Contrôles</string>
     <string name="setup_card_controls_hint">Mappage des boutons</string>
-    <string name="store_starting">Démarrage…</string>
-    <string name="store_try_again">Réessayer</string>
-    <string name="store_all">Tout</string>
-    <string name="store_open">Ouvrir</string>
-    <string name="store_remove">Supprimer</string>
+    <string name="common_starting">Démarrage…</string>
+    <string name="common_try_again">Réessayer</string>
+    <string name="common_all">Tout</string>
+    <string name="common_open">Ouvrir</string>
+    <string name="common_remove">Supprimer</string>
     <string name="upd_open_settings">Ouvrir les paramètres</string>
     <string name="upd_current_status">À jour</string>
     <string name="upd_just_now">À l\'instant</string>
@@ -771,7 +755,6 @@
     <string name="ctrl_steam_button">Bouton Steam</string>
     <string name="ctrl_qam_button">Bouton QAM</string>
     <string name="ctrl_keyboard_button">Bouton clavier</string>
-    <string name="setup_animations">Animations</string>
     <string name="setup_low_storage_warning">Avertir quand l\'espace de stockage est faible</string>
     <string name="setup_low_storage_warning_hint">Demander avant de lancer Steam lorsque l\'espace libre est inférieur à 10 Go.</string>
     <string name="ctrl_layout">Disposition</string>
@@ -879,7 +862,7 @@
     <string name="pip_unavailable">Android ne peut pas ouvrir le mode PiP.</string>
     <string name="game_more">Plus</string>
     <string name="game_edit_art">Modifier les illustrations</string>
-    <string name="stores_in_steam_label">Dans Steam</string>
+    <string name="lib_in_steam_label">Dans Steam</string>
     <string name="game_shortcut">Raccourci</string>
     <string name="game_shortcut_add">Ajouter à l\'écran d\'accueil</string>
     <string name="game_shortcut_choose">Choisir un jeu</string>
@@ -1069,7 +1052,7 @@
         <item quantity="other">Le journal indique %1$d erreurs « Function not implemented » : l\'accélération seccomp de proot fait échouer un utilitaire sur cet appareil. Essayez %2$s → « %3$s » (ou « %4$s ») et relancez.</item>
     </plurals>
 
-    <string name="store_section_loading">chargement…</string>
+    <string name="lib_section_loading">chargement…</string>
     <string name="theme_graphite">Graphite</string>
     <string name="theme_graphite_detail">Surfaces graphite, avec le bleu de l\'orbe du logo pour tout élément sélectionné, ciblé ou pressé.</string>
     <string name="theme_paper">Papier sur noir</string>
@@ -1080,8 +1063,6 @@
     <string name="theme_electric_detail">Un bleu plus vif, sur des surfaces qui tirent vers le marine plutôt que vers le gris.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Des couleurs qui parcourent l\'arc-en-ciel. Respecte les réglages d\'animation d\'Android.</string>
-    <string name="theme_rgb_speed">Vitesse</string>
-    <string name="theme_rgb_speed_hint">La vitesse de défilement des couleurs.</string>
     <string name="theme_gradient">Dégradé</string>
     <string name="theme_gradient_detail">Vos propres couleurs primaire et secondaire, fondues sur les boutons et les éléments en surbrillance.</string>
     <string name="theme_gradient_primary">Primaire</string>
@@ -1597,14 +1578,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Personnalisé</string>
-    <string name="stores_tab_library">Bibliothèque</string>
-    <string name="stores_tab_all">Tous</string>
-    <string name="stores_search_library">Rechercher dans votre bibliothèque…</string>
-    <string name="stores_search_open">Rechercher</string>
-    <string name="stores_nothing_matches">Aucun jeu</string>
-    <string name="stores_play">Jouer</string>
-    <string name="stores_refresh">Actualiser</string>
-    <string name="stores_sort">Trier</string>
+    <string name="lib_tab_library">Bibliothèque</string>
+    <string name="lib_tab_all">Tous</string>
+    <string name="lib_search_library">Rechercher dans votre bibliothèque…</string>
+    <string name="lib_search_open">Rechercher</string>
+    <string name="lib_nothing_matches">Aucun jeu</string>
+    <string name="lib_play">Jouer</string>
+    <string name="lib_refresh">Actualiser</string>
+    <string name="lib_sort">Trier</string>
     <string name="setup_rail_labels">Libellés de la barre latérale</string>
     <string name="setup_rail_labels_hint">Afficher les noms sous les icônes de la barre latérale. Désactivez pour une barre latérale plus fine.</string>
     <string name="library_display">Affichage</string>
@@ -1612,20 +1593,20 @@
     <string name="library_display_smaller">Cartes plus petites</string>
     <string name="library_display_title">Afficher le titre</string>
     <string name="library_display_size">Afficher la taille</string>
-    <string name="stores_sort_last_played">Joués récemment</string>
-    <string name="stores_sort_recently_installed">Installés récemment</string>
-    <string name="stores_sort_title_asc">Titre A–Z</string>
-    <string name="stores_sort_title_desc">Titre Z–A</string>
-    <string name="stores_sort_size_desc">Taille : plus grand</string>
-    <string name="stores_sort_size_asc">Taille : plus petit</string>
-    <string name="stores_view_list">Vue liste</string>
-    <string name="stores_view_cards">Vue cartes</string>
-    <string name="stores_view_capsules">Vue jaquettes</string>
+    <string name="lib_sort_last_played">Joués récemment</string>
+    <string name="lib_sort_recently_installed">Installés récemment</string>
+    <string name="lib_sort_title_asc">Titre A–Z</string>
+    <string name="lib_sort_title_desc">Titre Z–A</string>
+    <string name="lib_sort_size_desc">Taille : plus grand</string>
+    <string name="lib_sort_size_asc">Taille : plus petit</string>
+    <string name="lib_view_list">Vue liste</string>
+    <string name="lib_view_cards">Vue cartes</string>
+    <string name="lib_view_capsules">Vue jaquettes</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">installé</string>
-    <string name="stores_uninstall_title">Désinstaller %1$s ?</string>
-    <string name="stores_dl_pause">Pause</string>
-    <string name="stores_target_free">%1$s libres</string>
+    <string name="lib_eyebrow_installed">installé</string>
+    <string name="lib_uninstall_title">Désinstaller %1$s ?</string>
+    <string name="lib_dl_pause">Pause</string>
+    <string name="lib_target_free">%1$s libres</string>
     <string name="common_close">Fermer</string>
     <string name="common_back">Retour</string>
     <string name="games_add_all">Ajouter tous les jeux de ce dossier</string>
@@ -1690,7 +1671,6 @@
     </plurals>
     <string name="hop_back">B · Retour vers %1$s</string>
     <string name="hop_from_games">le jeu</string>
-    <string name="hop_from_play">les paramètres de jeu</string>
     <string name="sheet_graphics_drivers">Pilotes graphiques</string>
     <string name="comp_this_proton">Ce Proton</string>
     <string name="comp_for_every_proton">Pour tous les Proton</string>
@@ -1743,12 +1723,6 @@
     <string name="comp_this_device">Cet appareil</string>
     <string name="proton_remove_title">Supprimer %1$s ?</string>
     <string name="setup_tab_diagnostics">Diagnostic</string>
-    <string name="setup_ready">Prêt à jouer</string>
-    <string name="setup_not_ready">Pas encore prêt à jouer</string>
-    <string name="setup_ready_runtime">environnement d\'exécution %1$s</string>
-    <string name="setup_ready_limit_off">limite des processus désactivée</string>
-    <string name="setup_ready_signed_in">connecté en tant que %1$s</string>
-    <string name="setup_needs_you">Quand une intervention est requise</string>
     <string name="setup_group_look">Apparence</string>
     <string name="setup_group_device">Cet appareil</string>
     <string name="setup_group_art">Illustrations de la bibliothèque</string>

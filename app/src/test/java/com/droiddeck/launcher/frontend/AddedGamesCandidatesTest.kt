@@ -121,22 +121,6 @@ class AddedGamesCandidatesTest {
         assertFalse(AddedGames.scan(app).single().exeUncertain)
     }
 
-    @Test fun theGamesOwnTitleNamesItAndItsShortcutIdStays() {
-        val games = tmp.newFolder("PC")
-        val game = File(games, "ws-v1.2")
-        exe(game, "ws-v1.2.exe")
-        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
-        SessionPrefs.setAddedGamesDirs(app, listOf(games.path))
-        val before = AddedGames.scan(app).single()
-        assertEquals("ws-v1.2", before.name)
-
-        File(game, "goggame-1207658691.info").writeText("""{"gameId":"1207658691","name":"The Witcher 3: Wild Hunt"}""")
-        game.setLastModified(game.lastModified() + 10_000)
-        val after = AddedGames.scan(app).single()
-        assertEquals("The Witcher 3 - Wild Hunt", after.name)
-        assertEquals(before.appId, after.appId)
-    }
-
     @Test fun onlyACleanedFileNameKeepsTheFolderName() {
         val games = tmp.newFolder("PC")
         val game = File(games, "My Game [Repack]")

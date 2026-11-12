@@ -146,7 +146,7 @@ private fun FixGroup(
                     Body(stringResource(R.string.gate_no_toggle))
                     (stage as? Stage.Failed)?.let { Body(it.error, error = true) }
                     PrimaryButton(
-                        if (stage is Stage.Failed) stringResource(R.string.store_try_again) else stringResource(R.string.gate_fix_for_me),
+                        if (stage is Stage.Failed) stringResource(R.string.common_try_again) else stringResource(R.string.gate_fix_for_me),
                         compact = compact,
                         enabled = environment.onWifi && environment.notifications,
                         onClick = onFixWithWirelessDebugging,

@@ -271,7 +271,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var cursorPos by mutableStateOf(androidx.compose.ui.geometry.Offset(-100f, -100f))
     private var cursorVisible by mutableStateOf(false)
-    private var floodColor by mutableStateOf<Int?>(null)
     private val cursorHide = Runnable { cursorVisible = false }
     private var lastPadInputMs = 0L
     private val cursorBuf = IntArray(WaylandCompositor.CURSOR_BUF_INTS)
@@ -398,9 +397,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             drawerOpenState = value
             if (!value && drawerDocked) closeDockedMenu()
         }
-    private var quitFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
-    private var quitFlooded = false
-    private var leaving by mutableStateOf(false)
     private var closeAtOnce = false
     private var drawerComponents by mutableStateOf<ComponentsManager.Snapshot?>(null)
     private var drawerDefaultProton by mutableStateOf<String?>(null)
@@ -456,7 +452,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var bottomSwapAvailable by mutableStateOf(false)
     private var pausedFrame by mutableStateOf<com.droiddeck.launcher.ui.PausedFrame?>(null)
     private var pausedFrameWanted = false
-    private var pauseAnimated by mutableStateOf(false)
     private var ended = false
     private val uiScope = kotlinx.coroutines.MainScope()
     private val shortcutPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -591,7 +586,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (savedInstanceState == null && SessionState.installing != null && !SessionState.running) {
             runtimeRemovalBlocked = true
-            android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, R.string.main_wait_install, android.widget.Toast.LENGTH_SHORT).show()
             finish()
             return
         }
@@ -724,10 +719,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         readPrefs()
 
-        intent.getIntExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, 0).takeIf { it != 0 && loading.visible }?.let {
-            floodColor = it
-            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(it))
-        }
         sessionOverlay = createSessionOverlay()
         root.addView(object : FrameLayout(this) {
             override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): android.view.PointerIcon? =
@@ -808,7 +799,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (memoryHud.text.isNotEmpty()) HudText(memoryHud.text, hudColor, hudOpacity)
                 if (bottomOutputActive && !loading.visible) SwappedTopPanel()
                 if (loading.visible) LoadingOverlay(
-                    loading.step, loading.percent, loading.elapsed, loading.hint, loading.ended,
+                    loading.step, loading.percent, loading.elapsed, "", loading.ended,
                     topic = loading.topic, readable = loading.readable,
                     title = loadingTitle(), steam = loadingMode() == SessionService.MODE_STEAM,
                     onCancel = { SessionService.stop(this@SessionActivity); finish() },
@@ -817,11 +808,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onRepair = if (repairOffered) ({ repairRuntime() }) else null,
                     onShareLogs = { shareCurrentSessionLogs() },
                     onClose = { finish() },
-                    flood = floodColor?.let { androidx.compose.ui.graphics.Color(it) },
-                    onFlooded = {
-                        floodColor = null
-                        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
-                    },
                 )
                 LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty()) {
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -912,36 +898,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 )
                 if (!drawerDocked) SessionMenu(docked = false)
                 val autoResume = suspendPolicy == SessionPrefs.SUSPEND_AUTO || suspendPolicy == SessionPrefs.SUSPEND_NATIVE
-                LaunchedEffect(SessionState.manualPause, SessionState.suspended) {
-                    if (!SessionState.manualPause && !SessionState.suspended) pauseAnimated = false
-                }
                 SessionPausedOverlay(
                     suspended = SessionState.suspended && (!autoResume || SessionState.resumeFailed || SessionState.manualPause),
                     engaged = SessionState.resumeRequested || SessionState.resuming,
                     failures = SessionState.resumeFailures,
                     frame = pausedFrame,
-                    animateIn = pauseAnimated,
                     title = pausedTitle(),
                     onResume = { SessionService.resume(this@SessionActivity) },
                     onFrameNeeded = ::requestPausedFrame,
                     onHidden = {
                         pausedFrame = null
                         pausedFrameWanted = false
-                        pauseAnimated = false
                     },
                 )
-                if (leaving) com.droiddeck.launcher.ui.FloodSpread(
-                    com.droiddeck.launcher.ui.LocalPalette.current.signal,
-                    ball = if (loading.visible) com.droiddeck.launcher.ui.ThrobberSpot.ball else null,
-                ) { completeLeave() }
-                quitFrom?.let { from ->
-                    val error = androidx.compose.material3.MaterialTheme.colorScheme.error
-                    com.droiddeck.launcher.ui.LaunchFlood(
-                        from, onProgress = {},
-                        fromColors = error to androidx.compose.ui.graphics.lerp(error, androidx.compose.ui.graphics.Color.Black, 0.12f),
-                        cornerAtRest = 20.dp,
-                    ) { finishFlooded() }
-                }
             }
         }
         }
@@ -1157,14 +1126,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onBackground = { drawerOpen = false; pip.background(); moveTaskToBack(true) },
             onShareLogs = { drawerOpen = false; shareCurrentSessionLogs() },
             onStop = { drawerOpen = false; SessionService.stop(this@SessionActivity); finish() },
-            onStopFrom = { onScreen ->
+            onStopFrom = { _ ->
                 drawerOpen = false
-                if (onScreen == null || com.droiddeck.launcher.ui.Motion.scale == 0f || quitFrom != null) {
-                    if (quitFrom == null) { SessionService.stop(this@SessionActivity); finish() }
-                } else {
-                    val at = IntArray(2).also { sessionOverlay.getLocationOnScreen(it) }
-                    quitFrom = onScreen.translate(-at[0].toFloat(), -at[1].toFloat())
-                }
+                SessionService.stop(this@SessionActivity)
+                finish()
             },
             onClose = { drawerOpen = false },
             onDismissScreen = if (docked) ({ selectSecondScreenMode(SecondScreenMode.NONE) }) else null,
@@ -3770,7 +3735,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun pauseNow() {
         if (!SessionState.running || SessionState.suspended) return
-        pauseAnimated = true
         drawerOpen = false
         pausedFrame = null
         capturePausedFrame(manual = true)
@@ -3925,7 +3889,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         applyFollowOrientation(resources.configuration)
         if (runtimeRemovalBlocked) return
         if (!SessionState.suspended) pausedFrame = null
-        com.droiddeck.launcher.ui.Motion.refresh(this)
         if (::memoryHud.isInitialized && SessionState.running && SessionState.firstFrameSeen) memoryHud.refresh()
         if (intent?.action == SessionService.ACTION_RESUME) {
             intent.action = null
@@ -4275,35 +4238,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onDestroy()
     }
 
-    private fun finishFlooded() {
-        if (isFinishing) return
-        val signal = com.droiddeck.launcher.ui.Themes.current(this).signal
-        com.droiddeck.launcher.ui.QuitFlood.mark(signal.toArgb())
-        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(signal.toArgb()))
-        quitFlooded = true
-        SessionService.stop(this)
-        finish()
-    }
-
     override fun finish() {
         if (isFinishing) return
-        if (!quitFlooded && !closeAtOnce && com.droiddeck.launcher.ui.Motion.scale != 0f &&
-            lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
-            if (!leaving) {
-                leaving = true
-                uiHandler.postDelayed({ completeLeave() }, LEAVE_TIMEOUT_MS)
-            }
-            return
-        }
         if (!closeAtOnce && intent.getBooleanExtra(EXTRA_RETURN_HOME, false)) {
-            com.droiddeck.launcher.ui.QuitFlood.take()
-            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
             closeLinkTasks()
             if (!isTaskRoot) moveTaskToBack(true)
             super.finishAndRemoveTask()
         } else super.finish()
-        if (quitFlooded) overridePendingTransition(0, 0)
-        else overridePendingTransition(R.anim.session_hold, R.anim.session_sink)
+        overridePendingTransition(0, 0)
     }
 
     private fun closeLinkTasks() {
@@ -4322,21 +4264,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun completeLeave() {
-        if (isFinishing) return
-        val signal = com.droiddeck.launcher.ui.Themes.current(this).signal
-        com.droiddeck.launcher.ui.QuitFlood.mark(signal.toArgb())
-        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(signal.toArgb()))
-        quitFlooded = true
-        finish()
-    }
-
     companion object {
         const val EXTRA_RETURN_HOME = "returnHome"
         const val EXTRA_LINK_TASK = "linkTask"
         const val EXTRA_PLAYED_GAME = "com.droiddeck.launcher.PLAYED_GAME"
         const val EXTRA_REPAIR_RUNTIME = "repairRuntime"
-        private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val PAUSED_FRAME_MAX_EDGE = 1920f
         private const val PAUSED_FRAME_REDRAW_MS = 150L
         private const val BOTTOM_RECOVERY_MS = 1_000L

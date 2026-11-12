@@ -82,12 +82,4 @@ class StepOutTest {
         val arcs = (Math.PI / 2).toFloat() * (12f + 16f + 15f + 0.5f + 12f)
         assertEquals(175f + arcs, length, 2f)
     }
-
-    @Test fun aCardMarkIsTakenOnceAndOnlyForItsGame() {
-        CardMotion.markCard(CardMark("app:1", pill, 10f, null))
-        assertNull(CardMotion.takeCard("app:2"))
-        CardMotion.markCard(CardMark("app:1", pill, 10f, null))
-        assertNotNull(CardMotion.takeCard("app:1"))
-        assertNull(CardMotion.takeCard("app:1"))
-    }
 }

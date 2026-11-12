@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>첫 실행 시 Steam을 다운로드합니다. 몇 분 정도 걸릴 수 있습니다.</item>
-        <item>기본적으로 앱을 나가면 Steam이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
-        <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>기본적으로 앱을 나가면 세션이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
-        <item>터치는 트랙패드처럼 작동합니다. 드래그하여 포인터를 이동하고, 탭하여 클릭합니다.</item>
-        <item>컨트롤러는 Xbox 360 컨트롤러로 인식됩니다. 컨트롤러가 없으면 화면 컨트롤을 사용하세요.</item>
-    </string-array>
     <string name="session_channel">세션</string>
     <string name="session_notification">Steam이 실행 중입니다</string>
     <string name="session_notification_downloads">Steam 다운로드 진행 중</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">터치</string>
     <string name="mode_touch_touchpad">터치패드</string>
     <string name="mode_touch_direct">직접 터치</string>
-    <string name="mode_touch_note">자동: 데스크톱에서는 터치패드, Steam에서는 직접 터치를 사용합니다.</string>
     <string name="mode_osc">화면 컨트롤</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">자동 모드에서는 컨트롤러가 연결되지 않은 경우 화면 컨트롤을 표시합니다.</string>
@@ -453,7 +442,6 @@
     <string name="drawer_page_controls">컨트롤</string>
     <string name="drawer_page_components">구성 요소</string>
     <string name="drawer_page_controller">컨트롤러</string>
-    <string name="drawer_page_settings">설정</string>
     <string name="drawer_page_desc">%1$s 페이지</string>
     <string name="drawer_steam_menu">Steam 메뉴</string>
     <string name="drawer_open_qam">빠른 액세스 메뉴 열기</string>
@@ -596,9 +584,6 @@
     <string name="setup_limit_adb_failed">무선 디버깅의 IP 주소와 포트를 확인하세요. Android에서 기기를 제거한 경우 다시 페어링하세요.</string>
     <string name="setup_install">설치</string>
     <string name="setup_manage">관리</string>
-    <string name="setup_tab_overview">개요</string>
-    <string name="setup_tab_controller">컨트롤러</string>
-    <string name="setup_tab_launcher">런처</string>
     <string name="setup_title">설정</string>
     <string name="setup_gpu_supported">기기 지원됨</string>
     <string name="setup_gpu_untested">테스트되지 않은 GPU</string>
@@ -625,7 +610,6 @@
     <string name="setup_signed_in">%1$s(으)로 로그인됨</string>
     <string name="setup_sign_in">\"Steam 실행\"을 눌러 Steam에 로그인</string>
     <string name="setup_controller">컨트롤러</string>
-    <string name="setup_controller_unavailable">컨트롤러 설정을 사용할 수 없습니다.</string>
     <string name="setup_logs">세션 로그</string>
     <string name="setup_logs_hint">각 세션 종료 후 저장</string>
     <string name="setup_game_debug_logs">게임 디버그 로그</string>
@@ -679,11 +663,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">컨트롤</string>
     <string name="setup_card_controls_hint">키 매핑</string>
-    <string name="store_starting">시작 중…</string>
-    <string name="store_try_again">다시 시도</string>
-    <string name="store_all">전체</string>
-    <string name="store_open">열기</string>
-    <string name="store_remove">제거</string>
+    <string name="common_starting">시작 중…</string>
+    <string name="common_try_again">다시 시도</string>
+    <string name="common_all">전체</string>
+    <string name="common_open">열기</string>
+    <string name="common_remove">제거</string>
     <string name="upd_open_settings">설정 열기</string>
     <string name="upd_current_status">최신 버전</string>
     <string name="upd_just_now">방금 전</string>
@@ -765,7 +749,6 @@
     <string name="ctrl_steam_button">Steam 버튼</string>
     <string name="ctrl_qam_button">QAM 버튼</string>
     <string name="ctrl_keyboard_button">키보드 버튼</string>
-    <string name="setup_animations">애니메이션</string>
     <string name="setup_low_storage_warning">저장 공간이 부족할 때 경고</string>
     <string name="setup_low_storage_warning_hint">여유 공간이 10GB 미만이면 Steam을 시작하기 전에 확인합니다.</string>
     <string name="ctrl_layout">레이아웃</string>
@@ -873,7 +856,7 @@
     <string name="pip_unavailable">Android에서 PIP를 열 수 없습니다.</string>
     <string name="game_more">더보기</string>
     <string name="game_edit_art">아트 편집</string>
-    <string name="stores_in_steam_label">Steam에 있음</string>
+    <string name="lib_in_steam_label">Steam에 있음</string>
     <string name="game_shortcut">바로 가기</string>
     <string name="game_shortcut_add">홈 화면에 추가</string>
     <string name="game_shortcut_choose">게임 선택</string>
@@ -1045,7 +1028,7 @@
         <item quantity="other">로그에 \"Function not implemented\" 오류가 %1$d개 있습니다. 이 기기에서 proot의 seccomp 가속이 보조 프로세스를 실패시키고 있습니다. %2$s → \"%3$s\"(또는 \"%4$s\")를 시도한 후 다시 시작하세요.</item>
     </plurals>
 
-    <string name="store_section_loading">불러오는 중…</string>
+    <string name="lib_section_loading">불러오는 중…</string>
     <string name="theme_graphite">그래파이트</string>
     <string name="theme_graphite_detail">그래파이트 색상의 화면에, 선택·포커스·누름 상태에는 로고의 오브 블루를 사용합니다.</string>
     <string name="theme_paper">블랙 앤 화이트</string>
@@ -1056,8 +1039,6 @@
     <string name="theme_electric_detail">회색 대신 네이비 톤의 화면에 더 밝은 파란색을 사용합니다.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">무지개 색으로 계속 바뀌는 색상입니다. Android의 애니메이션 설정을 따릅니다.</string>
-    <string name="theme_rgb_speed">속도</string>
-    <string name="theme_rgb_speed_hint">색상이 바뀌는 속도입니다.</string>
     <string name="theme_gradient">그라데이션</string>
     <string name="theme_gradient_detail">직접 고른 기본색과 보조색이 버튼과 강조 표시에 섞여 적용됩니다.</string>
     <string name="theme_gradient_primary">기본색</string>
@@ -1559,14 +1540,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">사용자 정의</string>
-    <string name="stores_tab_library">라이브러리</string>
-    <string name="stores_tab_all">전체</string>
-    <string name="stores_search_library">내 라이브러리 검색…</string>
-    <string name="stores_search_open">검색</string>
-    <string name="stores_nothing_matches">게임 없음</string>
-    <string name="stores_play">플레이</string>
-    <string name="stores_refresh">새로 고침</string>
-    <string name="stores_sort">정렬</string>
+    <string name="lib_tab_library">라이브러리</string>
+    <string name="lib_tab_all">전체</string>
+    <string name="lib_search_library">내 라이브러리 검색…</string>
+    <string name="lib_search_open">검색</string>
+    <string name="lib_nothing_matches">게임 없음</string>
+    <string name="lib_play">플레이</string>
+    <string name="lib_refresh">새로 고침</string>
+    <string name="lib_sort">정렬</string>
     <string name="setup_rail_labels">사이드바 레이블</string>
     <string name="setup_rail_labels_hint">사이드바 아이콘 아래에 이름을 표시합니다. 끄면 사이드바가 더 슬림해집니다.</string>
     <string name="library_display">표시</string>
@@ -1574,20 +1555,20 @@
     <string name="library_display_smaller">카드 작게</string>
     <string name="library_display_title">제목 표시</string>
     <string name="library_display_size">크기 표시</string>
-    <string name="stores_sort_last_played">최근 플레이</string>
-    <string name="stores_sort_recently_installed">최근 설치</string>
-    <string name="stores_sort_title_asc">제목 A–Z</string>
-    <string name="stores_sort_title_desc">제목 Z–A</string>
-    <string name="stores_sort_size_desc">크기: 큰순</string>
-    <string name="stores_sort_size_asc">크기: 작은순</string>
-    <string name="stores_view_list">목록 보기</string>
-    <string name="stores_view_cards">카드 보기</string>
-    <string name="stores_view_capsules">표지 보기</string>
+    <string name="lib_sort_last_played">최근 플레이</string>
+    <string name="lib_sort_recently_installed">최근 설치</string>
+    <string name="lib_sort_title_asc">제목 A–Z</string>
+    <string name="lib_sort_title_desc">제목 Z–A</string>
+    <string name="lib_sort_size_desc">크기: 큰순</string>
+    <string name="lib_sort_size_asc">크기: 작은순</string>
+    <string name="lib_view_list">목록 보기</string>
+    <string name="lib_view_cards">카드 보기</string>
+    <string name="lib_view_capsules">표지 보기</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">설치됨</string>
-    <string name="stores_uninstall_title">%1$s을(를) 제거하시겠습니까?</string>
-    <string name="stores_dl_pause">일시 중지</string>
-    <string name="stores_target_free">%1$s 사용 가능</string>
+    <string name="lib_eyebrow_installed">설치됨</string>
+    <string name="lib_uninstall_title">%1$s을(를) 제거하시겠습니까?</string>
+    <string name="lib_dl_pause">일시 중지</string>
+    <string name="lib_target_free">%1$s 사용 가능</string>
     <string name="common_close">닫기</string>
     <string name="common_back">뒤로</string>
     <string name="games_add_all">이 폴더의 모든 게임 추가</string>
@@ -1648,7 +1629,6 @@
     </plurals>
     <string name="hop_back">B · %1$s(으)로 돌아가기</string>
     <string name="hop_from_games">게임</string>
-    <string name="hop_from_play">플레이 설정</string>
     <string name="sheet_graphics_drivers">그래픽 드라이버</string>
     <string name="comp_this_proton">이 Proton</string>
     <string name="comp_for_every_proton">모든 Proton에 적용</string>
@@ -1701,12 +1681,6 @@
     <string name="comp_this_device">이 기기</string>
     <string name="proton_remove_title">%1$s을(를) 제거하시겠습니까?</string>
     <string name="setup_tab_diagnostics">진단</string>
-    <string name="setup_ready">플레이 준비 완료</string>
-    <string name="setup_not_ready">아직 플레이할 준비가 되지 않음</string>
-    <string name="setup_ready_runtime">런타임 %1$s</string>
-    <string name="setup_ready_limit_off">프로세스 제한 꺼짐</string>
-    <string name="setup_ready_signed_in">%1$s(으)로 로그인됨</string>
-    <string name="setup_needs_you">확인이 필요한 항목</string>
     <string name="setup_group_look">외관</string>
     <string name="setup_group_device">이 기기</string>
     <string name="setup_group_art">라이브러리 아트워크</string>

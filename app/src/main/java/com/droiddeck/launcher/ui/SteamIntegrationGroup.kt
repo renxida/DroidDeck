@@ -100,7 +100,7 @@ private fun IntegrationRow(
     LaunchedEffect(focused) {
         if (focused) try { flash = true; reveal.bringIntoView(); kotlinx.coroutines.delay(1600) } finally { flash = false }
     }
-    val bg by animateColorAsState(if (flash) pal.signal.copy(alpha = 0.12f) else Color.Transparent, Motion.tw(400), label = "integrationFlash")
+    val bg = if (flash) pal.signal.copy(alpha = 0.12f) else Color.Transparent
     val wifiLocationOff = feature == Feature.WIFI && state.wifi && state.locationPermission && !state.locationOn
     val wifiDenied = feature == Feature.WIFI && !state.locationPermission && state.locationBlocked
     val restricted = feature == Feature.SHORTCUTS && !state.shortcuts && state.shortcutsRestricted
@@ -147,7 +147,7 @@ private fun IntegrationRow(
 private fun FeatureBadge(icon: ImageVector, on: Boolean) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val tint by animateColorAsState(if (on) pal.good else colors.onSurfaceVariant, Motion.tw(250), label = "badgeTint")
+    val tint = if (on) pal.good else colors.onSurfaceVariant
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.size(36.dp).clip(BadgeShape)

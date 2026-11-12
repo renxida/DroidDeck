@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>První spuštění stáhne Steam. Může to trvat několik minut.</item>
-        <item>Ve výchozím nastavení se po opuštění aplikace Steam pozastaví; po návratu pokračuje, kde skončil.</item>
-        <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Ve výchozím nastavení se po opuštění aplikace relace pozastaví; po návratu pokračuje, kde skončila.</item>
-        <item>Dotyk funguje jako touchpad: tažením posouváte kurzor, dotykem klikáte.</item>
-        <item>Váš ovladač se zobrazí jako ovladač Xbox 360. Jinak použijte ovládání na obrazovce.</item>
-    </string-array>
     <string name="session_channel">Relace</string>
     <string name="session_notification">Steam běží</string>
     <string name="session_notification_downloads">Probíhá stahování Steamu</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Dotyk</string>
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Přímé</string>
-    <string name="mode_touch_note">Automaticky: touchpad na Ploše, přímo ve Steamu.</string>
     <string name="mode_osc">Ovládání na obrazovce</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaticky zobrazí ovládání, pokud není připojen žádný ovladač.</string>
@@ -459,7 +448,6 @@
     <string name="drawer_page_controls">Ovládání</string>
     <string name="drawer_page_components">Komponenty</string>
     <string name="drawer_page_controller">Ovladač</string>
-    <string name="drawer_page_settings">Nastavení</string>
     <string name="drawer_page_desc">Stránka %1$s</string>
     <string name="drawer_steam_menu">Nabídka Steam</string>
     <string name="drawer_open_qam">Otevřít nabídku Rychlý přístup</string>
@@ -605,9 +593,6 @@
     <string name="setup_limit_adb_failed">Zkontrolujte IP adresu a port pro Bezdrátové ladění, nebo zařízení znovu spárujte, pokud ho Android odstranil.</string>
     <string name="setup_install">Instalovat</string>
     <string name="setup_manage">Správa</string>
-    <string name="setup_tab_overview">Přehled</string>
-    <string name="setup_tab_controller">Ovladač</string>
-    <string name="setup_tab_launcher">Spouštěč</string>
     <string name="setup_title">Příprava</string>
     <string name="setup_gpu_supported">Zařízení podporováno</string>
     <string name="setup_gpu_untested">Neověřené GPU</string>
@@ -634,7 +619,6 @@
     <string name="setup_signed_in">Přihlášen jako %1$s</string>
     <string name="setup_sign_in">Stiskněte Play a přihlaste se ke Steamu</string>
     <string name="setup_controller">Ovladač</string>
-    <string name="setup_controller_unavailable">Nastavení ovladače není k dispozici.</string>
     <string name="setup_logs">Protokoly relace</string>
     <string name="setup_logs_hint">Uloženo po každé relaci</string>
     <string name="setup_game_debug_logs">Ladicí protokoly her</string>
@@ -688,11 +672,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Ovládání</string>
     <string name="setup_card_controls_hint">Mapování tlačítek</string>
-    <string name="store_starting">Spouští se…</string>
-    <string name="store_try_again">Zkusit znovu</string>
-    <string name="store_all">Vše</string>
-    <string name="store_open">Otevřít</string>
-    <string name="store_remove">Odebrat</string>
+    <string name="common_starting">Spouští se…</string>
+    <string name="common_try_again">Zkusit znovu</string>
+    <string name="common_all">Vše</string>
+    <string name="common_open">Otevřít</string>
+    <string name="common_remove">Odebrat</string>
     <string name="upd_open_settings">Otevřít nastavení</string>
     <string name="upd_current_status">Aktuální</string>
     <string name="upd_just_now">právě teď</string>
@@ -774,7 +758,6 @@
     <string name="ctrl_steam_button">Tlačítko Steam</string>
     <string name="ctrl_qam_button">Tlačítko QAM</string>
     <string name="ctrl_keyboard_button">Tlačítko klávesnice</string>
-    <string name="setup_animations">Animace</string>
     <string name="setup_low_storage_warning">Upozornit na nedostatek úložiště</string>
     <string name="setup_low_storage_warning_hint">Zeptat se před spuštěním Steamu, když je volné místo pod 10 GB.</string>
     <string name="ctrl_layout">Rozložení</string>
@@ -882,7 +865,7 @@
     <string name="pip_unavailable">Android nemohl otevřít obraz v obraze.</string>
     <string name="game_more">Další</string>
     <string name="game_edit_art">Upravit grafiku</string>
-    <string name="stores_in_steam_label">Ve Steamu</string>
+    <string name="lib_in_steam_label">Ve Steamu</string>
     <string name="game_shortcut">Zkratka</string>
     <string name="game_shortcut_add">Přidat na domovskou obrazovku</string>
     <string name="game_shortcut_choose">Vybrat hru</string>
@@ -1081,7 +1064,7 @@
         <item quantity="other">V logu je %1$d chyb „Function not implemented“: akcelerace seccomp v proot zde selhává u pomocné funkce na tomto zařízení. Zkuste %2$s → „%3$s“ (nebo „%4$s“) a spusťte to znovu.</item>
     </plurals>
 
-    <string name="store_section_loading">načítání…</string>
+    <string name="lib_section_loading">načítání…</string>
     <string name="theme_graphite">Grafit</string>
     <string name="theme_graphite_detail">Grafitové povrchy, s modrou barvou kuličky z loga pro vše vybrané, zaměřené nebo stisknuté.</string>
     <string name="theme_paper">Papír na černém</string>
@@ -1092,8 +1075,6 @@
     <string name="theme_electric_detail">Jasnější modrá na povrchách, které jsou spíše tmavomodré než šedé.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Barvy, které procházejí celou duhu. Respektuje nastavení animací v Androidu.</string>
-    <string name="theme_rgb_speed">Rychlost</string>
-    <string name="theme_rgb_speed_hint">Jak rychle se barvy střídají.</string>
     <string name="theme_gradient">Přechod</string>
     <string name="theme_gradient_detail">Vaše vlastní primární a sekundární barva, prolnuté na tlačítkách a zvýrazněních.</string>
     <string name="theme_gradient_primary">Primární</string>
@@ -1616,14 +1597,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Vlastní</string>
-    <string name="stores_tab_library">Knihovna</string>
-    <string name="stores_tab_all">Vše</string>
-    <string name="stores_search_library">Hledat ve vaší knihovně…</string>
-    <string name="stores_search_open">Hledat</string>
-    <string name="stores_nothing_matches">Žádné hry</string>
-    <string name="stores_play">Hrát</string>
-    <string name="stores_refresh">Obnovit</string>
-    <string name="stores_sort">Řazení</string>
+    <string name="lib_tab_library">Knihovna</string>
+    <string name="lib_tab_all">Vše</string>
+    <string name="lib_search_library">Hledat ve vaší knihovně…</string>
+    <string name="lib_search_open">Hledat</string>
+    <string name="lib_nothing_matches">Žádné hry</string>
+    <string name="lib_play">Hrát</string>
+    <string name="lib_refresh">Obnovit</string>
+    <string name="lib_sort">Řazení</string>
     <string name="setup_rail_labels">Popisky postranního panelu</string>
     <string name="setup_rail_labels_hint">Zobrazovat názvy pod ikonami postranního panelu. Vypněte pro užší panel.</string>
     <string name="library_display">Zobrazení</string>
@@ -1631,20 +1612,20 @@
     <string name="library_display_smaller">Menší karty</string>
     <string name="library_display_title">Zobrazit název</string>
     <string name="library_display_size">Zobrazit velikost</string>
-    <string name="stores_sort_last_played">Nedávno hrané</string>
-    <string name="stores_sort_recently_installed">Nedávno nainstalované</string>
-    <string name="stores_sort_title_asc">Název A–Z</string>
-    <string name="stores_sort_title_desc">Název Z–A</string>
-    <string name="stores_sort_size_desc">Velikost: největší</string>
-    <string name="stores_sort_size_asc">Velikost: nejmenší</string>
-    <string name="stores_view_list">Zobrazení seznamu</string>
-    <string name="stores_view_cards">Zobrazení karet</string>
-    <string name="stores_view_capsules">Zobrazení obalů</string>
+    <string name="lib_sort_last_played">Nedávno hrané</string>
+    <string name="lib_sort_recently_installed">Nedávno nainstalované</string>
+    <string name="lib_sort_title_asc">Název A–Z</string>
+    <string name="lib_sort_title_desc">Název Z–A</string>
+    <string name="lib_sort_size_desc">Velikost: největší</string>
+    <string name="lib_sort_size_asc">Velikost: nejmenší</string>
+    <string name="lib_view_list">Zobrazení seznamu</string>
+    <string name="lib_view_cards">Zobrazení karet</string>
+    <string name="lib_view_capsules">Zobrazení obalů</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">nainstalováno</string>
-    <string name="stores_uninstall_title">Odinstalovat %1$s?</string>
-    <string name="stores_dl_pause">Pozastavit</string>
-    <string name="stores_target_free">%1$s volných</string>
+    <string name="lib_eyebrow_installed">nainstalováno</string>
+    <string name="lib_uninstall_title">Odinstalovat %1$s?</string>
+    <string name="lib_dl_pause">Pozastavit</string>
+    <string name="lib_target_free">%1$s volných</string>
     <string name="common_close">Zavřít</string>
     <string name="common_back">Zpět</string>
     <string name="games_add_all">Přidat všechny hry z této složky</string>
@@ -1711,7 +1692,6 @@
     </plurals>
     <string name="hop_back">B · Zpět na %1$s</string>
     <string name="hop_from_games">hru</string>
-    <string name="hop_from_play">Nastavení spuštění</string>
     <string name="sheet_graphics_drivers">Grafické ovladače</string>
     <string name="comp_this_proton">Tento Proton</string>
     <string name="comp_for_every_proton">Pro každý Proton</string>
@@ -1764,12 +1744,6 @@
     <string name="comp_this_device">Toto zařízení</string>
     <string name="proton_remove_title">Odstranit %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostika</string>
-    <string name="setup_ready">Připraveno ke hraní</string>
-    <string name="setup_not_ready">Ještě není připraveno ke hraní</string>
-    <string name="setup_ready_runtime">runtime %1$s</string>
-    <string name="setup_ready_limit_off">omezení procesů vypnuto</string>
-    <string name="setup_ready_signed_in">přihlášen jako %1$s</string>
-    <string name="setup_needs_you">Když je potřeba váš zásah</string>
     <string name="setup_group_look">Vzhled</string>
     <string name="setup_group_device">Toto zařízení</string>
     <string name="setup_group_art">Grafika knihovny</string>

@@ -40,7 +40,7 @@ past installer / redistributable / extras folders), drops junk exe names and sco
 rest (named after the folder, Unreal `-Shipping` and `Binaries/Win64`, `bin/`, launchers
 and junk lower, deeper lower, bigger higher). Best under 60, or a runner-up within 15:
 uncertain, shown as "?". `GameIdentifier` / `PeVersionInfo` give the title (Steam
-manifest by installdir, GOG info, the exe's version resource), else the folder name. The
+manifest by installdir, the exe's version resource), else the folder name. The
 shortcut appid is stored per folder at the first scan and never changes after.
 
 ## Editor
@@ -95,7 +95,7 @@ scan (`Library.launchableGames`) compares the folder with what was last written 
 (`grid-<slot>` in the game's art folder): a file Steam changed becomes the choice (source Steam),
 a file removed in Steam drops it, and files the shortcuts writer placed itself
 (`.droiddeck-art.json`) are not mistaken for choices. A chosen image is stored as
-`chosen-<slot>-<time>.<ext>`, so a new choice has a new path and shows at once. Installed GOG, Epic, Amazon, Xbox and itch games get the same rows through `StoreGameArtEditor`.
+`chosen-<slot>-<time>.<ext>`, so a new choice has a new path and shows at once.
 
 "Adjust logo" (last row of every art editor, `LogoPositionDialog`) shows the game's Background with
 its Logo on top and lets the logo be pinned to one of Steam's five places (top left / top center /

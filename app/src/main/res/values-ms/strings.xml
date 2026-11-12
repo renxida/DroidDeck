@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Larian pertama memuat turun Steam. Ini mungkin mengambil beberapa minit.</item>
-        <item>Secara lalai, meninggalkan apl ini menjedakan Steam; ia menyambung semula dari tempat ia berhenti apabila anda kembali.</item>
-        <item>Pengawal anda akan muncul sebagai pad Xbox 360. Jika tidak, gunakan kawalan pada skrin.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Secara lalai, meninggalkan apl ini menjedakan sesi; ia menyambung semula dari tempat ia berhenti apabila anda kembali.</item>
-        <item>Sentuhan berfungsi sebagai pad sentuh: seret untuk menggerakkan penunjuk, ketik untuk klik.</item>
-        <item>Pengawal anda akan muncul sebagai pad Xbox 360. Jika tidak, gunakan kawalan pada skrin.</item>
-    </string-array>
     <string name="session_channel">Sesi</string>
     <string name="session_notification">Steam sedang berjalan</string>
     <string name="session_notification_downloads">Muat turun Steam aktif</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Sentuhan</string>
     <string name="mode_touch_touchpad">Pad sentuh</string>
     <string name="mode_touch_direct">Terus</string>
-    <string name="mode_touch_note">Auto: pad sentuh pada Desktop, terus dalam Steam.</string>
     <string name="mode_osc">Kawalan pada skrin</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto memaparkan kawalan apabila tiada pengawal disambungkan.</string>
@@ -453,7 +442,6 @@
     <string name="drawer_page_controls">Kawalan</string>
     <string name="drawer_page_components">Komponen</string>
     <string name="drawer_page_controller">Pengawal</string>
-    <string name="drawer_page_settings">Tetapan</string>
     <string name="drawer_page_desc">Halaman %1$s</string>
     <string name="drawer_steam_menu">Menu Steam</string>
     <string name="drawer_open_qam">Buka Menu Akses Pantas</string>
@@ -596,9 +584,6 @@
     <string name="setup_limit_adb_failed">Semak alamat IP dan port Debugging Wayarles, atau gandingkan semula jika Android mengalih keluar peranti ini.</string>
     <string name="setup_install">Pasang</string>
     <string name="setup_manage">Urus</string>
-    <string name="setup_tab_overview">Gambaran keseluruhan</string>
-    <string name="setup_tab_controller">Pengawal</string>
-    <string name="setup_tab_launcher">Pelancar</string>
     <string name="setup_title">Persediaan</string>
     <string name="setup_gpu_supported">Peranti disokong</string>
     <string name="setup_gpu_untested">GPU belum diuji</string>
@@ -625,7 +610,6 @@
     <string name="setup_signed_in">Dilog masuk sebagai %1$s</string>
     <string name="setup_sign_in">Tekan Main dan log masuk ke Steam</string>
     <string name="setup_controller">Pengawal</string>
-    <string name="setup_controller_unavailable">Tetapan pengawal tidak tersedia.</string>
     <string name="setup_logs">Log sesi</string>
     <string name="setup_logs_hint">Disimpan selepas setiap sesi</string>
     <string name="setup_game_debug_logs">Log nyahpepijat permainan</string>
@@ -679,11 +663,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Kawalan</string>
     <string name="setup_card_controls_hint">Pemetaan butang</string>
-    <string name="store_starting">Memulakan…</string>
-    <string name="store_try_again">Cuba lagi</string>
-    <string name="store_all">Semua</string>
-    <string name="store_open">Buka</string>
-    <string name="store_remove">Alih keluar</string>
+    <string name="common_starting">Memulakan…</string>
+    <string name="common_try_again">Cuba lagi</string>
+    <string name="common_all">Semua</string>
+    <string name="common_open">Buka</string>
+    <string name="common_remove">Alih keluar</string>
     <string name="upd_open_settings">Buka tetapan</string>
     <string name="upd_current_status">Terkini</string>
     <string name="upd_just_now">sebentar tadi</string>
@@ -765,7 +749,6 @@
     <string name="ctrl_steam_button">Butang Steam</string>
     <string name="ctrl_qam_button">Butang QAM</string>
     <string name="ctrl_keyboard_button">Butang papan kekunci</string>
-    <string name="setup_animations">Animasi</string>
     <string name="setup_low_storage_warning">Beri amaran apabila storan rendah</string>
     <string name="setup_low_storage_warning_hint">Tanya sebelum memulakan Steam apabila ruang kosong kurang daripada 10 GB.</string>
     <string name="ctrl_layout">Susun atur</string>
@@ -873,7 +856,7 @@
     <string name="pip_unavailable">Android tidak dapat membuka gambar dalam gambar.</string>
     <string name="game_more">Lagi</string>
     <string name="game_edit_art">Sunting seni</string>
-    <string name="stores_in_steam_label">Dalam Steam</string>
+    <string name="lib_in_steam_label">Dalam Steam</string>
     <string name="game_shortcut">Pintasan</string>
     <string name="game_shortcut_add">Tambah ke skrin utama</string>
     <string name="game_shortcut_choose">Pilih permainan</string>
@@ -1045,7 +1028,7 @@
         <item quantity="other">Log menunjukkan %1$d ralat “Function not implemented”: pecutan seccomp proot gagal pada pembantu di peranti ini. Cuba %2$s → “%3$s” (atau “%4$s”) dan mulakan semula.</item>
     </plurals>
 
-    <string name="store_section_loading">memuatkan…</string>
+    <string name="lib_section_loading">memuatkan…</string>
     <string name="theme_graphite">Graphite</string>
     <string name="theme_graphite_detail">Permukaan graphite, dengan bebola biru logo untuk semua yang dipilih, difokus atau ditekan.</string>
     <string name="theme_paper">Kertas pada hitam</string>
@@ -1056,8 +1039,6 @@
     <string name="theme_electric_detail">Biru lebih cerah, pada permukaan yang lebih cenderung navy daripada kelabu.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Warna yang bertukar merentasi pelangi. Mengikut tetapan animasi Android.</string>
-    <string name="theme_rgb_speed">Kelajuan</string>
-    <string name="theme_rgb_speed_hint">Seberapa pantas warna bertukar.</string>
     <string name="theme_gradient">Kecerunan</string>
     <string name="theme_gradient_detail">Warna utama dan sekunder pilihan anda, diadun pada butang dan sorotan.</string>
     <string name="theme_gradient_primary">Utama</string>
@@ -1559,14 +1540,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Tersuai</string>
-    <string name="stores_tab_library">Pustaka</string>
-    <string name="stores_tab_all">Semua</string>
-    <string name="stores_search_library">Cari pustaka anda…</string>
-    <string name="stores_search_open">Cari</string>
-    <string name="stores_nothing_matches">Tiada permainan</string>
-    <string name="stores_play">Main</string>
-    <string name="stores_refresh">Segar semula</string>
-    <string name="stores_sort">Isih</string>
+    <string name="lib_tab_library">Pustaka</string>
+    <string name="lib_tab_all">Semua</string>
+    <string name="lib_search_library">Cari pustaka anda…</string>
+    <string name="lib_search_open">Cari</string>
+    <string name="lib_nothing_matches">Tiada permainan</string>
+    <string name="lib_play">Main</string>
+    <string name="lib_refresh">Segar semula</string>
+    <string name="lib_sort">Isih</string>
     <string name="setup_rail_labels">Label bar sisi</string>
     <string name="setup_rail_labels_hint">Paparkan nama di bawah ikon bar sisi. Matikan untuk bar sisi yang lebih ramping.</string>
     <string name="library_display">Paparan</string>
@@ -1574,20 +1555,20 @@
     <string name="library_display_smaller">Kad lebih kecil</string>
     <string name="library_display_title">Paparkan tajuk</string>
     <string name="library_display_size">Paparkan saiz</string>
-    <string name="stores_sort_last_played">Baru dimainkan</string>
-    <string name="stores_sort_recently_installed">Baru dipasang</string>
-    <string name="stores_sort_title_asc">Tajuk A–Z</string>
-    <string name="stores_sort_title_desc">Tajuk Z–A</string>
-    <string name="stores_sort_size_desc">Saiz: terbesar</string>
-    <string name="stores_sort_size_asc">Saiz: terkecil</string>
-    <string name="stores_view_list">Paparan senarai</string>
-    <string name="stores_view_cards">Paparan kad</string>
-    <string name="stores_view_capsules">Paparan kulit</string>
+    <string name="lib_sort_last_played">Baru dimainkan</string>
+    <string name="lib_sort_recently_installed">Baru dipasang</string>
+    <string name="lib_sort_title_asc">Tajuk A–Z</string>
+    <string name="lib_sort_title_desc">Tajuk Z–A</string>
+    <string name="lib_sort_size_desc">Saiz: terbesar</string>
+    <string name="lib_sort_size_asc">Saiz: terkecil</string>
+    <string name="lib_view_list">Paparan senarai</string>
+    <string name="lib_view_cards">Paparan kad</string>
+    <string name="lib_view_capsules">Paparan kulit</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">dipasang</string>
-    <string name="stores_uninstall_title">Nyahpasang %1$s?</string>
-    <string name="stores_dl_pause">Jeda</string>
-    <string name="stores_target_free">%1$s bebas</string>
+    <string name="lib_eyebrow_installed">dipasang</string>
+    <string name="lib_uninstall_title">Nyahpasang %1$s?</string>
+    <string name="lib_dl_pause">Jeda</string>
+    <string name="lib_target_free">%1$s bebas</string>
     <string name="common_close">Tutup</string>
     <string name="common_back">Kembali</string>
     <string name="games_add_all">Tambah semua permainan dalam folder ini</string>
@@ -1648,7 +1629,6 @@
     </plurals>
     <string name="hop_back">B · Kembali ke %1$s</string>
     <string name="hop_from_games">permainan itu</string>
-    <string name="hop_from_play">Tetapan Main</string>
     <string name="sheet_graphics_drivers">Pemacu grafik</string>
     <string name="comp_this_proton">Proton ini</string>
     <string name="comp_for_every_proton">Untuk setiap Proton</string>
@@ -1701,12 +1681,6 @@
     <string name="comp_this_device">Peranti ini</string>
     <string name="proton_remove_title">Alih keluar %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostik</string>
-    <string name="setup_ready">Sedia untuk bermain</string>
-    <string name="setup_not_ready">Belum sedia untuk bermain</string>
-    <string name="setup_ready_runtime">masa jalan %1$s</string>
-    <string name="setup_ready_limit_off">had proses dimatikan</string>
-    <string name="setup_ready_signed_in">dilog masuk sebagai %1$s</string>
-    <string name="setup_needs_you">Apabila sesuatu memerlukan anda</string>
     <string name="setup_group_look">Rupa</string>
     <string name="setup_group_device">Peranti ini</string>
     <string name="setup_group_art">Seni pustaka</string>

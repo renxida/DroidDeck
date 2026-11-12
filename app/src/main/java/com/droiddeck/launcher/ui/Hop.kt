@@ -41,70 +41,31 @@ internal class HopOrigin(
 )
 
 internal const val HOP_SURFACE_GAMES = "games"
-internal const val HOP_SURFACE_SHEET = "sheet"
 
 internal object Hops {
     var origin by mutableStateOf<HopOrigin?>(null)
 
-    var sinking by mutableStateOf<String?>(null)
-
-    var railPreview by mutableStateOf<String?>(null)
-
-    var linking by mutableStateOf(false)
-
     var restore by mutableStateOf<HopOrigin?>(null)
-
-    val railLanded = mutableStateMapOf<String, Int>()
-
-    var arrived by mutableIntStateOf(0)
-
-    val railBounds = HashMap<String, Rect>()
 
     val sources = HashMap<String, Rect>()
 
     fun go(origin: HopOrigin, go: () -> Unit) {
-        val railAt = railBounds[origin.dest]
-        val finish: () -> Unit = {
-            railPreview = null
-            this.origin = origin
-            if (railAt != null && Motion.scale != 0f) PageOrigin.mark(Origin(railAt, 14f * density, owner = origin.dest))
-            linking = true
-            go()
-            railLanded[origin.dest] = (railLanded[origin.dest] ?: 0) + 1
-            arrived++
-        }
-        if (railAt == null || Motion.scale == 0f) { finish(); return }
-        sinking = origin.rail
-        Flights.fly(Flight(
-            origin.bounds, to = { railAt.center },
-            onHalf = { railPreview = origin.dest },
-            onLand = finish,
-        ))
+        this.origin = origin
+        go()
     }
 
     fun back(close: () -> Unit): Boolean {
         val o = origin ?: return false
         origin = null
-        sinking = null
-        val railAt = railBounds[o.dest]
-        railPreview = if (railAt != null && Motion.scale != 0f) o.dest else null
         restore = o
-        linking = true
         close()
-        if (railAt == null || Motion.scale == 0f) { railPreview = null; return true }
-        Flights.fly(Flight(
-            railAt, to = { (sources[o.control] ?: o.bounds).center },
-            onHalf = { railPreview = null },
-        ))
         return true
     }
 
     fun forget(pageKey: String?) {
         val o = origin ?: return
-        if (pageKey != o.page) { origin = null; sinking = null }
+        if (pageKey != o.page) origin = null
     }
-
-    var density = 1f
 }
 
 internal val LocalShowSection = androidx.compose.runtime.staticCompositionLocalOf<(String) -> Unit> { {} }

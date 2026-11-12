@@ -82,8 +82,9 @@ class InputUiLayoutTest {
     }
 
     @Test @Config(qualifiers = "w960dp-h600dp")
-    fun controllerTabKeepsSetupNavigationWithoutDuplicateEditors() {
+    fun settingsHasPlainTabsAndAdvancedHoldsDiagnostics() {
         val context = RuntimeEnvironment.getApplication()
+        SetupTabs.current = SETUP_STEAM
         compose.setContent {
             root = LocalView.current
             DroidDeckTheme {
@@ -107,15 +108,15 @@ class InputUiLayoutTest {
                 }
             }
         }
-        compose.onNodeWithText(context.getString(R.string.setup_tab_controller)).performClick()
-        compose.onNodeWithTag("input-profile-game").assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.ctrl_layout)).assertDoesNotExist()
-        screenshot("controller-tab")
-        compose.onNodeWithTag("input-profile-game").performClick()
-        compose.onNodeWithTag("input-part-physical").performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.setup_tab_launcher)).assertIsDisplayed()
-        screenshot("controller-physical")
-        compose.runOnIdle { assertEquals(InputProfiles.AUTO, InputLibraries.read(context).selected) }
+        for (label in listOf(R.string.mode_tab_steam, R.string.drawer_page_display, R.string.drawer_page_controls,
+                R.string.mode_audio, R.string.setup_tab_storage, R.string.setup_tab_advanced)) {
+            compose.onAllNodesWithText(context.getString(label)).onFirst().assertExists()
+        }
+        compose.onAllNodesWithText(context.getString(R.string.setup_tab_advanced)).onFirst().performClick()
+        compose.onNodeWithText(context.getString(R.string.setup_tab_diagnostics).uppercase()).performScrollTo().assertIsDisplayed()
+        compose.runOnIdle { assertEquals(SETUP_ADVANCED, SetupTabs.current) }
+        screenshot("settings-advanced")
+        SetupTabs.current = SETUP_STEAM
     }
 
     private fun screenshot(name: String) {

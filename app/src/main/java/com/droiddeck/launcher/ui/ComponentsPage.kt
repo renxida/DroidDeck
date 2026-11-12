@@ -394,17 +394,7 @@ fun ComponentsPage(
     val nightlyPicked = remember { mutableStateMapOf<String, Boolean>() }
     val rings = remember { mutableStateMapOf<String, Int>() }
     fun land(l: String) { landed[l] = (landed[l] ?: 0) + 1; rings[l] = (rings[l] ?: 0) + 1 }
-    val arrivedSeen = remember { intArrayOf(Hops.arrived) }
-    LaunchedEffect(Hops.arrived) {
-        if (Hops.arrived == arrivedSeen[0]) return@LaunchedEffect
-        arrivedSeen[0] = Hops.arrived
-        delay(Motion.ms(700).toLong())
-        rings[layer] = (rings[layer] ?: 0) + 1
-    }
-    fun flyHome(key: String, to: String) {
-        val from = rowsAt[key] ?: return land(to)
-        Flights.fly(Flight(from, to = { cardsAt[to]?.center }, onLand = { land(to) }))
-    }
+    fun flyHome(@Suppress("UNUSED_PARAMETER") key: String, to: String) = land(to)
 
     fun ask(key: String, right: Boolean, title: String, note: String, verb: String, danger: Boolean, face: String = "", then: () -> Unit) {
         val at = rowsAt[key] ?: return then()
@@ -429,29 +419,18 @@ fun ComponentsPage(
 
     var driverPage by remember { mutableStateOf<String?>(null) }
     var driverShown by remember { mutableStateOf<String?>(null) }
-    var driverLeaving by remember { mutableStateOf(false) }
-    var driverFrom by remember { mutableStateOf<Origin?>(null) }
     val slotFocus = remember { mapOf(SLOT_DISPLAY to FocusRequester(), SLOT_RUNTIME to FocusRequester()) }
     LaunchedEffect(driverPage) {
         val d = driverPage
-        if (d != null) { driverLeaving = false; driverShown = d }
+        if (d != null) driverShown = d
         else driverShown?.let { closed ->
-            if (driverFrom != null) { driverLeaving = true; delay(Motion.ms(PAGE_RETURN_MS).toLong()) }
-            driverShown = null; driverLeaving = false; driverFrom = null
+            driverShown = null
             if (inputMode.inputMode == InputMode.Keyboard) focusSoon { slotFocus.getValue(closed) }
         }
     }
     var narrowOpen by rememberSaveable { mutableStateOf<String?>(null) }
     var narrowShown by remember { mutableStateOf<String?>(null) }
-    var narrowLeaving by remember { mutableStateOf(false) }
-    LaunchedEffect(narrowOpen) {
-        val d = narrowOpen
-        if (d != null) { narrowLeaving = false; narrowShown = d }
-        else if (narrowShown != null) {
-            narrowLeaving = true; delay(Motion.ms(PAGE_RETURN_MS).toLong())
-            narrowShown = null; narrowLeaving = false
-        }
-    }
+    LaunchedEffect(narrowOpen) { narrowShown = narrowOpen }
     if (!narrow && narrowOpen != null) narrowOpen = null
     BackHandler(enabled = driverPage != null || narrowOpen != null) {
         if (driverPage != null) driverPage = null else narrowOpen = null
@@ -463,7 +442,6 @@ fun ComponentsPage(
     val layerFocus = remember { LAYERS.associateWith { FocusRequester() } }
     LaunchedEffect(requestInitialFocus) {
         if (!requestInitialFocus || selectedGame != null || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
-        delay(Motion.ms(200).toLong())
         focusSoon { layerFocus.getValue(layer) }
     }
     var travel by remember { mutableIntStateOf(1) }
@@ -548,7 +526,7 @@ fun ComponentsPage(
                         modifier = (if (i == 0 && !moded(l)) Modifier.focusRequester(firstRow) else Modifier).trackRow(key, rowsAt),
                         onSelect = { if (v.proton.id != view?.proton?.id) { onProton(v.proton.id); flyHome(key, PROTON_TAB) } },
                         onDelete = {
-                            if (extra != null) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.store_remove), true, v.proton.name) {
+                            if (extra != null) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.common_remove), true, v.proton.name) {
                                 protonActions.onRemove(extra.id, v.proton.dir.name)
                             }
                         },
@@ -632,7 +610,7 @@ fun ComponentsPage(
                                 if (!idle) return@FocusText
                                 ask(key, false, ctx.getString(R.string.proton_remove_older, row.name) + "?",
                                     ctx.getString(R.string.proton_remove_older_body, older.joinToString(", ")),
-                                    ctx.getString(R.string.store_remove), true, row.name) { protonActions.onRemoveOlder(row.id) }
+                                    ctx.getString(R.string.common_remove), true, row.name) { protonActions.onRemoveOlder(row.id) }
                             }
                         }
                     }
@@ -665,11 +643,9 @@ fun ComponentsPage(
     val detail: @Composable (String, Boolean) -> Unit = { l, narrowPage ->
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
         val single = narrowPage || maxWidth < 600.dp
-        if (l == GPU_TAB) GpuDriversBody(gpu, gpuActions, single, firstRow, slotFocus) { slot, at ->
-            driverFrom = Origin(at.translate(-pageAt), 10f * density.density); driverPage = slot
-        }
+        if (l == GPU_TAB) GpuDriversBody(gpu, gpuActions, single, firstRow, slotFocus) { slot, _ -> driverPage = slot }
         else Column(Modifier.fillMaxSize()) {
-            AnimatedContent(l, transitionSpec = { fadeIn(Motion.tw(240)) togetherWith fadeOut(Motion.tw(160)) }, label = "inUse") { k -> bar(k) }
+            bar(l)
             val detailScroll = androidx.compose.runtime.key(l) { rememberScrollState() }
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(detailScroll).padding(top = 12.dp, bottom = 16.dp)) {
                 if (l == PROTON_TAB) {
@@ -678,18 +654,7 @@ fun ComponentsPage(
                     SettingsGroup(stringResource(R.string.comp_for_every_proton)) { protonOptions() }
                     Spacer(Modifier.height(12.dp))
                 }
-                val slide: @Composable (@Composable (String) -> Unit) -> Unit = { body ->
-                    AnimatedContent(
-                        l,
-                        transitionSpec = {
-                            val d = travel
-                            val shift = with(density) { 16.dp.roundToPx() }
-                            (slideInVertically(Motion.tw(240)) { shift * d } + fadeIn(Motion.tw(240)))
-                                .togetherWith(slideOutVertically(Motion.tw(240)) { -shift * d } + fadeOut(Motion.tw(240)))
-                        },
-                        label = "layerRows",
-                    ) { k -> body(k) }
-                }
+                val slide: @Composable (@Composable (String) -> Unit) -> Unit = { body -> body(l) }
                 if (moded(l)) slide { k ->
                     if (moded(k)) Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 14.dp)) {
                         PanelHeading(stringResource(R.string.comp_mode_title))
@@ -857,7 +822,7 @@ fun ComponentsPage(
                                 else runCatching { firstRow.requestFocus() }
                             },
                         )
-                        ChipGlide(LAYERS.indexOf(layer), local, tint, GlideAxis.Vertical, corner = 12.dp)
+                        SelectionMark(local, tint, corner = 12.dp)
                     }
                     if (!narrow) {
                         Spacer(Modifier.width(16.dp))
@@ -867,7 +832,6 @@ fun ComponentsPage(
             }
         }
         narrowShown?.let { l ->
-            val from = cardsAt[l]?.let { Origin(it.translate(-pageAt), 12f * density.density) }
             val body: @Composable () -> Unit = {
                 Column(
                     Modifier.fillMaxSize().background(colors.background).pointerInput(Unit) { detectTapGestures { } }
@@ -878,7 +842,7 @@ fun ComponentsPage(
                     detail(layer, true)
                 }
             }
-            if (from == null) body() else PageFlood(from, narrowLeaving) { body() }
+            body()
         }
         driverShown?.let { d ->
             val body: @Composable () -> Unit = {
@@ -901,8 +865,7 @@ fun ComponentsPage(
                     )
                 }
             }
-            val from = driverFrom
-            if (from == null) body() else PageFlood(from, driverLeaving) { body() }
+            body()
         }
     }
     confirm?.let { (body, action) ->
@@ -1053,7 +1016,6 @@ private fun LayerCard(
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = modifier.fillMaxWidth().height(40.dp)
-                .landingPop(landed).pulseRing(ring, pal.signal)
                 .clip(LAYER_SHAPE)
                 .background(if (under) Color.Transparent else colors.surface)
                 .shownBar(selected, pal.signal, vertical = true)
@@ -1066,11 +1028,7 @@ private fun LayerCard(
             if (swapped) Box(Modifier.size(7.dp).clip(CircleShape).background(pal.signal))
             Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = if (selected || hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1)
             Spacer(Modifier.weight(1f))
-            AnimatedContent(
-                value,
-                transitionSpec = { (slideInVertically(Motion.tw(260)) { it / 2 } + fadeIn(Motion.tw(260))) togetherWith (slideOutVertically(Motion.tw(160)) { -it / 2 } + fadeOut(Motion.tw(160))) },
-                label = "layerValue",
-            ) { v -> Text(v, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Text(value, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

@@ -274,7 +274,7 @@ private fun FloatingSurfaceTools(draft: SurfaceDraft, onSave: () -> Unit, onLeav
         val y = (draft.toolsY * screenHeight).coerceIn(margin, (screenHeight - panelSize.height - margin).coerceAtLeast(margin))
         val position by rememberUpdatedState(Offset(x, y))
         val expandedWidth = minOf(420.dp, maxWidth - 16.dp)
-        val panelWidth by animateDpAsState(if (draft.toolsExpanded) expandedWidth else 152.dp, label = "input-tools-width")
+        val panelWidth = if (draft.toolsExpanded) expandedWidth else 152.dp
         Surface(Modifier.offset { IntOffset(x.roundToInt(), y.roundToInt()) }
             .width(panelWidth).clipToBounds()
             .heightIn(max = maxHeight - 16.dp).onSizeChanged { panelSize = it },
@@ -297,8 +297,7 @@ private fun FloatingSurfaceTools(draft: SurfaceDraft, onSave: () -> Unit, onLeav
                     Text("⠿", color = MaterialTheme.colorScheme.primary)
                     Text(stringResource(if (draft.toolsExpanded) R.string.input_hide_tools else R.string.input_tools), style = MaterialTheme.typography.titleSmall, maxLines = 1)
                 }
-                AnimatedVisibility(draft.toolsExpanded, enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()) {
+                if (draft.toolsExpanded) {
                     Column(Modifier.requiredWidth(expandedWidth).verticalScroll(rememberScrollState())) {
                         HorizontalDivider()
                         SurfaceToolbar(draft, onSave, onLeave)

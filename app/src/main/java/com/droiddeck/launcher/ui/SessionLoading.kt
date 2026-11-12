@@ -77,6 +77,8 @@ import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.layout.fillMaxWidth
 
 
 @Composable
@@ -151,11 +153,8 @@ fun LoadingOverlay(
     onRepair: (() -> Unit)? = null,
     onShareLogs: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
-    flood: Color? = null,
-    onFlooded: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
-    var ball by remember { mutableStateOf<Pair<Offset, Float>?>(null) }
     val stages = remember(steam) { loadStages(steam) }
     var reached by remember { mutableStateOf(0) }
     LaunchedEffect(step, topic, steam) {
@@ -164,41 +163,16 @@ fun LoadingOverlay(
     }
     val active = reached.coerceAtMost(stages.lastIndex)
     val detail = if (percent >= 0 || readable) step.replaceFirstChar { it.uppercase() } else stringResource(stages[active].detail)
-    val context = LocalContext.current
-    val games by produceState(emptyList<Library.SteamGame>()) {
-        value = withContext(Dispatchers.IO) { runCatching { Library.steamGames(context).sortedByDescending { it.lastPlayed } }.getOrDefault(emptyList()) }
-    }
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
             .blockTouches(),
     ) {
-        CapsuleWall(games, driftMs = 65_000, modifier = Modifier.alpha(0.3f))
-        Box(
-            Modifier.fillMaxSize().drawBehind {
-                drawRect(
-                    Brush.radialGradient(
-                        0f to colors.background.copy(alpha = 0.94f),
-                        0.6f to colors.background.copy(alpha = 0.72f),
-                        1f to colors.background.copy(alpha = 0.55f),
-                        center = Offset(size.width / 2f, size.height * 0.46f), radius = maxOf(size.width, size.height) * 0.55f,
-                    ),
-                )
-            },
-        )
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.7f to Color.Transparent, 1f to colors.background.copy(alpha = 0.95f))))
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.align(Alignment.Center).verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 24.dp),
         ) {
-            key(flood == null) {
-                LogoThrobber(
-                    Modifier.width(if (ended) 88.dp else 110.dp).onGloballyPositioned { ball = throbberBall(it.boundsInRoot()).also { b -> ThrobberSpot.ball = b } },
-                    running = !ended && flood == null,
-                )
-            }
-            Spacer(Modifier.height(30.dp))
             Text(
                 if (ended) stringResource(R.string.load_ended) else title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
                 color = colors.onBackground, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -222,7 +196,6 @@ fun LoadingOverlay(
             modifier = Modifier.align(Alignment.BottomCenter).padding(start = 120.dp, end = 120.dp, bottom = 28.dp),
         )
         if (!ended && onCancel != null) CancelHint(onCancel, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp))
-        if (flood != null) FloodGather(flood, ball, onFlooded)
     }
 }
 
@@ -238,8 +211,8 @@ private fun EndedActions(onRetry: (() -> Unit)?, onRepair: (() -> Unit)?, onShar
         fun claim(): Modifier = if (firstUsed) Modifier else { firstUsed = true; Modifier.focusRequester(first) }
         if (onRepair != null) PrimaryButton(stringResource(R.string.runtime_repair), modifier = claim(), onClick = onRepair)
         if (onRetry != null) {
-            if (onRepair != null) SecondaryButton(stringResource(R.string.store_try_again), modifier = claim(), onClick = onRetry)
-            else PrimaryButton(stringResource(R.string.store_try_again), modifier = claim(), onClick = onRetry)
+            if (onRepair != null) SecondaryButton(stringResource(R.string.common_try_again), modifier = claim(), onClick = onRetry)
+            else PrimaryButton(stringResource(R.string.common_try_again), modifier = claim(), onClick = onRetry)
         }
         if (onShareLogs != null) SecondaryButton(stringResource(R.string.drawer_share_logs), modifier = claim(),
             progress = com.droiddeck.launcher.session.SessionLogShare.progress, onClick = onShareLogs)
@@ -250,27 +223,11 @@ private fun EndedActions(onRetry: (() -> Unit)?, onRepair: (() -> Unit)?, onShar
 @Composable
 private fun LoadSegments(count: Int, active: Int, percent: Int, modifier: Modifier = Modifier) {
     val pal = LocalPalette.current
-    val track = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f)
-    val run = rememberInfiniteTransition(label = "segment")
-        .animateFloat(-0.4f, 1f, infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing)), label = "run")
-    val still = Motion.scale == 0f
     val stepDescription = stringResource(R.string.load_step, active + 1, count)
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.semantics { contentDescription = stepDescription },
-    ) {
-        repeat(count) { i ->
-            Box(
-                Modifier.width(44.dp).height(3.dp).clip(RoundedCornerShape(2.dp))
-                    .background(if (i < active) pal.signal else track)
-                    .drawBehind {
-                        if (i != active) return@drawBehind
-                        if (percent >= 0) drawRect(pal.signal, size = Size(size.width * percent.coerceIn(0, 100) / 100f, size.height))
-                        else if (still) drawRect(pal.signal.copy(alpha = 0.5f))
-                        else drawRect(pal.signal, topLeft = Offset(size.width * run.value, 0f), size = Size(size.width * 0.4f, size.height))
-                    },
-            )
-        }
+    Column(modifier = modifier.widthIn(max = 320.dp).semantics { contentDescription = stepDescription }) {
+        Text(stepDescription, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp))
+        if (percent >= 0) LinearProgressIndicator(progress = { percent.coerceIn(0, 100) / 100f }, color = pal.signal, modifier = Modifier.fillMaxWidth().height(4.dp))
+        else LinearProgressIndicator(color = pal.signal, modifier = Modifier.fillMaxWidth().height(4.dp))
     }
 }
 

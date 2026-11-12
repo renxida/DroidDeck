@@ -231,7 +231,7 @@ internal fun GpuDriversBody(
         val (viewport, top) = placed
         if (viewport != null && top != null && viewport.isAttached && top.isAttached) scope.launch {
             val bottom = viewport.localPositionOf(top, Offset(0f, top.size.height.toFloat())).y + scroll.value
-            scroll.animateScrollTo((bottom - viewport.size.height).toInt().coerceAtLeast(0))
+            scroll.scrollTo((bottom - viewport.size.height).toInt().coerceAtLeast(0))
         }
     }
     Column(

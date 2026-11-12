@@ -86,6 +86,8 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
 import com.droiddeck.launcher.core.PhantomProcessLimit
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Settings
 
 
 internal val AttentionAmber = Color(0xFFFFB547)
@@ -95,7 +97,7 @@ internal fun BottomBar(
     s: FrontEndState, selected: String,
     onSelect: (String) -> Unit, onFocusSelect: (String) -> Unit, a: FrontEndActions, modifier: Modifier,
 ) {
-    val shown = Hops.railPreview ?: selected
+    val shown = selected
     val keys = navigationKeys(s)
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
     val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
@@ -104,10 +106,10 @@ internal fun BottomBar(
         BoxWithConstraints(Modifier.weight(1f)) {
             val itemWidth = (maxWidth / keys.size).coerceIn(56.dp, 88.dp)
             Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
-                if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Horizontal, corner = 14.dp, fill = 0.14f, outline = 0f)
+                if (shown in keys) SelectionMark(bounds[shown], tint, corner = 14.dp, fill = 0.14f, outline = 0f)
                 Row(Modifier.selectableGroup().padding(vertical = 4.dp), horizontalArrangement = Arrangement.Center) {
                     NavigationItems(s, shown, compact = true, iconOnly = false, height = 56.dp, width = itemWidth,
-                        place = { key -> Modifier.onGloballyPositioned { item -> content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }; Hops.railBounds[key] = item.boundsInRoot() } },
+                        place = { key -> Modifier.onGloballyPositioned { item -> content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) } } },
                         onSelect = onSelect, onFocusSelect = onFocusSelect)
                 }
             }
@@ -117,8 +119,7 @@ internal fun BottomBar(
 }
 
 internal fun navigationKeys(s: FrontEndState) = buildList {
-    add("steam"); add("games")
-    add("components")
+    add("steam")
     add("setup")
 }
 
@@ -153,13 +154,13 @@ internal fun SideRail(
         val count = navigationKeys(s).size
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
         val fit = (maxHeight / count - 4.dp).coerceIn(44.dp, if (iconOnly) 48.dp else if (compact) 52.dp else 60.dp)
-        val shown = Hops.railPreview ?: selected
+        val shown = selected
         val keys = navigationKeys(s)
         val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
         val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
         val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
         Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
-        if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Vertical, corner = 14.dp, fill = 0.14f, outline = 0f)
+        if (shown in keys) SelectionMark(bounds[shown], tint, corner = 14.dp, fill = 0.14f, outline = 0f)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -168,28 +169,19 @@ internal fun SideRail(
             val place: (String) -> Modifier = { key ->
                 Modifier.onGloballyPositioned { item ->
                     content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }
-                    Hops.railBounds[key] = item.boundsInRoot()
                 }
             }
             NavigationItems(s, shown, compact, iconOnly, fit, if (iconOnly) 52.dp else 80.dp, place, onSelect, onFocusSelect)
         }
         }
         }
-        var lastRunning by remember { mutableStateOf("") }
-        if (s.running != null) lastRunning = s.running
-        AnimatedVisibility(
-            s.running != null,
-            enter = expandVertically(Motion.sp(0.75f)) + fadeIn(Motion.tw(300)),
-            exit = shrinkVertically(Motion.tw(220)) + fadeOut(Motion.tw(180)),
-        ) { ResumeRailItem(lastRunning, compact, iconOnly, a.onResume) }
+        if (s.running != null) ResumeRailItem(s.running, compact, iconOnly, a.onResume)
     }
 }
 
 internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
-    "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
-    "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
-    "components" -> R.string.rail_components to Icons.Outlined.Layers
-    else -> R.string.rail_setup to Icons.Outlined.Tune
+    "steam" -> R.string.rail_steam to Icons.Outlined.Home
+    else -> R.string.rail_setup to Icons.Outlined.Settings
 }
 
 internal fun setupNeedsAttention(s: FrontEndState): Boolean = s.removalPending ||
@@ -226,7 +218,6 @@ private fun RailItem(
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     val hovered by src.collectIsHoveredAsState()
-    val pressed by src.collectIsPressedAsState()
     if (frontFocus != null) LaunchedEffect(focused) {
         if (focused) {
             frontFocus.focusedRail = key
@@ -234,15 +225,8 @@ private fun RailItem(
         }
         else if (frontFocus.focusedRail == key) frontFocus.focusedRail = null
     }
-    val fg by animateColorAsState(
-        if (current) pal.signal else if (focused || hovered) colors.onBackground else colors.onSurfaceVariant,
-        Motion.tw(220), label = "railFg",
-    )
-    val fill by animateColorAsState(
-        if (current) Color.Transparent else if (focused || hovered) Color.White.copy(alpha = 0.05f) else Color.Transparent,
-        Motion.tw(220), label = "railFill",
-    )
-    val scale by animateFloatAsState(if (pressed) 0.95f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "railScale")
+    val fg = if (current) pal.signal else if (focused || hovered) colors.onBackground else colors.onSurfaceVariant
+    val fill = if (current) Color.Transparent else if (focused || hovered) Color.White.copy(alpha = 0.05f) else Color.Transparent
     val bringIntoView = remember { BringIntoViewRequester() }
     LaunchedEffect(current) { if (current) bringIntoView.bringIntoView() }
     Box(
@@ -251,8 +235,6 @@ private fun RailItem(
             .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.railFor(key)) else Modifier)
             .testTag("rail-$key")
             .then(place(key))
-            .landingPop(Hops.railLanded[key] ?: 0)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
             .size(width = width, height = height)
             .bringIntoViewRequester(bringIntoView)
             .clip(Shape14)
@@ -282,9 +264,6 @@ private fun ResumeRailItem(name: String, compact: Boolean, iconOnly: Boolean, on
     val focused by src.collectIsFocusedAsState()
     val hovered by src.collectIsHoveredAsState()
     val resumeDescription = stringResource(R.string.rail_resume_named, name)
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val ringScale by pulse.animateFloat(0.4f, 1.6f, infiniteRepeatable(tween(1600, easing = Motion.Ease), RepeatMode.Restart), label = "ring")
-    val still = Motion.scale == 0f
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -300,7 +279,6 @@ private fun ResumeRailItem(name: String, compact: Boolean, iconOnly: Boolean, on
             .padding(vertical = if (iconOnly) 15.dp else if (compact) 6.dp else 9.dp, horizontal = 4.dp),
     ) {
         Box(modifier = Modifier.size(14.dp), contentAlignment = Alignment.Center) {
-            if (!still) Box(modifier = Modifier.size(14.dp).graphicsLayer { scaleX = ringScale; scaleY = ringScale; alpha = (1.6f - ringScale) / 1.2f }.border(1.5.dp, pal.good, CircleShape))
             Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(pal.good))
         }
         if (!iconOnly) {

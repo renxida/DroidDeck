@@ -141,7 +141,7 @@ fun CollapsibleRail(
     outlinedItems: Boolean = false,
 ) {
     val collapsed = state.collapsed
-    val width by animateDpAsState(if (collapsed) 58.dp else 190.dp, label = "railWidth")
+    val width = if (collapsed) 58.dp else 190.dp
 
     Column(
         modifier = modifier

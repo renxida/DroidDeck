@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Під час першого запуску завантажується Steam. Це може зайняти кілька хвилин.</item>
-        <item>За замовчуванням вихід із додатка ставить Steam на паузу; коли ви повернетеся, усе продовжиться з того самого місця.</item>
-        <item>Ваш контролер відображається як геймпад Xbox 360. Якщо контролера немає, скористайтеся екранним керуванням.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>За замовчуванням вихід із додатка ставить сеанс на паузу; коли ви повернетеся, усе продовжиться з того самого місця.</item>
-        <item>Екран працює як сенсорна панель: проводьте пальцем, щоб рухати вказівник, і торкайтеся, щоб клацнути.</item>
-        <item>Ваш контролер відображається як геймпад Xbox 360. Якщо контролера немає, скористайтеся екранним керуванням.</item>
-    </string-array>
     <string name="session_channel">Сеанс</string>
     <string name="session_notification">Steam працює</string>
     <string name="session_notification_downloads">Триває завантаження в Steam</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Сенсорне введення</string>
     <string name="mode_touch_touchpad">Сенсорна панель</string>
     <string name="mode_touch_direct">Пряме</string>
-    <string name="mode_touch_note">«Авто»: сенсорна панель на робочому столі, пряме введення в Steam.</string>
     <string name="mode_osc">Екранне керування</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">«Авто» показує екранне керування, коли контролер не під’єднано.</string>
@@ -459,7 +448,6 @@
     <string name="drawer_page_controls">Керування</string>
     <string name="drawer_page_components">Компоненти</string>
     <string name="drawer_page_controller">Контролер</string>
-    <string name="drawer_page_settings">Налаштування</string>
     <string name="drawer_page_desc">Сторінка «%1$s»</string>
     <string name="drawer_steam_menu">Меню Steam</string>
     <string name="drawer_open_qam">Відкрити меню швидкого доступу</string>
@@ -605,9 +593,6 @@
     <string name="setup_limit_adb_failed">Перевірте IP-адресу та порт бездротового налагодження або повторіть поєднання, якщо Android видалив цей пристрій.</string>
     <string name="setup_install">Установити</string>
     <string name="setup_manage">Керувати</string>
-    <string name="setup_tab_overview">Огляд</string>
-    <string name="setup_tab_controller">Контролер</string>
-    <string name="setup_tab_launcher">Лаунчер</string>
     <string name="setup_title">Налаштування</string>
     <string name="setup_gpu_supported">Пристрій підтримується</string>
     <string name="setup_gpu_untested">GPU не перевірено</string>
@@ -634,7 +619,6 @@
     <string name="setup_signed_in">Увійшли як %1$s</string>
     <string name="setup_sign_in">Натисніть «Грати» та увійдіть у Steam</string>
     <string name="setup_controller">Контролер</string>
-    <string name="setup_controller_unavailable">Налаштування контролера недоступні.</string>
     <string name="setup_logs">Журнали сеансу</string>
     <string name="setup_logs_hint">Зберігаються після кожного сеансу</string>
     <string name="setup_game_debug_logs">Журнали налагодження ігор</string>
@@ -688,11 +672,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Керування</string>
     <string name="setup_card_controls_hint">Призначення кнопок</string>
-    <string name="store_starting">Запуск…</string>
-    <string name="store_try_again">Спробувати ще раз</string>
-    <string name="store_all">Усі</string>
-    <string name="store_open">Відкрити</string>
-    <string name="store_remove">Видалити</string>
+    <string name="common_starting">Запуск…</string>
+    <string name="common_try_again">Спробувати ще раз</string>
+    <string name="common_all">Усі</string>
+    <string name="common_open">Відкрити</string>
+    <string name="common_remove">Видалити</string>
     <string name="upd_open_settings">Відкрити налаштування</string>
     <string name="upd_current_status">Актуальна версія</string>
     <string name="upd_just_now">щойно</string>
@@ -774,7 +758,6 @@
     <string name="ctrl_steam_button">Кнопка Steam</string>
     <string name="ctrl_qam_button">Кнопка QAM</string>
     <string name="ctrl_keyboard_button">Кнопка клавіатури</string>
-    <string name="setup_animations">Анімації</string>
     <string name="setup_low_storage_warning">Попереджати про брак місця</string>
     <string name="setup_low_storage_warning_hint">Питати перед запуском Steam, якщо вільно менше 10 ГБ.</string>
     <string name="ctrl_layout">Розкладка</string>
@@ -882,7 +865,7 @@
     <string name="pip_unavailable">Android не вдалося відкрити режим «Картинка в картинці».</string>
     <string name="game_more">Більше</string>
     <string name="game_edit_art">Змінити обкладинку</string>
-    <string name="stores_in_steam_label">У Steam</string>
+    <string name="lib_in_steam_label">У Steam</string>
     <string name="game_shortcut">Ярлик</string>
     <string name="game_shortcut_add">Додати на головний екран</string>
     <string name="game_shortcut_choose">Вибрати гру</string>
@@ -1081,7 +1064,7 @@
         <item quantity="other">У журналі %1$d помилки «Function not implemented»: прискорення seccomp у proot порушує роботу допоміжної програми на цьому пристрої. Спробуйте %2$s → «%3$s» (або «%4$s») і запустіть знову.</item>
     </plurals>
 
-    <string name="store_section_loading">завантаження…</string>
+    <string name="lib_section_loading">завантаження…</string>
     <string name="theme_graphite">Графіт</string>
     <string name="theme_graphite_detail">Графітові поверхні й синій колір кулі з логотипа для всього вибраного, у фокусі чи натиснутого.</string>
     <string name="theme_paper">Папір на чорному</string>
@@ -1092,8 +1075,6 @@
     <string name="theme_electric_detail">Яскравіший синій на поверхнях із темно-синім відтінком замість сірого.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Кольори, що плавно змінюються по всій веселці. Враховує налаштування анімації Android.</string>
-    <string name="theme_rgb_speed">Швидкість</string>
-    <string name="theme_rgb_speed_hint">Як швидко змінюються кольори.</string>
     <string name="theme_gradient">Градієнт</string>
     <string name="theme_gradient_detail">Ваші основний і додатковий кольори, що плавно переходять на кнопках і виділеннях.</string>
     <string name="theme_gradient_primary">Основний</string>
@@ -1616,14 +1597,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Власна</string>
-    <string name="stores_tab_library">Бібліотека</string>
-    <string name="stores_tab_all">Усі</string>
-    <string name="stores_search_library">Пошук у вашій бібліотеці…</string>
-    <string name="stores_search_open">Пошук</string>
-    <string name="stores_nothing_matches">Немає ігор</string>
-    <string name="stores_play">Грати</string>
-    <string name="stores_refresh">Оновити</string>
-    <string name="stores_sort">Сортувати</string>
+    <string name="lib_tab_library">Бібліотека</string>
+    <string name="lib_tab_all">Усі</string>
+    <string name="lib_search_library">Пошук у вашій бібліотеці…</string>
+    <string name="lib_search_open">Пошук</string>
+    <string name="lib_nothing_matches">Немає ігор</string>
+    <string name="lib_play">Грати</string>
+    <string name="lib_refresh">Оновити</string>
+    <string name="lib_sort">Сортувати</string>
     <string name="setup_rail_labels">Підписи бічної панелі</string>
     <string name="setup_rail_labels_hint">Показувати назви під значками бічної панелі. Вимкніть, щоб зробити панель вужчою.</string>
     <string name="library_display">Вигляд</string>
@@ -1631,20 +1612,20 @@
     <string name="library_display_smaller">Малі картки</string>
     <string name="library_display_title">Показувати назву</string>
     <string name="library_display_size">Показувати розмір</string>
-    <string name="stores_sort_last_played">Нещодавно запущені</string>
-    <string name="stores_sort_recently_installed">Нещодавно встановлені</string>
-    <string name="stores_sort_title_asc">Назва А–Я</string>
-    <string name="stores_sort_title_desc">Назва Я–А</string>
-    <string name="stores_sort_size_desc">Розмір: найбільший</string>
-    <string name="stores_sort_size_asc">Розмір: найменший</string>
-    <string name="stores_view_list">Вигляд списком</string>
-    <string name="stores_view_cards">Вигляд картками</string>
-    <string name="stores_view_capsules">Вигляд обкладинок</string>
+    <string name="lib_sort_last_played">Нещодавно запущені</string>
+    <string name="lib_sort_recently_installed">Нещодавно встановлені</string>
+    <string name="lib_sort_title_asc">Назва А–Я</string>
+    <string name="lib_sort_title_desc">Назва Я–А</string>
+    <string name="lib_sort_size_desc">Розмір: найбільший</string>
+    <string name="lib_sort_size_asc">Розмір: найменший</string>
+    <string name="lib_view_list">Вигляд списком</string>
+    <string name="lib_view_cards">Вигляд картками</string>
+    <string name="lib_view_capsules">Вигляд обкладинок</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">встановлено</string>
-    <string name="stores_uninstall_title">Видалити %1$s?</string>
-    <string name="stores_dl_pause">Пауза</string>
-    <string name="stores_target_free">%1$s вільно</string>
+    <string name="lib_eyebrow_installed">встановлено</string>
+    <string name="lib_uninstall_title">Видалити %1$s?</string>
+    <string name="lib_dl_pause">Пауза</string>
+    <string name="lib_target_free">%1$s вільно</string>
     <string name="common_close">Закрити</string>
     <string name="common_back">Назад</string>
     <string name="games_add_all">Додати всі ігри в цій папці</string>
@@ -1711,7 +1692,6 @@
     </plurals>
     <string name="hop_back">B · Назад до %1$s</string>
     <string name="hop_from_games">гри</string>
-    <string name="hop_from_play">налаштувань запуску</string>
     <string name="sheet_graphics_drivers">Графічні драйвери</string>
     <string name="comp_this_proton">Цей Proton</string>
     <string name="comp_for_every_proton">Для кожного Proton</string>
@@ -1764,12 +1744,6 @@
     <string name="comp_this_device">Цей пристрій</string>
     <string name="proton_remove_title">Видалити %1$s?</string>
     <string name="setup_tab_diagnostics">Діагностика</string>
-    <string name="setup_ready">Готово до гри</string>
-    <string name="setup_not_ready">Ще не готово до гри</string>
-    <string name="setup_ready_runtime">середовище %1$s</string>
-    <string name="setup_ready_limit_off">обмеження дочірніх процесів вимкнено</string>
-    <string name="setup_ready_signed_in">вхід виконано як %1$s</string>
-    <string name="setup_needs_you">Коли потрібна ваша увага</string>
     <string name="setup_group_look">Вигляд</string>
     <string name="setup_group_device">Цей пристрій</string>
     <string name="setup_group_art">Графіка бібліотеки</string>

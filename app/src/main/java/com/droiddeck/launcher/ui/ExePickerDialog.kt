@@ -140,7 +140,7 @@ internal fun ExePickerDialog(
                     volumes.forEachIndexed { i, v ->
                         key(v.root.path) {
                             PickerRow(if (v.removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone, v.label,
-                                stringResource(R.string.stores_target_free, formatBytes(v.free)), tall = true, focus = if (i == 0) first else null) { dir = v.root }
+                                stringResource(R.string.lib_target_free, formatBytes(v.free)), tall = true, focus = if (i == 0) first else null) { dir = v.root }
                         }
                     }
                 } else {

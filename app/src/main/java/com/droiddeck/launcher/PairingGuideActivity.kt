@@ -229,8 +229,6 @@ class PairingGuideActivity : ComponentActivity() {
     private fun StepVisual(step: Step, compact: Boolean) {
         val colors = MaterialTheme.colorScheme
         val accent = LocalPalette.current.signal
-        val pulse = rememberInfiniteTransition(label = "guidePulse")
-        val beat by pulse.animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Restart), label = "beat")
         val label = when (step) {
             Step.BUILD_NUMBER -> stringResource(R.string.pairguide_row_build_number)
             Step.CHILD_PROCESS -> stringResource(R.string.pairguide_row_child_process)
@@ -248,12 +246,10 @@ class PairingGuideActivity : ComponentActivity() {
             Text(label, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyLarge,
                 color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when (step) {
-                Step.WIRELESS_DEBUGGING, Step.CHILD_PROCESS -> Toggle(on = beat > 0.5f, accent = accent, compact = compact)
+                Step.WIRELESS_DEBUGGING, Step.CHILD_PROCESS -> Toggle(on = true, accent = accent, compact = compact)
                 else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (step == Step.BUILD_NUMBER) Text("×7", style = MaterialTheme.typography.labelLarge, color = accent)
                     Box(contentAlignment = Alignment.Center) {
-                        Box(Modifier.size(if (compact) 18.dp else 26.dp).scale(0.6f + beat * 0.8f).alpha(1f - beat)
-                            .background(accent, CircleShape))
                         Box(Modifier.size(if (compact) 8.dp else 12.dp).background(accent, CircleShape))
                     }
                 }

@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>首次运行会下载 Steam，这可能需要几分钟。</item>
-        <item>默认情况下，离开应用会暂停 Steam；返回后会从原处继续。</item>
-        <item>你的手柄会被识别为 Xbox 360 手柄；若没有手柄，请使用屏幕控制。</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>默认情况下，离开应用会暂停会话；返回后会从原处继续。</item>
-        <item>触控区域可当作触控板使用：拖动可移动指针，轻点即可点击。</item>
-        <item>你的手柄会被识别为 Xbox 360 手柄；若没有手柄，请使用屏幕控制。</item>
-    </string-array>
     <string name="session_channel">会话</string>
     <string name="session_notification">Steam 正在运行</string>
     <string name="session_notification_downloads">Steam 正在下载</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">触摸</string>
     <string name="mode_touch_touchpad">触控板</string>
     <string name="mode_touch_direct">直接</string>
-    <string name="mode_touch_note">自动：桌面用触控板，Steam 中用直接触摸。</string>
     <string name="mode_osc">屏幕控制</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自动模式会在未连接手柄时显示屏幕控制。</string>
@@ -453,7 +442,6 @@
     <string name="drawer_page_controls">控制</string>
     <string name="drawer_page_components">组件</string>
     <string name="drawer_page_controller">手柄</string>
-    <string name="drawer_page_settings">设置</string>
     <string name="drawer_page_desc">%1$s 页面</string>
     <string name="drawer_steam_menu">Steam 菜单</string>
     <string name="drawer_open_qam">打开快捷访问菜单</string>
@@ -596,9 +584,6 @@
     <string name="setup_limit_adb_failed">请检查无线调试的 IP 地址和端口；若 Android 已移除此设备，请重新配对。</string>
     <string name="setup_install">安装</string>
     <string name="setup_manage">管理</string>
-    <string name="setup_tab_overview">概览</string>
-    <string name="setup_tab_controller">手柄</string>
-    <string name="setup_tab_launcher">启动器</string>
     <string name="setup_title">配置</string>
     <string name="setup_gpu_supported">设备受支持</string>
     <string name="setup_gpu_untested">未经测试的 GPU</string>
@@ -626,7 +611,6 @@
     <string name="setup_signed_in">已登录为 %1$s</string>
     <string name="setup_sign_in">点“游玩”并登录 Steam</string>
     <string name="setup_controller">手柄</string>
-    <string name="setup_controller_unavailable">手柄设置不可用。</string>
     <string name="setup_logs">会话日志</string>
     <string name="setup_logs_hint">每次会话后保存</string>
     <string name="setup_game_debug_logs">游戏调试日志</string>
@@ -760,11 +744,11 @@
     <string name="setup_card_components_hint">FEX、DXVK、VKD3D</string>
     <string name="setup_card_controls">控制</string>
     <string name="setup_card_controls_hint">按键映射</string>
-    <string name="store_starting">启动中…</string>
-    <string name="store_try_again">重试</string>
-    <string name="store_all">全部</string>
-    <string name="store_open">打开</string>
-    <string name="store_remove">移除</string>
+    <string name="common_starting">启动中…</string>
+    <string name="common_try_again">重试</string>
+    <string name="common_all">全部</string>
+    <string name="common_open">打开</string>
+    <string name="common_remove">移除</string>
     <string name="upd_open_settings">打开设置</string>
     <string name="upd_current_status">已是最新</string>
     <string name="upd_just_now">刚刚</string>
@@ -846,7 +830,6 @@
     <string name="ctrl_steam_button">Steam 按钮</string>
     <string name="ctrl_qam_button">QAM 按钮</string>
     <string name="ctrl_keyboard_button">键盘按钮</string>
-    <string name="setup_animations">动画</string>
     <string name="setup_low_storage_warning">存储空间不足时提醒</string>
     <string name="setup_low_storage_warning_hint">可用空间不足 10 GB 时，启动 Steam 前先询问。</string>
     <string name="ctrl_layout">布局</string>
@@ -954,7 +937,7 @@
     <string name="pip_unavailable">Android 无法打开画中画。</string>
     <string name="game_more">更多</string>
     <string name="game_edit_art">编辑封面</string>
-    <string name="stores_in_steam_label">已在 Steam 中</string>
+    <string name="lib_in_steam_label">已在 Steam 中</string>
     <string name="game_shortcut">快捷方式</string>
     <string name="game_shortcut_add">添加到主屏幕</string>
     <string name="game_shortcut_choose">选择游戏</string>
@@ -1120,7 +1103,7 @@
         <item quantity="other">日志中有 %1$d 个“Function not implemented”错误：proot 的 seccomp 加速在此设备上导致某个辅助进程失败。请尝试 %2$s → “%3$s”（或“%4$s”），然后重新启动。</item>
     </plurals>
 
-    <string name="store_section_loading">加载中…</string>
+    <string name="lib_section_loading">加载中…</string>
     <string name="theme_graphite">石墨</string>
     <string name="theme_graphite_detail">石墨色界面，选中、聚焦或按下的元素均使用标志自带的球形蓝色。</string>
     <string name="theme_paper">黑底白纸</string>
@@ -1131,8 +1114,6 @@
     <string name="theme_electric_detail">更明亮的蓝色，配以偏藏青而非灰色的界面。</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">在彩虹色之间循环变化的颜色。遵循 Android 的动画设置。</string>
-    <string name="theme_rgb_speed">速度</string>
-    <string name="theme_rgb_speed_hint">颜色循环的快慢。</string>
     <string name="theme_gradient">渐变</string>
     <string name="theme_gradient_detail">你自己选择的主色和辅色，在按钮和高亮处渐变呈现。</string>
     <string name="theme_gradient_primary">主色</string>
@@ -1637,14 +1618,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">自定义</string>
-    <string name="stores_tab_library">库</string>
-    <string name="stores_tab_all">全部</string>
-    <string name="stores_search_library">搜索你的库…</string>
-    <string name="stores_search_open">搜索</string>
-    <string name="stores_nothing_matches">没有游戏</string>
-    <string name="stores_play">游玩</string>
-    <string name="stores_refresh">刷新</string>
-    <string name="stores_sort">排序</string>
+    <string name="lib_tab_library">库</string>
+    <string name="lib_tab_all">全部</string>
+    <string name="lib_search_library">搜索你的库…</string>
+    <string name="lib_search_open">搜索</string>
+    <string name="lib_nothing_matches">没有游戏</string>
+    <string name="lib_play">游玩</string>
+    <string name="lib_refresh">刷新</string>
+    <string name="lib_sort">排序</string>
     <string name="setup_rail_labels">侧边栏标签</string>
     <string name="setup_rail_labels_hint">在侧边栏图标下方显示名称。关闭后侧边栏更窄。</string>
     <string name="library_display">显示</string>
@@ -1652,20 +1633,20 @@
     <string name="library_display_smaller">较小卡片</string>
     <string name="library_display_title">显示标题</string>
     <string name="library_display_size">显示大小</string>
-    <string name="stores_sort_last_played">最近游玩</string>
-    <string name="stores_sort_recently_installed">最近安装</string>
-    <string name="stores_sort_title_asc">标题 A–Z</string>
-    <string name="stores_sort_title_desc">标题 Z–A</string>
-    <string name="stores_sort_size_desc">大小: 从大到小</string>
-    <string name="stores_sort_size_asc">大小: 从小到大</string>
-    <string name="stores_view_list">列表视图</string>
-    <string name="stores_view_cards">卡片视图</string>
-    <string name="stores_view_capsules">封面视图</string>
+    <string name="lib_sort_last_played">最近游玩</string>
+    <string name="lib_sort_recently_installed">最近安装</string>
+    <string name="lib_sort_title_asc">标题 A–Z</string>
+    <string name="lib_sort_title_desc">标题 Z–A</string>
+    <string name="lib_sort_size_desc">大小: 从大到小</string>
+    <string name="lib_sort_size_asc">大小: 从小到大</string>
+    <string name="lib_view_list">列表视图</string>
+    <string name="lib_view_cards">卡片视图</string>
+    <string name="lib_view_capsules">封面视图</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">已安装</string>
-    <string name="stores_uninstall_title">卸载 %1$s？</string>
-    <string name="stores_dl_pause">暂停</string>
-    <string name="stores_target_free">可用 %1$s</string>
+    <string name="lib_eyebrow_installed">已安装</string>
+    <string name="lib_uninstall_title">卸载 %1$s？</string>
+    <string name="lib_dl_pause">暂停</string>
+    <string name="lib_target_free">可用 %1$s</string>
     <string name="common_close">关闭</string>
     <string name="common_back">返回</string>
     <string name="games_add_all">添加此文件夹中的所有游戏</string>
@@ -1700,7 +1681,6 @@
     </plurals>
     <string name="hop_back">B · 返回%1$s</string>
     <string name="hop_from_games">游戏</string>
-    <string name="hop_from_play">游玩设置</string>
     <string name="sheet_graphics_drivers">图形驱动</string>
     <string name="comp_this_proton">此 Proton</string>
     <string name="comp_for_every_proton">适用于所有 Proton</string>
@@ -1714,12 +1694,6 @@
     <string name="comp_device_unsupported">%1$s · 不受支持</string>
     <string name="proton_remove_title">移除 %1$s？</string>
     <string name="setup_tab_diagnostics">诊断</string>
-    <string name="setup_ready">可以游玩了</string>
-    <string name="setup_not_ready">暂时还不能游玩</string>
-    <string name="setup_ready_runtime">运行时 %1$s</string>
-    <string name="setup_ready_limit_off">进程限制已关闭</string>
-    <string name="setup_ready_signed_in">已登录为 %1$s</string>
-    <string name="setup_needs_you">需要你处理</string>
     <string name="setup_group_look">外观</string>
     <string name="setup_group_device">此设备</string>
     <string name="setup_group_art">游戏库美术图</string>

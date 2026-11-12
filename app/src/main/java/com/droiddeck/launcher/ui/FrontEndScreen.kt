@@ -156,13 +156,12 @@ class FrontEndState(
     val downloadMirror: String = "",
     val downloadPrefix: String = "",
     val downloadProxy: String = "",
-    val animationsEnabled: Boolean = true,
     val lowStorageWarning: Boolean = true,
     val navigate: String? = null,
     val addedGamesArt: Boolean = true,
     val sgdbUserKey: Boolean = false,
-    val storesSort: String = SessionPrefs.STORES_SORTS.first(),
-    val storesView: String = SessionPrefs.DEFAULT_STORES_VIEW,
+    val librarySort: String = SessionPrefs.LIBRARY_SORTS.first(),
+    val libraryView: String = SessionPrefs.DEFAULT_LIBRARY_VIEW,
 )
 
 class FrontEndActions(
@@ -227,7 +226,6 @@ class FrontEndActions(
     val onOrientation: (Int) -> Unit = {},
     val onLauncherOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
-    val onAnimationsEnabled: (Boolean) -> Unit = {},
     val onLowStorageWarning: (Boolean) -> Unit = {},
     val onDualScreenMode: (String) -> Unit = {},
     val onDualScreenSessions: (String) -> Unit = {},
@@ -238,8 +236,8 @@ class FrontEndActions(
     val onDownloadPrefix: (String) -> Unit = {},
     val onDownloadProxy: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
-    val onStoresSort: (String) -> Unit = {},
-    val onStoresView: (String) -> Unit = {},
+    val onLibrarySort: (String) -> Unit = {},
+    val onLibraryView: (String) -> Unit = {},
     val onLibraryChanged: () -> Unit = {},
     val onSteamIntegration: (com.droiddeck.launcher.core.SteamIntegration.Feature?) -> Unit = {},
     val onDismissIntegration: () -> Unit = {},
@@ -262,21 +260,6 @@ class FrontEndActions(
     val controller: ControllerActions? = null,
 )
 
-internal object Motion {
-    var scale by mutableStateOf(1f)
-        private set
-    fun refresh(context: android.content.Context) {
-        scale = if (SessionPrefs.animationsEnabled(context))
-            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
-        else 0f
-    }
-    val Ease = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
-    fun ms(base: Int) = (base * scale).roundToInt()
-    fun <T> tw(base: Int, delay: Int = 0, easing: Easing = Ease): FiniteAnimationSpec<T> = if (scale == 0f) snap() else tween(base, delay, easing)
-    fun <T> sp(damping: Float = 0.7f, stiffness: Float = Spring.StiffnessMediumLow): FiniteAnimationSpec<T> =
-        if (scale == 0f) snap() else spring(damping, stiffness)
-}
-
 internal val Shape12 = RoundedCornerShape(12.dp)
 
 internal fun hueOf(name: String) = (name.hashCode().toUInt() % 360u).toFloat()
@@ -284,17 +267,6 @@ internal fun hueOf(name: String) = (name.hashCode().toUInt() % 360u).toFloat()
 internal fun tint(h: Float, s: Float = 0.7f, v: Float = 0.58f) = Color.hsv(h, s, v)
 
 internal fun artBrush(h: Float) = Brush.linearGradient(listOf(tint(h), tint((h + 32f) % 360f, 0.65f, 0.30f), tint((h + 64f) % 360f, 0.6f, 0.14f)))
-
-@Composable
-internal fun Rise(i: Int, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val state = remember { MutableTransitionState(false) }.apply { targetState = true }
-    AnimatedVisibility(
-        visibleState = state, modifier = modifier,
-        enter = fadeIn(Motion.tw(450, i * 60)) + slideInVertically(Motion.tw(450, i * 60)) { it / 3 },
-        exit = fadeOut(Motion.tw(120)),
-        label = "rise",
-    ) { content() }
-}
 
 internal class FrontFocus {
     val rail = HashMap<String, FocusRequester>()
@@ -321,7 +293,6 @@ internal class FrontFocus {
 
 @Composable
 internal fun Modifier.downToFirstTile(): Modifier {
-    if (LocalSheetBeat.current != null) return this
     val ff = LocalFrontFocus.current ?: return this
     return this.focusProperties { down = if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
 }
@@ -348,8 +319,6 @@ internal fun Modifier.paneItem(id: String): Modifier {
 }
 
 internal val LocalFrontFocus = staticCompositionLocalOf<FrontFocus?> { null }
-
-private const val PAGE_EXIT_MS = 200
 
 internal suspend fun focusWithinFrames(done: () -> Boolean, target: () -> FocusRequester) {
     repeat(30) {
@@ -469,19 +438,14 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         val rail = Hops.origin?.rail ?: return@BackHandler
         Hops.back { selected = rail }
     }
-    val density = androidx.compose.ui.platform.LocalDensity.current.density
-    remember(density) { Hops.density = density; true }
     LaunchedEffect(s.steamGames.isEmpty()) {
         if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.appId(selected) != null) selected = "games"
     }
-    remember { Motion.refresh(ctx); true }
 
     val railSelection = when {
-        Hops.origin != null && s.pageKey == Hops.origin?.page -> Hops.origin!!.dest
-        s.pageKey == "performance" -> "steam"
-        s.pageKey == "controller-mapping" -> "setup"
-        selected.startsWith("app:") -> "games"
-        else -> s.pageKey ?: selected
+        s.pageKey != null -> "setup"
+        selected.startsWith("app:") || selected == "games" -> "steam"
+        else -> selected
     }
     val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
     var railPicks by remember { mutableStateOf(0) }
@@ -491,7 +455,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             if (s.pageKey != null) a.onPageBack()
             Hops.origin = null
             Hops.restore = null
-            Hops.sinking = null
             selected = key
         }
     }
@@ -544,7 +507,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
         LaunchedEffect(selected, s.pageKey, processSettingsPageVisible) {
             if (processSettingsPageVisible) return@LaunchedEffect
-            kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
+            withFrameNanos { }
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
             if (s.pageKey == "performance") {
                 val back = "back:${androidContext.getString(R.string.mode_back)}"
@@ -559,7 +522,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
         LaunchedEffect(railPicks) {
             if (railPicks == 0 || processSettingsPageVisible) return@LaunchedEffect
-            kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
+            withFrameNanos { }
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
             val entry = withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } }
             if (entry == null) {
@@ -586,10 +549,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             .focusGroup()
         LaunchedEffect(Hops.restore) {
             val r = Hops.restore ?: return@LaunchedEffect
-            if (r.surface == HOP_SURFACE_SHEET) return@LaunchedEffect
             Hops.restore = null
             if (r.rail != selected && !(r.rail == "games" && selected.startsWith("app:"))) selected = r.rail
-            kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
+            withFrameNanos { }
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
             frontFocus.last = r.control
             focusWithinFrames({ frontFocus.last == r.control && anyFocused }) { frontFocus.items[r.control] ?: frontFocus.paneEntry() }
@@ -641,7 +603,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
 
         }
-        FlightsLayer(screenAt)
         GamesDialogs(a, s.steamGames)
         StepsLayer(screenAt)
 

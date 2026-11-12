@@ -91,21 +91,15 @@ class FrontEndActivity : ComponentActivity() {
     private val components = ComponentsMenu(this, ui)
     private val protons = ProtonMenu(
         this, ui,
-        idle = { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null },
+        idle = { !busy && compatLaunch == null && pkgStage == null && components.compBusy == null },
         onInstalled = { if (!OfflineMode.enabled(this)) components.checkComponentUpdates(force = false) },
     )
 
     private var installed by mutableStateOf<String?>(null)
-    private var flood by mutableStateOf<PendingFlood?>(null)
-    private var floodProgress by androidx.compose.runtime.mutableFloatStateOf(0f)
-    private class PendingFlood(val from: androidx.compose.ui.geometry.Rect, val intent: Intent)
     private class CompatLaunch(val intent: Intent, val loading: com.droiddeck.launcher.session.LoadingState, var menuInstall: Boolean)
     private var compatLaunch by mutableStateOf<CompatLaunch?>(null)
-    private var compatFlood by mutableStateOf<androidx.compose.ui.graphics.Color?>(null)
     private var compatLaunchPoll: Runnable? = null
     private var compatLaunchVisible = false
-    private var returning by mutableStateOf<ReturningFlood?>(null)
-    private class ReturningFlood(val color: Int, val to: androidx.compose.ui.geometry.Rect?)
     private var ready by mutableStateOf(false)
     private var removalPending by mutableStateOf(false)
     private var available by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
@@ -187,13 +181,12 @@ class FrontEndActivity : ComponentActivity() {
     private var downloadMirror by mutableStateOf("")
     private var downloadPrefix by mutableStateOf("")
     private var downloadProxy by mutableStateOf("")
-    private var animationsEnabled by mutableStateOf(true)
     private var lowStorageWarning by mutableStateOf(true)
     private var navRequest by mutableStateOf<String?>(null)
     private val gameLaunchRequest = java.util.concurrent.atomic.AtomicLong()
     private var preparingGames by mutableStateOf(emptySet<String>())
-    private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
-    private var storesView by mutableStateOf(SessionPrefs.DEFAULT_STORES_VIEW)
+    private var librarySort by mutableStateOf(SessionPrefs.LIBRARY_SORTS.first())
+    private var libraryView by mutableStateOf(SessionPrefs.DEFAULT_LIBRARY_VIEW)
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
     private var wifiDiscoveryPermission by mutableStateOf(false)
@@ -577,55 +570,28 @@ class FrontEndActivity : ComponentActivity() {
                     return
                 }
                 SessionState.installing != null && !SessionState.running -> {
-                    android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(this, R.string.main_wait_install, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
                 compat -> Unit
                 pkgStage != null -> {
-                    android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(this, R.string.main_wait_install, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
             }
         }
         if (intent?.component?.className == SessionActivity::class.java.name) {
-            if (flood != null) return
-            val from = com.droiddeck.launcher.ui.LaunchOrigin.take()
-            if (from != null && !SessionState.running && com.droiddeck.launcher.ui.Motion.scale != 0f) {
-                flood = PendingFlood(from, intent)
-                return
-            }
-            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
             if (compat) {
                 waitForCompat(intent)
                 return
             }
         }
         super.startActivity(intent)
-        if (intent?.component?.className == SessionActivity::class.java.name) overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
-    }
-
-    private fun launchFlooded(f: PendingFlood) {
-        if (busy || LinuxRuntimeInstaller.isBusy() || (SessionState.installing != null && !SessionState.running) ||
-            protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
-            flood = null
-            floodProgress = 0f
-            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
-            if (!busy && !LinuxRuntimeInstaller.isBusy() && !(SessionState.installing != null && !SessionState.running) &&
-                (protons.protonBusyId != null || ProtonExtras.installInProgress)) {
-                compatFlood = com.droiddeck.launcher.ui.Themes.byId(theme).signal
-                waitForCompat(f.intent)
-            }
-            return
-        }
-        val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
-        super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
         overridePendingTransition(0, 0)
     }
 
     private fun waitForCompat(next: Intent, menuInstall: Boolean = protons.protonBusyId != null) {
         if (compatLaunch != null) return
-        com.droiddeck.launcher.ui.LaunchOrigin.take()
-        com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
         val waiting = CompatLaunch(Intent(next), com.droiddeck.launcher.session.LoadingState(this), menuInstall)
         compatLaunch = waiting
         val poll = object : Runnable {
@@ -668,7 +634,6 @@ class FrontEndActivity : ComponentActivity() {
         compatLaunchPoll?.let(ui::removeCallbacks)
         compatLaunchPoll = null
         compatLaunch = null
-        compatFlood = null
     }
 
     private fun restoreCompatLaunch(state: Bundle) {
@@ -927,10 +892,9 @@ class FrontEndActivity : ComponentActivity() {
         downloadPrefix = DownloadSource.custom(this)
         downloadProxy = DownloadSource.proxyHostPort(this)
         DownloadSource.probe()
-        animationsEnabled = SessionPrefs.animationsEnabled(this)
         lowStorageWarning = SessionPrefs.lowStorageWarning(this)
-        storesSort = SessionPrefs.storesSort(this)
-        storesView = SessionPrefs.storesView(this)
+        librarySort = SessionPrefs.librarySort(this)
+        libraryView = SessionPrefs.libraryView(this)
         applyLauncherFullscreen()
         setContent {
             val prootPack by com.droiddeck.launcher.core.AddonPack.PROOT.state.collectAsState()
@@ -952,7 +916,6 @@ class FrontEndActivity : ComponentActivity() {
                     showMapping -> { { MappingHost() } }
                     else -> null
                 }
-                com.droiddeck.launcher.ui.FloodBehind({ floodProgress }) {
                 FrontEndScreen(
                     FrontEndState(
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
@@ -1001,13 +964,12 @@ class FrontEndActivity : ComponentActivity() {
                         downloadMirror = downloadMirror,
                         downloadPrefix = downloadPrefix,
                         downloadProxy = downloadProxy,
-                        animationsEnabled = animationsEnabled,
                         lowStorageWarning = lowStorageWarning,
                         navigate = navRequest,
                         addedGamesArt = addedGamesArt,
                         sgdbUserKey = sgdbUserKey,
-                        storesSort = storesSort,
-                        storesView = storesView,
+                        librarySort = librarySort,
+                        libraryView = libraryView,
                     ),
                     FrontEndActions(
                         onPlay = { playSteam() },
@@ -1228,8 +1190,8 @@ class FrontEndActivity : ComponentActivity() {
                             applyLauncherFullscreen()
                         },
                         onNavigated = { navRequest = null },
-                        onStoresSort = { sort -> SessionPrefs.setStoresSort(this, sort); storesSort = sort },
-                        onStoresView = { view -> SessionPrefs.setStoresView(this, view); storesView = view },
+                        onLibrarySort = { sort -> SessionPrefs.setLibrarySort(this, sort); librarySort = sort },
+                        onLibraryView = { view -> SessionPrefs.setLibraryView(this, view); libraryView = view },
                         onLibraryChanged = { refreshAddedGames(); refresh() },
                         onDualScreenMode = { mode ->
                             SessionPrefs.setDualScreenMode(this, mode)
@@ -1250,11 +1212,6 @@ class FrontEndActivity : ComponentActivity() {
                         onLowStorageWarning = { on ->
                             SessionPrefs.setLowStorageWarning(this, on)
                             lowStorageWarning = on
-                        },
-                        onAnimationsEnabled = { on ->
-                            SessionPrefs.setAnimationsEnabled(this, on)
-                            animationsEnabled = on
-                            com.droiddeck.launcher.ui.Motion.refresh(this)
                         },
                         onDownloadSource = { mode ->
                             DownloadSource.setMode(this, mode)
@@ -1345,7 +1302,6 @@ class FrontEndActivity : ComponentActivity() {
                     ),
                     page = page,
                 )
-                }
                 showNonAdreno?.let { release ->
                     ConfirmDialog(
                         title = androidx.compose.ui.res.stringResource(R.string.main_non_adreno_title),
@@ -1374,7 +1330,7 @@ class FrontEndActivity : ComponentActivity() {
                 if (showRemove) ConfirmDialog(
                     title = androidx.compose.ui.res.stringResource(R.string.main_remove_runtime_title),
                     text = androidx.compose.ui.res.stringResource(R.string.main_remove_runtime_text),
-                    confirm = androidx.compose.ui.res.stringResource(R.string.store_remove),
+                    confirm = androidx.compose.ui.res.stringResource(R.string.common_remove),
                     onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
                 )
@@ -1392,22 +1348,12 @@ class FrontEndActivity : ComponentActivity() {
                     onConfirm = { gameProfiles -> resetSettings(gameProfiles) },
                     onDismiss = { showResetSettings = false },
                 )
-                flood?.let { f -> com.droiddeck.launcher.ui.LaunchFlood(f.from, onProgress = { floodProgress = it }) { launchFlooded(f) } }
-                returning?.let { r ->
-                    com.droiddeck.launcher.ui.FloodReturn(androidx.compose.ui.graphics.Color(r.color), r.to, onProgress = { floodProgress = it }) {
-                        returning = null
-                        floodProgress = 0f
-                        com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
-                    }
-                }
                 androidx.activity.compose.BackHandler(compatLaunch != null) { cancelCompatLaunch() }
                 compatLaunch?.loading?.let { loading ->
-                    if (!loading.ended) com.droiddeck.launcher.ui.VeilRing()
                     com.droiddeck.launcher.ui.LoadingOverlay(
                         loading.step, loading.percent, loading.elapsed, getString(R.string.load_compat_hint), loading.ended,
                         loading.topic, loading.readable, title = getString(R.string.load_compat_title),
                         onCancel = ::cancelCompatLaunch, onClose = ::cancelCompatLaunch,
-                        flood = compatFlood, onFlooded = { compatFlood = null },
                     )
                 }
             }
@@ -1576,10 +1522,6 @@ class FrontEndActivity : ComponentActivity() {
         requestedOrientation = launcherOrientation
         SteamIntegration.syncShortcutsListing(this)
         refreshWifiDiscovery()
-        com.droiddeck.launcher.ui.Motion.refresh(this)
-        com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
-            returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
-        }
         refreshPhantomStatus()
         syncLossless()
         drivers.checkOnOpen()
@@ -1673,10 +1615,6 @@ class FrontEndActivity : ComponentActivity() {
         getSystemService(android.hardware.input.InputManager::class.java)?.unregisterInputDeviceListener(secondScreenTouchListener)
         launcherStarted = false
         com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
-        flood = null
-        returning = null
-        floodProgress = 0f
-        com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
         super.onStop()
     }
 
@@ -2397,7 +2335,7 @@ class FrontEndActivity : ComponentActivity() {
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
         if (SessionState.installing != null && !SessionState.running) {
-            android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, R.string.main_wait_install, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
         if (com.droiddeck.launcher.storage.StorageState.cleaning) {
@@ -2461,7 +2399,6 @@ class FrontEndActivity : ComponentActivity() {
                 if (isDestroyed) return@post
                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
                 if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()
-                com.droiddeck.launcher.ui.Motion.refresh(this)
                 recreate()
             }
         }, "reset-settings").start()
@@ -2484,7 +2421,7 @@ class FrontEndActivity : ComponentActivity() {
     private fun followRuntimeOperation(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
         busy = true
         failed = false
-        stage = getString(if (LinuxRuntimeInstaller.isRemoving()) R.string.main_removing_runtime else R.string.store_starting)
+        stage = getString(if (LinuxRuntimeInstaller.isRemoving()) R.string.main_removing_runtime else R.string.common_starting)
         percent = -1
         Thread({
             val ok = run(LinuxRuntimeInstaller.ProgressListener { s, p ->

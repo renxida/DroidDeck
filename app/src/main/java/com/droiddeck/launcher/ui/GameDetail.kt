@@ -142,9 +142,9 @@ internal fun GameDetail(
     val artModel: Any? = if (art is String) cardArtRequest(art, null) else art
     val inSteam = !s.shortcutPicker && game.library == Library.ADDED
     val inset = LocalDetailInset.current
-    GameBackdrop(artModel, art ?: game.art, hueOf(title), fadeTop = inset.top < 8.dp, onArtPlaced = { CardMotion.heroAt = it }) {
+    GameBackdrop(artModel, art ?: game.art, hueOf(title), fadeTop = inset.top < 8.dp) {
         Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top).onFocusChanged { inPage = it.hasFocus }.bumpers(onPrevious = { cycle(-1) }, onNext = { cycle(1) })) {
-            Rise(0) {
+            Box {
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.glass(CircleShape)) { BackLink(backLabel, compact = true, onClick = onBack) }
                     Spacer(Modifier.weight(1f))
@@ -159,8 +159,8 @@ internal fun GameDetail(
                     GameCapsule { GameActions(game, s, a, Modifier.focusRequester(lead), compactMenu = stacked) }
                 }
             }
-            if (CardMotion.heroLands) header() else Rise(1) { header() }
-            Rise(2) {
+            header()
+            Box {
                 Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val labels = tabs.map { t ->
                         when (t) {
@@ -204,7 +204,7 @@ private fun SourceBadge(source: String) {
 private fun GameStatusLine(game: Library.SteamGame, inSteam: Boolean) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val state = listOf(stringResource(R.string.stores_eyebrow_installed), libraryLabel(game))
+    val state = listOf(stringResource(R.string.lib_eyebrow_installed), libraryLabel(game))
     val size = game.gameFiles?.let { diskSize(it) }
     val line = (state + listOfNotNull(size?.let { formatBytes(it) })).filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
     val muted = colors.onBackground.copy(alpha = 0.78f)
@@ -215,7 +215,7 @@ private fun GameStatusLine(game: Library.SteamGame, inSteam: Boolean) {
             Text("·", fontSize = 12.sp, color = muted.copy(alpha = 0.5f))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(Icons.Outlined.VideogameAsset, contentDescription = null, tint = muted, modifier = Modifier.size(15.dp))
-                Text(stringResource(R.string.stores_in_steam_label), fontSize = 12.sp, color = muted, maxLines = 1)
+                Text(stringResource(R.string.lib_in_steam_label), fontSize = 12.sp, color = muted, maxLines = 1)
                 Icon(Icons.Filled.Check, contentDescription = null, tint = pal.good, modifier = Modifier.size(14.dp))
             }
         }
@@ -292,7 +292,7 @@ private fun GameActions(game: Library.SteamGame, s: FrontEndState, a: FrontEndAc
         } else {
             val preparing = game.gameIdString in s.preparingGames
             PrimaryButton(
-                stringResource(if (preparing) R.string.store_starting else R.string.stores_play),
+                stringResource(if (preparing) R.string.common_starting else R.string.lib_play),
                 enabled = !s.busy && !preparing, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn,
             ) { a.onSteamGame(game) }
             if (compactMenu) GameMoreMenu(game, a) else {
@@ -402,7 +402,7 @@ private fun RemoveButton(g: Library.SteamGame, a: FrontEndActions) {
     val label = stringResource(if (shortcut) R.string.edit_remove else R.string.common_uninstall)
     IconAction(Icons.Outlined.Delete, label, "game:remove", danger = true, frosted = true) { asking = true }
     if (asking) ConfirmDialog(
-        title = if (shortcut) stringResource(R.string.games_remove_title, g.name) else stringResource(R.string.stores_uninstall_title, g.name),
+        title = if (shortcut) stringResource(R.string.games_remove_title, g.name) else stringResource(R.string.lib_uninstall_title, g.name),
         text = stringResource(if (shortcut) R.string.games_remove_body else R.string.games_uninstall_body),
         confirm = label,
         onConfirm = { a.onGameRemoved(g) },

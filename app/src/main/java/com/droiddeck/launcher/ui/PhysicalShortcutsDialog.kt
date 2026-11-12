@@ -53,7 +53,7 @@ internal fun PhysicalShortcutRows(
             val default = stringResource(when (action) {
                 PhysicalShortcuts.Action.STEAM -> R.string.input_shortcut_guide
                 PhysicalShortcuts.Action.QAM -> if (inverted) R.string.input_shortcut_back_once else R.string.input_shortcut_back_twice
-                PhysicalShortcuts.Action.DROIDDECK -> if (inverted) R.string.input_shortcut_back_modes else R.string.input_shortcut_back_once
+                PhysicalShortcuts.Action.DROIDDECK -> if (inverted) R.string.input_shortcut_back_twice else R.string.input_shortcut_back_once
             })
             SettingsRow(
                 stringResource(action.label),

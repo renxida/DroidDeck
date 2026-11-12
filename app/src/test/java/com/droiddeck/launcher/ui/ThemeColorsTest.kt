@@ -156,16 +156,8 @@ class ThemeColorsTest {
         }
     }
 
-    @Test fun innerGamerFollowsTheHueAndTheSpeedIsSavedAndKeptInRange() {
+    @Test fun innerGamerFollowsTheHue() {
         Themes.moveRgbHue(120f)
         assertEquals(Themes.innerGamer(120f).primary, Themes.byId(Themes.INNER_GAMER).primary)
-        Themes.setRgbSpeed(app, 7)
-        assertEquals(7, SessionPrefs.rgbSpeed(app))
-        Themes.setRgbSpeed(app, 99)
-        assertEquals(Themes.RGB_SPEEDS, Themes.rgbSpeed)
-        Themes.setRgbSpeed(app, 0)
-        assertEquals(1, SessionPrefs.rgbSpeed(app))
-        Themes.setRgbSpeed(app, 1)
-        assertTrue(Themes.rgbCycleMillis(1) > Themes.rgbCycleMillis(10))
     }
 }

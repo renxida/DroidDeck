@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Bij de eerste start wordt Steam gedownload. Dit kan een paar minuten duren.</item>
-        <item>Standaard wordt Steam gepauzeerd als je de app verlaat; als je terugkomt, gaat het verder waar je was.</item>
-        <item>Je controller wordt gezien als Xbox 360-controller. Gebruik anders de schermbediening.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Standaard wordt de sessie gepauzeerd als je de app verlaat; als je terugkomt, gaat die verder waar je was.</item>
-        <item>Aanraken werkt als touchpad: sleep om de aanwijzer te verplaatsen, tik om te klikken.</item>
-        <item>Je controller wordt gezien als Xbox 360-controller. Gebruik anders de schermbediening.</item>
-    </string-array>
     <string name="session_channel">Sessie</string>
     <string name="session_notification">Steam is actief</string>
     <string name="session_notification_downloads">Steam-download actief</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Aanraken</string>
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
-    <string name="mode_touch_note">Automatisch: touchpad op Desktop, direct in Steam.</string>
     <string name="mode_osc">Schermbediening</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automatisch toont de bediening als er geen controller is verbonden.</string>
@@ -455,7 +444,6 @@
     <string name="drawer_page_controls">Bediening</string>
     <string name="drawer_page_components">Componenten</string>
     <string name="drawer_page_controller">Controller</string>
-    <string name="drawer_page_settings">Instellingen</string>
     <string name="drawer_page_desc">%1$s-pagina</string>
     <string name="drawer_steam_menu">Steam-menu</string>
     <string name="drawer_open_qam">Snelmenu openen</string>
@@ -599,9 +587,6 @@
     <string name="setup_limit_adb_failed">Controleer het IP-adres en de poort van Draadloos debuggen, of koppel opnieuw als Android dit apparaat heeft verwijderd.</string>
     <string name="setup_install">Installeren</string>
     <string name="setup_manage">Beheren</string>
-    <string name="setup_tab_overview">Overzicht</string>
-    <string name="setup_tab_controller">Controller</string>
-    <string name="setup_tab_launcher">Launcher</string>
     <string name="setup_title">Installatie</string>
     <string name="setup_gpu_supported">Apparaat ondersteund</string>
     <string name="setup_gpu_untested">Ongeteste GPU</string>
@@ -628,7 +613,6 @@
     <string name="setup_signed_in">Aangemeld als %1$s</string>
     <string name="setup_sign_in">Druk op Spelen en meld je aan bij Steam</string>
     <string name="setup_controller">Controller</string>
-    <string name="setup_controller_unavailable">Controllerinstellingen zijn niet beschikbaar.</string>
     <string name="setup_logs">Sessielogs</string>
     <string name="setup_logs_hint">Opgeslagen na elke sessie</string>
     <string name="setup_game_debug_logs">Debuglogs van games</string>
@@ -682,11 +666,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Bediening</string>
     <string name="setup_card_controls_hint">Knoppenindeling</string>
-    <string name="store_starting">Starten…</string>
-    <string name="store_try_again">Opnieuw proberen</string>
-    <string name="store_all">Alle</string>
-    <string name="store_open">Openen</string>
-    <string name="store_remove">Verwijderen</string>
+    <string name="common_starting">Starten…</string>
+    <string name="common_try_again">Opnieuw proberen</string>
+    <string name="common_all">Alle</string>
+    <string name="common_open">Openen</string>
+    <string name="common_remove">Verwijderen</string>
     <string name="upd_open_settings">Instellingen openen</string>
     <string name="upd_current_status">Up-to-date</string>
     <string name="upd_just_now">zojuist</string>
@@ -768,7 +752,6 @@
     <string name="ctrl_steam_button">Steam-knop</string>
     <string name="ctrl_qam_button">QAM-knop</string>
     <string name="ctrl_keyboard_button">Toetsenbordknop</string>
-    <string name="setup_animations">Animaties</string>
     <string name="setup_low_storage_warning">Waarschuwen bij weinig opslagruimte</string>
     <string name="setup_low_storage_warning_hint">Vragen voordat Steam start als er minder dan 10 GB vrij is.</string>
     <string name="ctrl_layout">Indeling</string>
@@ -876,7 +859,7 @@
     <string name="pip_unavailable">Android kon scherm-in-scherm niet openen.</string>
     <string name="game_more">Meer</string>
     <string name="game_edit_art">Afbeeldingen bewerken</string>
-    <string name="stores_in_steam_label">In Steam</string>
+    <string name="lib_in_steam_label">In Steam</string>
     <string name="game_shortcut">Snelkoppeling</string>
     <string name="game_shortcut_add">Toevoegen aan startscherm</string>
     <string name="game_shortcut_choose">Game kiezen</string>
@@ -1057,7 +1040,7 @@
         <item quantity="other">Het log toont %1$d fouten “Function not implemented”: de seccomp-versnelling van proot laat op dit apparaat een hulpprogramma falen. Probeer %2$s → “%3$s” (of “%4$s”) en start opnieuw.</item>
     </plurals>
 
-    <string name="store_section_loading">laden…</string>
+    <string name="lib_section_loading">laden…</string>
     <string name="theme_graphite">Grafiet</string>
     <string name="theme_graphite_detail">Grafietkleurige vlakken, met het eigen bolblauw van het logo voor alles wat geselecteerd, gefocust of ingedrukt is.</string>
     <string name="theme_paper">Papier op zwart</string>
@@ -1068,8 +1051,6 @@
     <string name="theme_electric_detail">Het blauw feller, op vlakken die naar marineblauw neigen in plaats van grijs.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Kleuren die door de regenboog lopen. Volgt de animatie-instellingen van Android.</string>
-    <string name="theme_rgb_speed">Snelheid</string>
-    <string name="theme_rgb_speed_hint">Hoe snel de kleuren wisselen.</string>
     <string name="theme_gradient">Kleurverloop</string>
     <string name="theme_gradient_detail">Je eigen primaire en secundaire kleur, doorlopend op knoppen en accenten.</string>
     <string name="theme_gradient_primary">Primair</string>
@@ -1578,14 +1559,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Aangepast</string>
-    <string name="stores_tab_library">Bibliotheek</string>
-    <string name="stores_tab_all">Alle</string>
-    <string name="stores_search_library">Zoeken in je bibliotheek…</string>
-    <string name="stores_search_open">Zoeken</string>
-    <string name="stores_nothing_matches">Geen games</string>
-    <string name="stores_play">Spelen</string>
-    <string name="stores_refresh">Vernieuwen</string>
-    <string name="stores_sort">Sorteren</string>
+    <string name="lib_tab_library">Bibliotheek</string>
+    <string name="lib_tab_all">Alle</string>
+    <string name="lib_search_library">Zoeken in je bibliotheek…</string>
+    <string name="lib_search_open">Zoeken</string>
+    <string name="lib_nothing_matches">Geen games</string>
+    <string name="lib_play">Spelen</string>
+    <string name="lib_refresh">Vernieuwen</string>
+    <string name="lib_sort">Sorteren</string>
     <string name="setup_rail_labels">Labels in zijbalk</string>
     <string name="setup_rail_labels_hint">Toon namen onder de pictogrammen in de zijbalk. Zet uit voor een smallere zijbalk.</string>
     <string name="library_display">Weergave</string>
@@ -1593,20 +1574,20 @@
     <string name="library_display_smaller">Kleinere kaarten</string>
     <string name="library_display_title">Titel tonen</string>
     <string name="library_display_size">Grootte tonen</string>
-    <string name="stores_sort_last_played">Onlangs gespeeld</string>
-    <string name="stores_sort_recently_installed">Onlangs geïnstalleerd</string>
-    <string name="stores_sort_title_asc">Titel A–Z</string>
-    <string name="stores_sort_title_desc">Titel Z–A</string>
-    <string name="stores_sort_size_desc">Grootte: grootste</string>
-    <string name="stores_sort_size_asc">Grootte: kleinste</string>
-    <string name="stores_view_list">Lijstweergave</string>
-    <string name="stores_view_cards">Kaartweergave</string>
-    <string name="stores_view_capsules">Hoesweergave</string>
+    <string name="lib_sort_last_played">Onlangs gespeeld</string>
+    <string name="lib_sort_recently_installed">Onlangs geïnstalleerd</string>
+    <string name="lib_sort_title_asc">Titel A–Z</string>
+    <string name="lib_sort_title_desc">Titel Z–A</string>
+    <string name="lib_sort_size_desc">Grootte: grootste</string>
+    <string name="lib_sort_size_asc">Grootte: kleinste</string>
+    <string name="lib_view_list">Lijstweergave</string>
+    <string name="lib_view_cards">Kaartweergave</string>
+    <string name="lib_view_capsules">Hoesweergave</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">geïnstalleerd</string>
-    <string name="stores_uninstall_title">%1$s verwijderen?</string>
-    <string name="stores_dl_pause">Pauzeren</string>
-    <string name="stores_target_free">%1$s vrij</string>
+    <string name="lib_eyebrow_installed">geïnstalleerd</string>
+    <string name="lib_uninstall_title">%1$s verwijderen?</string>
+    <string name="lib_dl_pause">Pauzeren</string>
+    <string name="lib_target_free">%1$s vrij</string>
     <string name="common_close">Sluiten</string>
     <string name="common_back">Terug</string>
     <string name="games_add_all">Alle games in deze map toevoegen</string>
@@ -1669,7 +1650,6 @@
     </plurals>
     <string name="hop_back">B · Terug naar %1$s</string>
     <string name="hop_from_games">de game</string>
-    <string name="hop_from_play">Spelinstellingen</string>
     <string name="sheet_graphics_drivers">Grafische drivers</string>
     <string name="comp_this_proton">Deze Proton</string>
     <string name="comp_for_every_proton">Voor elke Proton</string>
@@ -1722,12 +1702,6 @@
     <string name="comp_this_device">Dit apparaat</string>
     <string name="proton_remove_title">%1$s verwijderen?</string>
     <string name="setup_tab_diagnostics">Diagnostiek</string>
-    <string name="setup_ready">Klaar om te spelen</string>
-    <string name="setup_not_ready">Nog niet klaar om te spelen</string>
-    <string name="setup_ready_runtime">runtime %1$s</string>
-    <string name="setup_ready_limit_off">proceslimiet uit</string>
-    <string name="setup_ready_signed_in">aangemeld als %1$s</string>
-    <string name="setup_needs_you">Als iets je aandacht nodig heeft</string>
     <string name="setup_group_look">Weergave</string>
     <string name="setup_group_device">Dit apparaat</string>
     <string name="setup_group_art">Bibliotheekartwork</string>

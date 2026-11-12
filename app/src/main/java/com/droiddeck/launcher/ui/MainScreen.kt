@@ -48,7 +48,7 @@ fun RuntimeActionsDialog(onRepair: () -> Unit, onRemove: () -> Unit, onDismiss: 
         confirmButton = { TextButton(onClick = onRepair, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.runtime_repair)) } },
         dismissButton = {
             Row {
-                TextButton(onClick = onRemove, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.store_remove)) }
+                TextButton(onClick = onRemove, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_remove)) }
                 TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) }
             }
         },

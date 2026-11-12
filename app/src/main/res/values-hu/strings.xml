@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Az első indítás letölti a Steamet. Ez néhány percet vehet igénybe.</item>
-        <item>Alapértelmezés szerint az alkalmazás elhagyása szünetelteti a Steamet; visszatéréskor ott folytatja, ahol abbahagyta.</item>
-        <item>A kontroller Xbox 360 kontrollerként jelenik meg. Egyébként használja a képernyőn lévő vezérlőket.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Alapértelmezés szerint az alkalmazás elhagyása szünetelteti a munkamenetet; visszatéréskor ott folytatja, ahol abbahagyta.</item>
-        <item>Az érintés érintőpadként működik: húzással mozgathatja a kurzort, koppintással kattinthat.</item>
-        <item>A kontroller Xbox 360 kontrollerként jelenik meg. Egyébként használja a képernyőn lévő vezérlőket.</item>
-    </string-array>
     <string name="session_channel">Munkamenet</string>
     <string name="session_notification">A Steam fut</string>
     <string name="session_notification_downloads">Steam-letöltés folyamatban</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Érintés</string>
     <string name="mode_touch_touchpad">Érintőpad</string>
     <string name="mode_touch_direct">Közvetlen</string>
-    <string name="mode_touch_note">Automatikus: érintőpad az Asztalon, közvetlen a Steamben.</string>
     <string name="mode_osc">Képernyőn megjelenő vezérlők</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Az Automatikus megjeleníti a vezérlőket, ha nincs csatlakoztatott kontroller.</string>
@@ -455,7 +444,6 @@
     <string name="drawer_page_controls">Vezérlők</string>
     <string name="drawer_page_components">Összetevők</string>
     <string name="drawer_page_controller">Kontroller</string>
-    <string name="drawer_page_settings">Beállítások</string>
     <string name="drawer_page_desc">%1$s oldal</string>
     <string name="drawer_steam_menu">Steam-menü</string>
     <string name="drawer_open_qam">Gyors hozzáférés menü megnyitása</string>
@@ -599,9 +587,6 @@
     <string name="setup_limit_adb_failed">Ellenőrizze a vezeték nélküli hibakeresés IP-címét és portját, vagy párosítsa újra, ha az Android eltávolította ezt az eszközt.</string>
     <string name="setup_install">Telepítés</string>
     <string name="setup_manage">Kezelés</string>
-    <string name="setup_tab_overview">Áttekintés</string>
-    <string name="setup_tab_controller">Kontroller</string>
-    <string name="setup_tab_launcher">Indítóalkalmazás</string>
     <string name="setup_title">Beállítás</string>
     <string name="setup_gpu_supported">Az eszköz támogatott</string>
     <string name="setup_gpu_untested">Nem tesztelt GPU</string>
@@ -628,7 +613,6 @@
     <string name="setup_signed_in">Bejelentkezve mint %1$s</string>
     <string name="setup_sign_in">Nyomja meg a Játék gombot, és jelentkezzen be a Steambe</string>
     <string name="setup_controller">Kontroller</string>
-    <string name="setup_controller_unavailable">A kontrollerbeállítások nem érhetők el.</string>
     <string name="setup_logs">Munkamenet-naplók</string>
     <string name="setup_logs_hint">Minden munkamenet után mentve</string>
     <string name="setup_game_debug_logs">Játék-hibakeresési naplók</string>
@@ -682,11 +666,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Vezérlők</string>
     <string name="setup_card_controls_hint">Gombkiosztás</string>
-    <string name="store_starting">Indítás…</string>
-    <string name="store_try_again">Próbálja újra</string>
-    <string name="store_all">Összes</string>
-    <string name="store_open">Megnyitás</string>
-    <string name="store_remove">Eltávolítás</string>
+    <string name="common_starting">Indítás…</string>
+    <string name="common_try_again">Próbálja újra</string>
+    <string name="common_all">Összes</string>
+    <string name="common_open">Megnyitás</string>
+    <string name="common_remove">Eltávolítás</string>
     <string name="upd_open_settings">Beállítások megnyitása</string>
     <string name="upd_current_status">Naprakész</string>
     <string name="upd_just_now">épp most</string>
@@ -768,7 +752,6 @@
     <string name="ctrl_steam_button">Steam gomb</string>
     <string name="ctrl_qam_button">QAM gomb</string>
     <string name="ctrl_keyboard_button">Billentyűzet gomb</string>
-    <string name="setup_animations">Animációk</string>
     <string name="setup_low_storage_warning">Figyelmeztetés kevés tárhely esetén</string>
     <string name="setup_low_storage_warning_hint">Rákérdezés a Steam indítása előtt, ha 10 GB-nál kevesebb a szabad hely.</string>
     <string name="ctrl_layout">Elrendezés</string>
@@ -876,7 +859,7 @@
     <string name="pip_unavailable">Az Android nem tudta megnyitni a kép a képben módot.</string>
     <string name="game_more">Továbbiak</string>
     <string name="game_edit_art">Illusztrációk szerkesztése</string>
-    <string name="stores_in_steam_label">A Steamben</string>
+    <string name="lib_in_steam_label">A Steamben</string>
     <string name="game_shortcut">Parancsikon</string>
     <string name="game_shortcut_add">Hozzáadás a kezdőképernyőhöz</string>
     <string name="game_shortcut_choose">Játék kiválasztása</string>
@@ -1057,7 +1040,7 @@
         <item quantity="other">A napló %1$d „Function not implemented” hibát tartalmaz: a proot seccomp-gyorsítása elutasít egy segédfolyamatot ezen az eszközön. Próbálja ki ezt: %2$s → „%3$s” (vagy „%4$s”), majd indítsa el újra.</item>
     </plurals>
 
-    <string name="store_section_loading">betöltés…</string>
+    <string name="lib_section_loading">betöltés…</string>
     <string name="theme_graphite">Grafit</string>
     <string name="theme_graphite_detail">Grafitszínű felületek, a logó saját gömbkékjével minden kijelölt, fókuszált vagy lenyomott elemhez.</string>
     <string name="theme_paper">Papír feketén</string>
@@ -1068,8 +1051,6 @@
     <string name="theme_electric_detail">Fényesebb kék, szürke helyett tengerészkék felületeken.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">A szivárvány színein végigfutó színek. Követi az Android animációs beállításait.</string>
-    <string name="theme_rgb_speed">Sebesség</string>
-    <string name="theme_rgb_speed_hint">Milyen gyorsan váltanak a színek.</string>
     <string name="theme_gradient">Színátmenet</string>
     <string name="theme_gradient_detail">Saját elsődleges és másodlagos színed, átmenettel a gombokon és a kiemeléseken.</string>
     <string name="theme_gradient_primary">Elsődleges</string>
@@ -1578,14 +1559,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Egyéni</string>
-    <string name="stores_tab_library">Könyvtár</string>
-    <string name="stores_tab_all">Összes</string>
-    <string name="stores_search_library">Keresés a könyvtárában…</string>
-    <string name="stores_search_open">Keresés</string>
-    <string name="stores_nothing_matches">Nincs játék</string>
-    <string name="stores_play">Játék</string>
-    <string name="stores_refresh">Frissítés</string>
-    <string name="stores_sort">Rendezés</string>
+    <string name="lib_tab_library">Könyvtár</string>
+    <string name="lib_tab_all">Összes</string>
+    <string name="lib_search_library">Keresés a könyvtárában…</string>
+    <string name="lib_search_open">Keresés</string>
+    <string name="lib_nothing_matches">Nincs játék</string>
+    <string name="lib_play">Játék</string>
+    <string name="lib_refresh">Frissítés</string>
+    <string name="lib_sort">Rendezés</string>
     <string name="setup_rail_labels">Oldalsáv-feliratok</string>
     <string name="setup_rail_labels_hint">Nevek megjelenítése az oldalsáv ikonjai alatt. Kapcsolja ki a keskenyebb oldalsávhoz.</string>
     <string name="library_display">Megjelenítés</string>
@@ -1593,20 +1574,20 @@
     <string name="library_display_smaller">Kisebb kártyák</string>
     <string name="library_display_title">Cím megjelenítése</string>
     <string name="library_display_size">Méret megjelenítése</string>
-    <string name="stores_sort_last_played">Nemrég játszott</string>
-    <string name="stores_sort_recently_installed">Nemrég telepített</string>
-    <string name="stores_sort_title_asc">Cím A–Z</string>
-    <string name="stores_sort_title_desc">Cím Z–A</string>
-    <string name="stores_sort_size_desc">Méret: legnagyobb</string>
-    <string name="stores_sort_size_asc">Méret: legkisebb</string>
-    <string name="stores_view_list">Listanézet</string>
-    <string name="stores_view_cards">Kártyanézet</string>
-    <string name="stores_view_capsules">Borítónézet</string>
+    <string name="lib_sort_last_played">Nemrég játszott</string>
+    <string name="lib_sort_recently_installed">Nemrég telepített</string>
+    <string name="lib_sort_title_asc">Cím A–Z</string>
+    <string name="lib_sort_title_desc">Cím Z–A</string>
+    <string name="lib_sort_size_desc">Méret: legnagyobb</string>
+    <string name="lib_sort_size_asc">Méret: legkisebb</string>
+    <string name="lib_view_list">Listanézet</string>
+    <string name="lib_view_cards">Kártyanézet</string>
+    <string name="lib_view_capsules">Borítónézet</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">telepítve</string>
-    <string name="stores_uninstall_title">Eltávolítja a %1$s-t?</string>
-    <string name="stores_dl_pause">Szüneteltetés</string>
-    <string name="stores_target_free">%1$s szabad</string>
+    <string name="lib_eyebrow_installed">telepítve</string>
+    <string name="lib_uninstall_title">Eltávolítja a %1$s-t?</string>
+    <string name="lib_dl_pause">Szüneteltetés</string>
+    <string name="lib_target_free">%1$s szabad</string>
     <string name="common_close">Bezárás</string>
     <string name="common_back">Vissza</string>
     <string name="games_add_all">Minden játék hozzáadása ebből a mappából</string>
@@ -1669,7 +1650,6 @@
     </plurals>
     <string name="hop_back">B · Vissza: %1$s</string>
     <string name="hop_from_games">a játék</string>
-    <string name="hop_from_play">Játék beállítások</string>
     <string name="sheet_graphics_drivers">Grafikai illesztőprogramok</string>
     <string name="comp_this_proton">Ez a Proton</string>
     <string name="comp_for_every_proton">Minden Protonhoz</string>
@@ -1722,12 +1702,6 @@
     <string name="comp_this_device">Ez a készülék</string>
     <string name="proton_remove_title">Eltávolítja a %1$s-t?</string>
     <string name="setup_tab_diagnostics">Diagnosztika</string>
-    <string name="setup_ready">Készen áll a játékra</string>
-    <string name="setup_not_ready">Még nem áll készen a játékra</string>
-    <string name="setup_ready_runtime">futtatókörnyezet: %1$s</string>
-    <string name="setup_ready_limit_off">folyamatkorlát kikapcsolva</string>
-    <string name="setup_ready_signed_in">bejelentkezve mint %1$s</string>
-    <string name="setup_needs_you">Amikor szükség van rá</string>
     <string name="setup_group_look">Megjelenés</string>
     <string name="setup_group_device">Ez az eszköz</string>
     <string name="setup_group_art">Könyvtár illusztrációi</string>

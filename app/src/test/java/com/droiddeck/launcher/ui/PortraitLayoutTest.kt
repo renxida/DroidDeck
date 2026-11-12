@@ -32,7 +32,6 @@ class PortraitLayoutTest {
 
     @Before fun freezeAnimations() {
         compose.mainClock.autoAdvance = false
-        Hops.railPreview = null
     }
 
     @Test fun navigationSitsAtBottomAndRotatingPreservesContentState() {
@@ -82,12 +81,12 @@ class PortraitLayoutTest {
             }
         }
         compose.mainClock.advanceTimeBy(1_000)
-        for (key in listOf("games", "components", "setup", "steam")) {
+        for (key in listOf("setup", "steam")) {
             compose.onNodeWithTag("rail-$key").performScrollTo()
             compose.mainClock.advanceTimeBy(1_000)
             compose.onNodeWithTag("rail-$key").assertIsDisplayed().performClick()
             compose.mainClock.advanceTimeBy(1_000)
-            compose.runOnIdle { assertEquals(key, selected.value); assertNull(Hops.railPreview) }
+            compose.runOnIdle { assertEquals(key, selected.value) }
             compose.onNodeWithTag("rail-$key").assertIsSelected().assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
         }
         compose.onNodeWithContentDescription("Resume Steam").assertIsDisplayed()

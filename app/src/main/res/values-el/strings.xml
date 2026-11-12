@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Η πρώτη εκτέλεση κάνει λήψη του Steam. Αυτό μπορεί να διαρκέσει μερικά λεπτά.</item>
-        <item>Από προεπιλογή, η έξοδος από την εφαρμογή θέτει το Steam σε παύση· συνεχίζει από εκεί που είχε μείνει όταν επιστρέψετε.</item>
-        <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια στην οθόνη.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Από προεπιλογή, η έξοδος από την εφαρμογή θέτει τη συνεδρία σε παύση· συνεχίζει από εκεί που είχε μείνει όταν επιστρέψετε.</item>
-        <item>Το άγγιγμα λειτουργεί ως πινακίδα αφής: σύρετε για να μετακινήσετε τον δείκτη, πατήστε για κλικ.</item>
-        <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια στην οθόνη.</item>
-    </string-array>
     <string name="session_channel">Συνεδρία</string>
     <string name="session_notification">Το Steam εκτελείται</string>
     <string name="session_notification_downloads">Λήψη Steam σε εξέλιξη</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Αφή</string>
     <string name="mode_touch_touchpad">Πινακίδα αφής</string>
     <string name="mode_touch_direct">Απευθείας</string>
-    <string name="mode_touch_note">Αυτόματο: πινακίδα αφής στην Επιφάνεια εργασίας, απευθείας στο Steam.</string>
     <string name="mode_osc">Χειριστήρια στην οθόνη</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Το Αυτόματο εμφανίζει τα χειριστήρια όταν δεν είναι συνδεδεμένο χειριστήριο.</string>
@@ -455,7 +444,6 @@
     <string name="drawer_page_controls">Χειριστήρια</string>
     <string name="drawer_page_components">Στοιχεία</string>
     <string name="drawer_page_controller">Χειριστήριο</string>
-    <string name="drawer_page_settings">Ρυθμίσεις</string>
     <string name="drawer_page_desc">Σελίδα %1$s</string>
     <string name="drawer_steam_menu">Μενού Steam</string>
     <string name="drawer_open_qam">Άνοιγμα Quick Access Menu</string>
@@ -599,9 +587,6 @@
     <string name="setup_limit_adb_failed">Ελέγξτε τη διεύθυνση IP και τη θύρα του Ασύρματου εντοπισμού σφαλμάτων, ή συζεύξτε ξανά αν το Android αφαίρεσε αυτή τη συσκευή.</string>
     <string name="setup_install">Εγκατάσταση</string>
     <string name="setup_manage">Διαχείριση</string>
-    <string name="setup_tab_overview">Επισκόπηση</string>
-    <string name="setup_tab_controller">Χειριστήριο</string>
-    <string name="setup_tab_launcher">Εκκινητής</string>
     <string name="setup_title">Ρύθμιση</string>
     <string name="setup_gpu_supported">Η συσκευή υποστηρίζεται</string>
     <string name="setup_gpu_untested">Μη δοκιμασμένη GPU</string>
@@ -628,7 +613,6 @@
     <string name="setup_signed_in">Συνδεδεμένος ως %1$s</string>
     <string name="setup_sign_in">Πατήστε Play και συνδεθείτε στο Steam</string>
     <string name="setup_controller">Χειριστήριο</string>
-    <string name="setup_controller_unavailable">Οι ρυθμίσεις χειριστηρίου δεν είναι διαθέσιμες.</string>
     <string name="setup_logs">Αρχεία καταγραφής συνεδρίας</string>
     <string name="setup_logs_hint">Αποθηκεύονται μετά από κάθε συνεδρία</string>
     <string name="setup_game_debug_logs">Αρχεία καταγραφής εντοπισμού σφαλμάτων παιχνιδιών</string>
@@ -682,11 +666,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Χειριστήρια</string>
     <string name="setup_card_controls_hint">Αντιστοίχιση κουμπιών</string>
-    <string name="store_starting">Εκκίνηση…</string>
-    <string name="store_try_again">Δοκιμάστε ξανά</string>
-    <string name="store_all">Όλα</string>
-    <string name="store_open">Άνοιγμα</string>
-    <string name="store_remove">Αφαίρεση</string>
+    <string name="common_starting">Εκκίνηση…</string>
+    <string name="common_try_again">Δοκιμάστε ξανά</string>
+    <string name="common_all">Όλα</string>
+    <string name="common_open">Άνοιγμα</string>
+    <string name="common_remove">Αφαίρεση</string>
     <string name="upd_open_settings">Άνοιγμα ρυθμίσεων</string>
     <string name="upd_current_status">Ενημερωμένο</string>
     <string name="upd_just_now">μόλις τώρα</string>
@@ -768,7 +752,6 @@
     <string name="ctrl_steam_button">Κουμπί Steam</string>
     <string name="ctrl_qam_button">Κουμπί QAM</string>
     <string name="ctrl_keyboard_button">Κουμπί πληκτρολογίου</string>
-    <string name="setup_animations">Κινήσεις</string>
     <string name="setup_low_storage_warning">Προειδοποίηση για χαμηλό χώρο αποθήκευσης</string>
     <string name="setup_low_storage_warning_hint">Ερώτηση πριν από την εκκίνηση του Steam όταν ο ελεύθερος χώρος είναι κάτω από 10 GB.</string>
     <string name="ctrl_layout">Διάταξη</string>
@@ -876,7 +859,7 @@
     <string name="pip_unavailable">Το Android δεν μπόρεσε να ανοίξει τη λειτουργία εικόνας εντός εικόνας.</string>
     <string name="game_more">Περισσότερα</string>
     <string name="game_edit_art">Επεξεργασία εικαστικών</string>
-    <string name="stores_in_steam_label">Στο Steam</string>
+    <string name="lib_in_steam_label">Στο Steam</string>
     <string name="game_shortcut">Συντόμευση</string>
     <string name="game_shortcut_add">Προσθήκη στην αρχική οθόνη</string>
     <string name="game_shortcut_choose">Επιλογή παιχνιδιού</string>
@@ -1057,7 +1040,7 @@
         <item quantity="other">Το αρχείο καταγραφής δείχνει %1$d σφάλματα «Function not implemented»: η επιτάχυνση seccomp του proot αποτυγχάνει σε έναν βοηθητικό μηχανισμό σε αυτή τη συσκευή. Δοκιμάστε %2$s → «%3$s» (ή «%4$s») και ξεκινήστε ξανά.</item>
     </plurals>
 
-    <string name="store_section_loading">γίνεται φόρτωση…</string>
+    <string name="lib_section_loading">γίνεται φόρτωση…</string>
     <string name="theme_graphite">Γραφίτης</string>
     <string name="theme_graphite_detail">Επιφάνειες από γραφίτη, με το μπλε της σφαίρας του λογότυπου για ό,τι είναι επιλεγμένο, εστιασμένο ή πατημένο.</string>
     <string name="theme_paper">Χαρτί σε μαύρο</string>
@@ -1068,8 +1051,6 @@
     <string name="theme_electric_detail">Το μπλε πιο έντονο, σε επιφάνειες που τείνουν προς το ναυτικό μπλε αντί για γκρι.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Χρώματα που διατρέχουν το ουράνιο τόξο. Ακολουθεί τις ρυθμίσεις animation του Android.</string>
-    <string name="theme_rgb_speed">Ταχύτητα</string>
-    <string name="theme_rgb_speed_hint">Πόσο γρήγορα αλλάζουν τα χρώματα.</string>
     <string name="theme_gradient">Διαβάθμιση</string>
     <string name="theme_gradient_detail">Δικά σας πρωτεύον και δευτερεύον χρώμα, σε μίξη στα κουμπιά και τις επισημάνσεις.</string>
     <string name="theme_gradient_primary">Πρωτεύον</string>
@@ -1578,14 +1559,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Προσαρμοσμένο</string>
-    <string name="stores_tab_library">Βιβλιοθήκη</string>
-    <string name="stores_tab_all">Όλα</string>
-    <string name="stores_search_library">Αναζήτηση στη βιβλιοθήκη σας…</string>
-    <string name="stores_search_open">Αναζήτηση</string>
-    <string name="stores_nothing_matches">Δεν υπάρχουν παιχνίδια</string>
-    <string name="stores_play">Αναπαραγωγή</string>
-    <string name="stores_refresh">Ανανέωση</string>
-    <string name="stores_sort">Ταξινόμηση</string>
+    <string name="lib_tab_library">Βιβλιοθήκη</string>
+    <string name="lib_tab_all">Όλα</string>
+    <string name="lib_search_library">Αναζήτηση στη βιβλιοθήκη σας…</string>
+    <string name="lib_search_open">Αναζήτηση</string>
+    <string name="lib_nothing_matches">Δεν υπάρχουν παιχνίδια</string>
+    <string name="lib_play">Αναπαραγωγή</string>
+    <string name="lib_refresh">Ανανέωση</string>
+    <string name="lib_sort">Ταξινόμηση</string>
     <string name="setup_rail_labels">Ετικέτες πλαϊνής γραμμής</string>
     <string name="setup_rail_labels_hint">Εμφάνιση ονομάτων κάτω από τα εικονίδια της πλαϊνής γραμμής. Απενεργοποιήστε για πιο λεπτή πλαϊνή γραμμή.</string>
     <string name="library_display">Προβολή</string>
@@ -1593,20 +1574,20 @@
     <string name="library_display_smaller">Μικρότερες κάρτες</string>
     <string name="library_display_title">Εμφάνιση τίτλου</string>
     <string name="library_display_size">Εμφάνιση μεγέθους</string>
-    <string name="stores_sort_last_played">Παίχτηκαν πρόσφατα</string>
-    <string name="stores_sort_recently_installed">Εγκαταστήθηκαν πρόσφατα</string>
-    <string name="stores_sort_title_asc">Τίτλος Α–Ω</string>
-    <string name="stores_sort_title_desc">Τίτλος Ω–Α</string>
-    <string name="stores_sort_size_desc">Μέγεθος: μεγαλύτερο</string>
-    <string name="stores_sort_size_asc">Μέγεθος: μικρότερο</string>
-    <string name="stores_view_list">Προβολή λίστας</string>
-    <string name="stores_view_cards">Προβολή καρτών</string>
-    <string name="stores_view_capsules">Προβολή εξωφύλλων</string>
+    <string name="lib_sort_last_played">Παίχτηκαν πρόσφατα</string>
+    <string name="lib_sort_recently_installed">Εγκαταστήθηκαν πρόσφατα</string>
+    <string name="lib_sort_title_asc">Τίτλος Α–Ω</string>
+    <string name="lib_sort_title_desc">Τίτλος Ω–Α</string>
+    <string name="lib_sort_size_desc">Μέγεθος: μεγαλύτερο</string>
+    <string name="lib_sort_size_asc">Μέγεθος: μικρότερο</string>
+    <string name="lib_view_list">Προβολή λίστας</string>
+    <string name="lib_view_cards">Προβολή καρτών</string>
+    <string name="lib_view_capsules">Προβολή εξωφύλλων</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">εγκατεστημένο</string>
-    <string name="stores_uninstall_title">Κατάργηση εγκατάστασης του %1$s;</string>
-    <string name="stores_dl_pause">Παύση</string>
-    <string name="stores_target_free">%1$s ελεύθερα</string>
+    <string name="lib_eyebrow_installed">εγκατεστημένο</string>
+    <string name="lib_uninstall_title">Κατάργηση εγκατάστασης του %1$s;</string>
+    <string name="lib_dl_pause">Παύση</string>
+    <string name="lib_target_free">%1$s ελεύθερα</string>
     <string name="common_close">Κλείσιμο</string>
     <string name="common_back">Πίσω</string>
     <string name="games_add_all">Προσθήκη όλων των παιχνιδιών σε αυτόν τον φάκελο</string>
@@ -1669,7 +1650,6 @@
     </plurals>
     <string name="hop_back">B · Πίσω στο %1$s</string>
     <string name="hop_from_games">το παιχνίδι</string>
-    <string name="hop_from_play">Ρυθμίσεις αναπαραγωγής</string>
     <string name="sheet_graphics_drivers">Προγράμματα οδήγησης γραφικών</string>
     <string name="comp_this_proton">Αυτό το Proton</string>
     <string name="comp_for_every_proton">Για κάθε Proton</string>
@@ -1722,12 +1702,6 @@
     <string name="comp_this_device">Αυτή η συσκευή</string>
     <string name="proton_remove_title">Κατάργηση %1$s;</string>
     <string name="setup_tab_diagnostics">Διαγνωστικά</string>
-    <string name="setup_ready">Έτοιμο για παιχνίδι</string>
-    <string name="setup_not_ready">Δεν είναι ακόμα έτοιμο για παιχνίδι</string>
-    <string name="setup_ready_runtime">runtime %1$s</string>
-    <string name="setup_ready_limit_off">όριο διαδικασιών ανενεργό</string>
-    <string name="setup_ready_signed_in">συνδεδεμένος ως %1$s</string>
-    <string name="setup_needs_you">Όταν κάτι χρειάζεται εσάς</string>
     <string name="setup_group_look">Εμφάνιση</string>
     <string name="setup_group_device">Αυτή η συσκευή</string>
     <string name="setup_group_art">Γραφικά βιβλιοθήκης</string>

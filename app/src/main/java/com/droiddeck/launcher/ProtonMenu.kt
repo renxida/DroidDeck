@@ -43,7 +43,7 @@ internal class ProtonMenu(
         ProtonExtras.unqueue(activity, tool)
         protonBusyId = id
         protonProblem = null
-        protonStage = activity.getString(R.string.store_starting)
+        protonStage = activity.getString(R.string.common_starting)
         protonPercent = -1
         Thread({
             val problem = runCatching {

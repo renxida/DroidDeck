@@ -26,14 +26,7 @@ side. OK applies it.
 
 ## Inner Gamer theme
 
-`Themes.INNER_GAMER` is an RGB theme: the accent walks round the colour wheel. It sits just above
-Gradient in the list, and Setup shows a Speed slider (1 to 10, `SessionPrefs.rgbSpeed`) under the
-theme while it is chosen.
-
-`Themes.innerGamer(hue)` builds the palette for one hue through `ThemeColors.palette`, so button text
-keeps the same contrast along the gradient at every hue. `DroidDeckTheme` runs one
-`rememberInfiniteTransition` while Inner Gamer is chosen, so the system's animation clock drives it.
-Compose applies Android's animator scale to it, and the colour holds still when animations are off
-in the app (`Motion.scale`) or in Android's own settings. The hue is written to `Themes.rgbHue` in 3° steps, which restyles the
-app only when the colour visibly moves; a slow cycle costs few recompositions.
+`Themes.INNER_GAMER` is a fixed RGB-style palette. It sits just above Gradient in the list.
+`Themes.innerGamer(hue)` builds the palette for one hue through `ThemeColors.palette`, so button
+text keeps its contrast at every hue. The app no longer cycles the hue: Kestrel has no animations.
 

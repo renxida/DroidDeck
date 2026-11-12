@@ -290,23 +290,13 @@ internal fun WinComponentsDialog(
             return { id -> focus.takeIf { id == first } }
         }
 
-        androidx.compose.animation.AnimatedVisibility(
-            visible = all != null,
-            enter = androidx.compose.animation.fadeIn(Motion.tw(220)),
-            exit = androidx.compose.animation.fadeOut(Motion.tw(0)),
-            label = "lists",
-        ) {
+        if (all != null) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
                 if (checking) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     androidx.compose.material3.CircularProgressIndicator(Modifier.padding(start = 2.dp).size(12.dp), strokeWidth = 1.5.dp)
                     Small(stringResource(R.string.wincomp_checking))
                 }
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = all != null && autoIds.isNotEmpty(),
-                    enter = androidx.compose.animation.fadeIn(Motion.tw(260)) + androidx.compose.animation.expandVertically(Motion.tw(260)),
-                    exit = androidx.compose.animation.fadeOut(Motion.tw(180)) + androidx.compose.animation.shrinkVertically(Motion.tw(200)),
-                    label = "autoSection",
-                ) {
+                if (autoIds.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Section(stringResource(R.string.wincomp_auto_section))
                         if (turningOn.isNotEmpty()) Small(pluralStringResource(R.plurals.wincomp_turning_on, turningOn.size, turningOn.size))
@@ -391,14 +381,7 @@ internal fun WinComponentsDialog(
 
 @Composable
 private fun Arrive(arrived: Boolean, content: @Composable () -> Unit) {
-    val state = remember { androidx.compose.animation.core.MutableTransitionState(!arrived) }.apply { targetState = true }
-    androidx.compose.animation.AnimatedVisibility(
-        visibleState = state,
-        enter = androidx.compose.animation.fadeIn(Motion.tw(240)) + androidx.compose.animation.expandVertically(Motion.tw(240)) +
-            androidx.compose.animation.slideInVertically(Motion.tw(240)) { -it / 4 },
-        exit = androidx.compose.animation.fadeOut(Motion.tw(160)),
-        label = "arrive",
-    ) { content() }
+    content()
 }
 
 @Composable

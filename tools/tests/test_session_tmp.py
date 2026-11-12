@@ -69,7 +69,7 @@ class SessionTmpTest(unittest.TestCase):
         self.kept_while("1234 /root/.local/share/Steam/steamrtarm64/steam -gamepadui\n", STEAM)
 
     def test_a_running_chromium_keeps_its_singleton(self):
-        self.kept_while("88 /opt/Heroic/heroic --type=renderer --enable-features=x\n", CHROMIUM)
+        self.kept_while("88 /opt/chromium/chrome --type=renderer --enable-features=x\n", CHROMIUM)
 
     def test_a_running_session_bus_keeps_its_socket(self):
         self.kept_while("66 dbus-daemon --config-file=/usr/share/dbus-1/session.conf --nofork --session\n", BUS)

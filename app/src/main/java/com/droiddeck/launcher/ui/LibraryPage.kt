@@ -32,7 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
-import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -157,7 +157,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
     val candidates = all.filter { (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) }
-    val sort = s.storesSort
+    val sort = s.librarySort
     val sizeSort = sort == "sizeAsc" || sort == "sizeDesc"
     fun sizeOf(e: LibraryEntry): Long? = e.game.gameFiles.let { if (it == null) 0L else FolderSizes.known[it.path] }
     LaunchedEffect(sizeSort, candidates.map { it.key }) {
@@ -178,7 +178,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     SideEffect { if (!sizesPending) stable = sorted }
 
     val open = selected.takeIf { it.startsWith("app:") }
-    val back = { onSelect("games") }
+    val back = { onSelect(if (s.shortcutPicker) "games" else "steam") }
     BackHandler(enabled = open == null && LibraryView.query.isNotEmpty()) { LibraryView.query = "" }
     BackHandler(enabled = open != null) { back() }
     val lead = remember { FocusRequester() }
@@ -216,7 +216,6 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         if (!LibraryView.focusFirst || ff == null) return@LaunchedEffect
         LibraryView.focusFirst = false
         if (inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
-        kotlinx.coroutines.delay(Motion.ms(240).toLong())
         focusWithinFrames({ ff.last?.startsWith("card:") == true }) { if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
     }
     if (all.isEmpty() && open == null) {
@@ -261,14 +260,14 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
 private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val narrow = LocalNarrowPane.current
     Column(modifier = modifier.padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)) {
-        Rise(0) {
+        Box {
             PageHeader(stringResource(R.string.rail_games)) {
                 if (s.steamGamesX64) ClientTag()
                 if (!s.shortcutPicker) AddGameButton { GamesDialogState.adding = true }
             }
         }
-        Rise(1) { Note(stringResource(if (s.shortcutPicker && s.shortcutLibraryScanning) R.string.game_shortcut_scanning else R.string.games_empty)) }
-        if (!s.shortcutPicker) Rise(2) {
+        Box { Note(stringResource(if (s.shortcutPicker && s.shortcutLibraryScanning) R.string.game_shortcut_scanning else R.string.games_empty)) }
+        if (!s.shortcutPicker) Box {
             Actions {
                 PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp).testTag("play-steam"), onClick = a.onPlay)
             }
@@ -283,8 +282,8 @@ private fun LibraryGrid(
     sources: List<String>, source: String, sizesPending: Boolean,
     onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
 ) {
-    val listMode = s.storesView == "list"
-    val capsules = s.storesView == "capsules"
+    val listMode = s.libraryView == "list"
+    val capsules = s.libraryView == "capsules"
     val tileWidth = (if (capsules) CapsuleWidth else if (listMode) CardWidth else LibraryCardWidth) * LibraryDisplay.scales[LibraryDisplay.level]
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
@@ -301,7 +300,7 @@ private fun LibraryGrid(
                 else -> 0
             }
             val index = visible.indexOfFirst { it.key == e.key }
-            val next = storeGridNeighbor(index, visible.size, if (listMode) 1 else columns, direction)
+            val next = gridNeighbor(index, visible.size, if (listMode) 1 else columns, direction)
             when {
                 direction == 0 || index < 0 -> false
                 next == null -> direction > 0
@@ -337,18 +336,18 @@ private fun LibraryGrid(
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(0) { LibraryHeader(s, a, visible.size, searchCleared) }
+            Box { LibraryHeader(s, a, visible.size, searchCleared) }
         }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(1) { LibraryFilters(sources, source, onSource) }
+            Box { LibraryFilters(sources, source, onSource) }
         }
         if (sizesPending) item(key = "size-sort-progress", span = { GridItemSpan(maxLineSpan) }) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
                 androidx.compose.material3.LinearProgressIndicator(Modifier.weight(1f).height(3.dp))
-                Text(stringResource(R.string.store_section_loading), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.lib_section_loading), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        libraryGrid(visible, R.string.stores_nothing_matches, tile)
+        libraryGrid(visible, R.string.lib_nothing_matches, tile)
     }
 }
 
@@ -361,7 +360,7 @@ internal suspend fun LazyGridState.revealRow(currentIndex: Int, targetIndex: Int
         } else {
             current.offset.y - row - layoutInfo.beforeContentPadding
         }
-        if (direction > 0 && delta > 0f || direction < 0 && delta < 0f) animateScrollBy(delta, tween(durationMillis = 160, easing = FastOutSlowInEasing))
+        if (direction > 0 && delta > 0f || direction < 0 && delta < 0f) scrollBy(delta)
     }
     if (layoutInfo.visibleItemsInfo.none { it.index == targetIndex }) scrollToItem(targetIndex)
 }
@@ -383,7 +382,7 @@ private fun LibraryHeader(
     val narrow = LocalNarrowPane.current
     ModeHeader(
         stringResource(R.string.rail_games), LibraryView.query, { LibraryView.query = it },
-        placeholder = stringResource(R.string.stores_search_library),
+        placeholder = stringResource(R.string.lib_search_library),
         clearSearchFocus = searchCleared, inlineWhenStacked = true,
         lead = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
@@ -409,7 +408,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),
     ) {
-        SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
+        SourceFilterChip(LIBRARY_ALL, stringResource(R.string.lib_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
         for (src in sources) {
             val dot = if (src == SOURCE_STEAM) sourceColours(src).dot else null
             SourceFilterChip(src, if (src == Library.ADDED) stringResource(R.string.library_filter_added) else sourceLabel(src), source == src, dot) { onSource(src) }
@@ -449,21 +448,13 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.985f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "tileScale")
-    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
-    val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     val wide = entryArt(e, tall = false)
     val tall = entryArt(e, tall = true)
     RequestSize(e)
-    val open = {
-        val art = if (capsule) tall else wide
-        placed[0]?.takeIf { it.isAttached }?.let { CardMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (art as? java.io.File)?.path ?: art as? String)) }
-        onOpen(e.key)
-    }
+    val open = { onOpen(e.key) }
     Column(
-        modifier = Modifier.fillMaxWidth().onGloballyPositioned { placed[0] = it }
-            .then(navigation).paneItem("card:${e.key}").then(if (first) Modifier.firstTile().paneEntry() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
+        modifier = Modifier.fillMaxWidth()
+            .then(navigation).paneItem("card:${e.key}").then(if (first) Modifier.firstTile().paneEntry() else Modifier)
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
             .controllerConfirm(onClick = choose ?: open),
@@ -546,19 +537,14 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
-    val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     val wide = entryArt(e, tall = false)
-    val open = {
-        placed[0]?.takeIf { it.isAttached }?.let { CardMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (wide as? java.io.File)?.path ?: wide as? String)) }
-        onOpen(e.key)
-    }
+    val open = { onOpen(e.key) }
     val size = e.game.gameFiles?.let { diskSize(it) }
     val status = playedSpan(e.game.lastPlayed)?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.games_never_played)
     val meta = listOfNotNull(status, size?.let { formatBytes(it) }?.takeIf { it.isNotEmpty() })
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).onGloballyPositioned { placed[0] = it }.then(navigation).paneItem("card:${e.key}")
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).then(navigation).paneItem("card:${e.key}")
             .then(if (first) Modifier.firstTile().paneEntry() else Modifier)
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
@@ -646,31 +632,31 @@ internal fun DisplayButton() {
 @Composable
 private fun SortButton(s: FrontEndState, a: FrontEndActions) {
     val pal = LocalPalette.current
-    val title = stringResource(R.string.stores_sort)
+    val title = stringResource(R.string.lib_sort)
     var at by remember { mutableStateOf<Rect?>(null) }
     Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
         HeaderIconButton(title, Icons.Filled.Sort, "sort") {
             val from = at ?: return@HeaderIconButton
             Steps.ask(StepAsk(
-                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = SessionPrefs.STORES_SORTS.size,
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = SessionPrefs.LIBRARY_SORTS.size,
                 handle = { Icon(Icons.Filled.Sort, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
             ) {
                 StepTitle(title)
                 StepList {
-                    SessionPrefs.STORES_SORTS.forEachIndexed { i, sort ->
+                    SessionPrefs.LIBRARY_SORTS.forEachIndexed { i, sort ->
                         val label = when (sort) {
-                            "lastPlayed" -> stringResource(R.string.stores_sort_last_played)
-                            "recentlyInstalled" -> stringResource(R.string.stores_sort_recently_installed)
-                            "titleAsc" -> stringResource(R.string.stores_sort_title_asc)
-                            "titleDesc" -> stringResource(R.string.stores_sort_title_desc)
-                            "sizeDesc" -> stringResource(R.string.stores_sort_size_desc)
-                            else -> stringResource(R.string.stores_sort_size_asc)
+                            "lastPlayed" -> stringResource(R.string.lib_sort_last_played)
+                            "recentlyInstalled" -> stringResource(R.string.lib_sort_recently_installed)
+                            "titleAsc" -> stringResource(R.string.lib_sort_title_asc)
+                            "titleDesc" -> stringResource(R.string.lib_sort_title_desc)
+                            "sizeDesc" -> stringResource(R.string.lib_sort_size_desc)
+                            else -> stringResource(R.string.lib_sort_size_asc)
                         }
                         StepChoice(
-                            label, selected = sort == s.storesSort, enabled = open,
-                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (sort == s.storesSort) Modifier.focusRequester(first) else Modifier),
+                            label, selected = sort == s.librarySort, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (sort == s.librarySort) Modifier.focusRequester(first) else Modifier),
                         ) {
-                            a.onStoresSort(sort)
+                            a.onLibrarySort(sort)
                             Steps.fold()
                         }
                     }
@@ -682,11 +668,11 @@ private fun SortButton(s: FrontEndState, a: FrontEndActions) {
 
 @Composable
 private fun ViewButton(s: FrontEndState, a: FrontEndActions) {
-    val views = SessionPrefs.STORES_VIEWS
-    val next = views[(views.indexOf(s.storesView) + 1) % views.size]
+    val views = SessionPrefs.LIBRARY_VIEWS
+    val next = views[(views.indexOf(s.libraryView) + 1) % views.size]
     HeaderIconButton(
-        stringResource(when (next) { "capsules" -> R.string.stores_view_capsules; "list" -> R.string.stores_view_list; else -> R.string.stores_view_cards }),
+        stringResource(when (next) { "capsules" -> R.string.lib_view_capsules; "list" -> R.string.lib_view_list; else -> R.string.lib_view_cards }),
         when (next) { "capsules" -> Icons.Filled.ViewModule; "list" -> Icons.Filled.ViewList; else -> Icons.Filled.GridView },
         "view",
-    ) { a.onStoresView(next) }
+    ) { a.onLibraryView(next) }
 }

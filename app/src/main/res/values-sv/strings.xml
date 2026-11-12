@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Första starten laddar ned Steam. Det kan ta några minuter.</item>
-        <item>Som standard pausas Steam när du lämnar appen. Det fortsätter där det slutade när du kommer tillbaka.</item>
-        <item>Din handkontroll visas som en Xbox 360-kontroll. Annars kan du använda skärmkontrollerna.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Som standard pausas sessionen när du lämnar appen. Den fortsätter där den slutade när du kommer tillbaka.</item>
-        <item>Pekskärmen fungerar som en pekplatta: dra för att flytta pekaren, tryck för att klicka.</item>
-        <item>Din handkontroll visas som en Xbox 360-kontroll. Annars kan du använda skärmkontrollerna.</item>
-    </string-array>
     <string name="session_channel">Session</string>
     <string name="session_notification">Steam körs</string>
     <string name="session_notification_downloads">Steam-nedladdning pågår</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Pekskärm</string>
     <string name="mode_touch_touchpad">Pekplatta</string>
     <string name="mode_touch_direct">Direkt</string>
-    <string name="mode_touch_note">Auto: pekplatta på skrivbordet, direkt i Steam.</string>
     <string name="mode_osc">Skärmkontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto visar kontrollerna när ingen handkontroll är ansluten.</string>
@@ -455,7 +444,6 @@
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Komponenter</string>
     <string name="drawer_page_controller">Handkontroll</string>
-    <string name="drawer_page_settings">Inställningar</string>
     <string name="drawer_page_desc">%1$s-sidan</string>
     <string name="drawer_steam_menu">Steam-meny</string>
     <string name="drawer_open_qam">Öppna snabbåtkomstmenyn</string>
@@ -599,9 +587,6 @@
     <string name="setup_limit_adb_failed">Kontrollera IP-adressen och porten för Trådlös felsökning, eller para ihop enheten igen om Android tog bort den.</string>
     <string name="setup_install">Installera</string>
     <string name="setup_manage">Hantera</string>
-    <string name="setup_tab_overview">Översikt</string>
-    <string name="setup_tab_controller">Handkontroll</string>
-    <string name="setup_tab_launcher">Startprogram</string>
     <string name="setup_title">Konfiguration</string>
     <string name="setup_gpu_supported">Enheten stöds</string>
     <string name="setup_gpu_untested">Otestad GPU</string>
@@ -628,7 +613,6 @@
     <string name="setup_signed_in">Inloggad som %1$s</string>
     <string name="setup_sign_in">Tryck på Play och logga in på Steam</string>
     <string name="setup_controller">Handkontroll</string>
-    <string name="setup_controller_unavailable">Handkontrollsinställningar är inte tillgängliga.</string>
     <string name="setup_logs">Sessionsloggar</string>
     <string name="setup_logs_hint">Sparas efter varje session</string>
     <string name="setup_game_debug_logs">Felsökningsloggar för spel</string>
@@ -682,11 +666,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Kontroller</string>
     <string name="setup_card_controls_hint">Knappmappning</string>
-    <string name="store_starting">Startar…</string>
-    <string name="store_try_again">Försök igen</string>
-    <string name="store_all">Alla</string>
-    <string name="store_open">Öppna</string>
-    <string name="store_remove">Ta bort</string>
+    <string name="common_starting">Startar…</string>
+    <string name="common_try_again">Försök igen</string>
+    <string name="common_all">Alla</string>
+    <string name="common_open">Öppna</string>
+    <string name="common_remove">Ta bort</string>
     <string name="upd_open_settings">Öppna inställningar</string>
     <string name="upd_current_status">Senaste versionen</string>
     <string name="upd_just_now">just nu</string>
@@ -768,7 +752,6 @@
     <string name="ctrl_steam_button">Steam-knappen</string>
     <string name="ctrl_qam_button">QAM-knappen</string>
     <string name="ctrl_keyboard_button">Tangentbordsknappen</string>
-    <string name="setup_animations">Animationer</string>
     <string name="setup_low_storage_warning">Varna när lagringsutrymmet är lågt</string>
     <string name="setup_low_storage_warning_hint">Fråga innan Steam startas när det lediga utrymmet är under 10 GB.</string>
     <string name="ctrl_layout">Layout</string>
@@ -876,7 +859,7 @@
     <string name="pip_unavailable">Android kunde inte öppna bild-i-bild.</string>
     <string name="game_more">Mer</string>
     <string name="game_edit_art">Redigera grafik</string>
-    <string name="stores_in_steam_label">I Steam</string>
+    <string name="lib_in_steam_label">I Steam</string>
     <string name="game_shortcut">Genväg</string>
     <string name="game_shortcut_add">Lägg till på hemskärmen</string>
     <string name="game_shortcut_choose">Välj spel</string>
@@ -1057,7 +1040,7 @@
         <item quantity="other">Loggen visar %1$d ”Function not implemented”-fel: proots seccomp-acceleration misslyckas med en hjälpprocess på den här enheten. Prova %2$s → ”%3$s” (eller ”%4$s”) och starta igen.</item>
     </plurals>
 
-    <string name="store_section_loading">läser in…</string>
+    <string name="lib_section_loading">läser in…</string>
     <string name="theme_graphite">Grafit</string>
     <string name="theme_graphite_detail">Grafitgrå ytor, med den blå färgen från logotypens klot för allt som är markerat, i fokus eller nedtryckt.</string>
     <string name="theme_paper">Papper på svart</string>
@@ -1068,8 +1051,6 @@
     <string name="theme_electric_detail">Den blå färgen klarare, på ytor som lutar åt marinblått i stället för grått.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Färger som växlar genom regnbågen. Följer Androids animationsinställningar.</string>
-    <string name="theme_rgb_speed">Hastighet</string>
-    <string name="theme_rgb_speed_hint">Hur snabbt färgerna växlar.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Dina egna primära och sekundära färger, blandade på knappar och markeringar.</string>
     <string name="theme_gradient_primary">Primär</string>
@@ -1578,14 +1559,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Egna</string>
-    <string name="stores_tab_library">Bibliotek</string>
-    <string name="stores_tab_all">Alla</string>
-    <string name="stores_search_library">Sök i ditt bibliotek…</string>
-    <string name="stores_search_open">Sök</string>
-    <string name="stores_nothing_matches">Inga spel</string>
-    <string name="stores_play">Spela</string>
-    <string name="stores_refresh">Uppdatera</string>
-    <string name="stores_sort">Sortera</string>
+    <string name="lib_tab_library">Bibliotek</string>
+    <string name="lib_tab_all">Alla</string>
+    <string name="lib_search_library">Sök i ditt bibliotek…</string>
+    <string name="lib_search_open">Sök</string>
+    <string name="lib_nothing_matches">Inga spel</string>
+    <string name="lib_play">Spela</string>
+    <string name="lib_refresh">Uppdatera</string>
+    <string name="lib_sort">Sortera</string>
     <string name="setup_rail_labels">Sidofältets etiketter</string>
     <string name="setup_rail_labels_hint">Visa namn under ikonerna i sidofältet. Stäng av för ett smalare sidofält.</string>
     <string name="library_display">Visning</string>
@@ -1593,20 +1574,20 @@
     <string name="library_display_smaller">Mindre kort</string>
     <string name="library_display_title">Visa titel</string>
     <string name="library_display_size">Visa storlek</string>
-    <string name="stores_sort_last_played">Senast spelade</string>
-    <string name="stores_sort_recently_installed">Senast installerade</string>
-    <string name="stores_sort_title_asc">Titel A–Ö</string>
-    <string name="stores_sort_title_desc">Titel Ö–A</string>
-    <string name="stores_sort_size_desc">Storlek: störst</string>
-    <string name="stores_sort_size_asc">Storlek: minst</string>
-    <string name="stores_view_list">Listvy</string>
-    <string name="stores_view_cards">Kortvy</string>
-    <string name="stores_view_capsules">Omslagsvy</string>
+    <string name="lib_sort_last_played">Senast spelade</string>
+    <string name="lib_sort_recently_installed">Senast installerade</string>
+    <string name="lib_sort_title_asc">Titel A–Ö</string>
+    <string name="lib_sort_title_desc">Titel Ö–A</string>
+    <string name="lib_sort_size_desc">Storlek: störst</string>
+    <string name="lib_sort_size_asc">Storlek: minst</string>
+    <string name="lib_view_list">Listvy</string>
+    <string name="lib_view_cards">Kortvy</string>
+    <string name="lib_view_capsules">Omslagsvy</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">installerat</string>
-    <string name="stores_uninstall_title">Avinstallera %1$s?</string>
-    <string name="stores_dl_pause">Pausa</string>
-    <string name="stores_target_free">%1$s ledigt</string>
+    <string name="lib_eyebrow_installed">installerat</string>
+    <string name="lib_uninstall_title">Avinstallera %1$s?</string>
+    <string name="lib_dl_pause">Pausa</string>
+    <string name="lib_target_free">%1$s ledigt</string>
     <string name="common_close">Stäng</string>
     <string name="common_back">Tillbaka</string>
     <string name="games_add_all">Lägg till alla spel i den här mappen</string>
@@ -1669,7 +1650,6 @@
     </plurals>
     <string name="hop_back">B · Tillbaka till %1$s</string>
     <string name="hop_from_games">spelet</string>
-    <string name="hop_from_play">Spelinställningar</string>
     <string name="sheet_graphics_drivers">Grafikdrivrutiner</string>
     <string name="comp_this_proton">Denna Proton</string>
     <string name="comp_for_every_proton">För alla Proton</string>
@@ -1722,12 +1702,6 @@
     <string name="comp_this_device">Den här enheten</string>
     <string name="proton_remove_title">Ta bort %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostik</string>
-    <string name="setup_ready">Redo att spela</string>
-    <string name="setup_not_ready">Inte redo att spela än</string>
-    <string name="setup_ready_runtime">runtime %1$s</string>
-    <string name="setup_ready_limit_off">processgräns av</string>
-    <string name="setup_ready_signed_in">inloggad som %1$s</string>
-    <string name="setup_needs_you">När något behöver dig</string>
     <string name="setup_group_look">Utseende</string>
     <string name="setup_group_device">Den här enheten</string>
     <string name="setup_group_art">Biblioteksbilder</string>

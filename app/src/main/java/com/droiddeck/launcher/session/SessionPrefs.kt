@@ -81,12 +81,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
-    fun animationsEnabled(context: Context): Boolean = prefs(context).getBoolean("animations", true)
-
-    fun setAnimationsEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("animations", on).apply()
-    }
-
     private fun savedDualScreenMode(context: Context, key: String): String? =
         prefs(context).getString(key, null)?.takeIf { it in com.droiddeck.launcher.input.DualScreen.modes }
 
@@ -184,18 +178,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("androidTextFieldKeyboard", on).apply()
     }
 
-    fun storesSort(context: Context): String =
-        prefs(context).getString("storesSort", null)?.takeIf { it in STORES_SORTS } ?: STORES_SORTS.first()
+    fun librarySort(context: Context): String =
+        prefs(context).getString("librarySort", null)?.takeIf { it in LIBRARY_SORTS } ?: LIBRARY_SORTS.first()
 
-    fun setStoresSort(context: Context, sort: String) {
-        prefs(context).edit().putString("storesSort", if (sort in STORES_SORTS) sort else STORES_SORTS.first()).apply()
+    fun setLibrarySort(context: Context, sort: String) {
+        prefs(context).edit().putString("librarySort", if (sort in LIBRARY_SORTS) sort else LIBRARY_SORTS.first()).apply()
     }
 
-    fun storesView(context: Context): String =
-        prefs(context).getString("storesView", null)?.takeIf { it in STORES_VIEWS } ?: DEFAULT_STORES_VIEW
+    fun libraryView(context: Context): String =
+        prefs(context).getString("libraryView", null)?.takeIf { it in LIBRARY_VIEWS } ?: DEFAULT_LIBRARY_VIEW
 
-    fun setStoresView(context: Context, view: String) {
-        prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else DEFAULT_STORES_VIEW).apply()
+    fun setLibraryView(context: Context, view: String) {
+        prefs(context).edit().putString("libraryView", if (view in LIBRARY_VIEWS) view else DEFAULT_LIBRARY_VIEW).apply()
     }
 
     fun libraryCardLevel(context: Context): Int = prefs(context).getInt("libraryCardLevel", 2)
@@ -224,9 +218,9 @@ object SessionPrefs {
 
     private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
-    val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc")
-    val STORES_VIEWS = listOf("cards", "capsules", "list")
-    const val DEFAULT_STORES_VIEW = "capsules"
+    val LIBRARY_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc")
+    val LIBRARY_VIEWS = listOf("cards", "capsules", "list")
+    const val DEFAULT_LIBRARY_VIEW = "capsules"
 
     fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
@@ -1162,13 +1156,6 @@ object SessionPrefs {
     fun gradientColors(context: Context): Pair<Int, Int> = prefs(context).let {
         it.getInt("gradientPrimary", com.droiddeck.launcher.ui.Themes.DEFAULT_PRIMARY) to
             it.getInt("gradientSecondary", com.droiddeck.launcher.ui.Themes.DEFAULT_SECONDARY)
-    }
-
-    fun rgbSpeed(context: Context): Int =
-        prefs(context).getInt("innerGamerSpeed", com.droiddeck.launcher.ui.Themes.DEFAULT_RGB_SPEED).coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)
-
-    fun setRgbSpeed(context: Context, speed: Int) {
-        prefs(context).edit().putInt("innerGamerSpeed", speed.coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)).apply()
     }
 
     fun setGradientColors(context: Context, primary: Int, secondary: Int) {

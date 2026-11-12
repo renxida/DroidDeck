@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>पहली बार चलाने पर Steam डाउनलोड होता है। इसमें कुछ मिनट लग सकते हैं।</item>
-        <item>डिफ़ॉल्ट रूप से, ऐप से बाहर जाने पर Steam रुक जाता है; वापस आने पर यह वहीं से शुरू होता है जहां छोड़ा था।</item>
-        <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>डिफ़ॉल्ट रूप से, ऐप से बाहर जाने पर सेशन रुक जाता है; वापस आने पर यह वहीं से शुरू होता है जहां छोड़ा था।</item>
-        <item>टच टचपैड की तरह काम करता है: पॉइंटर घुमाने के लिए ड्रैग करें, क्लिक के लिए टैप करें।</item>
-        <item>आपका कंट्रोलर Xbox 360 पैड के रूप में दिखाई देता है। नहीं तो, ऑन-स्क्रीन कंट्रोल का उपयोग करें।</item>
-    </string-array>
     <string name="session_channel">सेशन</string>
     <string name="session_notification">Steam चल रहा है</string>
     <string name="session_notification_downloads">Steam डाउनलोड जारी है</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">टच</string>
     <string name="mode_touch_touchpad">टचपैड</string>
     <string name="mode_touch_direct">डायरेक्ट</string>
-    <string name="mode_touch_note">ऑटो: डेस्कटॉप पर टचपैड, Steam में डायरेक्ट।</string>
     <string name="mode_osc">ऑन-स्क्रीन कंट्रोल</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">कोई कंट्रोलर कनेक्ट न होने पर ऑटो कंट्रोल दिखाता है।</string>
@@ -455,7 +444,6 @@
     <string name="drawer_page_controls">कंट्रोल</string>
     <string name="drawer_page_components">कॉम्पोनेंट</string>
     <string name="drawer_page_controller">कंट्रोलर</string>
-    <string name="drawer_page_settings">सेटिंग</string>
     <string name="drawer_page_desc">%1$s पेज</string>
     <string name="drawer_steam_menu">Steam मेनू</string>
     <string name="drawer_open_qam">Quick Access Menu खोलें</string>
@@ -599,9 +587,6 @@
     <string name="setup_limit_adb_failed">वायरलेस डीबगिंग का IP एड्रेस और पोर्ट जांचें, या अगर Android ने इस डिवाइस को हटा दिया है तो फिर से पेयर करें।</string>
     <string name="setup_install">इंस्टॉल करें</string>
     <string name="setup_manage">मैनेज करें</string>
-    <string name="setup_tab_overview">ओवरव्यू</string>
-    <string name="setup_tab_controller">कंट्रोलर</string>
-    <string name="setup_tab_launcher">लॉन्चर</string>
     <string name="setup_title">सेटअप</string>
     <string name="setup_gpu_supported">डिवाइस समर्थित</string>
     <string name="setup_gpu_untested">अनटेस्टेड GPU</string>
@@ -628,7 +613,6 @@
     <string name="setup_signed_in">%1$s के रूप में साइन इन</string>
     <string name="setup_sign_in">Play दबाएं और Steam में साइन इन करें</string>
     <string name="setup_controller">कंट्रोलर</string>
-    <string name="setup_controller_unavailable">कंट्रोलर सेटिंग उपलब्ध नहीं हैं।</string>
     <string name="setup_logs">सेशन लॉग</string>
     <string name="setup_logs_hint">हर सेशन के बाद सेव होता है</string>
     <string name="setup_game_debug_logs">गेम डीबग लॉग</string>
@@ -682,11 +666,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">कंट्रोल</string>
     <string name="setup_card_controls_hint">बटन मैपिंग</string>
-    <string name="store_starting">शुरू हो रहा है…</string>
-    <string name="store_try_again">फिर कोशिश करें</string>
-    <string name="store_all">सभी</string>
-    <string name="store_open">खोलें</string>
-    <string name="store_remove">हटाएं</string>
+    <string name="common_starting">शुरू हो रहा है…</string>
+    <string name="common_try_again">फिर कोशिश करें</string>
+    <string name="common_all">सभी</string>
+    <string name="common_open">खोलें</string>
+    <string name="common_remove">हटाएं</string>
     <string name="upd_open_settings">सेटिंग खोलें</string>
     <string name="upd_current_status">नवीनतम</string>
     <string name="upd_just_now">अभी-अभी</string>
@@ -768,7 +752,6 @@
     <string name="ctrl_steam_button">Steam बटन</string>
     <string name="ctrl_qam_button">QAM बटन</string>
     <string name="ctrl_keyboard_button">कीबोर्ड बटन</string>
-    <string name="setup_animations">एनिमेशन</string>
     <string name="setup_low_storage_warning">स्टोरेज कम होने पर चेतावनी दें</string>
     <string name="setup_low_storage_warning_hint">खाली जगह 10 GB से कम होने पर Steam शुरू करने से पहले पूछें।</string>
     <string name="ctrl_layout">लेआउट</string>
@@ -876,7 +859,7 @@
     <string name="pip_unavailable">Android पिक्चर इन पिक्चर नहीं खोल सका।</string>
     <string name="game_more">और</string>
     <string name="game_edit_art">आर्ट एडिट करें</string>
-    <string name="stores_in_steam_label">Steam में</string>
+    <string name="lib_in_steam_label">Steam में</string>
     <string name="game_shortcut">शॉर्टकट</string>
     <string name="game_shortcut_add">होम स्क्रीन पर जोड़ें</string>
     <string name="game_shortcut_choose">गेम चुनें</string>
@@ -1057,7 +1040,7 @@
         <item quantity="other">लॉग में %1$d “Function not implemented” एरर दिखते हैं: इस डिवाइस पर proot का seccomp एक्सेलरेशन एक हेल्पर को फेल कर रहा है। %2$s → “%3$s” (या “%4$s”) आज़माएं और फिर से शुरू करें।</item>
     </plurals>
 
-    <string name="store_section_loading">लोड हो रहा है…</string>
+    <string name="lib_section_loading">लोड हो रहा है…</string>
     <string name="theme_graphite">ग्रेफ़ाइट</string>
     <string name="theme_graphite_detail">ग्रेफ़ाइट सतहें, और चुने, फ़ोकस या दबाए गए हर चीज़ के लिए लोगो के अपने ऑर्ब ब्लू रंग का इस्तेमाल।</string>
     <string name="theme_paper">काले पर पेपर</string>
@@ -1068,8 +1051,6 @@
     <string name="theme_electric_detail">ब्लू रंग ज़्यादा चमकीला, उन सतहों पर जो ग्रे के बजाय नेवी की ओर झुकती हैं।</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">इंद्रधनुष के रंगों में बदलते रंग। Android की एनिमेशन सेटिंग का पालन करती है।</string>
-    <string name="theme_rgb_speed">गति</string>
-    <string name="theme_rgb_speed_hint">रंग कितनी तेज़ी से बदलें।</string>
     <string name="theme_gradient">ग्रेडिएंट</string>
     <string name="theme_gradient_detail">आपके अपने प्राथमिक और द्वितीयक रंग, बटनों और हाइलाइट पर मिश्रित।</string>
     <string name="theme_gradient_primary">प्राथमिक</string>
@@ -1578,14 +1559,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">कस्टम</string>
-    <string name="stores_tab_library">लाइब्रेरी</string>
-    <string name="stores_tab_all">सभी</string>
-    <string name="stores_search_library">अपनी लाइब्रेरी में सर्च करें…</string>
-    <string name="stores_search_open">सर्च</string>
-    <string name="stores_nothing_matches">कोई गेम नहीं</string>
-    <string name="stores_play">खेलें</string>
-    <string name="stores_refresh">रीफ़्रेश करें</string>
-    <string name="stores_sort">क्रमबद्ध करें</string>
+    <string name="lib_tab_library">लाइब्रेरी</string>
+    <string name="lib_tab_all">सभी</string>
+    <string name="lib_search_library">अपनी लाइब्रेरी में सर्च करें…</string>
+    <string name="lib_search_open">सर्च</string>
+    <string name="lib_nothing_matches">कोई गेम नहीं</string>
+    <string name="lib_play">खेलें</string>
+    <string name="lib_refresh">रीफ़्रेश करें</string>
+    <string name="lib_sort">क्रमबद्ध करें</string>
     <string name="setup_rail_labels">साइडबार लेबल</string>
     <string name="setup_rail_labels_hint">साइडबार आइकन के नीचे नाम दिखाएं। पतले साइडबार के लिए बंद करें।</string>
     <string name="library_display">डिस्प्ले</string>
@@ -1593,20 +1574,20 @@
     <string name="library_display_smaller">छोटे कार्ड</string>
     <string name="library_display_title">टाइटल दिखाएं</string>
     <string name="library_display_size">साइज़ दिखाएं</string>
-    <string name="stores_sort_last_played">हाल में खेले गए</string>
-    <string name="stores_sort_recently_installed">हाल में इंस्टॉल किए गए</string>
-    <string name="stores_sort_title_asc">शीर्षक A–Z</string>
-    <string name="stores_sort_title_desc">शीर्षक Z–A</string>
-    <string name="stores_sort_size_desc">आकार: सबसे बड़ा</string>
-    <string name="stores_sort_size_asc">आकार: सबसे छोटा</string>
-    <string name="stores_view_list">सूची दृश्य</string>
-    <string name="stores_view_cards">कार्ड दृश्य</string>
-    <string name="stores_view_capsules">कवर व्यू</string>
+    <string name="lib_sort_last_played">हाल में खेले गए</string>
+    <string name="lib_sort_recently_installed">हाल में इंस्टॉल किए गए</string>
+    <string name="lib_sort_title_asc">शीर्षक A–Z</string>
+    <string name="lib_sort_title_desc">शीर्षक Z–A</string>
+    <string name="lib_sort_size_desc">आकार: सबसे बड़ा</string>
+    <string name="lib_sort_size_asc">आकार: सबसे छोटा</string>
+    <string name="lib_view_list">सूची दृश्य</string>
+    <string name="lib_view_cards">कार्ड दृश्य</string>
+    <string name="lib_view_capsules">कवर व्यू</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">इंस्टॉल है</string>
-    <string name="stores_uninstall_title">%1$s अनइंस्टॉल करें?</string>
-    <string name="stores_dl_pause">रोकें</string>
-    <string name="stores_target_free">%1$s खाली</string>
+    <string name="lib_eyebrow_installed">इंस्टॉल है</string>
+    <string name="lib_uninstall_title">%1$s अनइंस्टॉल करें?</string>
+    <string name="lib_dl_pause">रोकें</string>
+    <string name="lib_target_free">%1$s खाली</string>
     <string name="common_close">बंद करें</string>
     <string name="common_back">बैक</string>
     <string name="games_add_all">इस फ़ोल्डर के सभी गेम जोड़ें</string>
@@ -1669,7 +1650,6 @@
     </plurals>
     <string name="hop_back">B · %1$s पर वापस जाएं</string>
     <string name="hop_from_games">गेम</string>
-    <string name="hop_from_play">Play सेटिंग</string>
     <string name="sheet_graphics_drivers">ग्राफ़िक्स ड्राइवर</string>
     <string name="comp_this_proton">यह Proton</string>
     <string name="comp_for_every_proton">हर Proton के लिए</string>
@@ -1722,12 +1702,6 @@
     <string name="comp_this_device">यह डिवाइस</string>
     <string name="proton_remove_title">%1$s हटाएं?</string>
     <string name="setup_tab_diagnostics">डायग्नोस्टिक्स</string>
-    <string name="setup_ready">खेलने के लिए तैयार</string>
-    <string name="setup_not_ready">अभी खेलने के लिए तैयार नहीं</string>
-    <string name="setup_ready_runtime">रनटाइम %1$s</string>
-    <string name="setup_ready_limit_off">प्रोसेस सीमा बंद</string>
-    <string name="setup_ready_signed_in">%1$s के रूप में साइन इन</string>
-    <string name="setup_needs_you">जब किसी चीज़ को आपकी ज़रूरत हो</string>
     <string name="setup_group_look">लुक</string>
     <string name="setup_group_device">यह डिवाइस</string>
     <string name="setup_group_art">लाइब्रेरी आर्ट</string>

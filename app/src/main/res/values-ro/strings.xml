@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>Prima rulare descarcă Steam. Poate dura câteva minute.</item>
-        <item>În mod implicit, la părăsirea aplicației, Steam este pus pe pauză; continuă de unde ai rămas când te întorci.</item>
-        <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>În mod implicit, la părăsirea aplicației, sesiunea este pusă pe pauză; continuă de unde ai rămas când te întorci.</item>
-        <item>Atingerea funcționează ca un touchpad: trage pentru a mișca cursorul, apasă scurt pentru a face clic.</item>
-        <item>Controllerul tău apare ca un gamepad Xbox 360. Altfel, folosește comenzile de pe ecran.</item>
-    </string-array>
     <string name="session_channel">Sesiune</string>
     <string name="session_notification">Steam este în execuție</string>
     <string name="session_notification_downloads">Descărcare Steam activă</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Atingere</string>
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direct</string>
-    <string name="mode_touch_note">Automat: touchpad pe Desktop, direct în Steam.</string>
     <string name="mode_osc">Comenzi pe ecran</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automat afișează comenzile când niciun controller nu este conectat.</string>
@@ -457,7 +446,6 @@
     <string name="drawer_page_controls">Comenzi</string>
     <string name="drawer_page_components">Componente</string>
     <string name="drawer_page_controller">Controller</string>
-    <string name="drawer_page_settings">Setări</string>
     <string name="drawer_page_desc">Pagina %1$s</string>
     <string name="drawer_steam_menu">Meniu Steam</string>
     <string name="drawer_open_qam">Deschide meniul de acces rapid</string>
@@ -602,9 +590,6 @@
     <string name="setup_limit_adb_failed">Verifică adresa IP și portul Depanării wireless, sau asociază din nou dacă Android a eliminat acest dispozitiv.</string>
     <string name="setup_install">Instalează</string>
     <string name="setup_manage">Gestionează</string>
-    <string name="setup_tab_overview">Prezentare generală</string>
-    <string name="setup_tab_controller">Controller</string>
-    <string name="setup_tab_launcher">Launcher</string>
     <string name="setup_title">Configurare</string>
     <string name="setup_gpu_supported">Dispozitiv acceptat</string>
     <string name="setup_gpu_untested">GPU netestat</string>
@@ -631,7 +616,6 @@
     <string name="setup_signed_in">Autentificat ca %1$s</string>
     <string name="setup_sign_in">Apasă Play și autentifică-te în Steam</string>
     <string name="setup_controller">Controller</string>
-    <string name="setup_controller_unavailable">Setările controllerului nu sunt disponibile.</string>
     <string name="setup_logs">Jurnalele sesiunii</string>
     <string name="setup_logs_hint">Salvate după fiecare sesiune</string>
     <string name="setup_game_debug_logs">Jurnale de depanare a jocurilor</string>
@@ -685,11 +669,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Comenzi</string>
     <string name="setup_card_controls_hint">Maparea butoanelor</string>
-    <string name="store_starting">Se pornește…</string>
-    <string name="store_try_again">Încearcă din nou</string>
-    <string name="store_all">Toate</string>
-    <string name="store_open">Deschide</string>
-    <string name="store_remove">Elimină</string>
+    <string name="common_starting">Se pornește…</string>
+    <string name="common_try_again">Încearcă din nou</string>
+    <string name="common_all">Toate</string>
+    <string name="common_open">Deschide</string>
+    <string name="common_remove">Elimină</string>
     <string name="upd_open_settings">Deschide setările</string>
     <string name="upd_current_status">Actualizat</string>
     <string name="upd_just_now">chiar acum</string>
@@ -771,7 +755,6 @@
     <string name="ctrl_steam_button">Butonul Steam</string>
     <string name="ctrl_qam_button">Butonul QAM</string>
     <string name="ctrl_keyboard_button">Butonul tastaturii</string>
-    <string name="setup_animations">Animații</string>
     <string name="setup_low_storage_warning">Avertizează când spațiul de stocare este redus</string>
     <string name="setup_low_storage_warning_hint">Întreabă înainte de pornirea Steam când spațiul liber este sub 10 GB.</string>
     <string name="ctrl_layout">Aranjament</string>
@@ -879,7 +862,7 @@
     <string name="pip_unavailable">Android nu a putut deschide imaginea în imagine.</string>
     <string name="game_more">Mai multe</string>
     <string name="game_edit_art">Editează grafica</string>
-    <string name="stores_in_steam_label">În Steam</string>
+    <string name="lib_in_steam_label">În Steam</string>
     <string name="game_shortcut">Comandă rapidă</string>
     <string name="game_shortcut_add">Adaugă pe ecranul principal</string>
     <string name="game_shortcut_choose">Alege jocul</string>
@@ -1069,7 +1052,7 @@
         <item quantity="other">Jurnalul arată %1$d de erori „Function not implemented”: accelerarea seccomp a proot nu reușește să ruleze un auxiliar pe acest dispozitiv. Încearcă %2$s → „%3$s” (sau „%4$s”) și pornește din nou.</item>
     </plurals>
 
-    <string name="store_section_loading">se încarcă…</string>
+    <string name="lib_section_loading">se încarcă…</string>
     <string name="theme_graphite">Grafit</string>
     <string name="theme_graphite_detail">Suprafețe grafit, cu albastrul propriu al orbului din logo pentru tot ce este selectat, focalizat sau apăsat.</string>
     <string name="theme_paper">Hârtie pe negru</string>
@@ -1080,8 +1063,6 @@
     <string name="theme_electric_detail">Albastrul mai strălucitor, pe suprafețe care tind spre bleumarin în loc de gri.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Culori care parcurg curcubeul. Respectă setările de animație din Android.</string>
-    <string name="theme_rgb_speed">Viteză</string>
-    <string name="theme_rgb_speed_hint">Cât de repede se schimbă culorile.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Culorile tale primară și secundară, combinate pe butoane și evidențieri.</string>
     <string name="theme_gradient_primary">Primară</string>
@@ -1597,14 +1578,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Personalizat</string>
-    <string name="stores_tab_library">Bibliotecă</string>
-    <string name="stores_tab_all">Toate</string>
-    <string name="stores_search_library">Caută în biblioteca ta…</string>
-    <string name="stores_search_open">Căutare</string>
-    <string name="stores_nothing_matches">Niciun joc</string>
-    <string name="stores_play">Joacă</string>
-    <string name="stores_refresh">Reîmprospătează</string>
-    <string name="stores_sort">Sortează</string>
+    <string name="lib_tab_library">Bibliotecă</string>
+    <string name="lib_tab_all">Toate</string>
+    <string name="lib_search_library">Caută în biblioteca ta…</string>
+    <string name="lib_search_open">Căutare</string>
+    <string name="lib_nothing_matches">Niciun joc</string>
+    <string name="lib_play">Joacă</string>
+    <string name="lib_refresh">Reîmprospătează</string>
+    <string name="lib_sort">Sortează</string>
     <string name="setup_rail_labels">Etichete în bara laterală</string>
     <string name="setup_rail_labels_hint">Afișează numele sub pictogramele din bara laterală. Dezactivează pentru o bară laterală mai îngustă.</string>
     <string name="library_display">Afișare</string>
@@ -1612,20 +1593,20 @@
     <string name="library_display_smaller">Carduri mai mici</string>
     <string name="library_display_title">Afișează titlul</string>
     <string name="library_display_size">Afișează dimensiunea</string>
-    <string name="stores_sort_last_played">Jucate recent</string>
-    <string name="stores_sort_recently_installed">Instalate recent</string>
-    <string name="stores_sort_title_asc">Titlu A–Z</string>
-    <string name="stores_sort_title_desc">Titlu Z–A</string>
-    <string name="stores_sort_size_desc">Dimensiune: cea mai mare</string>
-    <string name="stores_sort_size_asc">Dimensiune: cea mai mică</string>
-    <string name="stores_view_list">Vizualizare listă</string>
-    <string name="stores_view_cards">Vizualizare carduri</string>
-    <string name="stores_view_capsules">Vizualizare coperți</string>
+    <string name="lib_sort_last_played">Jucate recent</string>
+    <string name="lib_sort_recently_installed">Instalate recent</string>
+    <string name="lib_sort_title_asc">Titlu A–Z</string>
+    <string name="lib_sort_title_desc">Titlu Z–A</string>
+    <string name="lib_sort_size_desc">Dimensiune: cea mai mare</string>
+    <string name="lib_sort_size_asc">Dimensiune: cea mai mică</string>
+    <string name="lib_view_list">Vizualizare listă</string>
+    <string name="lib_view_cards">Vizualizare carduri</string>
+    <string name="lib_view_capsules">Vizualizare coperți</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">instalat</string>
-    <string name="stores_uninstall_title">Dezinstalezi %1$s?</string>
-    <string name="stores_dl_pause">Pauză</string>
-    <string name="stores_target_free">%1$s liber</string>
+    <string name="lib_eyebrow_installed">instalat</string>
+    <string name="lib_uninstall_title">Dezinstalezi %1$s?</string>
+    <string name="lib_dl_pause">Pauză</string>
+    <string name="lib_target_free">%1$s liber</string>
     <string name="common_close">Închide</string>
     <string name="common_back">Înapoi</string>
     <string name="games_add_all">Adaugă toate jocurile din acest folder</string>
@@ -1690,7 +1671,6 @@
     </plurals>
     <string name="hop_back">B · Înapoi la %1$s</string>
     <string name="hop_from_games">joc</string>
-    <string name="hop_from_play">Setările de lansare</string>
     <string name="sheet_graphics_drivers">Drivere grafice</string>
     <string name="comp_this_proton">Acest Proton</string>
     <string name="comp_for_every_proton">Pentru fiecare Proton</string>
@@ -1743,12 +1723,6 @@
     <string name="comp_this_device">Acest dispozitiv</string>
     <string name="proton_remove_title">Elimini %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnosticare</string>
-    <string name="setup_ready">Pregătit de joc</string>
-    <string name="setup_not_ready">Încă nepregătit de joc</string>
-    <string name="setup_ready_runtime">mediu de execuție %1$s</string>
-    <string name="setup_ready_limit_off">limita proceselor dezactivată</string>
-    <string name="setup_ready_signed_in">autentificat ca %1$s</string>
-    <string name="setup_needs_you">Când ceva are nevoie de tine</string>
     <string name="setup_group_look">Aspect</string>
     <string name="setup_group_device">Acest dispozitiv</string>
     <string name="setup_group_art">Grafica bibliotecii</string>

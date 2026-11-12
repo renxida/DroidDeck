@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>การเริ่มใช้งานครั้งแรกจะดาวน์โหลด Steam ซึ่งอาจใช้เวลาสักครู่</item>
-        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุด Steam ไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
-        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>ตามค่าเริ่มต้น การออกจากแอปจะหยุดเซสชันไว้ชั่วคราว แล้วกลับมาทำงานต่อจากจุดเดิมเมื่อคุณเปิดแอปอีกครั้ง</item>
-        <item>การสัมผัสหน้าจอทำงานเหมือนทัชแพด ลากเพื่อเลื่อนตัวชี้ แตะเพื่อคลิก</item>
-        <item>คอนโทรลเลอร์ของคุณจะปรากฏเป็นจอย Xbox 360 หากไม่เช่นนั้นให้ใช้ปุ่มควบคุมบนหน้าจอ</item>
-    </string-array>
     <string name="session_channel">เซสชัน</string>
     <string name="session_notification">Steam กำลังทำงาน</string>
     <string name="session_notification_downloads">กำลังดาวน์โหลดใน Steam</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">การสัมผัส</string>
     <string name="mode_touch_touchpad">ทัชแพด</string>
     <string name="mode_touch_direct">โดยตรง</string>
-    <string name="mode_touch_note">อัตโนมัติ: ทัชแพดในเดสก์ท็อป โดยตรงใน Steam</string>
     <string name="mode_osc">ปุ่มควบคุมบนหน้าจอ</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">อัตโนมัติจะแสดงปุ่มควบคุมเมื่อไม่มีคอนโทรลเลอร์เชื่อมต่ออยู่</string>
@@ -453,7 +442,6 @@
     <string name="drawer_page_controls">การควบคุม</string>
     <string name="drawer_page_components">คอมโพเนนต์</string>
     <string name="drawer_page_controller">คอนโทรลเลอร์</string>
-    <string name="drawer_page_settings">การตั้งค่า</string>
     <string name="drawer_page_desc">หน้า %1$s</string>
     <string name="drawer_steam_menu">เมนู Steam</string>
     <string name="drawer_open_qam">เปิดเมนู Quick Access</string>
@@ -596,9 +584,6 @@
     <string name="setup_limit_adb_failed">ตรวจสอบที่อยู่ IP และพอร์ตของ Wireless debugging หรือจับคู่ใหม่หาก Android ลบอุปกรณ์นี้ไปแล้ว</string>
     <string name="setup_install">ติดตั้ง</string>
     <string name="setup_manage">จัดการ</string>
-    <string name="setup_tab_overview">ภาพรวม</string>
-    <string name="setup_tab_controller">คอนโทรลเลอร์</string>
-    <string name="setup_tab_launcher">ตัวเปิดแอป</string>
     <string name="setup_title">การตั้งค่า</string>
     <string name="setup_gpu_supported">รองรับอุปกรณ์นี้</string>
     <string name="setup_gpu_untested">GPU ที่ยังไม่ผ่านการทดสอบ</string>
@@ -625,7 +610,6 @@
     <string name="setup_signed_in">ลงชื่อเข้าใช้เป็น %1$s</string>
     <string name="setup_sign_in">กด Play แล้วลงชื่อเข้าใช้ Steam</string>
     <string name="setup_controller">คอนโทรลเลอร์</string>
-    <string name="setup_controller_unavailable">การตั้งค่าคอนโทรลเลอร์ไม่พร้อมใช้งาน</string>
     <string name="setup_logs">ล็อกเซสชัน</string>
     <string name="setup_logs_hint">บันทึกไว้หลังจบแต่ละเซสชัน</string>
     <string name="setup_game_debug_logs">บันทึกดีบักของเกม</string>
@@ -679,11 +663,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">การควบคุม</string>
     <string name="setup_card_controls_hint">การกำหนดปุ่ม</string>
-    <string name="store_starting">กำลังเริ่ม…</string>
-    <string name="store_try_again">ลองใหม่</string>
-    <string name="store_all">ทั้งหมด</string>
-    <string name="store_open">เปิด</string>
-    <string name="store_remove">ลบ</string>
+    <string name="common_starting">กำลังเริ่ม…</string>
+    <string name="common_try_again">ลองใหม่</string>
+    <string name="common_all">ทั้งหมด</string>
+    <string name="common_open">เปิด</string>
+    <string name="common_remove">ลบ</string>
     <string name="upd_open_settings">เปิดการตั้งค่า</string>
     <string name="upd_current_status">เป็นรุ่นล่าสุดแล้ว</string>
     <string name="upd_just_now">เมื่อสักครู่</string>
@@ -765,7 +749,6 @@
     <string name="ctrl_steam_button">ปุ่ม Steam</string>
     <string name="ctrl_qam_button">ปุ่ม QAM</string>
     <string name="ctrl_keyboard_button">ปุ่มแป้นพิมพ์</string>
-    <string name="setup_animations">ภาพเคลื่อนไหว</string>
     <string name="setup_low_storage_warning">เตือนเมื่อพื้นที่เก็บข้อมูลเหลือน้อย</string>
     <string name="setup_low_storage_warning_hint">ถามก่อนเริ่ม Steam เมื่อพื้นที่ว่างน้อยกว่า 10 GB</string>
     <string name="ctrl_layout">การจัดวาง</string>
@@ -873,7 +856,7 @@
     <string name="pip_unavailable">Android ไม่สามารถเปิดภาพซ้อนภาพได้</string>
     <string name="game_more">เพิ่มเติม</string>
     <string name="game_edit_art">แก้ไขภาพปก</string>
-    <string name="stores_in_steam_label">ใน Steam</string>
+    <string name="lib_in_steam_label">ใน Steam</string>
     <string name="game_shortcut">ช็อตคัต</string>
     <string name="game_shortcut_add">เพิ่มไปยังหน้าจอหลัก</string>
     <string name="game_shortcut_choose">เลือกเกม</string>
@@ -1045,7 +1028,7 @@
         <item quantity="other">ล็อกแสดงข้อผิดพลาด “Function not implemented” %1$d รายการ: การเร่งความเร็ว seccomp ของ proot ทำให้ตัวช่วยบนอุปกรณ์นี้ล้มเหลว ลอง %2$s → “%3$s” (หรือ “%4$s”) แล้วเริ่มใหม่</item>
     </plurals>
 
-    <string name="store_section_loading">กำลังโหลด…</string>
+    <string name="lib_section_loading">กำลังโหลด…</string>
     <string name="theme_graphite">แกรไฟต์</string>
     <string name="theme_graphite_detail">พื้นผิวสีเทาแกรไฟต์ พร้อมสีฟ้าของโลโก้สำหรับทุกสิ่งที่ถูกเลือก โฟกัส หรือกด</string>
     <string name="theme_paper">กระดาษบนพื้นดำ</string>
@@ -1056,8 +1039,6 @@
     <string name="theme_electric_detail">สีฟ้าสว่างขึ้น บนพื้นผิวที่เอียงไปทางกรมท่ามากกว่าเทา</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">สีที่เปลี่ยนวนไปตามสายรุ้ง ทำงานตามการตั้งค่าแอนิเมชันของ Android</string>
-    <string name="theme_rgb_speed">ความเร็ว</string>
-    <string name="theme_rgb_speed_hint">สีเปลี่ยนเร็วแค่ไหน</string>
     <string name="theme_gradient">ไล่เฉดสี</string>
     <string name="theme_gradient_detail">สีหลักและสีรองที่คุณเลือกเอง ผสมกันบนปุ่มและส่วนที่เน้น</string>
     <string name="theme_gradient_primary">สีหลัก</string>
@@ -1559,14 +1540,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">กำหนดเอง</string>
-    <string name="stores_tab_library">ไลบรารี</string>
-    <string name="stores_tab_all">ทั้งหมด</string>
-    <string name="stores_search_library">ค้นหาไลบรารีของคุณ…</string>
-    <string name="stores_search_open">ค้นหา</string>
-    <string name="stores_nothing_matches">ไม่มีเกม</string>
-    <string name="stores_play">เล่น</string>
-    <string name="stores_refresh">รีเฟรช</string>
-    <string name="stores_sort">จัดเรียง</string>
+    <string name="lib_tab_library">ไลบรารี</string>
+    <string name="lib_tab_all">ทั้งหมด</string>
+    <string name="lib_search_library">ค้นหาไลบรารีของคุณ…</string>
+    <string name="lib_search_open">ค้นหา</string>
+    <string name="lib_nothing_matches">ไม่มีเกม</string>
+    <string name="lib_play">เล่น</string>
+    <string name="lib_refresh">รีเฟรช</string>
+    <string name="lib_sort">จัดเรียง</string>
     <string name="setup_rail_labels">ป้ายแถบด้านข้าง</string>
     <string name="setup_rail_labels_hint">แสดงชื่อใต้ไอคอนในแถบด้านข้าง ปิดเพื่อให้แถบด้านข้างแคบลง</string>
     <string name="library_display">การแสดงผล</string>
@@ -1574,20 +1555,20 @@
     <string name="library_display_smaller">การ์ดเล็กลง</string>
     <string name="library_display_title">แสดงชื่อ</string>
     <string name="library_display_size">แสดงขนาด</string>
-    <string name="stores_sort_last_played">เล่นล่าสุด</string>
-    <string name="stores_sort_recently_installed">เพิ่งติดตั้ง</string>
-    <string name="stores_sort_title_asc">ชื่อ A–Z</string>
-    <string name="stores_sort_title_desc">ชื่อ Z–A</string>
-    <string name="stores_sort_size_desc">ขนาด: ใหญ่สุด</string>
-    <string name="stores_sort_size_asc">ขนาด: เล็กสุด</string>
-    <string name="stores_view_list">มุมมองรายการ</string>
-    <string name="stores_view_cards">มุมมองการ์ด</string>
-    <string name="stores_view_capsules">มุมมองปก</string>
+    <string name="lib_sort_last_played">เล่นล่าสุด</string>
+    <string name="lib_sort_recently_installed">เพิ่งติดตั้ง</string>
+    <string name="lib_sort_title_asc">ชื่อ A–Z</string>
+    <string name="lib_sort_title_desc">ชื่อ Z–A</string>
+    <string name="lib_sort_size_desc">ขนาด: ใหญ่สุด</string>
+    <string name="lib_sort_size_asc">ขนาด: เล็กสุด</string>
+    <string name="lib_view_list">มุมมองรายการ</string>
+    <string name="lib_view_cards">มุมมองการ์ด</string>
+    <string name="lib_view_capsules">มุมมองปก</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">ติดตั้งแล้ว</string>
-    <string name="stores_uninstall_title">ถอนการติดตั้ง %1$s?</string>
-    <string name="stores_dl_pause">หยุดชั่วคราว</string>
-    <string name="stores_target_free">เหลือ %1$s</string>
+    <string name="lib_eyebrow_installed">ติดตั้งแล้ว</string>
+    <string name="lib_uninstall_title">ถอนการติดตั้ง %1$s?</string>
+    <string name="lib_dl_pause">หยุดชั่วคราว</string>
+    <string name="lib_target_free">เหลือ %1$s</string>
     <string name="common_close">ปิด</string>
     <string name="common_back">กลับ</string>
     <string name="games_add_all">เพิ่มเกมทั้งหมดในโฟลเดอร์นี้</string>
@@ -1648,7 +1629,6 @@
     </plurals>
     <string name="hop_back">B · กลับไปที่ %1$s</string>
     <string name="hop_from_games">เกม</string>
-    <string name="hop_from_play">การตั้งค่า Play</string>
     <string name="sheet_graphics_drivers">ไดรเวอร์กราฟิก</string>
     <string name="comp_this_proton">Proton นี้</string>
     <string name="comp_for_every_proton">สำหรับ Proton ทุกตัว</string>
@@ -1701,12 +1681,6 @@
     <string name="comp_this_device">อุปกรณ์นี้</string>
     <string name="proton_remove_title">ลบ %1$s?</string>
     <string name="setup_tab_diagnostics">การวินิจฉัย</string>
-    <string name="setup_ready">พร้อมเล่นแล้ว</string>
-    <string name="setup_not_ready">ยังไม่พร้อมเล่น</string>
-    <string name="setup_ready_runtime">รันไทม์ %1$s</string>
-    <string name="setup_ready_limit_off">ปิดขีดจำกัดโพรเซส</string>
-    <string name="setup_ready_signed_in">ลงชื่อเข้าใช้เป็น %1$s</string>
-    <string name="setup_needs_you">เมื่อต้องการให้คุณดำเนินการ</string>
     <string name="setup_group_look">รูปลักษณ์</string>
     <string name="setup_group_device">อุปกรณ์นี้</string>
     <string name="setup_group_art">ภาพปกไลบรารี</string>

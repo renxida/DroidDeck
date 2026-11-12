@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kestrel</string>
-    <string-array name="loading_hints">
-        <item>İlk çalıştırmada Steam indirilir. Bu işlem birkaç dakika sürebilir.</item>
-        <item>Varsayılan olarak uygulamadan çıkınca Steam duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
-    </string-array>
-    <string-array name="loading_hints_desktop">
-        <item>Varsayılan olarak uygulamadan çıkınca oturum duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Dokunma, dokunmatik yüzey gibi çalışır: işaretçiyi taşımak için sürükleyin, tıklamak için dokunun.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
-    </string-array>
     <string name="session_channel">Oturum</string>
     <string name="session_notification">Steam çalışıyor</string>
     <string name="session_notification_downloads">Steam indirmesi sürüyor</string>
@@ -147,7 +137,6 @@
     <string name="mode_touch">Dokunma</string>
     <string name="mode_touch_touchpad">Dokunmatik yüzey</string>
     <string name="mode_touch_direct">Doğrudan</string>
-    <string name="mode_touch_note">Otomatik: Masaüstünde dokunmatik yüzey, Steam\'de doğrudan.</string>
     <string name="mode_osc">Ekran üstü kontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatik, kumanda bağlı değilken kontrolleri gösterir.</string>
@@ -455,7 +444,6 @@
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Bileşenler</string>
     <string name="drawer_page_controller">Kumanda</string>
-    <string name="drawer_page_settings">Ayarlar</string>
     <string name="drawer_page_desc">%1$s sayfası</string>
     <string name="drawer_steam_menu">Steam menüsü</string>
     <string name="drawer_open_qam">Hızlı Erişim Menüsünü aç</string>
@@ -599,9 +587,6 @@
     <string name="setup_limit_adb_failed">Kablosuz hata ayıklama IP adresini ve bağlantı noktasını kontrol edin ya da Android bu cihazı kaldırdıysa yeniden eşleyin.</string>
     <string name="setup_install">Yükle</string>
     <string name="setup_manage">Yönet</string>
-    <string name="setup_tab_overview">Genel bakış</string>
-    <string name="setup_tab_controller">Kumanda</string>
-    <string name="setup_tab_launcher">Başlatıcı</string>
     <string name="setup_title">Kurulum</string>
     <string name="setup_gpu_supported">Cihaz destekleniyor</string>
     <string name="setup_gpu_untested">Test edilmemiş GPU</string>
@@ -628,7 +613,6 @@
     <string name="setup_signed_in">%1$s olarak oturum açıldı</string>
     <string name="setup_sign_in">Oyna\'ya basın ve Steam\'de oturum açın</string>
     <string name="setup_controller">Kumanda</string>
-    <string name="setup_controller_unavailable">Kumanda ayarları kullanılamıyor.</string>
     <string name="setup_logs">Oturum günlükleri</string>
     <string name="setup_logs_hint">Her oturumdan sonra kaydedilir</string>
     <string name="setup_game_debug_logs">Oyun hata ayıklama günlükleri</string>
@@ -675,11 +659,11 @@
     <string name="setup_card_components_hint">FEX, DXVK, VKD3D</string>
     <string name="setup_card_controls">Kontroller</string>
     <string name="setup_card_controls_hint">Düğme eşleme</string>
-    <string name="store_starting">Başlatılıyor…</string>
-    <string name="store_try_again">Tekrar dene</string>
-    <string name="store_all">Tümü</string>
-    <string name="store_open">Aç</string>
-    <string name="store_remove">Kaldır</string>
+    <string name="common_starting">Başlatılıyor…</string>
+    <string name="common_try_again">Tekrar dene</string>
+    <string name="common_all">Tümü</string>
+    <string name="common_open">Aç</string>
+    <string name="common_remove">Kaldır</string>
     <string name="upd_open_settings">Ayarları aç</string>
     <string name="upd_current_status">Güncel</string>
     <string name="upd_just_now">az önce</string>
@@ -761,7 +745,6 @@
     <string name="ctrl_steam_button">Steam düğmesi</string>
     <string name="ctrl_qam_button">QAM düğmesi</string>
     <string name="ctrl_keyboard_button">Klavye düğmesi</string>
-    <string name="setup_animations">Animasyonlar</string>
     <string name="setup_low_storage_warning">Depolama azaldığında uyar</string>
     <string name="setup_low_storage_warning_hint">Boş alan 10 GB\'ın altındayken Steam\'i başlatmadan önce sor.</string>
     <string name="ctrl_layout">Düzen</string>
@@ -869,7 +852,7 @@
     <string name="pip_unavailable">Android, pencere içinde pencereyi açamadı.</string>
     <string name="game_more">Diğer</string>
     <string name="game_edit_art">Görseli düzenle</string>
-    <string name="stores_in_steam_label">Steam\'de</string>
+    <string name="lib_in_steam_label">Steam\'de</string>
     <string name="game_shortcut">Kısayol</string>
     <string name="game_shortcut_add">Ana ekrana ekle</string>
     <string name="game_shortcut_choose">Oyun seç</string>
@@ -1050,7 +1033,7 @@
         <item quantity="other">Günlükte %1$d “Function not implemented” hatası görünüyor: proot\'un seccomp hızlandırması bu cihazda bir yardımcı işlemi bozuyor. %2$s → “%3$s” (veya “%4$s”) seçeneğini deneyip yeniden başlatın.</item>
     </plurals>
 
-    <string name="store_section_loading">yükleniyor…</string>
+    <string name="lib_section_loading">yükleniyor…</string>
     <string name="theme_graphite">Grafit</string>
     <string name="theme_graphite_detail">Grafit yüzeyler; seçilen, odaklanan veya basılan her şey için logonun kendi küre mavisi.</string>
     <string name="theme_paper">Siyah üzerine kâğıt</string>
@@ -1061,8 +1044,6 @@
     <string name="theme_electric_detail">Daha parlak mavi; gri yerine laciverte çalan yüzeylerde.</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Gökkuşağında dolaşan renkler. Android\'in animasyon ayarlarına uyar.</string>
-    <string name="theme_rgb_speed">Hız</string>
-    <string name="theme_rgb_speed_hint">Renklerin ne kadar hızlı değiştiği.</string>
     <string name="theme_gradient">Geçiş</string>
     <string name="theme_gradient_detail">Kendi birincil ve ikincil renklerin, düğmelerde ve vurgularda harmanlanır.</string>
     <string name="theme_gradient_primary">Birincil</string>
@@ -1571,14 +1552,14 @@
 
     <string name="source_steam">Steam</string>
     <string name="source_added">Özel</string>
-    <string name="stores_tab_library">Kütüphane</string>
-    <string name="stores_tab_all">Tümü</string>
-    <string name="stores_search_library">Kütüphanenizde ara…</string>
-    <string name="stores_search_open">Ara</string>
-    <string name="stores_nothing_matches">Oyun yok</string>
-    <string name="stores_play">Oyna</string>
-    <string name="stores_refresh">Yenile</string>
-    <string name="stores_sort">Sırala</string>
+    <string name="lib_tab_library">Kütüphane</string>
+    <string name="lib_tab_all">Tümü</string>
+    <string name="lib_search_library">Kütüphanenizde ara…</string>
+    <string name="lib_search_open">Ara</string>
+    <string name="lib_nothing_matches">Oyun yok</string>
+    <string name="lib_play">Oyna</string>
+    <string name="lib_refresh">Yenile</string>
+    <string name="lib_sort">Sırala</string>
     <string name="setup_rail_labels">Kenar çubuğu etiketleri</string>
     <string name="setup_rail_labels_hint">Kenar çubuğu simgelerinin altında adları gösterir. Daha ince bir kenar çubuğu için kapatın.</string>
     <string name="library_display">Görünüm</string>
@@ -1586,20 +1567,20 @@
     <string name="library_display_smaller">Daha küçük kartlar</string>
     <string name="library_display_title">Başlığı göster</string>
     <string name="library_display_size">Boyutu göster</string>
-    <string name="stores_sort_last_played">Son oynanan</string>
-    <string name="stores_sort_recently_installed">Son yüklenen</string>
-    <string name="stores_sort_title_asc">Başlık A–Z</string>
-    <string name="stores_sort_title_desc">Başlık Z–A</string>
-    <string name="stores_sort_size_desc">Boyut: en büyük</string>
-    <string name="stores_sort_size_asc">Boyut: en küçük</string>
-    <string name="stores_view_list">Liste görünümü</string>
-    <string name="stores_view_cards">Kart görünümü</string>
-    <string name="stores_view_capsules">Kapak görünümü</string>
+    <string name="lib_sort_last_played">Son oynanan</string>
+    <string name="lib_sort_recently_installed">Son yüklenen</string>
+    <string name="lib_sort_title_asc">Başlık A–Z</string>
+    <string name="lib_sort_title_desc">Başlık Z–A</string>
+    <string name="lib_sort_size_desc">Boyut: en büyük</string>
+    <string name="lib_sort_size_asc">Boyut: en küçük</string>
+    <string name="lib_view_list">Liste görünümü</string>
+    <string name="lib_view_cards">Kart görünümü</string>
+    <string name="lib_view_capsules">Kapak görünümü</string>
     <string name="cloud_pending">…</string>
-    <string name="stores_eyebrow_installed">yüklü</string>
-    <string name="stores_uninstall_title">%1$s kaldırılsın mı?</string>
-    <string name="stores_dl_pause">Duraklat</string>
-    <string name="stores_target_free">%1$s boş</string>
+    <string name="lib_eyebrow_installed">yüklü</string>
+    <string name="lib_uninstall_title">%1$s kaldırılsın mı?</string>
+    <string name="lib_dl_pause">Duraklat</string>
+    <string name="lib_target_free">%1$s boş</string>
     <string name="common_close">Kapat</string>
     <string name="common_back">Geri</string>
     <string name="games_add_all">Bu klasördeki tüm oyunları ekle</string>
@@ -1662,7 +1643,6 @@
     </plurals>
     <string name="hop_back">B · %1$s geri dön</string>
     <string name="hop_from_games">oyuna</string>
-    <string name="hop_from_play">Oyna ayarlarına</string>
     <string name="sheet_graphics_drivers">Grafik sürücüleri</string>
     <string name="comp_this_proton">Bu Proton</string>
     <string name="comp_for_every_proton">Her Proton için</string>
@@ -1715,12 +1695,6 @@
     <string name="comp_this_device">Bu cihaz</string>
     <string name="proton_remove_title">%1$s kaldırılsın mı?</string>
     <string name="setup_tab_diagnostics">Tanılama</string>
-    <string name="setup_ready">Oynamaya hazır</string>
-    <string name="setup_not_ready">Henüz oynamaya hazır değil</string>
-    <string name="setup_ready_runtime">çalışma ortamı %1$s</string>
-    <string name="setup_ready_limit_off">alt süreç sınırı kapalı</string>
-    <string name="setup_ready_signed_in">%1$s olarak oturum açıldı</string>
-    <string name="setup_needs_you">Sizden bir şey istendiğinde</string>
     <string name="setup_group_look">Görünüm</string>
     <string name="setup_group_device">Bu cihaz</string>
     <string name="setup_group_art">Kütüphane görselleri</string>

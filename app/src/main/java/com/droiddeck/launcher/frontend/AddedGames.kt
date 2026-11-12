@@ -122,7 +122,7 @@ object AddedGames {
         kept?.name(key)?.let { identified[key] = it; return it.ifEmpty { null } }
         val id = runCatching { GameIdentifier.identify(exe) }.getOrNull()
         val found = id?.name?.takeIf {
-            id.nameSource in setOf(GameIdentifier.Source.STEAM_MANIFEST_ACF, GameIdentifier.Source.GOG_INFO, GameIdentifier.Source.PE_VERSION)
+            id.nameSource in setOf(GameIdentifier.Source.STEAM_MANIFEST_ACF, GameIdentifier.Source.PE_VERSION)
         }
         val name = found?.let { if (id?.nameSource == GameIdentifier.Source.PE_VERSION) betterSpelling(underscoresToSpaces(it), folder.name) else it }
         identified[key] = name.orEmpty()
