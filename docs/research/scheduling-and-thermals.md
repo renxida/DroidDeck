@@ -245,7 +245,8 @@ the widened ADPF hints.
   to session.log after the frame cap, before the `DROIDDECK_TIMELINE event=game_exec` line. Each
   switch is 0 when its variable (`DROIDDECK_PACING_ADPF`, `DROIDDECK_PACING_DISPLAY`,
   `DROIDDECK_FPS_GOVERNOR`) is 0 in the game's profile. When it prints this line the wrapper waits
-  for the game instead of exec'ing Proton, so the `game_exit` line ends the cap.
+  for the game instead of exec'ing Proton, through the same `exit_watch` parent the crash-hardening
+  work added (`DROIDDECK_GAME_EXIT_WATCH=0` still forces the exec), so the `game_exit` line ends the cap.
   `GamePacingComponent` tails session.log (and the x86_64 Steam log) with the telemetry `Tail`
   reader. `GamePacing.Tracker` holds the cap from that game's exec to its exit, or to another
   game's exec. Every change logs

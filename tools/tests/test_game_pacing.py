@@ -167,12 +167,11 @@ class FrameCapTest(unittest.TestCase):
                 exits = [line for line in result.stderr.splitlines() if line.startswith("DROIDDECK_TIMELINE event=game_exit ")]
                 if cap == "0":
                     self.assertEqual(pacing, [])
-                    self.assertEqual(exits, [])
                 else:
                     governor = 0 if profile.get("DROIDDECK_FPS_GOVERNOR") == "0" else 1
                     self.assertEqual(pacing, ["DROIDDECK_PACING app_id=2868840 cap=%s adpf=1 display=1 governor=%d" % (cap, governor)])
-                    self.assertEqual(len(exits), 1, result.stderr)
-                    self.assertIn("app_id=2868840 status=0 ", exits[0])
+                self.assertEqual(len(exits), 1, result.stderr)
+                self.assertIn("app_id=2868840 status=0 ", exits[0])
 
 
 class PacingLineTest(unittest.TestCase):
@@ -186,6 +185,14 @@ class PacingLineTest(unittest.TestCase):
         for env in ({}, {"DROIDDECK_FPS_CAP": "0"}, {"DROIDDECK_FPS_CAP": "fast"}):
             self.assertIsNone(line(env, "7"))
         self.assertIsNone(line({"DROIDDECK_FPS_CAP": "60"}, None))
+
+    def test_a_pacing_line_makes_the_launch_wait_unless_the_exit_watch_is_switched_off(self):
+        watch = MODULE["exit_watch"]
+        self.assertFalse(watch("7", {}))
+        self.assertTrue(watch("7", {}, pacing=True))
+        self.assertFalse(watch("7", {"DROIDDECK_GAME_EXIT_WATCH": "0"}, pacing=True))
+        self.assertTrue(watch("7", {"DROIDDECK_GAME_EXIT_WATCH": "1"}))
+        self.assertTrue(watch("2868840", {}))
 
 
 class ThreadPlacementTest(unittest.TestCase):
