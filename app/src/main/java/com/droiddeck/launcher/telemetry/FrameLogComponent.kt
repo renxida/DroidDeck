@@ -13,7 +13,8 @@ import java.io.RandomAccessFile
 
 /**
  * Writes every frame gamescope publishes in the HUD ring to frames.csv for the whole session, shown
- * HUD or not, and marks the timeline's first Steam frame, first game frame and Steam sign-in.
+ * HUD or not, and marks the timeline's first Steam frame, first game frame, Steam sign-in and each
+ * game's exit ([GameExitWatch]).
  * Its own ring handle keeps its own read position, so the HUD's reader is untouched. Polls twice a
  * second on a background-priority thread; the ring holds 1024 frames, over 8 s at 120 fps.
  */
@@ -21,6 +22,8 @@ class FrameLogComponent(
     private val csv: File,
     private val ring: File,
     private val steamLogs: List<File> = emptyList(),
+    private val stderrLogs: List<File> = emptyList(),
+    private val onGameExit: (GameExitWatch.Exit) -> Unit = {},
 ) : SessionPart() {
     @Volatile private var running = false
     private var stopped = false
@@ -56,6 +59,9 @@ class FrameLogComponent(
         var steamSeen = false
         var gameSeen = false
         var focusEvents = 0
+        val exits = GameExitWatch(GameExitWatch::procAlive)
+        val stderr = GameExitWatch.Tail(stderrLogs)
+        var nextExitCheck = 0L
         try {
             BufferedWriter(FileWriter(csv, false), 64 * 1024).use { w ->
                 val out = FrameCsvWriter(w, t0Ns, MAX_BYTES)
@@ -72,6 +78,7 @@ class FrameLogComponent(
                         if (name != null) {
                             engine = GameFrameFeed.engineLabel(name)
                             steam = info[4] != 0
+                            exits.focus(info[0], engine, steam, System.currentTimeMillis())
                             if (out.info(now, engine, info[0], steam, info[1], info[2], info[3]) && focusEvents < MAX_FOCUS_EVENTS) {
                                 focusEvents++
                                 SessionEvents.record("frames.focus", mapOf("engine" to engine, "pid" to info[0], "steam" to steam))
@@ -97,6 +104,15 @@ class FrameLogComponent(
                     }
                     out.flush()
                     signIn.poll()?.let { SessionEvents.record("steam.signed_in", at = it) }
+                    val wallNow = System.currentTimeMillis()
+                    if (wallNow >= nextExitCheck) {
+                        nextExitCheck = wallNow + EXIT_PERIOD_MS
+                        stderr.read { exits.line(it, wallNow) }
+                        for (exit in exits.poll(wallNow)) {
+                            SessionEvents.record("game.exited", exit.fields().mapValues { (_, v) -> if (v is List<*>) org.json.JSONArray(v) else v })
+                            runCatching { onGameExit(exit) }
+                        }
+                    }
                     try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
                 }
             }
@@ -147,6 +163,7 @@ class FrameLogComponent(
         private const val MAX_BYTES = 32L shl 20
         private const val MAX_FOCUS_EVENTS = 200
         private const val SIGN_IN_PERIOD_MS = 2_000L
+        private const val EXIT_PERIOD_MS = 1_000L
         private const val SIGN_IN_READ_MAX = 1L shl 20
         private const val SIGN_IN_LINE = "RecvMsgClientLogOnResponse() : processing complete"
     }

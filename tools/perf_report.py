@@ -14,6 +14,11 @@ Read from each session (by base name, inside an optional <session>/ folder):
   frames.csv                                              per-frame times (t_ms,frametime_us)
   clocks.log                                              CPU/GPU clocks, thermal status, battery
   memory.csv                                              memory samples
+  crash-lines.txt, crash.log                              crash output from guest stderr, Android's crash buffer
+
+Every run ends with crashes and abnormal exits per build: game.exited events with abnormal set
+(nonzero status, a signal, or crash output since launch) and app.exit events Android reports as a
+crash, native crash, ANR or kill.
 """
 from __future__ import annotations
 
@@ -27,7 +32,7 @@ from pathlib import Path
 
 KNOWN = (
     "build.txt", "device.txt", "graphics-report.txt", "upload.txt", "events.jsonl", "session.log",
-    "frames.csv", "clocks.log", "memory.csv",
+    "frames.csv", "clocks.log", "memory.csv", "crash-lines.txt", "crash.log",
 )
 SNIFF = (
     ("== clocks:", "clocks.log"),
@@ -397,6 +402,52 @@ def parse_memory(text: str) -> dict:
     return out
 
 
+APP_ABNORMAL = {"crash", "crash_native", "anr", "low_memory", "signaled", "initialization_failure", "excessive_resource_usage"}
+EXIT_LINE = re.compile(r"DROIDDECK_TIMELINE event=game_exit app_id=(\S+) status=(-?\d+) signal=(\d+) run_ms=(\d+) wall_ms=(\d+)")
+
+
+def parse_crashes(events: list[dict], files: dict) -> dict:
+    """Game exits (abnormal: nonzero status, a signal or crash output), app process exits Android
+    reports as crashes/ANRs/kills, FEX fault reports and Android crash-buffer entries."""
+    lines = files.get("crash-lines.txt", "")
+    games = [e for e in events if e["event"] == "game.exited"]
+    if not games:
+        for m in EXIT_LINE.finditer(lines + "\n" + files.get("session.log", "")):
+            status, signal = int(m.group(2)), int(m.group(3))
+            games.append({"t": int(m.group(5)), "app_id": m.group(1), "status": status, "signal": signal,
+                          "run_s": int(m.group(4)) / 1000, "abnormal": status != 0 or signal != 0, "how": "wrapper"})
+        games = list({(g["t"], g["app_id"]): g for g in games}.values())
+    abnormal = []
+    for g in games:
+        if not g.get("abnormal"):
+            continue
+        what = f"game {g.get('app_id') or '?'}"
+        if g.get("status") is not None:
+            what += f" exit status {g['status']}"
+        if g.get("signal"):
+            what += f" signal {g['signal']}"
+        if g.get("run_s") is not None:
+            what += f" after {g['run_s']:.0f} s"
+        what += f" ({g.get('how', '?')})"
+        evidence = g.get("evidence") or []
+        if evidence:
+            what += ": " + str(evidence[0])[:160]
+        abnormal.append({"t": g["t"], "kind": "game", "text": what})
+    apps = [e for e in events if e["event"] == "app.exit"]
+    for a in apps:
+        if a.get("reason") in APP_ABNORMAL:
+            text = f"app {a.get('process') or '?'} {a.get('reason')}" + (f": {a['description'][:160]}" if a.get("description") else "")
+            abnormal.append({"t": a["t"], "kind": "app", "text": text})
+    crash_log = files.get("crash.log", "")
+    return {
+        "game_exits": len(games),
+        "app_exits": len(apps),
+        "abnormal": sorted(abnormal, key=lambda x: x["t"]),
+        "fex_faults": sum(1 for line in lines.splitlines() if "droiddeck-fex: SIG" in line),
+        "android_crash_entries": sum(1 for line in crash_log.splitlines() if "FATAL EXCEPTION" in line or "Fatal signal" in line),
+    }
+
+
 def summarize(session: Session) -> dict:
     f = session.files
     build = parse_kv(f.get("build.txt", ""))
@@ -447,6 +498,7 @@ def summarize(session: Session) -> dict:
         "frames": frames,
         "clocks": clocks,
         "memory": parse_memory(f["memory.csv"]) if "memory.csv" in f else {},
+        "crashes": parse_crashes(events, f),
         "files": sorted(f),
     }
 
@@ -516,6 +568,27 @@ def report(s: dict) -> str:
     mem = s["memory"]
     if mem.get("samples"):
         out.append("memory:  " + ", ".join(f"{k} {v} MB" for k, v in mem.items() if k != "samples"))
+    cr = s["crashes"]
+    out.append(f"exits:   {cr['game_exits']} game, {len(cr['abnormal'])} abnormal, {cr['fex_faults']} FEX fault reports,"
+               f" {cr['android_crash_entries']} Android crash-buffer entries")
+    for item in cr["abnormal"]:
+        at = f"{(item['t'] - s['t0']) / 1000:+9.1f}" if s.get("t0") is not None else "        ?"
+        out.append(f"  {at}  {item['text']}")
+    return "\n".join(out)
+
+
+def crashes_by_build(summaries: list[dict]) -> str:
+    builds: dict[str, list[dict]] = {}
+    for s in summaries:
+        builds.setdefault(s.get("build_slug") or s["build"], []).append(s)
+    out = ["== crashes and abnormal exits by build"]
+    for name, group in builds.items():
+        abnormal = sum(len(s["crashes"]["abnormal"]) for s in group)
+        out.append(f"{name}: {len(group)} session(s), {sum(s['crashes']['game_exits'] for s in group)} game exit(s),"
+                   f" {abnormal} abnormal, {sum(s['crashes']['fex_faults'] for s in group)} FEX fault report(s)")
+        for s in group:
+            for item in s["crashes"]["abnormal"]:
+                out.append(f"  {s['session']}: {item['text']}")
     return "\n".join(out)
 
 
@@ -541,6 +614,8 @@ def _metrics(s: dict) -> list[tuple[str, object, bool]]:
         ("game memory max MB", mem.get("game_mb_max"), False),
         ("app memory max MB", mem.get("app_mb_max"), False),
         ("available min MB", mem.get("available_mb_min"), True),
+        ("abnormal exits", len(s["crashes"]["abnormal"]), False),
+        ("FEX fault reports", s["crashes"]["fex_faults"], False),
     ]
     return rows
 
@@ -589,6 +664,8 @@ def main(argv=None) -> int:
     if len(summaries) >= 2:
         print()
         print(compare(summaries))
+    print()
+    print(crashes_by_build(summaries))
     return 0
 
 

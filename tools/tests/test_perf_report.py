@@ -185,6 +185,50 @@ class PerfReportTest(unittest.TestCase):
         with redirect_stdout(out):
             self.assertEqual(perf_report.main([str(empty)]), 1)
 
+    def test_crashes_and_abnormal_exits_are_listed_per_build(self):
+        runs = self.root / "runs"
+        crashed = self.upload_zip(runs / "perf-all-1a2b3c4/Google-Pixel-10/b.zip", "2025-11-12-02-steam", "perf/all", [16.667] * 60)
+        with zipfile.ZipFile(crashed, "a") as z:
+            z.writestr("crash-lines.txt", "steam-x64.log: droiddeck-fex: SIGILL at 0x1 (si_code 01)\n"
+                                          "steam-x64.log:   in 7f00-7f10 r-xp /game.exe\n")
+            z.writestr("crash.log", "--------- beginning of crash\nF libc: Fatal signal 11 (SIGSEGV)\n")
+        extra = "".join(json.dumps(e) + "\n" for e in (
+            {"t": T0 + 90_000, "event": "game.exited", "sessionId": "x", "app_id": "2868840", "pid": 42, "run_s": 40.0,
+             "status": 139, "signal": 11, "abnormal": True, "how": "process gone, wrapper status",
+             "evidence": ["droiddeck-fex: SIGILL at 0x1 (si_code 01)"]},
+            {"t": T0 + 95_000, "event": "game.exited", "sessionId": "x", "app_id": "2868840", "run_s": 3.0,
+             "abnormal": False, "how": "process gone"},
+            {"t": T0 + 99_000, "event": "app.exit", "sessionId": "x", "reason": "anr", "abnormal": True,
+             "process": "dev.renxida.kestrel", "description": "Input dispatching timed out"},
+            {"t": T0 + 99_500, "event": "app.exit", "sessionId": "x", "reason": "user_requested", "abnormal": False},
+        ))
+        rewritten = self.root / "b.zip"
+        with zipfile.ZipFile(crashed) as src, zipfile.ZipFile(rewritten, "w") as dst:
+            for info in src.infolist():
+                data = src.read(info)
+                dst.writestr(info, data + extra.encode() if info.filename == "events.jsonl" else data)
+        rewritten.replace(crashed)
+        self.upload_zip(runs / "main-1a2b3c4/Google-Pixel-10/a.zip", "2025-11-12-01-steam", "main", [16.667] * 60)
+        [s] = [perf_report.summarize(x) for x in perf_report.load([crashed])]
+        cr = s["crashes"]
+        self.assertEqual((cr["game_exits"], cr["app_exits"], cr["fex_faults"], cr["android_crash_entries"]), (2, 2, 1, 1))
+        self.assertEqual([a["kind"] for a in cr["abnormal"]], ["game", "app"])
+        text = self.run_report(runs)
+        section = text.split("== crashes and abnormal exits by build", 1)[1]
+        self.assertIn("main-1a2b3c4: 1 session(s), 0 game exit(s), 0 abnormal", section)
+        self.assertIn("perf-all-1a2b3c4: 1 session(s), 2 game exit(s), 2 abnormal, 1 FEX fault report(s)", section)
+        self.assertIn("game 2868840 exit status 139 signal 11 after 40 s (process gone, wrapper status): droiddeck-fex: SIGILL", section)
+        self.assertIn("app dev.renxida.kestrel anr: Input dispatching timed out", section)
+        abnormal_row = next(line for line in text.splitlines() if line.strip().startswith("abnormal exits"))
+        self.assertIn("worse", abnormal_row)
+
+    def test_wrapper_exit_lines_count_when_there_are_no_exit_events(self):
+        text = "DROIDDECK_TIMELINE event=game_exit app_id=7 status=0 signal=0 run_ms=5000 wall_ms=%d\n" \
+               "DROIDDECK_TIMELINE event=game_exit app_id=7 status=1 signal=0 run_ms=900 wall_ms=%d\n" % (T0 + 1, T0 + 2)
+        cr = perf_report.parse_crashes([], {"session.log": text})
+        self.assertEqual(cr["game_exits"], 2)
+        self.assertEqual([a["text"] for a in cr["abnormal"]], ["game 7 exit status 1 after 1 s (wrapper)"])
+
     def test_json_output_is_machine_readable(self):
         session, _ = self.share_zips()
         out = io.StringIO()

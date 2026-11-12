@@ -41,12 +41,15 @@ object TelemetryUploader {
         }, "telemetry-upload").apply { isDaemon = true }
     }
     @Volatile private var checkpoint: Future<*>? = null
+    @Volatile private var lastImmediateMs = 0L
+    private const val IMMEDIATE_GAP_MS = 30_000L
 
     internal class Entry(val meta: File) {
         val json: JSONObject = runCatching { JSONObject(meta.readText()) }.getOrDefault(JSONObject())
         val zip: File get() = File(meta.path.removeSuffix(".json") + ".zip")
         val dir: File get() = File(json.optString("dir"))
         val path: String get() = json.optString("path")
+        val x64LogFrom: Long get() = json.optLong("x64_log_from", -1L)
         var sha: String?
             get() = json.optString("sha").ifEmpty { null }
             set(value) { json.put("sha", value ?: "") }
@@ -71,6 +74,7 @@ object TelemetryUploader {
             .put("dir", dir.path)
             .put("path", remotePath(BuildInfo.slug(), BuildInfo.deviceSlug(), System.currentTimeMillis()))
             .put("complete", false)
+            .put("x64_log_from", CrashEvidence.x64Log(context).length())
             .toString())
         prune(context)
         return Entry(meta)
@@ -104,10 +108,27 @@ object TelemetryUploader {
         executor.execute { runCatching { send(app, entry) } }
     }
 
-    /** At app start: sends what an earlier run left queued, rebuilding a crashed session's bundle from its folder first. */
+    /** Uploads a checkpoint now (a game ended abnormally), at most once every 30 seconds. */
+    fun uploadNow(context: Context, dir: File) {
+        val app = context.applicationContext
+        if (!TelemetryUploadSettings.active(app)) return
+        val now = System.currentTimeMillis()
+        if (now - lastImmediateMs < IMMEDIATE_GAP_MS) return
+        lastImmediateMs = now
+        executor.execute {
+            runCatching { entryFor(app, dir, create = true)?.takeIf { !it.complete }?.let { upload(app, it, complete = false, kind = "abnormal game exit") } }
+                .onFailure { Log.w(TAG, "immediate upload: ${it.javaClass.simpleName}") }
+        }
+    }
+
+    /**
+     * At app start: records how the app's processes last ended ([AppExits]), then sends what an
+     * earlier run left queued, rebuilding a crashed session's bundle from its folder first.
+     */
     fun flushPending(context: Context) {
         val app = context.applicationContext
         executor.execute {
+            runCatching { AppExits.record(app) }.onFailure { Log.w(TAG, "app exits: ${it.javaClass.simpleName}") }
             if (!TelemetryUploadSettings.active(app)) return@execute
             val metas = outbox(app).listFiles { f -> f.name.endsWith(".json") }?.sortedBy { it.lastModified() } ?: return@execute
             val running = com.droiddeck.launcher.session.SessionPaths.current()?.path
@@ -123,9 +144,10 @@ object TelemetryUploader {
         }
     }
 
-    private fun build(context: Context, entry: Entry, complete: Boolean): Boolean {
-        val note = "kind: ${if (complete) "final" else "checkpoint"}\nbuilt_ms: ${System.currentTimeMillis()}\npath: ${entry.path}"
-        val ok = TelemetryBundle.write(context, entry.dir, entry.zip, if (complete) FINAL_LOG_BYTES else CHECKPOINT_LOG_BYTES, note)
+    private fun build(context: Context, entry: Entry, complete: Boolean, kind: String? = null): Boolean {
+        val note = "kind: ${kind ?: if (complete) "final" else "checkpoint"}\nbuilt_ms: ${System.currentTimeMillis()}\npath: ${entry.path}"
+        val ok = TelemetryBundle.write(context, entry.dir, entry.zip, if (complete) FINAL_LOG_BYTES else CHECKPOINT_LOG_BYTES, note,
+            TelemetryBundle.sources(context, entry.dir, entry.x64LogFrom))
         if (ok && complete) {
             entry.complete = true
             entry.save()
@@ -133,8 +155,8 @@ object TelemetryUploader {
         return ok
     }
 
-    private fun upload(context: Context, entry: Entry, complete: Boolean) {
-        if (build(context, entry, complete)) send(context, entry)
+    private fun upload(context: Context, entry: Entry, complete: Boolean, kind: String? = null) {
+        if (build(context, entry, complete, kind)) send(context, entry)
     }
 
     private fun send(context: Context, entry: Entry) {
@@ -174,8 +196,7 @@ object TelemetryUploader {
     /** PUT with the base64 body streamed from the zip; returns the HTTP code, or -1 when offline. */
     private fun put(url: String, token: String, entry: Entry): Int {
         val zip = entry.zip
-        val head = JSONObject().put("message", "telemetry ${entry.path}").apply { entry.sha?.let { put("sha", it) } }
-            .toString().removeSuffix("}") + ",\"content\":\""
+        val head = requestHead(entry.path, entry.sha)
         val tail = "\"}"
         val b64 = (zip.length() + 2) / 3 * 4
         val conn = try { connect(url, token, "PUT") } catch (e: IOException) { return -1 }
@@ -201,6 +222,14 @@ object TelemetryUploader {
             conn.disconnect()
         }
     }
+
+    /**
+     * The JSON body up to the base64 content. No branch: the contents API then writes to the default
+     * branch, and on an empty repository its first PUT creates that branch with the first commit.
+     */
+    internal fun requestHead(path: String, sha: String?): String =
+        JSONObject().put("message", "telemetry $path").apply { sha?.let { put("sha", it) } }
+            .toString().removeSuffix("}") + ",\"content\":\""
 
     private fun currentSha(url: String, token: String): String? {
         val conn = try { connect(url, token, "GET") } catch (e: IOException) { return null }

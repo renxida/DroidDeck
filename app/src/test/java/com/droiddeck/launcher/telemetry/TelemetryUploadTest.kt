@@ -99,6 +99,68 @@ class TelemetryUploadTest {
         }
     }
 
+    @Test fun theUploadBundleCarriesCrashEvidenceNewestFirst() {
+        val dir = session()
+        dir.resolve("session.log").appendText("droiddeck-fex: SIGILL at 0x00007f0000001000 (si_code 01), offset 0x00001000\n" +
+            "  in 7f0000000000-7f0000100000 r-xp 00000000 00:00 0 /game/libmono.so\nordinary line\n")
+        dir.resolve("crash.log").writeText("--------- beginning of crash\nF libc: Fatal signal 11\n")
+        dir.resolve("${AppExits.TRACE_PREFIX}1762941700000-anr.txt").writeText("\"main\" prio=5 tid=1 Blocked\n")
+        dir.resolve("games/20251112-100000-abc-2868840").mkdirs()
+        dir.resolve("games/20251112-100000-abc-2868840/steam-2868840.log").writeText("wine: Unhandled page fault on read access\n")
+        val x64 = File(tmp.root, "steam-x64.log").apply { writeText("before the session\n") }
+        val from = x64.length()
+        x64.appendText("DROIDDECK_TIMELINE event=game_exec app_id=2868840 wall_ms=1762941610000\nUnhandled exception. System.NullReferenceException\n")
+        val compat = File(tmp.root, "compatdata")
+        val logs = File(compat, "2868840/pfx/drive_c/users/steamuser/AppData/Roaming/SlayTheSpire2/logs").apply { mkdirs() }
+        File(logs, "godot2025-11-12T09.00.00.log").apply { writeText("old run\n"); setLastModified(1762941600000L - 3_600_000) }
+        File(logs, "godot.log").apply { writeText("Godot Engine v4\nCrashHandlerException: Program crashed\n"); setLastModified(1762941700000L) }
+        val unity = File(compat, "400/pfx/drive_c/users/steamuser/AppData/LocalLow/Studio/Game").apply { mkdirs() }
+        File(unity, "Player.log").apply { writeText("unity\n"); setLastModified(1762941650000L) }
+        val upload = File(tmp.root, "upload.zip")
+        val sources = TelemetryBundle.Sources(1762941600000L, x64, from, listOf(compat))
+        assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint", sources))
+        ZipFile(upload).use { archive ->
+            val names = archive.entries().toList().map { it.name }
+            fun text(name: String) = archive.getInputStream(archive.getEntry(name)).bufferedReader().readText()
+            val lines = text(CrashEvidence.LINES_FILE)
+            assertTrue(lines.contains("session.log: droiddeck-fex: SIGILL at"))
+            assertTrue(lines.contains("session.log:   in 7f0000000000"))
+            assertTrue(lines.contains("steam-x64.log: DROIDDECK_TIMELINE event=game_exec app_id=2868840"))
+            assertTrue(lines.contains("steam-x64.log: Unhandled exception."))
+            assertFalse(lines.contains("ordinary line"))
+            assertTrue(text("crash.log").contains("Fatal signal 11"))
+            assertTrue(names.contains("${AppExits.TRACE_PREFIX}1762941700000-anr.txt"))
+            assertFalse(text("steam-x64.log").contains("before the session"))
+            assertTrue(text("proton/20251112-100000-abc-2868840/steam-2868840.log").contains("Unhandled page fault"))
+            val game = "game-logs/2868840/AppData/Roaming/SlayTheSpire2/logs/godot.log"
+            assertTrue(text(game).contains("Program crashed"))
+            assertFalse(names.any { it.contains("godot2025") })
+            assertTrue(names.indexOf(game) < names.indexOf("game-logs/400/AppData/LocalLow/Studio/Game/Player.log"))
+        }
+    }
+
+    @Test fun theFirstUploadNamesNoBranchSoAnEmptyRepositoryGetsItsFirstCommit() {
+        val first = org.json.JSONObject(TelemetryUploader.requestHead("runs/a/b/c.zip", null) + "QQ==\"}")
+        assertEquals(setOf("message", "content"), first.keys().asSequence().toSet())
+        assertEquals("telemetry runs/a/b/c.zip", first.getString("message"))
+        assertEquals("QQ==", first.getString("content"))
+        val update = org.json.JSONObject(TelemetryUploader.requestHead("runs/a/b/c.zip", "abc123") + "QQ==\"}")
+        assertEquals("abc123", update.getString("sha"))
+        assertFalse(update.has("branch"))
+    }
+
+    @Test fun appExitsAttachToTheSessionThatWasRunning() {
+        val dir = session()
+        val start = TelemetryBundle.sessionStartMs(dir)
+        assertEquals(1762941600000L, start)
+        dir.listFiles()!!.forEach { it.setLastModified(start + 600_000) }
+        assertTrue(AppExits.wasActive(dir, start + 620_000))
+        assertFalse(AppExits.wasActive(dir, start + 3_600_000))
+        assertFalse(AppExits.wasActive(dir, start - 1))
+        assertEquals("anr", AppExits.reasonName(android.app.ApplicationExitInfo.REASON_ANR))
+        assertEquals("crash_native", AppExits.reasonName(android.app.ApplicationExitInfo.REASON_CRASH_NATIVE))
+    }
+
     @Test fun settingsRejectMalformedValues() {
         assertFalse(TelemetryUploadSettings.setToken(app, "short"))
         assertFalse(TelemetryUploadSettings.setToken(app, "has space in it but is long enough"))

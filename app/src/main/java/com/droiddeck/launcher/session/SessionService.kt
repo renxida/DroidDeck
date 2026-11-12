@@ -552,7 +552,8 @@ class SessionService : Service() {
             File(sessionDir, com.droiddeck.launcher.telemetry.FrameLogComponent.FILE),
             File(LinuxRuntime.rootDir(this), com.droiddeck.launcher.hud.HudFrames.PATH),
             if (steamHere) listOf("arm64", "x86_64").map { File(SessionPrefs.steamRoot(this, it), "logs/connection_log.txt") } else emptyList(),
-        ).let {
+            listOf(File(sessionDir, "session.log"), com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this)),
+        ) { exit -> if (exit.abnormal) com.droiddeck.launcher.telemetry.TelemetryUploader.uploadNow(this, sessionDir) }.let {
             it.attach(this)
             components.add(it)
         }
