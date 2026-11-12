@@ -129,7 +129,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
                 }
             }
         }
-        g.disconnect()
+        runCatching { g.disconnect() }.onFailure { Log.w(TAG, "disconnect", it) }
         g.close()
         Log.i(TAG, "disconnected: $why")
         listener?.invoke()
