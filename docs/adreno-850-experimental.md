@@ -56,8 +56,7 @@ in the source tree or installed automatically by these changes.
 
 To try the bundle, stop the session and wait for any automatic driver check
 or download to finish. Note the existing driver selections, then use
-**Components → GPU drivers → Mix and match → Import .zip**. This is a GPU
-driver bundle, not a Decky plugin ZIP. Confirm that both the Android display
+**Components → GPU drivers → Mix and match → Import .zip**. Confirm that both the Android display
 and Linux game drivers are selected, then fully exit and reopen the app.
 Keep **Session → Performance → Session repair → Turnip: sysmem rendering**
 enabled as advised by the original Linux driver metadata.

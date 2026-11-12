@@ -146,7 +146,7 @@ s.bind(("127.0.0.1", int(sys.argv[1])))' "$1" 2>/dev/null; then
       BL_CDP_PORT=$1
       return 0
     fi
-    echo "== steam: port $1 is held by another app; Decky cannot load this session and Steam's devtools use another port"
+    echo "== steam: port $1 is held by another app; Steam's devtools use another port"
   fi
   BL_CDP_PORT=$((20000 + RANDOM % 30000))
   _bl_cdp=(-cef-enable-debugging -devtools-port "$BL_CDP_PORT")
@@ -1361,49 +1361,10 @@ case $mode in
       echo "== steam: open driver pair - software CEF compositing, GPU raster"
     fi
     _bl_cef=(-cef-force-gpu "${bl_steam_presentation[@]}" -cef-use-gl=angle "-cef-use-angle=$bl_steam_angle")
-    decky_loader=$HOME/homebrew/services/PluginLoader
-    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ -x "$decky_loader" ]; then
-      decky_arch=$(cat "$HOME/homebrew/services/.droiddeck-decky-arch" 2>/dev/null || echo unknown)
-      if [ "$decky_arch" = arm64 ] || { [ "$decky_arch" = x86_64 ] && /usr/local/bin/droiddeck-fex prepare >/dev/null; }; then
-        (
-          decky_child=
-          decky_stop() { [ -z "$decky_child" ] || kill "$decky_child" 2>/dev/null; [ -z "$decky_child" ] || wait "$decky_child" 2>/dev/null; exit 0; }
-          trap decky_stop TERM INT HUP
-          decky_exits=0
-          # The guest has no "deck" user, which Decky otherwise requires at startup.
-          export UNPRIVILEGED_USER=root
-          while :; do
-            if [ "$decky_arch" = x86_64 ]; then /usr/local/bin/droiddeck-fex run --mode on -- "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
-            else "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
-            fi
-            decky_child=$!
-            decky_status=0
-            wait "$decky_child" || decky_status=$?
-            decky_child=
-            decky_exits=$((decky_exits + 1))
-            if [ "$decky_exits" -ge 5 ]; then
-              echo "== Decky: stopped after $decky_exits loader exits (last status $decky_status)"
-              break
-            fi
-            decky_delay=$((decky_exits * 3))
-            echo "== Decky: loader exited with status $decky_status; restart $((decky_exits + 1))/5 in ${decky_delay}s"
-            sleep "$decky_delay"
-          done
-        ) &
-        decky_supervisor=$!
-        echo "== Decky: session supervisor started ($decky_arch)"
-      else
-        echo "== Decky: installed loader architecture is unsupported by this guest; not starting"
-      fi
-    fi
     steam_devtools 8080
     export BL_CDP_PORT
-    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ "${decky_arch:-}" = x86_64 ] && [ ${#_bl_cdp[@]} = 0 ]; then
-      echo "== steam: devtools port $BL_CDP_PORT left open for the x86_64 Decky loader"
-    else
-      export BL_CDP_GUARD=$BL_CDP_PORT
-      echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
-    fi
+    export BL_CDP_GUARD=$BL_CDP_PORT
+    echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
     [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
     if [ "$steam_x64" = 1 ]; then
       { droiddeck-steam-compat --files-only "$steam_root" 2>&1 & }
@@ -1912,20 +1873,10 @@ case $mode in
       wait "$games_watcher" 2>/dev/null || true
     fi
     if [ -n "${BL_DESKTOP:-}" ]; then
-      if [ -n "${decky_supervisor:-}" ]; then
-        kill "$decky_supervisor" 2>/dev/null || true
-        wait "$decky_supervisor" 2>/dev/null || true
-        echo "== Decky: session supervisor stopped"
-      fi
       _bl_jobs=$(jobs -p)
       [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
       echo "== steam: the client on the desktop has exited"
     else
-      if [ -n "${decky_supervisor:-}" ]; then
-        kill "$decky_supervisor" 2>/dev/null || true
-        wait "$decky_supervisor" 2>/dev/null || true
-        echo "== Decky: session supervisor stopped"
-      fi
       _bl_jobs=$(jobs -p)
       [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
       reap_orphans

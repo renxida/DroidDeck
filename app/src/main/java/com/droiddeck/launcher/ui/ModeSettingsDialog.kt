@@ -8,14 +8,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -25,10 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import com.droiddeck.launcher.core.FexPreset
-import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.BootMovie
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
@@ -98,15 +92,6 @@ class ModeSettings(
     val bootMovieImporting: Boolean = false,
     val bootMovieProgress: Int = -1,
     val integration: com.droiddeck.launcher.core.SteamIntegration.State? = null,
-    val deckyInstalled: String? = null,
-    val deckyLatestRelease: DeckyManager.Release? = null,
-    val deckyBranch: Int = DeckyManager.BRANCH_STABLE,
-    val deckyChecking: Boolean = false,
-    val deckyStage: String? = null,
-    val deckyPercent: Int = -1,
-    val deckyDownloadingBinary: Boolean = false,
-    val deckyEnabled: Boolean = false,
-    val deckySessionRunning: Boolean = false,
 )
 
 class ModeSettingsActions(
@@ -154,12 +139,6 @@ class ModeSettingsActions(
     val onIntegration: (com.droiddeck.launcher.core.SteamIntegration.Feature) -> Unit = {},
     val onIntegrationAppInfo: () -> Unit = {},
     val onIntegrationLocation: () -> Unit = {},
-    val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
-    val onDeckyCheck: () -> Unit = {},
-    val onDeckyBranch: (Int) -> Unit = {},
-    val onDeckyEnabled: (Boolean) -> Unit = {},
-    val onDeckyUninstall: () -> Unit = {},
-    val onPickDeckyPluginZip: () -> Unit = {},
     val onDismiss: () -> Unit,
 )
 
@@ -462,75 +441,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     }
     if (tab == SheetTab.STEAM && steam) {
         extras.account(host)
-        SettingsGroup(stringResource(R.string.mode_decky)) {
-            val updateAvailable = s.deckyInstalled != null && s.deckyLatestRelease != null &&
-                s.deckyInstalled != s.deckyLatestRelease.tag
-            val status = when {
-                s.deckyStage != null -> s.deckyStage
-                s.deckyChecking -> stringResource(R.string.mode_decky_checking)
-                s.deckyInstalled == null && s.deckyLatestRelease != null -> stringResource(R.string.mode_decky_ready, s.deckyLatestRelease.tag)
-                s.deckyInstalled == null -> stringResource(R.string.mode_decky_none)
-                s.deckyLatestRelease == null -> stringResource(R.string.mode_decky_installed, s.deckyInstalled)
-                updateAvailable -> stringResource(R.string.mode_decky_update, s.deckyLatestRelease.tag)
-                else -> stringResource(R.string.mode_decky_current, s.deckyInstalled)
-            }
-            SettingsRow(stringResource(R.string.mode_decky_loader), status) {
-                val action = when {
-                    s.deckyStage != null -> stringResource(R.string.common_working)
-                    s.deckyChecking -> stringResource(R.string.common_checking)
-                    s.deckyInstalled == null && s.deckyLatestRelease != null -> stringResource(R.string.mode_decky_install_latest)
-                    s.deckyInstalled != null && updateAvailable -> stringResource(R.string.common_update)
-                    else -> stringResource(R.string.common_check)
-                }
-                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
-                    SecondaryButton(
-                        action,
-                        enabled = s.deckyStage == null && !s.deckyChecking && !s.deckySessionRunning,
-                    ) {
-                        if (s.deckyLatestRelease == null || (s.deckyInstalled != null && !updateAvailable)) a.onDeckyCheck()
-                        else s.deckyLatestRelease?.let(a.onDeckyInstall)
-                    }
-                    if (s.deckyInstalled != null) DeckyUninstall(enabled = s.deckyStage == null && !s.deckySessionRunning, onUninstall = a.onDeckyUninstall)
-                }
-            }
-            ChoiceRow(
-                host, "decky-channel", stringResource(R.string.decky_channel),
-                stringResource(R.string.decky_channel_hint),
-                listOf(
-                    DeckyManager.BRANCH_STABLE to stringResource(R.string.decky_channel_stable),
-                    DeckyManager.BRANCH_PRERELEASE to stringResource(R.string.decky_channel_prerelease),
-                ) + if (s.deckyBranch == DeckyManager.BRANCH_TESTING) listOf(
-                    DeckyManager.BRANCH_TESTING to stringResource(R.string.decky_channel_testing),
-                ) else emptyList(),
-                s.deckyBranch,
-                enabled = s.deckyStage == null && !s.deckySessionRunning,
-                onPick = a.onDeckyBranch,
-            )
-            if (s.deckyInstalled != null) ToggleRow(
-                host, "decky-enabled", stringResource(R.string.mode_decky),
-                if (s.deckyEnabled) stringResource(R.string.mode_decky_on)
-                else stringResource(R.string.mode_decky_off),
-                s.deckyEnabled,
-                enabled = !s.deckySessionRunning && s.deckyStage == null,
-                onChange = a.onDeckyEnabled,
-            )
-            SettingsRow(
-                stringResource(R.string.mode_decky_plugins),
-                stringResource(R.string.mode_decky_plugins_hint),
-            ) {
-                SecondaryButton(
-                    if (s.deckyStage != null && s.deckyDownloadingBinary) stringResource(R.string.mode_decky_plugin_downloading) else stringResource(R.string.mode_decky_plugin_install_zip),
-                    enabled = s.deckyInstalled != null && s.deckyStage == null && !s.deckySessionRunning,
-                    onClick = a.onPickDeckyPluginZip,
-                )
-            }
-            if (s.deckyStage != null && s.deckyPercent >= 0) {
-                LinearProgressIndicator(
-                    progress = { s.deckyPercent / 100f },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-                )
-            }
-        }
         SettingsGroup(stringResource(R.string.mode_client)) {
             ToggleRow(
                 host, "mangoapp", stringResource(R.string.mode_mangoapp),
@@ -590,61 +500,6 @@ internal fun ProtonOptions(
     )
     ToggleRow(host, "ssbs", stringResource(R.string.force_ssbs_title), stringResource(R.string.force_ssbs_hint), forceSsbs, onChange = onForceSsbs)
     GameEnvironmentRow()
-}
-
-@Composable
-internal fun DeckyZipWarningDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var left by remember { mutableIntStateOf(if (SessionPrefs.deckyZipWarningSeen(context)) 0 else DECKY_ZIP_WARNING_SECONDS) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        while (left > 0) {
-            kotlinx.coroutines.delay(1000L)
-            left--
-        }
-        SessionPrefs.setDeckyZipWarningSeen(context)
-    }
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text(stringResource(R.string.decky_zip_warning_title)) },
-        text = { Text(stringResource(R.string.decky_zip_warning_text)) },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onConfirm, enabled = left == 0, modifier = Modifier.focusGlide(CircleShape)) {
-                Text(
-                    if (left > 0) androidx.compose.ui.res.pluralStringResource(R.plurals.decky_zip_warning_wait, left, left)
-                    else stringResource(R.string.decky_zip_warning_continue),
-                )
-            }
-        },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onCancel, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
-    )
-}
-
-private const val DECKY_ZIP_WARNING_SECONDS = 5
-
-@Composable
-private fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val label = stringResource(R.string.common_uninstall)
-    val title = stringResource(R.string.mode_decky_remove_title)
-    val note = stringResource(R.string.mode_decky_remove_text)
-    val cancel = stringResource(R.string.common_cancel)
-    var at by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
-    androidx.compose.foundation.layout.Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
-        SecondaryButton(label, enabled = enabled) {
-            val from = at ?: return@SecondaryButton
-            Steps.ask(StepAsk(
-                anchor = from, side = StepSide.Left, accent = colors.error, pillCorner = 12.dp, items = 3,
-                handle = { Text(label, fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = colors.error, maxLines = 1) },
-            ) {
-                StepTitle(title)
-                Text(note, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
-                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.End), modifier = Modifier.stepItem(2)) {
-                    StepChoice(cancel, enabled = open, modifier = Modifier.focusRequester(first)) { Steps.fold() }
-                    StepChoice(label, danger = true, enabled = open) { Steps.fold(); onUninstall() }
-                }
-            })
-        }
-    }
 }
 
 @Composable

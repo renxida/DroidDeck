@@ -63,8 +63,7 @@ ADB access remains a trust boundary, and ADB input can operate the device's own 
 
 The helper exchanges private files with the app and adds no network listener. The guarded Steam
 DevTools port is bound to loopback and accepts only peers with a fresh private registration for a
-live socket descriptor, matching socket inode, destination port, and address family. The existing
-x86_64 Decky loader exception remains: that mode does not enable the guest-only acceptance guard.
+live socket descriptor, matching socket inode, destination port, and address family.
 
 Requests are limited to 256 KiB of encoded JSON. Guest responses and DevTools messages are limited
 to 1 MiB; provider replies above 384 Ki characters return `RESPONSE_TOO_LARGE` to avoid overflowing

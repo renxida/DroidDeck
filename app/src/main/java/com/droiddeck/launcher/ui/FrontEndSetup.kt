@@ -92,7 +92,7 @@ internal object SetupTabs {
     var openLauncher = false
     var openOverview = false
 }
-private const val SYNC_TAB = 4
+private const val DIAGNOSTICS_TAB = 4
 
 @Composable
 internal fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
@@ -189,7 +189,7 @@ internal fun SetupPanel(
         onDismiss = { editDownloadProxy = false },
         onSave = { a.onDownloadProxy(it); editDownloadProxy = false },
     )
-    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_sync), stringResource(R.string.setup_tab_diagnostics))
+    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_diagnostics))
     var tab by rememberSaveable { mutableStateOf(if (SetupTabs.openLauncher) LAUNCHER_TAB else 0) }
     var logsRefresh by remember { mutableStateOf(0) }
     var deleteSessionLogs by remember { mutableStateOf<java.io.File?>(null) }
@@ -197,7 +197,7 @@ internal fun SetupPanel(
     if (SetupTabs.openOverview) { tab = 0; SetupTabs.openOverview = false }
     val chipFocus = remember { List(tabs.size) { FocusRequester() } }
     var tabTurned by remember { mutableStateOf(false) }
-    val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true; if (i == 5) logsRefresh++ }
+    val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true; if (i == DIAGNOSTICS_TAB) logsRefresh++ }
     val inputModeManager = LocalInputModeManager.current
     LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
         if (com.droiddeck.launcher.storage.StorageState.openPending) {
@@ -210,18 +210,6 @@ internal fun SetupPanel(
             kotlinx.coroutines.delay(2_000)
             a.onRefreshPhantomStatus()
         }
-    }
-    LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
-        if (com.droiddeck.launcher.sync.Syncthing.openPending) {
-            com.droiddeck.launcher.sync.Syncthing.openPending = false
-            tab = SYNC_TAB
-        }
-    }
-    var syncAdvanced by rememberSaveable { mutableStateOf(false) }
-    if (syncAdvanced) {
-        androidx.activity.compose.BackHandler { syncAdvanced = false }
-        SyncAdvancedPage(host) { syncAdvanced = false }
-        return
     }
     LaunchedEffect(tab) {
         if (tabTurned && inputModeManager.inputMode == InputMode.Keyboard) {
@@ -570,8 +558,7 @@ internal fun SetupPanel(
                         }
                     }
                     STORAGE_TAB -> StoragePanel(s, a)
-                    SYNC_TAB -> SyncPanel(host, runtimeOk) { syncAdvanced = true }
-                    5 -> {
+                    DIAGNOSTICS_TAB -> {
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(

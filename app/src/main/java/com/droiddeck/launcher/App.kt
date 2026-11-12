@@ -43,7 +43,6 @@ class App : Application() {
         BwrapSpawner.start(this)
         com.droiddeck.launcher.runtime.RootSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
-        com.droiddeck.launcher.sync.Syncthing.init(this)
     }
 
     private fun prefetchAddonPacks() {

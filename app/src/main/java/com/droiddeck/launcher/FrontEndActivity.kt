@@ -35,7 +35,6 @@ import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
-import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.PackageRow
 import com.droiddeck.launcher.ui.exposeTestTags
@@ -93,7 +92,6 @@ class FrontEndActivity : ComponentActivity() {
     private val ui = Handler(Looper.getMainLooper())
     private val drivers = DriverMenus(this, ui)
     private val components = ComponentsMenu(this, ui)
-    private val decky = DeckyMenu(this, ui)
     private val updates = UpdatesMenu(this, ui)
     private val protons = ProtonMenu(
         this, ui,
@@ -250,9 +248,6 @@ class FrontEndActivity : ComponentActivity() {
     }
     private val pickAndroidDriver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { drivers.importDriver(it, linux = false) }
-    }
-    private val pickDeckyPluginZip = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { decky.importPluginZip(it) }
     }
     private val pickBootMovie = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importBootMovie(it) }
@@ -1018,9 +1013,6 @@ class FrontEndActivity : ComponentActivity() {
             }
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
-                if (decky.deckyPendingZip != null) com.droiddeck.launcher.ui.DeckyZipWarningDialog(
-                    onConfirm = { decky.confirmPluginZip() }, onCancel = { decky.cancelPluginZip() },
-                )
                 slowUsb?.let { drive ->
                     com.droiddeck.launcher.ui.SlowUsbDialog(drive, slowUsbNever, { slowUsbNever = it }) {
                         com.droiddeck.launcher.session.UsbLink.markShown(this, drive)
@@ -1768,9 +1760,6 @@ class FrontEndActivity : ComponentActivity() {
         refreshHomeAppState()
         refreshSecondScreenDisplays()
         refresh()
-        decky.deckyInstalled = DeckyManager.installed(this)
-        DeckyManager.syncCefMarker(this)
-        decky.deckySupervisor = DeckyManager.supervisorEnabled(this)
         refreshAddedGames()
         if (catalog == null) loadDesktopCatalog()
         if (!busy) Thread({ checkCatalog() }, "catalog").start()
@@ -2205,12 +2194,6 @@ class FrontEndActivity : ComponentActivity() {
                 bootMovieImporting = bootMovieImporting,
                 bootMovieProgress = bootMovieProgress,
                 integration = if (mode == SessionService.MODE_STEAM) integrationState else null,
-                deckyInstalled = if (mode == SessionService.MODE_STEAM) decky.deckyInstalled else null,
-                deckyLatestRelease = if (mode == SessionService.MODE_STEAM) decky.deckyLatest else null,
-                deckyBranch = decky.deckyBranch,
-                deckyChecking = decky.deckyChecking, deckyStage = decky.deckyStage, deckyPercent = decky.deckyPercent,
-                deckyDownloadingBinary = decky.deckyDownloadingBinary,
-                deckyEnabled = decky.deckySupervisor, deckySessionRunning = SessionState.running,
             ),
             ModeSettingsActions(
                 onIntegration = ::configureIntegration,
@@ -2302,18 +2285,6 @@ class FrontEndActivity : ComponentActivity() {
                     pickBootMovie.launch(InAppFilePicker.buildIntent(this, com.droiddeck.launcher.session.BootMovie.PICKER_EXTENSIONS, getString(R.string.boot_movie_pick)))
                 },
                 onBootMovieChanged = { loadBootMovie() },
-                onDeckyInstall = { release -> decky.installDecky(release) },
-                onDeckyCheck = { decky.refreshDecky() },
-                onDeckyBranch = { branch -> decky.switchDeckyBranch(branch) },
-                onDeckyEnabled = { enabled -> DeckyManager.setSupervisorEnabled(this, enabled); decky.deckySupervisor = enabled },
-                onDeckyUninstall = {
-                    DeckyManager.uninstall(this, wipeData = false)
-                    decky.deckyInstalled = null
-                    decky.deckySupervisor = false
-                },
-                onPickDeckyPluginZip = {
-                    pickDeckyPluginZip.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.main_pick_decky_zip)))
-                },
                 onDismiss = {},
             ),
             tab, extras,
@@ -2500,15 +2471,8 @@ class FrontEndActivity : ComponentActivity() {
         Thread({
             drivers.refreshDrivers()
             val storage = GameStorage.options(this)
-            val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
-            val deckySupervisor = mode == SessionService.MODE_STEAM && DeckyManager.supervisorEnabled(this)
             ui.post {
                 storageOptions = storage
-                if (mode == SessionService.MODE_STEAM) {
-                    decky.deckyInstalled = deckyInstalled
-                    decky.deckySupervisor = deckySupervisor
-                    decky.refreshDecky()
-                }
                 fetchAddedGameArt()
             }
         }, "mode-settings").start()

@@ -155,11 +155,6 @@ first failed because the desktop exports zink over the arm64 Turnip ICD; those v
 `LIBGL_DRI3_DISABLE=1`: over DRI3 the X server hands out the GPU node and Mesa's software path then
 tries KMS dumb buffers on it in a loop.
 
-Decky's loader talks to the client's CEF debugging port. Its marker
-(`.cef-enable-remote-debugging`) is kept in both clients' roots, because the session reads it from the
-client it runs. The app creates it in the x86-64 root only once that client is installed: the folder
-alone would then read as an installed client.
-
 ## FEX build and patches
 
 - `tools/fex/build-in-arch.sh` runs in an Arch Linux ARM container (`menci/archlinuxarm:base-devel`)

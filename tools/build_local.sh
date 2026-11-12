@@ -348,27 +348,6 @@ else
     (cd "${proot_out}" && shasum -a 256 libproot.so libproot-loader.so > .proot-outputs)
 fi
 
-syncthing_src="${repo_root}/tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing"
-git -C "${repo_root}" submodule update --init --recursive tools/syncthing/syncthing-android
-syncthing_inputs=$(printf '%s\n' "$(cd "${repo_root}" && shasum -a 256 tools/syncthing/build.sh \
-    tools/syncthing/syncthing-android/gradle/libs.versions.toml)" \
-    "$(git -C "${syncthing_src}" rev-parse HEAD)" \
-    "$(git -C "${syncthing_src}" diff --binary HEAD | shasum -a 256)" \
-    "$(cd "${syncthing_src}" && git ls-files -z --others --exclude-standard | xargs -0 shasum -a 256)" \
-    "${ndk_version}" | shasum -a 256 | cut -d' ' -f1)
-if [[ -f "${proot_out}/libsyncthingnative.so" \
-        && "$(cat "${proot_out}/.syncthing-inputs" 2>/dev/null)" = "${syncthing_inputs}" ]]; then
-    echo "syncthing: sources unchanged, keeping ${proot_out}/libsyncthingnative.so"
-else
-    syncthing_stage="${staging_dir}/syncthing"
-    if ! restore_step syncthing "${syncthing_inputs}" "${syncthing_stage}"; then
-        "${repo_root}/tools/syncthing/build.sh" "${syncthing_stage}"
-        save_step syncthing "${syncthing_inputs}" "${syncthing_stage}"
-    fi
-    install -m755 "${syncthing_stage}/libsyncthingnative.so" "${proot_out}/"
-    echo "${syncthing_inputs}" > "${proot_out}/.syncthing-inputs"
-fi
-
 bundle_dir="${staging_dir}/pulseaudio-bundle"
 mkdir -p "${bundle_dir}"
 zstd -dc "${bundle_asset}" | tar -xf - -C "${bundle_dir}"
