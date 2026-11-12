@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Συντομεύσεις φυσικών κουμπιών</string>
-    <string name="shortcuts_dd_menu">Μενού DroidDeck</string>
+    <string name="shortcuts_dd_menu">Μενού Kestrel</string>
     <string name="shortcuts_capture">Αντιστοίχιση: %1$s</string>
     <string name="shortcuts_press">Πατήστε και αφήστε ένα κουμπί. Η αντιστοίχιση αποθηκεύεται αυτόματα.</string>
     <string name="shortcuts_release">Αφήστε το κουμπί για συνέχεια.</string>

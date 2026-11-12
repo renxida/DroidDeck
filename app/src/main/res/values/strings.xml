@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">Kestrel</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>
         <item>By default, leaving the app pauses Steam; it picks up where it left off when you come back.</item>
@@ -130,7 +130,7 @@
     <string name="user_apps_remove">Remove</string>
     <string name="user_apps_stop_session">Stop the session to remove</string>
     <string name="user_apps_script_linked">Runs %1$s from its folder, linked into the session where it lies. Removing the app leaves that folder alone.</string>
-    <string name="user_apps_script_copied">Runs %1$s from a copy of its folder inside DroidDeck. Removing the app deletes the copy, not the original.</string>
+    <string name="user_apps_script_copied">Runs %1$s from a copy of its folder inside Kestrel. Removing the app deletes the copy, not the original.</string>
     <string name="user_apps_runtime_required">Install the Linux runtime first</string>
     <string name="user_apps_file_gone">The file is gone</string>
     <string name="user_apps_no_space">Not enough free space: copying the folder needs %1$s</string>
@@ -165,8 +165,8 @@
     <string name="app_fex_off">Off</string>
     <string name="app_fex_hint">FEX runs x86 Linux programs on this ARM64 device. Auto uses it when the program is built for x86.</string>
     <string name="app_fex_x86">%1$s through FEX</string>
-    <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: DroidDeck has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
-    <string name="session_proot_missing">DroidDeck\'s proot could not be downloaded. Check the connection and try again. The session was not started, because the fallback proot is too slow to play on.</string>
+    <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: Kestrel has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
+    <string name="session_proot_missing">Kestrel\'s proot could not be downloaded. Check the connection and try again. The session was not started, because the fallback proot is too slow to play on.</string>
     <string name="session_powervr_missing">The PowerVR graphics runtime could not be downloaded. Check the connection and try again.</string>
     <string name="session_directaudio_missing">DirectAudio could not be downloaded, so game audio uses the slower path this session.</string>
     <string name="session_end_program">This program</string>
@@ -206,7 +206,7 @@
     <string name="edit_app_save">Save</string>
     <string name="add_app_checking_folder">Checking the folder…</string>
     <string name="add_app_folder_linked">Its folder is linked into the session: %1$s</string>
-    <string name="add_app_folder_copied">Its folder holds Linux programs, which shared storage cannot run, so it is copied into DroidDeck (%1$s).</string>
+    <string name="add_app_folder_copied">Its folder holds Linux programs, which shared storage cannot run, so it is copied into Kestrel (%1$s).</string>
     <string name="add_app_confirm">Add</string>
     <string name="add_app_cancel">Cancel</string>
     <string name="add_app_runtime_required">Install the Linux runtime from Setup first.</string>
@@ -260,7 +260,7 @@
     <string name="back_double_tap_window">Double-tap window</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">Allow brightness control</string>
-    <string name="brightness_permission_text">Set up brightness control in DroidDeck.</string>
+    <string name="brightness_permission_text">Set up brightness control in Kestrel.</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
     <string name="mode_session">Session</string>
@@ -274,12 +274,12 @@
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
     <string name="mode_startup_session">Open at launch</string>
-    <string name="mode_startup_session_hint">Starts this session when DroidDeck launches.</string>
+    <string name="mode_startup_session_hint">Starts this session when Kestrel launches.</string>
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Performance overlay</string>
     <string name="mode_mangoapp_hint">Turn off if games crash or go black in Deck mode. Applies next session.</string>
-    <string name="mode_return_after_game">Return to DroidDeck after a game</string>
-    <string name="mode_return_after_game_hint">When a game you started from DroidDeck or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
+    <string name="mode_return_after_game">Return to Kestrel after a game</string>
+    <string name="mode_return_after_game_hint">When a game you started from Kestrel or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
     <string name="mode_shader_precache">Shader pre-caching</string>
     <string name="mode_shader_precache_hint">Steam downloads shaders prebuilt for your games and processes them in the background, so games stutter less. Off saves data, storage and battery; games build shaders as they play instead. The same setting as Steam’s Downloads > Shader Pre-Caching. Applies next session.</string>
     <string name="mode_steam_repair">Repair Steam client</string>
@@ -364,7 +364,7 @@
     <string name="libraries_found_hint">Found on this device · %1$s · %2$s</string>
     <string name="libraries_add_found">Add</string>
     <string name="libraries_access_title">Find libraries on internal storage</string>
-    <string name="libraries_access_hint">Allow all files access so DroidDeck can see Steam libraries other apps keep on internal storage</string>
+    <string name="libraries_access_hint">Allow all files access so Kestrel can see Steam libraries other apps keep on internal storage</string>
     <string name="libraries_access_allow">Allow</string>
     <string name="libraries_used_inner">Added %1$s, the Steam library inside the folder you chose</string>
     <string name="mode_storage_note">Games that stream assets from SD or shared storage may stutter.</string>
@@ -801,7 +801,7 @@
     <string name="setup_language_system">System default (%1$s)</string>
     <string name="setup_language_system_short">System default</string>
     <string name="setup_app_scale">App scale</string>
-    <string name="setup_app_scale_hint">DroidDeck text and controls</string>
+    <string name="setup_app_scale_hint">Kestrel text and controls</string>
     <string name="setup_app_scale_default">%1$d%% (Default)</string>
     <string name="setup_theme">Theme</string>
     <string name="setup_theme_hint">Launcher appearance</string>
@@ -881,13 +881,13 @@
     <string name="gate_fix_for_me">Fix it for me</string>
     <string name="gate_toggle_steps">Turn on “Disable child process restrictions”, then come back. Leave Developer options on, or the switch turns off again.</string>
     <string name="gate_open_dev">Open Developer options</string>
-    <string name="gate_no_toggle">This Android version has no switch for it, so DroidDeck changes it over Wireless debugging. Takes about a minute, no computer needed.</string>
+    <string name="gate_no_toggle">This Android version has no switch for it, so Kestrel changes it over Wireless debugging. Takes about a minute, no computer needed.</string>
     <string name="gate_needs_wifi">Wireless debugging needs Wi-Fi. Any network works; it doesn\'t need internet.</string>
-    <string name="gate_needs_notifications">The pairing code goes in a notification. Allow notifications for DroidDeck, or use Other ways.</string>
+    <string name="gate_needs_notifications">The pairing code goes in a notification. Allow notifications for Kestrel, or use Other ways.</string>
     <string name="gate_allow_notifications">Allow notifications</string>
     <string name="gate_step1">Open Settings → Developer options → Wireless debugging and turn it on</string>
     <string name="gate_step2">Tap “Pair device with pairing code”</string>
-    <string name="gate_step3">Type the code into the DroidDeck notification</string>
+    <string name="gate_step3">Type the code into the Kestrel notification</string>
     <string name="pairguide_build_number">In About phone, tap Build number 7 times</string>
     <string name="pairguide_wireless">Turn on Wireless debugging</string>
     <string name="pairguide_pair">Open Wireless debugging, then tap “Pair device with pairing code”</string>
@@ -988,7 +988,7 @@
     <string name="desktop_removing">Removing desktop</string>
     <string name="desktop_removed">Desktop removed</string>
     <string name="desktop_cleaning_legacy">Removing old LXQt files</string>
-    <string name="desktop_removal_unknown">Update DroidDeck before removing this desktop version.</string>
+    <string name="desktop_removal_unknown">Update Kestrel before removing this desktop version.</string>
     <string name="content_linux_desktop">Linux desktop</string>
     <string name="games_empty">Games you install in Steam show up here after the session.</string>
     <string name="games_play_steam">Play Steam</string>
@@ -1017,8 +1017,8 @@
     <string name="gpu_hide_other">Hide drivers for other GPUs</string>
     <string name="gpu_show_other">Show drivers for other GPUs</string>
     <string name="gpu_ubwc_title">UBWC compatibility</string>
-    <string name="gpu_ubwc_hint">Try On or Off if Steam or Android shows stripes or flickering. Applies to both drivers after restarting DroidDeck.</string>
-    <string name="gpu_ubwc_restart">Restart DroidDeck to apply.</string>
+    <string name="gpu_ubwc_hint">Try On or Off if Steam or Android shows stripes or flickering. Applies to both drivers after restarting Kestrel.</string>
+    <string name="gpu_ubwc_restart">Restart Kestrel to apply.</string>
     <string name="gpu_runtime_hint">Used by games and the desktop.</string>
     <string name="gpu_runtime_default">Runtime default</string>
     <string name="gpu_auto_by_gpu">Auto - picked by GPU</string>
@@ -1104,7 +1104,7 @@
     <string name="unfolded_controls_with_controller_hint">Also show these touch controls while a controller is connected.</string>
     <string name="pip_suspended">Suspended</string>
     <string name="pip_not_ready">Picture in picture is available once the session is ready.</string>
-    <string name="pip_permission">Allow picture in picture for DroidDeck in Android settings.</string>
+    <string name="pip_permission">Allow picture in picture for Kestrel in Android settings.</string>
     <string name="pip_unavailable">Android could not open picture in picture.</string>
     <string name="game_more">More</string>
     <string name="game_edit_art">Edit art</string>
@@ -1117,7 +1117,7 @@
     <string name="game_link_copied">Launch link copied</string>
     <string name="game_shortcut_unsupported">This launcher cannot add shortcuts. Use Copy launch link instead.</string>
     <string name="game_link_invalid">Invalid game launch link.</string>
-    <string name="game_link_missing">This game is no longer in your DroidDeck library.</string>
+    <string name="game_link_missing">This game is no longer in your Kestrel library.</string>
     <string name="game_link_session_busy">Stop the current session before launching a Steam game.</string>
     <string name="game_link_failed">Could not send the game to Steam. Try launching it again.</string>
     <string name="setup_retry_removal">Retry removal</string>
@@ -1218,22 +1218,22 @@
     <string name="drivers_recommended_unpublished">The recommended drivers aren\'t published right now</string>
     <string name="drivers_downloading_pair">Downloading %1$s %2$s…</string>
     <string name="drivers_updated_to">Updated to %1$s %2$s.</string>
-    <string name="drivers_updated_to_restart">Updated to %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
+    <string name="drivers_updated_to_restart">Updated to %1$s %2$s. The display driver applies after Kestrel restarts.</string>
     <string name="drivers_auto_waits_for_session">Driver updates wait until the session ends.</string>
     <string name="drivers_auto_waits_for_network">%1$s %2$s will download once you\'re off mobile data and battery saver.</string>
     <string name="drivers_skipping_bad">%1$s %2$s didn\'t start a session here, so Auto is staying on the drivers that did.</string>
     <string name="drivers_rolled_back">%1$s didn\'t start a session twice, so Auto went back to the drivers that worked.</string>
     <string name="drivers_switched_to">Switched to %1$s %2$s.</string>
-    <string name="drivers_switched_to_restart">Switched to %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
+    <string name="drivers_switched_to_restart">Switched to %1$s %2$s. The display driver applies after Kestrel restarts.</string>
     <string name="drivers_using">Using %1$s %2$s.</string>
-    <string name="drivers_using_restart">Using %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
+    <string name="drivers_using_restart">Using %1$s %2$s. The display driver applies after Kestrel restarts.</string>
     <string name="drivers_using_quest">Using the bundled Quest display driver and runtime default.</string>
-    <string name="drivers_using_quest_restart">Using the bundled Quest display driver and runtime default. The display driver applies after DroidDeck restarts.</string>
+    <string name="drivers_using_quest_restart">Using the bundled Quest display driver and runtime default. The display driver applies after Kestrel restarts.</string>
     <string name="drivers_not_a_driver">Not a driver zip: neither an AdrenoTools driver, a -Linux Turnip nor an Android + Linux bundle</string>
     <string name="drivers_import_failed">Import failed: %1$s</string>
     <string name="drivers_imported_unnamed">Imported driver</string>
     <string name="drivers_using_bundle">Using %1$s as both the runtime and display driver.</string>
-    <string name="drivers_using_bundle_restart">Using %1$s as both the runtime and display driver. The display driver applies after DroidDeck restarts.</string>
+    <string name="drivers_using_bundle_restart">Using %1$s as both the runtime and display driver. The display driver applies after Kestrel restarts.</string>
     <string name="drivers_deleted_bundle">Deleted %1$s (both drivers)</string>
     <string name="drivers_deleted">Deleted %1$s</string>
     <string name="drivers_release_status">Latest: %1$s · checked %2$s</string>
@@ -1463,7 +1463,7 @@
     <string name="fm_decline">Decline</string>
     <string name="fm_drive_not_readable">%1$s is mounted but not readable right now</string>
     <string name="fm_drive_access_title">Allow access to %1$s</string>
-    <string name="fm_drive_access_text">Android lets DroidDeck see this drive but not read it. Turn on All files access for DroidDeck, then come back.</string>
+    <string name="fm_drive_access_text">Android lets Kestrel see this drive but not read it. Turn on All files access for Kestrel, then come back.</string>
     <string name="fm_list_view">List view</string>
     <string name="fm_grid_view">Grid view</string>
     <string name="fm_search">Search</string>
@@ -1627,12 +1627,12 @@
     <string name="bottom_page_chat">Chat &amp; voice</string>
     <string name="bottom_chat_why">Read and answer Steam chat here while the game keeps running on the main screen. It uses the account Steam is signed in with.</string>
     <string name="bottom_chat_not_signed_in">Steam has no web sign-in to share yet, so sign in here once.</string>
-    <string name="bottom_chat_stopped">Android closed the chat page while DroidDeck was in the background. It opens again when you come back to DroidDeck.</string>
+    <string name="bottom_chat_stopped">Android closed the chat page while Kestrel was in the background. It opens again when you come back to Kestrel.</string>
     <string name="bottom_chat_open">Open Steam Chat</string>
     <string name="bottom_chat_close">Close chat</string>
     <string name="bottom_chat_mic_on">Mic on</string>
     <string name="bottom_chat_mic_off">Mic off</string>
-    <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in DroidDeck\'s Steam settings (Audio) and start the game again.</string>
+    <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in Kestrel\'s Steam settings (Audio) and start the game again.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
@@ -1683,7 +1683,7 @@
     <string name="flatpakmgr_not_ready">Set up Flatpak first</string>
     <string name="flatpakmgr_starting">Starting</string>
     <string name="flatpakmgr_exit_status">Flatpak exited with status %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s is built for %2$s, which DroidDeck can\'t run. Flatpak apps here need an ARM64 or x86_64 build.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s is built for %2$s, which Kestrel can\'t run. Flatpak apps here need an ARM64 or x86_64 build.</string>
     <string name="flatpakmgr_installing">Installing %1$s</string>
     <string name="flatpakmgr_updating">Updating %1$s</string>
     <string name="flatpakmgr_removing">Removing %1$s</string>
@@ -1718,7 +1718,7 @@
     <string name="adbfix_no_pairing">No Wireless debugging pairing is saved</string>
     <string name="adbfix_enter_address">Enter the current Wireless debugging IP address &amp; Port</string>
 
-    <string name="adbpair_timed_out">Timed out waiting for the pairing pop-up. Try again from DroidDeck.</string>
+    <string name="adbpair_timed_out">Timed out waiting for the pairing pop-up. Try again from Kestrel.</string>
     <string name="adbpair_discovery_failed_code">Could not look for the pairing pop-up (%1$d). Check that Wi-Fi is on.</string>
     <string name="adbpair_discovery_failed">Could not look for the pairing pop-up: %1$s</string>
     <string name="adbpair_six_digits">Enter all 6 digits of the code</string>
@@ -1741,7 +1741,7 @@
     <string name="adbpair_enter_code">Enter code</string>
     <string name="adbpair_title_working">Setting up Steam</string>
     <string name="adbpair_title_done">Steam is ready</string>
-    <string name="adbpair_done_text">Tap to go back to DroidDeck. You can turn Wireless debugging off now.</string>
+    <string name="adbpair_done_text">Tap to go back to Kestrel. You can turn Wireless debugging off now.</string>
     <string name="adbpair_title_failed">Wireless debugging setup stopped</string>
 
 
@@ -1829,7 +1829,7 @@
     <string name="gpuinfo_xclipse">Experimental: RADV or the system Xclipse driver</string>
     <string name="gpu_system_powervr">System PowerVR</string>
     <string name="drivers_powervr_builtin">The system PowerVR driver is selected for the runtime and display.</string>
-    <string name="session_killed_for_memory">The last session ended because Android closed DroidDeck to free memory, not a crash. Close other apps or lower the game\'s texture settings, then try again.</string>
+    <string name="session_killed_for_memory">The last session ended because Android closed Kestrel to free memory, not a crash. Close other apps or lower the game\'s texture settings, then try again.</string>
     <string name="drivers_route_venus">Mali (Venus)</string>
     <string name="drivers_route_bridge">the Mali bridge</string>
     <string name="drivers_mali_no_pair_auto">No open driver covers this Mali yet: %1$s is used, on the phone\'s own driver.</string>
@@ -1906,7 +1906,7 @@
     <string name="cmgr_not_component_package">%1$s is not a Linux component package (type %2$s)</string>
     <string name="gstore_volume_free">%1$s · %2$s free</string>
     <string name="mode_storage_auto_short">Automatic</string>
-    <string name="main_adb_clip_label">DroidDeck child-process setting</string>
+    <string name="main_adb_clip_label">Kestrel child-process setting</string>
     <string name="setup_signed_in_offline_unnamed">Signed in · offline mode</string>
     <string name="setup_signed_in_unnamed">Signed in</string>
     <string name="driver_tag_bundled">BUNDLED</string>
@@ -2063,7 +2063,7 @@
     <string name="gpu_display_next">Draws the screen. Applies from the next session.</string>
     <string name="gpu_previous_driver">the previous driver</string>
     <string name="gpu_restart_banner">Restart to switch the display driver.</string>
-    <string name="gpu_restart_blocked">Stop the running session, then restart DroidDeck to switch the display driver.</string>
+    <string name="gpu_restart_blocked">Stop the running session, then restart Kestrel to switch the display driver.</string>
     <string name="gpu_restart_now">Restart now</string>
     <string name="gpu_restart_later">Later</string>
     <string name="gpu_auto_title">Auto picked this pair for your %1$s</string>
@@ -2132,7 +2132,7 @@
     <string name="touch_speed_normal">Normal</string>
     <string name="touch_speed_fast">Fast</string>
     <string name="touch_edit_layout">Edit layout</string>
-    <string name="touch_droiddeck_menu">DroidDeck menu</string>
+    <string name="touch_droiddeck_menu">Kestrel menu</string>
     <string name="touch_drag_hint">Drag controls onto the screen</string>
     <string name="touch_arrange">Arrange</string>
     <string name="touch_discard">Discard</string>
@@ -2188,7 +2188,7 @@
     <string name="storage_internal">Internal storage</string>
     <string name="storage_used_of">%1$s of %2$s used</string>
     <string name="storage_free">%1$s free</string>
-    <string name="storage_droiddeck_uses">DroidDeck uses %1$s. Measured at %2$s.</string>
+    <string name="storage_droiddeck_uses">Kestrel uses %1$s. Measured at %2$s.</string>
     <string name="storage_rescanning">measuring again…</string>
     <string name="storage_other_apps">Other Android apps</string>
     <string name="storage_safe_now">Safe to free now</string>
@@ -2204,14 +2204,14 @@
     <string name="storage_desktop">Desktop apps</string>
     <string name="storage_system">Linux system &amp; Steam client</string>
     <string name="storage_system_hint">Needed to run anything</string>
-    <string name="storage_app_data">DroidDeck data</string>
+    <string name="storage_app_data">Kestrel data</string>
     <string name="storage_app_data_hint">Old session logs %1$s · caches · drivers</string>
     <string name="storage_legend_games">Games</string>
     <string name="storage_legend_data">Game data</string>
     <string name="storage_legend_tools">Proton &amp; runtimes</string>
     <string name="storage_legend_desktop">Desktop apps</string>
     <string name="storage_legend_system">Linux system</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">Kestrel</string>
     <string name="storage_clean_up_title">Clean up</string>
     <string name="storage_clean_up_lede">Nothing here touches your installed games or downloads in progress.</string>
     <string name="storage_nothing_to_clean">Nothing to clean up right now.</string>
@@ -2261,8 +2261,8 @@
     <string name="storage_tool_fex">Runs Linux x86 games</string>
     <string name="storage_tool_steam">Steam tool</string>
     <string name="storage_tool_anticheat">Steam downloads this for games that ship anti-cheat, even when it is off. Removing it stalls their install at 0%</string>
-    <string name="storage_tool_old_runtime">DroidDeck runs games without this runtime</string>
-    <string name="storage_tool_x86_proton">x86 Proton, which DroidDeck cannot run</string>
+    <string name="storage_tool_old_runtime">Kestrel runs games without this runtime</string>
+    <string name="storage_tool_x86_proton">x86 Proton, which Kestrel cannot run</string>
     <string name="storage_tool_custom_default">Default for every game</string>
     <string name="storage_tool_custom_unused">No game is set to it</string>
     <string name="storage_tool_custom_unknown">Steam’s settings could not be read, so it is kept</string>
@@ -2297,8 +2297,8 @@
         <item quantity="one">%d game</item>
         <item quantity="other">%d games</item>
     </plurals>
-    <string name="storage_tool_default_proton">DroidDeck’s default Proton</string>
-    <string name="storage_tool_proton">DroidDeck’s Proton 11 option</string>
+    <string name="storage_tool_default_proton">Kestrel’s default Proton</string>
+    <string name="storage_tool_proton">Kestrel’s Proton 11 option</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">Used by %d game</item>
         <item quantity="other">Used by %d games</item>
@@ -2361,13 +2361,13 @@
     <string name="boot_movie_import">Import</string>
     <string name="boot_movie_remove">Remove</string>
     <string name="boot_movie_remove_confirm">Remove %1$s?</string>
-    <string name="boot_movie_remove_confirm_body">This deletes the movie from DroidDeck and from Steam\'s movies folder.</string>
+    <string name="boot_movie_remove_confirm_body">This deletes the movie from Kestrel and from Steam\'s movies folder.</string>
     <string name="boot_movie_pick">Choose a boot movie</string>
     <string name="boot_movie_imported">%1$s is now the boot movie</string>
     <string name="boot_movie_imported_silent">%1$s is now the boot movie, without sound</string>
     <string name="boot_movie_too_long">Movies that need converting must be %1$d seconds or shorter</string>
     <string name="boot_movie_converting">Converting %1$d%%</string>
-    <string name="boot_movie_converting_started">Converting %1$s for Steam. Keep DroidDeck open.</string>
+    <string name="boot_movie_converting_started">Converting %1$s for Steam. Keep Kestrel open.</string>
     <string name="boot_movie_unsupported">This device cannot decode that video.</string>
     <string name="boot_movie_import_failed">Could not import that movie</string>
     <string name="boot_movie_tab_installed">Installed</string>
@@ -2382,7 +2382,7 @@
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">Points Shop</string>
     <string name="boot_movie_report">Boot movie report</string>
-    <string name="boot_movie_report_hint">Saves what DroidDeck and Steam know about boot movies to a text file you can attach to a bug report.</string>
+    <string name="boot_movie_report_hint">Saves what Kestrel and Steam know about boot movies to a text file you can attach to a bug report.</string>
     <string name="boot_movie_report_save">Save</string>
     <string name="boot_movie_report_saved">Saved to %1$s</string>
     <string name="boot_movie_report_failed">Could not save the report.</string>
@@ -2422,22 +2422,22 @@
     <string name="session_end_vulkan_device">The Linux graphics driver could not find a usable Vulkan device. Check that the selected Linux GPU driver supports this GPU.</string>
     <string name="setup_group_memory">Memory</string>
     <string name="setup_clear_cached">Clear cached apps before a session</string>
-    <string name="setup_clear_cached_hint">When a session starts, DroidDeck closes the apps Android keeps parked in the background, so the game has more memory. Wireless debugging must be on.</string>
-    <string name="setup_clear_cached_unpaired">Needs DroidDeck paired with Wireless debugging (Pair, below).</string>
+    <string name="setup_clear_cached_hint">When a session starts, Kestrel closes the apps Android keeps parked in the background, so the game has more memory. Wireless debugging must be on.</string>
+    <string name="setup_clear_cached_unpaired">Needs Kestrel paired with Wireless debugging (Pair, below).</string>
     <string name="setup_memory_hud">Memory readout</string>
-    <string name="setup_memory_hud_hint">Memory and swap in use, on the session screen. Advanced splits it into the game, DroidDeck, Android and the GPU.</string>
+    <string name="setup_memory_hud_hint">Memory and swap in use, on the session screen. Advanced splits it into the game, Kestrel, Android and the GPU.</string>
     <string name="setup_memory_hud_simple">Simple</string>
     <string name="setup_memory_hud_advanced">Advanced</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">game %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">game %1$s · Kestrel %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">Background apps during a session</string>
-    <string name="setup_bg_limit_hint">While a session runs, Android keeps at most this many apps cached and closes the rest, so the game has their memory. DroidDeck puts the limit back as it was when the session ends. Wireless debugging must be on.</string>
+    <string name="setup_bg_limit_hint">While a session runs, Android keeps at most this many apps cached and closes the rest, so the game has their memory. Kestrel puts the limit back as it was when the session ends. Wireless debugging must be on.</string>
     <string name="setup_bg_limit_4">At most 4</string>
     <string name="setup_bg_limit_1">At most 1</string>
     <string name="setup_bg_limit_0">None</string>
     <string name="setup_adb_pair">Wireless debugging</string>
-    <string name="setup_adb_pair_hint">Pairs DroidDeck with Android\'s Wireless debugging for the options above. The child-process limit stays off.</string>
+    <string name="setup_adb_pair_hint">Pairs Kestrel with Android\'s Wireless debugging for the options above. The child-process limit stays off.</string>
     <string name="setup_adb_pair_button">Pair</string>
     <string name="library_filter_added">Added</string>
     <string name="game_tab_about">About</string>
@@ -2476,11 +2476,11 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win key and Home button stay in the session</string>
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_restricted">Blocked by Android · App info → ⋮ → Allow restricted settings</string>
-    <string name="integration_shortcuts_service">DroidDeck system keys</string>
-    <string name="integration_shortcuts_service_description">Keep Alt+Tab, the Win key and the Home button inside a focused DroidDeck session instead of Android.</string>
+    <string name="integration_shortcuts_service">Kestrel system keys</string>
+    <string name="integration_shortcuts_service_description">Keep Alt+Tab, the Win key and the Home button inside a focused Kestrel session instead of Android.</string>
     <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
     <string name="desktop_restore_title">Restoring your software</string>
-    <string name="desktop_restore_body">Reinstalling the apps you added after a DroidDeck update.</string>
+    <string name="desktop_restore_body">Reinstalling the apps you added after a Kestrel update.</string>
     <string name="desktop_restore_done_title">Software restored</string>
     <string name="desktop_restore_done_body">The apps you added are installed again.</string>
     <string name="desktop_restore_failed_title">Some software couldn\'t be restored</string>

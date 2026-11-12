@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Physische Tastenkürzel</string>
-    <string name="shortcuts_dd_menu">DroidDeck-Menü</string>
+    <string name="shortcuts_dd_menu">Kestrel-Menü</string>
     <string name="shortcuts_capture">Zuweisen: %1$s</string>
     <string name="shortcuts_press">Drücke eine Taste und lasse sie los. Die Zuweisung wird automatisch gespeichert.</string>
     <string name="shortcuts_release">Lasse die Taste los, um fortzufahren.</string>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Scorciatoie dei pulsanti fisici</string>
-    <string name="shortcuts_dd_menu">Menu DroidDeck</string>
+    <string name="shortcuts_dd_menu">Menu Kestrel</string>
     <string name="shortcuts_capture">Assegna: %1$s</string>
     <string name="shortcuts_press">Premi e rilascia un pulsante. L’assegnazione viene salvata automaticamente.</string>
     <string name="shortcuts_release">Rilascia il pulsante per continuare.</string>

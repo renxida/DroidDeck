@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">Kestrel</string>
     <string-array name="loading_hints">
         <item>První spuštění stáhne Steam. Může to trvat několik minut.</item>
         <item>Ve výchozím nastavení se po opuštění aplikace Steam pozastaví; po návratu pokračuje, kde skončil.</item>
@@ -130,7 +130,7 @@
     <string name="user_apps_remove">Odebrat</string>
     <string name="user_apps_stop_session">Pro odebrání ukončete relaci</string>
     <string name="user_apps_script_linked">Spouští %1$s ze své složky, propojené do relace tam, kde se nachází. Odebráním aplikace zůstane tato složka nedotčena.</string>
-    <string name="user_apps_script_copied">Spouští %1$s z kopie své složky uvnitř DroidDeck. Odebráním aplikace se smaže kopie, ne originál.</string>
+    <string name="user_apps_script_copied">Spouští %1$s z kopie své složky uvnitř Kestrel. Odebráním aplikace se smaže kopie, ne originál.</string>
     <string name="user_apps_runtime_required">Nejprve nainstalujte běhové prostředí Linuxu</string>
     <string name="user_apps_file_gone">Soubor zmizel</string>
     <string name="user_apps_no_space">Nedostatek volného místa: zkopírování složky vyžaduje %1$s</string>
@@ -165,8 +165,8 @@
     <string name="app_fex_off">Vypnuto</string>
     <string name="app_fex_hint">FEX spouští programy pro x86 Linux na tomto zařízení ARM64. Automaticky ho použije, když je program sestaven pro x86.</string>
     <string name="app_fex_x86">%1$s přes FEX</string>
-    <string name="app_fex_not_ready">Tento program je sestaven pro PC %1$s a běží přes FEX, který ještě není nastaven. Jednou spusťte přihlášený Steam: DroidDeck tím stáhne FEX a Steam Linux Runtime, který potřebuje, a pak se tento program otevře.</string>
-    <string name="session_proot_missing">Proot od DroidDeck se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu. Relace nebyla spuštěna, protože záložní proot je na hraní příliš pomalý.</string>
+    <string name="app_fex_not_ready">Tento program je sestaven pro PC %1$s a běží přes FEX, který ještě není nastaven. Jednou spusťte přihlášený Steam: Kestrel tím stáhne FEX a Steam Linux Runtime, který potřebuje, a pak se tento program otevře.</string>
+    <string name="session_proot_missing">Proot od Kestrel se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu. Relace nebyla spuštěna, protože záložní proot je na hraní příliš pomalý.</string>
     <string name="session_powervr_missing">Grafické prostředí PowerVR se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu.</string>
     <string name="session_directaudio_missing">DirectAudio se nepodařilo stáhnout, takže zvuk her v této relaci používá pomalejší cestu.</string>
     <string name="session_end_program">Tento program</string>
@@ -205,7 +205,7 @@
     <string name="edit_app_save">Uložit</string>
     <string name="add_app_checking_folder">Kontrola složky…</string>
     <string name="add_app_folder_linked">Její složka je propojena do relace: %1$s</string>
-    <string name="add_app_folder_copied">Její složka obsahuje programy pro Linux, které sdílené úložiště nemůže spustit, proto se zkopíruje do DroidDeck (%1$s).</string>
+    <string name="add_app_folder_copied">Její složka obsahuje programy pro Linux, které sdílené úložiště nemůže spustit, proto se zkopíruje do Kestrel (%1$s).</string>
     <string name="add_app_confirm">Přidat</string>
     <string name="add_app_cancel">Zrušit</string>
     <string name="add_app_runtime_required">Nejprve nainstalujte běhové prostředí Linuxu v Nastavení.</string>
@@ -259,7 +259,7 @@
     <string name="back_double_tap_window">Interval dvojitého klepnutí</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">Povolit ovládání jasu</string>
-    <string name="brightness_permission_text">Nastavte ovládání jasu v DroidDeck.</string>
+    <string name="brightness_permission_text">Nastavte ovládání jasu v Kestrel.</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
     <string name="mode_session">Relace</string>
@@ -273,12 +273,12 @@
     <string name="mode_suspend_note">Automaticky pozastaví na pozadí a obnoví při zobrazení. Manuálně čeká na Obnovit. Nikdy běh nezastavuje.</string>
     <string name="mode_startup">Spouštění</string>
     <string name="mode_startup_session">Otevřít při spuštění</string>
-    <string name="mode_startup_session_hint">Spustí tuto relaci při spuštění DroidDeck.</string>
+    <string name="mode_startup_session_hint">Spustí tuto relaci při spuštění Kestrel.</string>
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Výkonový overlay</string>
     <string name="mode_mangoapp_hint">Vypněte, pokud hry v režimu Deck padají nebo zčernají. Použije se od příští relace.</string>
-    <string name="mode_return_after_game">Po hře se vrátit do DroidDeck</string>
-    <string name="mode_return_after_game_hint">Když se zavře hra spuštěná z DroidDeck nebo jiného launcheru, Steam se čistě ukončí (nejprve dokončí cloudová uložení) a vrátíte se tam. Vypnuto: zůstanete ve Steamu.</string>
+    <string name="mode_return_after_game">Po hře se vrátit do Kestrel</string>
+    <string name="mode_return_after_game_hint">Když se zavře hra spuštěná z Kestrel nebo jiného launcheru, Steam se čistě ukončí (nejprve dokončí cloudová uložení) a vrátíte se tam. Vypnuto: zůstanete ve Steamu.</string>
     <string name="mode_shader_precache">Předběžné ukládání shaderů</string>
     <string name="mode_shader_precache_hint">Steam stahuje předem sestavené shadery pro vaše hry a zpracovává je na pozadí, takže hry méně trhají. Vypnutí šetří data, úložiště a baterii; hry pak shadery sestavují během hraní. Stejné nastavení jako Stahování > Předběžné ukládání shaderů ve Steamu. Použije se od příští relace.</string>
     <string name="mode_steam_repair">Opravit klienta Steam</string>
@@ -752,7 +752,7 @@
     <string name="setup_language_system">Výchozí systémový (%1$s)</string>
     <string name="setup_language_system_short">Výchozí systémový</string>
     <string name="setup_app_scale">Měřítko aplikace</string>
-    <string name="setup_app_scale_hint">Text a ovládání DroidDeck</string>
+    <string name="setup_app_scale_hint">Text a ovládání Kestrel</string>
     <string name="setup_app_scale_default">%1$d %% (výchozí)</string>
     <string name="setup_theme">Téma</string>
     <string name="setup_theme_hint">Vzhled spouštěče</string>
@@ -827,13 +827,13 @@
     <string name="gate_fix_for_me">Oprav to za mě</string>
     <string name="gate_toggle_steps">Zapněte „Deaktivace omezení podřízených procesů“ a vraťte se zpět. Nechte Možnosti pro vývojáře zapnuté, jinak se přepínač znovu vypne.</string>
     <string name="gate_open_dev">Otevřít Možnosti pro vývojáře</string>
-    <string name="gate_no_toggle">Tato verze Androidu pro to nemá přepínač, proto to DroidDeck změní přes Bezdrátové ladění. Zabere to asi minutu, počítač není potřeba.</string>
+    <string name="gate_no_toggle">Tato verze Androidu pro to nemá přepínač, proto to Kestrel změní přes Bezdrátové ladění. Zabere to asi minutu, počítač není potřeba.</string>
     <string name="gate_needs_wifi">Bezdrátové ladění potřebuje Wi-Fi. Funguje jakákoli síť, internet není nutný.</string>
-    <string name="gate_needs_notifications">Párovací kód se zobrazí v oznámení. Povolte oznámení pro DroidDeck, nebo použijte Jiné způsoby.</string>
+    <string name="gate_needs_notifications">Párovací kód se zobrazí v oznámení. Povolte oznámení pro Kestrel, nebo použijte Jiné způsoby.</string>
     <string name="gate_allow_notifications">Povolit oznámení</string>
     <string name="gate_step1">Otevřete Nastavení → Možnosti pro vývojáře → Bezdrátové ladění a zapněte ho</string>
     <string name="gate_step2">Klepněte na „Spárovat zařízení pomocí párovacího kódu“</string>
-    <string name="gate_step3">Zadejte kód do oznámení DroidDecku</string>
+    <string name="gate_step3">Zadejte kód do oznámení Kestrelu</string>
     <string name="pairguide_build_number">V části O telefonu klepněte 7krát na Číslo sestavení</string>
     <string name="pairguide_wireless">Zapněte Bezdrátové ladění</string>
     <string name="pairguide_pair">Otevřete Bezdrátové ladění a klepněte na „Spárovat zařízení pomocí párovacího kódu“</string>
@@ -934,7 +934,7 @@
     <string name="desktop_removing">Odstraňování desktopu</string>
     <string name="desktop_removed">Desktop odstraněn</string>
     <string name="desktop_cleaning_legacy">Odstraňování starých souborů LXQt</string>
-    <string name="desktop_removal_unknown">Před odstraněním této verze desktopu aktualizujte DroidDeck.</string>
+    <string name="desktop_removal_unknown">Před odstraněním této verze desktopu aktualizujte Kestrel.</string>
     <string name="content_linux_desktop">Linuxový desktop</string>
     <string name="games_empty">Hry, které nainstalujete ve Steamu, se zde zobrazí po relaci.</string>
     <string name="games_play_steam">Hrát ve Steamu</string>
@@ -963,8 +963,8 @@
     <string name="gpu_hide_other">Skrýt ovladače pro jiné GPU</string>
     <string name="gpu_show_other">Zobrazit ovladače pro jiné GPU</string>
     <string name="gpu_ubwc_title">Kompatibilita UBWC</string>
-    <string name="gpu_ubwc_hint">Pokud Steam nebo Android zobrazuje pruhy nebo blikání, zkuste Zapnuto nebo Vypnuto. Platí pro oba ovladače po restartu DroidDeck.</string>
-    <string name="gpu_ubwc_restart">Pro použití restartujte DroidDeck.</string>
+    <string name="gpu_ubwc_hint">Pokud Steam nebo Android zobrazuje pruhy nebo blikání, zkuste Zapnuto nebo Vypnuto. Platí pro oba ovladače po restartu Kestrel.</string>
+    <string name="gpu_ubwc_restart">Pro použití restartujte Kestrel.</string>
     <string name="gpu_runtime_hint">Používají hry a desktop.</string>
     <string name="gpu_runtime_default">Výchozí runtime</string>
     <string name="gpu_auto_by_gpu">Automaticky - podle GPU</string>
@@ -1041,7 +1041,7 @@
     <string name="unfolded_controls_with_controller_hint">Zobrazovat toto dotykové ovládání i při připojeném ovladači.</string>
     <string name="pip_suspended">Pozastaveno</string>
     <string name="pip_not_ready">Obraz v obraze bude dostupný, jakmile bude relace připravena.</string>
-    <string name="pip_permission">Povolte obraz v obraze pro DroidDeck v nastavení Androidu.</string>
+    <string name="pip_permission">Povolte obraz v obraze pro Kestrel v nastavení Androidu.</string>
     <string name="pip_unavailable">Android nemohl otevřít obraz v obraze.</string>
     <string name="game_more">Další</string>
     <string name="game_edit_art">Upravit grafiku</string>
@@ -1054,7 +1054,7 @@
     <string name="game_link_copied">Odkaz pro spuštění zkopírován</string>
     <string name="game_shortcut_unsupported">Tento spouštěč neumí přidávat zkratky. Použijte místo toho Kopírovat odkaz pro spuštění.</string>
     <string name="game_link_invalid">Neplatný odkaz pro spuštění hry.</string>
-    <string name="game_link_missing">Tato hra už není ve vaší knihovně DroidDeck.</string>
+    <string name="game_link_missing">Tato hra už není ve vaší knihovně Kestrel.</string>
     <string name="game_link_session_busy">Před spuštěním hry ze Steamu zastavte aktuální relaci.</string>
     <string name="game_link_failed">Hru se nepodařilo odeslat do Steamu. Zkuste ji spustit znovu.</string>
     <string name="setup_retry_removal">Zkusit odstranění znovu</string>
@@ -1163,22 +1163,22 @@
     <string name="drivers_recommended_unpublished">Doporučené ovladače nejsou právě zveřejněné</string>
     <string name="drivers_downloading_pair">Stahování %1$s %2$s…</string>
     <string name="drivers_updated_to">Aktualizováno na %1$s %2$s.</string>
-    <string name="drivers_updated_to_restart">Aktualizováno na %1$s %2$s. Ovladač zobrazení se použije po restartu DroidDecku.</string>
+    <string name="drivers_updated_to_restart">Aktualizováno na %1$s %2$s. Ovladač zobrazení se použije po restartu Kestrelu.</string>
     <string name="drivers_auto_waits_for_session">Aktualizace ovladačů počkají, až se relace zastaví.</string>
     <string name="drivers_auto_waits_for_network">%1$s %2$s se stáhne, jakmile opustíš mobilní data a spořič baterie.</string>
     <string name="drivers_skipping_bad">%1$s %2$s tady nespustil relaci, takže Automaticky zůstává u ovladačů, které ano.</string>
     <string name="drivers_rolled_back">%1$s dvakrát nespustil relaci, takže Automaticky se vrátil k ovladačům, které fungovaly.</string>
     <string name="drivers_switched_to">Přepnuto na %1$s %2$s.</string>
-    <string name="drivers_switched_to_restart">Přepnuto na %1$s %2$s. Ovladač zobrazení se použije po restartu DroidDecku.</string>
+    <string name="drivers_switched_to_restart">Přepnuto na %1$s %2$s. Ovladač zobrazení se použije po restartu Kestrelu.</string>
     <string name="drivers_using">Používá se %1$s %2$s.</string>
-    <string name="drivers_using_restart">Používá se %1$s %2$s. Ovladač zobrazení se použije po restartu DroidDecku.</string>
+    <string name="drivers_using_restart">Používá se %1$s %2$s. Ovladač zobrazení se použije po restartu Kestrelu.</string>
     <string name="drivers_using_quest">Používá se přibalený obrazový ovladač pro Quest a výchozí prostředí.</string>
-    <string name="drivers_using_quest_restart">Používá se přibalený obrazový ovladač pro Quest a výchozí prostředí. Obrazový ovladač platí po restartu DroidDeck.</string>
+    <string name="drivers_using_quest_restart">Používá se přibalený obrazový ovladač pro Quest a výchozí prostředí. Obrazový ovladač platí po restartu Kestrel.</string>
     <string name="drivers_not_a_driver">Toto není ZIP s ovladačem: ani ovladač AdrenoTools, ani Turnip -Linux, ani balíček Android + Linux</string>
     <string name="drivers_import_failed">Import se nezdařil: %1$s</string>
     <string name="drivers_imported_unnamed">Importovaný ovladač</string>
     <string name="drivers_using_bundle">%1$s se používá jako ovladač runtime i zobrazení.</string>
-    <string name="drivers_using_bundle_restart">%1$s se používá jako ovladač runtime i zobrazení. Ovladač zobrazení se použije po restartu DroidDecku.</string>
+    <string name="drivers_using_bundle_restart">%1$s se používá jako ovladač runtime i zobrazení. Ovladač zobrazení se použije po restartu Kestrelu.</string>
     <string name="drivers_deleted_bundle">Odstraněno %1$s (oba ovladače)</string>
     <string name="drivers_deleted">Odstraněno %1$s</string>
     <string name="drivers_release_status">Nejnovější: %1$s · zkontrolováno %2$s</string>
@@ -1428,7 +1428,7 @@
     <string name="fm_decline">Odmítnout</string>
     <string name="fm_drive_not_readable">%1$s je připojeno, ale momentálně není čitelné</string>
     <string name="fm_drive_access_title">Povolit přístup k %1$s</string>
-    <string name="fm_drive_access_text">Android umožňuje aplikaci DroidDeck tento disk vidět, ale ne číst. Zapněte pro DroidDeck Přístup ke všem souborům a pak se vraťte.</string>
+    <string name="fm_drive_access_text">Android umožňuje aplikaci Kestrel tento disk vidět, ale ne číst. Zapněte pro Kestrel Přístup ke všem souborům a pak se vraťte.</string>
     <string name="fm_list_view">Zobrazení seznamu</string>
     <string name="fm_grid_view">Zobrazení mřížky</string>
     <string name="fm_search">Hledat</string>
@@ -1552,12 +1552,12 @@
     <string name="bottom_page_chat">Chat a hlas</string>
     <string name="bottom_chat_why">Čtěte chat Steamu a odpovídejte na něj zde, zatímco hra dál běží na hlavní obrazovce. Používá účet, kterým je Steam přihlášen.</string>
     <string name="bottom_chat_not_signed_in">Steam zatím nemá webové přihlášení ke sdílení, proto se zde jednou přihlaste.</string>
-    <string name="bottom_chat_stopped">Android zavřel stránku chatu, když byl DroidDeck na pozadí. Znovu se otevře, až se do DroidDecku vrátíte.</string>
+    <string name="bottom_chat_stopped">Android zavřel stránku chatu, když byl Kestrel na pozadí. Znovu se otevře, až se do Kestrelu vrátíte.</string>
     <string name="bottom_chat_open">Otevřít Steam Chat</string>
     <string name="bottom_chat_close">Zavřít chat</string>
     <string name="bottom_chat_mic_on">Mikrofon zapnut</string>
     <string name="bottom_chat_mic_off">Mikrofon vypnut</string>
-    <string name="bottom_chat_mic_unavailable">Mikrofon je pro tuto hru vypnutý. Chcete-li mluvit, zapněte Mikrofon v nastavení Steamu v DroidDecku (Zvuk) a spusťte hru znovu.</string>
+    <string name="bottom_chat_mic_unavailable">Mikrofon je pro tuto hru vypnutý. Chcete-li mluvit, zapněte Mikrofon v nastavení Steamu v Kestrelu (Zvuk) a spusťte hru znovu.</string>
     <string name="bottom_chat_volume">Hlasitost %1$d%%</string>
     <string name="bottom_page_telemetry">Statistiky ve hře</string>
     <string name="bottom_telemetry_battery">Baterie</string>
@@ -1606,7 +1606,7 @@
     <string name="flatpakmgr_not_ready">Nejprve nastavte Flatpak</string>
     <string name="flatpakmgr_starting">Spouštění</string>
     <string name="flatpakmgr_exit_status">Flatpak skončil s návratovým kódem %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s je sestaveno pro %2$s, které DroidDeck neumí spustit. Aplikace Flatpak zde potřebují verzi pro ARM64 nebo x86_64.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s je sestaveno pro %2$s, které Kestrel neumí spustit. Aplikace Flatpak zde potřebují verzi pro ARM64 nebo x86_64.</string>
     <string name="flatpakmgr_installing">Instalování %1$s</string>
     <string name="flatpakmgr_updating">Aktualizování %1$s</string>
     <string name="flatpakmgr_removing">Odstraňování %1$s</string>
@@ -1641,7 +1641,7 @@
     <string name="adbfix_no_pairing">Není uloženo žádné párování bezdrátového ladění</string>
     <string name="adbfix_enter_address">Zadejte aktuální IP adresu a port bezdrátového ladění</string>
 
-    <string name="adbpair_timed_out">Čekání na vyskakovací okno pro párování vypršelo. Zkuste to znovu z DroidDecku.</string>
+    <string name="adbpair_timed_out">Čekání na vyskakovací okno pro párování vypršelo. Zkuste to znovu z Kestrelu.</string>
     <string name="adbpair_discovery_failed_code">Nepodařilo se vyhledat vyskakovací okno pro párování (%1$d). Zkontrolujte, že je zapnutá Wi-Fi.</string>
     <string name="adbpair_discovery_failed">Nepodařilo se vyhledat vyskakovací okno pro párování: %1$s</string>
     <string name="adbpair_six_digits">Zadejte všech 6 číslic kódu</string>
@@ -1664,7 +1664,7 @@
     <string name="adbpair_enter_code">Zadat kód</string>
     <string name="adbpair_title_working">Nastavování Steamu</string>
     <string name="adbpair_title_done">Steam je připraven</string>
-    <string name="adbpair_done_text">Klepnutím se vrátíte do DroidDecku. Bezdrátové ladění teď můžete vypnout.</string>
+    <string name="adbpair_done_text">Klepnutím se vrátíte do Kestrelu. Bezdrátové ladění teď můžete vypnout.</string>
     <string name="adbpair_title_failed">Nastavení bezdrátového ladění bylo zastaveno</string>
 
 
@@ -1813,7 +1813,7 @@
     <string name="cmgr_not_component_package">%1$s není balíček komponenty pro Linux (typ %2$s)</string>
     <string name="gstore_volume_free">%1$s · %2$s volných</string>
     <string name="mode_storage_auto_short">Automaticky</string>
-    <string name="main_adb_clip_label">Nastavení procesů potomků DroidDecku</string>
+    <string name="main_adb_clip_label">Nastavení procesů potomků Kestrelu</string>
     <string name="setup_signed_in_offline_unnamed">Přihlášeno · offline režim</string>
     <string name="setup_signed_in_unnamed">Přihlášeno</string>
     <string name="driver_tag_bundled">PŘIBALENÝ</string>
@@ -1974,7 +1974,7 @@
     <string name="gpu_display_next">Kreslí obrazovku. Platí od příští relace.</string>
     <string name="gpu_previous_driver">předchozí ovladač</string>
     <string name="gpu_restart_banner">Restartuj, ať se obrazový ovladač změní.</string>
-    <string name="gpu_restart_blocked">Zastav aktuální relaci a restartuj DroidDeck, ať se obrazový ovladač změní.</string>
+    <string name="gpu_restart_blocked">Zastav aktuální relaci a restartuj Kestrel, ať se obrazový ovladač změní.</string>
     <string name="gpu_restart_now">Restartovat</string>
     <string name="gpu_restart_later">Později</string>
     <string name="gpu_auto_title">Automatika vybrala tuto dvojici pro tvůj %1$s</string>
@@ -2036,7 +2036,7 @@
     <string name="touch_speed_normal">Normální</string>
     <string name="touch_speed_fast">Rychlá</string>
     <string name="touch_edit_layout">Upravit rozložení</string>
-    <string name="touch_droiddeck_menu">Nabídka DroidDeck</string>
+    <string name="touch_droiddeck_menu">Nabídka Kestrel</string>
     <string name="touch_drag_hint">Přetáhněte prvky ovládání na obrazovku</string>
     <string name="touch_arrange">Uspořádat</string>
     <string name="touch_discard">Zahodit</string>
@@ -2097,7 +2097,7 @@
     <string name="storage_internal">Interní úložiště</string>
     <string name="storage_used_of">využito %1$s z %2$s</string>
     <string name="storage_free">volně %1$s</string>
-    <string name="storage_droiddeck_uses">DroidDeck využívá %1$s. Změřeno %2$s.</string>
+    <string name="storage_droiddeck_uses">Kestrel využívá %1$s. Změřeno %2$s.</string>
     <string name="storage_rescanning">měření znovu…</string>
     <string name="storage_other_apps">Ostatní aplikace pro Android</string>
     <string name="storage_safe_now">Lze uvolnit hned</string>
@@ -2113,14 +2113,14 @@
     <string name="storage_desktop">Aplikace pro plochu</string>
     <string name="storage_system">Systém Linux a klient Steam</string>
     <string name="storage_system_hint">Potřebné, aby vůbec něco běželo</string>
-    <string name="storage_app_data">Data DroidDeck</string>
+    <string name="storage_app_data">Data Kestrel</string>
     <string name="storage_app_data_hint">Logy starých relací %1$s · mezipaměť · ovladače</string>
     <string name="storage_legend_games">Hry</string>
     <string name="storage_legend_data">Data her</string>
     <string name="storage_legend_tools">Proton a prostředí</string>
     <string name="storage_legend_desktop">Aplikace pro plochu</string>
     <string name="storage_legend_system">Systém Linux</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">Kestrel</string>
     <string name="storage_clean_up_title">Uklidit</string>
     <string name="storage_clean_up_lede">Nic tady se nedotkne nainstalovaných her ani probíhajících stahování.</string>
     <string name="storage_nothing_to_clean">Teď není co uklidit.</string>
@@ -2169,8 +2169,8 @@
     <string name="storage_tool_redist">Instalace VC++ a DirectX, které hry potřebují</string>
     <string name="storage_tool_fex">Spouští hry pro Linux x86</string>
     <string name="storage_tool_steam">Nástroj Steamu</string>
-    <string name="storage_tool_old_runtime">DroidDeck spouští hry bez tohoto prostředí</string>
-    <string name="storage_tool_x86_proton">Proton x86, který DroidDeck nedokáže spustit</string>
+    <string name="storage_tool_old_runtime">Kestrel spouští hry bez tohoto prostředí</string>
+    <string name="storage_tool_x86_proton">Proton x86, který Kestrel nedokáže spustit</string>
     <string name="storage_tool_custom_default">Výchozí pro všechny hry</string>
     <string name="storage_tool_custom_unused">Žádná hra ho nepoužívá</string>
     <string name="storage_tool_custom_unknown">Nastavení Steamu nejde přečíst, takže zůstává</string>
@@ -2217,8 +2217,8 @@
         <item quantity="few">%d hry</item>
         <item quantity="many">%d hry</item>
     </plurals>
-    <string name="storage_tool_default_proton">Výchozí Proton DroidDeck</string>
-    <string name="storage_tool_proton">Volba Proton 11 v DroidDeck</string>
+    <string name="storage_tool_default_proton">Výchozí Proton Kestrel</string>
+    <string name="storage_tool_proton">Volba Proton 11 v Kestrel</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">Používá %d hra</item>
         <item quantity="other">Používá %d her</item>
@@ -2291,11 +2291,11 @@
     <string name="boot_movie_imported_silent">%1$s je nyní úvodní video, bez zvuku</string>
     <string name="boot_movie_too_long">Videa k převodu mohou mít nejvýše %1$d sekund</string>
     <string name="boot_movie_converting">Převádění %1$d %%</string>
-    <string name="boot_movie_converting_started">Převádí se %1$s pro Steam. Nechte DroidDeck otevřený.</string>
+    <string name="boot_movie_converting_started">Převádí se %1$s pro Steam. Nechte Kestrel otevřený.</string>
     <string name="boot_movie_unsupported">Toto zařízení video nedokáže dekódovat.</string>
     <string name="boot_movie_import_failed">Video se nepodařilo importovat</string>
     <string name="boot_movie_remove_confirm">Odebrat %1$s?</string>
-    <string name="boot_movie_remove_confirm_body">Tím se video smaže z DroidDecku i ze složky videí Steamu.</string>
+    <string name="boot_movie_remove_confirm_body">Tím se video smaže z Kestrelu i ze složky videí Steamu.</string>
     <string name="boot_movie_tab_installed">Nainstalované</string>
     <string name="boot_movie_tab_import">Importovat</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
@@ -2308,7 +2308,7 @@
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">Obchod s body</string>
     <string name="boot_movie_report">Zpráva o úvodních videích</string>
-    <string name="boot_movie_report_hint">Uloží do textového souboru, co DroidDeck a Steam vědí o úvodních videích, aby šel přiložit k hlášení chyby.</string>
+    <string name="boot_movie_report_hint">Uloží do textového souboru, co Kestrel a Steam vědí o úvodních videích, aby šel přiložit k hlášení chyby.</string>
     <string name="boot_movie_report_save">Uložit</string>
     <string name="boot_movie_report_saved">Uloženo do %1$s</string>
     <string name="boot_movie_report_failed">Zprávu se nepodařilo uložit.</string>
@@ -2343,22 +2343,22 @@
     <string name="session_end_vulkan_device">Grafický ovladač Linuxu nenašel použitelné zařízení Vulkan. Zkontrolujte, zda vybraný ovladač GPU pro Linux toto GPU podporuje.</string>
     <string name="setup_group_memory">Paměť</string>
     <string name="setup_clear_cached">Zavřít aplikace v mezipaměti před relací</string>
-    <string name="setup_clear_cached_hint">Při spuštění relace DroidDeck zavře aplikace, které Android drží na pozadí, aby hra měla více paměti. Musí být zapnuté Bezdrátové ladění.</string>
-    <string name="setup_clear_cached_unpaired">Vyžaduje DroidDeck spárovaný přes Bezdrátové ladění (Spárovat, níže).</string>
+    <string name="setup_clear_cached_hint">Při spuštění relace Kestrel zavře aplikace, které Android drží na pozadí, aby hra měla více paměti. Musí být zapnuté Bezdrátové ladění.</string>
+    <string name="setup_clear_cached_unpaired">Vyžaduje Kestrel spárovaný přes Bezdrátové ladění (Spárovat, níže).</string>
     <string name="setup_memory_hud">Ukazatel paměti</string>
-    <string name="setup_memory_hud_hint">Využitá paměť a swap na obrazovce relace. Pokročilé zobrazení ji rozdělí na hru, DroidDeck, Android a GPU.</string>
+    <string name="setup_memory_hud_hint">Využitá paměť a swap na obrazovce relace. Pokročilé zobrazení ji rozdělí na hru, Kestrel, Android a GPU.</string>
     <string name="setup_memory_hud_simple">Jednoduché</string>
     <string name="setup_memory_hud_advanced">Pokročilé</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">hra %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">hra %1$s · Kestrel %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">Aplikace na pozadí během relace</string>
-    <string name="setup_bg_limit_hint">Během relace Android ponechá v mezipaměti nejvýše tolik aplikací a ostatní zavře, aby hra dostala jejich paměť. Po skončení relace DroidDeck vrátí limit na původní hodnotu. Musí být zapnuté Bezdrátové ladění.</string>
+    <string name="setup_bg_limit_hint">Během relace Android ponechá v mezipaměti nejvýše tolik aplikací a ostatní zavře, aby hra dostala jejich paměť. Po skončení relace Kestrel vrátí limit na původní hodnotu. Musí být zapnuté Bezdrátové ladění.</string>
     <string name="setup_bg_limit_4">Nejvýše 4</string>
     <string name="setup_bg_limit_1">Nejvýše 1</string>
     <string name="setup_bg_limit_0">Žádné</string>
     <string name="setup_adb_pair">Bezdrátové ladění</string>
-    <string name="setup_adb_pair_hint">Spáruje DroidDeck s Bezdrátovým laděním Androidu pro výše uvedené možnosti. Omezení pro dětské procesy zůstane vypnuté.</string>
+    <string name="setup_adb_pair_hint">Spáruje Kestrel s Bezdrátovým laděním Androidu pro výše uvedené možnosti. Omezení pro dětské procesy zůstane vypnuté.</string>
     <string name="setup_adb_pair_button">Spárovat</string>
     <string name="game_tab_about">O aplikaci</string>
     <string name="game_resources_browser">Otevře se v prohlížeči</string>
@@ -2390,8 +2390,8 @@
     <string name="integration_shortcuts_hint">Alt+Tab, klávesa Win a tlačítko Domů zůstanou v relaci</string>
     <string name="integration_shortcuts_maybe_restricted">V Androidu zašedlé? Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
     <string name="integration_shortcuts_restricted">Blokováno Androidem · Informace o aplikaci → ⋮ → Povolit omezená nastavení</string>
-    <string name="integration_shortcuts_service">Systémové klávesy DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Ponechá Alt+Tab, klávesu Win a tlačítko Domů v aktivní relaci DroidDeck místo Androidu.</string>
+    <string name="integration_shortcuts_service">Systémové klávesy Kestrel</string>
+    <string name="integration_shortcuts_service_description">Ponechá Alt+Tab, klávesu Win a tlačítko Domů v aktivní relaci Kestrel místo Androidu.</string>
     <string name="integration_brightness_needed">Zapněte Jas v Příprava → Integrace se Steamem</string>
     <string name="setup_gpu_bridge_off">Most Mali: vypnuto</string>
     <string name="setup_gpu_bridge_on">Most Mali: zapnuto</string>
@@ -2407,7 +2407,7 @@
     <string name="setup_bridge_dxvk_auto_detail">Použije starší DXVK, pokud je Vulkan tohoto GPU pro DXVK z Protonu příliš starý.</string>
     <string name="setup_bridge_dxvk_proton_detail">Každý Proton si ponechá vlastní DXVK, i když pro něj může být Vulkan tohoto GPU příliš starý.</string>
     <string name="desktop_restore_title">Obnovování vašeho softwaru</string>
-    <string name="desktop_restore_body">Přeinstalace aplikací, které jste přidali, po aktualizaci DroidDecku.</string>
+    <string name="desktop_restore_body">Přeinstalace aplikací, které jste přidali, po aktualizaci Kestrelu.</string>
     <string name="desktop_restore_done_title">Software obnoven</string>
     <string name="desktop_restore_done_body">Aplikace, které jste přidali, jsou znovu nainstalovány.</string>
     <string name="desktop_restore_failed_title">Část softwaru se nepodařilo obnovit</string>

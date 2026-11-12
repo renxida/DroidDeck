@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Fiziksel düğme kısayolları</string>
-    <string name="shortcuts_dd_menu">DroidDeck menüsü</string>
+    <string name="shortcuts_dd_menu">Kestrel menüsü</string>
     <string name="shortcuts_capture">Ata: %1$s</string>
     <string name="shortcuts_press">Bir düğmeye basıp bırakın. Atama otomatik olarak kaydedilir.</string>
     <string name="shortcuts_release">Devam etmek için düğmeyi bırakın.</string>

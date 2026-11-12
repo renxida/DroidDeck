@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Phím tắt nút vật lý</string>
-    <string name="shortcuts_dd_menu">Menu DroidDeck</string>
+    <string name="shortcuts_dd_menu">Menu Kestrel</string>
     <string name="shortcuts_capture">Gán: %1$s</string>
     <string name="shortcuts_press">Nhấn và thả một nút. Gán nút được lưu tự động.</string>
     <string name="shortcuts_release">Thả nút để tiếp tục.</string>

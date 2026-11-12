@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">Kestrel</string>
     <string-array name="loading_hints">
         <item>첫 실행 시 Steam을 다운로드합니다. 몇 분 정도 걸릴 수 있습니다.</item>
         <item>기본적으로 앱을 나가면 Steam이 일시 중지되며, 다시 돌아오면 중단된 부분부터 재개됩니다.</item>
@@ -130,7 +130,7 @@
     <string name="user_apps_remove">제거</string>
     <string name="user_apps_stop_session">제거하기 전에 세션을 종료하세요</string>
     <string name="user_apps_script_linked">해당 폴더에서 %1$s을(를) 실행하고 해당 폴더를 세션에 연결합니다. 앱을 제거해도 폴더는 영향을 받지 않습니다.</string>
-    <string name="user_apps_script_copied">DroidDeck 내부로 복사된 폴더에서 %1$s을(를) 실행합니다. 앱을 제거하면 복사본은 삭제되지만 원본 파일은 삭제되지 않습니다.</string>
+    <string name="user_apps_script_copied">Kestrel 내부로 복사된 폴더에서 %1$s을(를) 실행합니다. 앱을 제거하면 복사본은 삭제되지만 원본 파일은 삭제되지 않습니다.</string>
     <string name="user_apps_runtime_required">먼저 Linux 런타임을 설치하세요</string>
     <string name="user_apps_file_gone">파일이 더 이상 존재하지 않습니다</string>
     <string name="user_apps_no_space">사용 가능한 공간 부족: 이 폴더를 복사하려면 %1$s이(가) 필요합니다</string>
@@ -165,8 +165,8 @@
     <string name="app_fex_off">끔</string>
     <string name="app_fex_hint">FEX는 이 ARM64 기기에서 x86 Linux 프로그램을 실행합니다. 자동으로 설정하면 x86용으로 빌드된 프로그램에 FEX를 사용합니다.</string>
     <string name="app_fex_x86">FEX로 실행되는 %1$s</string>
-    <string name="app_fex_not_ready">이 프로그램은 %1$s PC용으로 빌드되어 FEX를 통해 실행되지만, FEX가 아직 설정되지 않았습니다. 로그인한 상태로 Steam을 한 번 열면 DroidDeck이 FEX와 필요한 Steam Linux Runtime을 다운로드한 후 이 프로그램을 엽니다.</string>
-    <string name="session_proot_missing">DroidDeck의 proot를 다운로드할 수 없습니다. 연결을 확인하고 다시 시도하세요. 대체 proot는 플레이하기에 너무 느리므로 세션을 시작하지 않았습니다.</string>
+    <string name="app_fex_not_ready">이 프로그램은 %1$s PC용으로 빌드되어 FEX를 통해 실행되지만, FEX가 아직 설정되지 않았습니다. 로그인한 상태로 Steam을 한 번 열면 Kestrel이 FEX와 필요한 Steam Linux Runtime을 다운로드한 후 이 프로그램을 엽니다.</string>
+    <string name="session_proot_missing">Kestrel의 proot를 다운로드할 수 없습니다. 연결을 확인하고 다시 시도하세요. 대체 proot는 플레이하기에 너무 느리므로 세션을 시작하지 않았습니다.</string>
     <string name="session_powervr_missing">PowerVR 그래픽 환경을 다운로드하지 못했습니다. 연결을 확인하고 다시 시도하세요.</string>
     <string name="session_directaudio_missing">DirectAudio를 다운로드할 수 없어 이번 세션에서는 게임 오디오가 더 느린 경로를 사용합니다.</string>
     <string name="session_end_program">이 프로그램</string>
@@ -205,7 +205,7 @@
     <string name="edit_app_save">저장</string>
     <string name="add_app_checking_folder">폴더 확인 중…</string>
     <string name="add_app_folder_linked">폴더가 세션에 연결되었습니다: %1$s</string>
-    <string name="add_app_folder_copied">이 폴더에는 공유 저장 공간에서 실행할 수 없는 Linux 프로그램이 있으므로 DroidDeck으로 복사합니다(%1$s).</string>
+    <string name="add_app_folder_copied">이 폴더에는 공유 저장 공간에서 실행할 수 없는 Linux 프로그램이 있으므로 Kestrel으로 복사합니다(%1$s).</string>
     <string name="add_app_confirm">추가</string>
     <string name="add_app_cancel">취소</string>
     <string name="add_app_runtime_required">먼저 \"설정\"에서 Linux 런타임을 설치하세요.</string>
@@ -259,7 +259,7 @@
     <string name="back_double_tap_window">두 번 탭 간격</string>
     <string name="back_tap_ms">%1$dms</string>
     <string name="brightness_permission_title">밝기 제어 허용</string>
-    <string name="brightness_permission_text">DroidDeck에서 밝기 제어를 설정하세요.</string>
+    <string name="brightness_permission_text">Kestrel에서 밝기 제어를 설정하세요.</string>
     <string name="back_menu_then_qam">메뉴 → QAM</string>
     <string name="back_qam_then_menu">QAM → 메뉴</string>
     <string name="mode_session">세션</string>
@@ -273,12 +273,12 @@
     <string name="mode_suspend_note">자동: 백그라운드에서 일시 중지되고 다시 표시되면 재개됩니다. 수동: \"재개\"를 탭할 때까지 기다립니다. 안 함: 계속 실행됩니다.</string>
     <string name="mode_startup">시작</string>
     <string name="mode_startup_session">실행 시 열기</string>
-    <string name="mode_startup_session_hint">DroidDeck을 실행할 때 이 세션을 시작합니다.</string>
+    <string name="mode_startup_session_hint">Kestrel을 실행할 때 이 세션을 시작합니다.</string>
     <string name="mode_client">클라이언트</string>
     <string name="mode_mangoapp">성능 오버레이</string>
     <string name="mode_mangoapp_hint">Deck 모드에서 게임이 충돌하거나 화면이 검게 변하면 이 옵션을 끄세요. 다음 세션에 적용됩니다.</string>
-    <string name="mode_return_after_game">게임 종료 후 DroidDeck으로 돌아가기</string>
-    <string name="mode_return_after_game_hint">DroidDeck 또는 다른 런처에서 실행한 게임을 닫으면 Steam이 정상적으로 종료되고(클라우드 저장 동기화를 먼저 완료) 실행한 곳으로 돌아갑니다. 끄면 Steam에 머무릅니다.</string>
+    <string name="mode_return_after_game">게임 종료 후 Kestrel으로 돌아가기</string>
+    <string name="mode_return_after_game_hint">Kestrel 또는 다른 런처에서 실행한 게임을 닫으면 Steam이 정상적으로 종료되고(클라우드 저장 동기화를 먼저 완료) 실행한 곳으로 돌아갑니다. 끄면 Steam에 머무릅니다.</string>
     <string name="mode_shader_precache">셰이더 사전 캐싱</string>
     <string name="mode_shader_precache_hint">Steam이 게임용으로 미리 빌드된 셰이더를 다운로드해 백그라운드에서 처리하므로 게임 끊김이 줄어듭니다. 끄면 데이터, 저장 공간, 배터리를 절약하지만 게임이 플레이 중에 셰이더를 빌드합니다. Steam의 다운로드 > 셰이더 사전 캐싱과 같은 설정입니다. 다음 세션에 적용됩니다.</string>
     <string name="mode_steam_repair">Steam 클라이언트 복구</string>
@@ -466,7 +466,7 @@
     <string name="comp_auto_hint">새 빌드는 백그라운드에서 설치됩니다. 이전에 실행되던 게임이 몇 초 만에 두 번 종료되면 Auto가 작동하던 빌드로 되돌립니다.</string>
     <string name="comp_auto_fallback">대체: %1$s</string>
     <string name="comp_auto_checking">빌드 확인 중…</string>
-    <string name="comp_auto_none">이를 사용하는 DroidDeck-Proton이 없습니다</string>
+    <string name="comp_auto_none">이를 사용하는 Kestrel-Proton이 없습니다</string>
     <string name="comp_auto_waits_network">Auto 업데이트가 연결을 기다리는 중입니다.</string>
     <string name="comp_auto_check_failed">새 빌드를 확인할 수 없습니다.</string>
     <string name="comp_auto_install_failed">%1$s을(를) 설치할 수 없습니다.</string>
@@ -743,7 +743,7 @@
     <string name="setup_language_system">시스템 기본값(%1$s)</string>
     <string name="setup_language_system_short">시스템 기본값</string>
     <string name="setup_app_scale">앱 크기</string>
-    <string name="setup_app_scale_hint">DroidDeck 텍스트 및 컨트롤</string>
+    <string name="setup_app_scale_hint">Kestrel 텍스트 및 컨트롤</string>
     <string name="setup_app_scale_default">%1$d%%(기본값)</string>
     <string name="setup_theme">테마</string>
     <string name="setup_theme_hint">런처 외관</string>
@@ -818,13 +818,13 @@
     <string name="gate_fix_for_me">자동으로 수정</string>
     <string name="gate_toggle_steps">\"하위 프로세스 제한 사용 중지\"를 켜고 돌아오세요. 개발자 옵션을 켜 둔 상태로 유지하지 않으면 스위치가 다시 꺼집니다.</string>
     <string name="gate_open_dev">개발자 옵션 열기</string>
-    <string name="gate_no_toggle">이 Android 버전에는 해당 스위치가 없으므로 DroidDeck이 무선 디버깅을 통해 수정합니다. 약 1분이 걸리며 PC가 필요하지 않습니다.</string>
+    <string name="gate_no_toggle">이 Android 버전에는 해당 스위치가 없으므로 Kestrel이 무선 디버깅을 통해 수정합니다. 약 1분이 걸리며 PC가 필요하지 않습니다.</string>
     <string name="gate_needs_wifi">무선 디버깅에는 Wi-Fi가 필요합니다. 네트워크는 아무거나 괜찮으며 인터넷은 필요하지 않습니다.</string>
-    <string name="gate_needs_notifications">페어링 코드가 알림에 표시됩니다. DroidDeck에 알림을 허용하거나 \"다른 방법\"을 사용하세요.</string>
+    <string name="gate_needs_notifications">페어링 코드가 알림에 표시됩니다. Kestrel에 알림을 허용하거나 \"다른 방법\"을 사용하세요.</string>
     <string name="gate_allow_notifications">알림 허용</string>
     <string name="gate_step1">설정 → 개발자 옵션 → 무선 디버깅을 열고 켜기</string>
     <string name="gate_step2">\"페어링 코드로 기기 페어링\" 탭</string>
-    <string name="gate_step3">DroidDeck 알림에 페어링 코드 입력</string>
+    <string name="gate_step3">Kestrel 알림에 페어링 코드 입력</string>
     <string name="pairguide_build_number">휴대전화 정보에서 빌드 번호를 7번 탭하세요</string>
     <string name="pairguide_wireless">무선 디버깅을 켜세요</string>
     <string name="pairguide_pair">무선 디버깅을 연 다음 “페어링 코드로 기기 페어링”을 탭하세요</string>
@@ -925,7 +925,7 @@
     <string name="desktop_removing">데스크톱 제거 중</string>
     <string name="desktop_removed">데스크톱 제거됨</string>
     <string name="desktop_cleaning_legacy">이전 LXQt 파일 제거 중</string>
-    <string name="desktop_removal_unknown">이 데스크톱 버전을 제거하기 전에 DroidDeck을 업데이트하세요.</string>
+    <string name="desktop_removal_unknown">이 데스크톱 버전을 제거하기 전에 Kestrel을 업데이트하세요.</string>
     <string name="content_linux_desktop">Linux 데스크톱</string>
     <string name="games_empty">Steam에서 설치한 게임은 세션 종료 후 여기에 표시됩니다.</string>
     <string name="games_play_steam">Steam 실행</string>
@@ -954,8 +954,8 @@
     <string name="gpu_hide_other">다른 GPU의 드라이버 숨기기</string>
     <string name="gpu_show_other">다른 GPU의 드라이버 표시</string>
     <string name="gpu_ubwc_title">UBWC 호환성</string>
-    <string name="gpu_ubwc_hint">Steam이나 Android에 줄무늬나 깜박임이 보이면 켜기 또는 끄기를 시도하세요. DroidDeck을 다시 시작한 후 두 드라이버 모두에 적용됩니다.</string>
-    <string name="gpu_ubwc_restart">적용하려면 DroidDeck을 다시 시작하세요.</string>
+    <string name="gpu_ubwc_hint">Steam이나 Android에 줄무늬나 깜박임이 보이면 켜기 또는 끄기를 시도하세요. Kestrel을 다시 시작한 후 두 드라이버 모두에 적용됩니다.</string>
+    <string name="gpu_ubwc_restart">적용하려면 Kestrel을 다시 시작하세요.</string>
     <string name="gpu_runtime_hint">게임 및 데스크톱에서 사용됩니다.</string>
     <string name="gpu_runtime_default">런타임 기본값</string>
     <string name="gpu_auto_by_gpu">자동 - GPU별 선택</string>
@@ -1032,7 +1032,7 @@
     <string name="unfolded_controls_with_controller_hint">컨트롤러가 연결되어 있을 때도 이 터치 컨트롤을 표시합니다.</string>
     <string name="pip_suspended">일시 중지됨</string>
     <string name="pip_not_ready">세션이 준비되면 PIP를 사용할 수 있습니다.</string>
-    <string name="pip_permission">Android 설정에서 DroidDeck의 PIP 사용을 허용하세요.</string>
+    <string name="pip_permission">Android 설정에서 Kestrel의 PIP 사용을 허용하세요.</string>
     <string name="pip_unavailable">Android에서 PIP를 열 수 없습니다.</string>
     <string name="game_more">더보기</string>
     <string name="game_edit_art">아트 편집</string>
@@ -1045,7 +1045,7 @@
     <string name="game_link_copied">실행 링크 복사됨</string>
     <string name="game_shortcut_unsupported">이 런처는 바로 가기를 추가할 수 없습니다. \"실행 링크 복사\"를 대신 사용하세요.</string>
     <string name="game_link_invalid">잘못된 게임 실행 링크입니다.</string>
-    <string name="game_link_missing">이 게임은 DroidDeck 라이브러리에 없습니다.</string>
+    <string name="game_link_missing">이 게임은 Kestrel 라이브러리에 없습니다.</string>
     <string name="game_link_session_busy">Steam 게임을 실행하기 전에 현재 세션을 중지하세요.</string>
     <string name="game_link_failed">Steam으로 게임을 보낼 수 없습니다. 다시 실행해 보세요.</string>
     <string name="setup_retry_removal">제거 다시 시도</string>
@@ -1142,22 +1142,22 @@
     <string name="drivers_recommended_unpublished">현재 권장 드라이버가 배포되지 않았습니다</string>
     <string name="drivers_downloading_pair">%1$s %2$s 다운로드 중…</string>
     <string name="drivers_updated_to">%1$s %2$s(으)로 업데이트했습니다.</string>
-    <string name="drivers_updated_to_restart">%1$s %2$s(으)로 업데이트했습니다. 디스플레이 드라이버는 DroidDeck을 다시 시작한 후 적용됩니다.</string>
+    <string name="drivers_updated_to_restart">%1$s %2$s(으)로 업데이트했습니다. 디스플레이 드라이버는 Kestrel을 다시 시작한 후 적용됩니다.</string>
     <string name="drivers_auto_waits_for_session">드라이버 업데이트는 세션이 끝난 뒤 진행됩니다.</string>
     <string name="drivers_auto_waits_for_network">모바일 데이터와 절전 모드를 해제하면 다음을 내려받습니다: %1$s %2$s</string>
     <string name="drivers_skipping_bad">%1$s %2$s 드라이버가 이 기기에서 세션을 시작하지 못해 자동 모드가 사용 가능한 드라이버를 계속 사용합니다.</string>
     <string name="drivers_rolled_back">%1$s 드라이버가 두 번 세션을 시작하지 못해 자동 모드가 사용 가능한 드라이버로 되돌렸습니다.</string>
     <string name="drivers_switched_to">%1$s %2$s(으)로 전환했습니다.</string>
-    <string name="drivers_switched_to_restart">%1$s %2$s(으)로 전환했습니다. 디스플레이 드라이버는 DroidDeck을 다시 시작한 후 적용됩니다.</string>
+    <string name="drivers_switched_to_restart">%1$s %2$s(으)로 전환했습니다. 디스플레이 드라이버는 Kestrel을 다시 시작한 후 적용됩니다.</string>
     <string name="drivers_using">%1$s %2$s 사용 중.</string>
-    <string name="drivers_using_restart">%1$s %2$s 사용 중. 디스플레이 드라이버는 DroidDeck을 다시 시작한 후 적용됩니다.</string>
+    <string name="drivers_using_restart">%1$s %2$s 사용 중. 디스플레이 드라이버는 Kestrel을 다시 시작한 후 적용됩니다.</string>
     <string name="drivers_using_quest">내장 Quest 디스플레이 드라이버와 런타임 기본값을 사용합니다.</string>
-    <string name="drivers_using_quest_restart">내장 Quest 디스플레이 드라이버와 런타임 기본값을 사용합니다. 디스플레이 드라이버는 DroidDeck을 다시 시작한 뒤 적용됩니다.</string>
+    <string name="drivers_using_quest_restart">내장 Quest 디스플레이 드라이버와 런타임 기본값을 사용합니다. 디스플레이 드라이버는 Kestrel을 다시 시작한 뒤 적용됩니다.</string>
     <string name="drivers_not_a_driver">드라이버 zip이 아닙니다. AdrenoTools 드라이버, -Linux Turnip, Android + Linux 번들 중 어느 것도 아닙니다</string>
     <string name="drivers_import_failed">가져오기 실패: %1$s</string>
     <string name="drivers_imported_unnamed">가져온 드라이버</string>
     <string name="drivers_using_bundle">%1$s을(를) 런타임 및 디스플레이 드라이버로 사용 중.</string>
-    <string name="drivers_using_bundle_restart">%1$s을(를) 런타임 및 디스플레이 드라이버로 사용 중. 디스플레이 드라이버는 DroidDeck을 다시 시작한 후 적용됩니다.</string>
+    <string name="drivers_using_bundle_restart">%1$s을(를) 런타임 및 디스플레이 드라이버로 사용 중. 디스플레이 드라이버는 Kestrel을 다시 시작한 후 적용됩니다.</string>
     <string name="drivers_deleted_bundle">%1$s 삭제됨(드라이버 2개)</string>
     <string name="drivers_deleted">%1$s 삭제됨</string>
     <string name="drivers_release_status">최신: %1$s · %2$s 확인</string>
@@ -1377,7 +1377,7 @@
     <string name="fm_decline">거절</string>
     <string name="fm_drive_not_readable">%1$s이(가) 마운트되었지만 지금은 읽을 수 없습니다</string>
     <string name="fm_drive_access_title">%1$s 액세스 허용</string>
-    <string name="fm_drive_access_text">Android에서 DroidDeck이 이 드라이브를 볼 수는 있지만 읽을 수는 없습니다. DroidDeck의 모든 파일 액세스를 켠 다음 돌아오세요.</string>
+    <string name="fm_drive_access_text">Android에서 Kestrel이 이 드라이브를 볼 수는 있지만 읽을 수는 없습니다. Kestrel의 모든 파일 액세스를 켠 다음 돌아오세요.</string>
     <string name="fm_list_view">목록 보기</string>
     <string name="fm_grid_view">격자 보기</string>
     <string name="fm_search">검색</string>
@@ -1498,12 +1498,12 @@
     <string name="bottom_page_chat">채팅 및 음성</string>
     <string name="bottom_chat_why">게임이 메인 화면에서 계속 실행되는 동안 여기에서 Steam 채팅을 읽고 답장하세요. Steam에 로그인된 계정을 사용합니다.</string>
     <string name="bottom_chat_not_signed_in">Steam에 아직 공유할 웹 로그인이 없으므로 여기에서 한 번 로그인하세요.</string>
-    <string name="bottom_chat_stopped">DroidDeck이 백그라운드에 있는 동안 Android가 채팅 페이지를 닫았습니다. DroidDeck으로 돌아오면 다시 열립니다.</string>
+    <string name="bottom_chat_stopped">Kestrel이 백그라운드에 있는 동안 Android가 채팅 페이지를 닫았습니다. Kestrel으로 돌아오면 다시 열립니다.</string>
     <string name="bottom_chat_open">Steam Chat 열기</string>
     <string name="bottom_chat_close">채팅 닫기</string>
     <string name="bottom_chat_mic_on">마이크 켜짐</string>
     <string name="bottom_chat_mic_off">마이크 꺼짐</string>
-    <string name="bottom_chat_mic_unavailable">이 게임에서는 마이크가 꺼져 있습니다. 대화하려면 DroidDeck의 Steam 설정(오디오)에서 마이크를 켜고 게임을 다시 시작하세요.</string>
+    <string name="bottom_chat_mic_unavailable">이 게임에서는 마이크가 꺼져 있습니다. 대화하려면 Kestrel의 Steam 설정(오디오)에서 마이크를 켜고 게임을 다시 시작하세요.</string>
     <string name="bottom_chat_volume">볼륨 %1$d%%</string>
     <string name="bottom_page_telemetry">게임 내 통계</string>
     <string name="bottom_telemetry_battery">배터리</string>
@@ -1549,7 +1549,7 @@
     <string name="flatpakmgr_not_ready">먼저 Flatpak을 설정하세요</string>
     <string name="flatpakmgr_starting">시작 중</string>
     <string name="flatpakmgr_exit_status">Flatpak이 종료되었습니다(상태 %1$d)</string>
-    <string name="flatpakmgr_wrong_arch">%1$s은(는) DroidDeck이 실행할 수 없는 %2$s용으로 빌드되었습니다. 여기서 Flatpak 앱은 ARM64 또는 x86_64 빌드여야 합니다.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s은(는) Kestrel이 실행할 수 없는 %2$s용으로 빌드되었습니다. 여기서 Flatpak 앱은 ARM64 또는 x86_64 빌드여야 합니다.</string>
     <string name="flatpakmgr_installing">%1$s 설치 중</string>
     <string name="flatpakmgr_updating">%1$s 업데이트 중</string>
     <string name="flatpakmgr_removing">%1$s 제거 중</string>
@@ -1584,7 +1584,7 @@
     <string name="adbfix_no_pairing">저장된 무선 디버깅 페어링이 없습니다</string>
     <string name="adbfix_enter_address">현재 무선 디버깅의 IP 주소 및 포트를 입력하세요</string>
 
-    <string name="adbpair_timed_out">페어링 팝업을 기다리는 시간이 초과되었습니다. DroidDeck에서 다시 시도하세요.</string>
+    <string name="adbpair_timed_out">페어링 팝업을 기다리는 시간이 초과되었습니다. Kestrel에서 다시 시도하세요.</string>
     <string name="adbpair_discovery_failed_code">페어링 팝업을 찾을 수 없습니다(%1$d). Wi-Fi가 켜져 있는지 확인하세요.</string>
     <string name="adbpair_discovery_failed">페어링 팝업을 찾을 수 없습니다: %1$s</string>
     <string name="adbpair_six_digits">코드 6자리를 모두 입력하세요</string>
@@ -1607,7 +1607,7 @@
     <string name="adbpair_enter_code">코드 입력</string>
     <string name="adbpair_title_working">Steam 설정 중</string>
     <string name="adbpair_title_done">Steam 준비 완료</string>
-    <string name="adbpair_done_text">탭하여 DroidDeck으로 돌아가세요. 이제 무선 디버깅을 꺼도 됩니다.</string>
+    <string name="adbpair_done_text">탭하여 Kestrel으로 돌아가세요. 이제 무선 디버깅을 꺼도 됩니다.</string>
     <string name="adbpair_title_failed">무선 디버깅 설정이 중단되었습니다</string>
 
 
@@ -1756,7 +1756,7 @@
     <string name="cmgr_not_component_package">%1$s은(는) Linux 구성 요소 패키지가 아닙니다(유형 %2$s)</string>
     <string name="gstore_volume_free">%1$s · %2$s 사용 가능</string>
     <string name="mode_storage_auto_short">자동</string>
-    <string name="main_adb_clip_label">DroidDeck 하위 프로세스 설정</string>
+    <string name="main_adb_clip_label">Kestrel 하위 프로세스 설정</string>
     <string name="setup_signed_in_offline_unnamed">로그인됨 · 오프라인 모드</string>
     <string name="setup_signed_in_unnamed">로그인됨</string>
     <string name="driver_tag_bundled">내장</string>
@@ -1911,7 +1911,7 @@
     <string name="gpu_display_next">화면 그리기를 담당합니다. 다음 세션부터 적용됩니다.</string>
     <string name="gpu_previous_driver">이전 드라이버</string>
     <string name="gpu_restart_banner">디스플레이 드라이버를 바꾸려면 다시 시작하세요.</string>
-    <string name="gpu_restart_blocked">실행 중인 세션을 중지한 뒤 디스플레이 드라이버를 바꾸려면 DroidDeck을 다시 시작하세요.</string>
+    <string name="gpu_restart_blocked">실행 중인 세션을 중지한 뒤 디스플레이 드라이버를 바꾸려면 Kestrel을 다시 시작하세요.</string>
     <string name="gpu_restart_now">지금 다시 시작</string>
     <string name="gpu_restart_later">나중에</string>
     <string name="gpu_auto_title">%1$s에 맞춰 이 조합을 자동으로 선택했습니다</string>
@@ -1973,7 +1973,7 @@
     <string name="touch_speed_normal">보통</string>
     <string name="touch_speed_fast">빠름</string>
     <string name="touch_edit_layout">레이아웃 편집</string>
-    <string name="touch_droiddeck_menu">DroidDeck 메뉴</string>
+    <string name="touch_droiddeck_menu">Kestrel 메뉴</string>
     <string name="touch_drag_hint">화면으로 컨트롤을 끌어다 놓으세요</string>
     <string name="touch_arrange">배치</string>
     <string name="touch_discard">취소</string>
@@ -2031,7 +2031,7 @@
     <string name="storage_internal">내부 저장 공간</string>
     <string name="storage_used_of">%1$s / %2$s 사용 중</string>
     <string name="storage_free">%1$s 사용 가능</string>
-    <string name="storage_droiddeck_uses">DroidDeck 사용량 %1$s. 계산 시각 %2$s.</string>
+    <string name="storage_droiddeck_uses">Kestrel 사용량 %1$s. 계산 시각 %2$s.</string>
     <string name="storage_rescanning">다시 계산 중…</string>
     <string name="storage_other_apps">다른 Android 앱</string>
     <string name="storage_safe_now">지금 안전하게 확보 가능</string>
@@ -2047,14 +2047,14 @@
     <string name="storage_desktop">데스크톱 앱</string>
     <string name="storage_system">Linux 시스템과 Steam 클라이언트</string>
     <string name="storage_system_hint">무엇이든 실행하는 데 필요</string>
-    <string name="storage_app_data">DroidDeck 데이터</string>
+    <string name="storage_app_data">Kestrel 데이터</string>
     <string name="storage_app_data_hint">오래된 세션 로그 %1$s · 캐시 · 드라이버</string>
     <string name="storage_legend_games">게임</string>
     <string name="storage_legend_data">게임 데이터</string>
     <string name="storage_legend_tools">Proton과 런타임</string>
     <string name="storage_legend_desktop">데스크톱 앱</string>
     <string name="storage_legend_system">Linux 시스템</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">Kestrel</string>
     <string name="storage_clean_up_title">정리</string>
     <string name="storage_clean_up_lede">설치된 게임이나 진행 중인 다운로드에는 영향을 주지 않습니다.</string>
     <string name="storage_nothing_to_clean">지금은 정리할 항목이 없습니다.</string>
@@ -2103,8 +2103,8 @@
     <string name="storage_tool_redist">게임이 요청한 VC++ 및 DirectX 설치 관리자</string>
     <string name="storage_tool_fex">Linux x86 게임 실행</string>
     <string name="storage_tool_steam">Steam 도구</string>
-    <string name="storage_tool_old_runtime">DroidDeck은 이 런타임 없이 게임을 실행할 수 있습니다</string>
-    <string name="storage_tool_x86_proton">x86 Proton이라 DroidDeck에서 실행할 수 없습니다</string>
+    <string name="storage_tool_old_runtime">Kestrel은 이 런타임 없이 게임을 실행할 수 있습니다</string>
+    <string name="storage_tool_x86_proton">x86 Proton이라 Kestrel에서 실행할 수 없습니다</string>
     <string name="storage_tool_custom_default">모든 게임의 기본값</string>
     <string name="storage_tool_custom_unused">어떤 게임도 사용하지 않습니다</string>
     <string name="storage_tool_custom_unknown">Steam 설정을 읽을 수 없어 유지합니다</string>
@@ -2139,8 +2139,8 @@
         <item quantity="one">게임 %d개</item>
         <item quantity="other">게임 %d개</item>
     </plurals>
-    <string name="storage_tool_default_proton">DroidDeck 기본 Proton</string>
-    <string name="storage_tool_proton">DroidDeck의 Proton 11 옵션</string>
+    <string name="storage_tool_default_proton">Kestrel 기본 Proton</string>
+    <string name="storage_tool_proton">Kestrel의 Proton 11 옵션</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">게임 %d개 사용</item>
         <item quantity="other">게임 %d개 사용</item>
@@ -2207,11 +2207,11 @@
     <string name="boot_movie_imported_silent">%1$s이(가) 이제 부팅 동영상입니다(소리 없음)</string>
     <string name="boot_movie_too_long">변환이 필요한 동영상은 %1$d초 이하여야 합니다</string>
     <string name="boot_movie_converting">변환 중 %1$d%%</string>
-    <string name="boot_movie_converting_started">Steam용으로 %1$s 변환 중입니다. DroidDeck을 열어 두세요.</string>
+    <string name="boot_movie_converting_started">Steam용으로 %1$s 변환 중입니다. Kestrel을 열어 두세요.</string>
     <string name="boot_movie_unsupported">이 기기에서 해당 동영상을 디코딩할 수 없습니다.</string>
     <string name="boot_movie_import_failed">동영상을 가져오지 못했습니다</string>
     <string name="boot_movie_remove_confirm">%1$s을(를) 삭제할까요?</string>
-    <string name="boot_movie_remove_confirm_body">DroidDeck과 Steam의 동영상 폴더에서 동영상이 삭제됩니다.</string>
+    <string name="boot_movie_remove_confirm_body">Kestrel과 Steam의 동영상 폴더에서 동영상이 삭제됩니다.</string>
     <string name="boot_movie_tab_installed">설치됨</string>
     <string name="boot_movie_tab_import">가져오기</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
@@ -2224,7 +2224,7 @@
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">포인트 상점</string>
     <string name="boot_movie_report">부팅 영상 보고서</string>
-    <string name="boot_movie_report_hint">DroidDeck과 Steam이 부팅 영상에 대해 알고 있는 내용을 텍스트 파일로 저장합니다. 버그 보고서에 첨부할 수 있습니다.</string>
+    <string name="boot_movie_report_hint">Kestrel과 Steam이 부팅 영상에 대해 알고 있는 내용을 텍스트 파일로 저장합니다. 버그 보고서에 첨부할 수 있습니다.</string>
     <string name="boot_movie_report_save">저장</string>
     <string name="boot_movie_report_saved">%1$s에 저장됨</string>
     <string name="boot_movie_report_failed">보고서를 저장하지 못했습니다.</string>
@@ -2260,13 +2260,13 @@
     <string name="setup_group_memory">메모리</string>
     <string name="setup_clear_cached">세션 전에 캐시된 앱 닫기</string>
     <string name="setup_clear_cached_hint">세션이 시작될 때 Android가 백그라운드에 보관 중인 앱을 닫아 게임이 메모리를 더 쓸 수 있게 합니다. 무선 디버깅이 켜져 있어야 합니다.</string>
-    <string name="setup_clear_cached_unpaired">DroidDeck을 무선 디버깅과 페어링해야 합니다(아래 페어링).</string>
+    <string name="setup_clear_cached_unpaired">Kestrel을 무선 디버깅과 페어링해야 합니다(아래 페어링).</string>
     <string name="setup_memory_hud">메모리 표시</string>
-    <string name="setup_memory_hud_hint">사용 중인 메모리와 스왑을 세션 화면에 표시합니다. 고급에서는 게임, DroidDeck, Android, GPU로 나눠 보여 줍니다.</string>
+    <string name="setup_memory_hud_hint">사용 중인 메모리와 스왑을 세션 화면에 표시합니다. 고급에서는 게임, Kestrel, Android, GPU로 나눠 보여 줍니다.</string>
     <string name="setup_memory_hud_simple">간단</string>
     <string name="setup_memory_hud_advanced">고급</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · 스왑 %3$s/%4$s GB</string>
-    <string name="memory_hud_split">게임 %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">게임 %1$s · Kestrel %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">세션 중 백그라운드 앱</string>
     <string name="setup_bg_limit_hint">세션이 실행되는 동안 Android가 캐시에 두는 앱을 이 개수까지로 제한하고 나머지는 닫아 게임이 그 메모리를 쓰게 합니다. 세션이 끝나면 원래대로 돌아갑니다. 무선 디버깅이 켜져 있어야 합니다.</string>
@@ -2274,7 +2274,7 @@
     <string name="setup_bg_limit_1">최대 1개</string>
     <string name="setup_bg_limit_0">없음</string>
     <string name="setup_adb_pair">무선 디버깅</string>
-    <string name="setup_adb_pair_hint">위 옵션을 위해 DroidDeck을 Android 무선 디버깅과 페어링합니다. 하위 프로세스 제한은 꺼진 상태로 유지됩니다.</string>
+    <string name="setup_adb_pair_hint">위 옵션을 위해 Kestrel을 Android 무선 디버깅과 페어링합니다. 하위 프로세스 제한은 꺼진 상태로 유지됩니다.</string>
     <string name="setup_adb_pair_button">페어링</string>
     <string name="game_tab_about">정보</string>
     <string name="game_resources_browser">브라우저에서 열림</string>
@@ -2306,8 +2306,8 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win 키, 홈 버튼이 세션 안에서 작동합니다</string>
     <string name="integration_shortcuts_maybe_restricted">Android에서 회색으로 표시되나요? 앱 정보 → ⋮ → 제한된 설정 허용</string>
     <string name="integration_shortcuts_restricted">Android에서 차단됨 · 앱 정보 → ⋮ → 제한된 설정 허용</string>
-    <string name="integration_shortcuts_service">DroidDeck 시스템 키</string>
-    <string name="integration_shortcuts_service_description">Alt+Tab, Win 키, 홈 버튼을 Android 대신 사용 중인 DroidDeck 세션에서 작동하게 합니다.</string>
+    <string name="integration_shortcuts_service">Kestrel 시스템 키</string>
+    <string name="integration_shortcuts_service_description">Alt+Tab, Win 키, 홈 버튼을 Android 대신 사용 중인 Kestrel 세션에서 작동하게 합니다.</string>
     <string name="integration_brightness_needed">설정 → Steam 연동에서 밝기를 켜세요</string>
     <string name="setup_gpu_bridge_off">Mali 브리지: 끔</string>
     <string name="setup_gpu_bridge_on">Mali 브리지: 켬</string>
@@ -2323,7 +2323,7 @@
     <string name="setup_bridge_dxvk_auto_detail">이 GPU의 Vulkan이 Proton 기본 DXVK에 너무 오래된 경우 이전 DXVK를 사용합니다.</string>
     <string name="setup_bridge_dxvk_proton_detail">이 GPU의 Vulkan이 너무 오래되었을 수 있어도 각 Proton은 자체 DXVK를 유지합니다.</string>
     <string name="desktop_restore_title">소프트웨어 복원 중</string>
-    <string name="desktop_restore_body">DroidDeck 업데이트 후 추가한 앱을 다시 설치하고 있습니다.</string>
+    <string name="desktop_restore_body">Kestrel 업데이트 후 추가한 앱을 다시 설치하고 있습니다.</string>
     <string name="desktop_restore_done_title">소프트웨어 복원됨</string>
     <string name="desktop_restore_done_body">추가한 앱이 다시 설치되었습니다.</string>
     <string name="desktop_restore_failed_title">일부 소프트웨어를 복원하지 못했습니다</string>

@@ -104,7 +104,7 @@ android {
     ndkVersion project.findProperty('ndkVersion') ?: '27.3.13750724'
 
     defaultConfig {
-        applicationId "com.droiddeck.launcher"
+        applicationId "dev.renxida.kestrel"
         minSdkVersion 26
         targetSdkVersion 28
         versionCode 19
@@ -164,7 +164,7 @@ android {
             def localSuffix = localBuildOptions.getProperty('droiddeck.debugApplicationIdSuffix')
             if (localSuffix) {
                 applicationIdSuffix localSuffix
-                resValue 'string', 'app_name', 'DroidDeck XR Dev'
+                resValue 'string', 'app_name', 'Kestrel Dev'
             }
         }
         release {

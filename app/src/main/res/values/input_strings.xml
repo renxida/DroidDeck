@@ -17,7 +17,7 @@
     <string name="input_mouse_left">Left mouse button</string>
     <string name="input_mouse_right">Right mouse button</string>
     <string name="input_mouse_middle">Middle mouse button</string>
-    <string name="input_command_menu">Open DroidDeck menu</string>
+    <string name="input_command_menu">Open Kestrel menu</string>
     <string name="input_command_keyboard">Show keyboard</string>
     <string name="input_command_steam">Open Steam menu</string>
     <string name="input_command_qam">Open Steam quick access</string>

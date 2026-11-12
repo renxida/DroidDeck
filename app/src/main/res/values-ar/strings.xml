@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">Kestrel</string>
     <string-array name="loading_hints">
         <item>يُنزَّل Steam عند التشغيل الأول. قد يستغرق ذلك بضع دقائق.</item>
         <item>افتراضيًا، يؤدي الخروج من التطبيق إلى إيقاف Steam مؤقتًا، ويُستأنف من حيث توقف عند عودتك.</item>
@@ -130,7 +130,7 @@
     <string name="user_apps_remove">إزالة</string>
     <string name="user_apps_stop_session">أوقف الجلسة لتتمكن من الإزالة</string>
     <string name="user_apps_script_linked">يشغّل %1$s من مجلده، المرتبط بالجلسة في مكانه. لا تؤثر إزالة التطبيق على ذلك المجلد.</string>
-    <string name="user_apps_script_copied">يشغّل %1$s من نسخة من مجلده داخل DroidDeck. تؤدي إزالة التطبيق إلى حذف النسخة، لا الأصل.</string>
+    <string name="user_apps_script_copied">يشغّل %1$s من نسخة من مجلده داخل Kestrel. تؤدي إزالة التطبيق إلى حذف النسخة، لا الأصل.</string>
     <string name="user_apps_runtime_required">ثبّت بيئة تشغيل Linux أولًا</string>
     <string name="user_apps_file_gone">لم يعد الملف موجودًا</string>
     <string name="user_apps_no_space">لا توجد مساحة كافية: يتطلب نسخ المجلد %1$s</string>
@@ -165,8 +165,8 @@
     <string name="app_fex_off">إيقاف</string>
     <string name="app_fex_hint">يشغّل FEX برامج Linux المخصصة لـ x86 على جهاز ARM64 هذا. يستخدمه الخيار «تلقائي» عندما يكون البرنامج مبنيًا لـ x86.</string>
     <string name="app_fex_x86">%1$s عبر FEX</string>
-    <string name="app_fex_not_ready">هذا البرنامج مبني لأجهزة كمبيوتر %1$s ويعمل عبر FEX، الذي لم يتم إعداده بعد. افتح Steam مرة واحدة أثناء تسجيل الدخول: سيجعله DroidDeck يُنزّل FEX وSteam Linux Runtime اللازمة، ثم يُفتح هذا البرنامج.</string>
-    <string name="session_proot_missing">تعذّر تنزيل proot الخاص بـ DroidDeck. تحقّق من الاتصال وحاول مرة أخرى. لم تبدأ الجلسة لأن proot الاحتياطي أبطأ من أن يصلح للعب.</string>
+    <string name="app_fex_not_ready">هذا البرنامج مبني لأجهزة كمبيوتر %1$s ويعمل عبر FEX، الذي لم يتم إعداده بعد. افتح Steam مرة واحدة أثناء تسجيل الدخول: سيجعله Kestrel يُنزّل FEX وSteam Linux Runtime اللازمة، ثم يُفتح هذا البرنامج.</string>
+    <string name="session_proot_missing">تعذّر تنزيل proot الخاص بـ Kestrel. تحقّق من الاتصال وحاول مرة أخرى. لم تبدأ الجلسة لأن proot الاحتياطي أبطأ من أن يصلح للعب.</string>
     <string name="session_powervr_missing">تعذّر تنزيل بيئة رسومات PowerVR. تحقق من الاتصال وحاول مرة أخرى.</string>
     <string name="session_directaudio_missing">تعذّر تنزيل DirectAudio، لذا يستخدم صوت الألعاب المسار الأبطأ في هذه الجلسة.</string>
     <string name="session_end_program">هذا البرنامج</string>
@@ -205,7 +205,7 @@
     <string name="edit_app_save">حفظ</string>
     <string name="add_app_checking_folder">جارٍ فحص المجلد…</string>
     <string name="add_app_folder_linked">مجلده مرتبط بالجلسة: %1$s</string>
-    <string name="add_app_folder_copied">يحتوي مجلده على برامج Linux لا يمكن تشغيلها من مساحة التخزين المشتركة، لذا يُنسخ إلى DroidDeck (%1$s).</string>
+    <string name="add_app_folder_copied">يحتوي مجلده على برامج Linux لا يمكن تشغيلها من مساحة التخزين المشتركة، لذا يُنسخ إلى Kestrel (%1$s).</string>
     <string name="add_app_confirm">إضافة</string>
     <string name="add_app_cancel">إلغاء</string>
     <string name="add_app_runtime_required">ثبّت بيئة تشغيل Linux من «الإعداد» أولًا.</string>
@@ -259,7 +259,7 @@
     <string name="back_double_tap_window">مهلة النقر المزدوج</string>
     <string name="back_tap_ms">%1$d ملّي ثانية</string>
     <string name="brightness_permission_title">السماح بالتحكّم في السطوع</string>
-    <string name="brightness_permission_text">اضبط التحكّم في السطوع في DroidDeck.</string>
+    <string name="brightness_permission_text">اضبط التحكّم في السطوع في Kestrel.</string>
     <string name="back_menu_then_qam">القائمة ← الوصول السريع</string>
     <string name="back_qam_then_menu">الوصول السريع ← القائمة</string>
     <string name="mode_session">الجلسة</string>
@@ -273,12 +273,12 @@
     <string name="mode_suspend_note">«تلقائي» يوقف مؤقتًا في الخلفية ويستأنف عند الظهور. «يدوي» ينتظر الضغط على «استئناف». «أبدًا» يُبقيه قيد التشغيل.</string>
     <string name="mode_startup">بدء التشغيل</string>
     <string name="mode_startup_session">الفتح عند التشغيل</string>
-    <string name="mode_startup_session_hint">يبدأ هذه الجلسة عند تشغيل DroidDeck.</string>
+    <string name="mode_startup_session_hint">يبدأ هذه الجلسة عند تشغيل Kestrel.</string>
     <string name="mode_client">العميل</string>
     <string name="mode_mangoapp">تراكب الأداء</string>
     <string name="mode_mangoapp_hint">أوقفه إذا تعطلت الألعاب أو أصبحت شاشتها سوداء في وضع Deck. يُطبَّق في الجلسة التالية.</string>
-    <string name="mode_return_after_game">العودة إلى DroidDeck بعد اللعبة</string>
-    <string name="mode_return_after_game_hint">عند إغلاق لعبة بدأتها من DroidDeck أو من مشغّل آخر، يُغلَق Steam بشكل سليم (بعد اكتمال الحفظ السحابي) وتعود إلى هناك. عند الإيقاف: تبقى في Steam.</string>
+    <string name="mode_return_after_game">العودة إلى Kestrel بعد اللعبة</string>
+    <string name="mode_return_after_game_hint">عند إغلاق لعبة بدأتها من Kestrel أو من مشغّل آخر، يُغلَق Steam بشكل سليم (بعد اكتمال الحفظ السحابي) وتعود إلى هناك. عند الإيقاف: تبقى في Steam.</string>
     <string name="mode_shader_precache">التخزين المسبق للمظلِّلات</string>
     <string name="mode_shader_precache_hint">ينزّل Steam مظلِّلات مُعدّة مسبقًا لألعابك ويعالجها في الخلفية، فتقلّ التقطّعات في الألعاب. يوفّر الإيقاف البيانات والتخزين والبطارية، وتبني الألعاب المظلِّلات أثناء اللعب بدلًا من ذلك. هو الإعداد نفسه في Steam ضمن التنزيلات > التخزين المسبق للمظلِّلات. يُطبَّق في الجلسة التالية.</string>
     <string name="mode_steam_repair">إصلاح عميل Steam</string>
@@ -758,7 +758,7 @@
     <string name="setup_language_system">الافتراضي للنظام (%1$s)</string>
     <string name="setup_language_system_short">الافتراضي للنظام</string>
     <string name="setup_app_scale">تحجيم التطبيق</string>
-    <string name="setup_app_scale_hint">نصوص DroidDeck وعناصر التحكم فيه</string>
+    <string name="setup_app_scale_hint">نصوص Kestrel وعناصر التحكم فيه</string>
     <string name="setup_app_scale_default">%1$d%% (افتراضي)</string>
     <string name="setup_theme">المظهر</string>
     <string name="setup_theme_hint">مظهر المشغّل</string>
@@ -833,13 +833,13 @@
     <string name="gate_fix_for_me">إصلاحه لي</string>
     <string name="gate_toggle_steps">فعِّل «إيقاف القيود المفروضة على العمليات الثانوية»، ثم عُد. اترك خيارات المطوّرين مفعّلة، وإلا سيُعاد تعطيل المفتاح.</string>
     <string name="gate_open_dev">فتح خيارات المطوّرين</string>
-    <string name="gate_no_toggle">لا يحتوي إصدار Android هذا على مفتاح لذلك، لذا يغيّره DroidDeck عبر تصحيح الأخطاء اللاسلكي. يستغرق نحو دقيقة، ولا يحتاج إلى جهاز كمبيوتر.</string>
+    <string name="gate_no_toggle">لا يحتوي إصدار Android هذا على مفتاح لذلك، لذا يغيّره Kestrel عبر تصحيح الأخطاء اللاسلكي. يستغرق نحو دقيقة، ولا يحتاج إلى جهاز كمبيوتر.</string>
     <string name="gate_needs_wifi">يحتاج تصحيح الأخطاء اللاسلكي إلى Wi-Fi. تعمل أي شبكة؛ فهو لا يحتاج إلى اتصال بالإنترنت.</string>
-    <string name="gate_needs_notifications">يظهر رمز الإقران في إشعار. فعِّل الإشعارات لـ DroidDeck، أو استخدم «طرق أخرى».</string>
+    <string name="gate_needs_notifications">يظهر رمز الإقران في إشعار. فعِّل الإشعارات لـ Kestrel، أو استخدم «طرق أخرى».</string>
     <string name="gate_allow_notifications">السماح بالإشعارات</string>
     <string name="gate_step1">افتح الإعدادات ← خيارات المطوّرين ← تصحيح الأخطاء اللاسلكي وفعِّله</string>
     <string name="gate_step2">اضغط على «إقران جهاز برمز إقران»</string>
-    <string name="gate_step3">أدخل الرمز في إشعار DroidDeck</string>
+    <string name="gate_step3">أدخل الرمز في إشعار Kestrel</string>
     <string name="pairguide_build_number">في «لمحة عن الهاتف»، انقر على «رقم الإصدار» 7 مرات</string>
     <string name="pairguide_wireless">فعّل «تصحيح الأخطاء اللاسلكي»</string>
     <string name="pairguide_pair">افتح «تصحيح الأخطاء اللاسلكي»، ثم انقر على «إقران الجهاز باستخدام رمز الإقران»</string>
@@ -940,7 +940,7 @@
     <string name="desktop_removing">جارٍ إزالة سطح المكتب</string>
     <string name="desktop_removed">تمت إزالة سطح المكتب</string>
     <string name="desktop_cleaning_legacy">جارٍ إزالة ملفات LXQt القديمة</string>
-    <string name="desktop_removal_unknown">حدِّث DroidDeck قبل إزالة إصدار سطح المكتب هذا.</string>
+    <string name="desktop_removal_unknown">حدِّث Kestrel قبل إزالة إصدار سطح المكتب هذا.</string>
     <string name="content_linux_desktop">سطح مكتب Linux</string>
     <string name="games_empty">الألعاب التي تثبّتها في Steam تظهر هنا بعد الجلسة.</string>
     <string name="games_play_steam">تشغيل Steam</string>
@@ -969,8 +969,8 @@
     <string name="gpu_hide_other">إخفاء برامج التشغيل لوحدات GPU الأخرى</string>
     <string name="gpu_show_other">إظهار برامج التشغيل لوحدات GPU الأخرى</string>
     <string name="gpu_ubwc_title">توافق UBWC</string>
-    <string name="gpu_ubwc_hint">جرّب التشغيل أو الإيقاف إذا ظهرت خطوط أو وميض في Steam أو Android. يُطبَّق على برنامجَي التشغيل كليهما بعد إعادة تشغيل DroidDeck.</string>
-    <string name="gpu_ubwc_restart">أعِد تشغيل DroidDeck للتطبيق.</string>
+    <string name="gpu_ubwc_hint">جرّب التشغيل أو الإيقاف إذا ظهرت خطوط أو وميض في Steam أو Android. يُطبَّق على برنامجَي التشغيل كليهما بعد إعادة تشغيل Kestrel.</string>
+    <string name="gpu_ubwc_restart">أعِد تشغيل Kestrel للتطبيق.</string>
     <string name="gpu_runtime_hint">يُستخدَم في الألعاب وسطح المكتب.</string>
     <string name="gpu_runtime_default">الافتراضي لبيئة التشغيل</string>
     <string name="gpu_auto_by_gpu">تلقائي - يُحدَّد بحسب GPU</string>
@@ -1047,7 +1047,7 @@
     <string name="unfolded_controls_with_controller_hint">إظهار عناصر التحكّم باللمس هذه أيضًا أثناء توصيل وحدة تحكم.</string>
     <string name="pip_suspended">معلَّقة</string>
     <string name="pip_not_ready">تتوفّر ميزة نافذة ضمن النافذة عندما تصبح الجلسة جاهزة.</string>
-    <string name="pip_permission">اسمح بميزة نافذة ضمن النافذة لتطبيق DroidDeck في إعدادات Android.</string>
+    <string name="pip_permission">اسمح بميزة نافذة ضمن النافذة لتطبيق Kestrel في إعدادات Android.</string>
     <string name="pip_unavailable">تعذّر على Android فتح نافذة ضمن النافذة.</string>
     <string name="game_more">المزيد</string>
     <string name="game_edit_art">تعديل الصور</string>
@@ -1060,7 +1060,7 @@
     <string name="game_link_copied">تم نسخ رابط التشغيل</string>
     <string name="game_shortcut_unsupported">لا يمكن لتطبيق الشاشة الرئيسية هذا إضافة اختصارات. استخدِم «نسخ رابط التشغيل» بدلاً من ذلك.</string>
     <string name="game_link_invalid">رابط تشغيل اللعبة غير صالح.</string>
-    <string name="game_link_missing">لم تعد هذه اللعبة في مكتبة DroidDeck.</string>
+    <string name="game_link_missing">لم تعد هذه اللعبة في مكتبة Kestrel.</string>
     <string name="game_link_session_busy">أوقِف الجلسة الحالية قبل تشغيل لعبة Steam.</string>
     <string name="game_link_failed">تعذّر إرسال اللعبة إلى Steam. حاوِل تشغيلها مرة أخرى.</string>
     <string name="setup_retry_removal">إعادة محاولة الإزالة</string>
@@ -1177,22 +1177,22 @@
     <string name="drivers_recommended_unpublished">برامج التشغيل المقترحة غير منشورة حاليًا</string>
     <string name="drivers_downloading_pair">جارٍ تنزيل %1$s %2$s…</string>
     <string name="drivers_updated_to">تم التحديث إلى %1$s %2$s.</string>
-    <string name="drivers_updated_to_restart">تم التحديث إلى %1$s %2$s. يُطبَّق برنامج تشغيل العرض بعد إعادة تشغيل DroidDeck.</string>
+    <string name="drivers_updated_to_restart">تم التحديث إلى %1$s %2$s. يُطبَّق برنامج تشغيل العرض بعد إعادة تشغيل Kestrel.</string>
     <string name="drivers_auto_waits_for_session">تنتظر تحديثات برامج التشغيل توقف الجلسة.</string>
     <string name="drivers_auto_waits_for_network">سيتم تنزيل %1$s %2$s بعد إيقاف بيانات الجوال وتوفير البطارية.</string>
     <string name="drivers_skipping_bad">لم يبدأ %1$s %2$s أي جلسة هنا، لذا يبقى الوضع التلقائي على برامج التشغيل التي بدأت.</string>
     <string name="drivers_rolled_back">فشل %1$s في بدء الجلسة مرتين، لذا رجع الوضع التلقائي إلى برامج التشغيل التي عملت.</string>
     <string name="drivers_switched_to">تم التبديل إلى %1$s %2$s.</string>
-    <string name="drivers_switched_to_restart">تم التبديل إلى %1$s %2$s. يُطبَّق برنامج تشغيل العرض بعد إعادة تشغيل DroidDeck.</string>
+    <string name="drivers_switched_to_restart">تم التبديل إلى %1$s %2$s. يُطبَّق برنامج تشغيل العرض بعد إعادة تشغيل Kestrel.</string>
     <string name="drivers_using">يتم استخدام %1$s %2$s.</string>
-    <string name="drivers_using_restart">يتم استخدام %1$s %2$s. يُطبَّق برنامج تشغيل العرض بعد إعادة تشغيل DroidDeck.</string>
+    <string name="drivers_using_restart">يتم استخدام %1$s %2$s. يُطبَّق برنامج تشغيل العرض بعد إعادة تشغيل Kestrel.</string>
     <string name="drivers_using_quest">يُستخدم برنامج تشغيل الصورة المرفق مع Quest وبيئة التشغيل الافتراضية.</string>
-    <string name="drivers_using_quest_restart">يُستخدم برنامج تشغيل الصورة المرفق مع Quest وبيئة التشغيل الافتراضية. يسري برنامج تشغيل الصورة بعد إعادة تشغيل DroidDeck.</string>
+    <string name="drivers_using_quest_restart">يُستخدم برنامج تشغيل الصورة المرفق مع Quest وبيئة التشغيل الافتراضية. يسري برنامج تشغيل الصورة بعد إعادة تشغيل Kestrel.</string>
     <string name="drivers_not_a_driver">ليس ملف zip لبرنامج تشغيل: ليس برنامج تشغيل AdrenoTools ولا Turnip بلاحقة -Linux ولا حزمة Android + Linux</string>
     <string name="drivers_import_failed">فشل الاستيراد: %1$s</string>
     <string name="drivers_imported_unnamed">برنامج تشغيل مستورَد</string>
     <string name="drivers_using_bundle">يتم استخدام %1$s كبرنامج تشغيل لبيئة Linux وللعرض معًا.</string>
-    <string name="drivers_using_bundle_restart">يتم استخدام %1$s كبرنامج تشغيل لبيئة Linux وللعرض معًا. يُطبَّق برنامج تشغيل العرض بعد إعادة تشغيل DroidDeck.</string>
+    <string name="drivers_using_bundle_restart">يتم استخدام %1$s كبرنامج تشغيل لبيئة Linux وللعرض معًا. يُطبَّق برنامج تشغيل العرض بعد إعادة تشغيل Kestrel.</string>
     <string name="drivers_deleted_bundle">تم حذف %1$s (كلا برنامجَي التشغيل)</string>
     <string name="drivers_deleted">تم حذف %1$s</string>
     <string name="drivers_release_status">الأحدث: %1$s · آخر تحقّق %2$s</string>
@@ -1462,7 +1462,7 @@
     <string name="fm_decline">رفض</string>
     <string name="fm_drive_not_readable">تم تركيب %1$s لكن تتعذّر قراءته حاليًا</string>
     <string name="fm_drive_access_title">السماح بالوصول إلى %1$s</string>
-    <string name="fm_drive_access_text">يتيح Android لتطبيق DroidDeck رؤية محرك الأقراص هذا دون قراءته. فعّل الوصول إلى جميع الملفات لتطبيق DroidDeck ثم عُد.</string>
+    <string name="fm_drive_access_text">يتيح Android لتطبيق Kestrel رؤية محرك الأقراص هذا دون قراءته. فعّل الوصول إلى جميع الملفات لتطبيق Kestrel ثم عُد.</string>
     <string name="fm_list_view">عرض القائمة</string>
     <string name="fm_grid_view">عرض الشبكة</string>
     <string name="fm_search">بحث</string>
@@ -1588,12 +1588,12 @@
     <string name="bottom_page_chat">الدردشة والصوت</string>
     <string name="bottom_chat_why">اقرأ دردشة Steam وردّ عليها هنا بينما تستمر اللعبة على الشاشة الرئيسية. تستخدم الحساب المسجَّل دخوله في Steam.</string>
     <string name="bottom_chat_not_signed_in">لا يملك Steam بعد تسجيل دخول على الويب لمشاركته، لذا سجّل الدخول هنا مرة واحدة.</string>
-    <string name="bottom_chat_stopped">أغلق Android صفحة الدردشة بينما كان DroidDeck في الخلفية. ستُفتح مجددًا عند عودتك إلى DroidDeck.</string>
+    <string name="bottom_chat_stopped">أغلق Android صفحة الدردشة بينما كان Kestrel في الخلفية. ستُفتح مجددًا عند عودتك إلى Kestrel.</string>
     <string name="bottom_chat_open">فتح Steam Chat</string>
     <string name="bottom_chat_close">إغلاق الدردشة</string>
     <string name="bottom_chat_mic_on">الميكروفون مفعّل</string>
     <string name="bottom_chat_mic_off">الميكروفون متوقف</string>
-    <string name="bottom_chat_mic_unavailable">الميكروفون متوقف لهذه اللعبة. للتحدث، فعِّل «الميكروفون» في إعدادات Steam في DroidDeck (الصوت) وابدأ اللعبة من جديد.</string>
+    <string name="bottom_chat_mic_unavailable">الميكروفون متوقف لهذه اللعبة. للتحدث، فعِّل «الميكروفون» في إعدادات Steam في Kestrel (الصوت) وابدأ اللعبة من جديد.</string>
     <string name="bottom_chat_volume">مستوى الصوت %1$d%%</string>
     <string name="bottom_page_telemetry">إحصاءات داخل اللعبة</string>
     <string name="bottom_telemetry_battery">البطارية</string>
@@ -1644,7 +1644,7 @@
     <string name="flatpakmgr_not_ready">أعِدّ Flatpak أولاً</string>
     <string name="flatpakmgr_starting">جارٍ البدء</string>
     <string name="flatpakmgr_exit_status">خرج Flatpak بالحالة %1$d</string>
-    <string name="flatpakmgr_wrong_arch">تم بناء %1$s لمعمارية %2$s، ولا يستطيع DroidDeck تشغيلها. تحتاج تطبيقات Flatpak هنا إلى إصدار لمعمارية ARM64 أو x86_64.</string>
+    <string name="flatpakmgr_wrong_arch">تم بناء %1$s لمعمارية %2$s، ولا يستطيع Kestrel تشغيلها. تحتاج تطبيقات Flatpak هنا إلى إصدار لمعمارية ARM64 أو x86_64.</string>
     <string name="flatpakmgr_installing">جارٍ تثبيت %1$s</string>
     <string name="flatpakmgr_updating">جارٍ تحديث %1$s</string>
     <string name="flatpakmgr_removing">جارٍ إزالة %1$s</string>
@@ -1679,7 +1679,7 @@
     <string name="adbfix_no_pairing">لا يوجد إقران محفوظ لتصحيح الأخطاء اللاسلكي</string>
     <string name="adbfix_enter_address">أدخِل عنوان IP الحالي ورقم المنفذ لتصحيح الأخطاء اللاسلكي</string>
 
-    <string name="adbpair_timed_out">انتهت مهلة انتظار النافذة المنبثقة للإقران. حاوِل مرة أخرى من DroidDeck.</string>
+    <string name="adbpair_timed_out">انتهت مهلة انتظار النافذة المنبثقة للإقران. حاوِل مرة أخرى من Kestrel.</string>
     <string name="adbpair_discovery_failed_code">تعذّر البحث عن النافذة المنبثقة للإقران (%1$d). تحقَّق من تفعيل Wi-Fi.</string>
     <string name="adbpair_discovery_failed">تعذّر البحث عن النافذة المنبثقة للإقران: %1$s</string>
     <string name="adbpair_six_digits">أدخِل الأرقام الستة كاملةً للرمز</string>
@@ -1702,7 +1702,7 @@
     <string name="adbpair_enter_code">إدخال الرمز</string>
     <string name="adbpair_title_working">جارٍ إعداد Steam</string>
     <string name="adbpair_title_done">Steam جاهز</string>
-    <string name="adbpair_done_text">اضغط للعودة إلى DroidDeck. يمكنك إيقاف تصحيح الأخطاء اللاسلكي الآن.</string>
+    <string name="adbpair_done_text">اضغط للعودة إلى Kestrel. يمكنك إيقاف تصحيح الأخطاء اللاسلكي الآن.</string>
     <string name="adbpair_title_failed">توقَّف إعداد تصحيح الأخطاء اللاسلكي</string>
 
 
@@ -1851,7 +1851,7 @@
     <string name="cmgr_not_component_package">%1$s ليس حزمة مكوّن لـ Linux (النوع %2$s)</string>
     <string name="gstore_volume_free">%1$s · %2$s متاحة</string>
     <string name="mode_storage_auto_short">تلقائي</string>
-    <string name="main_adb_clip_label">إعداد العمليات الفرعية لـ DroidDeck</string>
+    <string name="main_adb_clip_label">إعداد العمليات الفرعية لـ Kestrel</string>
     <string name="setup_signed_in_offline_unnamed">تم تسجيل الدخول · وضع عدم الاتصال</string>
     <string name="setup_signed_in_unnamed">تم تسجيل الدخول</string>
     <string name="driver_tag_bundled">مرفق</string>
@@ -2016,7 +2016,7 @@
     <string name="gpu_display_next">يرسم الشاشة. يسري من الجلسة القادمة.</string>
     <string name="gpu_previous_driver">برنامج التشغيل السابق</string>
     <string name="gpu_restart_banner">أعد التشغيل لتغيير برنامج تشغيل الصورة.</string>
-    <string name="gpu_restart_blocked">أوقف الجلسة الحالية وأعد تشغيل DroidDeck لتغيير برنامج تشغيل الصورة.</string>
+    <string name="gpu_restart_blocked">أوقف الجلسة الحالية وأعد تشغيل Kestrel لتغيير برنامج تشغيل الصورة.</string>
     <string name="gpu_restart_now">إعادة التشغيل الآن</string>
     <string name="gpu_restart_later">لاحقًا</string>
     <string name="gpu_auto_title">اختار الوضع التلقائي هذا الزوج لـ %1$s</string>
@@ -2078,7 +2078,7 @@
     <string name="touch_speed_normal">عادية</string>
     <string name="touch_speed_fast">سريعة</string>
     <string name="touch_edit_layout">تعديل التخطيط</string>
-    <string name="touch_droiddeck_menu">قائمة DroidDeck</string>
+    <string name="touch_droiddeck_menu">قائمة Kestrel</string>
     <string name="touch_drag_hint">اسحب أدوات التحكم إلى الشاشة</string>
     <string name="touch_arrange">ترتيب</string>
     <string name="touch_discard">تجاهل</string>
@@ -2141,7 +2141,7 @@
     <string name="storage_internal">التخزين الداخلي</string>
     <string name="storage_used_of">المستخدم %1$s من %2$s</string>
     <string name="storage_free">%1$s متاحة</string>
-    <string name="storage_droiddeck_uses">يستخدم DroidDeck %1$s. قيس في %2$s.</string>
+    <string name="storage_droiddeck_uses">يستخدم Kestrel %1$s. قيس في %2$s.</string>
     <string name="storage_rescanning">جارٍ القياس من جديد…</string>
     <string name="storage_other_apps">تطبيقات Android الأخرى</string>
     <string name="storage_safe_now">يمكن تحريره الآن</string>
@@ -2157,14 +2157,14 @@
     <string name="storage_desktop">تطبيقات سطح المكتب</string>
     <string name="storage_system">نظام Linux وعميل Steam</string>
     <string name="storage_system_hint">يلزم لتشغيل أي شيء</string>
-    <string name="storage_app_data">بيانات DroidDeck</string>
+    <string name="storage_app_data">بيانات Kestrel</string>
     <string name="storage_app_data_hint">سجلات الجلسات القديمة %1$s · ذاكرة مؤقتة · برامج تشغيل</string>
     <string name="storage_legend_games">الألعاب</string>
     <string name="storage_legend_data">بيانات الألعاب</string>
     <string name="storage_legend_tools">Proton وبيئات التشغيل</string>
     <string name="storage_legend_desktop">تطبيقات سطح المكتب</string>
     <string name="storage_legend_system">نظام Linux</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">Kestrel</string>
     <string name="storage_clean_up_title">التنظيف</string>
     <string name="storage_clean_up_lede">لا يمس أي شيء هنا الألعاب المثبَّتة ولا التنزيلات الجارية.</string>
     <string name="storage_nothing_to_clean">لا يوجد ما يُنظَّف الآن.</string>
@@ -2213,8 +2213,8 @@
     <string name="storage_tool_redist">تثبيتات VC++ وDirectX التي تحتاجها الألعاب</string>
     <string name="storage_tool_fex">يشغّل ألعاب Linux x86</string>
     <string name="storage_tool_steam">أداة Steam</string>
-    <string name="storage_tool_old_runtime">يشغّل DroidDeck الألعاب دون بيئة التشغيل هذه</string>
-    <string name="storage_tool_x86_proton">Proton x86، ولا يستطيع DroidDeck تشغيله</string>
+    <string name="storage_tool_old_runtime">يشغّل Kestrel الألعاب دون بيئة التشغيل هذه</string>
+    <string name="storage_tool_x86_proton">Proton x86، ولا يستطيع Kestrel تشغيله</string>
     <string name="storage_tool_custom_default">الافتراضي لكل الألعاب</string>
     <string name="storage_tool_custom_unused">لا تستخدمه أي لعبة</string>
     <string name="storage_tool_custom_unknown">لا يمكن قراءة إعدادات Steam، لذا يُحتفظ به</string>
@@ -2273,8 +2273,8 @@
         <item quantity="many">%d لعبة</item>
         <item quantity="other">%d لعبة</item>
     </plurals>
-    <string name="storage_tool_default_proton">Proton الافتراضي في DroidDeck</string>
-    <string name="storage_tool_proton">خيار Proton 11 في DroidDeck</string>
+    <string name="storage_tool_default_proton">Proton الافتراضي في Kestrel</string>
+    <string name="storage_tool_proton">خيار Proton 11 في Kestrel</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="zero">تستخدمه %d لعبة</item>
         <item quantity="one">تستخدمه %d لعبة</item>
@@ -2353,11 +2353,11 @@
     <string name="boot_movie_imported_silent">أصبح %1$s فيديو الإقلاع، بلا صوت</string>
     <string name="boot_movie_too_long">يجب ألا تتجاوز مدة الفيديو المطلوب تحويله %1$d ثانية</string>
     <string name="boot_movie_converting">جارٍ التحويل %1$d%%</string>
-    <string name="boot_movie_converting_started">جارٍ تحويل %1$s لـ Steam. أبقِ DroidDeck مفتوحًا.</string>
+    <string name="boot_movie_converting_started">جارٍ تحويل %1$s لـ Steam. أبقِ Kestrel مفتوحًا.</string>
     <string name="boot_movie_unsupported">لا يستطيع هذا الجهاز فك ترميز هذا الفيديو.</string>
     <string name="boot_movie_import_failed">تعذّر استيراد الفيديو</string>
     <string name="boot_movie_remove_confirm">إزالة %1$s؟</string>
-    <string name="boot_movie_remove_confirm_body">سيُحذف الفيديو من DroidDeck ومن مجلد فيديوهات Steam.</string>
+    <string name="boot_movie_remove_confirm_body">سيُحذف الفيديو من Kestrel ومن مجلد فيديوهات Steam.</string>
     <string name="boot_movie_tab_installed">المثبّتة</string>
     <string name="boot_movie_tab_import">استيراد</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
@@ -2370,7 +2370,7 @@
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">متجر النقاط</string>
     <string name="boot_movie_report">تقرير فيديو الإقلاع</string>
-    <string name="boot_movie_report_hint">يحفظ ما يعرفه DroidDeck وSteam عن فيديوهات الإقلاع في ملف نصي يمكنك إرفاقه ببلاغ خطأ.</string>
+    <string name="boot_movie_report_hint">يحفظ ما يعرفه Kestrel وSteam عن فيديوهات الإقلاع في ملف نصي يمكنك إرفاقه ببلاغ خطأ.</string>
     <string name="boot_movie_report_save">حفظ</string>
     <string name="boot_movie_report_saved">تم الحفظ في %1$s</string>
     <string name="boot_movie_report_failed">تعذّر حفظ التقرير.</string>
@@ -2405,22 +2405,22 @@
     <string name="session_end_vulkan_device">تعذّر على برنامج تشغيل رسومات Linux العثور على جهاز Vulkan صالح للاستخدام. تحقّق من أن برنامج تشغيل GPU المحدد لـ Linux يدعم هذا الـ GPU.</string>
     <string name="setup_group_memory">الذاكرة</string>
     <string name="setup_clear_cached">إغلاق التطبيقات المخزّنة مؤقتًا قبل الجلسة</string>
-    <string name="setup_clear_cached_hint">عند بدء الجلسة، يُغلق DroidDeck التطبيقات التي يُبقيها Android في الخلفية، لتحصل اللعبة على ذاكرة أكبر. يجب تفعيل تصحيح الأخطاء اللاسلكي.</string>
-    <string name="setup_clear_cached_unpaired">يتطلّب إقران DroidDeck بتصحيح الأخطاء اللاسلكي (إقران، أدناه).</string>
+    <string name="setup_clear_cached_hint">عند بدء الجلسة، يُغلق Kestrel التطبيقات التي يُبقيها Android في الخلفية، لتحصل اللعبة على ذاكرة أكبر. يجب تفعيل تصحيح الأخطاء اللاسلكي.</string>
+    <string name="setup_clear_cached_unpaired">يتطلّب إقران Kestrel بتصحيح الأخطاء اللاسلكي (إقران، أدناه).</string>
     <string name="setup_memory_hud">مؤشر الذاكرة</string>
-    <string name="setup_memory_hud_hint">الذاكرة وswap المستخدمة، على شاشة الجلسة. يقسّمها الوضع المتقدّم بين اللعبة وDroidDeck وAndroid وGPU.</string>
+    <string name="setup_memory_hud_hint">الذاكرة وswap المستخدمة، على شاشة الجلسة. يقسّمها الوضع المتقدّم بين اللعبة وKestrel وAndroid وGPU.</string>
     <string name="setup_memory_hud_simple">بسيط</string>
     <string name="setup_memory_hud_advanced">متقدّم</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">اللعبة %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">اللعبة %1$s · Kestrel %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">التطبيقات في الخلفية أثناء الجلسة</string>
-    <string name="setup_bg_limit_hint">أثناء تشغيل الجلسة، يُبقي Android هذا العدد من التطبيقات كحد أقصى في الذاكرة المؤقتة ويُغلق الباقي، لتحصل اللعبة على ذاكرتها. يُعيد DroidDeck الحد إلى ما كان عليه عند انتهاء الجلسة. يجب تفعيل تصحيح الأخطاء اللاسلكي.</string>
+    <string name="setup_bg_limit_hint">أثناء تشغيل الجلسة، يُبقي Android هذا العدد من التطبيقات كحد أقصى في الذاكرة المؤقتة ويُغلق الباقي، لتحصل اللعبة على ذاكرتها. يُعيد Kestrel الحد إلى ما كان عليه عند انتهاء الجلسة. يجب تفعيل تصحيح الأخطاء اللاسلكي.</string>
     <string name="setup_bg_limit_4">4 كحد أقصى</string>
     <string name="setup_bg_limit_1">1 كحد أقصى</string>
     <string name="setup_bg_limit_0">لا شيء</string>
     <string name="setup_adb_pair">تصحيح الأخطاء اللاسلكي</string>
-    <string name="setup_adb_pair_hint">يُقرن DroidDeck بتصحيح الأخطاء اللاسلكي في Android للخيارات أعلاه. يبقى حد العمليات الفرعية متوقفًا.</string>
+    <string name="setup_adb_pair_hint">يُقرن Kestrel بتصحيح الأخطاء اللاسلكي في Android للخيارات أعلاه. يبقى حد العمليات الفرعية متوقفًا.</string>
     <string name="setup_adb_pair_button">إقران</string>
     <string name="game_tab_about">حول</string>
     <string name="game_resources_browser">يُفتح في متصفحك</string>
@@ -2452,8 +2452,8 @@
     <string name="integration_shortcuts_hint">يبقى Alt+Tab ومفتاح Win وزر الرئيسية داخل الجلسة</string>
     <string name="integration_shortcuts_maybe_restricted">غير متاح في Android؟ معلومات التطبيق → ⋮ → السماح بالإعدادات المحظورة</string>
     <string name="integration_shortcuts_restricted">محظور من Android · معلومات التطبيق → ⋮ → السماح بالإعدادات المحظورة</string>
-    <string name="integration_shortcuts_service">مفاتيح نظام DroidDeck</string>
-    <string name="integration_shortcuts_service_description">إبقاء Alt+Tab ومفتاح Win وزر الرئيسية داخل جلسة DroidDeck النشطة بدلاً من Android.</string>
+    <string name="integration_shortcuts_service">مفاتيح نظام Kestrel</string>
+    <string name="integration_shortcuts_service_description">إبقاء Alt+Tab ومفتاح Win وزر الرئيسية داخل جلسة Kestrel النشطة بدلاً من Android.</string>
     <string name="integration_brightness_needed">فعّل «السطوع» من الإعداد → تكامل Steam</string>
     <string name="setup_gpu_bridge_off">جسر Mali: متوقف</string>
     <string name="setup_gpu_bridge_on">جسر Mali: يعمل</string>
@@ -2469,7 +2469,7 @@
     <string name="setup_bridge_dxvk_auto_detail">يستخدم إصدار DXVK أقدم عندما يكون Vulkan في معالج الرسومات هذا أقدم من أن يدعم DXVK الخاص بـ Proton.</string>
     <string name="setup_bridge_dxvk_proton_detail">يحتفظ كل Proton بـ DXVK الخاص به، حتى عندما قد يكون Vulkan في معالج الرسومات هذا أقدم من اللازم.</string>
     <string name="desktop_restore_title">جارٍ استعادة برامجك</string>
-    <string name="desktop_restore_body">إعادة تثبيت التطبيقات التي أضفتها بعد تحديث DroidDeck.</string>
+    <string name="desktop_restore_body">إعادة تثبيت التطبيقات التي أضفتها بعد تحديث Kestrel.</string>
     <string name="desktop_restore_done_title">تمت استعادة البرامج</string>
     <string name="desktop_restore_done_body">التطبيقات التي أضفتها مثبتة مرة أخرى.</string>
     <string name="desktop_restore_failed_title">تعذّرت استعادة بعض البرامج</string>

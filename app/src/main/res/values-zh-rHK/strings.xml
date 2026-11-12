@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">Kestrel</string>
     <string-array name="loading_hints">
         <item>首次執行會下載 Steam，可能需要幾分鐘。</item>
         <item>預設情況下，離開應用程式會暫停 Steam；返回時會從上次中斷的地方繼續。</item>
@@ -130,7 +130,7 @@
     <string name="user_apps_remove">移除</string>
     <string name="user_apps_stop_session">請先停止會話再移除</string>
     <string name="user_apps_script_linked">在 %1$s 原本所在的資料夾執行，該資料夾會連結到會話中。移除應用程式不會影響該資料夾。</string>
-    <string name="user_apps_script_copied">從 DroidDeck 內的資料夾副本執行 %1$s。移除應用程式會刪除副本，不會刪除原本的資料夾。</string>
+    <string name="user_apps_script_copied">從 Kestrel 內的資料夾副本執行 %1$s。移除應用程式會刪除副本，不會刪除原本的資料夾。</string>
     <string name="user_apps_runtime_required">請先安裝 Linux 運行環境</string>
     <string name="user_apps_file_gone">檔案已不存在</string>
     <string name="user_apps_no_space">可用空間不足：複製資料夾需要 %1$s</string>
@@ -165,8 +165,8 @@
     <string name="app_fex_off">關閉</string>
     <string name="app_fex_hint">FEX 可在此 ARM64 裝置上執行 x86 Linux 程式。「自動」會在程式為 x86 而設時使用 FEX。</string>
     <string name="app_fex_x86">%1$s，透過 FEX</string>
-    <string name="app_fex_not_ready">此程式是為 %1$s 電腦而設，需透過 FEX 執行，但 FEX 尚未設定。請在登入狀態下開啟一次 Steam：DroidDeck 會讓它下載 FEX 及所需的 Steam Linux Runtime，之後便會開啟此程式。</string>
-    <string name="session_proot_missing">無法下載 DroidDeck 的 proot。請檢查連線後再試一次。會話未啟動，因為備用 proot 太慢，無法用來玩遊戲。</string>
+    <string name="app_fex_not_ready">此程式是為 %1$s 電腦而設，需透過 FEX 執行，但 FEX 尚未設定。請在登入狀態下開啟一次 Steam：Kestrel 會讓它下載 FEX 及所需的 Steam Linux Runtime，之後便會開啟此程式。</string>
+    <string name="session_proot_missing">無法下載 Kestrel 的 proot。請檢查連線後再試一次。會話未啟動，因為備用 proot 太慢，無法用來玩遊戲。</string>
     <string name="session_powervr_missing">無法下載 PowerVR 圖形環境。請檢查網絡連線後再試。</string>
     <string name="session_directaudio_missing">無法下載 DirectAudio，因此本次會話的遊戲音訊會使用較慢的路徑。</string>
     <string name="session_end_program">此程式</string>
@@ -205,7 +205,7 @@
     <string name="edit_app_save">儲存</string>
     <string name="add_app_checking_folder">正在檢查資料夾…</string>
     <string name="add_app_folder_linked">其資料夾已連結到會話中：%1$s</string>
-    <string name="add_app_folder_copied">該資料夾包含 Linux 程式，而共用儲存空間無法執行這些程式，因此會複製到 DroidDeck（%1$s）。</string>
+    <string name="add_app_folder_copied">該資料夾包含 Linux 程式，而共用儲存空間無法執行這些程式，因此會複製到 Kestrel（%1$s）。</string>
     <string name="add_app_confirm">新增</string>
     <string name="add_app_cancel">取消</string>
     <string name="add_app_runtime_required">請先在「初始設定」中安裝 Linux 運行環境。</string>
@@ -259,7 +259,7 @@
     <string name="back_double_tap_window">連按兩下間隔</string>
     <string name="back_tap_ms">%1$d 毫秒</string>
     <string name="brightness_permission_title">允許控制亮度</string>
-    <string name="brightness_permission_text">在 DroidDeck 中設定亮度控制。</string>
+    <string name="brightness_permission_text">在 Kestrel 中設定亮度控制。</string>
     <string name="back_menu_then_qam">選單 → QAM</string>
     <string name="back_qam_then_menu">QAM → 選單</string>
     <string name="mode_session">會話</string>
@@ -273,12 +273,12 @@
     <string name="mode_suspend_note">「自動」會在背景時暫停，並在重新顯示時繼續；「手動」會等你按「繼續」；「從不」會保持執行。</string>
     <string name="mode_startup">啟動</string>
     <string name="mode_startup_session">啟動時開啟</string>
-    <string name="mode_startup_session_hint">DroidDeck 啟動時開始此工作階段。</string>
+    <string name="mode_startup_session_hint">Kestrel 啟動時開始此工作階段。</string>
     <string name="mode_client">用戶端</string>
     <string name="mode_mangoapp">效能疊加層</string>
     <string name="mode_mangoapp_hint">如果在 Deck 模式下遊戲當機或黑畫面，請關閉此項。下次會話生效。</string>
-    <string name="mode_return_after_game">遊戲結束後返回 DroidDeck</string>
-    <string name="mode_return_after_game_hint">從 DroidDeck 或其他啟動器啟動的遊戲關閉後，Steam 會正常退出（先完成雲端存檔同步），並返回啟動位置。關閉：留在 Steam 中。</string>
+    <string name="mode_return_after_game">遊戲結束後返回 Kestrel</string>
+    <string name="mode_return_after_game_hint">從 Kestrel 或其他啟動器啟動的遊戲關閉後，Steam 會正常退出（先完成雲端存檔同步），並返回啟動位置。關閉：留在 Steam 中。</string>
     <string name="mode_shader_precache">著色器預先快取</string>
     <string name="mode_shader_precache_hint">Steam 會為你的遊戲下載預先編譯的著色器並在背景處理，讓遊戲較不卡頓。關閉可節省流動數據用量、儲存空間和電量；遊戲則會改為在執行時編譯著色器。與 Steam 的「下載」>「著色器預先快取」為同一個設定。下次工作階段生效。</string>
     <string name="mode_steam_repair">修復 Steam 用戶端</string>
@@ -743,7 +743,7 @@
     <string name="setup_language_system">系統預設（%1$s）</string>
     <string name="setup_language_system_short">系統預設</string>
     <string name="setup_app_scale">應用程式縮放</string>
-    <string name="setup_app_scale_hint">DroidDeck 的文字和控制項</string>
+    <string name="setup_app_scale_hint">Kestrel 的文字和控制項</string>
     <string name="setup_app_scale_default">%1$d%%（預設）</string>
     <string name="setup_theme">主題</string>
     <string name="setup_theme_hint">啟動器外觀</string>
@@ -818,13 +818,13 @@
     <string name="gate_fix_for_me">幫我修復</string>
     <string name="gate_toggle_steps">開啟「停用對子處理過程的限制」，然後返回。請保持開發人員選項開啟，否則此開關會再次關閉。</string>
     <string name="gate_open_dev">開啟開發人員選項</string>
-    <string name="gate_no_toggle">此 Android 版本沒有此開關，因此 DroidDeck 會透過無線偵錯更改。約需一分鐘，無需電腦。</string>
+    <string name="gate_no_toggle">此 Android 版本沒有此開關，因此 Kestrel 會透過無線偵錯更改。約需一分鐘，無需電腦。</string>
     <string name="gate_needs_wifi">無線偵錯需要 Wi-Fi。任何網絡都可以，無需連接互聯網。</string>
-    <string name="gate_needs_notifications">配對碼需在通知中輸入。請允許 DroidDeck 發出通知，或使用「其他方式」。</string>
+    <string name="gate_needs_notifications">配對碼需在通知中輸入。請允許 Kestrel 發出通知，或使用「其他方式」。</string>
     <string name="gate_allow_notifications">允許通知</string>
     <string name="gate_step1">開啟「系統設定」→「開發人員選項」→「無線偵錯」，並將其開啟</string>
     <string name="gate_step2">輕按「使用配對碼配對裝置」</string>
-    <string name="gate_step3">在 DroidDeck 通知中輸入配對碼</string>
+    <string name="gate_step3">在 Kestrel 通知中輸入配對碼</string>
     <string name="pairguide_build_number">在「關於手機」中輕按「版本號碼」7 次</string>
     <string name="pairguide_wireless">開啟「無線偵錯」</string>
     <string name="pairguide_pair">開啟「無線偵錯」，然後輕按「使用配對碼配對裝置」</string>
@@ -925,7 +925,7 @@
     <string name="desktop_removing">正在移除桌面</string>
     <string name="desktop_removed">已移除桌面</string>
     <string name="desktop_cleaning_legacy">正在移除舊的 LXQt 檔案</string>
-    <string name="desktop_removal_unknown">請先更新 DroidDeck，再移除此桌面版本。</string>
+    <string name="desktop_removal_unknown">請先更新 Kestrel，再移除此桌面版本。</string>
     <string name="content_linux_desktop">Linux 桌面</string>
     <string name="games_empty">你在 Steam 安裝的遊戲會在會話結束後顯示在這裡。</string>
     <string name="games_play_steam">開啟 Steam</string>
@@ -954,8 +954,8 @@
     <string name="gpu_hide_other">隱藏其他 GPU 的驅動程式</string>
     <string name="gpu_show_other">顯示其他 GPU 的驅動程式</string>
     <string name="gpu_ubwc_title">UBWC 相容性</string>
-    <string name="gpu_ubwc_hint">如果 Steam 或 Android 出現條紋或閃爍，請試試開啟或關閉。重新啟動 DroidDeck 後會套用到兩種驅動程式。</string>
-    <string name="gpu_ubwc_restart">重新啟動 DroidDeck 以套用。</string>
+    <string name="gpu_ubwc_hint">如果 Steam 或 Android 出現條紋或閃爍，請試試開啟或關閉。重新啟動 Kestrel 後會套用到兩種驅動程式。</string>
+    <string name="gpu_ubwc_restart">重新啟動 Kestrel 以套用。</string>
     <string name="gpu_runtime_hint">供遊戲和桌面使用。</string>
     <string name="gpu_runtime_default">運行環境預設</string>
     <string name="gpu_auto_by_gpu">自動 - 按 GPU 選擇</string>
@@ -1032,7 +1032,7 @@
     <string name="unfolded_controls_with_controller_hint">連接控制器時亦顯示這些觸控按鍵。</string>
     <string name="pip_suspended">已暫停</string>
     <string name="pip_not_ready">會話準備就緒後即可使用畫中畫。</string>
-    <string name="pip_permission">請在 Android 設定中允許 DroidDeck 使用畫中畫。</string>
+    <string name="pip_permission">請在 Android 設定中允許 Kestrel 使用畫中畫。</string>
     <string name="pip_unavailable">Android 無法開啟畫中畫。</string>
     <string name="game_more">更多</string>
     <string name="game_edit_art">編輯圖片</string>
@@ -1045,7 +1045,7 @@
     <string name="game_link_copied">已複製啟動連結</string>
     <string name="game_shortcut_unsupported">此啟動器無法新增捷徑，請改用「複製啟動連結」。</string>
     <string name="game_link_invalid">遊戲啟動連結無效。</string>
-    <string name="game_link_missing">此遊戲已不在你的 DroidDeck 收藏庫中。</string>
+    <string name="game_link_missing">此遊戲已不在你的 Kestrel 收藏庫中。</string>
     <string name="game_link_session_busy">請先停止目前的會話，再啟動 Steam 遊戲。</string>
     <string name="game_link_failed">無法將遊戲傳送至 Steam，請再次嘗試啟動。</string>
     <string name="setup_retry_removal">重試移除</string>
@@ -1142,22 +1142,22 @@
     <string name="drivers_recommended_unpublished">建議的驅動程式目前尚未發佈</string>
     <string name="drivers_downloading_pair">正在下載 %1$s %2$s…</string>
     <string name="drivers_updated_to">已更新至 %1$s %2$s。</string>
-    <string name="drivers_updated_to_restart">已更新至 %1$s %2$s。顯示驅動程式會在 DroidDeck 重新啟動後生效。</string>
+    <string name="drivers_updated_to_restart">已更新至 %1$s %2$s。顯示驅動程式會在 Kestrel 重新啟動後生效。</string>
     <string name="drivers_auto_waits_for_session">驅動程式更新會等到會話結束後進行。</string>
     <string name="drivers_auto_waits_for_network">結束流動數據與省電模式後，將下載 %1$s %2$s。</string>
     <string name="drivers_skipping_bad">%1$s %2$s 在此裝置上未能啟動會話，自動模式繼續使用可用的驅動程式。</string>
     <string name="drivers_rolled_back">%1$s 兩次未能啟動會話，自動模式已回到可用的驅動程式。</string>
     <string name="drivers_switched_to">已切換至 %1$s %2$s。</string>
-    <string name="drivers_switched_to_restart">已切換至 %1$s %2$s。顯示驅動程式會在 DroidDeck 重新啟動後生效。</string>
+    <string name="drivers_switched_to_restart">已切換至 %1$s %2$s。顯示驅動程式會在 Kestrel 重新啟動後生效。</string>
     <string name="drivers_using">正在使用 %1$s %2$s。</string>
-    <string name="drivers_using_restart">正在使用 %1$s %2$s。顯示驅動程式會在 DroidDeck 重新啟動後生效。</string>
+    <string name="drivers_using_restart">正在使用 %1$s %2$s。顯示驅動程式會在 Kestrel 重新啟動後生效。</string>
     <string name="drivers_using_quest">使用內建的 Quest 顯示驅動程式與運行環境預設值。</string>
-    <string name="drivers_using_quest_restart">使用內建的 Quest 顯示驅動程式與運行環境預設值。顯示驅動程式將在 DroidDeck 重新啟動後生效。</string>
+    <string name="drivers_using_quest_restart">使用內建的 Quest 顯示驅動程式與運行環境預設值。顯示驅動程式將在 Kestrel 重新啟動後生效。</string>
     <string name="drivers_not_a_driver">不是驅動程式 zip：既非 AdrenoTools 驅動程式、-Linux Turnip，亦非 Android + Linux 組合包</string>
     <string name="drivers_import_failed">匯入失敗：%1$s</string>
     <string name="drivers_imported_unnamed">已匯入的驅動程式</string>
     <string name="drivers_using_bundle">正在使用 %1$s 作為運行環境及顯示驅動程式。</string>
-    <string name="drivers_using_bundle_restart">正在使用 %1$s 作為運行環境及顯示驅動程式。顯示驅動程式會在 DroidDeck 重新啟動後生效。</string>
+    <string name="drivers_using_bundle_restart">正在使用 %1$s 作為運行環境及顯示驅動程式。顯示驅動程式會在 Kestrel 重新啟動後生效。</string>
     <string name="drivers_deleted_bundle">已刪除 %1$s（兩個驅動程式）</string>
     <string name="drivers_deleted">已刪除 %1$s</string>
     <string name="drivers_release_status">最新：%1$s · %2$s檢查</string>
@@ -1377,7 +1377,7 @@
     <string name="fm_decline">拒絕</string>
     <string name="fm_drive_not_readable">%1$s 已掛載，但目前無法讀取</string>
     <string name="fm_drive_access_title">允許存取 %1$s</string>
-    <string name="fm_drive_access_text">Android 允許 DroidDeck 看到此磁碟，但不允許讀取。請為 DroidDeck 開啟「所有檔案存取權」，然後返回。</string>
+    <string name="fm_drive_access_text">Android 允許 Kestrel 看到此磁碟，但不允許讀取。請為 Kestrel 開啟「所有檔案存取權」，然後返回。</string>
     <string name="fm_list_view">清單檢視</string>
     <string name="fm_grid_view">格狀檢視</string>
     <string name="fm_search">搜尋</string>
@@ -1498,12 +1498,12 @@
     <string name="bottom_page_chat">聊天和語音</string>
     <string name="bottom_chat_why">遊戲在主螢幕上持續執行的同時，在此閱讀和回覆 Steam 聊天。會使用 Steam 目前登入的帳戶。</string>
     <string name="bottom_chat_not_signed_in">Steam 目前還沒有可共用的網頁登入狀態，請在此登入一次。</string>
-    <string name="bottom_chat_stopped">DroidDeck 在背景執行時，Android 關閉了聊天頁面。回到 DroidDeck 後會重新開啟。</string>
+    <string name="bottom_chat_stopped">Kestrel 在背景執行時，Android 關閉了聊天頁面。回到 Kestrel 後會重新開啟。</string>
     <string name="bottom_chat_open">開啟 Steam 聊天</string>
     <string name="bottom_chat_close">關閉聊天</string>
     <string name="bottom_chat_mic_on">麥克風已開啟</string>
     <string name="bottom_chat_mic_off">麥克風已關閉</string>
-    <string name="bottom_chat_mic_unavailable">此遊戲的麥克風已關閉。若要說話，請在 DroidDeck 的 Steam 設定（音訊）中開啟麥克風，然後重新啟動遊戲。</string>
+    <string name="bottom_chat_mic_unavailable">此遊戲的麥克風已關閉。若要說話，請在 Kestrel 的 Steam 設定（音訊）中開啟麥克風，然後重新啟動遊戲。</string>
     <string name="bottom_chat_volume">音量 %1$d%%</string>
     <string name="bottom_page_telemetry">遊戲內數據</string>
     <string name="bottom_telemetry_battery">電池</string>
@@ -1549,7 +1549,7 @@
     <string name="flatpakmgr_not_ready">請先設定 Flatpak</string>
     <string name="flatpakmgr_starting">正在開始</string>
     <string name="flatpakmgr_exit_status">Flatpak 已結束，狀態為 %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s 是為 %2$s 建置的，DroidDeck 無法執行。這裡的 Flatpak 應用程式需要 ARM64 或 x86_64 版本。</string>
+    <string name="flatpakmgr_wrong_arch">%1$s 是為 %2$s 建置的，Kestrel 無法執行。這裡的 Flatpak 應用程式需要 ARM64 或 x86_64 版本。</string>
     <string name="flatpakmgr_installing">正在安裝 %1$s</string>
     <string name="flatpakmgr_updating">正在更新 %1$s</string>
     <string name="flatpakmgr_removing">正在移除 %1$s</string>
@@ -1584,7 +1584,7 @@
     <string name="adbfix_no_pairing">沒有已儲存的無線偵錯配對</string>
     <string name="adbfix_enter_address">請輸入目前的無線偵錯 IP 位址和連接埠</string>
 
-    <string name="adbpair_timed_out">等待配對彈出式視窗逾時，請在 DroidDeck 重試。</string>
+    <string name="adbpair_timed_out">等待配對彈出式視窗逾時，請在 Kestrel 重試。</string>
     <string name="adbpair_discovery_failed_code">無法尋找配對彈出式視窗（%1$d）。請確認 Wi-Fi 已開啟。</string>
     <string name="adbpair_discovery_failed">無法尋找配對彈出式視窗：%1$s</string>
     <string name="adbpair_six_digits">請輸入完整的 6 位數配對碼</string>
@@ -1607,7 +1607,7 @@
     <string name="adbpair_enter_code">輸入配對碼</string>
     <string name="adbpair_title_working">正在設定 Steam</string>
     <string name="adbpair_title_done">Steam 已準備就緒</string>
-    <string name="adbpair_done_text">輕按即可返回 DroidDeck。你現在可以關閉無線偵錯。</string>
+    <string name="adbpair_done_text">輕按即可返回 Kestrel。你現在可以關閉無線偵錯。</string>
     <string name="adbpair_title_failed">無線偵錯設定已停止</string>
 
 
@@ -1756,7 +1756,7 @@
     <string name="cmgr_not_component_package">%1$s 不是 Linux 元件套件（類型為 %2$s）</string>
     <string name="gstore_volume_free">%1$s · 可用 %2$s</string>
     <string name="mode_storage_auto_short">自動</string>
-    <string name="main_adb_clip_label">DroidDeck 子進程設定</string>
+    <string name="main_adb_clip_label">Kestrel 子進程設定</string>
     <string name="setup_signed_in_offline_unnamed">已登入 · 離線模式</string>
     <string name="setup_signed_in_unnamed">已登入</string>
     <string name="driver_tag_bundled">內置</string>
@@ -1911,7 +1911,7 @@
     <string name="gpu_display_next">負責繪製畫面。從下次會話起生效。</string>
     <string name="gpu_previous_driver">上一個驅動程式</string>
     <string name="gpu_restart_banner">重新啟動以切換顯示驅動程式。</string>
-    <string name="gpu_restart_blocked">請先停止運行中的會話，再重新啟動 DroidDeck 以切換顯示驅動程式。</string>
+    <string name="gpu_restart_blocked">請先停止運行中的會話，再重新啟動 Kestrel 以切換顯示驅動程式。</string>
     <string name="gpu_restart_now">立即重新啟動</string>
     <string name="gpu_restart_later">稍後</string>
     <string name="gpu_auto_title">已為你的 %1$s 自動選擇此組合</string>
@@ -1973,7 +1973,7 @@
     <string name="touch_speed_normal">正常</string>
     <string name="touch_speed_fast">快</string>
     <string name="touch_edit_layout">編輯佈局</string>
-    <string name="touch_droiddeck_menu">DroidDeck 選單</string>
+    <string name="touch_droiddeck_menu">Kestrel 選單</string>
     <string name="touch_drag_hint">將控制項拖曳到畫面上</string>
     <string name="touch_arrange">排列</string>
     <string name="touch_discard">放棄</string>
@@ -2031,7 +2031,7 @@
     <string name="storage_internal">內部儲存空間</string>
     <string name="storage_used_of">已用 %1$s / %2$s</string>
     <string name="storage_free">可用 %1$s</string>
-    <string name="storage_droiddeck_uses">DroidDeck 使用 %1$s。統計時間 %2$s。</string>
+    <string name="storage_droiddeck_uses">Kestrel 使用 %1$s。統計時間 %2$s。</string>
     <string name="storage_rescanning">正在重新統計…</string>
     <string name="storage_other_apps">其他 Android 應用程式</string>
     <string name="storage_safe_now">現在可安全釋放</string>
@@ -2047,14 +2047,14 @@
     <string name="storage_desktop">桌面應用程式</string>
     <string name="storage_system">Linux 系統與 Steam 用戶端</string>
     <string name="storage_system_hint">運行任何內容所必需</string>
-    <string name="storage_app_data">DroidDeck 資料</string>
+    <string name="storage_app_data">Kestrel 資料</string>
     <string name="storage_app_data_hint">舊會話記錄 %1$s · 快取 · 驅動程式</string>
     <string name="storage_legend_games">遊戲</string>
     <string name="storage_legend_data">遊戲資料</string>
     <string name="storage_legend_tools">Proton 與運行環境</string>
     <string name="storage_legend_desktop">桌面應用程式</string>
     <string name="storage_legend_system">Linux 系統</string>
-    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_legend_app">Kestrel</string>
     <string name="storage_clean_up_title">清理</string>
     <string name="storage_clean_up_lede">此處不會影響已安裝的遊戲或進行中的下載。</string>
     <string name="storage_nothing_to_clean">目前沒有可清理的內容。</string>
@@ -2103,8 +2103,8 @@
     <string name="storage_tool_redist">遊戲要求的 VC++ 與 DirectX 安裝程式</string>
     <string name="storage_tool_fex">運行 Linux x86 遊戲</string>
     <string name="storage_tool_steam">Steam 工具</string>
-    <string name="storage_tool_old_runtime">DroidDeck 不需要此運行環境即可運行遊戲</string>
-    <string name="storage_tool_x86_proton">x86 Proton，DroidDeck 無法運行</string>
+    <string name="storage_tool_old_runtime">Kestrel 不需要此運行環境即可運行遊戲</string>
+    <string name="storage_tool_x86_proton">x86 Proton，Kestrel 無法運行</string>
     <string name="storage_tool_custom_default">所有遊戲的預設項目</string>
     <string name="storage_tool_custom_unused">沒有遊戲使用它</string>
     <string name="storage_tool_custom_unknown">無法讀取 Steam 的設定，因此保留</string>
@@ -2139,8 +2139,8 @@
         <item quantity="one">%d 個遊戲</item>
         <item quantity="other">%d 個遊戲</item>
     </plurals>
-    <string name="storage_tool_default_proton">DroidDeck 的預設 Proton</string>
-    <string name="storage_tool_proton">DroidDeck 的 Proton 11 選項</string>
+    <string name="storage_tool_default_proton">Kestrel 的預設 Proton</string>
+    <string name="storage_tool_proton">Kestrel 的 Proton 11 選項</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">%d 個遊戲使用</item>
         <item quantity="other">%d 個遊戲使用</item>
@@ -2207,11 +2207,11 @@
     <string name="boot_movie_imported_silent">%1$s 現在是開機動畫（無聲）</string>
     <string name="boot_movie_too_long">需要轉換的影片不能超過 %1$d 秒</string>
     <string name="boot_movie_converting">正在轉換 %1$d%%</string>
-    <string name="boot_movie_converting_started">正在為 Steam 轉換 %1$s。請保持 DroidDeck 開啟。</string>
+    <string name="boot_movie_converting_started">正在為 Steam 轉換 %1$s。請保持 Kestrel 開啟。</string>
     <string name="boot_movie_unsupported">此裝置無法解碼該影片。</string>
     <string name="boot_movie_import_failed">無法匯入此影片</string>
     <string name="boot_movie_remove_confirm">移除 %1$s？</string>
-    <string name="boot_movie_remove_confirm_body">這會從 DroidDeck 和 Steam 的動畫資料夾中刪除該動畫。</string>
+    <string name="boot_movie_remove_confirm_body">這會從 Kestrel 和 Steam 的動畫資料夾中刪除該動畫。</string>
     <string name="boot_movie_tab_installed">已安裝</string>
     <string name="boot_movie_tab_import">匯入</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
@@ -2224,7 +2224,7 @@
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">點數商店</string>
     <string name="boot_movie_report">啟動影片報告</string>
-    <string name="boot_movie_report_hint">將 DroidDeck 和 Steam 掌握的啟動影片資訊儲存為文字檔，可附在錯誤報告中。</string>
+    <string name="boot_movie_report_hint">將 Kestrel 和 Steam 掌握的啟動影片資訊儲存為文字檔，可附在錯誤報告中。</string>
     <string name="boot_movie_report_save">儲存</string>
     <string name="boot_movie_report_saved">已儲存到 %1$s</string>
     <string name="boot_movie_report_failed">無法儲存報告。</string>
@@ -2260,13 +2260,13 @@
     <string name="setup_group_memory">記憶體</string>
     <string name="setup_clear_cached">工作階段前關閉快取的應用程式</string>
     <string name="setup_clear_cached_hint">工作階段開始時關閉 Android 留在背景的應用程式，讓遊戲有更多記憶體可用。需要開啟無線偵錯。</string>
-    <string name="setup_clear_cached_unpaired">需要先將 DroidDeck 與無線偵錯配對（見下方「配對」）。</string>
+    <string name="setup_clear_cached_unpaired">需要先將 Kestrel 與無線偵錯配對（見下方「配對」）。</string>
     <string name="setup_memory_hud">記憶體讀數</string>
-    <string name="setup_memory_hud_hint">在工作階段畫面上顯示已用記憶體和交換空間。進階模式會分別顯示遊戲、DroidDeck、Android 和 GPU。</string>
+    <string name="setup_memory_hud_hint">在工作階段畫面上顯示已用記憶體和交換空間。進階模式會分別顯示遊戲、Kestrel、Android 和 GPU。</string>
     <string name="setup_memory_hud_simple">簡單</string>
     <string name="setup_memory_hud_advanced">進階</string>
     <string name="memory_hud_simple">記憶體 %1$s/%2$s GB · 交換 %3$s/%4$s GB</string>
-    <string name="memory_hud_split">遊戲 %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">遊戲 %1$s · Kestrel %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">工作階段期間的背景應用程式</string>
     <string name="setup_bg_limit_hint">工作階段執行期間，Android 最多快取這麼多個應用程式並關閉其餘的，讓遊戲使用它們的記憶體。工作階段結束後還原。需要開啟無線偵錯。</string>
@@ -2274,7 +2274,7 @@
     <string name="setup_bg_limit_1">最多 1 個</string>
     <string name="setup_bg_limit_0">無</string>
     <string name="setup_adb_pair">無線偵錯</string>
-    <string name="setup_adb_pair_hint">為上面的選項將 DroidDeck 與 Android 無線偵錯配對。子進程限制保持關閉。</string>
+    <string name="setup_adb_pair_hint">為上面的選項將 Kestrel 與 Android 無線偵錯配對。子進程限制保持關閉。</string>
     <string name="setup_adb_pair_button">配對</string>
     <string name="game_tab_about">關於</string>
     <string name="game_resources_browser">在瀏覽器中開啟</string>
@@ -2306,8 +2306,8 @@
     <string name="integration_shortcuts_hint">Alt+Tab、Win 鍵和主頁鍵留在工作階段中</string>
     <string name="integration_shortcuts_maybe_restricted">在 Android 中呈灰色？應用程式資訊 → ⋮ → 允許受限制的設定</string>
     <string name="integration_shortcuts_restricted">已被 Android 封鎖 · 應用程式資訊 → ⋮ → 允許受限制的設定</string>
-    <string name="integration_shortcuts_service">DroidDeck 系統按鍵</string>
-    <string name="integration_shortcuts_service_description">讓 Alt+Tab、Win 鍵和主頁鍵在目前的 DroidDeck 工作階段中生效，而不是交給 Android。</string>
+    <string name="integration_shortcuts_service">Kestrel 系統按鍵</string>
+    <string name="integration_shortcuts_service_description">讓 Alt+Tab、Win 鍵和主頁鍵在目前的 Kestrel 工作階段中生效，而不是交給 Android。</string>
     <string name="integration_brightness_needed">請在「初始設定 → Steam 整合」中開啟「亮度」</string>
     <string name="setup_bridge_dxvk">DXVK</string>
     <string name="setup_bridge_dxvk_auto">DXVK：自動</string>
@@ -2323,7 +2323,7 @@
     <string name="setup_bridge_safe_on_detail">相容性最好。建議新裝置使用。</string>
     <string name="setup_bridge_safe_off_detail">在此 GPU 通過檢查的地方較快。</string>
     <string name="desktop_restore_title">正在還原你的軟件</string>
-    <string name="desktop_restore_body">DroidDeck 更新後正在重新安裝你加入的應用程式。</string>
+    <string name="desktop_restore_body">Kestrel 更新後正在重新安裝你加入的應用程式。</string>
     <string name="desktop_restore_done_title">軟件已還原</string>
     <string name="desktop_restore_done_body">你加入的應用程式已重新安裝。</string>
     <string name="desktop_restore_failed_title">部分軟件無法還原</string>
