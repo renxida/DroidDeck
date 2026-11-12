@@ -24,12 +24,16 @@ object TelemetryBundle {
     private const val EVIDENCE_FILE_BYTES = 1L shl 20
     private const val X64_LOG_BYTES = 2L shl 20
     private const val X64_LOG_UNKNOWN_START = 2L shl 20
-    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, "clocks.log", "memory.csv")
+    private const val STEAM_LOG_BYTES = 256L shl 10
+    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, "clocks.log", "memory.csv", "processes.csv")
+    /** The Steam client's own logs that time shader pre-caching, downloads and compatibility-tool picks. */
+    internal val STEAM_LOGS = listOf("shader_log.txt", "content_log.txt", "compat_log.txt", "bootstrap_log.txt")
     private val SCRUBBED = listOf("events.jsonl", "device.txt", GraphicsReport.FILE)
     @Volatile private var learned = false
 
     /** Where the evidence comes from: [x64LogFrom] is the x86_64 Steam log's length at the session start (-1: unknown). */
-    class Sources(val sinceMs: Long, val x64Log: File?, val x64LogFrom: Long, val compatdata: List<File>)
+    class Sources(val sinceMs: Long, val x64Log: File?, val x64LogFrom: Long, val compatdata: List<File>,
+                  val steamLogDirs: List<Pair<String, File>> = emptyList())
 
     fun sources(context: Context, sessionDir: File, x64LogFrom: Long = -1): Sources = Sources(
         sessionStartMs(sessionDir), CrashEvidence.x64Log(context), x64LogFrom,
@@ -37,7 +41,18 @@ object TelemetryBundle {
             runCatching { com.droiddeck.launcher.frontend.Library.compatdataDirs(context, com.droiddeck.launcher.frontend.Library.steamLibraries(context, arch).map { it.first }) }
                 .getOrDefault(emptyList())
         }.distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.path) },
+        listOf(
+            "arm64" to File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs"),
+            "x86_64" to File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/.local/share/Steam/logs"),
+        ),
     )
+
+    /** Steam client logs written since [sinceMs], as (zip name, file). */
+    internal fun steamLogs(dirs: List<Pair<String, File>>, sinceMs: Long): List<Pair<String, File>> =
+        dirs.flatMap { (arch, dir) ->
+            STEAM_LOGS.map { File(dir, it) }.filter { it.isFile && it.length() > 0 && it.lastModified() >= sinceMs - 60_000 }
+                .map { "steam-logs/$arch/${it.name}" to it }
+        }
 
     internal fun sessionStartMs(dir: File): Long = runCatching {
         File(dir, "events.jsonl").bufferedReader().use { org.json.JSONObject(it.readLine()).getLong("t") }
@@ -117,6 +132,7 @@ object TelemetryBundle {
         dir.listFiles { f -> f.isFile && f.name.startsWith(AppExits.TRACE_PREFIX) }?.sortedByDescending { it.lastModified() }?.take(4)
             ?.forEach { add(it, it.name, 256L shl 10) }
         if (x64 != null && x64From >= 0 && x64.length() > x64From) add(x64, "steam-x64.log", X64_LOG_BYTES, x64From)
+        for ((name, file) in steamLogs(sources.steamLogDirs, sources.sinceMs)) add(file, name, STEAM_LOG_BYTES)
         var budget = EVIDENCE_BYTES
         val logs = CrashEvidence.protonLogs(dir) + runCatching { CrashEvidence.gameLogs(sources.compatdata, sources.sinceMs) }.getOrDefault(emptyList())
         for ((name, file) in logs.sortedByDescending { it.second.lastModified() }) {

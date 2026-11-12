@@ -1055,11 +1055,17 @@ case $mode in
     fi
     droiddeck-seed-redists "$steam_root" || true
     fi
+    _bl_precache_choice=$HOME/.config/droiddeck/shader-precache-choice
     if [ -n "${BL_SHADER_PRECACHE:-}" ]; then
       droiddeck-steam-shaders "$BL_SHADER_PRECACHE" "$XDG_DATA_HOME/Steam" \
         "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam" &&
         echo "$BL_SHADER_PRECACHE" > "$HOME/.bl-shader-precache-applied" || true
+      mkdir -p "${_bl_precache_choice%/*}" && echo "$BL_SHADER_PRECACHE" > "$_bl_precache_choice" || true
+    elif [ -n "${HYBRIS_VULKAN_HAL:-}" ]; then
+      droiddeck-steam-shaders --system-driver "$_bl_precache_choice" "$XDG_DATA_HOME/Steam" \
+        "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam" || true
     fi
+    droiddeck-steam-shaders --state "$XDG_DATA_HOME/Steam" "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam" || true
     if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
       step "asking the client to fetch the ARM64 Proton"
       set -- "$@" steam://install/4427310
