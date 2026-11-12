@@ -49,6 +49,8 @@ struct vkp_image *vkp_image_create_shm(int w, int h);
 struct AHardwareBuffer;
 struct vkp_image *vkp_image_from_ahb(struct AHardwareBuffer *ahb);
 void vkp_wait_idle(void);
+/* Wait for pending layer blits that read or write img. */
+void vkp_image_settle(struct vkp_image *img);
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride);
 
 int vkp_image_width(const struct vkp_image *img);
@@ -101,7 +103,9 @@ int vkp_render_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, int n
 int vkp_pass_begin_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *rw, int *rh);
 
-int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd);
+/* With done_fd, a layer slot blit may return before it finishes: *done_fd is then its
+ * completion as a sync fd (or -1 when already done) for the layer's acquire fence. */
+int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd, int *done_fd);
 int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px);
 int vkp_update_map(int scene_w, int scene_h);
 int vkp_map_draw(const struct vkp_draw *d, int out[8]);

@@ -110,6 +110,7 @@ TYPES = r'''
 #include <string.h>
 typedef int VkImage, VkDeviceMemory, VkFormat, VkCommandBuffer, VkResult, VkFilter;
 typedef int VkImageLayout, VkPipelineStageFlags, VkImageUsageFlags;
+typedef int VkFence, VkSemaphore;
 typedef uint64_t VkDeviceSize;
 typedef struct { unsigned width, height; } VkExtent2D;
 typedef struct { int x, y, z; } VkOffset3D;

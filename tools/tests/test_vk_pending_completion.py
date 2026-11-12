@@ -66,6 +66,9 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 static int released_buffers;
 static void AHardwareBuffer_release(AHardwareBuffer *b) { (void)b; ++released_buffers; }
 struct vkp_image { uintptr_t image, mem; void *map; AHardwareBuffer *android_buffer; };
+static unsigned settled, slots_freed;
+static void vkp_image_settle(struct vkp_image *img) { (void)img; ++settled; }
+static void blit_slot_free(struct vkp_image *img) { (void)img; ++slots_freed; }
 static void blendp_forget_image(uintptr_t image) { (void)image; ++forgotten; }
 /* PRODUCTION_FUNCTIONS */
 static struct vkp_image *image(void) {
@@ -78,6 +81,7 @@ int main(void) {
     assert(g_dev_state==1);
     vkp_image_destroy(image());
     assert(destroyed==1 && unmapped==1 && freed_memory==1 && forgotten==1);
+    assert(settled==1 && slots_freed==1); /* pending layer blits finish before the slot is freed */
 
     g_dev_state=1; g_base_black=1; answer=VK_TIMEOUT;
     assert(timed_wait(1, 1000)==VK_TIMEOUT);
@@ -130,6 +134,8 @@ static struct {
     void (*DestroySurfaceKHR)(uintptr_t, uintptr_t, void *);
 } g_vk={idle_fn, destroy_fn, destroy_fn};
 static void reset_sync(void) { ++resets; }
+static unsigned idled;
+static void blits_idle(void) { ++idled; }
 static void blendp_forget_image(uintptr_t img) { (void)img; ++forgotten; }
 static void device_lost(const char *where) { (void)where; ++lost; g_dev_state=-2; }
 /* PRODUCTION_FUNCTIONS */
@@ -140,7 +146,7 @@ static void setup(void) {
 }
 int main(void) {
     setup(); answer=VK_SUCCESS; destroy_swapchain();
-    assert(resets==1 && destroyed==2 && forgotten==1);
+    assert(resets==1 && destroyed==2 && forgotten==1 && idled==1);
     assert(!g_swapchain && !g_surface && !g_images && !g_nimg && !g_swap_md_identity);
     setup(); answer=VK_ERROR_OUT_OF_HOST_MEMORY; destroy_swapchain();
     assert(g_dev_state==-3 && errors==1);

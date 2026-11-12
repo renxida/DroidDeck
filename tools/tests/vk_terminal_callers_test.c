@@ -21,8 +21,14 @@ static VkResult idle(VkDevice d) { live(); ++idle_calls; return idle_answer; }
 static VkResult wait_fences(VkDevice d, uint32_t n, const VkFence *f, VkBool32 all, uint64_t t) {
     live(); ++waits; return fence_answer;
 }
+static VkSemaphore last_signal, last_wait;
+static VkFence last_fence;
 static VkResult submit(VkQueue q, uint32_t n, const VkSubmitInfo *s, VkFence f) {
-    live(); ++submits; if (!s->commandBufferCount) ++markers; return VK_SUCCESS;
+    live(); ++submits; if (!s->commandBufferCount) ++markers;
+    last_signal = s->signalSemaphoreCount ? s->pSignalSemaphores[0] : VK_NULL_HANDLE;
+    last_wait = s->waitSemaphoreCount ? s->pWaitSemaphores[0] : VK_NULL_HANDLE;
+    last_fence = f;
+    return VK_SUCCESS;
 }
 static VkResult present(VkQueue q, const VkPresentInfoKHR *p) { live(); return present_answer; }
 static VkResult reset_cmd(VkCommandBuffer c, VkCommandBufferResetFlags f) { live(); ++resets; return VK_SUCCESS; }
@@ -43,6 +49,31 @@ static VkResult create_sem(VkDevice d, const VkSemaphoreCreateInfo *c, const VkA
     live(); *s = (VkSemaphore)(uintptr_t)1; return VK_SUCCESS;
 }
 static void destroy_image(VkDevice d, VkImage i, const VkAllocationCallbacks *a) { ++destroys; }
+static uintptr_t next_handle = 100;
+static unsigned slot_objects;
+static VkResult alloc_cmds(VkDevice d, const VkCommandBufferAllocateInfo *i, VkCommandBuffer *c) {
+    live(); ++slot_objects; *c = (VkCommandBuffer)next_handle++; return VK_SUCCESS;
+}
+static VkResult create_fence(VkDevice d, const VkFenceCreateInfo *c, const VkAllocationCallbacks *a, VkFence *f) {
+    live(); ++slot_objects; *f = (VkFence)next_handle++; return VK_SUCCESS;
+}
+static VkResult create_slot_sem(VkDevice d, const VkSemaphoreCreateInfo *c, const VkAllocationCallbacks *a,
+                                VkSemaphore *s) {
+    live(); ++slot_objects; *s = (VkSemaphore)next_handle++; return VK_SUCCESS;
+}
+static void destroy_fence(VkDevice d, VkFence f, const VkAllocationCallbacks *a) { ++destroys; }
+static void free_cmds(VkDevice d, VkCommandPool p, uint32_t n, const VkCommandBuffer *c) { ++destroys; }
+static VkResult export_answer;
+static unsigned exports, imports;
+static VkResult get_sem_fd(VkDevice d, const VkSemaphoreGetFdInfoKHR *i, int *fd) {
+    live(); ++exports;
+    assert(i->handleType == VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT && i->semaphore == last_signal);
+    if (export_answer != VK_SUCCESS) return export_answer;
+    int p[2]; assert(pipe(p) == 0); close(p[1]); *fd = p[0]; return VK_SUCCESS;
+}
+static VkResult import_sem_fd(VkDevice d, const VkImportSemaphoreFdInfoKHR *i) {
+    live(); ++imports; close(i->fd); return VK_SUCCESS;
+}
 static void free_memory(VkDevice d, VkDeviceMemory m, const VkAllocationCallbacks *a) { ++destroys; }
 static void unmap(VkDevice d, VkDeviceMemory m) { ++destroys; }
 
@@ -134,7 +165,7 @@ static struct wl_resource *expected_release;
 static void wl_buffer_send_release(struct wl_resource *b) { assert(b && b == expected_release); ++releases; }
 static struct wl_client *wl_resource_get_client(struct wl_resource *r) { return NULL; }
 static struct client_info *client_info_of(struct wl_client *c) { return NULL; }
-struct dmabuf_buffer { int unused; };
+struct dmabuf_buffer { struct vkp_image *img; };
 static struct dmabuf_buffer dmabuf_fixture;
 static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer) {
     assert(buffer);
@@ -189,7 +220,8 @@ static void assert_stopped(void) {
     assert(vkp_image_readback(&src, &pixel, 1) == -1);
     assert(vkp_pass_begin(64, 64, NULL, 0, NULL, NULL) == -1);
     int fd[2]; assert(pipe(fd) == 0);
-    assert(vkp_blit_image(&src, &dst, fd[0]) == -1);
+    int done = 7;
+    assert(vkp_blit_image(&src, &dst, fd[0], &done) == -1 && done == -1);
     errno = 0; assert(close(fd[0]) == -1 && errno == EBADF); close(fd[1]);
     g_pass.active = 1;
     assert(pipe(fd) == 0);
@@ -198,6 +230,83 @@ static void assert_stopped(void) {
     g_pass.active = 1; vkp_pass_abort(); assert(!g_pass.active);
     assert(timed_wait(g_fence, UINT64_MAX) != VK_SUCCESS);
     assert(operations == before && destroys == before_destroys);
+}
+
+static void enable_layer_fence(void) {
+    g_vk.AllocateCommandBuffers = alloc_cmds; g_vk.CreateFence = create_fence; g_vk.CreateSemaphore = create_slot_sem;
+    g_vk.DestroyFence = destroy_fence; g_vk.FreeCommandBuffers = free_cmds;
+    g_get_sem_fd = get_sem_fd; g_import_sem_fd = import_sem_fd;
+    g_wait_sem = (VkSemaphore)(uintptr_t)41;
+    g_layer_fence = 1; export_answer = VK_SUCCESS;
+}
+
+static struct vkp_image *layer_slot(uintptr_t handle) {
+    struct vkp_image *img = calloc(1, sizeof(*img)); assert(img);
+    *img = (struct vkp_image){.image = (VkImage)handle, .w = 4, .h = 4, .dmabuf = 1, .blit_dst = 1};
+    return img;
+}
+
+/* A layer blit returns with its completion as a sync fd; the slot's fence is
+ * waited for only before the slot is reused or the client's buffer goes back. */
+static void layer_fence(void) {
+    setup(0); enable_layer_fence();
+    struct vkp_image src = {.image = (VkImage)(uintptr_t)70, .w = 4, .h = 4, .dmabuf = 1};
+    struct vkp_image *a = layer_slot(71), *b = layer_slot(72);
+    int done = -1, release[2];
+    assert(pipe(release) == 0); close(release[1]);
+    assert(vkp_blit_image(&src, a, release[0], &done) == 0);
+    assert(done >= 0 && waits == 0 && submits == 1 && exports == 1 && imports == 1);
+    assert(slot_objects == 4 && last_signal == a->blit_done && last_wait == a->blit_wait && last_fence == a->blit_fence);
+    assert(a->blit_serial == 1 && src.gpu_use == 1);
+    close(done);
+    assert(vkp_blit_image(&src, a, -1, &done) == 0 && done >= 0 && waits == 1 && submits == 2);
+    assert(slot_objects == 4 && a->blit_serial == 2);
+    close(done);
+    assert(vkp_blit_image(&src, b, -1, &done) == 0 && done >= 0 && waits == 1 && b->blit_serial == 3);
+    close(done);
+    struct wl_resource dmabuf = {.dmabuf = 1};
+    struct vkp_image *client = calloc(1, sizeof(*client)); assert(client);
+    *client = src;
+    dmabuf_fixture.img = client; expected_release = &dmabuf;
+    send_buffer_release(&dmabuf);
+    assert(waits == 3 && releases == 1 && !a->blit_serial && !b->blit_serial);
+    send_buffer_release(&dmabuf);
+    assert(waits == 3 && releases == 2);
+    unsigned before = destroys;
+    vkp_image_destroy(a);
+    assert(waits == 3 && destroys == before + 5); /* cmd, fence, two semaphores, image */
+    /* Without done_fd the blit is waited for on the CPU, as before. */
+    assert(vkp_blit_image(&src, b, -1, NULL) == 0 && waits == 4 && last_fence == g_fence && !last_signal);
+    /* An export failure finishes this blit on the CPU and turns the feature off. */
+    export_answer = VK_ERROR_OUT_OF_HOST_MEMORY;
+    assert(vkp_blit_image(&src, b, -1, &done) == 0 && done == -1 && waits == 5 && !g_layer_fence);
+    assert(!b->blit_serial);
+    assert(vkp_blit_image(&src, b, -1, &done) == 0 && done == -1 && waits == 6 && last_fence == g_fence);
+    free(client); vkp_image_destroy(b); free(g_images);
+}
+
+static void layer_fence_terminal(VkResult result) {
+    setup(0); enable_layer_fence();
+    struct vkp_image src = {.image = (VkImage)(uintptr_t)70, .w = 4, .h = 4, .dmabuf = 1};
+    struct vkp_image *a = layer_slot(71);
+    int done = -1;
+    assert(vkp_blit_image(&src, a, -1, &done) == 0 && done >= 0 && waits == 0);
+    close(done);
+    fence_answer = result;
+    struct wl_resource dmabuf = {.dmabuf = 1};
+    dmabuf_fixture.img = &src; expected_release = &dmabuf;
+    send_buffer_release(&dmabuf);
+    assert(waits == 1);
+    if (result == VK_ERROR_DEVICE_LOST) {
+        assert(vkp_device_lost() && !a->blit_serial && releases == 1);
+    } else {
+        assert(g_dev_state == -3 && a->blit_serial && releases == 0); /* the read is unconfirmed */
+        unsigned before = destroys;
+        vkp_image_destroy(a);
+        assert(destroys == before && waits == 1);
+        free(g_images);
+    }
+    assert_stopped();
 }
 
 static void acquire_failure(int later, VkResult result) {
@@ -232,7 +341,7 @@ static void upload_timeout(int single_pixel) {
     memcpy(saved, bytes, sizeof(saved));
     struct vkp_image dst = {.image = (VkImage)(uintptr_t)9, .blit_dst = 1, .w = img->w, .h = img->h};
     fence_answer = VK_TIMEOUT;
-    assert(vkp_blit_image(img, &dst, -1) == -1);
+    assert(vkp_blit_image(img, &dst, -1, NULL) == -1);
     assert(g_dev_state == -3 && submits == 1 && waits == 1);
     memset(data, 0x7e, sizeof(data));
     if (single_pixel) take_pixel(&s, data, &resource); else take_shm(&s, &b, &resource);
@@ -261,6 +370,9 @@ int main(int argc, char **argv) {
     else if (!strcmp(name, "later-surface-lost")) acquire_failure(1, VK_ERROR_SURFACE_LOST_KHR);
     else if (!strcmp(name, "shm-timeout")) upload_timeout(0);
     else if (!strcmp(name, "pixel-timeout")) upload_timeout(1);
+    else if (!strcmp(name, "layer-fence")) layer_fence();
+    else if (!strcmp(name, "layer-fence-device-lost")) layer_fence_terminal(VK_ERROR_DEVICE_LOST);
+    else if (!strcmp(name, "layer-fence-timeout")) layer_fence_terminal(VK_TIMEOUT);
     else if (!strcmp(name, "pass-terminal")) { setup(0); g_dev_state = -3; assert_stopped(); free(g_images); }
     else if (!strcmp(name, "normal") || !strcmp(name, "framegen")) {
         int extra = !strcmp(name, "framegen"); setup(extra);
