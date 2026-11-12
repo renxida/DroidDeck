@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <queries>
         <package android:name="cn.nubia.gamelauncher" />
@@ -42,14 +41,9 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.CAMERA" />
 
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-    <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="false" />
 
     <application
         android:name=".App"
@@ -67,8 +61,6 @@
         android:isGame="true">
 
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
-        <service android:name=".glasses.LumaRgbCaptureService" android:exported="false"
-            android:process=":rgb_diagnostic" />
         <service android:name=".wallpaper.SteamWallService"
             android:label="@string/steam_wall_label"
             android:permission="android.permission.BIND_WALLPAPER"
@@ -98,18 +90,6 @@
             </intent-filter>
         </receiver>
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
-        <activity android:name=".QuestXrActivity" android:exported="true" android:launchMode="singleTask"
-            android:permission="android.permission.DUMP"
-            android:resizeableActivity="false" android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
-            <meta-data android:name="android.app.lib_name" android:value="droiddeckxr" />
-            <intent-filter>
-                <action android:name="com.droiddeck.launcher.XR" />
-                <category android:name="com.oculus.intent.category.VR" />
-                <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
-            </intent-filter>
-        </activity>
 
         <activity
             android:name=".PairingGuideActivity"
@@ -260,16 +240,6 @@
             android:windowSoftInputMode="stateAlwaysHidden|adjustNothing"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
-        <activity
-            android:name=".gpu.SteamVrRestartActivity"
-            android:exported="false"
-            android:process=":vr_recovery"
-            android:taskAffinity="${applicationId}.vr_recovery"
-            android:excludeFromRecents="true"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
-            android:theme="@style/SessionTheme" />
-
         <service android:name=".agent.AgentHostService" android:exported="false" />
         <service
             android:name=".session.SessionService"
@@ -323,13 +293,5 @@
             android:exported="true"
             android:permission="android.permission.DUMP"
             android:grantUriPermissions="false" />
-        <activity android:name=".ui.SpatialTrackingActivity" android:exported="false" />
-        <service
-            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
-            tools:node="merge">
-            <meta-data
-                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
-                tools:node="remove" />
-        </service>
     </application>
 </manifest>

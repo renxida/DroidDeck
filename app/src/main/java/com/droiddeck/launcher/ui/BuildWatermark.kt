@@ -21,7 +21,6 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import java.util.WeakHashMap
 import com.droiddeck.launcher.BuildConfig
-import com.droiddeck.launcher.QuestXrActivity
 
 object BuildWatermark {
     private const val TITLE_LIMIT = 80
@@ -58,7 +57,6 @@ object BuildWatermark {
         )
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
-                if (activity is QuestXrActivity) return
                 synchronized(activities) { activities[activity] = Unit }
                 update(activity)
             }
@@ -78,7 +76,6 @@ object BuildWatermark {
     }
 
     private fun update(activity: Activity) {
-        if (activity is QuestXrActivity) return
         val decor = activity.window.decorView as? ViewGroup ?: return
         decor.findViewWithTag<View>(TAG)?.let(decor::removeView)
         if (!com.droiddeck.launcher.session.SessionPrefs.buildWatermarkEnabled(activity)) return

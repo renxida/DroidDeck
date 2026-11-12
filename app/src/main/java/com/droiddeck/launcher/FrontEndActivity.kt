@@ -237,10 +237,6 @@ class FrontEndActivity : ComponentActivity() {
         SessionPrefs.setWifiDiscoveryEnabled(this, WifiDiscovery.permissionGranted(this))
         refreshWifiDiscovery()
     }
-    private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-        com.droiddeck.launcher.handtracking.HandTracking.refreshPermission(this)
-    }
-    private var placementCheck by mutableStateOf<Boolean?>(null)
     private val wifiPermissionSettings = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         SessionPrefs.setWifiDiscoveryEnabled(this, WifiDiscovery.permissionGranted(this))
         refreshWifiDiscovery()
@@ -846,28 +842,19 @@ class FrontEndActivity : ComponentActivity() {
                 android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
                 return true
             }
-            val steamVr = game.gameIdString == com.droiddeck.launcher.gpu.SteamVr.APP_ID
-            if (!steamVr && !SessionService.launchGame(this, game.gameIdString)) {
+            if (!SessionService.launchGame(this, game.gameIdString)) {
                 android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
                 return false
             }
             Library.recordPlayed(this, game)
             startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
-                .putExtra(SessionActivity.EXTRA_STEAMVR, steamVr)
                 .returnTo(returnHome)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
         }
         return startSession(Intent(this, SessionActivity::class.java)
                 .returnTo(returnHome)
-                .apply {
-                    if (game.gameIdString == com.droiddeck.launcher.gpu.SteamVr.APP_ID) {
-                        putExtra(SessionActivity.EXTRA_STEAMVR, true)
-                    } else {
-                        putExtra(SessionService.EXTRA_STEAM_URL,
-                            com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString))
-                    }
-                }
+                .putExtra(SessionService.EXTRA_STEAM_URL, com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString))
                 .playing(game), steamSession = true)
     }
 
@@ -1118,7 +1105,6 @@ class FrontEndActivity : ComponentActivity() {
                     ),
                     FrontEndActions(
                         onPlay = { playSteam() },
-                        onPlaySteamVr = { playSteamVr() },
                         onSteamUrl = { url ->
                             if (!SessionState.running) startSession(
                                 Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url), steamSession = true,
@@ -1552,12 +1538,6 @@ class FrontEndActivity : ComponentActivity() {
                         onDismiss = { lowSpace = null },
                     )
                 }
-                com.droiddeck.launcher.ui.HandCameraHost(
-                    check = placementCheck,
-                    onAskPermission = { cameraPermission.launch(Manifest.permission.CAMERA) },
-                    onPlay = { placementCheck = null; startSteamSession(steamVr = true) },
-                    onClose = { placementCheck = null },
-                )
                 if (showResetSettings) com.droiddeck.launcher.ui.ResetSettingsDialog(
                     onConfirm = { gameProfiles -> resetSettings(gameProfiles) },
                     onDismiss = { showResetSettings = false },
@@ -1648,15 +1628,8 @@ class FrontEndActivity : ComponentActivity() {
         } else startSteamSession()
     }
 
-    private fun playSteamVr() {
-        val tracking = com.droiddeck.launcher.glasses.Glasses.settings.value
-        if (!com.droiddeck.launcher.glasses.Glasses.state.value.usesSpatialControllers(tracking) &&
-            com.droiddeck.launcher.handtracking.HandTracking.wanted(this)) placementCheck = true
-        else startSteamSession(steamVr = true)
-    }
-
-    private fun startSteamSession(steamVr: Boolean = false) {
-        startSession(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, steamVr), steamSession = true)
+    private fun startSteamSession() {
+        startSession(Intent(this, SessionActivity::class.java), steamSession = true)
     }
 
     @Suppress("OVERRIDE_DEPRECATION")

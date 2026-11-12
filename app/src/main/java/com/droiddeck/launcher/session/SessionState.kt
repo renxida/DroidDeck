@@ -72,7 +72,6 @@ object SessionState {
     var steamUrl: String? = null
     @Volatile
     var steamClientArch: String? = null
-    var steamVr by mutableStateOf(false)
     @Volatile
     var relaunch: android.content.Intent? = null
     @Volatile

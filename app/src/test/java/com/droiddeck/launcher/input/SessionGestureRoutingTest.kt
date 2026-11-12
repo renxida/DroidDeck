@@ -184,7 +184,6 @@ class SessionGestureRoutingTest {
             override fun showKeyboard() { keyboards++ }
         }).also { it.configure(config) }
         setField("routedTouchMode", mode)
-        setField("padMouseCheckedAt", SystemClock.uptimeMillis())
         setField("threeFingerTap", steamTap)
         setField("touchscreenGestures", gestures)
         setField("surfaceView", SurfaceView(RuntimeEnvironment.getApplication()).apply { layout(0, 0, 1000, 600) })

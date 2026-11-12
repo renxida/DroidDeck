@@ -185,13 +185,6 @@ if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
     save_step x86-preloads "${x86_key}" "${x86_stage}"
 fi
 
-vr_out="${linuxfs_dir}/usr/local/lib/droiddeck-vr"
-vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
-if ! restore_step vr "${vr_key}" "${vr_out}"; then
-    DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${vr_out}"
-    save_step vr "${vr_key}" "${vr_out}"
-fi
-
 gpuload_out="${linuxfs_dir}/usr/local/lib/droiddeck-gpuload"
 gpuload_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/gpuload)
 if ! restore_step gpuload "${gpuload_key}" "${gpuload_out}"; then

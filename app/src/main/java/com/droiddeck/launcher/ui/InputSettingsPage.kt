@@ -226,7 +226,6 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                     SettingsGroup(stringResource(R.string.input_device_settings)) {
                         ToggleRow(host, "controller-rumble", stringResource(R.string.ctrl_rumble), null, controller.rumble) { ControllerPrefs.setRumble(context, it); onChanged() }
                         ChoiceRow(host, "controller-dead-zone", stringResource(R.string.ctrl_dead_zone), null, ControllerPrefs.deadZones.map { it to stringResource(R.string.ctrl_percent, it) }, controller.deadZone) { ControllerPrefs.setDeadZone(context, it); onChanged() }
-                        ToggleRow(host, "controller-joycon-vr", stringResource(R.string.ctrl_joycon_vr), stringResource(R.string.ctrl_joycon_vr_hint), controller.joyConVr) { ControllerPrefs.setJoyConVr(context, it); onChanged() }
                     }
                     SettingsGroup(stringResource(R.string.shortcuts_title)) { PhysicalShortcutRows() }
                     SettingsGroup(stringResource(R.string.input_latency)) {

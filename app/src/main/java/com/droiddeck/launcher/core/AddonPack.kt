@@ -140,9 +140,6 @@ internal class AddonPack(
         @JvmField
         val DIRECTAUDIO = AddonPack("directaudio", BuildConfig.PACK_DIRECTAUDIO_SHA256, BuildConfig.PACK_DIRECTAUDIO_SIZE,
             listOf("linux-wine11/version.txt", "linux-wine11-systhread/version.txt"))
-        val TRACKING = AddonPack("tracking", BuildConfig.PACK_TRACKING_SHA256, BuildConfig.PACK_TRACKING_SIZE, listOf(
-            "hand_landmarker.task", "hand_landmarker_lite.task", "pose_landmarker_lite.task",
-            "libopencv_java4.so", "libmediapipe_tasks_jni.so"))
         @JvmField
         val POWERVR = AddonPack("powervr", BuildConfig.PACK_POWERVR_SHA256, BuildConfig.PACK_POWERVR_SIZE,
             listOf("runtime.tzst", "version.txt"))

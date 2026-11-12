@@ -1831,7 +1831,7 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertIn('bl_directaudio "$here" "$@"', COMPAT["EXTRA_WRAPPER_SH"] % "proton")
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
-            self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
+            self.assertIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
 
     def test_both_proton_wrappers_answer_steams_driver_query_without_wine(self):
         scripts = (COMPAT["launcher_sh"](), COMPAT["extra_wrapper_sh"]("proton"))

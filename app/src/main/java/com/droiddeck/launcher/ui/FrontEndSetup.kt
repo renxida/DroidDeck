@@ -92,7 +92,6 @@ internal object SetupTabs {
     var openLauncher = false
     var openOverview = false
 }
-private const val GLASSES_TAB = 6
 private const val SYNC_TAB = 4
 
 @Composable
@@ -190,7 +189,7 @@ internal fun SetupPanel(
         onDismiss = { editDownloadProxy = false },
         onSave = { a.onDownloadProxy(it); editDownloadProxy = false },
     )
-    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_sync), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
+    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_sync), stringResource(R.string.setup_tab_diagnostics))
     var tab by rememberSaveable { mutableStateOf(if (SetupTabs.openLauncher) LAUNCHER_TAB else 0) }
     var logsRefresh by remember { mutableStateOf(0) }
     var deleteSessionLogs by remember { mutableStateOf<java.io.File?>(null) }
@@ -666,7 +665,6 @@ internal fun SetupPanel(
                             )
                         }
                     }
-                    GLASSES_TAB -> GlassesSetupPanel()
                 }
             }
         }

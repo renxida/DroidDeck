@@ -53,7 +53,7 @@ class GamesClientTagTest {
                             desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
                             romsDir = null, logsEnabled = false, steamGames = games, steamGamesX64 = x64, emulators = emptyList(), running = null,
                         ), FrontEndActions(
-                            onPlay = {}, onPlaySteamVr = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {}, onEmulator = {},
+                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {}, onEmulator = {},
                             onRom = {}, onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
                             onInstallPackage = {}, onRemovePackage = {}, onRuntime = {}, onFrameGenPick = {},
                             onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},

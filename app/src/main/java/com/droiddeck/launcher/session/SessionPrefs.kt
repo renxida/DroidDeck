@@ -6,7 +6,6 @@ import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
-import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import com.droiddeck.launcher.gpu.TurnipDriver
@@ -1220,14 +1219,9 @@ object SessionPrefs {
 
     const val PIP_FPS = 30
 
-    fun compositorFpsLimit(mirrorRefreshLimit: Int, sessionLimit: Int = 0, pip: Boolean = false): Int {
-        val limit = when {
-            mirrorRefreshLimit <= 0 && sessionLimit <= 0 -> FPS_UNPACED
-            mirrorRefreshLimit <= 0 -> sessionLimit
-            sessionLimit <= 0 -> mirrorRefreshLimit
-            else -> minOf(mirrorRefreshLimit, sessionLimit)
-        }
-        return if (pip && mirrorRefreshLimit <= 0 && (limit <= 0 || limit > PIP_FPS)) PIP_FPS else limit
+    fun compositorFpsLimit(sessionLimit: Int = 0, pip: Boolean = false): Int {
+        val limit = if (sessionLimit <= 0) FPS_UNPACED else sessionLimit
+        return if (pip && (limit <= 0 || limit > PIP_FPS)) PIP_FPS else limit
     }
 
     val upscalerChoices = listOf(
@@ -1271,23 +1265,6 @@ object SessionPrefs {
 
     fun setScreenEffects(context: Context, effects: ScreenEffects) {
         prefs(context).edit().putString("screenEffects", effects.encode().toString()).apply()
-    }
-
-    const val CARDBOARD_KEY = "cardboard"
-
-    fun cardboard(context: Context): Cardboard {
-        val text = prefs(context).getString(CARDBOARD_KEY, null) ?: return Cardboard.OFF
-        return runCatching { Cardboard.decode(JSONObject(text)) }.getOrDefault(Cardboard.OFF)
-    }
-
-    fun setCardboard(context: Context, cardboard: Cardboard) {
-        prefs(context).edit().putString(CARDBOARD_KEY, cardboard.encode().toString()).apply()
-    }
-
-    fun cardboardSourceBeforeSteamVr(context: Context): Int = prefs(context).getInt("cardboardSourceBeforeSteamVr", -1)
-
-    fun setCardboardSourceBeforeSteamVr(context: Context, source: Int) {
-        prefs(context).edit().putInt("cardboardSourceBeforeSteamVr", source).apply()
     }
 
     fun sessionPrefs(context: Context): android.content.SharedPreferences = prefs(context)

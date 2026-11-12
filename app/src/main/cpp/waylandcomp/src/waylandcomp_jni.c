@@ -15,7 +15,6 @@
 #include "ahb_swapchain.h"
 #include "sc_layer.h"
 #include "effects_chain.h"
-#include "cardboard.h"
 #include "droiddeck_color.h"
 #include "gpu_clock_pin.h"
 
@@ -411,7 +410,6 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputSize(JNIEnv *env, jclass clazz, jint w, jint h) {
     g_output_w = w > 0 ? w : 0;
     g_output_h = h > 0 ? h : 0;
-    vkp_cardboard_set_render_height(h);
 }
 
 JNIEXPORT void JNICALL
@@ -420,7 +418,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResizeOutput(JNIEnv 
     if (w <= 0 || h <= 0) return;
     g_output_w = w;
     g_output_h = h;
-    vkp_cardboard_set_render_height(h);
     droiddeck_wayland_output_resized();
 }
 
@@ -469,34 +466,6 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScreenEffects(JNIEnv *env, jclass clazz, jfloat brightness,
         jfloat contrast, jfloat gamma, jfloat saturation, jboolean fxaa, jboolean toon, jboolean crt, jboolean ntsc) {
     vkp_effects_set_screen(brightness, contrast, gamma, saturation, fxaa ? 1 : 0, toon ? 1 : 0, crt ? 1 : 0, ntsc ? 1 : 0);
-}
-
-JNIEXPORT void JNICALL
-Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboard(JNIEnv *env, jclass clazz, jboolean enabled,
-        jint source, jfloat ipd, jfloat dist, jfloat width, jfloat k1, jfloat k2, jfloat fov, jfloat inset, jfloat chroma,
-        jboolean mono, jfloat hz) {
-    struct cardboard_params p = {.enabled = enabled ? 1 : 0, .source = source, .ipd_m = ipd, .screen_dist_m = dist,
-                                 .screen_width_m = width, .k1 = k1, .k2 = k2, .fov_deg = fov, .lens_inset = inset,
-                                 .chroma = chroma, .mono = mono ? 1 : 0, .display_hz = hz};
-    vkp_cardboard_set(&p);
-}
-
-JNIEXPORT void JNICALL
-Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPose(JNIEnv *env, jclass clazz, jfloatArray rot,
-        jboolean live) {
-    float m[9];
-    if (!rot || (*env)->GetArrayLength(env, rot) < 9) return;
-    (*env)->GetFloatArrayRegion(env, rot, 0, 9, m);
-    vkp_cardboard_set_pose(m, live ? 1 : 0);
-}
-
-JNIEXPORT void JNICALL
-Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPoseFile(JNIEnv *env, jclass clazz, jstring path) {
-    if (!path) return;
-    const char *p = (*env)->GetStringUTFChars(env, path, NULL);
-    if (!p) return;
-    vkp_cardboard_set_pose_file(p);
-    (*env)->ReleaseStringUTFChars(env, path, p);
 }
 
 JNIEXPORT void JNICALL
@@ -729,17 +698,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeRaisePriority(JNIEnv
     errno = 0;
     int after = getpriority(PRIO_PROCESS, (id_t)tid);
     return after == -1 && errno != 0 ? 100 : after;
-}
-
-JNIEXPORT void JNICALL
-Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardSpatialPose(JNIEnv *env, jclass clazz,
-        jfloatArray rot, jfloatArray pos, jboolean live) {
-    (void)clazz;
-    if (!rot || !pos || (*env)->GetArrayLength(env, rot) != 9 || (*env)->GetArrayLength(env, pos) != 3) return;
-    float m[9], p[3];
-    (*env)->GetFloatArrayRegion(env, rot, 0, 9, m);
-    (*env)->GetFloatArrayRegion(env, pos, 0, 3, p);
-    vkp_cardboard_set_spatial_pose(m, p, live ? 1 : 0);
 }
 
 JNIEXPORT void JNICALL

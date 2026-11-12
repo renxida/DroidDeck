@@ -18,7 +18,7 @@ PREAMBLE = r'''
 struct wl_event_source { int armed; };
 static struct wl_event_source idle_source, timer_source;
 static void (*idle_func)(void *);
-static int idles_added, timers_armed, renders, window_requests, effects_changes, pose_changes;
+static int idles_added, timers_armed, renders, window_requests, effects_changes;
 static int64_t clock_ns;
 static int g_display_storage;
 static void *g_display = &g_display_storage;
@@ -47,7 +47,6 @@ static int wl_event_source_timer_update(struct wl_event_source *source, int ms) 
 static int vkp_framegen_active(void) { return framegen; }
 static int vkp_apply_window_request(void) { return window_requests; }
 static int vkp_effects_sync(void) { return effects_changes; }
-static int vkp_cardboard_pose_changed(void) { return pose_changes; }
 static void render_scene(void) { renders++; g_dirty = 0; g_dirty_since_ns = 0; g_rendered_tick_ns = g_tick_vsync_ns; g_tick_held = 0; }
 static int on_fallback_timer(void *data) { return 0; }
 static void on_commit_idle(void *data);

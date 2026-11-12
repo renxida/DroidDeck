@@ -99,11 +99,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-x64-arm-proton" to "usr/local/bin/droiddeck-x64-arm-proton",
             "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
             "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
-            "usr/local/bin/droiddeck-steamvr" to "usr/local/bin/droiddeck-steamvr",
             "usr/local/bin/droiddeck-pipewire" to "usr/local/bin/droiddeck-pipewire",
-            "usr/local/bin/droiddeck-steamvr-settings" to "usr/local/bin/droiddeck-steamvr-settings",
-            "usr/local/bin/droiddeck-steamvr-game" to "usr/local/bin/droiddeck-steamvr-game",
-            "usr/local/bin/droiddeck-steamvr-flat" to "usr/local/bin/droiddeck-steamvr-flat",
             "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
             "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
@@ -147,22 +143,6 @@ object SessionFiles {
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
-        val handModels = listOf("left", "right").flatMap { side ->
-            listOf("droiddeck_hand_$side.json", "hand.mtl", "hand.png", "hand_open.obj", "hand_fist.obj", "thumb_index_open.obj",
-                "thumb_index_pinch.obj")
-                .map { "droiddeck/resources/rendermodels/droiddeck_hand_$side/$it" }
-        }
-        val vr = (listOf(
-            "droiddeck/bin/linuxarm64/driver_droiddeck.so",
-            "droiddeck/bin/linuxarm64/xr-display-mode",
-            "droiddeck/driver.vrdrivermanifest",
-            "droiddeck/resources/settings/default.vrsettings",
-            "layer/libVkLayer_droiddeck_vr.so",
-            "layer/libdroiddeck_vr_scheduling.so",
-            "layer/VK_LAYER_DROIDDECK_vr.json",
-        ) + handModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
-            listOf("usr/local/lib/droiddeck-vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json" to
-                "usr/share/vulkan/implicit_layer.d/droiddeck_vr.json")
         // HUD GPU load where Android hides it (GpuStatsComponent.guestEnv turns the layer on).
         val gpuLoad = listOf(
             "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
@@ -191,7 +171,7 @@ object SessionFiles {
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
-        ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }

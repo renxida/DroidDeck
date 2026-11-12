@@ -48,7 +48,6 @@ class RuntimeInputsTest(unittest.TestCase):
         path.write_bytes(subprocess.run(['zstd', '-q', '-c'], input=stream.getvalue(), capture_output=True, check=True).stdout)
 
     def packs(self):
-        self.pack('tracking', {library.rsplit('/', 1)[1]: b'library' for library in runtime.PACKED_LIBRARIES})
         proot = {}
         for name, (pack, rel) in runtime.PACKED_FILES.items():
             proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
@@ -181,11 +180,6 @@ class RuntimeInputsTest(unittest.TestCase):
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})
         with self.assertRaisesRegex(ValueError, 'powervr pack provides'):
-            runtime.check_apk(apk, self.root)
-
-    def test_an_apk_still_carrying_tracking_libraries_is_rejected(self):
-        apk = self.current_apk(self.root / 'bundled.apk', {runtime.PACKED_LIBRARIES[0]: b'library'})
-        with self.assertRaisesRegex(ValueError, 'tracking pack provides'):
             runtime.check_apk(apk, self.root)
 
     def test_a_stale_pack_is_rejected(self):

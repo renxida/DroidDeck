@@ -1970,10 +1970,6 @@ class SessionService : Service() {
                     val failureStatus = SessionState.failureStatus ?: status
                     SessionEvents.fail(code, message, failureStatus)
                 }
-                SessionState.steamVr = false
-                com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
-                com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
-                com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
                 SessionState.notifyEnded(status)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()

@@ -191,7 +191,7 @@ struct vkp_img_slot { VkImage img; int w, h; };
 static struct vkp_img_slot g_hdrscene, g_fgscene;
 static struct { int active, rw, rh; VkImage result; } g_pass;
 static struct { int64_t present_ns, present_max_ns; unsigned presents; } g_perf;
-static int effects_active = 1, framegen, cardboard;
+static int effects_active = 1, framegen;
 static struct { int scaling; } g_cur = {4};
 static int copy_count, effects_count, screen_count, hdr_count, fail_scene, fail_effects, postprocessing;
 static int copied_w, copied_h, target_w, target_h;
@@ -220,8 +220,6 @@ static int vkp_effects_active(void) { return effects_active; }
 static int vkp_effects_sync(void) { return 0; }
 static int effect_count(const void *settings) { return postprocessing; }
 static int vkp_framegen_active(void) { return framegen; }
-static int vkp_cardboard_active(void) { return cardboard; }
-static void vkp_cardboard_begin_frame(void) {}
 static int vkp_framegen_format_ok(VkFormat format) { return 0; }
 static int ensure_img(struct vkp_img_slot *slot, int w, int h, int format, int usage, const char *name) {
     slot->img = 3; slot->w = w; slot->h = h; return 0;
@@ -255,7 +253,7 @@ static VkImage vkp_effects_run(int cmd, int source, int w, int h, int ow, int oh
     *rw = ow; *rh = oh; return 4;
 }
 static int vkp_framegen_run(int cmd, int result, int depth, int w, int h, int format, int *generated) { return 0; }
-static void record_screen_blit(int cmd, int result, int w, int h, int sw, int sh, int image, int filter, int cb) {
+static void record_screen_blit(int cmd, int result, int w, int h, int sw, int sh, int image, int filter) {
     screen_count++; logical_w = sw; logical_h = sh;
 }
 static void device_lost(const char *reason) {}
@@ -277,7 +275,7 @@ static struct vkp_draw fullscreen(void) {
 static void reset(void) {
     copy_count = effects_count = screen_count = hdr_count = barrier_count = 0;
     effects_active = 1; g_cur.scaling = 4;
-    framegen = cardboard = fail_scene = fail_effects = postprocessing = g_plain_frame = 0;
+    framegen = fail_scene = fail_effects = postprocessing = g_plain_frame = 0;
     g_pass.active = 0; g_extent = (VkExtent2D){1920, 1080};
     image.w = 1280; image.h = 720;
 }

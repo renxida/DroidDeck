@@ -73,13 +73,6 @@ bl_browser_shim() {
     WINEDEBUG="${WINEDEBUG:+$WINEDEBUG,}+shell,+winebrowser"; export WINEDEBUG
   fi
 }
-
-bl_run() {
-  if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "${verb:-}"; then
-    set -- /usr/local/bin/droiddeck-steamvr-game "$@"
-  fi
-  exec "$@"
-}
 """
 
 BL_DESKTOP_GPU_SETUP = """
@@ -409,7 +402,7 @@ if [ -n "$depot" ]; then
   bl_vacdiag "$@"
   bl_libpath
   bl_browser_shim
-  bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+  exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 fi
 echo "droiddeck-proton: no ARM64 Proton depot yet - the client downloads one as this tool's dependency; retry the launch once it has" >&2
 exit 1
@@ -462,7 +455,7 @@ bl_idtech3 "$@"
 bl_vacdiag "$@"
 bl_libpath
 bl_browser_shim
-bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 """
 
 
@@ -517,9 +510,6 @@ case $verb in
 esac
 """ + BL_DESKTOP_GPU_SETUP + BL_GAME_CPUS_SETUP + """
 bl_game_cpus
-if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "$verb"; then
-  exec /usr/local/bin/droiddeck-steamvr-game ${BL_TASKSET:-} /usr/local/bin/droiddeck-fex steam "$verb" "$@"
-fi
 exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-fex steam "$verb" "$@"
 """
 

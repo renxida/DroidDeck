@@ -444,7 +444,7 @@ jobs:
           path: |
             app/.cxx
             app/build/intermediates/cxx
-          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'tools/vr/src/xr_*.h') }}
+          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**') }}
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
 
@@ -463,7 +463,7 @@ jobs:
           path: |
             ~/.cache/droiddeck-pack-inputs
             ~/.cache/droiddeck-build
-          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env', 'tools/powervr/release.json') }}
+          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/powervr/release.json') }}
           restore-keys: pack-inputs-v2-
       - name: Build the add-on packs
         run: |
@@ -648,39 +648,13 @@ jobs:
           git merge --no-ff --no-edit FETCH_HEAD
       - name: Verify backend and test source match
         env:
-          XBOX_SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
-        run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
+          SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
+        run: test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
       - name: Install Python test dependencies
         timeout-minutes: 7
         run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
-
-      - name: Check Quest tracking IPC
-        run: |
-          set -euo pipefail
-          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
-          VK_INCLUDE=$(ls -d "$NDK"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1)
-          mkdir -p build/vr/include
-          cp -R "$VK_INCLUDE/vulkan" build/vr/include/
-          if [ -d "$VK_INCLUDE/vk_video" ]; then cp -R "$VK_INCLUDE/vk_video" build/vr/include/; fi
-          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_tracking.cpp -o /tmp/test-xr-tracking
-          /tmp/test-xr-tracking
-          g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_xr_touch.cpp -o /tmp/test-xr-touch
-          /tmp/test-xr-touch
-          g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_pad_controller_config.cpp -o /tmp/test-pad-controller-config
-          /tmp/test-pad-controller-config
-          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_vsync.cpp -o /tmp/test-xr-vsync
-          /tmp/test-xr-vsync
-          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_frames.cpp -o /tmp/test-xr-frames
-          /tmp/test-xr-frames
-          cc -Itools/vr/third_party/wayland -c tools/vr/src/wayland_client_stub.c -o /tmp/test-wayland-stub.o
-          cc -Itools/vr/third_party/wayland -c app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c -o /tmp/test-xdg-shell.o
-          g++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-missing-field-initializers -pthread -Ibuild/vr/include \
-            -Itools/vr/third_party/wayland -Iapp/src/main/cpp/waylandcomp/generated \
-            tools/vr/tests/test_presenter_shutdown.cpp tools/vr/src/presenter.cpp /tmp/test-wayland-stub.o /tmp/test-xdg-shell.o \
-            -ldl -o /tmp/test-presenter-shutdown
-          timeout 10 /tmp/test-presenter-shutdown
 
       - name: Steam import and game environment tests
         run: bash tools/ci/run-python-tests.sh

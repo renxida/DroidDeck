@@ -92,15 +92,10 @@ object DualScreen {
     fun leavesBottomOnDock(wasDocked: Boolean, docked: Boolean, mode: String, automaticOnBuiltIn: Boolean): Boolean =
         docked && !wasDocked && mode == MODE_AUTO && automaticOnBuiltIn
 
-    fun dockedToDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Boolean {
-        val glasses = com.droiddeck.launcher.glasses.Glasses.state.value
-        val external = displayManager.getDisplays().filter {
+    fun dockedToDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Boolean =
+        displayManager.getDisplays().any {
             it.isValid && it.displayId != primaryDisplayId && it.state != Display.STATE_OFF && displayType(it) == TYPE_EXTERNAL
         }
-        val glassesId = glasses.displayId.takeIf { it != Display.INVALID_DISPLAY }
-            ?: com.droiddeck.launcher.glasses.Glasses.selectGlassesDisplay(external, glasses.present)?.displayId
-        return external.any { it.displayId != glassesId && com.droiddeck.launcher.glasses.Glasses.selectGlassesDisplay(listOf(it), false) == null }
-    }
 
     fun anyDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Display? =
         displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull {

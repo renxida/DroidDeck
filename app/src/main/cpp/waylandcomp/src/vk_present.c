@@ -4,7 +4,6 @@
 #include "vk_external_image_sync.h"
 #include "sc_layer.h"
 #include "effects_chain.h"
-#include "cardboard.h"
 #include "framegen_bridge.h"
 #include "hdr_compose.h"
 #include "blend_pass.h"
@@ -681,7 +680,6 @@ static int dev_init(void) {
     g_vk.CreateFence(g_dev, &fci, NULL, &g_fence);
 
     vkp_effects_bind_device(g_dev, g_pd, &g_memprops);
-    vkp_cardboard_bind_device(g_dev, &g_memprops);
     hdrc_bind_device(g_dev, &g_memprops);
     blendp_bind_device(g_dev);
     g_dev_state = 1;
@@ -1782,26 +1780,8 @@ static const char *vk_result_name(VkResult r) {
 
 
 static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int src_h,
-                               int scene_w, int scene_h, uint32_t img, VkFilter filter, int cardboard) {
+                               int scene_w, int scene_h, uint32_t img, VkFilter filter) {
     VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    int direct = 0;
-    if (cardboard) {
-        VkImageMemoryBarrier rd = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = src, .subresourceRange = range,
-            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT, .dstAccessMask = VK_ACCESS_SHADER_READ_BIT};
-        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                0, 0, NULL, 0, NULL, 1, &rd);
-        VkImage eyes = vkp_cardboard_run(cmd, src, src_w, src_h, (int)g_extent.width, (int)g_extent.height);
-        if (eyes) {
-            src = eyes;
-            src_w = (int)g_extent.width;
-            src_h = (int)g_extent.height;
-            direct = 1;
-        }
-    }
     VkImageMemoryBarrier pre[2] = {
         {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
          .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1817,12 +1797,7 @@ static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int 
     struct vkp_image tmp = {.w = src_w, .h = src_h};
     struct vkp_draw d = {&tmp, 0, 0, (float)src_w, (float)src_h, 0, 0, scene_w, scene_h};
     VkImageBlit blit;
-    const int have_blit = direct ? 1 : draw_to_blit(&d, &blit);
-    if (direct)
-        blit = (VkImageBlit){.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                             .srcOffsets = {{0, 0, 0}, {src_w, src_h, 1}},
-                             .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                             .dstOffsets = {{0, 0, 0}, {src_w, src_h, 1}}};
+    const int have_blit = draw_to_blit(&d, &blit);
     if (!have_blit || !record_bars_clear(cmd, g_images[img], &blit)) {
         VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
         g_vk.CmdClearColorImage(cmd, g_images[img], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
@@ -2006,13 +1981,6 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
 
     const int fx = !g_plain_frame && vkp_effects_active();
     const int fg = !g_plain_frame && vkp_framegen_active();
-    int cb = !g_plain_frame && vkp_cardboard_active();
-    if (cb && hf) {
-        static int said;
-        if (!said) { said = 1; droiddeck_log("cardboard", "HDR frames are shown flat: the cardboard pass is 8-bit only"); }
-        cb = 0;
-    }
-    vkp_cardboard_begin_frame();
     int input_w = scene_w, input_h = scene_h;
     int pass_n = n;
     int overlay_start = n;
@@ -2046,7 +2014,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
                            "into the HDR10 swapchain (%s): banding possible in smooth gradients", sw);
         }
     }
-    const int pass = deep || ((fx || fg || cb || (hf && n > 0)) && ensure_scene_image(input_w, input_h) == 0);
+    const int pass = deep || ((fx || fg || (hf && n > 0)) && ensure_scene_image(input_w, input_h) == 0);
     const int draw_n = pass ? pass_n : n;
     if (pass && fx && !hf && vkp_effects_upscaling())
         effects_source_note(scene_w, scene_h, draws, n, input_w, input_h,
@@ -2181,7 +2149,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             if (ngen > VKP_FG_MAX_GENERATIONS) ngen = VKP_FG_MAX_GENERATIONS;
         }
 
-        record_screen_blit(cmd, ngen ? gens[0] : result, rw, rh, scene_w, scene_h, img, blit_filter, cb);
+        record_screen_blit(cmd, ngen ? gens[0] : result, rw, rh, scene_w, scene_h, img, blit_filter);
     }
     g_vk.EndCommandBuffer(cmd);
 
@@ -2205,7 +2173,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             VkCommandBuffer ck = g_cmds[k];
             g_vk.ResetCommandBuffer(ck, 0);
             g_vk.BeginCommandBuffer(ck, &bi);
-            record_screen_blit(ck, k < ngen ? gens[k] : result, rw, rh, scene_w, scene_h, img, blit_filter, cb);
+            record_screen_blit(ck, k < ngen ? gens[k] : result, rw, rh, scene_w, scene_h, img, blit_filter);
             g_vk.EndCommandBuffer(ck);
         }
         const int last = (k + 1 == presents);
@@ -2268,7 +2236,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
 }
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n) {
-    if (vkp_quest_layer_presentation() && !vkp_framegen_active() && !vkp_cardboard_active()) {
+    if (vkp_quest_layer_presentation() && !vkp_framegen_active()) {
         vkp_apply_window_request();
         sc_layer_hide_overlay();
         if (n > 0) {

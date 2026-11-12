@@ -60,10 +60,6 @@ void sc_layer_hide(void) {}
 int sc_layer_base_black(int w, int h) { return 0; }
 void sc_layer_hide_base(void) {}
 void sc_layer_hide_overlay(void) {}
-void vkp_cardboard_bind_device(VkDevice d, const VkPhysicalDeviceMemoryProperties *m) {}
-int vkp_cardboard_active(void) { return 0; }
-void vkp_cardboard_begin_frame(void) {}
-VkImage vkp_cardboard_run(VkCommandBuffer c, VkImage s, int sw, int sh, int ow, int oh) { return s; }
 int vk_loader_open(const char *a, const char *b, const char *c) { assert(0); return -1; }
 void vk_loader_load_instance(VkInstance i) { assert(0); }
 void vk_loader_load_device(VkDevice d) { assert(0); }

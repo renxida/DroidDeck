@@ -51,7 +51,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.frontend.Library
-import com.droiddeck.launcher.glasses.GlassesMenuMirror
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -108,26 +107,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             }
         },
     )
-    val (glasses, glassesSettings) = rememberGlasses()
-    val headset = glasses.present && glasses.canControl
-    val drop = rememberDropSheetState()
-    LaunchedEffect(headset) { if (!headset && (drop.open || drop.shown)) drop.reset() }
     LiftHero(
         key = "steam", tabs = tabs,
-        drop = drop.takeIf { headset },
-        overlay = { lifted ->
-            if (headset) DropSheet(
-                drop, glassesTabs(glasses) + (GlassesTab.CONTROLLERS to stringResource(R.string.vr_controllers_tab)), covered = lifted,
-                button = { enabled ->
-                    PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy && glasses.usable, large = true, icon = Icons.Filled.PlayArrow, fill = true,
-                        modifier = Modifier.fillMaxWidth().testTag("play-steamvr")) { if (enabled) { drop.open = false; a.onPlaySteamVr() } }
-                },
-            ) { tab ->
-                if (tab == GlassesTab.CONTROLLERS) VrControllerGroups(rememberMenuHost())
-                else GlassesGroups(rememberMenuHost(), glasses, glassesSettings,
-                    onRecenter = GlassesMenuMirror::recenter, inSession = false, tab = tab)
-            }
-        },
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,

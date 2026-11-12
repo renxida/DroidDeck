@@ -45,32 +45,6 @@ class SessionSystemInputTest {
         assertTrue(output.events.isEmpty())
     }
 
-    @Test fun vrStickSwitchBypassesPrimaryBindingsAndPreservesPhysicalHold() {
-        bridge.applyExternal({ it.press(PadState.L3, true) }, true)
-        invoke("switchVrSticks")
-        assertTrue(state().isDown(PadState.L3))
-        assertTrue(state().isDown(PadState.R3))
-        advance(120)
-        assertTrue(state().isDown(PadState.L3))
-        assertFalse(state().isDown(PadState.R3))
-        assertTrue(output.events.isEmpty())
-    }
-
-    @Test fun releasingSystemActionsCancelsOldVrReleaseWithoutEndingNewTap() {
-        invoke("switchVrSticks")
-        advance(60)
-        bridge.releaseAll()
-        assertFalse(state().isDown(PadState.L3))
-        assertFalse(state().isDown(PadState.R3))
-        invoke("switchVrSticks")
-        advance(60)
-        assertTrue(state().isDown(PadState.L3))
-        assertTrue(state().isDown(PadState.R3))
-        advance(60)
-        assertFalse(state().isDown(PadState.L3))
-        assertFalse(state().isDown(PadState.R3))
-    }
-
     private fun state() = JoyConPadTest.RecordingWriter.pads[0]!!
     private fun invoke(name: String) = ReflectionHelpers.callInstanceMethod<Unit>(activity, name)
     private fun advance(ms: Long) {

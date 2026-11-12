@@ -1,7 +1,0 @@
-{
-	"alwaysActivate": true,
-	"name": "droiddeck",
-	"directory": "",
-	"resourceOnly": false,
-	"hmd_presence": ["*.*"]
-}

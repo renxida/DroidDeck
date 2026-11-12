@@ -16,19 +16,15 @@ PACKS = Path('app/build/packs')
 PACKED = {'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
                 'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
-PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
-PACK_NAMES = ['proot', 'directaudio', 'tracking', 'powervr']
+PACK_NAMES = ['proot', 'directaudio', 'powervr']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
-                'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
-                'tools/gpuload',
-                'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
+                'tools/quest', 'tools/gpuload',
                 'app/src/main/cpp/venc/venc_proto.h',
-                'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
                 'app/src/main/cpp/adrenotools/src/hook/kgsl.h',
                 'app/src/main/assets/graphics_driver/adrenotools-turnip25.1.0.tzst']
 
@@ -87,19 +83,9 @@ def required():
               ['msiinfo', 'cabextract', '7z', '7z.so', 'libmsi-1.0.so.0', 'libgsf-1.so.114', 'libgcab-1.0.so.0']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-xclipse/' + name for name in
               ['libVkLayer_droiddeck_xclipse.so', 'VkLayer_droiddeck_xclipse.json']]
-    paths += ['assets/linuxfs/usr/local/lib/droiddeck-vr/' + name for name in
-              ['droiddeck/bin/linuxarm64/driver_droiddeck.so', 'droiddeck/bin/linuxarm64/xr-display-mode',
-               'droiddeck/driver.vrdrivermanifest',
-               'droiddeck/resources/settings/default.vrsettings', 'layer/libVkLayer_droiddeck_vr.so',
-               'layer/VK_LAYER_DROIDDECK_vr.json', 'layer/VK_LAYER_DROIDDECK_vr_implicit.json',
-               'layer/libdroiddeck_vr_scheduling.so']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-gpuload/' + name for name in
               ['libVkLayer_droiddeck_gpuload.so', 'VK_LAYER_DROIDDECK_gpu_load.json',
                'libVkLayer_droiddeck_vramcap.so', 'VK_LAYER_DROIDDECK_vram_cap.json']]
-    for side in ['left', 'right']:
-        paths += [f'assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_hand_{side}/{name}'
-                  for name in [f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj', 'hand_fist.obj',
-                               'thumb_index_open.obj', 'thumb_index_pinch.obj']]
     paths += ['assets/linuxfs/usr/local/lib/mangoapp/' + name for name in
               ['mangoapp', 'libfmt.so.10', 'libspdlog.so.1.13', 'libglfw.so.3', 'libtraceevent.so.1', 'libtracefs.so.1']]
     for driver in ['linux-wine11', 'linux-wine11-systhread']:
@@ -207,11 +193,6 @@ def check_apk(apk, root=ROOT):
     packs = {name: pack_digests(root, name) for name in PACK_NAMES}
     with ZipFile(apk) as package:
         names = set(package.namelist())
-        for library in PACKED_LIBRARIES:
-            if library in names:
-                raise ValueError('APK still carries ' + library + ', which the tracking pack provides')
-            if library.rsplit('/', 1)[1] not in packs['tracking']:
-                raise ValueError('Tracking pack missing ' + library)
         for name, output in data['outputs'].items():
             if name in PACKED_FILES:
                 pack, rel = PACKED_FILES[name]
