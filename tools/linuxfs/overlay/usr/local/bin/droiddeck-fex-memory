@@ -1,0 +1,249 @@
+#!/usr/bin/python3
+"""How FEX will emulate x86 memory ordering for a game launch.
+
+Reports the host's LRCPC support and core types, which x64 modules of the game carry MSVC
+volatile metadata, and the FEX build inside the Proton that runs it.
+"""
+import mmap
+import os
+import re
+import sys
+from pathlib import Path
+
+ARM = 0x41
+# FEX's own list (Source/Common/HostFeatures.cpp, HandleErrata): Arm erratum 3877900 makes LDAPUR
+# execute with full load-acquire ordering, so FEX keeps LRCPC2 off when any core is one of these.
+LDAPUR_ERRATUM = {
+    0xD4F: "Neoverse V2", 0xD84: "Neoverse V3", 0xD83: "Neoverse V3AE", 0xD4E: "Cortex-X3", 0xD82: "Cortex-X4",
+    0xD85: "Cortex-X925", 0xD8C: "C1-Ultra", 0xD90: "C1-Premium",
+}
+ARM_PARTS = {
+    0xD05: "Cortex-A55", 0xD0D: "Cortex-A77", 0xD41: "Cortex-A78", 0xD44: "Cortex-X1", 0xD46: "Cortex-A510",
+    0xD47: "Cortex-A710", 0xD48: "Cortex-X2", 0xD4D: "Cortex-A715", 0xD80: "Cortex-A520", 0xD81: "Cortex-A720",
+    0xD87: "Cortex-A725", 0xD8A: "C1-Pro", 0xD8B: "C1-Nano", **LDAPUR_ERRATUM,
+}
+MIDR = "sys/devices/system/cpu/cpu%d/regs/identification/midr_el1"
+FEX_DLL = "files/lib/wine/aarch64-windows/libarm64ecfex.dll"
+FEX_TAG = re.compile(rb"FEX-\d{4}(?:\.\d+)?(?:-\d+-g[0-9a-f]{6,})?")
+SCAN_LIMIT = 600
+NAMES_SHOWN = 6
+
+
+def parse_cpuinfo(text):
+    cores, features = [], set()
+    current = {}
+    for line in text.splitlines() + [""]:
+        key, _, value = line.partition(":")
+        key, value = key.strip(), value.strip()
+        if not key:
+            if "processor" in current:
+                cores.append(current)
+            current = {}
+        elif key == "processor" and value.isdigit():
+            current["processor"] = int(value)
+        elif key in ("CPU implementer", "CPU part"):
+            try:
+                current[key] = int(value, 0)
+            except ValueError:
+                pass
+        elif key == "Features" and not features:
+            features = set(value.split())
+    return cores, features
+
+
+def core_name(core):
+    part = core.get("CPU part")
+    if part is None:
+        return "unknown"
+    if core.get("CPU implementer") == ARM and part in ARM_PARTS:
+        return ARM_PARTS[part]
+    return "%#x:%#x" % (core.get("CPU implementer", 0), part)
+
+
+def memory_model(cpuinfo, root="/"):
+    cores, features = parse_cpuinfo(cpuinfo)
+    readable = 0
+    for core in cores:
+        try:
+            with open(os.path.join(root, MIDR % core["processor"]), "rb") as source:
+                if source.read(18).startswith(b"0x"):
+                    readable += 1
+        except OSError:
+            pass
+    erratum = sorted({ARM_PARTS[c["CPU part"]] for c in cores
+                      if c.get("CPU implementer") == ARM and c.get("CPU part") in LDAPUR_ERRATUM})
+    lrcpc = "lrcpc" in features
+    lrcpc2 = "ilrcpc" in features
+    if not lrcpc:
+        loads = "LDAR"
+    elif lrcpc2 and not erratum:
+        loads = "LDAPUR"
+    else:
+        loads = "LDAPR"
+    return {
+        "cores": cores, "lrcpc": lrcpc, "lrcpc2": lrcpc2, "lrcpc3": "lrcpc3" in features, "erratum": erratum,
+        "midr_readable": readable, "loads": loads,
+        "hostfeatures": "disablelrcpc2" if lrcpc2 and erratum else None,
+    }
+
+
+def describe_model(model, applied):
+    counts = {}
+    for core in model["cores"]:
+        name = core_name(core)
+        counts[name] = counts.get(name, 0) + 1
+    cores = ", ".join("%s x%d" % item for item in counts.items()) or "unknown cores"
+    text = "FEX memory model: %s; LRCPC %s, LRCPC2 %s, LRCPC3 %s; TSO loads use %s" % (
+        cores, *("yes" if model[k] else "no" for k in ("lrcpc", "lrcpc2", "lrcpc3")), model["loads"])
+    if model["erratum"]:
+        text += " (LDAPUR has erratum 3877900 on %s" % ", ".join(model["erratum"])
+        text += "; FEX_HOSTFEATURES=disablelrcpc2)" if applied else "; FEX_HOSTFEATURES left as set)"
+    return text + "; per-core MIDR readable %d/%d" % (model["midr_readable"], len(model["cores"]))
+
+
+def u16(data, at):
+    return int.from_bytes(data[at:at + 2], "little")
+
+
+def u32(data, at):
+    return int.from_bytes(data[at:at + 4], "little")
+
+
+def volatile_metadata(path):
+    """Size of the MSVC volatile metadata of an x64 PE, or None when the file is not one."""
+    try:
+        with open(path, "rb") as image:
+            head = image.read(64)
+            if len(head) < 64 or head[:2] != b"MZ":
+                return None
+            pe = u32(head, 60)
+            image.seek(pe)
+            header = image.read(24)
+            if len(header) < 24 or header[:4] != b"PE\0\0" or u16(header, 4) != 0x8664:
+                return None
+            sections, optional_size = u16(header, 6), u16(header, 20)
+            optional = image.read(optional_size)
+            if len(optional) != optional_size or optional_size < 112 + 11 * 8 or u16(optional, 0) != 0x20B or sections > 96:
+                return None
+            table = image.read(40 * sections)
+            if len(table) != 40 * sections:
+                return None
+            base = int.from_bytes(optional[24:32], "little")
+            layout = []
+            code = 0
+            for index in range(sections):
+                entry = table[index * 40:index * 40 + 40]
+                virtual_size, address, raw_size, raw_offset = u32(entry, 8), u32(entry, 12), u32(entry, 16), u32(entry, 20)
+                layout.append((address, max(virtual_size, raw_size), raw_offset, raw_size))
+                if u32(entry, 36) & 0x20000000:
+                    code += virtual_size
+
+            def read_rva(rva, size):
+                for address, span, raw_offset, raw_size in layout:
+                    if address <= rva and rva + size <= address + min(span, raw_size):
+                        image.seek(raw_offset + rva - address)
+                        data = image.read(size)
+                        return data if len(data) == size else None
+                return None
+
+            directory = 112 + 10 * 8
+            load_config = read_rva(u32(optional, directory), 0x108) if u32(optional, directory + 4) else None
+            none = {"accesses": 0, "covered": 0, "code": code}
+            if not load_config or u32(load_config, 0) < 0x108:
+                return none
+            pointer = int.from_bytes(load_config[0x100:0x108], "little")
+            if not pointer or pointer < base:
+                return none
+            header = read_rva(pointer - base, 24)
+            if not header:
+                return none
+            accesses, ranges_rva, ranges_size = u32(header, 12) // 4, u32(header, 16), u32(header, 20)
+            ranges = read_rva(ranges_rva, ranges_size) if ranges_size and ranges_size <= 1 << 20 else b""
+            covered = sum(u32(ranges, at + 4) for at in range(0, len(ranges or b"") - 7, 8))
+            return {"accesses": accesses, "covered": covered, "code": code}
+    except (OSError, ValueError, OverflowError):
+        return None
+
+
+def game_modules(folder):
+    found = []
+    try:
+        with os.scandir(folder) as top:
+            entries = list(top)
+    except OSError:
+        return found
+    for entry in entries:
+        if len(found) >= SCAN_LIMIT:
+            break
+        if entry.is_dir(follow_symlinks=False):
+            try:
+                with os.scandir(entry.path) as inner:
+                    found += [e.path for e in inner if e.name.lower().endswith((".dll", ".exe")) and e.is_file()][:SCAN_LIMIT]
+            except OSError:
+                pass
+        elif entry.name.lower().endswith((".dll", ".exe")) and entry.is_file():
+            found.append(entry.path)
+    return sorted(found[:SCAN_LIMIT], key=lambda p: os.path.basename(p).lower())
+
+
+def describe_modules(folder):
+    covered, bare = [], []
+    for path in game_modules(folder):
+        metadata = volatile_metadata(path)
+        if not metadata or not metadata["code"]:
+            continue
+        name = os.path.basename(path)
+        if metadata["accesses"] or metadata["covered"]:
+            share = min(100.0 * metadata["covered"] / metadata["code"], 100.0)
+            covered.append((metadata["covered"], "%s %d accesses, %.1f%% of code" % (name, metadata["accesses"], share)))
+        else:
+            bare.append(name)
+    if not covered and not bare:
+        return None
+    covered.sort(reverse=True)
+    text = "FEX volatile metadata: %d of %d x64 modules" % (len(covered), len(covered) + len(bare))
+    if covered:
+        shown = [item for _, item in covered[:NAMES_SHOWN]]
+        text += " (" + "; ".join(shown) + ("; ..." if len(covered) > NAMES_SHOWN else "") + ")"
+    if bare:
+        text += "; none in " + ", ".join(bare[:NAMES_SHOWN]) + (", ..." if len(bare) > NAMES_SHOWN else "")
+    return text
+
+
+def fex_version(proton):
+    path = Path(proton).parent / FEX_DLL
+    try:
+        with open(path, "rb") as source, mmap.mmap(source.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            tags = [m.group().decode() for m in FEX_TAG.finditer(data)]
+    except (OSError, ValueError):
+        return None
+    return max(tags, key=len) if tags else "unnamed build"
+
+
+def launch(command, env, cpuinfo_path="/proc/cpuinfo", root="/"):
+    """Returns the environment to use and the lines to log for a game launch through Proton."""
+    notes = []
+    try:
+        with open(cpuinfo_path, encoding="utf-8", errors="replace") as source:
+            model = memory_model(source.read(), root)
+    except OSError:
+        model = None
+    if model and any("CPU part" in core for core in model["cores"]):
+        applied = bool(model["hostfeatures"]) and "FEX_HOSTFEATURES" not in env
+        if applied:
+            env = dict(env, FEX_HOSTFEATURES=model["hostfeatures"])
+        notes.append(describe_model(model, applied))
+    if len(command) > 2:
+        report = describe_modules(os.path.dirname(command[2]))
+        if report:
+            notes.append(report)
+    if command:
+        version = fex_version(command[0])
+        if version:
+            notes.append("FEX in this Proton: %s" % version)
+    return env, notes
+
+
+if __name__ == "__main__":
+    for line in launch(["", "", os.path.join(sys.argv[1], "x")] if len(sys.argv) > 1 else [], os.environ)[1]:
+        print(line)
