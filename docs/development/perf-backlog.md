@@ -36,6 +36,39 @@ compare medians.
 - **Where proot spends the time:** `tools/droiddeckctl proot-profile enable`, run the case,
   then `tools/droiddeckctl proot-profile report ./session.log --sort wall`.
 
+## Measuring `perf/all` in one go
+
+`perf/all` is `main` plus every branch in the table above, so one APK (the `droiddeck-apk`
+artifact of its Build APK run) carries all of them. Compare it with the APK of the `main` commit
+it is based on. None of these changes is meant to move frame rate or pacing, and none touches
+the game launch path, so the Slay the Spire 2 numbers are a check that nothing regressed, not
+where a gain should show.
+
+| change | where it shows | expected with `perf/all` |
+|---|---|---|
+| appinfo decode skip (`perf/appinfo`) | `session.log`: the `== STEP` line "setting up the ARM64 Proton compatibility tool" to the next STEP, on the first start after installing the APK | about 2× faster; seconds only on a large `appinfo.vdf` |
+| appinfo entry cache (`perf/appinfo`) | the same interval on the second and later starts; `top` in `droiddeckctl guest` while Steam updates `appinfo.vdf` | the step mostly gone on later starts; less CPU in `droiddeck-steam-compat` |
+| component digests (`perf/component-hashes`) | `events.jsonl`: `t` of `guest.started` minus `t` of `session.created`, with a FEX, DXVK or VKD3D package selected for some game or as default | tens to hundreds of ms less; nothing with no package selected |
+| early buses (`perf/early-buses`) | `start steam --wait` wall time (the bus lines in `session.log` carry no timestamp) | 0.3–1.5 s less |
+| all together | `launch --wait` seconds, `fpsOnScreen`, `p99Ms`, `offCadencePercent` in the Slay the Spire 2 scenario | unchanged within noise |
+
+Steps, each on both APKs, with the same Steam library and the screen on:
+
+1. Install the APK (`adb install -r`; the package name is `tools/app-id`). Installing replaces the
+   guest overlay, and the appinfo entry cache is keyed on `steam-compatibility` itself, so the
+   first start after an install is a cold one.
+2. Steam start, five times:
+   `for i in 1 2 3 4 5; do tools/droiddeckctl stop --timeout 120; tools/droiddeckctl wait cool --below 38 --timeout 900; /usr/bin/time -f %e tools/droiddeckctl start steam --wait --timeout 240; tools/droiddeckctl logs latest ./start-$i; done`.
+   Keep run 1 apart (cold appinfo cache) from runs 2–5. From each pulled folder read the
+   `== STEP` timestamps in `session.log` and `session.created` and `guest.started` in
+   `events.jsonl` (`t` is milliseconds since the epoch).
+3. Game: `tools/droiddeck-scenario tools/scenarios/slay-the-spire-2.json` (app 2868840, three
+   runs). Its `start` step uses `--reuse`, so leave Steam running from step 2. Compare
+   `report.json`'s `launch` seconds and pacing metrics.
+
+To time a cold appinfo decode again without reinstalling, delete
+`appcache/appinfo.vdf.droiddeck-entries` in the Steam root before the start.
+
 ## Ideas not implemented
 
 ### Frame rate and pacing
