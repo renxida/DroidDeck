@@ -884,7 +884,8 @@ jobs:
 
   sign:
     needs: [build, checks]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # Release signing and publishing need upstream's keys and apps; forks stop at the testkey APK.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && !github.event.repository.fork
     permissions:
       contents: read
       actions: read
@@ -896,7 +897,8 @@ jobs:
 
   scan:
     needs: sign
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # Release signing and publishing need upstream's keys and apps; forks stop at the testkey APK.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && !github.event.repository.fork
     permissions:
       contents: read
     uses: ./.github/workflows/scan.yml
@@ -907,7 +909,8 @@ jobs:
 
   packs:
     needs: [build, checks]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # Release signing and publishing need upstream's keys and apps; forks stop at the testkey APK.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && !github.event.repository.fork
     permissions:
       contents: read
       actions: read
@@ -916,7 +919,8 @@ jobs:
 
   announce:
     needs: [build, sign, packs]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # Release signing and publishing need upstream's keys and apps; forks stop at the testkey APK.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && !github.event.repository.fork
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
