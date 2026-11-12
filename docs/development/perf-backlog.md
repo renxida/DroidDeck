@@ -13,13 +13,12 @@ implemented, why each should help, why it was left, and how to measure it.
 
 | branch | change | measure | expected |
 |---|---|---|---|
-| `perf/appinfo-skip` | the `appinfo.vdf` decoder builds only the sections it uses and stops reading a record once it has them | Steam start: time between the STEP lines "setting up the ARM64 Proton compatibility tool" and the next one | that step about 2× faster; seconds on large (50–150 MB) caches |
-| `perf/appinfo-cache` | a complete decode saves each app's entry next to `appinfo.vdf`, keyed on the record's SHA-1 and change number; later reads decode only changed records | same step, second and later Steam starts; also CPU of `droiddeck-steam-compat` after Steam writes `appinfo.vdf` | 5–6× on unchanged records (0.44 s → 0.07 s on a synthetic 23 MB cache) |
+| `perf/appinfo` | the `appinfo.vdf` decoder builds only the sections it uses and stops reading a record once it has them; a complete decode also saves each app's entry next to `appinfo.vdf`, keyed on the record's SHA-1 and change number, so later reads decode only the records Steam changed | Steam start: time between the STEP lines "setting up the ARM64 Proton compatibility tool" and the next one, first and later starts; also CPU of `droiddeck-steam-compat` after Steam writes `appinfo.vdf` | first start: that step about 2× faster, seconds on large (50–150 MB) caches; later starts: 5–6× on unchanged records (0.44 s → 0.07 s on a synthetic 23 MB cache) |
 | `perf/component-hashes` | the SHA-256 of each unpacked component file is kept next to it and reused while its size and mtime match; the session's `republish` no longer hashes every selected component file once per Proton build and scope | `session.created` to `guest.started` in the session's `events.jsonl`, with DXVK, VKD3D or FEX selected | tens to hundreds of ms per session start, more with several Proton builds |
 | `perf/early-buses` | the system bus, session bus and `droiddeck-login1` start before the Steam setup helpers instead of after them | `start steam --wait` seconds | 0.3–1.5 s less, the start-up of a Python and GObject process plus two buses |
 
-The two appinfo branches change the same function and will conflict when merged; they
-compose (the cache makes unchanged records free, the skip makes changed ones cheaper).
+`perf/appinfo` combines what were `perf/appinfo-skip` and `perf/appinfo-cache`: the cache makes
+unchanged records free, and the skip makes changed ones cheaper.
 
 ## How to measure
 
