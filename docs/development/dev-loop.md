@@ -5,11 +5,15 @@ machine with ADB installs it on a dedicated test device, and a scenario measures
 
 ## Build
 
-Push a branch to the fork and open a pull request against the fork's own `main`. `build.yml`
-runs on GitHub-hosted runners (`pick-runner.yml` falls back to `ubuntu-24.04` when
+Push to the fork's `main`, or to a branch with a pull request against the fork's own `main`.
+`build.yml` runs on GitHub-hosted runners (`pick-runner.yml` falls back to `ubuntu-24.04` when
 `RUNNER_STATUS_TOKEN` is absent), builds `assembleRelease`, runs `testReleaseUnitTest` and uploads
 the testkey-signed APK as the `droiddeck-apk` artifact. Forks start with Actions disabled; enable
 them once on the fork's Actions tab.
+
+Upstream rejects AI-authored commits. A fork skips that human-authorship check (the step in
+`build.yml` and `validate_apk.py` via `DROIDDECK_SKIP_AUTHORSHIP`), so a fork builds its own
+AI-assisted changes; anything sent upstream still has to pass it.
 
 Pure-Python changes under `tools/` do not need CI: `python3 -m unittest discover -s tools/tests`
 runs on any Linux machine.
@@ -19,7 +23,7 @@ runs on any Linux machine.
 ```sh
 gh auth login
 export DROIDDECK_CI_REPO=<owner>/DroidDeck
-tools/ci_apk_loop.sh my-branch                                    # install only
+tools/ci_apk_loop.sh main                                         # install only
 tools/ci_apk_loop.sh 12                                           # a pull request's head branch
 tools/ci_apk_loop.sh my-branch tools/scenarios/slay-the-spire-2.json --out ./runs
 ```
