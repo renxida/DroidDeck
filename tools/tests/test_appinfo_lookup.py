@@ -1,4 +1,5 @@
 import contextlib
+import marshal
 import os
 from pathlib import Path
 import runpy
@@ -320,6 +321,32 @@ class AppInfoEntryCacheTest(unittest.TestCase):
         COMPAT["APPINFO_CACHE"].clear()
         self.assertEqual(set(COMPAT["appinfo_entries"](str(self.path), wanted={"1"})), {"1"})
         self.assertFalse(self.saved.exists())
+
+    def test_a_changed_record_replaces_its_saved_entry(self):
+        unused = {"depots": {"10": {"manifests": {"public": {"gid": "1"}}}}}
+        for magic in FORMATS:
+            with self.subTest(magic=magic):
+                self.saved.unlink(missing_ok=True)
+                self.write({1: entry("Aaaa"), 2: entry("Same")}, magic)
+                size = self.path.stat().st_size
+                self.assertEqual(self.full()[0]["1"]["launch"][0], "aaaa.exe")
+                before = marshal.loads(self.saved.read_bytes())[1]
+
+                self.write({1: entry("Bbbb"), 2: entry("Same")}, magic)
+                self.assertEqual(self.path.stat().st_size, size)
+                result, calls = self.full()
+                self.assertEqual(result["1"]["launch"][0], "bbbb.exe")
+                self.assertGreater(calls, 0)
+                after = marshal.loads(self.saved.read_bytes())[1]
+                self.assertNotEqual(after[1][0], before[1][0])
+                self.assertEqual(after[1][1]["launch"][0], "bbbb.exe")
+                self.assertEqual(after[2], before[2])
+
+                self.write({1: entry("Bbbb"), 2: {**unused, **entry("Same")}}, magic)
+                result, calls = self.full()
+                self.assertGreater(calls, 0)
+                self.assertNotEqual(marshal.loads(self.saved.read_bytes())[1][2][0], after[2][0])
+                self.assertEqual(result, self.uncached())
 
 
 class LaunchLookupTest(unittest.TestCase):
