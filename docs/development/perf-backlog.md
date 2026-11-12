@@ -1,5 +1,8 @@
 # Performance backlog
 
+See also the [off-device profile](offdevice-profile.md), which covers APK size and the
+start-up path; the items below that it also lists are marked there.
+
 Written 2026-11-12 while looking for frame-rate, frame-pacing and time-to-game gains for
 Slay the Spire 2 (app 2868840: Godot 4 .NET, Vulkan, ARM64 Proton with FEX) and for Steam
 itself. Nothing here has been measured on a device yet. The first section lists the changes
@@ -12,6 +15,7 @@ implemented, why each should help, why it was left, and how to measure it.
 |---|---|---|---|
 | `perf/appinfo-skip` | the `appinfo.vdf` decoder builds only the sections it uses and stops reading a record once it has them | Steam start: time between the STEP lines "setting up the ARM64 Proton compatibility tool" and the next one | that step about 2× faster; seconds on large (50–150 MB) caches |
 | `perf/appinfo-cache` | a complete decode saves each app's entry next to `appinfo.vdf`, keyed on the record's SHA-1 and change number; later reads decode only changed records | same step, second and later Steam starts; also CPU of `droiddeck-steam-compat` after Steam writes `appinfo.vdf` | 5–6× on unchanged records (0.44 s → 0.07 s on a synthetic 23 MB cache) |
+| `perf/component-hashes` | the SHA-256 of each unpacked component file is kept next to it and reused while its size and mtime match; the session's `republish` no longer hashes every selected component file once per Proton build and scope | time from "Session start" to the proot line in logcat (tag `SessionService`), with DXVK, VKD3D or FEX selected | tens to hundreds of ms per session start, more with several Proton builds |
 | `perf/early-buses` | the system bus, session bus and `droiddeck-login1` start before the Steam setup helpers instead of after them | `start steam --wait` seconds | 0.3–1.5 s less, the start-up of a Python and GObject process plus two buses |
 
 The two appinfo branches change the same function and will conflict when merged; they
@@ -67,6 +71,15 @@ to SurfaceControl layers. It needs device testing of frame generation and HDR, w
 this code.
 Measure `offCadencePercent` and the HUD's present timings.
 
+**Layer path waits for its own blit.** On the SurfaceControl layer path, `sc_layer_present`
+calls `vkp_blit_image`, which copies the game's buffer into a layer slot. It then waits for its fence on
+the CPU (`timed_wait(g_fence, 1 s)`) before `present_slot` hands the slot to Android. The thread
+therefore blocks for the GPU's queue time on every frame. Exporting the blit's completion as a sync fd
+and passing it as the layer buffer's acquire fence would remove the wait. Both of these then have
+to follow that fence: the client buffer's Wayland release (`release_external_client_image`), and
+the reuse of `g_cmds[0]` and `g_fence`, which needs per-slot command buffers. That is a change to
+synchronisation that needs a device to validate.
+
 **ADPF game-thread hints on more SoCs.** `GameThreadHints.kt` returns early unless
 `Build.SOC_MODEL == "CQ8725S"` (Odin 3). Performance hints let the governor ramp up the
 game's threads before a frame is late. On other Snapdragon devices, enable them through a
@@ -79,6 +92,15 @@ runs on shared cores during play. It probably costs well under 1% of a core. Che
 `top -H` in `droiddeckctl guest` before changing it.
 
 ### Steam start
+
+**x86-64 client: `--sync` at every start.** With the x86-64 client, the session runs
+`droiddeck-steam-install --sync steamdeck_publicbeta` before every start, and it can take up to
+30 s. It is outside the ARM64 path that Slay the Spire 2 uses. A stamp of the last successful sync
+per channel and client build would skip it.
+
+**R8 for the release build.** `minifyEnabled false`: five dex files, 68.7 MiB uncompressed. Shrinking
+mostly helps the app's own cold start and install size, not the guest. It needs keep rules for JNI
+and reflection, and a device run to catch any missing one.
 
 **One process for the setup helpers.** `droiddeck-steam-library`, `steam-compatibility`,
 `droiddeck-steam-ui-scale` and `droiddeck-steam-shortcuts` run one after another as separate
