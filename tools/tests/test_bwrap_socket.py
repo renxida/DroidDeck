@@ -29,7 +29,7 @@ class BwrapSocketTest(unittest.TestCase):
         self.assertEqual("\0com.tencent.ig.bwrap", self.name({"DROIDDECK_BWRAP_SOCKET": "com.tencent.ig.bwrap"}))
 
     def test_without_either_the_standard_package_is_asked(self):
-        self.assertEqual("\0com.droiddeck.launcher.bwrap", self.name({}))
+        self.assertEqual("\0dev.renxida.kestrel.bwrap", self.name({}))
 
 
 if __name__ == "__main__":

@@ -54,7 +54,7 @@ class QuestExperimentalTest {
     @Test fun questDefaultsSelectBothCompatibilityPathsAndAreAppliedOnlyOnce() {
         ShadowBuild.setModel("Quest 3")
         val standard = object : ContextWrapper(context) {
-            override fun getPackageName() = "com.droiddeck.launcher"
+            override fun getPackageName() = "dev.renxida.kestrel"
         }
         QuestExperimental.initialize(standard)
         assertEquals(SessionPrefs.GPU_DRIVERS_MANUAL, SessionPrefs.gpuDriverMode(context))
@@ -106,7 +106,7 @@ class QuestExperimentalTest {
     }
 
     @Test fun installedPackagesUseSeparateSandboxSockets() {
-        val packages = listOf("com.droiddeck.launcher", "com.tencent.ig",
+        val packages = listOf("dev.renxida.kestrel", "com.tencent.ig",
             "com.antutu.benchmark.full", "com.ludashi.benchmark")
         val sockets = packages.map { name ->
             val variant = object : ContextWrapper(context) {
