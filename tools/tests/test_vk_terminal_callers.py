@@ -135,6 +135,15 @@ int __android_log_print(int, const char *, const char *, ...);
     def test_pass_copy_and_abort_terminal_entry(self):
         self.run_scenario('pass-terminal')
 
+    def test_two_frames_in_flight(self):
+        self.run_scenario('two-in-flight')
+
+    def test_two_frames_in_flight_device_lost(self):
+        self.run_scenario('two-in-flight-device-lost')
+
+    def test_two_frames_in_flight_timeout(self):
+        self.run_scenario('two-in-flight-timeout')
+
 
 if __name__ == '__main__':
     unittest.main()

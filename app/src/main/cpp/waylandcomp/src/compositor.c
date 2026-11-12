@@ -397,6 +397,8 @@ static void buf_trace_release(struct wl_resource *buffer, int line) {
 
 #define send_buffer_release(b) send_buffer_release_at((b), __LINE__)
 static void send_buffer_release_at(struct wl_resource *buffer, int line) {
+    struct dmabuf_buffer *b = get_dmabuf(buffer);
+    if (b) vkp_image_settle(b->img);
     if (!buffer_release_blocked(buffer)) { buf_trace_release(buffer, line); wl_buffer_send_release(buffer); }
 }
 

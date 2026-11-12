@@ -110,6 +110,7 @@ TYPES = r'''
 #include <string.h>
 typedef int VkImage, VkDeviceMemory, VkFormat, VkCommandBuffer, VkResult, VkFilter;
 typedef int VkImageLayout, VkPipelineStageFlags, VkImageUsageFlags;
+typedef int VkFence;
 typedef uint64_t VkDeviceSize;
 typedef struct { unsigned width, height; } VkExtent2D;
 typedef struct { int x, y, z; } VkOffset3D;
@@ -183,6 +184,11 @@ static int g_colorspace_ext, g_swap_hdr_unavailable, g_swap_is_hdr, g_swap_hdr_w
 static int g_plain_frame, g_first_frame_done, g_base_black;
 static int g_qfam, g_queue, g_dev, g_fence, g_swap_fmt = SCENE_FMT;
 static int g_cmds[3], g_acqs[3], g_rnds[3], images[1] = {2}, *g_images = images;
+#define FLIGHT 2
+static int g_fcmds[FLIGHT], g_ffences[FLIGHT], g_fnext, g_flight_ok;
+static uint64_t g_fserial[FLIGHT], g_frame_serial;
+static int settle_slot(int slot) { return 0; }
+static int settle_frames(uint64_t serial) { return 0; }
 static uint32_t g_swap_md_identity;
 static VkExtent2D g_extent = {1920, 1080};
 static struct { float kx, ky, off_x, off_y; int rx, ry, rw, rh; } g_map;
