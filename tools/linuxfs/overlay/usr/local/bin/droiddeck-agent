@@ -877,6 +877,23 @@ def steam_clear_pending_interstitial(agent_dir, app_id):
     return cdp_eval(agent_dir, expression, timeout=3).get("value") is True
 
 
+def steam_game_action(agent_dir, app_id):
+    """True when the client holds a launch action for app_id: it took the request, even if it is
+    still updating a runtime or showing a dialog."""
+    if not isinstance(app_id, str) or not app_id.isascii() or not app_id.isdigit() or int(app_id) <= 0:
+        raise AgentError("INVALID_APP_ID", "appId must be a positive decimal Steam app id")
+    expression = """(async () => {
+        const apps = globalThis.SteamClient?.Apps;
+        if (typeof apps?.GetActiveGameActions !== 'function') return null;
+        const active = await apps.GetActiveGameActions() || [];
+        return active.some(a => String(a?.strAppID ?? a?.gameid ?? a?.nAppID ?? '') === %s);
+    })()""" % json.dumps(app_id)
+    value = cdp_eval(agent_dir, expression, timeout=3).get("value")
+    if value is None:
+        raise AgentError("NO_GAME_ACTIONS", "the client has no game action list")
+    return value is True
+
+
 def game_pids(app_id):
     wanted = [("SteamAppId=%s" % app_id).encode(), ("SteamGameId=%s" % app_id).encode()]
     me = os.getpid()
@@ -1166,6 +1183,14 @@ def main(argv):
             return 0 if steam_ready(Path(base) / "agent") else 1
         except (AgentError, OSError, ValueError):
             return 1
+    if argv and argv[0] == "--steam-game-action":
+        if len(argv) != 2:
+            print("usage: droiddeck-agent --steam-game-action <appid>", file=sys.stderr)
+            return 2
+        try:
+            return 0 if steam_game_action(Path(base) / "agent", argv[1]) else 1
+        except (AgentError, OSError, ValueError):
+            return 2
     if argv and argv[0] == "--steam-clear-pending-interstitial":
         if len(argv) != 2:
             print("usage: droiddeck-agent --steam-clear-pending-interstitial <appid>", file=sys.stderr)

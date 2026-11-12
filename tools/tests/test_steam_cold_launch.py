@@ -97,12 +97,13 @@ class SteamColdLaunchTest(unittest.TestCase):
         result = self.run_launch("413150", ready_status=1)
         self.assertEqual("413150", (self.launch_dir / "steam-game").read_text().strip())
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
+        # 30 readiness polls, then one second before the client reports the launch action.
+        self.assertEqual(["1"] * 31, self.sleep_args.read_text().split())
 
     def test_a_focus_change_does_not_end_the_readiness_wait(self):
         result = self.run_launch("413150", focus="769 4242", ready_status=1)
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertEqual(["1"] * 30, self.sleep_args.read_text().split())
+        self.assertEqual(["1"] * 31, self.sleep_args.read_text().split())
 
     def test_a_game_still_starting_without_a_window_is_not_launched_twice(self):
         result = self.run_launch(SHORTCUT, running_after=1)
@@ -129,8 +130,29 @@ class SteamColdLaunchTest(unittest.TestCase):
         result = self.run_launch("413150")
         self.assertEqual("413150", (self.launch_dir / "steam-game").read_text().strip())
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
-        self.assertFalse(self.sleep_args.exists())
-        self.assertIn("--steam-ready", self.agent_args.read_text())
+        # No readiness wait; one second until the client reports that it took the launch.
+        self.assertEqual(["1"], self.sleep_args.read_text().split())
+        self.assertEqual(["--steam-game-action", "413150"], self.agent_args.read_text().splitlines())
+        self.assertIn("the client took the launch of 413150", result.stdout)
+
+    def test_a_native_launch_the_client_drops_is_asked_for_again_twice(self):
+        result = self.run_launch("413150", helper_status=1)
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertEqual(2, result.stdout.count("asking again"), result.stdout)
+        self.assertIn("did not take the launch of 413150 after 3 requests", result.stdout)
+        self.assertEqual(["1"] * 45, self.sleep_args.read_text().split())
+        self.assertEqual("413150", (self.launch_dir / "steam-game").read_text().strip())
+
+    def test_a_native_game_that_starts_is_not_asked_for_again(self):
+        result = self.run_launch("413150", helper_status=1, running_after=3)
+        self.assertNotIn("asking again", result.stdout)
+        self.assertEqual(["-f", "SteamLaunch AppId=413150( |$)"],
+                         (self.root / "pgrep-args").read_text().splitlines())
+        self.assertEqual(["1"] * 3, self.sleep_args.read_text().split())
+
+    def test_a_native_game_that_takes_focus_is_not_asked_for_again(self):
+        result = self.run_launch("413150", focus="769 769 4242", helper_status=1)
+        self.assertNotIn("asking again", result.stdout)
 
     def test_a_restart_for_a_game_uses_the_same_hand_off(self):
         loop = SOURCE[SOURCE.index('      if [ -s "$HOME/.bl-restart-game" ]; then'):SOURCE.index('      if [ -f "$HOME/.bl-restart-once" ]; then')]
