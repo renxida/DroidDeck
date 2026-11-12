@@ -2158,8 +2158,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         EndHint(getString(R.string.session_end_present_fault, it), evenOnSuccess = true)
     }
 
+    private fun exitCauseHint(): EndHint? {
+        if (SessionState.failureCode != com.droiddeck.launcher.session.ExitCause.FAILURE_PHANTOM &&
+            SessionState.failureCode != com.droiddeck.launcher.session.ExitCause.FAILURE_VENDOR) return null
+        return SessionState.failureMessage?.let { EndHint(it) }
+    }
+
     private fun sessionExitHint(status: Int): EndHint? = if (status == 0) presentationFaultHint()
-        else runtimeDamageHint() ?: sessionEndHint(SessionState.logFile) ?: prootFailureHint()
+        else runtimeDamageHint() ?: exitCauseHint() ?: sessionEndHint(SessionState.logFile) ?: prootFailureHint()
 
     private fun sessionEndHint(log: File?): EndHint? {
         presentationFaultHint()?.let { return it }
