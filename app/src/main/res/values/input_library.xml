@@ -37,11 +37,8 @@
     <string name="input_editor_discard">Discard unsaved layout changes?</string>
     <string name="input_editor_shared">This layout is used by %1$d profiles. Saved changes apply to all of them.</string>
     <string name="input_default_profiles">Default profiles</string>
-    <string name="input_desktop_mode">Desktop mode</string>
     <string name="input_game_mode">Game mode</string>
-    <string name="input_default_both">Default for Desktop and Game</string>
     <string name="input_default_game">Default for Game mode</string>
-    <string name="input_default_desktop">Default for Desktop mode</string>
     <string name="input_device_settings">Device settings</string>
     <string name="input_profile_controls">Controls</string>
     <string name="input_physical_hint">Buttons, sticks, triggers and extra keys</string>
