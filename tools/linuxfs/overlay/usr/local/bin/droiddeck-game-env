@@ -346,6 +346,21 @@ def offline_without_anticheat(command, env):
     return command[:2] + [game] + command[3:]
 
 
+def keep_caller_env(inherited, env):
+    """Names listed in DROIDDECK_KEEP_ENV keep the caller's values over game fixes and saved settings
+    (the memory-ordering test sets the FEX TSO switches itself)."""
+    names = [n for n in inherited.get("DROIDDECK_KEEP_ENV", "").split() if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", n)]
+    if not names:
+        return env, None
+    result = dict(env)
+    for name in names:
+        if name in inherited:
+            result[name] = inherited[name]
+        else:
+            result.pop(name, None)
+    return result, "kept the caller's " + " ".join("%s=%s" % (n, inherited.get(n, "unset")) for n in names)
+
+
 def engine_fixes(exe, args):
     game = Game(exe, args)
     env, extra, notes = {}, [], []
@@ -1490,6 +1505,9 @@ def main():
                 except OSError as undo:
                     print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); Wine uses its own copy "
                           "and the next launch puts the file back" % undo, file=sys.stderr)
+    env, note = keep_caller_env(os.environ, env)
+    if note:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
     watch = bool(waiting and app_id and exit_watch(app_id, env))
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)

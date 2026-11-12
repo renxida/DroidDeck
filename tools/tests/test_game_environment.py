@@ -2800,6 +2800,40 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual([], self.run_repair(Path(tmp) / "missing", proton))
 
 
+class KeepCallerEnvTest(unittest.TestCase):
+    def test_listed_names_keep_the_callers_values(self):
+        env, note = MODULE["keep_caller_env"]({"DROIDDECK_KEEP_ENV": "FEX_VECTORTSOENABLED DOTNET_gcConcurrent bad-name",
+                                                "FEX_VECTORTSOENABLED": "0"},
+                                               {"FEX_VECTORTSOENABLED": "1", "DOTNET_gcConcurrent": "0", "OTHER": "x"})
+        self.assertEqual(env, {"FEX_VECTORTSOENABLED": "0", "OTHER": "x"})
+        self.assertEqual(note, "kept the caller's FEX_VECTORTSOENABLED=0 DOTNET_gcConcurrent=unset")
+        unchanged = {"FEX_VECTORTSOENABLED": "1"}
+        self.assertEqual(MODULE["keep_caller_env"]({"FEX_VECTORTSOENABLED": "0"}, unchanged), (unchanged, None))
+
+    def test_a_dotnet_game_keeps_the_callers_tso_switches(self):
+        fixed = MODULE["DOTNET_FEX"]["FEX_VECTORTSOENABLED"]
+        kept = "0" if fixed == "1" else "1"
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\n"
+                             "print(os.environ.get('FEX_VECTORTSOENABLED', 'unset'), os.environ.get('FEX_TSOENABLED', 'unset'))\n")
+            probe.chmod(0o755)
+            game = Path(tmp) / "app/tso-litmus.exe"
+            game.parent.mkdir()
+            game.write_bytes(b"MZ")
+            (game.parent / "coreclr.dll").write_bytes(b"MZ")
+            env = {name: value for name, value in os.environ.items() if not name.startswith(("FEX_", "DROIDDECK_KEEP"))}
+            env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/2868840", FEX_VECTORTSOENABLED=kept)
+            plain = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],
+                                   env=env, text=True, capture_output=True, check=True)
+            self.assertEqual(plain.stdout.split()[0], fixed, plain.stderr)
+            env["DROIDDECK_KEEP_ENV"] = "FEX_VECTORTSOENABLED"
+            result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],
+                                    env=env, text=True, capture_output=True, check=True)
+            self.assertEqual(result.stdout.split(), [kept, MODULE["DOTNET_FEX"]["FEX_TSOENABLED"]], result.stderr)
+            self.assertIn("droiddeck-game-env: kept the caller's FEX_VECTORTSOENABLED=" + kept, result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
 
