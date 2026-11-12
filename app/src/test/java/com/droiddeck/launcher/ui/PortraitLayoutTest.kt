@@ -119,17 +119,17 @@ class PortraitLayoutTest {
     private fun state(running: String? = null) = FrontEndState(
         installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
         desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
-        romsDir = null, logsEnabled = false, steamGames = emptyList(), emulators = emptyList(), running = running,
+        logsEnabled = false, steamGames = emptyList(), running = running,
     )
     private val state get() = state()
     private val stateWithSession get() = state(running = "Steam")
 
     private val actions = FrontEndActions(
-        onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {}, onEmulator = {},
-        onRom = {}, onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
-        onInstallPackage = {}, onRemovePackage = {}, onRuntime = {}, onFrameGenPick = {},
+        onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {},
+        onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
+        onRuntime = {}, onFrameGenPick = {},
         onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
-        onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
+        onFiles = {}, onLogs = {}, onOffline = {},
         onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
         onSetPhantomProcessLimit = { _, _ -> },
     )

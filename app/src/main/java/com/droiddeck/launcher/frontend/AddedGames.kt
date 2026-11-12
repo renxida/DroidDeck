@@ -61,9 +61,6 @@ object AddedGames {
             if (path == dir) return root.guest
             if (path.startsWith("$dir/")) return root.guest + "/" + path.removePrefix("$dir/")
         }
-        SessionPrefs.romsDir(context).takeIf { it.isNotEmpty() }?.let { roms ->
-            if (path.startsWith("$roms/")) return "/root/ROMs/" + path.removePrefix("$roms/")
-        }
         for (lib in SteamLibraries.list(context)) {
             if (path == lib.path) return lib.guest
             if (path.startsWith("${lib.path}/")) return lib.guest + "/" + path.removePrefix("${lib.path}/")

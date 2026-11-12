@@ -60,13 +60,13 @@ class FlathubFocusTest {
                         Storefront(FrontEndState(
                             installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
                             desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
-                            romsDir = null, logsEnabled = false, steamGames = emptyList(), emulators = emptyList(), running = null,
+                            logsEnabled = false, steamGames = emptyList(), running = null,
                         ), FrontEndActions(
-                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {}, onEmulator = {},
-                            onRom = {}, onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
-                            onInstallPackage = {}, onRemovePackage = {}, onRuntime = {}, onFrameGenPick = {},
+                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {},
+                            onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
+                            onRuntime = {}, onFrameGenPick = {},
                             onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
-                            onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
+                            onFiles = {}, onLogs = {}, onOffline = {},
                             onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
                             onSetPhantomProcessLimit = { _, _ -> },
                         ))

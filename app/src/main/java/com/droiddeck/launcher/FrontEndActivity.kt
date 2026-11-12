@@ -36,7 +36,6 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.session.SessionService
-import com.droiddeck.launcher.ui.PackageRow
 import com.droiddeck.launcher.ui.exposeTestTags
 import com.droiddeck.launcher.session.OfflineMode
 import com.droiddeck.launcher.session.ProtonExtras
@@ -67,13 +66,11 @@ import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.ui.FrontEndScreen
 import com.droiddeck.launcher.ui.FrontEndState
 import com.droiddeck.launcher.ui.FrontEndActions
-import com.droiddeck.launcher.frontend.CoverArt
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.GameFiles
 import com.droiddeck.launcher.frontend.GameFileSync
 import com.droiddeck.launcher.frontend.GameLaunchIntent
 import com.droiddeck.launcher.ui.DroidDeckTheme
-import com.droiddeck.launcher.ui.RomsDialog
 import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionPhase
@@ -143,15 +140,10 @@ class FrontEndActivity : ComponentActivity() {
     private var saveBusy: String? = null
     private var onSavePicked: ((File) -> Unit)? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
-    private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
-    private var catalogLoading by mutableStateOf(false)
-    private var packageRows by mutableStateOf<List<PackageRow>?>(null)
     private object PackageOperation {
-        val id = mutableStateOf<String?>(null)
         val stage = mutableStateOf<String?>(null)
         val percent = mutableIntStateOf(-1)
     }
-    private var pkgId by PackageOperation.id
     private var pkgStage by PackageOperation.stage
     private var pkgPercent by PackageOperation.percent
     private var desktopInstalled by mutableStateOf(false)
@@ -463,12 +455,6 @@ class FrontEndActivity : ComponentActivity() {
     private var addedGamesArt by mutableStateOf(true)
     @Volatile private var artFetchRunning = false
     private var sgdbUserKey by mutableStateOf(false)
-    private val pickRomsDir = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path ->
-            SessionPrefs.setRomsDir(this, path)
-            romsDir = path
-        }
-    }
     private var settingsMode by mutableStateOf<String?>(null)
     private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
@@ -542,12 +528,10 @@ class FrontEndActivity : ComponentActivity() {
             ui.post { if (scan == steamLibraryScan) foundSteamLibraries = found }
         }, "steam-library-scan").start()
     }
-    private var romsDir by mutableStateOf<String?>(null)
     private var steamGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
     private var steamGamesX64 by mutableStateOf(false)
     @Volatile private var componentSweepDone = false
     @Volatile private var componentSweepSession: String? = null
-    private var emulatorList by mutableStateOf<List<Library.Emulator>>(emptyList())
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
     private var enhancedDiagnosticsArmed by mutableStateOf(false)
@@ -564,7 +548,6 @@ class FrontEndActivity : ComponentActivity() {
     private var adbPaired by mutableStateOf(false)
     private var memoryHud by mutableStateOf(SessionPrefs.MEMORY_HUD_OFF)
     private var backgroundAppLimit by mutableStateOf(com.droiddeck.launcher.core.BackgroundAppLimit.OFF)
-    private var showRoms by mutableStateOf(false)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var dualDisplayId by mutableStateOf(-1)
     private var dualScreenDevice by mutableStateOf(false)
@@ -983,7 +966,7 @@ class FrontEndActivity : ComponentActivity() {
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
                         offlineAccount = offlineAccount, offline = offline,
-                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
+                        frameGenLabel = frameGenLabel, logsEnabled = logsEnabled,
                         enhancedDiagnosticsArmed = enhancedDiagnosticsArmed,
                         gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
@@ -991,7 +974,7 @@ class FrontEndActivity : ComponentActivity() {
                         buildWatermark = buildWatermark,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         tpUbwcMode = drivers.tpUbwcModeForDevice(), tpUbwcRestartRequired = drivers.tpUbwcRestartRequired(), canRestartApp = !runtimeChangesBlocked(),
-                        steamGames = steamGames, steamGamesX64 = steamGamesX64, emulators = emulatorList, running = runningLabel,
+                        steamGames = steamGames, steamGamesX64 = steamGamesX64, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
                         pageKey = if (showPerformance) "performance" else if (showComponents) "components" else if (showMapping) "controller-mapping" else null,
@@ -1007,11 +990,6 @@ class FrontEndActivity : ComponentActivity() {
                         dualScreenSessions = dualScreenSessions,
                         dualScreenControls = dualScreenControls,
                         androidTextFieldKeyboard = androidTextFieldKeyboard,
-                        packages = packageRows,
-                        packageCatalogLoading = catalogLoading,
-                        packageBusyId = pkgId,
-                        packageStage = pkgStage,
-                        packagePercent = pkgPercent,
                         sessionRunning = SessionState.running,
                         backActionsInverted = backActionsInverted,
                         buildLabel = BuildConfig.BUILD_LABEL,
@@ -1086,7 +1064,6 @@ class FrontEndActivity : ComponentActivity() {
                             startSession(Intent(this, SessionActivity::class.java)
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
                         },
-                        onEmulator = { e -> launchProgram(e.program) },
                         onUserApp = { app ->
                             app.args.firstOrNull()?.let { Library.flatpakNames[it] = app.name }
                             startActivity(Intent(this, SessionActivity::class.java)
@@ -1101,20 +1078,11 @@ class FrontEndActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER)
                                 .putExtra(SessionService.EXTRA_PROGRAM_ARGS, arrayOf(id)))
                         },
-                        onRom = { g ->
-                            val e = emulatorList.first { it.id == g.emulatorId }
-                            startActivity(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-                                .putExtra(SessionService.EXTRA_PROGRAM, e.program)
-                                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, Library.launchArgs(e.id, g.guestPath).toTypedArray()))
-                        },
                         onResume = { startActivity(Intent(this, SessionActivity::class.java)) },
                         onSteamSettings = { loadModeSettings(SessionService.MODE_STEAM) },
                         onRemoveDesktop = { removeDesktop() },
                         onDesktopSettings = { loadModeSettings(SessionService.MODE_DESKTOP) },
                         modeSheet = { mode, tab, extras -> ModeSheetHost(mode, tab, extras) },
-                        onInstallPackage = { id -> installPackage(id) },
-                        onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
                         onVkBridge = { on ->
                             SessionPrefs.setVkBridge(this, on); SessionPrefs.setMaliFallbackByAuto(this, ""); vkBridge = on
@@ -1148,7 +1116,6 @@ class FrontEndActivity : ComponentActivity() {
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
                         onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
-                        onRoms = { showRoms = true },
                         onFiles = { startActivity(Intent(this, com.droiddeck.launcher.files.FileManagerActivity::class.java)) },
                         onBrowseFiles = { dir ->
                             startActivity(Intent(this, com.droiddeck.launcher.files.FileManagerActivity::class.java)
@@ -1407,15 +1374,6 @@ class FrontEndActivity : ComponentActivity() {
                     page = page,
                 )
                 }
-                if (showRoms) RomsDialog(
-                    path = romsDir,
-                    onChoose = {
-                        showRoms = false
-                        pickRomsDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_pick_roms), romsDir))
-                    },
-                    onClear = { SessionPrefs.setRomsDir(this, ""); romsDir = null; showRoms = false },
-                    onDismiss = { showRoms = false },
-                )
                 showNonAdreno?.let { release ->
                     ConfirmDialog(
                         title = androidx.compose.ui.res.stringResource(R.string.main_non_adreno_title),
@@ -1685,7 +1643,6 @@ class FrontEndActivity : ComponentActivity() {
         refreshSecondScreenDisplays()
         refresh()
         refreshAddedGames()
-        if (catalog == null) loadDesktopCatalog()
         if (!busy) Thread({ checkCatalog() }, "catalog").start()
     }
 
@@ -1774,19 +1731,6 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun launchPending(): Boolean = gameLinkReading || (pendingGameLink != null && !gameLinkTried)
-
-    private fun loadDesktopCatalog() {
-        if (catalogLoading || catalog != null) return
-        catalogLoading = true
-        Thread({
-            val fetched = DesktopCatalog.fetch()
-            ui.post {
-                catalog = fetched
-                catalogLoading = false
-                refreshPackages()
-            }
-        }, "catalog-desktop").start()
-    }
 
     private fun saveAction(label: String, work: () -> String) {
         if (busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null) return
@@ -1921,18 +1865,6 @@ class FrontEndActivity : ComponentActivity() {
         androidx.compose.runtime.LaunchedEffect(protons.protonBusyId) { if (protons.protonBusyId == null) components.refreshComponents() }
     }
 
-    private fun refreshPackages() {
-        packageRows = catalog?.map { PackageRow(it.id, it.kind, it.notes) }
-        desktopInstalled = DesktopCatalog.desktopInstalled(this)
-        desktopPresent = DesktopCatalog.desktopPresent(this)
-    }
-
-    private fun launchProgram(path: String) {
-        startActivity(Intent(this, SessionActivity::class.java)
-            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-            .putExtra(SessionService.EXTRA_PROGRAM, path))
-    }
-
     private fun resumeInterruptedPackages() {
         if (runtimeChangesBlocked()) return
         val first = DesktopCatalog.interrupted(this).firstOrNull()
@@ -1940,49 +1872,17 @@ class FrontEndActivity : ComponentActivity() {
             Thread({ DesktopCatalog.pruneDownloads(this) }, "prune-pkg").start()
             return
         }
-        pkgId = first.id; pkgStage = getString(R.string.deskpkg_installing, first.name); pkgPercent = -1
+        pkgStage = getString(R.string.deskpkg_installing, first.name); pkgPercent = -1
         Thread({
             val problem = DesktopCatalog.resumeInterrupted(this) { stage, percent ->
                 ui.post { pkgStage = stage; pkgPercent = percent }
             }
             ui.post {
-                pkgStage = null; pkgId = null
+                pkgStage = null
                 if (problem != null) android.widget.Toast.makeText(this, getString(R.string.main_pkg_problem, first.name, problem), android.widget.Toast.LENGTH_LONG).show()
-                refreshPackages()
                 refresh()
             }
         }, "resume-pkg").start()
-    }
-
-    private fun installPackage(id: String) {
-        val entry = catalog?.firstOrNull { it.id == id } ?: return
-        if (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null || SessionState.running) return
-        pkgId = id; pkgStage = getString(R.string.store_starting); pkgPercent = -1
-        Thread({
-            val problem = DesktopCatalog.install(this, entry) { stage, percent ->
-                ui.post { pkgStage = stage; pkgPercent = percent }
-            }
-            ui.post {
-                pkgStage = null; pkgId = null
-                if (problem != null) android.widget.Toast.makeText(this, getString(R.string.main_pkg_problem, entry.name, problem), android.widget.Toast.LENGTH_LONG).show()
-                refreshPackages()
-                refresh()
-            }
-        }, "install-pkg").start()
-    }
-
-    private fun removePackage(id: String) {
-        val entry = catalog?.firstOrNull { it.id == id } ?: return
-        if (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null || SessionState.running) return
-        pkgId = id; pkgStage = getString(if (entry.kind == "appimage") R.string.main_removing_named else R.string.main_forgetting_named, entry.name); pkgPercent = -1
-        Thread({
-            DesktopCatalog.remove(this, entry)
-            ui.post {
-                pkgStage = null; pkgId = null
-                refreshPackages()
-                refresh()
-            }
-        }, "remove-pkg").start()
     }
 
     @Composable
@@ -2423,7 +2323,6 @@ class FrontEndActivity : ComponentActivity() {
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
         ui.post { autoUpdateRuntime() }
         frameGenLabel = FrameGen.label(this)
-        romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
         enhancedDiagnosticsArmed = com.droiddeck.launcher.session.EnhancedDiagnostics.isArmed(this)
         gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
@@ -2452,8 +2351,6 @@ class FrontEndActivity : ComponentActivity() {
             Thread({ com.droiddeck.launcher.session.FexCatalog.refresh(this) }, "fex-catalog").start()
         }
         Thread({
-            val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
-            ui.post { if (scanGeneration == libraryScanGeneration) emulatorList = emus }
             if (ready) {
                 val quick = runCatching { Library.steamGames(this) }.getOrNull()
                 val claimed = quick?.let { runCatching { Library.claimedFolders(it) }.getOrDefault(emptySet()) }.orEmpty()
@@ -2507,10 +2404,6 @@ class FrontEndActivity : ComponentActivity() {
                     shortcutLibraryScanning = false
                     handleGameLink(all)
                 }
-            }
-            if (!OfflineMode.enabled(this) && CoverArt.fetchMissing(this, emus.flatMap { it.games })) {
-                val refreshed = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
-                ui.post { emulatorList = refreshed }
             }
         }, "library").start()
     }

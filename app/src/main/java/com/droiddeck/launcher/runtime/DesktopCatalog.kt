@@ -12,7 +12,6 @@ import java.io.File
 
 object DesktopCatalog {
     private const val TAG = "DesktopCatalog"
-    const val CATALOG_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/desktop.json"
     const val STEAM_SEED_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/steam-seed.json"
     const val PROTON_SEED_ID = "proton-arm64"
     const val APPIMAGE_EXEC = "/usr/local/bin/droiddeck-appimage-exec"
@@ -23,7 +22,7 @@ object DesktopCatalog {
         val icon: String, val category: String,
     )
 
-    fun fetch(url: String = CATALOG_URL, cancelled: java.util.function.BooleanSupplier? = null): List<Entry>? {
+    fun fetch(url: String, cancelled: java.util.function.BooleanSupplier? = null): List<Entry>? {
         val body = Downloader.downloadString(url, cancelled) ?: return null
         return try {
             val json = JSONObject(body)
@@ -113,8 +112,6 @@ object DesktopCatalog {
             !File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").isFile
 
     const val DESKTOP_ID = "desktop-kde"
-    const val EMULATORS_ID = "emulators"
-    private const val EMULATORS_SCRIPT = "/usr/local/bin/droiddeck-emulators"
 
     fun desktopEntry(context: Context): Entry {
         val pack = DesktopPack.info(LinuxRuntime.rootDir(context))
@@ -175,7 +172,6 @@ object DesktopCatalog {
                               listener: LinuxRuntimeInstaller.ProgressListener?): String? {
         val root = LinuxRuntime.rootDir(context)
         if (!root.isDirectory) return context.getString(R.string.deskpkg_runtime_missing)
-        if (entry.id == EMULATORS_ID && desktopFromPack(root)) return installEmulators(context, entry, cancelled, listener)
         if (entry.sha256.isEmpty()) return context.getString(R.string.deskpkg_no_checksum, entry.name)
         val download = downloadFile(context, entry)
         val journal = journal(root, entry.id)
@@ -207,27 +203,11 @@ object DesktopCatalog {
             }
             if (cancelled?.getAsBoolean() == true) return context.getString(R.string.user_apps_download_failed)
             report.onProgress(context.getString(R.string.deskpkg_installing, entry.name), -1)
-            when (entry.kind) {
-                "appimage" -> {
-                    val dir = File(root, "opt/appimages").apply { mkdirs() }
-                    val target = File(dir, "${entry.id}.AppImage")
-                    val placed = if (entry.url.endsWith(".zip", ignoreCase = true)) unzipAppImage(download, target)
-                                 else download.renameTo(target)
-                    if (!placed) return context.getString(R.string.deskpkg_place_failed)
-                    target.setExecutable(true, false)
-                    FileUtils.writeString(File(root, "usr/share/applications/droiddeck-${entry.id}.desktop"),
-                        "[Desktop Entry]\nType=Application\nName=${entry.name}\n" +
-                        "Exec=$APPIMAGE_EXEC /opt/appimages/${entry.id}.AppImage\n" +
-                        "Icon=${entry.icon}\nTerminal=false\nCategories=${entry.category};\n")
-                }
-                else -> {
-                    check(FileUtils.writeString(journal, entryJson(entry).toString())) { "Could not record the package installation" }
-                    keepDownload = true
-                    marker(context, entry.id).delete()
-                    if (entry.id == DESKTOP_ID && desktopFromPack(root)) DesktopPack.prepareInstall(root)
-                    if (!LinuxRuntimeInstaller.extract(context, download, root, report)) return context.getString(R.string.deskpkg_extract_failed)
-                }
-            }
+            check(FileUtils.writeString(journal, entryJson(entry).toString())) { "Could not record the package installation" }
+            keepDownload = true
+            marker(context, entry.id).delete()
+            if (entry.id == DESKTOP_ID && desktopFromPack(root)) DesktopPack.prepareInstall(root)
+            if (!LinuxRuntimeInstaller.extract(context, download, root, report)) return context.getString(R.string.deskpkg_extract_failed)
             if (entry.id == DESKTOP_ID) {
                 if (desktopFromPack(root)) DesktopPack.finishInstall(root) else cleanLegacy(context, report)
                 val pending = File(root, DesktopRemoval.PENDING)
@@ -245,73 +225,5 @@ object DesktopCatalog {
             if (!keepDownload) download.delete()
             release()
         }
-    }
-
-    private fun installEmulators(context: Context, entry: Entry, cancelled: Downloader.Cancellation?,
-                                 listener: LinuxRuntimeInstaller.ProgressListener?): String? {
-        val release = RuntimeInstallService.holdForPackage(context, context.getString(R.string.deskpkg_installing, entry.name))
-        val stop = java.util.concurrent.atomic.AtomicBoolean(false)
-        val finished = java.util.concurrent.atomic.AtomicBoolean(false)
-        cancelled?.let { token ->
-            Thread({
-                try {
-                    while (!finished.get() && !stop.get()) {
-                        if (token.getAsBoolean()) stop.set(true) else Thread.sleep(200)
-                    }
-                } catch (_: InterruptedException) {
-                }
-            }, "emulators-cancel").apply { isDaemon = true; start() }
-        }
-        try {
-            var failure: String? = null
-            val status = GuestCommand.run(context, listOf("/bin/bash", EMULATORS_SCRIPT, "install"), logName = "emulators",
-                cancelled = stop) { line ->
-                when {
-                    line.startsWith("== STEP ") -> {
-                        val stage = context.getString(R.string.deskpkg_installing, line.removePrefix("== STEP "))
-                        RuntimeInstallService.packageProgress(stage, -1)
-                        listener?.onProgress(stage, -1)
-                    }
-                    line.startsWith("== FAIL ") -> failure = line.removePrefix("== FAIL ")
-                }
-            }
-            if (stop.get()) return context.getString(R.string.user_apps_download_failed)
-            if (failure != null || status != 0) return context.getString(R.string.deskpkg_install_failed)
-            check(FileUtils.writeString(marker(context, entry.id), entry.version)) { "Could not finish package installation" }
-            return null
-        } catch (e: Exception) {
-            Log.e(TAG, "install ${entry.id}", e)
-            return e.message ?: context.getString(R.string.deskpkg_install_failed)
-        } finally {
-            finished.set(true)
-            release()
-        }
-    }
-
-    private fun unzipAppImage(zip: File, target: File): Boolean {
-        try {
-            java.util.zip.ZipInputStream(java.io.BufferedInputStream(java.io.FileInputStream(zip))).use { zin ->
-                var entry = zin.nextEntry
-                while (entry != null) {
-                    if (!entry.isDirectory && entry.name.endsWith(".AppImage", ignoreCase = true)) {
-                        java.io.FileOutputStream(target).use { out -> FileUtils.copy(zin, out) }
-                        return true
-                    }
-                    entry = zin.nextEntry
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "unzip ${zip.name}", e)
-        }
-        return false
-    }
-
-    fun remove(context: Context, entry: Entry) {
-        val root = LinuxRuntime.rootDir(context)
-        if (entry.kind == "appimage") {
-            File(root, "opt/appimages/${entry.id}.AppImage").delete()
-            File(root, "usr/share/applications/droiddeck-${entry.id}.desktop").delete()
-        }
-        marker(context, entry.id).delete()
     }
 }

@@ -1218,14 +1218,6 @@ class SessionService : Service() {
             }
         }
         binds.addAll(com.droiddeck.launcher.runtime.UserApps.binds(this))
-        val roms = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }?.let { File(it) }
-        if (roms != null && roms.isDirectory && roms.canRead()) {
-            File(home, "ROMs").mkdirs()
-            binds.add(roms.path + ":/root/ROMs")
-            Log.i(TAG, "roms: $roms -> /root/ROMs")
-        } else if (roms != null) {
-            Log.w(TAG, "roms: $roms is not a readable folder; /root/ROMs not offered this session")
-        }
         val libraries = ArrayList<Pair<String, String>>()
         if (storageDiagnosticLibrary != null && library != null) libraries.add(SecondaryLibrary.CARD_GUESTS[0] to library.label)
         val gamesLibraries = GameStorage.gamesFolderLibraries(this)

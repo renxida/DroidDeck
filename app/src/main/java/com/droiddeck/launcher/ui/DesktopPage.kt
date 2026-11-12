@@ -107,7 +107,6 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val colors = MaterialTheme.colorScheme
     LaunchedEffect(Unit) { UserAppsState.refresh(ctx) }
     LaunchedEffect(s.ready) { com.droiddeck.launcher.store.StoreState.refresh(ctx) }
-    val installed = s.emulators.filter { it.installed }
     val apps = UserAppsState.items
     var adding by rememberSaveable { mutableStateOf(false) }
     val mode = SessionService.MODE_DESKTOP
@@ -124,12 +123,12 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
         background = {
-            DesktopWall(installed.map { it.iconRes } + apps.mapNotNull { it.icon })
+            DesktopWall(apps.mapNotNull { it.icon })
         },
         scrim = { lifted ->
             WallFade()
             Box(Modifier.graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
-                DesktopDock(s, a, installed, apps, openFrom = ::openFrom)
+                DesktopDock(apps, openFrom = ::openFrom)
             }
         },
         words = {
@@ -167,22 +166,19 @@ private fun compactDesktop() = LocalNarrowPane.current || LocalConfiguration.cur
 
 @Composable
 private fun DesktopDock(
-    s: FrontEndState, a: FrontEndActions, installed: List<Library.Emulator>, apps: List<UserApps.App>,
+    apps: List<UserApps.App>,
     openFrom: (Rect?, Any?, String) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val narrow = LocalNarrowPane.current
-    val available = s.emulators.filter { !it.installed }
     val flatpaks = com.droiddeck.launcher.store.StoreState.installed.filter { f -> apps.none { it.key == "flatpak:${f.id}" } }
-    val keys = installed.map { "emu:${it.id}" } + apps.map { "user:${it.key}" } + flatpaks.map { "flatpak:${it.id}" }
-    var lastAt by remember { mutableStateOf<Rect?>(null) }
-    var dockAt by remember { mutableStateOf<Rect?>(null) }
+    val keys = apps.map { "user:${it.key}" } + flatpaks.map { "flatpak:${it.id}" }
     val seen = remember { mutableSetOf<String>() }
     val mounted = remember { booleanArrayOf(false) }
     LaunchedEffect(Unit) { mounted[0] = true }
     val scroll = rememberScrollState()
-    if (keys.isEmpty() && available.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
+    if (keys.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
     Column(Modifier.fillMaxWidth().padding(top = if (compactDesktop()) 14.dp else 22.dp)) {
         Text(
             stringResource(R.string.user_apps_section).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp,
@@ -190,7 +186,7 @@ private fun DesktopDock(
         )
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top,
-            modifier = Modifier.fillMaxWidth().onGloballyPositioned { dockAt = it.boundsInRoot() }
+            modifier = Modifier.fillMaxWidth()
                 .edgeFade(scroll).horizontalScroll(scroll).padding(start = if (narrow) 20.dp else 44.dp, end = 20.dp, top = 2.dp, bottom = 4.dp),
         ) {
             keys.forEachIndexed { i, k ->
@@ -198,18 +194,10 @@ private fun DesktopDock(
                     val state = remember { MutableTransitionState(!mounted[0] || k in seen) }.apply { targetState = true }
                     LaunchedEffect(Unit) { seen += k }
                     AnimatedVisibility(state, enter = expandHorizontally(Motion.sp(0.75f)) + fadeIn(Motion.tw(300, 80))) {
-                        Box(if (i == keys.lastIndex) Modifier.onGloballyPositioned { lastAt = it.boundsInRoot() } else Modifier) {
-                            val e = installed.firstOrNull { "emu:${it.id}" == k }
+                        Box {
                             val flatpak = flatpaks.firstOrNull { "flatpak:${it.id}" == k }
                             val app = apps.firstOrNull { "user:${it.key}" == k }
-                            if (e != null) {
-                                val system = if (e.systemRes != 0) stringResource(e.systemRes) else e.system.replaceFirstChar { c -> c.uppercase() }
-                                DesktopCard(
-                                    k, e.name,
-                                    if (e.id == "retroarch") system else "$system · " + pluralStringResource(R.plurals.mode_added_count, e.games.size, e.games.size),
-                                    art = e.iconRes, first = i == 0,
-                                ) { at -> openFrom(at, e.iconRes, k) }
-                            } else if (flatpak != null) DesktopCard(
+                            if (flatpak != null) DesktopCard(
                                 k, flatpak.name, flatpak.summary ?: stringResource(R.string.flathub_name),
                                 art = flatpak.icon ?: com.droiddeck.launcher.store.FlathubApi.iconUrl(flatpak.id), first = i == 0,
                             ) { at ->
@@ -219,30 +207,6 @@ private fun DesktopDock(
                                 openFrom(at, app.icon, k)
                             }
                         }
-                    }
-                }
-            }
-            if (keys.isNotEmpty()) Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(120.dp).background(pal.line2))
-            available.forEach { e ->
-                key(e.id) {
-                    val pkg = Library.packageId(e.id)?.let { id -> s.packages?.firstOrNull { it.id == id } }
-                    val busyHere = pkg != null && s.packageBusyId == pkg.id
-                    val canGet = pkg != null && !s.busy && s.packageBusyId == null && s.ready && !s.packageCatalogLoading && !s.sessionRunning
-                    val system = if (e.systemRes != 0) stringResource(e.systemRes) else e.system.replaceFirstChar { c -> c.uppercase() }
-                    DesktopCard(
-                        "emu:${e.id}", e.name, if (busyHere) (s.packageStage ?: stringResource(R.string.store_installing)) else system,
-                        art = e.iconRes, badge = if (busyHere) null else stringResource(R.string.comp_get),
-                        progress = if (busyHere) s.packagePercent else null, first = keys.isEmpty() && e == available.first(),
-                    ) { at ->
-                        if (canGet && pkg != null && at != null) {
-                            a.onInstallPackage(pkg.id)
-                            val end = lastAt
-                            val row = dockAt
-                            Flights.fly(Flight(at, to = {
-                                val r = row ?: return@Flight null
-                                Offset((end?.right ?: r.left) + 70.dp.toPx(), r.center.y)
-                            }))
-                        } else openFrom(at, e.iconRes, "emu:${e.id}")
                     }
                 }
             }
@@ -362,9 +326,6 @@ private fun DesktopFiles(s: FrontEndState, a: FrontEndActions) {
     SettingsGroup(stringResource(R.string.setup_tool_files)) {
         SettingsRow(stringResource(R.string.setup_tool_files), stringResource(R.string.setup_tool_files_hint)) {
             SecondaryButton(stringResource(R.string.store_open), compact = true, onClick = a.onFiles)
-        }
-        SettingsRow(stringResource(R.string.setup_tool_roms), s.romsDir ?: stringResource(R.string.setup_tool_roms_hint)) {
-            SecondaryButton(stringResource(R.string.setup_choose), compact = true, onClick = a.onRoms)
         }
     }
     if (s.desktopPresent) SettingsGroup(stringResource(R.string.content_linux_desktop)) {

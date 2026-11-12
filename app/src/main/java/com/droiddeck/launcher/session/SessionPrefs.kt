@@ -818,13 +818,6 @@ object SessionPrefs {
     }
 
 
-    fun romsDir(context: Context): String =
-        prefs(context).getString("romsDir", "") ?: ""
-
-    fun setRomsDir(context: Context, path: String) {
-        prefs(context).edit().putString("romsDir", path).apply()
-    }
-
     fun logsEnabled(context: Context): Boolean =
         prefs(context).getBoolean("logs", true)
 

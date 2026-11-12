@@ -92,14 +92,14 @@ class InputUiLayoutTest {
                         SetupPanel(FrontEndState(
                             installed = null, ready = false, available = null, busy = false, stage = "", percent = -1,
                             desktopInstalled = false, offlineAccount = null, offline = false, frameGenLabel = "",
-                            romsDir = null, logsEnabled = false, steamGames = emptyList(), emulators = emptyList(), running = null,
+                            logsEnabled = false, steamGames = emptyList(), running = null,
                             controller = ControllerPrefs.read(context),
                         ), FrontEndActions(
-                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {}, onEmulator = {},
-                            onRom = {}, onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
-                            onInstallPackage = {}, onRemovePackage = {}, onRuntime = {}, onFrameGenPick = {},
+                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {},
+                            onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
+                            onRuntime = {}, onFrameGenPick = {},
                             onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
-                            onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
+                            onFiles = {}, onLogs = {}, onOffline = {},
                             onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
                             onSetPhantomProcessLimit = { _, _ -> }, controller = ControllerActions({}),
                         ), onOpenDeveloperOptions = {}, onRequestWirelessAdb = {}, onPairWirelessDebugging = {})

@@ -11,7 +11,7 @@ object LegacyNames {
     const val SESSION_SCRIPT = "/usr/local/bin/bannerlator-session"
     val SCRIPTS = listOf(
         "appimage-run", "bwrap", "desktop-games", "flatpak", "flatpak-run", "flatpak-setup",
-        "game-env", "login1", "netmanager", "pad-defaults", "proton-extra", "script-run",
+        "game-env", "login1", "netmanager", "proton-extra", "script-run",
         "seed-redists", "session", "steam-games", "steam-install", "steam-launch",
         "steam-library", "steam-shim", "steam-shortcuts",
     )

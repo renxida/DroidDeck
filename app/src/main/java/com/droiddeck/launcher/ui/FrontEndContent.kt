@@ -114,7 +114,6 @@ internal fun Pane(
             s.pageKey != null && page != null -> null
             selected.startsWith("app:") -> s.steamGames.firstOrNull { "app:${it.appId}" == selected }?.art
             selected == "games" -> s.steamGames.maxByOrNull { it.lastPlayed }?.art
-            selected.startsWith("rom:") -> romFor(s, selected)?.second?.art
             else -> null
         }
         Backdrop(backdropArt)
@@ -220,13 +219,6 @@ private fun Backdrop(art: File?) {
     Spacer(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, colors.background.copy(alpha = 0.35f)))))
 }
 
-private fun romFor(s: FrontEndState, selected: String): Pair<Library.Emulator, Library.Rom>? {
-    val parts = selected.split(":")
-    val e = s.emulators.firstOrNull { it.id == parts.getOrNull(1) } ?: return null
-    val g = e.games.getOrNull(parts.getOrNull(2)?.toIntOrNull() ?: -1) ?: return null
-    return e to g
-}
-
 @Composable
 private fun Content(
     s: FrontEndState, selected: String, a: FrontEndActions, modifier: Modifier,
@@ -234,9 +226,7 @@ private fun Content(
     onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit, onPairWirelessDebugging: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val detailPosterWidth = if (LocalConfiguration.current.screenHeightDp < 600) 72.dp else 120.dp
     val narrow = LocalNarrowPane.current
-    val density = androidx.compose.ui.platform.LocalDensity.current.density
     val padH = if (narrow) 16.dp else 22.dp
     val padV = if (narrow) 12.dp else 18.dp
     if (selected == "setup") {
@@ -266,142 +256,6 @@ private fun Content(
             selected.startsWith("user:") -> {
                 val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
                 if (app == null) Note(stringResource(R.string.user_apps_gone)) else UserAppPage(app, s, a, onSelect)
-            }
-            selected.startsWith("emu:") -> {
-                val e = s.emulators.firstOrNull { "emu:${it.id}" == selected }
-                if (e == null) Note(stringResource(R.string.content_not_installed)) else {
-                    val pkgId = Library.packageId(e.id)
-                    val pkg = pkgId?.let { id -> s.packages?.firstOrNull { it.id == id } }
-                    Rise(1) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
-                        ) {
-                            Image(painterResource(e.iconRes), null, modifier = Modifier.size(64.dp))
-                            Column {
-                                Text(e.name, fontSize = if (narrow) 24.sp else 30.sp, fontWeight = FontWeight.Black, color = colors.onBackground)
-                                Text(
-                                    systemLabel(e).let { if (e.installed) it else stringResource(R.string.content_not_installed_suffix, it) },
-                                    fontSize = 14.sp, color = colors.onSurfaceVariant,
-                                )
-                                if (e.installed) Text(
-                                    listOfNotNull(
-                                        pluralStringResource(R.plurals.mode_added_count, e.games.size, e.games.size).takeIf { e.id != "retroarch" || e.games.isNotEmpty() },
-                                        s.romsDir,
-                                    ).joinToString(" · "),
-                                    fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                    if (e.installed) {
-                        Rise(3) {
-                            Actions {
-                                PrimaryButton(stringResource(R.string.content_open_named, e.name), enabled = !s.busy, main = true) { a.onEmulator(e) }
-                                BusyChip(s)
-                                SecondaryButton(stringResource(R.string.setup_tool_roms), onClick = a.onRoms)
-                                if (pkg != null) SecondaryButton(
-                                    if (pkg.kind == "appimage") stringResource(R.string.store_remove) else stringResource(R.string.common_hide),
-                                    enabled = !s.busy && s.packageBusyId == null && !s.sessionRunning,
-                                ) { a.onRemovePackage(pkg.id) }
-                            }
-                        }
-                        Rise(4) { SectionTitle(stringResource(R.string.content_games), e.games.size.toString()) }
-                        if (e.games.isEmpty()) Rise(5) {
-                            Note(
-                                if (s.romsDir == null) stringResource(R.string.content_choose_roms)
-                                else if (e.id == "retroarch") stringResource(R.string.content_retroarch_roms)
-                                else stringResource(R.string.content_add_roms, e.system, e.system.substringBefore(' ')),
-                            )
-                        }
-                        else Rise(5, Modifier.fillMaxWidth()) {
-                            Column {
-                                val systems = remember(e.games) { e.games.map { romSystem(it) }.distinct() }
-                                var system by rememberSaveable(e.id) { mutableStateOf<String?>(null) }
-                                if (systems.size > 1) Box(Modifier.padding(top = 10.dp)) {
-                                    val labels = listOf(stringResource(R.string.desktop_all_systems)) + systems
-                                    SheetChips(labels, if (system == null) 0 else systems.indexOf(system) + 1) { i -> system = if (i == 0) null else systems[i - 1] }
-                                }
-                                val shown = e.games.withIndex().filter { system == null || romSystem(it.value) == system }
-                                ArtGrid(shown.map { (index, g) ->
-                                    val key = "rom:${e.id}:$index"
-                                    Tile(g.name, if (g.art != null) stringResource(R.string.content_rom_installed) else g.hostPath.extension.uppercase().ifEmpty { stringResource(R.string.content_rom_folder) }, g.art, key, e.iconRes) {
-                                        TileBounds.mark(key, g.art ?: e.iconRes, 12f * density)
-                                        onSelect(key)
-                                    }
-                                }, wide = e.games.none { it.art != null })
-                            }
-                        }
-                    } else {
-                        if (pkg != null) Rise(2) {
-                            Actions {
-                                PrimaryButton(
-                                    if (s.packageBusyId == pkg.id) stringResource(R.string.store_installing) else stringResource(R.string.content_install_named, e.name),
-                                    enabled = !s.busy && s.packageBusyId == null && s.ready && !s.packageCatalogLoading && !s.sessionRunning,
-                                ) { a.onInstallPackage(pkg.id) }
-                                if (s.sessionRunning) ActionChip(stringResource(R.string.content_stop_to_install), ok = false)
-                                else if (!s.ready) ActionChip(stringResource(R.string.content_runtime_required), ok = false)
-                            }
-                        }
-                        Rise(3) {
-                            Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-                                Note(when {
-                                    s.packageCatalogLoading -> stringResource(R.string.content_loading_details)
-                                    pkg == null -> stringResource(R.string.content_details_unavailable)
-                                    !s.ready -> stringResource(R.string.content_needs_runtime)
-                                    s.sessionRunning -> stringResource(R.string.content_stop_first)
-                                    pkg.notes.isNotBlank() -> pkg.notes
-                                    else -> stringResource(R.string.content_install_into, e.name)
-                                })
-                            }
-                        }
-                        if (s.packageBusyId == pkg?.id) Rise(4) {
-                            val stage = s.packageStage
-                            Text(
-                                if (stage != null && s.packagePercent >= 0) stringResource(R.string.store_busy_percent_short, stage, s.packagePercent) else stage ?: stringResource(R.string.store_starting),
-                                fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp),
-                            )
-                            if (s.packagePercent >= 0) LinearProgressIndicator(progress = { s.packagePercent / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp))
-                            else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
-                        }
-                        if (pkg?.kind == "tar") Rise(5) { Note(stringResource(R.string.content_hide_note)) }
-                    }
-                }
-            }
-            selected.startsWith("rom:") -> {
-                val pair = romFor(s, selected)
-                if (pair == null) Note(stringResource(R.string.content_rom_gone)) else {
-                    val (e, g) = pair
-                    Rise(0) { Eyebrow(stringResource(R.string.content_desktop_system, systemLabel(e))) }
-                    Rise(1) { Title(g.name) }
-                    Rise(2) {
-                        Row {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(g.guestPath, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(colors.surface).padding(horizontal = 10.dp, vertical = 6.dp))
-                                Spacer(Modifier.height(14.dp))
-                                Actions {
-                                    Image(painterResource(e.iconRes), null, modifier = Modifier.size(40.dp))
-                                    PrimaryButton(stringResource(R.string.content_launch_in, e.name), enabled = !s.busy, main = true) { a.onRom(g) }
-                                    if (s.busy) BusyChip(s) else ActionChip(g.hostPath.extension.uppercase().ifEmpty { stringResource(R.string.content_rom_folder) }, ok = false)
-                                }
-                            }
-                            if (g.art != null && !narrow) Poster(g.art, g.name, Modifier.width(detailPosterWidth))
-                        }
-                    }
-                    val others = e.games.filter { it !== g }
-                    if (others.isNotEmpty()) {
-                        Rise(3) { SectionTitle(stringResource(R.string.content_also_in, e.name), null) }
-                        Rise(4, Modifier.fillMaxWidth()) {
-                            ArtGrid(others.map { x ->
-                                val index = e.games.indexOf(x)
-                                Tile(x.name, if (x.art != null) stringResource(R.string.content_rom_installed) else x.hostPath.extension.uppercase().ifEmpty { stringResource(R.string.content_rom_folder) }, x.art, "rom:${e.id}:$index", e.iconRes) {
-                                    TileBounds.mark("rom:${e.id}:$index", x.art ?: e.iconRes, 12f * density)
-                                    onSelect("rom:${e.id}:$index")
-                                }
-                            }, wide = others.none { it.art != null })
-                        }
-                    }
-                }
             }
             else -> Note(stringResource(R.string.content_page_gone))
         }
@@ -546,9 +400,3 @@ private fun UpdateButton(app: UserApps.App, s: FrontEndState) {
         }
     }
 }
-
-@Composable
-private fun systemLabel(e: Library.Emulator): String =
-    if (e.systemRes != 0) stringResource(e.systemRes) else e.system.replaceFirstChar { it.uppercase() }
-
-private fun romSystem(rom: Library.Rom): String = rom.hostPath.parentFile?.name.orEmpty()

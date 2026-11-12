@@ -27,16 +27,6 @@ object Library {
     const val ADDED = "added"
     private const val PLAYED = "added_games_played"
 
-    class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
-    class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {
-        val systemRes: Int get() = if (id == "retroarch") R.string.content_system_many else 0
-        val iconRes: Int get() = when (id) {
-            "rpcs3" -> R.drawable.emu_rpcs3; "armsx2" -> R.drawable.emu_pcsx2; "dolphin" -> R.drawable.emu_dolphin
-            "duckstation" -> R.drawable.emu_duckstation; "melonds" -> R.drawable.emu_melonds; "cemu" -> R.drawable.emu_cemu
-            "ppsspp" -> R.drawable.emu_ppsspp; else -> R.drawable.emu_retroarch
-        }
-    }
-
     private val NOT_GAMES = setOf(
         858280,
         961940,
@@ -274,146 +264,11 @@ object Library {
             ?: entries.firstOrNull { it.isFile && STEAM_ICON.matches(it.name) }
     }
 
-    private class Spec(val id: String, val name: String, val system: String, val program: String, val folders: List<String>, val exts: Set<String>, val atPanel: Boolean = false)
-    private val specs = listOf(
-        Spec("rpcs3", "RPCS3", "PS3", "/opt/appimages/rpcs3.AppImage", listOf("ps3"), setOf("iso")),
-        Spec("armsx2", "ARMSX2", "PS2", "/opt/appimages/armsx2.AppImage", listOf("ps2"), setOf("iso", "chd", "cso", "gz")),
-        Spec("dolphin", "Dolphin", "GameCube / Wii", "/opt/appimages/dolphin.AppImage", listOf("gc", "gamecube", "wii"), setOf("iso", "rvz", "gcz", "wbfs", "ciso")),
-        Spec("duckstation", "DuckStation", "PS1", "/opt/appimages/duckstation.AppImage", listOf("ps1", "psx"), setOf("cue", "chd", "pbp", "iso", "bin", "img", "ecm", "m3u")),
-        Spec("melonds", "melonDS", "DS", "/opt/appimages/melonds.AppImage", listOf("ds", "nds"), setOf("nds", "dsi"), atPanel = true),
-        Spec("cemu", "Cemu", "Wii U", "/opt/appimages/cemu.AppImage", listOf("wiiu", "wii u"), setOf("wua", "wud", "wux", "rpx")),
-        Spec("ppsspp", "PPSSPP", "PSP", "/usr/local/bin/PPSSPPSDL", listOf("psp"), setOf("iso", "cso", "pbp", "chd")),
-        Spec("retroarch", "RetroArch", "many systems", "/usr/bin/retroarch", emptyList(), emptySet()),
-    )
-    private fun displayTitle(name: String): String =
-        name.replace(Regex("\\s*[(\\[][^)\\]]*[)\\]]"), "").trim().ifEmpty { name }
-
-    private val systemFolders: Set<String> by lazy { specs.flatMap { it.folders }.toSet() }
-    private val installedIds = mapOf(
-        "rpcs3" to "rpcs3", "armsx2" to "armsx2", "dolphin" to "dolphin", "duckstation" to "duckstation",
-        "melonds" to "melonds", "cemu" to "cemu", "ppsspp" to "emulators", "retroarch" to "emulators",
-    )
-
     fun nameForProgram(program: String?): String? =
         if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER ||
             program == com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER) {
             com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { flatpakNames[it] ?: it.substringAfterLast('.') }
         } else com.droiddeck.launcher.session.NoSteamLaunch.nameFor(program, com.droiddeck.launcher.session.SessionState.programArgs)
-            ?: specs.firstOrNull { it.program == program }?.name
 
     val flatpakNames = java.util.concurrent.ConcurrentHashMap<String, String>()
-
-    fun drawsAtPanel(program: String?): Boolean = specs.any { it.program == program && it.atPanel }
-
-    fun packageId(emulatorId: String): String? = installedIds[emulatorId]
-
-    fun emulators(context: Context, installedPackage: (String) -> Boolean): List<Emulator> {
-        val romsRoot = SessionPrefs.romsDir(context).takeIf { it.isNotEmpty() }?.let(::File)?.takeIf { it.isDirectory }
-        return specs.map { spec ->
-            val games = ArrayList<Rom>()
-            if (romsRoot != null && spec.exts.isNotEmpty()) {
-                val systemDirs = romsRoot.listFiles { f -> f.isDirectory && f.name.lowercase() in spec.folders }.orEmpty().toList()
-                val dirs = LinkedHashSet<File>()
-                for (top in systemDirs) top.walkTopDown().maxDepth(3).onEnter { it.name.lowercase() !in firmwareFolders }
-                    .filter { it.isDirectory }.forEach { dirs.add(it) }
-                dirs.add(romsRoot)
-                romsRoot.listFiles { f -> f.isDirectory && f.name.lowercase() !in systemFolders }?.forEach { dirs.add(it) }
-                for (dir in dirs) {
-                    if (spec.id == "rpcs3" && File(dir, "PS3_GAME").isDirectory) {
-                        val rel = dir.relativeTo(romsRoot).path
-                        games.add(Rom(displayTitle(dir.name), dir, "/root/ROMs/$rel", spec.id,
-                            art = File(dir, "PS3_GAME/ICON0.PNG").takeIf { it.isFile }))
-                        continue
-                    }
-                    val files = dir.listFiles()?.sortedBy { it.name.lowercase() }.orEmpty()
-                    val parts = files.filter { it.isFile && it.extension.lowercase() in sheetExts }.flatMap(::sheetParts).toSet()
-                    files.forEach { f ->
-                        val ext = f.extension.lowercase()
-                        if (f.isFile && ext in spec.exts && f.name.lowercase() !in parts &&
-                            !(ext == "bin" && File(dir, f.nameWithoutExtension + ".cue").isFile)) {
-                            val rel = f.relativeTo(romsRoot).path
-                            games.add(Rom(displayTitle(f.nameWithoutExtension.removeSuffix(".dec")), f, "/root/ROMs/$rel", spec.id))
-                        }
-                    }
-                }
-            }
-            if (spec.id == "rpcs3") games.addAll(rpcs3Installed(context))
-            val withArt = games.map { g -> if (g.art != null) g else CoverArt.cached(context, g)?.let { Rom(g.name, g.hostPath, g.guestPath, g.emulatorId, it) } ?: g }
-            Emulator(spec.id, spec.name, spec.system, spec.program, installedPackage(installedIds.getValue(spec.id)), withArt)
-        }
-    }
-
-    private val firmwareFolders = setOf("bios", "firmware")
-    private val sheetExts = setOf("cue", "gdi", "m3u")
-
-    private fun sheetParts(sheet: File): List<String> = runCatching {
-        if (sheet.length() > 64 * 1024) return emptyList()
-        sheet.readLines().mapNotNull { line ->
-            val t = line.trim()
-            when (sheet.extension.lowercase()) {
-                "cue" -> Regex("^FILE\\s+\"([^\"]+)\"", RegexOption.IGNORE_CASE).find(t)?.groupValues?.get(1)
-                    ?: Regex("^FILE\\s+(\\S+)", RegexOption.IGNORE_CASE).find(t)?.groupValues?.get(1)
-                "gdi" -> Regex("\"([^\"]+)\"").find(t)?.groupValues?.get(1) ?: t.split(Regex("\\s+")).getOrNull(4)
-                else -> t.takeIf { it.isNotEmpty() && !it.startsWith("#") }
-            }
-        }.map { File(it.replace('\\', '/')).name.lowercase() }
-    }.getOrDefault(emptyList())
-
-    private fun rpcs3Installed(context: Context): List<Rom> {
-        val hdd = File(LinuxRuntime.rootDir(context), "root/.config/rpcs3/dev_hdd0/game")
-        return hdd.listFiles { f -> f.isDirectory }?.sortedBy { it.name }?.mapNotNull { dir ->
-            val eboot = File(dir, "USRDIR/EBOOT.BIN")
-            val sfo = File(dir, "PARAM.SFO")
-            if (!eboot.isFile || !sfo.isFile) return@mapNotNull null
-            val fields = readSfo(sfo)
-            if (fields["CATEGORY"]?.let { it == "HG" || it == "DG" || it == "GD" } == false) return@mapNotNull null
-            val title = fields["TITLE"]?.trim()?.takeIf { it.isNotEmpty() } ?: dir.name
-            Rom(title, eboot, "/root/.config/rpcs3/dev_hdd0/game/${dir.name}/USRDIR/EBOOT.BIN", "rpcs3",
-                art = File(dir, "ICON0.PNG").takeIf { it.isFile })
-        } ?: emptyList()
-    }
-
-    private fun readSfo(file: File): Map<String, String> {
-        val out = HashMap<String, String>()
-        try {
-            val b = file.readBytes()
-            if (b.size < 20 || b[0] != 0.toByte() || b[1] != 'P'.code.toByte()) return out
-            fun u32(at: Int) = (b[at].toInt() and 0xff) or ((b[at + 1].toInt() and 0xff) shl 8) or ((b[at + 2].toInt() and 0xff) shl 16) or ((b[at + 3].toInt() and 0xff) shl 24)
-            fun u16(at: Int) = (b[at].toInt() and 0xff) or ((b[at + 1].toInt() and 0xff) shl 8)
-            val keys = u32(8); val data = u32(12); val count = u32(16)
-            for (i in 0 until count) {
-                val e = 20 + i * 16
-                if (e + 16 > b.size) break
-                val keyOff = u16(e); val fmt = u16(e + 2); val len = u32(e + 4); val dataOff = u32(e + 12)
-                val keyStart = keys + keyOff
-                var keyEnd = keyStart
-                while (keyEnd < b.size && b[keyEnd] != 0.toByte()) keyEnd++
-                val key = String(b, keyStart, keyEnd - keyStart, Charsets.US_ASCII)
-                if (fmt == 0x0204 || fmt == 0x0004) {
-                    val start = data + dataOff
-                    val end = minOf(b.size, start + len)
-                    var stop = start
-                    while (stop < end && b[stop] != 0.toByte()) stop++
-                    out[key] = String(b, start, stop - start, Charsets.UTF_8)
-                }
-            }
-        } catch (e: Exception) {
-        }
-        return out
-    }
-
-    fun launchArgs(emulatorId: String, guestPath: String): List<String> = when (emulatorId) {
-        "rpcs3" -> listOf("--no-gui", guestPath)
-        "armsx2" -> listOf("-batch", "-bigpicture", "-fullscreen", "--", guestPath)
-        "duckstation" -> listOf("-batch", "-bigpicture", "-fullscreen", "--", guestPath)
-        "dolphin" -> listOf(
-            "-C", "Dolphin.Display.Fullscreen=True", "-C", "Dolphin.Display.RenderToMain=True",
-            "-C", "Dolphin.Interface.ConfirmStop=False", "-C", "Dolphin.Interface.UsePanicHandlers=False",
-            "-C", "Dolphin.General.HotkeysRequireFocus=False", "-C", "Dolphin.Input.BackgroundInput=True",
-            "-e", guestPath,
-        )
-        "cemu" -> listOf("-f", "-g", guestPath)
-        "melonds" -> listOf("-f", guestPath)
-        else -> listOf(guestPath)
-    }
 }

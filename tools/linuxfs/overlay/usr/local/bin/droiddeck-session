@@ -620,7 +620,6 @@ case $mode in
       echo "== program cores: $cores"
       taskset -cp "$cores" $$ >/dev/null 2>&1 || true
     fi
-    python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 || true
     if [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
       export WAYLAND_DISPLAY= XDG_SESSION_TYPE=x11
     fi

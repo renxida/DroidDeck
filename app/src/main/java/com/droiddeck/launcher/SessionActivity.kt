@@ -2020,14 +2020,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         com.droiddeck.launcher.session.SessionDisplay.resolveChoice(com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
             resolutionChoice(), SessionPrefs.portrait(this) && !controlsBelowWanted())
 
-    private fun resolutionChoice(): String {
-        val mode = displayMode()
-        val program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
-        return if (intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_RUN &&
-            Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode))
-            com.droiddeck.launcher.session.SessionDisplay.MATCH_SCREEN
-        else SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
-    }
+    private fun resolutionChoice(): String =
+        SessionPrefs.resolutionChoice(this, displayMode(), com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
 
     private fun refreshHz(): Float = refreshHz(null)
 

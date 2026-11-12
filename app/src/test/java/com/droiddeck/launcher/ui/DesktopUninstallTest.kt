@@ -80,13 +80,13 @@ class DesktopUninstallTest {
                             DesktopPage(FrontEndState(
                                 installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
                                 desktopInstalled = installed, desktopPresent = present, runtimeActionsBlocked = runtimeBlocked,
-                                offlineAccount = null, offline = false, frameGenLabel = "", romsDir = null, logsEnabled = false,
-                                steamGames = emptyList(), emulators = emptyList(), running = null,
+                                offlineAccount = null, offline = false, frameGenLabel = "", logsEnabled = false,
+                                steamGames = emptyList(), running = null,
                             ), FrontEndActions(
-                                onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {}, onEmulator = {}, onRom = {}, onResume = {},
-                                onSteamSettings = {}, onDesktopSettings = {}, onInstallPackage = {}, onRemovePackage = {},
+                                onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {}, onResume = {},
+                                onSteamSettings = {}, onDesktopSettings = {},
                                 onRuntime = {}, onFrameGenPick = {}, onImportLossless = {}, onProtons = {}, onComponents = {},
-                                onPerformance = {}, onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
+                                onPerformance = {}, onFiles = {}, onLogs = {}, onOffline = {},
                                 onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
                                 onSetPhantomProcessLimit = { _, _ -> }, onRemoveDesktop = { removals++ },
                             ), Modifier.fillMaxSize(), onSelect = {})

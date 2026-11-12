@@ -106,7 +106,6 @@ class SettingsResetTest {
         SessionPrefs.setAddedGameRemoved(app, "/storage/emulated/0/Games/Bar", true)
         SessionPrefs.setGamesFoldersMigrated(app)
         SessionPrefs.setGpuAutoInstalled(app, setOf("turnip-a"))
-        SessionPrefs.setRomsDir(app, "/storage/emulated/0/ROMs")
         SessionPrefs.setGameStorage(app, "/storage/ABCD-1234", "SD Card")
         SessionPrefs.setMicAsked(app)
         prefs("steam_touch").edit().putString("copiedLayout", "a:1,2").commit()
@@ -119,7 +118,6 @@ class SettingsResetTest {
         assertEquals(listOf("/storage/emulated/0/Games/Bar"), SessionPrefs.removedAddedGames(app))
         assertTrue(SessionPrefs.gamesFoldersMigrated(app))
         assertEquals(setOf("turnip-a"), SessionPrefs.gpuAutoInstalled(app))
-        assertEquals("/storage/emulated/0/ROMs", SessionPrefs.romsDir(app))
         assertEquals("/storage/ABCD-1234", SessionPrefs.gameStorage(app))
         assertTrue(SessionPrefs.micAsked(app))
         assertEquals("a:1,2", prefs("steam_touch").getString("copiedLayout", null))
@@ -170,7 +168,7 @@ class SettingsResetTest {
     @Test fun perModeKeysAreSettings() {
         listOf("resolutionCap.steam", "displayResolution.desktop", "customRes.steam", "hdr.steam", "fpsLimit.desktop", "suspendPolicy.steam")
             .forEach { assertTrue(it, SettingsReset.isSessionSetting(it)) }
-        listOf("addedName:/x", "addedAppId:/x", "gpuAutoInstalled", "romsDir", "gameStorage", "micAsked", "gameTextureFiltering")
+        listOf("addedName:/x", "addedAppId:/x", "gpuAutoInstalled", "gameStorage", "micAsked", "gameTextureFiltering")
             .forEach { assertFalse(it, SettingsReset.isSessionSetting(it)) }
     }
 }
