@@ -30,6 +30,14 @@ class PerfModeTest {
         assertEquals(modes[1], PerfMode.selectMode(modes, modes[2], 45, 90f))
     }
 
+    @Test fun aGameCapVotesTheSlowestModeWhoseCadenceFits() {
+        val modes = arrayOf(mode(1, 60f), mode(2, 90f), mode(3, 120f))
+        assertEquals(modes[0], PerfMode.selectMode(modes, modes[2], 60, Float.POSITIVE_INFINITY, lowest = true))
+        assertEquals(modes[2], PerfMode.selectMode(modes, modes[0], 40, Float.POSITIVE_INFINITY, lowest = true))
+        assertEquals(modes[0], PerfMode.selectMode(modes, modes[2], 30, Float.POSITIVE_INFINITY, lowest = true))
+        assertEquals(modes[2], PerfMode.selectMode(modes, modes[0], 0, Float.POSITIVE_INFINITY, lowest = true))
+    }
+
     @Test fun selectionPreservesResolutionAndUsesTheLowestModeIfTheCapIsUnsupported() {
         val low = mode(1, 90f)
         val high = mode(2, 120f)

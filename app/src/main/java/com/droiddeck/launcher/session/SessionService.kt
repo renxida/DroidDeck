@@ -558,6 +558,11 @@ class SessionService : Service() {
             components.add(it)
         }
 
+        GamePacingComponent(listOf(sessionLog, com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this))).let {
+            it.attach(this)
+            components.add(it)
+        }
+
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
         if (SessionState.followScreen || size.first < size.second ||

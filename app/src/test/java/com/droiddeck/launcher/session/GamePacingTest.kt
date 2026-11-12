@@ -1,0 +1,90 @@
+package com.droiddeck.launcher.session
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class GamePacingTest {
+    private val sts2 = "DROIDDECK_PACING app_id=2868840 cap=60 adpf=1 display=1 governor=1"
+
+    @Test fun `reads the cap and the three switches`() {
+        assertEquals(GamePacing.Plan("2868840", 60, adpf = true, display = true, governor = true), GamePacing.parse(sts2))
+        assertEquals(GamePacing.Plan("7", 40, adpf = false, display = true, governor = false),
+            GamePacing.parse("DROIDDECK_PACING app_id=7 cap=40 adpf=0 display=1 governor=0"))
+        assertNull(GamePacing.parse("DROIDDECK_PACING app_id=7 cap=0 adpf=1"))
+        assertNull(GamePacing.parse("DROIDDECK_PACING cap=60"))
+        assertNull(GamePacing.parse("droiddeck-game-env: frame cap 60 fps"))
+    }
+
+    @Test fun `a cap holds from the game's exec to its exit`() {
+        val tracker = GamePacing.Tracker()
+        assertFalse(tracker.line(sts2))
+        assertNull(tracker.plan)
+        assertTrue(tracker.line("DROIDDECK_TIMELINE event=game_exec app_id=2868840 wall_ms=1"))
+        assertEquals(60, tracker.plan?.cap)
+        assertFalse(tracker.line("DROIDDECK_TIMELINE event=game_exit app_id=99 status=0 signal=0 run_ms=1 wall_ms=2"))
+        assertTrue(tracker.line("DROIDDECK_TIMELINE event=game_exit app_id=2868840 status=0 signal=0 run_ms=1 wall_ms=2"))
+        assertNull(tracker.plan)
+    }
+
+    @Test fun `another game's launch ends the cap and an uncapped launch gets none`() {
+        val tracker = GamePacing.Tracker()
+        tracker.line(sts2)
+        tracker.line("DROIDDECK_TIMELINE event=game_exec app_id=2868840 wall_ms=1")
+        assertTrue(tracker.line("DROIDDECK_TIMELINE event=game_exec app_id=99 wall_ms=5"))
+        assertNull(tracker.plan)
+        tracker.line(sts2)
+        assertFalse(tracker.line("DROIDDECK_TIMELINE event=game_exec app_id=99 wall_ms=6"))
+        assertNull(tracker.plan)
+    }
+
+    @Test fun `the ladder starts at the game's cap`() {
+        assertEquals(listOf(60, 40, 30), GamePacing.Governor(60).ladder)
+        assertEquals(listOf(90, 60, 40, 30), GamePacing.Governor(90).ladder)
+        assertEquals(listOf(45, 40, 30), GamePacing.Governor(45).ladder)
+        assertEquals(listOf(30), GamePacing.Governor(30).ladder)
+    }
+
+    @Test fun `steps down one rung per dwell while hot and back up only after a longer cool spell`() {
+        val g = GamePacing.Governor(60)
+        assertNull(g.sample(0.9f, 1, 0))
+        assertNull(g.sample(0.9f, 1, 9_000))
+        assertEquals(40, g.sample(0.9f, 1, 10_000))
+        assertNull(g.sample(0.95f, 1, 15_000))
+        assertEquals(30, g.sample(0.95f, 1, 20_000))
+        assertNull(g.sample(0.99f, 1, 40_000))
+        assertNull(g.sample(0.75f, 1, 50_000))
+        assertNull(g.sample(0.6f, 1, 60_000))
+        assertNull(g.sample(0.6f, 1, 89_000))
+        assertEquals(40, g.sample(0.6f, 1, 90_000))
+        assertEquals(60, g.sample(0.5f, 1, 120_000))
+        assertNull(g.sample(0.5f, 1, 200_000))
+    }
+
+    @Test fun `the band between the thresholds resets both dwells`() {
+        val g = GamePacing.Governor(60)
+        g.sample(0.9f, 1, 0)
+        g.sample(0.8f, 1, 5_000)
+        assertNull(g.sample(0.9f, 1, 10_000))
+        assertEquals(40, g.sample(0.9f, 1, 20_000))
+    }
+
+    @Test fun `severe status counts as hot and moderate blocks a step up, unknown headroom goes by status`() {
+        val g = GamePacing.Governor(60)
+        g.sample(Float.NaN, 3, 0)
+        assertEquals(40, g.sample(Float.NaN, 3, 10_000))
+        assertNull(g.sample(0.5f, 2, 20_000))
+        assertNull(g.sample(0.5f, 2, 60_000))
+        g.sample(Float.NaN, 0, 70_000)
+        assertEquals(60, g.sample(Float.NaN, 0, 100_000))
+    }
+
+    @Test fun `the display vote takes the lower of the session limit and the game cap`() {
+        assertEquals(SessionPrefs.FPS_UNPACED, GamePacing.vote(SessionPrefs.FPS_UNPACED, 0))
+        assertEquals(60, GamePacing.vote(SessionPrefs.FPS_UNPACED, 60))
+        assertEquals(30, GamePacing.vote(30, 60))
+        assertEquals(40, GamePacing.vote(60, 40))
+    }
+}

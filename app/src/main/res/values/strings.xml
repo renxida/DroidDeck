@@ -83,6 +83,9 @@
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
     <string name="game_env_cpu_budget">Cores this game\'s threads may run on. big keeps them off the little cores, a number keeps that many of the fastest, all uses every core. Windows sees only these cores, so engines start fewer worker threads.</string>
     <string name="game_env_fps_cap">Frame-rate cap for Godot, DXVK and VKD3D games, set at launch. A lower cap keeps the phone cooler and the frame rate steadier. Pick a divisor of the screen\'s refresh rate; 0 removes the cap.</string>
+    <string name="game_env_fps_governor">Thermal governor for the frame cap: steps it down to 40 and then 30 fps while Android forecasts throttling, and back up once the phone cools. 0 keeps the cap fixed.</string>
+    <string name="game_env_pacing_display">Ask for the slowest display refresh rate that fits the frame cap. 0 leaves the display rate to the session.</string>
+    <string name="game_env_pacing_adpf">Set the performance hint target to one frame of the cap instead of 10 ms. 0 keeps 10 ms.</string>
     <string name="game_env_glthread">Mesa OpenGL threading. true can help CPU-limited OpenGL games; test per game.</string>
     <string name="sync_backend_title">Wine sync</string>
     <string name="sync_backend_hint">How games keep their threads in step. Applies next session.</string>

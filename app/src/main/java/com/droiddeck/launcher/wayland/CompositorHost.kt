@@ -70,16 +70,16 @@ object CompositorHost {
         return true
     }
 
-    private fun pace(refreshHz: Float, fpsLimit: Int) {
+    private fun pace(refreshHz: Float, fpsLimit: Int, vote: Int = fpsLimit) {
         WaylandCompositor.nativeSetFpsLimit(fpsLimit)
-        WaylandCompositor.nativeSetLayerFrameRate(if (fpsLimit > 0) fpsLimit.toFloat() else refreshHz)
+        WaylandCompositor.nativeSetLayerFrameRate(if (vote > 0) vote.toFloat() else refreshHz)
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         SessionState.refreshHz = refreshHz
     }
 
     @Synchronized
-    fun updatePacing(refreshHz: Float, fpsLimit: Int) {
-        if (started) pace(refreshHz, fpsLimit)
+    fun updatePacing(refreshHz: Float, fpsLimit: Int, vote: Int = fpsLimit) {
+        if (started) pace(refreshHz, fpsLimit, vote)
     }
 
     @Synchronized

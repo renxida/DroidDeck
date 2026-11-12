@@ -540,6 +540,21 @@ def frame_cap(command, env):
     return command, "frame cap %s fps (%s)" % (fps, ", ".join(ways) or "already set")
 
 
+PACING_SWITCHES = (("adpf", "DROIDDECK_PACING_ADPF"), ("display", "DROIDDECK_PACING_DISPLAY"),
+                   ("governor", "DROIDDECK_FPS_GOVERNOR"))
+
+
+def pacing_line(env, app_id):
+    """The line the app reads from session.log to pace the launch's frame cap: the ADPF target, the
+    display vote and the thermal governor, each on unless its variable is 0."""
+    fps = env.get("DROIDDECK_FPS_CAP", "").strip()
+    if not app_id or not FPS_CAP.fullmatch(fps):
+        return None
+    switches = " ".join("%s=%d" % (key, env.get(name, "1").strip().lower() not in ("0", "off", "false", "no"))
+                        for key, name in PACING_SWITCHES)
+    return "DROIDDECK_PACING app_id=%s cap=%s %s" % (app_id, fps, switches)
+
+
 THREAD_CHECK = "--droiddeck-thread-check"
 THREAD_CHECK_AFTER = (60, 180)
 THREAD_CHECK_POLL = 2
@@ -1242,12 +1257,12 @@ def timeline_game_exit(app_id, raw_code, started):
         int((time.monotonic() - started) * 1000), int(time.time() * 1000)), file=sys.stderr, flush=True)
 
 
-def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None):
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, stay=False):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
     started = time.monotonic()
-    if after or diagnostic_app_id is not None:
+    if after or diagnostic_app_id is not None or (stay and timeline_app_id):
         process = subprocess.Popen(launch, env=launch_env)
         if diagnostic_app_id is not None:
             diagnostic_game_event("game_start", diagnostic_app_id)
@@ -1501,10 +1516,14 @@ def main():
     env = force_ssbs(command, env)
     game_cores(env)
     cpu_topology(env, command)
+    pacing = None
     if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
         command, note = frame_cap(command, env)
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
+        pacing = pacing_line(env, app_id)
+        if pacing:
+            print(pacing, file=sys.stderr, flush=True)
         start_thread_check(command, env)
         try:
             note = ego_core_plan(command, env)
@@ -1539,13 +1558,13 @@ def main():
               file=sys.stderr, flush=True)
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None)
+            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, bool(pacing))
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None)
+        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, bool(pacing))
     except OSError:
         if after:
             try:

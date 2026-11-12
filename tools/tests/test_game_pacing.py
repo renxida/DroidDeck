@@ -146,10 +146,11 @@ class FrameCapTest(unittest.TestCase):
         config = home / ".config/droiddeck/game-environment.json"
         config.parent.mkdir(parents=True)
         env = dict(os.environ, HOME=str(home), STEAM_COMPAT_DATA_PATH="/compatdata/2868840", WINE_CPU_TOPOLOGY="")
-        for name in ("DROIDDECK_FPS_CAP", "DROIDDECK_GAME_CPU_BUDGET", "VKD3D_FRAME_RATE", "DXVK_CONFIG"):
+        for name in ("DROIDDECK_FPS_CAP", "DROIDDECK_GAME_CPU_BUDGET", "VKD3D_FRAME_RATE", "DXVK_CONFIG",
+                     "DROIDDECK_FPS_GOVERNOR", "DROIDDECK_PACING_ADPF", "DROIDDECK_PACING_DISPLAY"):
             env.pop(name, None)
         for profile, args, cap in (({}, ["--max-fps", "60"], "60"), ({"DROIDDECK_FPS_CAP": "0"}, [], "0"),
-                                   ({"DROIDDECK_FPS_CAP": "30"}, ["--max-fps", "30"], "30")):
+                                   ({"DROIDDECK_FPS_CAP": "30", "DROIDDECK_FPS_GOVERNOR": "0"}, ["--max-fps", "30"], "30")):
             with self.subTest(profile=profile):
                 config.write_text(json.dumps({"version": 1, "games": {"2868840": profile}}))
                 result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
@@ -162,6 +163,29 @@ class FrameCapTest(unittest.TestCase):
                 self.assertIn("Slay the Spire 2: game threads kept off the little cores", result.stderr)
                 self.assertEqual("droiddeck-game-env: frame cap %s fps (Godot --max-fps, DXVK, VKD3D)" % cap in result.stderr,
                                  cap != "0", result.stderr)
+                pacing = [line for line in result.stderr.splitlines() if line.startswith("DROIDDECK_PACING ")]
+                exits = [line for line in result.stderr.splitlines() if line.startswith("DROIDDECK_TIMELINE event=game_exit ")]
+                if cap == "0":
+                    self.assertEqual(pacing, [])
+                    self.assertEqual(exits, [])
+                else:
+                    governor = 0 if profile.get("DROIDDECK_FPS_GOVERNOR") == "0" else 1
+                    self.assertEqual(pacing, ["DROIDDECK_PACING app_id=2868840 cap=%s adpf=1 display=1 governor=%d" % (cap, governor)])
+                    self.assertEqual(len(exits), 1, result.stderr)
+                    self.assertIn("app_id=2868840 status=0 ", exits[0])
+
+
+class PacingLineTest(unittest.TestCase):
+    def test_names_the_cap_and_which_parts_of_the_pacing_are_on(self):
+        line = MODULE["pacing_line"]
+        self.assertEqual(line({"DROIDDECK_FPS_CAP": "60"}, "2868840"),
+                         "DROIDDECK_PACING app_id=2868840 cap=60 adpf=1 display=1 governor=1")
+        self.assertEqual(line({"DROIDDECK_FPS_CAP": "40", "DROIDDECK_PACING_ADPF": "0", "DROIDDECK_PACING_DISPLAY": "off",
+                               "DROIDDECK_FPS_GOVERNOR": "1"}, "7"),
+                         "DROIDDECK_PACING app_id=7 cap=40 adpf=0 display=0 governor=1")
+        for env in ({}, {"DROIDDECK_FPS_CAP": "0"}, {"DROIDDECK_FPS_CAP": "fast"}):
+            self.assertIsNone(line(env, "7"))
+        self.assertIsNone(line({"DROIDDECK_FPS_CAP": "60"}, None))
 
 
 class ThreadPlacementTest(unittest.TestCase):

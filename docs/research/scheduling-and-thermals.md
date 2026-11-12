@@ -61,6 +61,12 @@ SessionService ─▶ libproot.so (one tracer, nice -6)
 - Co-Cap, cooperative CPU-GPU frequency capping for mobile games
   ([listing](https://archive.cps-vo.org/biblio/view/39094)). It is a further instance of
   frequency caps chosen per game to cut energy at an equal frame rate.
+- Linux thermal framework governors: `step_wise` (`drivers/thermal/gov_step_wise.c`) raises or
+  lowers a cooling device one state per polling interval by the temperature trend, and
+  `power_allocator` (ARM IPA, `Documentation/driver-api/thermal/power_allocator.rst`) runs a PI
+  controller on the power budget. Both move in small steps with a dead band rather than jumping.
+  The frame-cap governor here is a `step_wise`-style controller whose cooling device is the frame
+  cap and whose input is Android's headroom forecast instead of a single zone temperature.
 - Linux Energy Aware Scheduling (`Documentation/scheduler/sched-energy.rst`) and utilisation
   clamping (`Documentation/scheduler/sched-util-clamp.rst`): the scheduler places a task by its
   utilisation and the energy model, and the per-cluster governor picks the frequency from the sum
@@ -190,9 +196,9 @@ report found the frame rate followed whichever display mode Android picked
 |---|---|---|---|---|---|
 | 1 | **60 fps cap for StS2 via Godot `--max-fps`** (`DROIDDECK_FPS_CAP`, also DXVK `maxFrameRate` and `VKD3D_FRAME_RATE` for other games) | Where StS2 renders above 60 at 120 Hz (menus, map, idle combat), CPU+GPU work roughly halves. Lower OPPs cut power by more than half (V²f), which delays or avoids throttling, so the *sustained* frame rate rises. No effect while the game is below 60. | none | the game may override `Engine.MaxFps`; a card game loses nothing visible at 60 | **implemented**, default on for StS2 |
 | 2 | **Thread budget "big": WINE_CPU_TOPOLOGY over the non-little cores** (`DROIDDECK_GAME_CPU_BUDGET`) | Godot workers 8→6 and .NET's processor count 8→6. All game threads, including FEX-translated code, stay off the in-order A520s, which then host Steam, gamescope, wineserver and audio. Fewer stragglers in group tasks and less contention with the session's helpers. | none | EAS loses the option to park light game threads on A520s (slightly more power for light threads). If the Pixel cpuset for top-app excludes some cores, Wine's `sched_setaffinity` fails silently and only the count changes. | **implemented**, default on for StS2 |
-| 3 | ADPF on Tensor (perf/adpf-all) plus an ADPF target derived from the cap (16.6 ms at 60, not the fixed 10 ms) | Hints only the main and render threads, so the PowerHAL boosts what matters instead of the whole cluster. Reporting 15 ms against a 10 ms target forever (`GameThreadHints.kt:80`) asks for a permanent boost, which works *against* thermals once the cap holds. | small | conflicts with the owner of perf/adpf-all | recommended, not done here |
-| 4 | Vote the panel rate to the cap (60 Hz when the cap is 60) | Display and composition power; the compositor wakes half as often | small (Kotlin must learn the per-game cap) | refresh switch flicker | recommended |
-| 5 | Thermal-headroom-driven cap (step 60→40→30 when `getThermalHeadroom` > 0.85, back when < 0.7) | avoids the throttling cliff and degrades smoothly, as in Prakash 2016 | medium: needs a live cap channel; Godot's `--max-fps` is launch-only | oscillation; needs hysteresis | future |
+| 3 | ADPF on Tensor (perf/adpf-all, merged into this branch) plus an ADPF target derived from the cap (16.7 ms at 60, not the fixed 10 ms) | Hints only the main and render threads, so the PowerHAL boosts what matters instead of the whole cluster. A 10 ms target at a 60 fps cap tells the PowerHAL that every on-time frame is late; one frame of the cap makes "on time" mean on time, and a game holding the cap now counts as paced, so the boost is dropped. | small | none beyond adpf-all's own | **implemented** (`DROIDDECK_PACING_ADPF`) |
+| 4 | Vote the panel rate to the cap (60 Hz when the cap is 60) | Display and composition power; the compositor wakes half as often | small | refresh switch flicker on each cap change | **implemented** (`DROIDDECK_PACING_DISPLAY`) |
+| 5 | Thermal-headroom-driven cap (step 60→40→30 while `getThermalHeadroom(10)` ≥ 0.85 for 10 s, back up after ≤ 0.65 for 30 s) | avoids the throttling cliff and degrades smoothly, as in Prakash 2016 | medium | oscillation (hysteresis and asymmetric dwell); the live cap is the compositor's, which holds gamescope's buffers, so it reaches the game only through back-pressure (INFERRED) | **implemented** (`DROIDDECK_FPS_GOVERNOR`) |
 | 6 | Per-task `uclamp.max` on non-critical game threads (workers, GC) via `sched_setattr` | keeps the A725 cluster frequency down when only workers are busy | medium | vendor scheduler may ignore it; unmeasured | future |
 | 7 | Pin the proot tracer near the game (same cluster) | faster loading (cross-cluster traps are 42–61 µs against 34–36 µs within a cluster) | small | could compete with the main thread | future, loading only |
 | 8 | `DOTNET_GCgen0size` larger, `DOTNET_TieredPGO=0` | fewer GC suspensions and less instrumentation overhead under emulation | none | memory and startup trade-offs; owned by the .NET/TSO worker | hand to that worker |
@@ -230,7 +236,45 @@ All of it is in `tools/linuxfs/overlay/usr/local/bin/droiddeck-game-env`, with t
 - The app's game-environment editor offers both variables (`GameEnvironmentOptions.kt`):
   `DROIDDECK_GAME_CPU_BUDGET` (big, all, 6, 4) and `DROIDDECK_FPS_CAP` (60, 40, 30, 0).
 
-Untouched: the DOTNET_FEX TSO values, telemetry, ADPF, and the compositor.
+### 5.1 App-side pacing (second round)
+
+fork/main (telemetry) and fork/perf/adpf-all were merged into this branch first, so these build on
+the widened ADPF hints.
+
+- **Channel.** The game-env prints `DROIDDECK_PACING app_id=2868840 cap=60 adpf=1 display=1 governor=1`
+  to session.log after the frame cap, before the `DROIDDECK_TIMELINE event=game_exec` line. Each
+  switch is 0 when its variable (`DROIDDECK_PACING_ADPF`, `DROIDDECK_PACING_DISPLAY`,
+  `DROIDDECK_FPS_GOVERNOR`) is 0 in the game's profile. When it prints this line the wrapper waits
+  for the game instead of exec'ing Proton, so the `game_exit` line ends the cap.
+  `GamePacingComponent` tails session.log (and the x86_64 Steam log) with the telemetry `Tail`
+  reader. `GamePacing.Tracker` holds the cap from that game's exec to its exit, or to another
+  game's exec. Every change logs
+  `GamePacing: pacing: game 2868840 capped at 60 fps of 60 (game started); ADPF target 16 ms, display vote 60 fps, thermal governor on`
+  and writes a `pacing.cap` event to events.jsonl.
+- **ADPF target** (`GameThreadHints.setCap`): the target is one frame of the cap in force
+  (16.7 ms at 60, 25 ms at 40, 33.3 ms at 30), and the live session gets
+  `updateTargetWorkDuration`. `holdsPace` also counts a game at its cap as paced, so boosting
+  stops after 10 s at the cap. Log: `GameThreadHints: target from the 60 fps frame cap: target 16.7 ms, reporting 25.0 ms every 50 ms`.
+- **Display vote** (`SessionActivity.applyOutputPacing`): in a Steam session, with a game cap in
+  force, the layer `setFrameRate` vote is the cap and `PerfMode.selectMode(lowest = true)` asks for
+  the slowest mode whose cadence fits (60 Hz for 60 and 30, 120 Hz for 40). Log:
+  `pacing: display vote 60 fps for the game's frame cap, slowest fitting mode`, then the usual
+  `perf: display 120 → 60 Hz`.
+- **Thermal governor** (`GamePacing.Governor`, sampled every 5 s): the ladder is the game's cap,
+  then 40 and 30 below it. It steps down one rung after the 10 s headroom forecast stays ≥ 0.85
+  (or the thermal status is SEVERE) for 10 s, and up one rung after it stays ≤ 0.65 with the status
+  below MODERATE for 30 s. The 0.65–0.85 band resets both dwells. A NaN reading (Android rate-limits
+  the call) keeps the last reading for 15 s. A step below the game's own cap is enforced by the
+  compositor's frame limit (`g_fps_limit`), which this branch now also applies in Steam sessions
+  while a step is in force. Log: `GamePacing: thermal governor: cap 40 fps (thermal governor, headroom 0.87, status 1)`.
+  The thresholds are a first guess and are unmeasured. Why this design:
+  - RAVEN: a card game loses little visible quality at 40 or 30.
+  - Prakash 2016: act before the throttle cliff, not at it.
+  - `step_wise`: one rung at a time with a dead band.
+  - Up-dwell 3× the down-dwell: heat leaves the phone's chassis more slowly than it builds.
+
+Untouched: the DOTNET_FEX TSO values and telemetry code (only its `Tail` reader and `SessionEvents`
+are used).
 
 ## 6. On-device experiment plan
 
@@ -246,6 +290,8 @@ Arms, each run twice from a cold start (the phone below 33 °C on `battery` in `
 - C: cap only (`all`, cap 60)
 - D: both (the branch default)
 - E: D with cap 40
+- F: D with the governor on, run for 30 minutes (the default on this branch). A to E set
+  `DROIDDECK_FPS_GOVERNOR=0` so the cap stays fixed.
 
 | claim | confirm | refute |
 |---|---|---|
@@ -256,6 +302,8 @@ Arms, each run twice from a cold start (the phone below 33 °C on `battery` in `
 | the cap lowers power and heat | in `clocks.log`, C/D against A: lower `p2`/`p7` current MHz in menus, `headroom` rising more slowly, `thermal` staying 0 longer, battery °C slope lower | no difference: the game was already below 60 everywhere |
 | the budget helps frame time | D against C: lower p95/p99 frame time in combat, and fps equal or higher | worse p99: the two A520s were doing useful work; try budget `all` with cap |
 | sustained fps improves | D/E against A: fps in minutes 12–15 divided by fps in minutes 0–3 closer to 1, and `scaling_max_freq` caps (`(of …)` in `clocks.log`) appearing later or not at all | ratio unchanged |
+| the governor steps and recovers | arm F: `thermal governor: cap 40 fps (… headroom ≥ 0.85 …)` lines, HUD fps following, and later `cap 60` once headroom falls | steps without an fps change: the compositor hold doesn't reach the game through gamescope; a guest-side live cap is needed. Several steps a minute: widen the band. |
+| the display vote | `pacing: display vote 60 fps …` and `perf: display 120 → 60 Hz` at game start, the reverse at exit | the mode stays at 120: the system's peak-refresh setting or another layer wins |
 | ADPF interplay (with perf/adpf-all merged) | `GameThreadHints` lines `boosting SlayTheSpire2.e/<tid> …` naming the main thread, and no `boosting` churn | boosting worker threads: lower `ENTER`, or pass the main tid explicitly |
 
 Report each arm's median fps, p95/p99 frame time, minutes to the first `thermal ≥ 1`, and mean
@@ -270,3 +318,8 @@ battery °C slope. Two runs per arm are the minimum; thermal runs are noisy.
 - The 60 fps default changes what HUD fps comparisons mean for StS2. Anyone benchmarking peak fps
   must set `DROIDDECK_FPS_CAP=0` for the game.
 - All expected effects are unmeasured.
+- The StS2 60 fps default (`slay_the_spire_2_pacing`) is meant to stay on this branch and not
+  be merged into main for now, so other builds' fps stay comparable.
+- While the governor holds a step below the game's cap, the compositor limit also slows the Steam
+  overlay. The limit clears when the game exits, or, for a launch that never prints
+  `game_exit`, when another game starts.
