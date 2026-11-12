@@ -31,12 +31,14 @@ void blendp_bind_device(VkDevice dev) { g_dev = dev; }
 void blendp_begin_frame(void) { g_frame++; }
 
 static void src_release(int i) {
+    if (g_src[i].img) vkp_frames_settle();
     if (g_src[i].ds) g_vk.FreeDescriptorSets(g_dev, g_dpool, 1, &g_src[i].ds);
     if (g_src[i].view) g_vk.DestroyImageView(g_dev, g_src[i].view, NULL);
     memset(&g_src[i], 0, sizeof(g_src[i]));
 }
 
 static void dst_release(int i) {
+    if (g_dst[i].img) vkp_frames_settle();
     if (g_dst[i].fb) g_vk.DestroyFramebuffer(g_dev, g_dst[i].fb, NULL);
     if (g_dst[i].view) g_vk.DestroyImageView(g_dev, g_dst[i].view, NULL);
     memset(&g_dst[i], 0, sizeof(g_dst[i]));
