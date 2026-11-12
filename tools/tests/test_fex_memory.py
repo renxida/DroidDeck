@@ -112,6 +112,11 @@ class MemoryModelTest(unittest.TestCase):
         self.assertEqual({"FEX_HOSTFEATURES": "enablelrcpc2"}, env)
         self.assertIn("FEX_HOSTFEATURES left as set", notes[0])
 
+    def test_cores_from_other_implementers_are_named_by_id(self):
+        model = MODULE["memory_model"](cpuinfo([0xD82]).replace("0x41", "0x51"), "/nonexistent")
+        self.assertEqual([], model["erratum"])
+        self.assertEqual("0x51:0xd82", MODULE["core_name"](model["cores"][0]))
+
     def test_launch_says_nothing_about_hosts_without_arm_core_ids(self):
         with tempfile.TemporaryDirectory() as tmp:
             info = Path(tmp) / "cpuinfo"
