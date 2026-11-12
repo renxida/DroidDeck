@@ -37,6 +37,8 @@ object GameEnvironmentOptions {
         Option("AUDIO_DIRECT_MS", "", 0, Type.NUMBER),
         Option("AUDIO_DIRECT_PERIOD_MS", "", 0, Type.NUMBER),
         Option("DROIDDECK_GAME_CORES", "", R.string.game_env_cores, Type.TEXT),
+        Option("DROIDDECK_GAME_CPU_BUDGET", "big", R.string.game_env_cpu_budget, Type.CHOICE, listOf("big", "all", "6", "4")),
+        Option("DROIDDECK_FPS_CAP", "60", R.string.game_env_fps_cap, Type.CHOICE, listOf("60", "40", "30", "0")),
         Option("DROIDDECK_ANTICHEAT_OFFLINE", "1", R.string.game_env_anticheat_offline, Type.TOGGLE, listOf("0", "1")),
         Option("WINE_LARGE_ADDRESS_AWARE", "0", 0, Type.TOGGLE, listOf("0", "1")),
         Option("WINEDLLOVERRIDES", "", 0, Type.TEXT),

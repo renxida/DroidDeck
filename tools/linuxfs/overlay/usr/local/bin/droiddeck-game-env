@@ -128,6 +128,14 @@ def godot_sentry(game):
 
 
 @fix
+def slay_the_spire_2_pacing(game):
+    if game.stem == "slaythespire2" and is_godot(game):
+        return ({"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": "60"}, [],
+                "Slay the Spire 2: game threads kept off the little cores, 60 fps cap "
+                "(DROIDDECK_GAME_CPU_BUDGET=all or DROIDDECK_FPS_CAP=0 in the game's environment undoes them)")
+
+
+@fix
 def d3dgear_hook(game):
     if "d3dgear64.dll" in game.files:
         return {"WINEDLLOVERRIDES": "d3dgear64=d"}, [], "D3DGear capture hook off (it stops the game drawing)"
@@ -471,6 +479,134 @@ def fastest_first(cores):
     return sorted(cores, key=lambda core: -speeds[core]) if speeds else cores
 
 
+def thread_budget(budget, cores):
+    """Wine confines every game thread to the host cores in WINE_CPU_TOPOLOGY, and Godot's worker pool
+    and .NET's processor count follow the cores Windows sees."""
+    speeds = core_speeds(cores)
+    if budget == "big":
+        if not speeds:
+            print("droiddeck-game-env: thread budget big: core speeds unreadable; all %d cores kept" % len(cores),
+                  file=sys.stderr)
+            return cores
+        # cpu_capacity is IPC-weighted (little cores sit near a quarter of the prime core); cpufreq is not.
+        capacity = all(speed <= 1024 for speed in speeds.values())
+        top = max(speeds.values())
+        floor = top / 2 if capacity else top * 2 / 3
+        kept = [core for core in cores if speeds[core] >= floor]
+    elif re.fullmatch(r"[1-9][0-9]{0,2}", budget):
+        kept = cores[:int(budget)]
+    else:
+        print("droiddeck-game-env: thread budget %r not understood (big, all or a core count); all cores kept" % budget,
+              file=sys.stderr)
+        return cores
+    if len(kept) < 2 and len(cores) >= 2:
+        kept = cores[:2]
+    left = sorted(set(cores) - set(kept))
+    if left:
+        print("droiddeck-game-env: thread budget %s: game threads on %d of %d cores (%s), left out %s" % (
+            budget, len(kept), len(cores), ",".join(map(str, kept)), ",".join(map(str, left))), file=sys.stderr)
+    else:
+        print("droiddeck-game-env: thread budget %s: all %d cores kept" % (budget, len(cores)), file=sys.stderr)
+    return kept
+
+
+FPS_CAP = re.compile(r"[1-9][0-9]{0,2}")
+
+
+def frame_cap(command, env):
+    value = env.get("DROIDDECK_FPS_CAP", "").strip()
+    if not value or value == "0":
+        return command, None
+    if not FPS_CAP.fullmatch(value):
+        return command, "frame cap %r not understood (a number of frames per second, or 0 for none)" % value
+    fps = value
+    ways = []
+    if len(command) > 2 and is_godot(Game(command[2], command[3:])):
+        args = command[3:]
+        if any(arg == "--max-fps" for arg in args):
+            ways.append("Godot --max-fps from the launch options kept")
+        else:
+            cut = next((i for i, arg in enumerate(args) if arg in ("--", "++")), len(args))
+            command = command[:3] + args[:cut] + ["--max-fps", fps] + args[cut:]
+            ways.append("Godot --max-fps")
+    own = env.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
+    if not re.search(r"(?:^|;)\s*dxvk\.maxFrameRate\s*=", own):
+        env["DXVK_CONFIG"] = own + "; dxvk.maxFrameRate = " + fps if own else "dxvk.maxFrameRate = " + fps
+        ways.append("DXVK")
+    if not env.get("VKD3D_FRAME_RATE"):
+        env["VKD3D_FRAME_RATE"] = fps
+        ways.append("VKD3D")
+    return command, "frame cap %s fps (%s)" % (fps, ", ".join(ways) or "already set")
+
+
+THREAD_CHECK = "--droiddeck-thread-check"
+THREAD_CHECK_AFTER = (60, 180)
+THREAD_CHECK_POLL = 2
+
+
+def thread_placement(name, proc=Path("/proc")):
+    comm = name[:15]
+    found = []
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            if (entry / "comm").read_text().strip() != comm:
+                continue
+            tasks = list((entry / "task").iterdir())
+        except OSError:
+            continue
+        allowed, ran = {}, {}
+        for task in tasks:
+            try:
+                status = (task / "status").read_text()
+                stat = (task / "stat").read_text()
+            except OSError:
+                continue
+            match = re.search(r"^Cpus_allowed_list:\s*(\S+)", status, re.M)
+            if match:
+                allowed[match.group(1)] = allowed.get(match.group(1), 0) + 1
+            fields = stat[stat.rfind(")") + 2:].split()
+            if len(fields) > 36 and fields[36].isdigit():
+                cpu = int(fields[36])
+                ran[cpu] = ran.get(cpu, 0) + int(fields[11]) + int(fields[12])
+        found.append("pid %s, %d threads, allowed %s, cpu ticks by last core %s" % (
+            entry.name, len(tasks),
+            " ".join("%s (%d)" % (cpus, count) for cpus, count in sorted(allowed.items(), key=lambda item: -item[1])) or "?",
+            " ".join("%d:%d" % (cpu, ticks) for cpu, ticks in sorted(ran.items())) or "?"))
+    if not found:
+        return "thread placement: %s not running" % name
+    return "thread placement: %s %s" % (name, "; ".join(found))
+
+
+def start_thread_check(command, env):
+    if not env.get("WINE_CPU_TOPOLOGY") or not env.get("DROIDDECK_GAME_CPU_BUDGET") or len(command) < 3:
+        return
+    name = command[2].replace("\\", "/").rsplit("/", 1)[-1]
+    try:
+        subprocess.Popen([sys.executable, os.path.abspath(__file__), THREAD_CHECK, name],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, start_new_session=True)
+    except OSError as error:
+        print("droiddeck-game-env: thread placement not checked (%s)" % error, file=sys.stderr)
+
+
+def thread_check(name, sleep=None, parent=None):
+    import time
+    sleep = sleep or time.sleep
+    parent = parent or os.getppid
+    launcher = parent()
+    waited = 0
+    for after in THREAD_CHECK_AFTER:
+        # Steam's reaper counts this as part of the game: stop as soon as the launch is gone.
+        while waited < after:
+            sleep(THREAD_CHECK_POLL)
+            waited += THREAD_CHECK_POLL
+            if parent() != launcher:
+                return 0
+        print("droiddeck-game-env: %s after %d s" % (thread_placement(name), after), file=sys.stderr, flush=True)
+    return 0
+
+
 def proton_cpu_limit(command, env):
     app_id = env.get("SteamGameId", "")
     if not command or not app_id.isdigit():
@@ -498,7 +634,10 @@ def cpu_topology(env, command=()):
             env["PROTON_CPU_TOPOLOGY"] = env["WINE_CPU_TOPOLOGY"]
         return
     picked = bool(env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip())
-    fastest = env.get("DROIDDECK_FASTEST_CORES", "").strip() != "0" and game_id(env) is not None
+    budget = env.get("DROIDDECK_GAME_CPU_BUDGET", "").strip().lower()
+    if budget in ("all", "0"):
+        budget = ""
+    fastest = bool(env.get("DROIDDECK_FASTEST_CORES", "").strip() != "0" or budget) and game_id(env) is not None
     if not (picked or fastest):
         return
     try:
@@ -514,6 +653,8 @@ def cpu_topology(env, command=()):
         if isinstance(limit, str):
             return
         cores = fastest_first(cores)[:limit or None]
+        if budget:
+            cores = thread_budget(budget, cores)
     elif set(cores) >= online:
         return
     if cores == sorted(online):
@@ -1233,6 +1374,8 @@ def main():
     command = sys.argv[1:]
     if not command:
         return 2
+    if command[0] == THREAD_CHECK and len(command) == 2:
+        return thread_check(command[1])
     env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
     debug_dir = env.get("BL_DEBUG_DIR", "")
@@ -1347,6 +1490,10 @@ def main():
     game_cores(env)
     cpu_topology(env, command)
     if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        command, note = frame_cap(command, env)
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
+        start_thread_check(command, env)
         try:
             note = ego_core_plan(command, env)
         except OSError as error:

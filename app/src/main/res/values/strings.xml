@@ -81,6 +81,8 @@
     <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer Steam\'s Quick Access menu frame limiter for ordinary play.</string>
     <string name="game_env_cores">CPU cores for this game, such as 0-4 or 0,2,4, in place of the session\'s game cores. Fewer cores run cooler.</string>
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
+    <string name="game_env_cpu_budget">Cores this game\'s threads may run on. big keeps them off the little cores, a number keeps that many of the fastest, all uses every core. Windows sees only these cores, so engines start fewer worker threads.</string>
+    <string name="game_env_fps_cap">Frame-rate cap for Godot, DXVK and VKD3D games, set at launch. A lower cap keeps the phone cooler and the frame rate steadier. Pick a divisor of the screen\'s refresh rate; 0 removes the cap.</string>
     <string name="game_env_glthread">Mesa OpenGL threading. true can help CPU-limited OpenGL games; test per game.</string>
     <string name="sync_backend_title">Wine sync</string>
     <string name="sync_backend_hint">How games keep their threads in step. Applies next session.</string>
