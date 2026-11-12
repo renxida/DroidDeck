@@ -60,7 +60,7 @@ class LaunchSettingsComponentsTest {
                         running = null,
                     ),
                     FrontEndActions(
-                        onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {},
+                        onPlay = {}, onSteamGame = {},
                         onResume = {}, onSteamSettings = {},
                         onRuntime = {}, onFrameGenPick = {},
                         onImportLossless = {}, onProtons = {}, onComponents = { defaultOpens++ },

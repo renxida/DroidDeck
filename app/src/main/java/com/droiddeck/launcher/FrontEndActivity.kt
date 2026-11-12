@@ -1016,11 +1016,6 @@ class FrontEndActivity : ComponentActivity() {
                                 Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url), steamSession = true,
                             )
                         },
-                        onPlayDesktopUi = {
-                            startSession(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
-                                .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
-                        },
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
                             else if (g.gameIdString !in preparingGames) {

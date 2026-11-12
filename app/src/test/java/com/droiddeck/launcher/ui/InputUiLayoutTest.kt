@@ -95,7 +95,7 @@ class InputUiLayoutTest {
                             logsEnabled = false, steamGames = emptyList(), running = null,
                             controller = ControllerPrefs.read(context),
                         ), FrontEndActions(
-                            onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {},
+                            onPlay = {}, onSteamGame = {},
                             onResume = {}, onSteamSettings = {},
                             onRuntime = {}, onFrameGenPick = {},
                             onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
