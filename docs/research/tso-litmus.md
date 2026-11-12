@@ -70,11 +70,16 @@ checked for tearing so torn reads are not counted as reorderings.
 
 **Local run (VERIFIED, x86-64, 4 CPUs, .NET 8, 20 s and 10 s):** every forbidden test 0 failures; `sb-int` observed
 491 and 97 701 times, `sb-sse` 0 and 13 513, so the harness does see the one reordering x86 allows. The JIT on .NET 8
-copies the 6-reference struct with `CORINFO_HELP_ASSIGN_BYREF`; the .NET 9 bulk helper is checked by the CI step
-(`DOTNET_JitDisasm=Produce`, a warning if absent).
+copies the 6-reference struct with `CORINFO_HELP_ASSIGN_BYREF`.
+
+**CI run (VERIFIED, GitHub x86-64 runner, .NET 9 SDK, 20 s, run 43269884615):** every forbidden test 0 failures over
+29–287 million samples each (`refs-array-copy` 165 M, `refs-struct-copy` 267 M, `mp-sse` 96 M, `iriw-sse` 29 M);
+`sb-int` observed 193 885 times, `sb-sse` 619 852; 28 background GCs during `refs-gen2-churn-background`, 0 during
+`-blocking`. The .NET 9 JIT compiles the 6-reference struct copy to `CORINFO_HELP_BULK_WRITEBARRIER`
+(`DOTNET_JitDisasm=Produce`), so `refs-struct-copy` does exercise the runtime's SSE reference copy.
 
 **Running on the game's runtime, not a bundled one (VERIFIED in source).** The APK ships only `tso-litmus.exe`
-(apphost, 148 KB) and `tso-litmus.dll` (41 KB). `droiddeck-tso-litmus` finds an installed game with a .NET runtime
+(apphost, 153 KB) and `tso-litmus.dll` (42 KB), +0.09 MiB compressed in the APK. `droiddeck-tso-litmus` finds an installed game with a .NET runtime
 (Slay the Spire 2 first; Godot 4.5 exports ship `hostfxr.dll` beside `coreclr.dll`, `gd_mono.cpp` loads it), links the
 runtime pack's files into `~/.cache/droiddeck/tso-litmus/app`, and writes a runtimeconfig with no `framework(s)`, which
 makes the app self-contained (`runtime_config.cpp:184-219`); the apphost then uses the app-local `hostfxr`
@@ -92,7 +97,8 @@ droiddeck-game-env's .NET fix (`dotnet_memory_ordering`) would overwrite the FEX
 ## 4. Findings
 
 - VERIFIED (source): the hazard path, the float-volatile path and the GC latency switch, as in §2.
-- VERIFIED (x86 run): no forbidden outcome on hardware TSO; SB observed; benches report.
+- VERIFIED (x86 runs, local and CI): no forbidden outcome on hardware TSO; SB observed; background GC runs only in
+  the Interactive half of group b; .NET 9 routes the struct copy through the bulk reference-copy helper.
 - INFERRED: on the Pixel 10, `vector-tso-off` and `both-off` show failures in `mp-sse`, `mp-int-data-sse-flag`,
   `iriw-sse`, `volatile-float-flag` and, more rarely, `refs-array-copy`/`refs-struct-copy`; `full-tso` and
   `memcpy-tso-off` show none.

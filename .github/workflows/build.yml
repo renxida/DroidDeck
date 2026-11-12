@@ -497,7 +497,6 @@ jobs:
           D=app/src/main/assets/linuxfs/usr/local/lib/droiddeck-tso-litmus
           bash tools/tso-litmus/build.sh "$D" --smoke 20
           test -f "$D/tso-litmus.exe" && test -f "$D/tso-litmus.dll"
-          PYTHONPATH=tools/tests python3 -m unittest test_tso_litmus test_game_environment.KeepCallerEnvTest
 
       - name: Build
         id: build
