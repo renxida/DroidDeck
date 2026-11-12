@@ -339,13 +339,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 s.pipAutoEnter, onChange = a.onPipAutoEnter)
         }
         SettingsGroup(stringResource(R.string.mode_startup)) {
-            ChoiceRow(
+            ToggleRow(
                 host, "startup-session", stringResource(R.string.mode_startup_session),
-                stringResource(R.string.mode_startup_session_hint),
-                listOf(
-                    SessionPrefs.STARTUP_OFF to stringResource(R.string.common_never),
-                    SessionPrefs.STARTUP_STEAM to stringResource(R.string.rail_steam),
-                ), s.startupSession, onPick = a.onStartupSession,
+                stringResource(R.string.mode_startup_session_hint), s.startupSession == SessionPrefs.STARTUP_STEAM,
+                onChange = { a.onStartupSession(if (it) SessionPrefs.STARTUP_STEAM else SessionPrefs.STARTUP_OFF) },
             )
         }
         extras.performance()
