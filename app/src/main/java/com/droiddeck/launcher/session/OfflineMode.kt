@@ -44,6 +44,12 @@ object OfflineMode {
         applyTo(context, x64LoginUsers(root))
     }
 
+    private fun userBlock(lines: List<String>, at: Int): List<String> {
+        val open = (at downTo 0).firstOrNull { lines[it].trim() == "{" } ?: 0
+        val close = (at until lines.size).firstOrNull { lines[it].trim() == "}" } ?: lines.size
+        return lines.subList(open, close)
+    }
+
     private fun applyTo(context: Context, file: File) {
         if (!file.isFile) return
         val want = if (enabled(context)) "1" else "0"
@@ -53,7 +59,7 @@ object OfflineMode {
             var sawWants = false
             var sawSkip = false
             var changed = false
-            for (line in lines) {
+            for ((index, line) in lines.withIndex()) {
                 val wants = WANTS.matchEntire(line)
                 val skip = SKIP.matchEntire(line)
                 when {
@@ -71,10 +77,11 @@ object OfflineMode {
                         out.add(line)
                         if (line.contains("\"AccountName\"")) {
                             val indent = line.takeWhile { it == ' ' || it == '\t' }
-                            if (!lines.any { WANTS.matchEntire(it) != null }) {
+                            val user = userBlock(lines, index)
+                            if (user.none { WANTS.matchEntire(it) != null }) {
                                 out.add("$indent\"WantsOfflineMode\"\t\t\"$want\""); changed = true
                             }
-                            if (!lines.any { SKIP.matchEntire(it) != null }) {
+                            if (user.none { SKIP.matchEntire(it) != null }) {
                                 out.add("$indent\"SkipOfflineModeWarning\"\t\t\"$want\""); changed = true
                             }
                         }
