@@ -34,6 +34,117 @@ class SupergiantDotnetReporterTest(unittest.TestCase):
         self.assertIsNone(MODULE["supergiant_dotnet_reporter"](game))
 
 
+def fake_pe(imports=(), delayed=()):
+    """A PE32+ image with one section holding its import and delay-import descriptors and the DLL names."""
+    base, table = 0x1000, (len(imports) + 1) * 20
+    names_at = table + (len(delayed) + 1) * 32
+    names, blob = [], b""
+    for name in list(imports) + list(delayed):
+        names.append(base + names_at + len(blob))
+        blob += name.encode() + b"\0"
+    section = b"".join(struct.pack("<12xI4x", n) for n in names[:len(imports)]) + bytes(20)
+    section += b"".join(struct.pack("<4xI24x", n) for n in names[len(imports):]) + bytes(32) + blob
+    directories = bytearray(128)
+    struct.pack_into("<II", directories, 8, base, table)
+    if delayed:
+        struct.pack_into("<II", directories, 13 * 8, base + table, (len(delayed) + 1) * 32)
+    optional = struct.pack("<H106xI", 0x20B, 16) + bytes(directories)
+    header = b"MZ" + bytes(58) + struct.pack("<I", 0x40) + b"PE\0\0" + struct.pack("<HH12xHH", 0x8664, 1, len(optional), 0x22)
+    header += optional + struct.pack("<8xIIII16x", len(section), base, len(section), 0x200)
+    return header.ljust(0x200, b"\0") + section
+
+
+class GodotAccessibilityTest(unittest.TestCase):
+    SENTRY = "libsentry.windows.release.x86_64"
+
+    def godot_game(self, tmp, exe=b"", files=()):
+        game = Path(tmp) / "Slay the Spire 2"
+        (game / "data_sts2_windows_x86_64").mkdir(parents=True)
+        (game / "SlayTheSpire2.exe").write_bytes(exe)
+        for name in ("SlayTheSpire2.pck", self.SENTRY + ".dll", "data_sts2_windows_x86_64/coreclr.dll") + tuple(files):
+            (game / name).touch()
+        return str(game / "SlayTheSpire2.exe")
+
+    def test_pe_imports_reads_import_and_delay_import_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Game.exe"
+            path.write_bytes(fake_pe(["KERNEL32.dll", "UIAutomationCore.DLL"], ["dwmapi.dll"]))
+            self.assertEqual(MODULE["pe_imports"](str(path)), {"kernel32.dll", "uiautomationcore.dll", "dwmapi.dll"})
+            path.write_bytes(b"#!/bin/sh\n")
+            self.assertEqual(MODULE["pe_imports"](str(path)), set())
+            path.write_bytes(fake_pe(["UIAutomationCore.dll"])[:0x210])
+            with self.assertRaises(ValueError):
+                MODULE["pe_imports"](str(path))
+
+    def test_godot_with_accesskit_turns_accessibility_and_tabtip_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = self.godot_game(tmp, fake_pe(["KERNEL32.dll", "UIAutomationCore.dll"]))
+            env, extra, notes = MODULE["engine_fixes"](exe, [])
+            self.assertEqual(env["WINEDLLOVERRIDES"], self.SENTRY + "=d;tabtip.exe=d")
+            self.assertEqual(extra, ["--rendering-driver", "vulkan", "--accessibility", "disabled"])
+            self.assertIn("godot accessibility: off (--accessibility disabled, tabtip.exe=d; "
+                          "AccessKit: SlayTheSpire2.exe imports UIAutomationCore.dll)", notes)
+            delayed = self.godot_game(Path(tmp) / "delayed", fake_pe(["KERNEL32.dll"], ["UIAutomationCore.dll"]))
+            self.assertEqual(MODULE["engine_fixes"](delayed, [])[1][-2:], ["--accessibility", "disabled"])
+            dynamic = self.godot_game(Path(tmp) / "dynamic", files=("accesskit.x86_64.dll",))
+            env, extra, notes = MODULE["engine_fixes"](dynamic, [])
+            self.assertEqual(extra[-2:], ["--accessibility", "disabled"])
+            self.assertTrue(any(n.endswith("AccessKit: accesskit.x86_64.dll)") for n in notes))
+
+    def test_launch_options_choose_the_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = self.godot_game(tmp, fake_pe(["UIAutomationCore.dll"]))
+            env, extra, notes = MODULE["engine_fixes"](exe, ["--accessibility", "always"])
+            self.assertEqual(extra, ["--rendering-driver", "vulkan"])
+            self.assertEqual(env["WINEDLLOVERRIDES"], self.SENTRY + "=d;tabtip.exe=d")
+            self.assertIn("godot accessibility: always from the launch options, tabtip.exe=d "
+                          "(AccessKit: SlayTheSpire2.exe imports UIAutomationCore.dll)", notes)
+            self.assertEqual(MODULE["engine_fixes"](exe, ["--rendering-driver", "vulkan", "--accessibility"])[2][-1],
+                             "godot accessibility: set from the launch options, tabtip.exe=d "
+                             "(AccessKit: SlayTheSpire2.exe imports UIAutomationCore.dll)")
+
+    def test_engines_without_accesskit_and_other_games_are_left_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, exe in (("godot44", fake_pe(["KERNEL32.dll", "dwmapi.dll"])), ("unreadable", b"MZ" + bytes(8)),
+                              ("empty", b"")):
+                with self.subTest(exe=name):
+                    env, extra, notes = MODULE["engine_fixes"](self.godot_game(Path(tmp) / name, exe), [])
+                    self.assertEqual(env["WINEDLLOVERRIDES"], self.SENTRY + "=d")
+                    self.assertEqual(extra, ["--rendering-driver", "vulkan"])
+                    self.assertFalse([n for n in notes if "accessibility" in n])
+            other = Path(tmp) / "Other"
+            other.mkdir()
+            (other / "Other.exe").write_bytes(fake_pe(["UIAutomationCore.dll"]))
+            self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
+
+    def test_launch_logs_the_choice_and_passes_it_to_proton(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            exe = self.godot_game(tmp, fake_pe(["UIAutomationCore.dll"]))
+            proton = home / "fake-proton"
+            proton.write_text("#!" + sys.executable + "\nimport json, os, sys\n"
+                              "print(json.dumps([sys.argv[1:], os.environ.get('WINEDLLOVERRIDES')]))\n")
+            proton.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            env = dict(os.environ, HOME=tmp, STEAM_COMPAT_DATA_PATH=str(home / "compatdata/2868840"), SteamAppId="2868840")
+            env.pop("WINEDLLOVERRIDES", None)
+            config.write_text(json.dumps({"version": 1, "games": {}}))
+            for own, line, args in (
+                ([], "droiddeck-game-env: godot accessibility: off (--accessibility disabled, tabtip.exe=d;",
+                 ["--rendering-driver", "vulkan", "--accessibility", "disabled"]),
+                (["--accessibility", "auto"], "droiddeck-game-env: godot accessibility: auto from the launch options, tabtip.exe=d",
+                 ["--rendering-driver", "vulkan"]),
+            ):
+                with self.subTest(own=own):
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(proton), "waitforexitandrun", exe]
+                                            + own, env=env, text=True, capture_output=True, check=True)
+                    argv, dlls = json.loads(result.stdout.strip().splitlines()[-1])
+                    self.assertEqual(argv, ["waitforexitandrun", exe] + own + args)
+                    self.assertTrue(dlls.endswith(self.SENTRY + "=d;tabtip.exe=d"), dlls)
+                    self.assertIn(line, result.stderr)
+
+
 def mapping_of(text):
     tokens = COMPAT["tokenize"](text)
     return COMPAT["read_mapping"](tokens, COMPAT["mapping_block"](tokens))

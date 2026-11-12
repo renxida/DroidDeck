@@ -355,6 +355,87 @@ def godot_sentry(game):
         return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
 
 
+def pe_imports(path):
+    """Lower-case DLL names in a PE file's import and delay-import tables."""
+    with open(path, "rb") as source:
+        def read(offset, size):
+            source.seek(offset)
+            data = source.read(size)
+            if len(data) < size:
+                raise ValueError("truncated PE file")
+            return data
+
+        if read(0, 2) != b"MZ":
+            return set()
+        pe, = struct.unpack("<I", read(0x3C, 4))
+        if read(pe, 4) != b"PE\0\0":
+            return set()
+        count, optional_size = struct.unpack("<2xH12xH2x", read(pe + 4, 20))
+        optional = pe + 24
+        magic, = struct.unpack("<H", read(optional, 2))
+        if magic not in (0x10B, 0x20B):
+            return set()
+        directories = optional + (96 if magic == 0x10B else 112)
+        listed, = struct.unpack("<I", read(directories - 4, 4))
+        sections = [struct.unpack("<8xIIII", read(optional + optional_size + 40 * i, 24)) for i in range(min(count, 96))]
+
+        def offset(rva):
+            for virtual_size, address, raw_size, raw in sections:
+                if address <= rva < address + max(virtual_size, raw_size):
+                    return raw + rva - address
+            raise ValueError("address outside the PE sections")
+
+        names = set()
+        # Import descriptors are 20 bytes with the name at 12; delay-load descriptors are 32 bytes with it at 4.
+        for index, size, field in ((1, 20, 12), (13, 32, 4)):
+            if index >= min(listed, 16):
+                continue
+            rva, = struct.unpack("<I", read(directories + 8 * index, 4))
+            if not rva:
+                continue
+            start = offset(rva)
+            for number in range(4096):
+                name, = struct.unpack_from("<I", read(start + size * number, size), field)
+                if not name:
+                    break
+                source.seek(offset(name))
+                names.add(source.read(260).split(b"\0", 1)[0].decode("ascii", "replace").lower())
+        return names
+
+
+def accesskit_source(game):
+    """Where a Godot 4.5+ Windows build gets AccessKit: linked in (the executable then imports UIAutomationCore.dll,
+    platform/windows/detect.py) or accesskit[.<arch>].dll beside it (drivers/accesskit/accessibility_driver_accesskit.cpp)."""
+    folder = os.path.dirname(game.exe)
+    for name in ("accesskit.x86_64.dll", "accesskit.dll"):
+        if os.path.isfile(os.path.join(folder, name)):
+            return name
+    try:
+        imports = pe_imports(game.exe)
+    except (OSError, ValueError, struct.error):
+        return None
+    return "%s imports UIAutomationCore.dll" % os.path.basename(game.exe) if "uiautomationcore.dll" in imports else None
+
+
+@fix
+def godot_accessibility(game):
+    """Proton's explorer.exe starts tabtip.exe in every prefix, and tabtip follows focus through UI Automation. Its first
+    WM_GETOBJECT makes AccessKit hand it the window's provider, and its calls then run inside the game over COM, where
+    Slay the Spire 2 faults and exits. --accessibility disabled keeps AccessKit off the window and tabtip.exe=d keeps tabtip
+    from starting; tabtip only opens Steam's keyboard when SteamDeck=1, and nothing here reads UI Automation."""
+    if not is_godot(game):
+        return None
+    source = accesskit_source(game)
+    if not source:
+        return None
+    if game.has_arg("--accessibility"):
+        mode = next((game.args[i + 1] for i, a in enumerate(game.args[:-1]) if a == "--accessibility"), "")
+        return ({"WINEDLLOVERRIDES": "tabtip.exe=d"}, [],
+                "godot accessibility: %s from the launch options, tabtip.exe=d (AccessKit: %s)" % (mode or "set", source))
+    return ({"WINEDLLOVERRIDES": "tabtip.exe=d"}, ["--accessibility", "disabled"],
+            "godot accessibility: off (--accessibility disabled, tabtip.exe=d; AccessKit: %s)" % source)
+
+
 @fix
 def slay_the_spire_2_pacing(game):
     if game.stem == "slaythespire2" and is_godot(game) and experiment(game.env, "sched"):
