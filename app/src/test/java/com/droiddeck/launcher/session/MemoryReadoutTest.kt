@@ -63,4 +63,20 @@ class MemoryReadoutTest {
         )
         assertTrue(MemoryLog.line(device, split.copy(gpuKb = null)).endsWith("gpu ? MB"))
     }
+
+    @Test fun swapAndNameComeFromProcStatus() {
+        val status = "Name:\twine64-preloader\nVmRSS:\t  900 kB\nRssAnon:\t  800 kB\nRssShmem:\t  100 kB\nVmSwap:\t  2048 kB\n"
+        assertEquals(2048L, MemoryReadout.swapKb(status))
+        assertEquals("wine64-preloader", MemoryReadout.processName(status))
+        assertEquals(0L, MemoryReadout.swapKb("Name:\tx\n"))
+    }
+
+    @Test fun theCsvLineMatchesItsHeader() {
+        val device = MemoryReadout.Device(totalKb = 11_379_920, availableKb = 1_048_576, swapTotalKb = 16_777_212, swapFreeKb = 8_388_606)
+        val split = MemoryReadout.Split(gameKb = 2_097_152, droiddeckKb = 524_288, gpuKb = null,
+            gameSwapKb = 1_048_576, droiddeckSwapKb = 2_048, topName = "SlayTheSpire2.e", topKb = 3_145_728)
+        val line = MemoryLog.csvLine(1L, device, split, 4_096)
+        assertEquals(MemoryLog.CSV_HEADER.split(',').size, line.split(',').size)
+        assertTrue(line.endsWith(",1024,2,SlayTheSpire2.e,3072"))
+    }
 }
