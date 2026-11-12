@@ -34,6 +34,15 @@ sections (`depots`, `localization`, `ufs` and the rest) are walked without being
 record stops being read once those sections are in hand. Session start's full decode for
 Valve's runtime picks costs about 40% of what it did on a synthetic 23 MB cache.
 
+A complete decode from the file also saves each app's entry next to it, in
+`appcache/appinfo.vdf.droiddeck-entries`, keyed on the SHA-1 and change number Steam stores
+in the record's header. The next complete decode, in this process or another one
+(`steam-compatibility`, `droiddeck-steam-shortcuts`, the live `droiddeck-steam-compat`), only
+decodes the records Steam changed since, and those only as far as described above. Records
+without a SHA-1 are always decoded, and the saved entries are dropped whenever
+`steam-compatibility` itself changes. On a synthetic 23 MB
+cache of 5,000 apps a repeat read took 0.07 s instead of 0.44 s.
+
 Each game can also override the stored FEX, DXVK and VKD3D-Proton package used
 by its selected Proton. The launch wrapper applies that game’s component files
 immediately before Proton starts, removes managed files that are absent from the

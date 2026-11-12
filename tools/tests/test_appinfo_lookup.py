@@ -231,6 +231,97 @@ class AppInfoLookupTest(unittest.TestCase):
         self.assertEqual(len(set(counts)), 1)
 
 
+def signed(data, magic):
+    """Give every record the SHA-1 Steam stores for it, which the test builder leaves zero."""
+    import hashlib
+    data = bytearray(data)
+    offset = 16 if magic == 0x07564429 else 8
+    header = 60 if magic >= 0x07564428 else 40
+    while offset + 8 <= len(data):
+        app, size = struct.unpack_from("<II", data, offset)
+        if app == 0:
+            break
+        start = offset + 8
+        digest = hashlib.sha1(bytes(data[start + header:start + size])).digest()
+        data[start + 16:start + 36] = digest
+        if header == 60:
+            data[start + 40:start + 60] = digest
+        offset = start + size
+    return bytes(data)
+
+
+class AppInfoEntryCacheTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "appinfo.vdf"
+        self.saved = Path(str(self.path) + ".droiddeck-entries")
+        COMPAT["APPINFO_CACHE"].clear()
+        self.addCleanup(COMPAT["APPINFO_CACHE"].clear)
+
+    def write(self, records, magic):
+        stamp = self.path.stat().st_mtime_ns if self.path.exists() else 0
+        self.path.write_bytes(signed(APPINFO(records, magic), magic))
+        os.utime(self.path, ns=(stamp + 1_000_000_000, stamp + 1_000_000_000))
+
+    def full(self):
+        COMPAT["APPINFO_CACHE"].clear()
+        with decoded_sections() as calls:
+            result = COMPAT["appinfo_entries"](str(self.path))
+        return result, len(calls)
+
+    def uncached(self):
+        self.saved.unlink(missing_ok=True)
+        result, _ = self.full()
+        self.saved.unlink()
+        return result
+
+    def test_a_second_read_decodes_only_the_records_steam_changed(self):
+        for magic in FORMATS:
+            with self.subTest(magic=magic):
+                self.saved.unlink(missing_ok=True)
+                games = {app: entry("Game" + str(app)) for app in range(1, 33)}
+                self.write(games, magic)
+                first, cold = self.full()
+                self.assertTrue(self.saved.is_file())
+                again, warm = self.full()
+                self.assertEqual(again, first)
+                self.assertEqual(warm, 0)
+                games[7] = entry("Changed")
+                del games[9]
+                games[40] = entry("Added")
+                self.write(games, magic)
+                changed, calls = self.full()
+                self.assertEqual(changed, self.uncached())
+                self.assertEqual(changed["7"]["launch"][0], "changed.exe")
+                self.assertNotIn("9", changed)
+                self.assertEqual(changed["40"]["launch"][0], "added.exe")
+                self.assertGreater(calls, 0)
+                self.assertLess(calls * 8, cold)
+
+    def test_unusable_saved_entries_are_decoded_again(self):
+        magic = FORMATS[-1]
+        self.write({1: entry("One"), 2: entry("Two")}, magic)
+        expected = self.uncached()
+        for saved in (b"", b"garbage", __import__("marshal").dumps(("other", {1: (b"", {})})),
+                      __import__("marshal").dumps([1, 2])):
+            with self.subTest(saved=saved):
+                self.saved.write_bytes(saved)
+                result, calls = self.full()
+                self.assertEqual(result, expected)
+                self.assertGreater(calls, 0)
+
+    def test_records_without_a_digest_and_partial_reads_are_not_kept(self):
+        magic = FORMATS[-1]
+        self.path.write_bytes(APPINFO({1: entry("One")}, magic))
+        self.assertEqual(self.full()[0]["1"]["launch"][0], "one.exe")
+        self.assertFalse(self.saved.exists())
+        self.write({1: entry("One")}, magic)
+        COMPAT["APPINFO_CACHE"].clear()
+        self.assertEqual(set(COMPAT["appinfo_entries"](str(self.path), wanted={"1"})), {"1"})
+        self.assertFalse(self.saved.exists())
+
+
 class LaunchLookupTest(unittest.TestCase):
     def test_launch_resolution_and_membership_decode_only_the_target(self):
         for magic in FORMATS:
