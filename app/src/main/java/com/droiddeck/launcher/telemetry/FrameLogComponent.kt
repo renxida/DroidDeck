@@ -109,7 +109,7 @@ class FrameLogComponent(
                         nextExitCheck = wallNow + EXIT_PERIOD_MS
                         stderr.read {
                             exits.line(it, wallNow)
-                            if (it.startsWith(EXPERIMENTS_LINE)) SessionEvents.record("game.experiments", mapOf("on" to it.removePrefix(EXPERIMENTS_LINE)))
+                            if (it.startsWith(EXPERIMENTS_LINE)) SessionEvents.record("game.experiments", experimentsFields(it))
                         }
                         for (exit in exits.poll(wallNow)) {
                             SessionEvents.record("game.exited", exit.fields().mapValues { (_, v) -> if (v is List<*>) org.json.JSONArray(v) else v })
@@ -168,6 +168,14 @@ class FrameLogComponent(
         private const val SIGN_IN_PERIOD_MS = 2_000L
         private const val EXIT_PERIOD_MS = 1_000L
         private const val EXPERIMENTS_LINE = "droiddeck-game-env: experiments: "
+        private const val PENDING = "; saved but needs a new session: "
+
+        /** droiddeck-game-env's per-launch line: the switches in effect, and any saved ones waiting for a new session. */
+        internal fun experimentsFields(line: String): Map<String, String> {
+            val text = line.removePrefix(EXPERIMENTS_LINE)
+            val on = text.substringBefore(PENDING)
+            return if (on == text) mapOf("on" to on) else mapOf("on" to on, "pending" to text.substringAfter(PENDING))
+        }
         private const val SIGN_IN_READ_MAX = 1L shl 20
         private const val SIGN_IN_LINE = "RecvMsgClientLogOnResponse() : processing complete"
     }

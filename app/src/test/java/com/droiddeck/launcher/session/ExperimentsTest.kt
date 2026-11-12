@@ -105,11 +105,18 @@ class ExperimentsTest {
 
     @Test fun buildTxtNamesTheSessionsExperiments() {
         Experiments.set(context, emptySet())
-        assertTrue(com.droiddeck.launcher.telemetry.BuildInfo.text(context).lines().contains("experiments: none"))
+        assertTrue(com.droiddeck.launcher.telemetry.BuildInfo.text(context).lines().contains("experiments_at_session_start: none"))
         Experiments.setOne(context, Experiments.WARMUP, true)
         Experiments.setOne(context, Experiments.FEX_FAST, true)
         Experiments.beginSession(context)
-        assertTrue(com.droiddeck.launcher.telemetry.BuildInfo.text(context).lines().contains("experiments: warmup,fex-fast"))
+        assertTrue(com.droiddeck.launcher.telemetry.BuildInfo.text(context).lines().contains("experiments_at_session_start: warmup,fex-fast"))
+    }
+
+    @Test fun eachLaunchRecordsTheSwitchesInEffect() {
+        val fields = { line: String -> com.droiddeck.launcher.telemetry.FrameLogComponent.experimentsFields(line) }
+        assertEquals(mapOf("on" to "none"), fields("droiddeck-game-env: experiments: none"))
+        assertEquals(mapOf("on" to "two-frames,fex-fast", "pending" to "two-frames off, memory(app) on"),
+            fields("droiddeck-game-env: experiments: two-frames,fex-fast; saved but needs a new session: two-frames off, memory(app) on"))
     }
 
     @Test fun theSessionKeepsTheSwitchesItStartedWith() {

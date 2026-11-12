@@ -36,6 +36,8 @@ DOTNET_PROFILES = {
     "single-tier": {"DOTNET_TieredCompilation": "0"},
 }
 OFF = ("", "0", "off", "none", "default")
+# Used when DROIDDECK_DOTNET_WARMUP is unset; set it to off for the runtime's defaults.
+DEFAULT_PROFILE = "pgo-off"
 
 
 def say(message):
@@ -77,7 +79,8 @@ def dotnet_profile(files, env):
     """The DOTNET_ variables a .NET (CoreCLR) game gets for DROIDDECK_DOTNET_WARMUP, and a note."""
     if "coreclr.dll" not in files:
         return {}, None
-    name = env.get("DROIDDECK_DOTNET_WARMUP", "").strip().lower()
+    unset = "DROIDDECK_DOTNET_WARMUP" not in env
+    name = DEFAULT_PROFILE if unset else env["DROIDDECK_DOTNET_WARMUP"].strip().lower()
     if name in OFF:
         return {}, None
     profile = DOTNET_PROFILES.get(name)
@@ -90,7 +93,7 @@ def dotnet_profile(files, env):
             kept.append(key)
         else:
             chosen[key] = value
-    note = ".NET profile %s: %s" % (name, " ".join("%s=%s" % item for item in sorted(chosen.items())) or "nothing to set")
+    note = ".NET profile %s%s: %s" % (name, " (default)" if unset else "", " ".join("%s=%s" % item for item in sorted(chosen.items())) or "nothing to set")
     if kept:
         note += " (already set, kept: %s)" % " ".join(sorted(kept))
     return chosen, note

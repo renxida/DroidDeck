@@ -91,10 +91,32 @@ def without_experiments(env):
     return {k: v for k, v in env.items() if not k.startswith("DROIDDECK_EXP_")}
 
 
-def experiments_line(launch, steam):
-    line = "experiments: " + (",".join(launch) or "none")
-    if steam != launch:
-        line += "; Steam session started with: " + (",".join(steam) or "none")
+# Their effect is fixed when the session starts (the app, droiddeck-session and Steam's scripts); memory is split:
+# its game part follows the saved switches and its app part the session's.
+SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence")
+
+
+def experiments_line(saved, session):
+    """The switches in effect for this launch: game-level ones from the saved config, session-level ones from the
+    Steam session's environment, then the session-level ones saved differently, which need a new session."""
+    on, pending = [], []
+    for name in EXPERIMENTS:
+        game, app = name in saved, name in session
+        if name == "memory":
+            if game or app:
+                on.append("memory" if game and app else "memory(game)" if game else "memory(app)")
+            if game != app:
+                pending.append("memory(app) " + ("on" if game else "off"))
+        elif name in SESSION_EXPERIMENTS:
+            if app:
+                on.append(name)
+            if game != app:
+                pending.append(name + (" on" if game else " off"))
+        elif game:
+            on.append(name)
+    line = "experiments: " + (",".join(on) or "none")
+    if pending:
+        line += "; saved but needs a new session: " + ", ".join(pending)
     return line
 
 

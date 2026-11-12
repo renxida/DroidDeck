@@ -1247,6 +1247,21 @@ class GameEnvironmentTest(unittest.TestCase):
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
 
+    def test_the_experiments_line_lists_what_is_in_effect(self):
+        line = MODULE["experiments_line"]
+        self.assertEqual(line([], []), "experiments: none")
+        everything = ["godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "fex-codegen", "fex-fast"]
+        self.assertEqual(line(everything, everything), "experiments: " + ",".join(everything))
+        # Saved after the session started: the game-level ones apply now, the session-level ones wait.
+        self.assertEqual(line(everything, []),
+                         "experiments: godot-render,warmup,memory(game),fex-codegen,fex-fast; saved but needs a new session: "
+                         "all on, compat-quiet on, memory(app) on, adpf-all on, two-frames on")
+        self.assertEqual(line([], everything),
+                         "experiments: all,compat-quiet,memory(app),adpf-all,two-frames; saved but needs a new session: "
+                         "all off, compat-quiet off, memory(app) off, adpf-all off, two-frames off")
+        self.assertEqual(line(["layer-fence", "sched"], ["two-frames", "sched"]),
+                         "experiments: two-frames,sched; saved but needs a new session: two-frames off, layer-fence on")
+
     def test_launch_logs_the_tso_settings_the_game_runs_with(self):
         with tempfile.TemporaryDirectory() as tmp:
             game = Path(tmp) / "Slay the Spire 2"
@@ -1276,16 +1291,16 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(result.stdout.split(), ["0", "0"])
             self.assertIn("FEX TSO for this game: FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 "
                           "FEX_HALFBARRIERTSOENABLED=1 DOTNET_gcConcurrent=0", result.stderr)
-            self.assertIn("droiddeck-game-env: experiments: fex-fast; Steam session started with: none\n", result.stderr)
-            # The saved settings decide a launch; values the Steam session inherited are only reported.
+            self.assertIn("droiddeck-game-env: experiments: fex-fast\n", result.stderr)
+            # Game-level switches follow the saved settings, session-level ones the Steam session's environment.
             result = subprocess.run(command, env={**env, "DROIDDECK_EXP_FEX_FAST": "1", "DROIDDECK_EXP_TWO_FRAMES": "1"},
                                     text=True, capture_output=True)
-            self.assertIn("droiddeck-game-env: experiments: fex-fast; Steam session started with: two-frames,fex-fast\n",
+            self.assertIn("droiddeck-game-env: experiments: two-frames,fex-fast; saved but needs a new session: two-frames off\n",
                           result.stderr)
             (home / ".config/droiddeck/game-environment.json").write_text(json.dumps({"version": 1}))
             result = subprocess.run(command, env={**env, "DROIDDECK_EXP_FEX_FAST": "1"}, text=True, capture_output=True)
             self.assertEqual(result.stdout.split(), ["1", "1"])
-            self.assertIn("droiddeck-game-env: experiments: none; Steam session started with: fex-fast\n", result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: none\n", result.stderr)
             (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
                 {"version": 1, "shared": {"DROIDDECK_EXP_FEX_FAST": "1"}, "games": {"2868840": {"FEX_VECTORTSOENABLED": "1"}}}))
             result = subprocess.run(command, env=env, text=True, capture_output=True)

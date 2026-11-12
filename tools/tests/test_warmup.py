@@ -40,10 +40,13 @@ class DotnetProfileTest(unittest.TestCase):
     def test_only_coreclr_games_get_a_profile(self):
         self.assertEqual(({}, None), WARMUP["dotnet_profile"]({"game.exe"}, {"DROIDDECK_DOTNET_WARMUP": "lean"}))
 
-    def test_off_and_unset_keep_the_runtime_defaults(self):
-        for value in (None, "", "off", "0"):
-            env = {} if value is None else {"DROIDDECK_DOTNET_WARMUP": value}
-            self.assertEqual(({}, None), WARMUP["dotnet_profile"]({"coreclr.dll"}, env))
+    def test_off_keeps_the_runtime_defaults(self):
+        for value in ("", "off", "0"):
+            self.assertEqual(({}, None), WARMUP["dotnet_profile"]({"coreclr.dll"}, {"DROIDDECK_DOTNET_WARMUP": value}))
+
+    def test_unset_turns_the_instrumented_tier_off(self):
+        self.assertEqual(({"DOTNET_TieredPGO": "0"}, ".NET profile pgo-off (default): DOTNET_TieredPGO=0"),
+                         WARMUP["dotnet_profile"]({"coreclr.dll"}, {}))
 
     def test_each_profile_sets_its_variables(self):
         chosen, note = WARMUP["dotnet_profile"]({"coreclr.dll"}, {"DROIDDECK_DOTNET_WARMUP": "lean"})
@@ -220,12 +223,17 @@ class GameEnvironmentWarmupTest(unittest.TestCase):
             self.assertEqual(off.stdout.strip(), "", off.stderr)
             self.assertNotIn("warmup:", off.stderr)
             config.write_text(json.dumps({"version": 1, "shared": {"DROIDDECK_EXP_WARMUP": "1"},
-                                          "games": {STS2: {"DROIDDECK_DOTNET_WARMUP": "pgo-off"}}}))
+                                          "games": {STS2: {"DROIDDECK_DOTNET_WARMUP": "lean"}}}))
+            chosen = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],
+                                    env=env, text=True, capture_output=True, check=True)
+            self.assertIn("DOTNET_TC_QuickJitForLoops=0", chosen.stdout, chosen.stderr)
+            self.assertIn("droiddeck-game-env: warmup: .NET profile lean: ", chosen.stderr)
+            config.write_text(json.dumps({"version": 1, "shared": {"DROIDDECK_EXP_WARMUP": "1"}}))
             result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],
                                     env=env, text=True, capture_output=True, check=True)
             folder = "Z:" + str(tool.prefix / "droiddeck-fex-cache").replace("/", "\\") + "\\"
             self.assertEqual("DOTNET_TieredPGO=0 FEX_APP_CACHE_LOCATION=%s FEX_DISKCACHE=1" % folder, result.stdout.strip(), result.stderr)
-            self.assertIn("droiddeck-game-env: warmup: .NET profile pgo-off: DOTNET_TieredPGO=0\n", result.stderr)
+            self.assertIn("droiddeck-game-env: warmup: .NET profile pgo-off (default): DOTNET_TieredPGO=0\n", result.stderr)
             self.assertIn("droiddeck-game-env: warmup: FEX disk cache on for app 2868840 (FEX-2610", result.stderr)
             self.assertRegex(result.stderr, r"droiddeck-game-env: warmup: launch prep for app 2868840: \d+ ms before Proton starts "
                                             r"\(components \d+ ms, prefix DLL check \d+ ms, warmup \d+ ms\)")

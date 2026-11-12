@@ -44,7 +44,8 @@ object BuildInfo {
         k("android", "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
         k("gpu", runCatching { com.droiddeck.launcher.gpu.GpuInfo.detect().let { "${it.name} (${it.family.label})" } }.getOrNull())
         k("gpu_driver_mode", runCatching { com.droiddeck.launcher.session.SessionPrefs.gpuDriverMode(context) }.getOrNull())
-        k("experiments", runCatching {
+        // Each launch's game.experiments event in events.jsonl gives the switches that run had.
+        k("experiments_at_session_start", runCatching {
             com.droiddeck.launcher.session.Experiments.run { line(session ?: enabled(context)) }
         }.getOrNull())
         com.droiddeck.launcher.gpu.VulkanInfo.cachedOrNull()?.let { v ->
