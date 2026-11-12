@@ -120,6 +120,14 @@ class GameExitDiagnosticsTest(unittest.TestCase):
             )
             self.assertEqual(valid.returncode, 7, valid.stderr)
             self.assertIn("event=game_start app_id=42", valid.stderr)
+            self.assertRegex(valid.stderr, r"DROIDDECK_TIMELINE event=game_exec app_id=42 wall_ms=\d{13}\n")
+            plain = subprocess.run(
+                [sys.executable, str(GAME_ENV), str(probe), "waitforexitandrun"],
+                env={**base, "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "DROIDDECK_ENHANCED_DIAGNOSTICS": ""},
+                capture_output=True, text=True, timeout=15,
+            )
+            self.assertIn("DROIDDECK_TIMELINE event=game_exec app_id=42", plain.stderr)
+            self.assertNotIn("DROIDDECK_DIAGNOSTICS", plain.stderr)
             self.assertIn(
                 "event=game_exit app_id=42 raw_status=7 normalized_status=7 wrapper_status=7 signal=0", valid.stderr,
             )
@@ -132,6 +140,7 @@ class GameExitDiagnosticsTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 7, result.stderr)
                 self.assertNotIn("DROIDDECK_DIAGNOSTICS", result.stderr)
+                self.assertNotIn("DROIDDECK_TIMELINE", result.stderr)
 
 
 if __name__ == "__main__":

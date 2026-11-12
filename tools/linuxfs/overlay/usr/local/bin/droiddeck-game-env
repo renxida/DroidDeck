@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
@@ -1375,6 +1376,9 @@ def main():
                           "and the next launch puts the file back" % undo, file=sys.stderr)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
+    if waiting:
+        print("DROIDDECK_TIMELINE event=game_exec app_id=%s wall_ms=%d" % (app_id, int(time.time() * 1000)),
+              file=sys.stderr, flush=True)
     if launch[0] != command[0]:
         try:
             return start(launch, launch_env, digest, after, diagnostic_app_id)
