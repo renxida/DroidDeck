@@ -62,6 +62,7 @@ class SessionService : Service() {
     private var inputSysfs: InputSysfsComponent? = null
     private val stopLock = Any()
     private var wakeLock: PowerManager.WakeLock? = null
+    @Volatile private var lastPressureAt = 0L
     private var wifiLock: WifiManager.WifiLock? = null
     private var sessionPid = -1
     private val auxiliaryProcesses = HashMap<Int, Long>()
@@ -721,6 +722,7 @@ class SessionService : Service() {
             }
             val program = programStatus(sessionRoot)
             Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
+            classifyGuestExit(program ?: status ?: -1, gen)
             stopSession(program ?: status ?: -1, gen)
         }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() })
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
@@ -808,6 +810,7 @@ class SessionService : Service() {
         DeviceReport.write(this, File(sessionDir, "device.txt"), SessionState.mode)
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"))
+        lastPressureAt = 0L
         MemoryLog.start()
         return sessionDir
     }
@@ -2008,6 +2011,54 @@ class SessionService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (!SessionState.running) return
+        lastPressureAt = android.os.SystemClock.elapsedRealtime()
+        val device = MemoryReadout.device()
+        val (some, full) = runCatching { ExitCause.parsePsi(File("/proc/pressure/memory").readText()) }.getOrDefault(null to null)
+        val fields = mapOf(
+            "level" to level,
+            "availableMb" to device?.availableKb?.div(1024),
+            "swapFreeMb" to device?.swapFreeKb?.div(1024),
+            "psiSomeAvg10" to some,
+            "psiFullAvg10" to full,
+        )
+        Log.i(TAG, "DROIDDECK_MEMORY_PRESSURE " + fields.entries.joinToString(" ") { "${it.key}=${it.value ?: "-"}" })
+        SessionEvents.record("memory.trim", fields)
+    }
+
+    /** Logs why the guest ended on its own; a kill with a known culprit gets a user-facing explanation. */
+    private fun classifyGuestExit(status: Int, gen: Int) {
+        if (gen != sessionGen || !SessionState.running) return
+        try {
+            val phantom = runCatching { com.droiddeck.launcher.core.PhantomProcessLimit.read(this) }
+                .getOrDefault(com.droiddeck.launcher.core.PhantomProcessStatus.UNREADABLE)
+            val device = MemoryReadout.device()
+            val low = device != null && (device.availableKb * 20 < device.totalKb ||
+                (device.swapTotalKb > 0 && device.swapFreeKb * 10 < device.swapTotalKb))
+            val recent = lastPressureAt > 0 && android.os.SystemClock.elapsedRealtime() - lastPressureAt < PRESSURE_RECENT_MS
+            val verdict = ExitCause.ofGuest(status, SessionState.stopRequested, phantom,
+                ExitCause.isXiaomiFamily(Build.MANUFACTURER, Build.BRAND), low || recent)
+            Log.i(TAG, ExitCause.line("session", verdict))
+            SessionEvents.record("exit.classified", ExitCause.fields("session", verdict))
+            val code = ExitCause.failureCode(verdict) ?: return
+            val message = when (code) {
+                ExitCause.FAILURE_PHANTOM -> getString(R.string.session_end_phantom_killed,
+                    com.droiddeck.launcher.core.PhantomProcessLimit.fixSentence(this))
+                else -> getString(R.string.session_end_vendor_memory_killed)
+            }
+            synchronized(SessionState) {
+                if (gen == sessionGen && SessionState.failureCode == null) {
+                    SessionState.failureCode = code
+                    SessionState.failureMessage = message
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "classifying the session's exit", t)
+        }
+    }
+
 
     private fun acquireLocks() {
         try {
@@ -2250,6 +2301,7 @@ class SessionService : Service() {
         private const val GAME_URL_PREFIX = "steam://rungameid/"
         private const val GAME_START_TIMEOUT_MS = 20 * 60_000L
         private const val GAME_EXIT_GRACE_MS = 10_000L
+        private const val PRESSURE_RECENT_MS = 60_000L
         private const val GAME_EXIT_POLL_MS = 2_000L
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"

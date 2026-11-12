@@ -134,5 +134,56 @@ class GameExitDiagnosticsTest(unittest.TestCase):
                 self.assertNotIn("DROIDDECK_DIAGNOSTICS", result.stderr)
 
 
+class GameExitClassificationTest(unittest.TestCase):
+    classify = staticmethod(MODULE["classify_game_exit"])
+
+    def test_wine_status_bytes_name_their_likely_cause(self):
+        self.assertEqual(self.classify(0x05, 90)[0], "access_violation")
+        self.assertEqual(self.classify(0x52, 90)[0], "dotnet_unhandled_exception")
+        self.assertEqual(self.classify(0x1D, 90)[0], "illegal_instruction")
+        self.assertEqual(self.classify(0x09, 90)[0], "fail_fast")
+        self.assertEqual(self.classify(0x0E, 5)[0], "out_of_memory")
+        self.assertEqual(self.classify(3, 90), ("exit_code", "exit code 3"))
+
+    def test_zero_is_never_called_proof_of_a_clean_exit(self):
+        kind, detail = self.classify(0, 12)
+        self.assertEqual(kind, "clean_early")
+        self.assertIn("killed", detail)
+        self.assertEqual(self.classify(0, 600)[0], "clean")
+
+    def test_signals_of_the_wrapper_and_of_wine(self):
+        self.assertEqual(self.classify(-9, 40), ("signal", "the Proton wrapper was ended by SIGKILL"))
+        kind, detail = self.classify(256 - 11, 40)
+        self.assertEqual(kind, "wine_signal")
+        self.assertIn("SIGSEGV", detail)
+
+    def test_watched_launch_reports_one_exit_line(self):
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            status = MODULE["start"]([sys.executable, "-c", "import sys; sys.exit(82)"], os.environ.copy(), None,
+                                     exit_app_id="2868840")
+        self.assertEqual(status, 82)
+        lines = [line for line in said.getvalue().splitlines() if line.startswith("DROIDDECK_GAME_EXIT ")]
+        self.assertEqual(len(lines), 1, said.getvalue())
+        self.assertRegex(lines[0], r'^DROIDDECK_GAME_EXIT app=2868840 status=82 class=dotnet_unhandled_exception '
+                                   r'seconds=\d+ detail="likely 0xE0434352 unhandled .NET exception"$')
+        self.assertNotIn("DROIDDECK_DIAGNOSTICS", said.getvalue())
+
+    def test_main_watches_proton_games_unless_turned_off(self):
+        with tempfile.TemporaryDirectory(prefix="game-exit-watch-") as directory:
+            probe = Path(directory) / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport sys\nsys.exit(5)\n")
+            probe.chmod(0o755)
+            base = dict(os.environ, HOME=directory, PATH=os.defpath, STEAM_COMPAT_DATA_PATH="/compatdata/2868840")
+            base.pop("DROIDDECK_ENHANCED_DIAGNOSTICS", None)
+            watched = subprocess.run([sys.executable, str(GAME_ENV), str(probe), "waitforexitandrun"],
+                                     env=base, capture_output=True, text=True, timeout=15)
+            self.assertEqual(watched.returncode, 5, watched.stderr)
+            self.assertIn("DROIDDECK_GAME_EXIT app=2868840 status=5 class=access_violation", watched.stderr)
+            off = subprocess.run([sys.executable, str(GAME_ENV), str(probe), "waitforexitandrun"],
+                                 env={**base, "DROIDDECK_GAME_EXIT_WATCH": "0"}, capture_output=True, text=True, timeout=15)
+            self.assertEqual(off.returncode, 5, off.stderr)
+            self.assertNotIn("DROIDDECK_GAME_EXIT", off.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
