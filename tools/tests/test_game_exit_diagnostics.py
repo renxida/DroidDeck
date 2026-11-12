@@ -67,6 +67,19 @@ class GameExitDiagnosticsTest(unittest.TestCase):
         self.assertEqual(called, [("/game", ["/game", "arg"], {"A": "B"})])
         self.assertNotIn("DROIDDECK_DIAGNOSTICS", said.getvalue())
 
+    def test_a_waited_game_reports_its_exit_on_the_timeline(self):
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            status = MODULE["start"]([sys.executable, "-c", "import os, signal; os.kill(os.getpid(), signal.SIGSEGV)"],
+                                     os.environ.copy(), None, after=lambda: None, timeline_app_id="42")
+        self.assertEqual(status, 128 + signal.SIGSEGV)
+        self.assertRegex(said.getvalue(), r"DROIDDECK_TIMELINE event=game_exit app_id=42 status=139 signal=11 run_ms=\d+ wall_ms=\d{13}\n")
+        self.assertNotIn("DROIDDECK_DIAGNOSTICS", said.getvalue())
+
+    def test_an_execed_game_cannot_report_its_exit(self):
+        with mock.patch("os.execvpe"), contextlib.redirect_stderr(io.StringIO()) as said:
+            MODULE["start"](["/game", "waitforexitandrun"], {}, None, timeline_app_id="42")
+        self.assertNotIn("game_exit", said.getvalue())
+
     def test_failed_selected_launch_does_not_invent_a_start_or_exit(self):
         with mock.patch("subprocess.Popen", side_effect=FileNotFoundError("missing")), \
              contextlib.redirect_stderr(io.StringIO()) as said:
@@ -120,9 +133,19 @@ class GameExitDiagnosticsTest(unittest.TestCase):
             )
             self.assertEqual(valid.returncode, 7, valid.stderr)
             self.assertIn("event=game_start app_id=42", valid.stderr)
+            self.assertRegex(valid.stderr, r"DROIDDECK_TIMELINE event=game_exec app_id=42 wall_ms=\d{13}\n")
+            plain = subprocess.run(
+                [sys.executable, str(GAME_ENV), str(probe), "waitforexitandrun"],
+                env={**base, "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "DROIDDECK_ENHANCED_DIAGNOSTICS": ""},
+                capture_output=True, text=True, timeout=15,
+            )
+            self.assertIn("DROIDDECK_TIMELINE event=game_exec app_id=42", plain.stderr)
+            self.assertNotIn("DROIDDECK_DIAGNOSTICS", plain.stderr)
             self.assertIn(
                 "event=game_exit app_id=42 raw_status=7 normalized_status=7 wrapper_status=7 signal=0", valid.stderr,
             )
+            self.assertRegex(valid.stderr, r"DROIDDECK_TIMELINE event=game_exit app_id=42 status=7 signal=0 run_ms=\d+ wall_ms=\d{13}\n")
+            self.assertNotIn("event=game_exit", plain.stderr)
 
             for verb, prefix in (("run", "/compatdata/42"), ("waitforexitandrun", "/compatdata/not-a-game")):
                 result = subprocess.run(
@@ -132,6 +155,7 @@ class GameExitDiagnosticsTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 7, result.stderr)
                 self.assertNotIn("DROIDDECK_DIAGNOSTICS", result.stderr)
+                self.assertNotIn("DROIDDECK_TIMELINE", result.stderr)
 
 
 class GameExitClassificationTest(unittest.TestCase):
@@ -160,7 +184,7 @@ class GameExitClassificationTest(unittest.TestCase):
     def test_watched_launch_reports_one_exit_line(self):
         with contextlib.redirect_stderr(io.StringIO()) as said:
             status = MODULE["start"]([sys.executable, "-c", "import sys; sys.exit(82)"], os.environ.copy(), None,
-                                     exit_app_id="2868840")
+                                     timeline_app_id="2868840", watch=True)
         self.assertEqual(status, 82)
         lines = [line for line in said.getvalue().splitlines() if line.startswith("DROIDDECK_GAME_EXIT ")]
         self.assertEqual(len(lines), 1, said.getvalue())
@@ -168,22 +192,38 @@ class GameExitClassificationTest(unittest.TestCase):
                                    r'seconds=\d+ detail="likely 0xE0434352 unhandled .NET exception"$')
         self.assertNotIn("DROIDDECK_DIAGNOSTICS", said.getvalue())
 
-    def test_main_watches_proton_games_unless_turned_off(self):
+    def test_the_watch_is_a_per_game_default_with_a_setting_either_way(self):
+        watch = MODULE["exit_watch"]
+        self.assertTrue(watch("2868840", {}))
+        self.assertFalse(watch("42", {}))
+        self.assertTrue(watch("42", {"DROIDDECK_GAME_EXIT_WATCH": "1"}))
+        self.assertFalse(watch("2868840", {"DROIDDECK_GAME_EXIT_WATCH": "0"}))
+
+    def test_main_watches_the_default_game_and_execs_the_rest(self):
         with tempfile.TemporaryDirectory(prefix="game-exit-watch-") as directory:
             probe = Path(directory) / "probe"
             probe.write_text("#!" + sys.executable + "\nimport sys\nsys.exit(5)\n")
             probe.chmod(0o755)
-            base = dict(os.environ, HOME=directory, PATH=os.defpath, STEAM_COMPAT_DATA_PATH="/compatdata/2868840")
+            base = dict(os.environ, HOME=directory, PATH=os.defpath)
             base.pop("DROIDDECK_ENHANCED_DIAGNOSTICS", None)
-            watched = subprocess.run([sys.executable, str(GAME_ENV), str(probe), "waitforexitandrun"],
-                                     env=base, capture_output=True, text=True, timeout=15)
+            base.pop("DROIDDECK_GAME_EXIT_WATCH", None)
+
+            def run(prefix, **extra):
+                return subprocess.run([sys.executable, str(GAME_ENV), str(probe), "waitforexitandrun"],
+                                      env={**base, "STEAM_COMPAT_DATA_PATH": prefix, **extra},
+                                      capture_output=True, text=True, timeout=15)
+
+            watched = run("/compatdata/2868840")
             self.assertEqual(watched.returncode, 5, watched.stderr)
             self.assertIn("DROIDDECK_GAME_EXIT app=2868840 status=5 class=access_violation", watched.stderr)
-            off = subprocess.run([sys.executable, str(GAME_ENV), str(probe), "waitforexitandrun"],
-                                 env={**base, "DROIDDECK_GAME_EXIT_WATCH": "0"}, capture_output=True, text=True, timeout=15)
-            self.assertEqual(off.returncode, 5, off.stderr)
-            self.assertNotIn("DROIDDECK_GAME_EXIT", off.stderr)
-
+            self.assertRegex(watched.stderr, r"DROIDDECK_TIMELINE event=game_exit app_id=2868840 status=5 signal=0 ")
+            for result in (run("/compatdata/2868840", DROIDDECK_GAME_EXIT_WATCH="0"), run("/compatdata/42")):
+                self.assertEqual(result.returncode, 5, result.stderr)
+                self.assertNotIn("DROIDDECK_GAME_EXIT", result.stderr)
+                self.assertNotIn("event=game_exit", result.stderr)
+            opted = run("/compatdata/42", DROIDDECK_GAME_EXIT_WATCH="1")
+            self.assertEqual(opted.returncode, 5, opted.stderr)
+            self.assertIn("DROIDDECK_GAME_EXIT app=42 status=5 class=access_violation", opted.stderr)
 
 if __name__ == "__main__":
     unittest.main()

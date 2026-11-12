@@ -132,4 +132,11 @@ class ExitCauseTest {
         assertEquals(100L to 250L, SessionArtifacts.eventTimes(events))
         assertEquals(null to null, SessionArtifacts.eventTimes(java.io.File(tmp.root, "missing.jsonl")))
     }
+
+    @Test fun theUploadersCrashLinesKeepTheGameExitLine() {
+        val log = tmp.newFile("session.log")
+        log.writeText("noise\nDROIDDECK_GAME_EXIT app=2868840 status=82 class=dotnet_unhandled_exception seconds=40 detail=\"x\"\n")
+        val text = com.droiddeck.launcher.telemetry.CrashEvidence.crashLines(listOf(Triple("s", log, 0L)))
+        assertEquals("s: DROIDDECK_GAME_EXIT app=2868840 status=82 class=dotnet_unhandled_exception seconds=40 detail=\"x\"\n", text)
+    }
 }

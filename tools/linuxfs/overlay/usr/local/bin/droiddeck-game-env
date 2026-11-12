@@ -1138,19 +1138,38 @@ def classify_game_exit(raw_code, seconds):
     return "exit_code", "exit code %d" % raw_code
 
 
+# Games whose launches wait for Proton by default, so the exit status reaches the log
+# (docs/research/crash-catalogue.md, C5 and I3): Slay the Spire 2.
+EXIT_WATCH_GAMES = frozenset({"2868840"})
+
+
+def exit_watch(app_id, env):
+    """Wait for Proton instead of exec'ing it: DROIDDECK_GAME_EXIT_WATCH=1 or 0, else the per-game default."""
+    setting = env.get("DROIDDECK_GAME_EXIT_WATCH", "")
+    if setting in ("0", "1"):
+        return setting == "1"
+    return app_id in EXIT_WATCH_GAMES
+
+
 def report_game_exit(app_id, raw_code, seconds):
     kind, detail = classify_game_exit(raw_code, seconds)
     print('DROIDDECK_GAME_EXIT app=%s status=%d class=%s seconds=%d detail="%s"' %
           (app_id, raw_code, kind, seconds, detail.replace('"', "'")), file=sys.stderr, flush=True)
 
 
-def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, exit_app_id=None):
+def timeline_game_exit(app_id, raw_code, started):
+    print("DROIDDECK_TIMELINE event=game_exit app_id=%s status=%d signal=%d run_ms=%d wall_ms=%d" % (
+        app_id, 128 - raw_code if raw_code < 0 else raw_code, -raw_code if raw_code < 0 else 0,
+        int((time.monotonic() - started) * 1000), int(time.time() * 1000)), file=sys.stderr, flush=True)
+
+
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
-    if after or diagnostic_app_id is not None or exit_app_id is not None:
+    started = time.monotonic()
+    if after or diagnostic_app_id is not None or watch:
         process = subprocess.Popen(launch, env=launch_env)
-        started = time.monotonic()
         if diagnostic_app_id is not None:
             diagnostic_game_event("game_start", diagnostic_app_id)
         try:
@@ -1167,11 +1186,15 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, exit_a
             record_install_scripts(digest, launch_env)
         if diagnostic_app_id is not None:
             diagnostic_game_exit(diagnostic_app_id, raw_code)
-        if exit_app_id is not None:
-            report_game_exit(exit_app_id, raw_code, int(time.monotonic() - started))
+        if timeline_app_id:
+            timeline_game_exit(timeline_app_id, raw_code, started)
+            report_game_exit(timeline_app_id, raw_code, int(time.monotonic() - started))
         return code
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
+        if timeline_app_id:
+            timeline_game_exit(timeline_app_id, code, started)
+            report_game_exit(timeline_app_id, code, int(time.monotonic() - started))
         if code == 0:
             record_install_scripts(digest, launch_env)
         return code
@@ -1426,20 +1449,21 @@ def main():
                 except OSError as undo:
                     print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); Wine uses its own copy "
                           "and the next launch puts the file back" % undo, file=sys.stderr)
-    # Waiting instead of exec keeps one small Python process alive per game so the exit gets a
-    # DROIDDECK_GAME_EXIT line; DROIDDECK_GAME_EXIT_WATCH=0 restores the exec.
-    exit_app_id = app_id if waiting and env.get("DROIDDECK_GAME_EXIT_WATCH", "1") != "0" else None
+    watch = bool(waiting and app_id and exit_watch(app_id, env))
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
+    if waiting:
+        print("DROIDDECK_TIMELINE event=game_exec app_id=%s wall_ms=%d" % (app_id, int(time.time() * 1000)),
+              file=sys.stderr, flush=True)
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after, diagnostic_app_id, exit_app_id)
+            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after, diagnostic_app_id, exit_app_id)
+        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch)
     except OSError:
         if after:
             try:

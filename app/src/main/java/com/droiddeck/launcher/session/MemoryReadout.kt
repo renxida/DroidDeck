@@ -90,7 +90,8 @@ internal object MemoryReadout {
 
 object MemoryLog {
     private const val TAG = "Memory"
-    private const val PERIOD_MS = 10_000L
+    private const val PERIOD_MS = 5_000L
+    private const val LOG_EVERY = 2L
     @Volatile private var thread: Thread? = null
 
     internal fun line(device: MemoryReadout.Device, split: MemoryReadout.Split): String =
@@ -99,13 +100,38 @@ object MemoryLog {
             "droiddeck ${split.droiddeckKb / 1024}, android ${MemoryReadout.androidKb(device, split) / 1024}, " +
             "gpu ${split.gpuKb?.div(1024) ?: "?"} MB"
 
+    internal const val CSV_HEADER = "t_wall_ms,used_mb,available_mb,swap_used_mb,game_mb,droiddeck_mb,app_mb,gpu_mb"
+
+    internal fun csvLine(at: Long, device: MemoryReadout.Device, split: MemoryReadout.Split, appKb: Long?): String =
+        "$at,${device.usedKb / 1024},${device.availableKb / 1024},${device.swapUsedKb / 1024},${split.gameKb / 1024}," +
+            "${split.droiddeckKb / 1024},${appKb?.div(1024) ?: ""},${split.gpuKb?.div(1024) ?: ""}"
+
+    /** Logs to logcat every [LOG_EVERY] samples and, with [csv], appends every sample to it (memory.csv). */
     @Synchronized
-    fun start() {
+    fun start(csv: java.io.File? = null) {
         if (thread != null) return
         thread = Thread({
-            while (!Thread.currentThread().isInterrupted) {
-                runCatching { MemoryReadout.device()?.let { android.util.Log.i(TAG, line(it, MemoryReadout.split())) } }
-                try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
+            runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) }
+            val out = csv?.let { runCatching { java.io.FileWriter(it, true) }.getOrNull() }
+            try {
+                if (out != null && csv?.length() == 0L) runCatching { out.write(CSV_HEADER + "\n"); out.flush() }
+                var sample = 0L
+                while (!Thread.currentThread().isInterrupted) {
+                    runCatching {
+                        val device = MemoryReadout.device() ?: return@runCatching
+                        val split = MemoryReadout.split()
+                        if (sample % LOG_EVERY == 0L) android.util.Log.i(TAG, line(device, split))
+                        if (out != null) {
+                            val app = runCatching { MemoryReadout.residentKb(java.io.File("/proc/self/status").readText()) }.getOrNull()
+                            out.write(csvLine(System.currentTimeMillis(), device, split, app) + "\n")
+                            out.flush()
+                        }
+                    }
+                    sample++
+                    try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
+                }
+            } finally {
+                runCatching { out?.close() }
             }
         }, "memory-log").apply { isDaemon = true; start() }
     }

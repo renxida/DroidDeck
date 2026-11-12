@@ -33,7 +33,7 @@ com.droiddeck.launcher (app process, oom_score_adj 0 while visible, FGS while no
  ├─ compositor + Vulkan driver (in-process: a GPU driver fault is a native crash of the app)
  └─ proot (tracer)                          <- SessionService.kt:718, HostProcess.kt:44
      └─ droiddeck-session (bash) -> Steam client (FEX) -> reaper -> steam-compatibility
-         └─ droiddeck-game-env (python3, arm64)   <- now waits, prints DROIDDECK_GAME_EXIT
+         └─ droiddeck-game-env (python3, arm64)   <- execs Proton; waits for StS2 (DROIDDECK_GAME_EXIT)
              └─ proton (python) -> wine64 steam.exe -> SlayTheSpire2.exe (FEX, CoreCLR, Godot)
 ```
 
@@ -186,9 +186,17 @@ the server ends the thread as a normal death with that code (`server/thread.c:54
 `256 - n`. For a normal Windows exit Wine passes the NTSTATUS truncated to 8 bits
 (`dlls/ntdll/unix/thread.c:86-91`, `get_unix_exit_code`).
 
-**Fix.** *new* `droiddeck-game-env` waits for Proton instead of `exec`ing it (one ~10 MB arm64
-Python process per game; `DROIDDECK_GAME_EXIT_WATCH=0` restores `exec`) and prints
-`DROIDDECK_GAME_EXIT app=2868840 status=N class=... seconds=S detail="..."`. Status 0 within 30 s is
+**Fix.** *new* Wherever `droiddeck-game-env` already waits for Proton (enhanced diagnostics, a
+launch with a cleanup step; the telemetry work's `DROIDDECK_TIMELINE event=game_exit` comes from the
+same place) it now also prints `DROIDDECK_GAME_EXIT app=2868840 status=N class=... seconds=S
+detail="..."`. The normal path `exec`s Proton, so nothing above Proton sees the status; a parent has
+to be the waiter, since Linux reports an exit status only to the parent (a pidfd or a sibling cannot
+read it). This branch therefore makes waiting a per-game default for StS2 only (`EXIT_WATCH_GAMES`,
+one ~10 MB arm64 Python parent; `DROIDDECK_GAME_EXIT_WATCH=1` or `0` in the game environment
+overrides it for any game). Other games keep `exec`, so the process tree Steam sees and the existing
+launch tests (`test_esync_packs`, `test_game_environment`) are unchanged. Making it the default for
+every game is a one-line change, but its value is bounded by the finding above: a game killed from
+outside still reads 0, so the gain is the Wine exception bytes. Status 0 within 30 s is
 `clean_early`, explicitly "a quick quit or killed from outside".
 
 ### C6. Memory growth of CoreCLR, FEX and DXVK (feeds C1)
@@ -267,7 +275,7 @@ accessibility layer is worth an A/B on PowerVR (E6).
 | I1 | Classify every guest exit (`DROIDDECK_EXIT_CAUSE scope=session`), explain phantom-killer and vendor-watchdog kills on the end screen | **built** (`ExitCause.kt`, `SessionService.classifyGuestExit`, `SessionActivity.exitCauseHint`) | turns "status 137" into a named cause; removes the most common mis-diagnosis | one /proc read at exit | wrong blame if another killer sends SIGKILL while the flag is on; text says "most likely" |
 | I2 | Classify the previous app death on next start, incl. device resets (`scope=app`) | **built** (`SessionArtifacts.classifyAbandoned`, `ExitCause.ofAbandoned`) | counts lmkd kills vs native crashes vs resets per run | one `getHistoricalProcessExitReasons` call | a user power-off also reads `device_reboot` |
 | I3 | Memory-pressure trail (`DROIDDECK_MEMORY_PRESSURE`, `memory.trim` event) | **built** (`SessionService.onTrimMemory`) | shows how close lmkd was before C1 | negligible | Android 14+ may deliver fewer running-level trims (unverified) |
-| I4 | Game exit classification (`DROIDDECK_GAME_EXIT`) | **built**, default on, `DROIDDECK_GAME_EXIT_WATCH=0` to disable | first-ever per-game crash statistics (C3-C5) | ~10 MB RSS, +1 process | process tree under Steam's reaper changes (same shape as the existing enhanced-diagnostics path) |
+| I4 | Game exit classification (`DROIDDECK_GAME_EXIT`) | **built**: on every waited launch; waiting is the default for StS2 only, `DROIDDECK_GAME_EXIT_WATCH=1/0` per game | first per-game crash statistics for StS2 (C3-C5) | ~10 MB RSS, +1 process for StS2 | StS2's process tree under Steam's reaper gains a parent (same shape as the existing enhanced-diagnostics path) |
 | I5 | Keep-alive guard test for a future targetSdk raise | **built** (`test_session_keepalive.py`) | prevents a silent SecurityException on API 34+ | none | none |
 | I6 | StS2 managed-heap tuning: `DOTNET_GCConserveMemory=5`, then a measured `DOTNET_GCHeapHardLimit` | proposed (E3) | lowers peak RSS, fewer C1 kills on the 12 GB Pixel 10 | per-game env | too low a limit is an `OutOfMemoryException` crash |
 | I7 | Stop only the game (not the session) when PSI full avg10 and swap headroom predict an lmkd kill | proposed | converts A into C: Steam and the session survive | moderate | false positives lose game progress; needs E2 data first |
@@ -280,7 +288,13 @@ accessibility layer is worth an A/B on PowerVR (E6).
 | `SessionService: DROIDDECK_EXIT_CAUSE scope=session class=<clean,exit_code,sigkill,sigterm,sighup,crash_signal,signal> suspect=<...> status=N signal=SIGx detail="..."` + `exit.classified` | the guest ends while the session is running |
 | `SessionArtifacts: DROIDDECK_EXIT_CAUSE scope=app class=<lmk,excessive_cpu,app_crash,app_native_crash,anr,freezer,user,sigkill,device_reboot,unknown> ...` + `exit.classified` in the dead session's folder, and the same line appended to `ended-without-teardown.txt` | first app start after a session died with the app |
 | `SessionService: DROIDDECK_MEMORY_PRESSURE level=L availableMb=... swapFreeMb=... psiSomeAvg10=... psiFullAvg10=...` + `memory.trim` | Android calls `onTrimMemory` during a session |
-| `DROIDDECK_GAME_EXIT app=ID status=N class=... seconds=S detail="..."` (stderr of the compat tool, in `session.log`) | every Proton `waitforexitandrun` game exit |
+| `DROIDDECK_GAME_EXIT app=ID status=N class=... seconds=S detail="..."` (stderr of the compat tool, in `session.log`; also kept in the telemetry bundle's `crash-lines.txt`) | a Proton `waitforexitandrun` exit the wrapper waited for: StS2 by default, any game with `DROIDDECK_GAME_EXIT_WATCH=1`, enhanced diagnostics |
+
+The telemetry work on main records the raw facts these lines interpret: `app.exit` events
+(ApplicationExitInfo, `telemetry/AppExits.kt`), `game.exited` (gamescope's focused pid leaving
+`/proc`, `telemetry/GameExitWatch.kt`) and `crash-lines.txt`. `DROIDDECK_EXIT_CAUSE` adds the verdict
+(which killer, which suspect), the device-reboot inference for D, and the user-facing explanation for
+the phantom process killer; the two read the same exit records independently.
 
 ## 6. On-device experiment plan (Pixel 10)
 
