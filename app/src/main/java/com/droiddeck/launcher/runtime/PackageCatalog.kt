@@ -110,12 +110,19 @@ object PackageCatalog {
             !File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").isFile
 
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? = synchronized(installLock) {
-        installLocked(context, entry, null, listener)
+        timed(entry) { installLocked(context, entry, null, listener) }
     }
 
     fun install(context: Context, entry: Entry, cancelled: Downloader.Cancellation,
                 listener: LinuxRuntimeInstaller.ProgressListener?): String? = synchronized(installLock) {
-        installLocked(context, entry, cancelled, listener)
+        timed(entry) { installLocked(context, entry, cancelled, listener) }
+    }
+
+    private inline fun timed(entry: Entry, install: () -> String?): String? {
+        com.droiddeck.launcher.telemetry.Timeline.mark("setup.package.start", mapOf("id" to entry.id))
+        val problem = install()
+        com.droiddeck.launcher.telemetry.Timeline.mark("setup.package.done", mapOf("id" to entry.id, "ok" to (problem == null)))
+        return problem
     }
 
     private fun installLocked(context: Context, entry: Entry, cancelled: Downloader.Cancellation?,
