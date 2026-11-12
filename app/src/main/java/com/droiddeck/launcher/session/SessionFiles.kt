@@ -28,6 +28,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
             "usr/local/bin/droiddeck-wine-pe" to "usr/local/bin/droiddeck-wine-pe",
             "usr/local/bin/droiddeck-warmup" to "usr/local/bin/droiddeck-warmup",
+            "usr/local/bin/droiddeck-fex-memory" to "usr/local/bin/droiddeck-fex-memory",
             "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",

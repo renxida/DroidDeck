@@ -376,6 +376,15 @@ def little_nightmares_threads(game):
         return {"PROTONFIXES_DISABLE": "1"}, [], "Little Nightmares: umu-protonfixes off (its -onethread puts the game and renderer on one thread)"
 
 
+def fex_memory_model(command, env):
+    try:
+        module = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-fex-memory"))
+        env, notes = module["launch"](command, env)
+    except (OSError, ValueError, KeyError) as error:
+        return env, ["FEX memory model not checked (%s)" % error]
+    return env, notes
+
+
 def skip_red_launcher(command):
     if len(command) > 2 and os.path.basename(command[2]).lower() == "redprelauncher.exe":
         game = os.path.join(os.path.dirname(command[2]), "bin", "x64", "Cyberpunk2077.exe")
@@ -1953,6 +1962,9 @@ def main():
             print("droiddeck-game-env: OpenGL does not wait for the screen refresh (vblank_mode=0)", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
+        env, notes = fex_memory_model(command, env)
+        for note in notes:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
