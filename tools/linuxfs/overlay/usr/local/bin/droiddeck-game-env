@@ -5,6 +5,7 @@ import os
 import re
 import runpy
 import signal
+import struct
 import subprocess
 import sys
 import tempfile
@@ -80,14 +81,138 @@ def game_files(exe):
 
 class Game:
 
-    def __init__(self, exe, args):
+    def __init__(self, exe, args, env=None):
         self.exe = exe
         self.args = args
+        self.env = env or {}
         self.stem = os.path.splitext(os.path.basename(exe))[0].lower()
         self.files = game_files(exe)
+        self._godot = None
 
     def has_arg(self, name):
         return any(a == name or a.startswith(name + "=") for a in self.args)
+
+    def godot(self):
+        """Version and project settings read from the game's Godot data pack; empty when unreadable."""
+        if self._godot is None:
+            if self.exe not in GODOT_PROJECTS:
+                try:
+                    GODOT_PROJECTS[self.exe] = godot_project(self.exe) or {}
+                except (OSError, ValueError, struct.error):
+                    GODOT_PROJECTS[self.exe] = {}
+            self._godot = GODOT_PROJECTS[self.exe]
+        return self._godot
+
+
+GODOT_PROJECTS = {}
+
+
+PCK_MAGIC = 0x43504447
+GODOT_SETTINGS = {
+    "application/config/name", "application/config/use_custom_user_dir", "application/config/custom_user_dir_name",
+    "rendering/renderer/rendering_method", "rendering/rendering_device/driver", "rendering/rendering_device/driver.windows",
+    "debug/file_logging/log_path",
+}
+
+
+def godot_pack_start(source):
+    """Offset of a Godot pack header: at the start of a .pck, or the pack appended to an executable."""
+    source.seek(0)
+    if source.read(4) == struct.pack("<I", PCK_MAGIC):
+        return 0
+    end = source.seek(0, 2)
+    if end < 16:
+        return None
+    source.seek(end - 12)
+    size, magic = struct.unpack("<QI", source.read(12))
+    start = end - 12 - size
+    if magic != PCK_MAGIC or start < 0:
+        return None
+    source.seek(start)
+    return start if source.read(4) == struct.pack("<I", PCK_MAGIC) else None
+
+
+def godot_variant(data):
+    """The bool, int and string Variants of Godot's binary encoding (core/io/marshalls.cpp)."""
+    if len(data) < 8:
+        return None
+    header, = struct.unpack_from("<I", data)
+    kind = header & 0xFF
+    if kind == 1:
+        return bool(struct.unpack_from("<I", data, 4)[0])
+    if kind == 2:
+        return struct.unpack_from("<q" if header & 1 << 16 else "<i", data, 4)[0]
+    if kind == 4:
+        length, = struct.unpack_from("<I", data, 4)
+        return data[8:8 + length].decode("utf-8", "replace")
+    return None
+
+
+def godot_settings(data):
+    """Selected entries of an exported project.binary ("ECFG", count, then key and Variant pairs)."""
+    if data[:4] != b"ECFG":
+        return {}
+    count, = struct.unpack_from("<I", data, 4)
+    position, settings = 8, {}
+    for _ in range(min(count, 1 << 20)):
+        length, = struct.unpack_from("<I", data, position)
+        key = data[position + 4:position + 4 + length].decode("utf-8", "replace")
+        position += 4 + length
+        length, = struct.unpack_from("<I", data, position)
+        if key in GODOT_SETTINGS:
+            settings[key] = godot_variant(data[position + 4:position + 4 + length])
+        position += 4 + length
+    return settings
+
+
+def godot_project(exe):
+    """Engine version and settings of a Godot 4 game, read as core/io/file_access_pack.cpp opens its pack:
+    the pack inside the executable first, then <exe stem>.pck beside it."""
+    folder, name = os.path.split(exe)
+    candidates = [exe]
+    stem = os.path.splitext(name)[0].lower()
+    try:
+        with os.scandir(folder or ".") as entries:
+            candidates += sorted(e.path for e in entries if e.name.lower() in (stem + ".pck", name.lower() + ".pck"))
+    except OSError:
+        pass
+    for path in candidates:
+        try:
+            with open(path, "rb") as source:
+                start = godot_pack_start(source)
+                if start is None:
+                    continue
+                return godot_pack_project(source, start, path)
+        except OSError:
+            continue
+    return None
+
+
+def godot_pack_project(source, start, path):
+    source.seek(start + 4)
+    version, major, minor, patch, flags, file_base = struct.unpack("<5IQ", source.read(28))
+    project = {"version": (major, minor, patch), "pack": path}
+    if version not in (2, 3) or flags & 1:
+        return project
+    if version == 3 or flags & 2:
+        file_base += start
+    if version == 3:
+        source.seek(start + struct.unpack("<Q", source.read(8))[0])
+    else:
+        source.seek(64, 1)
+    count, = struct.unpack("<I", source.read(4))
+    for _ in range(min(count, 1 << 21)):
+        length, = struct.unpack("<I", source.read(4))
+        if length > 4096:
+            break
+        name = source.read(length).rstrip(b"\0")
+        offset, size, _, _, entry_flags = struct.unpack("<QQ8s8sI", source.read(36))
+        if name in (b"res://project.binary", b"project.binary"):
+            if not entry_flags & 3 and size <= 1 << 22:
+                source.seek(file_base + offset)
+                project["settings"] = godot_settings(source.read(size))
+            break
+    return project
 
 
 FIXES = []
@@ -114,10 +239,64 @@ def unity_memory_ordering(game):
         return {"FEX_TSOENABLED": "1"}, [], "Unity: FEX with TSO"
 
 
+GODOT_RENDERER = "DROIDDECK_GODOT_RENDERER"
+GODOT_RENDERERS = ("auto", "mobile", "forward_plus", "vulkan", "off")
+GODOT_RD_METHODS = ("forward_plus", "mobile")
+
+
+def powervr(env):
+    return env.get("HYBRIS_VULKAN_HAL", "").endswith("/vulkan.powervr.so")
+
+
+def godot_renderer_choice(game):
+    choice = game.env.get(GODOT_RENDERER, "").strip().lower() or "auto"
+    return choice if choice in GODOT_RENDERERS else "auto"
+
+
 @fix
 def godot_vulkan(game):
-    if is_godot(game) and not game.has_arg("--rendering-driver"):
-        return {}, ["--rendering-driver", "vulkan"], "Godot: Vulkan renderer"
+    """Godot 4 draws through Vulkan straight to the device's driver. Its D3D12 driver, which some games
+    (Slay the Spire 2) pick on Windows, needs vkd3d-proton and shows a black window there."""
+    if not is_godot(game):
+        return None
+    choice = godot_renderer_choice(game)
+    project = game.godot()
+    version = project.get("version")
+    if choice == "off" or (version and version[0] != 4):
+        return None
+    settings = project.get("settings", {})
+    own_method = settings.get("rendering/renderer/rendering_method", "forward_plus" if "settings" in project else None)
+    own_driver = settings.get("rendering/rendering_device/driver.windows",
+                              settings.get("rendering/rendering_device/driver", "vulkan" if "settings" in project else None))
+    described = "Godot %s" % ".".join(map(str, version)) if version else "Godot"
+    if own_method:
+        described += " (project: %s on %s)" % (own_method, own_driver if own_method in GODOT_RD_METHODS else "OpenGL")
+    extra = []
+    if game.has_arg("--rendering-driver"):
+        return {}, [], described + ": renderer left to the launch options"
+    shown = None
+    if game.has_arg("--rendering-method"):
+        shown = next((game.args[i + 1] for i, a in enumerate(game.args[:-1]) if a == "--rendering-method"), "")
+        if shown not in GODOT_RD_METHODS:
+            return {}, [], described + ": renderer left to the launch options"
+        target = None
+    elif choice in GODOT_RD_METHODS:
+        target = choice
+    elif choice == "auto" and own_method in GODOT_RD_METHODS:
+        # Mobile keeps 2D back-buffer copies and blurs in raster passes, the path Godot built for tiled GPUs;
+        # Forward+ runs them as compute dispatches between raster passes.
+        target = "mobile" if powervr(game.env) else own_method
+    else:
+        target = None
+    if target:
+        extra += ["--rendering-method", target]
+    extra += ["--rendering-driver", "vulkan"]
+    if version and version[:2] >= (4, 5) and not game.has_arg("--accessibility"):
+        # The default "auto" mode starts AccessKit's UI Automation provider for the window; "disabled" skips it.
+        extra += ["--accessibility", "disabled"]
+    # Without --rendering-method, Godot's main.cpp picks forward_plus for any RenderingDevice driver.
+    shown = target or shown or "forward_plus"
+    return {}, extra, "%s: %s on Vulkan (%s=%s)" % (described, shown, GODOT_RENDERER, choice)
 
 
 @fix
@@ -345,8 +524,8 @@ def offline_without_anticheat(command, env):
     return command[:2] + [game] + command[3:]
 
 
-def engine_fixes(exe, args):
-    game = Game(exe, args)
+def engine_fixes(exe, args, env=None):
+    game = Game(exe, args, env)
     env, extra, notes = {}, [], []
     for check in FIXES:
         found = check(game)
@@ -358,6 +537,116 @@ def engine_fixes(exe, args):
             extra += found[1]
             notes.append(found[2])
     return env, extra, notes
+
+
+def with_args(command, extra):
+    """Engine arguments go before a `--` or `++`, after which Godot hands arguments to the game's scripts."""
+    for index in range(3, len(command)):
+        if command[index] in ("--", "++"):
+            return command[:index] + extra + command[index:]
+    return command + extra
+
+
+GODOT_OVERRIDE = (
+    "; Written by DroidDeck: Godot saves its Vulkan pipeline cache in small steps, so pipelines compiled\n"
+    "; before the game is closed without quitting are kept. DROIDDECK_GODOT_RENDERER=off removes this file.\n"
+    "config_version=5\n\n[rendering]\n\nrendering_device/pipeline_cache/save_chunk_size_mb=0.5\n"
+)
+
+
+def godot_override(game):
+    """override.cfg beside the executable, read after the pack's own settings (core/config/project_settings.cpp).
+    Godot otherwise saves the pipeline cache only after each 3 MiB of growth and on a clean exit."""
+    folder = os.path.dirname(game.exe)
+    try:
+        with os.scandir(folder) as entries:
+            found = [e.path for e in entries if e.name.lower() == "override.cfg"]
+    except OSError:
+        return None
+    path = found[0] if found else os.path.join(folder, "override.cfg")
+    text = None
+    if found:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as source:
+                text = source.read(1 << 16)
+        except OSError as error:
+            return "Godot: override.cfg unreadable (%s); left as is" % error
+    ours = text is not None and text.startswith(GODOT_OVERRIDE.split("\n", 1)[0])
+    version = game.godot().get("version")
+    if godot_renderer_choice(game) == "off" or not version or version[0] != 4:
+        if ours:
+            try:
+                os.remove(path)
+                return "Godot: DroidDeck's override.cfg removed"
+            except OSError as error:
+                return "Godot: DroidDeck's override.cfg not removed (%s)" % error
+        return None
+    if text is not None and not ours:
+        return "Godot: the game's own override.cfg left as is; pipeline cache saved at Godot's 3 MiB steps"
+    if text != GODOT_OVERRIDE:
+        staged = None
+        try:
+            with tempfile.NamedTemporaryFile("w", dir=folder, prefix=".override.cfg.", delete=False, encoding="utf-8") as out:
+                staged = out.name
+                out.write(GODOT_OVERRIDE)
+            os.replace(staged, path)
+        except OSError as error:
+            if staged:
+                try:
+                    os.remove(staged)
+                except OSError:
+                    pass
+            return "Godot: override.cfg not written (%s); pipeline cache saved at Godot's 3 MiB steps" % error
+    return "Godot: pipeline cache saved every 0.5 MiB (override.cfg)"
+
+
+def godot_safe_name(name, paths=False):
+    name = name.replace("\\", "/").replace("//", "/").strip() if paths else name.strip()
+    for bad in [":", "*", "?", '"', "<", ">", "|"] + ([".."] if paths else ["/", "\\"]):
+        name = name.replace(bad, "-")
+    return name.rstrip(".")
+
+
+def godot_user_dir(game):
+    """user:// of a Windows Godot game in its Proton prefix, as core/os/os.cpp get_user_data_dir() builds it."""
+    settings = game.godot().get("settings")
+    prefix = game.env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if settings is None or not prefix:
+        return None
+    roaming = Path(prefix) / "pfx/drive_c/users/steamuser/AppData/Roaming"
+    name = godot_safe_name(str(settings.get("application/config/name") or ""))
+    if not name:
+        return roaming / "Godot/app_userdata/[unnamed project]"
+    if settings.get("application/config/use_custom_user_dir"):
+        return roaming / (godot_safe_name(str(settings.get("application/config/custom_user_dir_name") or ""), True) or name)
+    return roaming / "Godot/app_userdata" / name
+
+
+GODOT_HEADER = re.compile(r"^(?:Vulkan|D3D12|Metal|OpenGL API) \S+ - .+ - Using Device.*$", re.M)
+
+
+def godot_files(game):
+    """The pipeline cache Godot keeps in user://vulkan and the renderer its last run reported in its log."""
+    notes = [note for note in (godot_override(game),) if note]
+    folder = godot_user_dir(game)
+    if folder is None:
+        return notes
+    try:
+        caches = sorted((folder / "vulkan").glob("pipelines.*.cache"))
+        sizes = ", ".join("%s %.2f MiB" % (p.name, p.stat().st_size / 2**20) for p in caches)
+    except OSError:
+        sizes = ""
+    notes.append("Godot pipeline cache in %s: %s" % (folder, sizes or "none yet"))
+    log = str(game.godot().get("settings", {}).get("debug/file_logging/log_path") or "user://logs/godot.log")
+    if log.startswith("user://"):
+        try:
+            with open(folder / log[len("user://"):], encoding="utf-8", errors="replace") as source:
+                found = GODOT_HEADER.search(source.read(1 << 16))
+            if found:
+                notes.append("Godot last run: " + found.group(0).strip())
+        except OSError:
+            pass
+    return notes
 
 
 def win_components(compat, app_id, proton=None, env=None):
@@ -1295,12 +1584,19 @@ def main():
             command = skip_red_launcher(command)
             ubisoft_overlay_off(env)
             project_zomboid_jvm(command)
-            fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
+            fixes, extra, notes = engine_fixes(command[2], command[3:], effective_env) if len(command) > 2 else ({}, [], [])
+            if len(command) > 2:
+                game = Game(command[2], command[3:], effective_env)
+                if is_godot(game):
+                    try:
+                        notes += godot_files(game)
+                    except (OSError, ValueError) as error:
+                        notes.append("Godot: cache and log check skipped (%s)" % error)
             if not gl_default:
                 fixes.pop("vblank_mode", None)
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
-            command += extra
+            command = with_args(command, extra)
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components

@@ -3,6 +3,7 @@ import io
 import json
 import os
 import shutil
+import struct
 from pathlib import Path
 import runpy
 import shlex
@@ -2798,6 +2799,195 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual([], self.run_repair(compat, proton))
             self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
             self.assertEqual([], self.run_repair(Path(tmp) / "missing", proton))
+
+
+def godot_variant(value):
+    if isinstance(value, bool):
+        return struct.pack("<II", 1, int(value))
+    if isinstance(value, int):
+        return struct.pack("<Ii", 2, value)
+    data = value.encode()
+    return struct.pack("<II", 4, len(data)) + data + b"\0" * (-len(data) % 4)
+
+
+def godot_pack(settings=None, version=(4, 5, 1), fmt=3, flags=2, path="project.binary", file_flags=0):
+    """A Godot data pack holding only project.binary, laid out as core/io/file_access_pack.cpp reads it."""
+    binary = b"ECFG" + struct.pack("<I", len(settings or {}))
+    for key, value in (settings or {}).items():
+        encoded = godot_variant(value)
+        binary += struct.pack("<I", len(key)) + key.encode() + struct.pack("<I", len(encoded)) + encoded
+    name = path.encode() + b"\0" * (-len(path) % 4)
+    directory = struct.pack("<II", 1, len(name)) + name + struct.pack("<QQ", 0, len(binary)) + b"\0" * 16 + struct.pack("<I", file_flags)
+    header_size = 4 + 20 + 8 + (8 if fmt == 3 else 0) + 64
+    if fmt == 3:
+        file_base = header_size
+        header = struct.pack("<6IQQ", 0x43504447, fmt, *version, flags, file_base, file_base + len(binary)) + b"\0" * 64
+        return header + binary + directory
+    file_base = header_size + len(directory)
+    return struct.pack("<6IQ", 0x43504447, fmt, *version, flags, file_base) + b"\0" * 64 + directory + binary
+
+
+STS2_SETTINGS = {
+    "application/config/name": "Slay the Spire 2",
+    "application/config/use_custom_user_dir": True,
+    "application/config/custom_user_dir_name": "SlayTheSpire2",
+    "rendering/rendering_device/driver.windows": "d3d12",
+    "rendering/textures/vram_compression/import_etc2_astc": False,
+    "display/window/size/viewport_width": 1920,
+}
+POWERVR = {"HYBRIS_VULKAN_HAL": "/vendor/lib64/hw/vulkan.powervr.so"}
+
+
+class GodotRendererTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(MODULE["GODOT_PROJECTS"].clear)
+        MODULE["GODOT_PROJECTS"].clear()
+
+    def game(self, pack, name="SlayTheSpire2", embedded=False):
+        folder = Path(self.tmp.name) / name
+        (folder / "data_sts2_windows_x86_64").mkdir(parents=True, exist_ok=True)
+        (folder / "data_sts2_windows_x86_64/GodotSharp.dll").touch()
+        exe = folder / (name + ".exe")
+        if embedded:
+            exe.write_bytes(b"MZ" + b"\0" * 62 + pack + struct.pack("<QI", len(pack), 0x43504447))
+        else:
+            exe.write_bytes(b"MZ" + b"\0" * 62)
+            (folder / (name + ".pck")).write_bytes(pack)
+        return str(exe)
+
+    def args(self, exe, env=None, args=()):
+        return MODULE["engine_fixes"](exe, list(args), env)
+
+    def test_the_pack_gives_the_version_and_project_settings(self):
+        project = MODULE["godot_project"](self.game(godot_pack(STS2_SETTINGS)))
+        self.assertEqual(project["version"], (4, 5, 1))
+        self.assertEqual(project["settings"], {
+            "application/config/name": "Slay the Spire 2",
+            "application/config/use_custom_user_dir": True,
+            "application/config/custom_user_dir_name": "SlayTheSpire2",
+            "rendering/rendering_device/driver.windows": "d3d12",
+        })
+        for pack, embedded in ((godot_pack(STS2_SETTINGS, fmt=2), False), (godot_pack(STS2_SETTINGS), True),
+                               (godot_pack(STS2_SETTINGS, path="res://project.binary"), False)):
+            MODULE["GODOT_PROJECTS"].clear()
+            with self.subTest(embedded=embedded):
+                project = MODULE["godot_project"](self.game(pack, "Other", embedded))
+                self.assertEqual(project["settings"]["rendering/rendering_device/driver.windows"], "d3d12")
+        self.assertNotIn("settings", MODULE["godot_project"](self.game(godot_pack(STS2_SETTINGS, flags=3), "Encrypted")))
+        self.assertNotIn("settings", MODULE["godot_project"](self.game(godot_pack(STS2_SETTINGS, file_flags=1), "EncryptedFile")))
+        self.assertIsNone(MODULE["godot_project"](self.game(b"not a pack", "Broken")))
+
+    def test_forward_plus_projects_keep_their_renderer_on_vulkan_and_use_mobile_on_powervr(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        env, extra, notes = self.args(exe)
+        self.assertEqual(extra, ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan", "--accessibility", "disabled"])
+        self.assertIn("Godot 4.5.1 (project: forward_plus on d3d12): forward_plus on Vulkan (DROIDDECK_GODOT_RENDERER=auto)", notes)
+        env, extra, notes = self.args(exe, POWERVR)
+        self.assertEqual(extra[:4], ["--rendering-method", "mobile", "--rendering-driver", "vulkan"])
+        self.assertIn("Godot 4.5.1 (project: forward_plus on d3d12): mobile on Vulkan (DROIDDECK_GODOT_RENDERER=auto)", notes)
+        for choice, expected in (("mobile", ["--rendering-method", "mobile", "--rendering-driver", "vulkan"]),
+                                 ("forward_plus", ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan"]),
+                                 ("vulkan", ["--rendering-driver", "vulkan"]), ("junk", ["--rendering-method", "mobile", "--rendering-driver", "vulkan"])):
+            with self.subTest(choice=choice):
+                self.assertEqual(self.args(exe, dict(POWERVR, DROIDDECK_GODOT_RENDERER=choice))[1][:-2], expected)
+        self.assertEqual(self.args(exe, dict(POWERVR, DROIDDECK_GODOT_RENDERER="off")), ({}, [], []))
+
+    def test_launch_options_and_other_projects_choose_for_themselves(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        self.assertEqual(self.args(exe, POWERVR, ["--rendering-driver", "d3d12"])[1], [])
+        self.assertEqual(self.args(exe, POWERVR, ["--rendering-method", "gl_compatibility"])[1], [])
+        self.assertEqual(self.args(exe, POWERVR, ["--rendering-method", "mobile", "--accessibility", "auto"])[1], ["--rendering-driver", "vulkan"])
+        compatibility = self.game(godot_pack({"rendering/renderer/rendering_method": "gl_compatibility"}, (4, 3, 0)), "Compat")
+        env, extra, notes = self.args(compatibility, POWERVR)
+        self.assertEqual(extra, ["--rendering-driver", "vulkan"])
+        self.assertIn("Godot 4.3.0 (project: gl_compatibility on OpenGL): forward_plus on Vulkan (DROIDDECK_GODOT_RENDERER=auto)", notes)
+        mobile = self.game(godot_pack({"rendering/renderer/rendering_method": "mobile"}, (4, 4, 1)), "Mobile")
+        self.assertEqual(self.args(mobile)[1], ["--rendering-method", "mobile", "--rendering-driver", "vulkan"])
+        self.assertEqual(self.args(self.game(godot_pack({}, (3, 5, 3)), "Godot3"), POWERVR)[1], [])
+
+    def test_engine_arguments_go_before_the_games_own(self):
+        with_args = MODULE["with_args"]
+        self.assertEqual(with_args(["proton", "waitforexitandrun", "g.exe", "-a"], ["--x"]), ["proton", "waitforexitandrun", "g.exe", "-a", "--x"])
+        self.assertEqual(with_args(["proton", "waitforexitandrun", "g.exe", "-a", "--", "--b"], ["--x", "1"]),
+                         ["proton", "waitforexitandrun", "g.exe", "-a", "--x", "1", "--", "--b"])
+        self.assertEqual(with_args(["proton", "waitforexitandrun", "g.exe", "++", "b"], ["--x"]), ["proton", "waitforexitandrun", "g.exe", "--x", "++", "b"])
+
+    def test_override_cfg_saves_the_pipeline_cache_in_small_steps_and_is_removed_when_off(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        override = Path(exe).with_name("override.cfg")
+        game = MODULE["Game"](exe, [], {})
+        self.assertEqual(MODULE["godot_override"](game), "Godot: pipeline cache saved every 0.5 MiB (override.cfg)")
+        text = override.read_text()
+        self.assertIn("[rendering]\n\nrendering_device/pipeline_cache/save_chunk_size_mb=0.5\n", text)
+        self.assertTrue(text.startswith("; ") and "\nconfig_version=5\n" in text)
+        stamp = override.stat().st_mtime_ns
+        MODULE["godot_override"](game)
+        self.assertEqual(override.stat().st_mtime_ns, stamp)
+        self.assertEqual(sorted(p.name for p in override.parent.iterdir() if p.name.startswith(".")), [])
+        off = MODULE["Game"](exe, [], {"DROIDDECK_GODOT_RENDERER": "off"})
+        self.assertEqual(MODULE["godot_override"](off), "Godot: DroidDeck's override.cfg removed")
+        self.assertFalse(override.exists())
+        override.write_text("[display]\nwindow/vsync/vsync_mode=0\n")
+        self.assertIn("own override.cfg left as is", MODULE["godot_override"](game))
+        self.assertIsNone(MODULE["godot_override"](off))
+        self.assertEqual(override.read_text(), "[display]\nwindow/vsync/vsync_mode=0\n")
+        godot3 = MODULE["Game"](self.game(godot_pack({}, (3, 5, 3)), "Godot3"), [], {})
+        self.assertIsNone(MODULE["godot_override"](godot3))
+        self.assertFalse(Path(godot3.exe).with_name("override.cfg").exists())
+
+    def test_a_launch_applies_the_games_renderer_setting_and_logs_it(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        home = Path(self.tmp.name)
+        config = home / ".config/droiddeck/game-environment.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"version": 1, "games": {"2868840": {"DROIDDECK_GODOT_RENDERER": "forward_plus"}}}))
+        started = []
+        stubs = {
+            "game_gpu": lambda env: env, "mark_install_scripts": lambda command, env: [],
+            "win_components": lambda *args: "", "repair_foreign_system_dlls": lambda *args: [],
+            "game_images": lambda env: None, "ubisoft_overlay_off": lambda env: None,
+            "dirt_ws2_wanted": lambda *args: None, "offline_without_anticheat": lambda command, env: command,
+            "game_logs": lambda command, env, app_id: env, "game_cores": lambda env: None,
+            "cpu_topology": lambda env, command: None, "ego_core_plan": lambda *args: None, "load_sync": lambda: {},
+            "select_sync": lambda command, env, sync: (command, env),
+            "start": lambda command, env, *args: started.append(command) or 0,
+        }
+        environment = dict(POWERVR, HOME=str(home), STEAM_COMPAT_DATA_PATH=str(home / "compatdata/2868840"))
+        command = ["/stock/proton", "waitforexitandrun", exe, "--", "--mod"]
+        err = io.StringIO()
+        with patch.dict(os.environ, environment, clear=True), patch.object(sys, "argv", ["game-env", *command]), \
+                patch.dict(MODULE["main"].__globals__, stubs), patch.object(sys, "stderr", err):
+            self.assertEqual(MODULE["main"](), 0)
+        self.assertEqual(started[0][3:], ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan",
+                                          "--accessibility", "disabled", "--", "--mod"])
+        self.assertIn("droiddeck-game-env: Godot 4.5.1 (project: forward_plus on d3d12): forward_plus on Vulkan "
+                      "(DROIDDECK_GODOT_RENDERER=forward_plus)\n", err.getvalue())
+        self.assertIn("droiddeck-game-env: Godot: pipeline cache saved every 0.5 MiB (override.cfg)\n", err.getvalue())
+        self.assertIn("/SlayTheSpire2: none yet\n", err.getvalue())
+        self.assertTrue(Path(exe).with_name("override.cfg").is_file())
+
+    def test_the_pipeline_cache_and_last_renderer_are_logged_from_the_prefix(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        prefix = Path(self.tmp.name) / "compatdata/2868840"
+        user = prefix / "pfx/drive_c/users/steamuser/AppData/Roaming/SlayTheSpire2"
+        game = MODULE["Game"](exe, [], {"STEAM_COMPAT_DATA_PATH": str(prefix) + "/"})
+        self.assertEqual(MODULE["godot_user_dir"](game), user)
+        notes = MODULE["godot_files"](game)
+        self.assertIn("Godot pipeline cache in %s: none yet" % user, notes)
+        (user / "vulkan").mkdir(parents=True)
+        (user / "vulkan/pipelines.mobile.powervr_d-series_dxt-48-1536.cache").write_bytes(b"\0" * (3 << 19))
+        (user / "logs").mkdir()
+        (user / "logs/godot.log").write_text("Godot Engine v4.5.1.stable.mono.official.f62fdbde1 - https://godotengine.org\n"
+                                             "Vulkan 1.3.277 - Forward Mobile - Using Device #0: ImgTec - PowerVR D-Series DXT-48-1536\n\n")
+        notes = MODULE["godot_files"](game)
+        self.assertIn("Godot pipeline cache in %s: pipelines.mobile.powervr_d-series_dxt-48-1536.cache 1.50 MiB" % user, notes)
+        self.assertIn("Godot last run: Vulkan 1.3.277 - Forward Mobile - Using Device #0: ImgTec - PowerVR D-Series DXT-48-1536", notes)
+        plain = {"application/config/name": "My: Game."}
+        MODULE["GODOT_PROJECTS"].clear()
+        other = MODULE["Game"](self.game(godot_pack(plain), "Plain"), [], {"STEAM_COMPAT_DATA_PATH": str(prefix)})
+        self.assertEqual(MODULE["godot_user_dir"](other), prefix / "pfx/drive_c/users/steamuser/AppData/Roaming/Godot/app_userdata/My- Game")
 
 
 if __name__ == "__main__":
