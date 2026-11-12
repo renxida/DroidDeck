@@ -5,7 +5,7 @@ machine with ADB installs it on a dedicated test device, and a scenario measures
 
 ## Build
 
-Push to the fork's `main`, or to a branch with a pull request against the fork's own `main`.
+Push to the fork's `main` or to a `perf/`, `cleanup/`, `ux/` or `test/` branch; each builds on its own.
 `build.yml` runs on GitHub-hosted runners (`pick-runner.yml` falls back to `ubuntu-24.04` when
 `RUNNER_STATUS_TOKEN` is absent), builds `assembleRelease`, runs `testReleaseUnitTest` and uploads
 the testkey-signed APK as the `droiddeck-apk` artifact. Forks start with Actions disabled; enable

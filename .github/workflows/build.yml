@@ -3,7 +3,8 @@ run-name: ${{ github.event_name == 'pull_request' && format('building pr {0} on 
 
 on:
   push:
-    branches: [ main ]
+    # main, plus the fork's work branches so each can be built and installed without a PR.
+    branches: [ main, 'perf/**', 'cleanup/**', 'ux/**', 'test/**' ]
     paths-ignore:
       - '**/*.md'
       - 'LICENSE'
@@ -32,7 +33,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: build-${{ github.event.pull_request.number || (github.event_name == 'push' && 'main') || github.run_id }}
+  group: build-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref_name) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
