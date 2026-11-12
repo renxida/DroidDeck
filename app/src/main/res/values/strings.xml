@@ -1932,6 +1932,15 @@
     <string name="mode_client_arch_x64">x86-64</string>
     <string name="setup_vac_diag">VAC diagnostics</string>
     <string name="setup_vac_diag_hint">Source games log their console (-condebug); vac.txt in the session logs says secure or insecure</string>
+    <string name="setup_telemetry_upload">Telemetry upload</string>
+    <string name="setup_telemetry_upload_hint">After each session, and every 5 minutes during one, sends frame times, clocks, temperatures, memory, the startup timeline and session.log to your own GitHub repository</string>
+    <string name="setup_telemetry_repo">Repository (owner/name)</string>
+    <string name="setup_telemetry_token">Fine-grained token (Contents: read and write)</string>
+    <string name="setup_telemetry_token_saved">Token saved; paste a new one to replace it</string>
+    <string name="setup_telemetry_save">Save</string>
+    <string name="setup_telemetry_forget">Forget token</string>
+    <string name="setup_telemetry_saved">Saved</string>
+    <string name="setup_telemetry_invalid">Check the repository (owner/name) and the token</string>
     <string name="load_starting_steam_x64">Starting Steam x86-64</string>
     <string name="storage_game_x64">%1$s · x86-64</string>
     <string name="storage_tool_x64_client">Used by the x86-64 Steam client</string>

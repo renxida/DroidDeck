@@ -67,6 +67,7 @@ internal class AddonPack(
         }
         scope.launch {
             val ok = runCatching { install(app) }.onFailure { Log.w(TAG, "$name: install failed", it) }.getOrDefault(false)
+            com.droiddeck.launcher.telemetry.Timeline.mark("setup.addon.done", mapOf("pack" to name, "ok" to ok))
             mutableState.value = if (ok) State.Ready else State.Failed
             if (ok) onReady(app)
         }
@@ -93,6 +94,7 @@ internal class AddonPack(
             Log.w(TAG, if (reuseDeviceCopy) "$name: this build has no pack and none is installed" else "$name: this build has no pack")
             return false
         }
+        com.droiddeck.launcher.telemetry.Timeline.mark("setup.addon.start", mapOf("pack" to name))
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
         val downloaded = bundled(context, archive) || urls.any { url ->

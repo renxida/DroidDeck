@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
@@ -1235,10 +1236,17 @@ def diagnostic_game_exit(app_id, raw_code):
     })
 
 
-def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
+def timeline_game_exit(app_id, raw_code, started):
+    print("DROIDDECK_TIMELINE event=game_exit app_id=%s status=%d signal=%d run_ms=%d wall_ms=%d" % (
+        app_id, 128 - raw_code if raw_code < 0 else raw_code, -raw_code if raw_code < 0 else 0,
+        int((time.monotonic() - started) * 1000), int(time.time() * 1000)), file=sys.stderr, flush=True)
+
+
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
+    started = time.monotonic()
     if after or diagnostic_app_id is not None:
         process = subprocess.Popen(launch, env=launch_env)
         if diagnostic_app_id is not None:
@@ -1257,9 +1265,13 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
             record_install_scripts(digest, launch_env)
         if diagnostic_app_id is not None:
             diagnostic_game_exit(diagnostic_app_id, raw_code)
+        if timeline_app_id:
+            timeline_game_exit(timeline_app_id, raw_code, started)
         return code
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
+        if timeline_app_id:
+            timeline_game_exit(timeline_app_id, code, started)
         if code == 0:
             record_install_scripts(digest, launch_env)
         return code
@@ -1522,15 +1534,18 @@ def main():
                           "and the next launch puts the file back" % undo, file=sys.stderr)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
+    if waiting:
+        print("DROIDDECK_TIMELINE event=game_exec app_id=%s wall_ms=%d" % (app_id, int(time.time() * 1000)),
+              file=sys.stderr, flush=True)
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after, diagnostic_app_id)
+            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after, diagnostic_app_id)
+        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None)
     except OSError:
         if after:
             try:
