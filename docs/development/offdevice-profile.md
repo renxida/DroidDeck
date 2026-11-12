@@ -6,6 +6,9 @@ from the source at fork/main 55e67e6 or from the CI build log; nothing was timed
 below is a class or an estimate, not a measurement. Stores, VR, glasses, the desktop mode and the home
 launcher are left out because they are being removed.
 
+Since then the core cut removed Syncthing, the stores, VR and the launcher, taking the APK from 97.2 MB to
+65.1 MB; the size table below is from before that cut.
+
 ## APK size
 
 `tools/release/apk_size_report.py` prints the table below for any APK; the "APK size report" step in
