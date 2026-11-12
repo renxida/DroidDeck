@@ -14,7 +14,7 @@ import kotlin.math.abs
 
 object GameThreadHints {
     private const val TAG = "GameThreadHints"
-    private const val TARGET_NS = 10_000_000L
+    private const val DEFAULT_TARGET_NS = 10_000_000L
     private const val REPORT_MS = 50L
     private const val SCAN_EVERY = 20
     private const val ENTER = 0.6
@@ -28,6 +28,22 @@ object GameThreadHints {
     private val NOT_GAMES = setOf("steam", "steamwebhelper")
 
     private var worker: Thread? = null
+    @Volatile private var targetNs = DEFAULT_TARGET_NS
+    @Volatile private var capFps = 0
+
+    /** Sets the target duration to one frame of the game's cap; 0 restores the fixed 10 ms. */
+    fun setCap(fps: Int) {
+        val next = targetFor(fps)
+        capFps = fps.coerceAtLeast(0)
+        if (next == targetNs) return
+        targetNs = next
+        Log.i(TAG, if (fps > 0) "target from the $fps fps frame cap: ${targetText()}" else "target back to the fixed ${targetText()}")
+    }
+
+    internal fun targetFor(fps: Int): Long = if (fps > 0) 1_000_000_000L / fps else DEFAULT_TARGET_NS
+
+    private fun ms(ns: Long): String =
+        if (ns % 1_000_000 == 0L) (ns / 1_000_000).toString() else String.format(java.util.Locale.US, "%.1f", ns / 1e6)
 
     @Synchronized
     fun start(context: Context): String {
@@ -42,8 +58,8 @@ object GameThreadHints {
             ", preferred update rate ${hm.preferredUpdateRateNanos} ns"
     }
 
-    internal fun targetText(): String =
-        "target ${TARGET_NS / 1_000_000} ms, reporting ${TARGET_NS * 3 / 2 / 1_000_000} ms every $REPORT_MS ms"
+    internal fun targetText(target: Long = targetNs): String =
+        "target ${ms(target)} ms, reporting ${ms(target * 3 / 2)} ms every $REPORT_MS ms"
 
     internal fun boostLine(threads: List<String>, sessionMissing: Boolean, fps: Int, paced: Boolean): String =
         (if (sessionMissing && threads.isNotEmpty()) "no session for " else "boosting ") +
@@ -63,6 +79,7 @@ object GameThreadHints {
         var boosted = emptySet<Int>()
         val frames = ArrayDeque<Long>()
         var pacedFor = 0
+        var sessionTarget = 0L
         var tick = 0
         try {
             while (!Thread.currentThread().isInterrupted) {
@@ -71,7 +88,7 @@ object GameThreadHints {
                     frames.addLast(WaylandCompositor.gameFrameCount())
                     if (frames.size > PACE_WINDOW_S + 1) frames.removeFirst()
                     val fps = (frames.last() - frames.first()).toDouble() / (frames.size - 1).coerceAtLeast(1)
-                    val paced = frames.size > PACE_WINDOW_S && holdsPace(fps, SessionState.refreshHz.toDouble())
+                    val paced = frames.size > PACE_WINDOW_S && holdsPace(fps, SessionState.refreshHz.toDouble(), capFps)
                     pacedFor = if (paced) pacedFor + 1 else 0
                     val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL
                     val next = when {
@@ -80,14 +97,20 @@ object GameThreadHints {
                         else -> pick(boosted, busy)
                     }
                     if (next != boosted) {
-                        session = update(hm, session, next)
+                        sessionTarget = targetNs
+                        session = update(hm, session, next, sessionTarget)
                         boosted = if (session == null) emptySet() else next
                         Log.i(TAG, boostLine(
                             next.map { "${readName("/proc/$it/comm")}/$it ${((busy[it] ?: 0.0) * 100).toInt()}%" },
                             session == null, fps.toInt(), paced))
                     }
                 }
-                session?.reportActualWorkDuration(TARGET_NS * 3 / 2)
+                val target = targetNs
+                if (session != null && target != sessionTarget) {
+                    try { session.updateTargetWorkDuration(target) } catch (e: RuntimeException) { Log.w(TAG, "updateTargetWorkDuration", e) }
+                    sessionTarget = target
+                }
+                session?.reportActualWorkDuration(target * 3 / 2)
                 Thread.sleep(REPORT_MS)
             }
         } catch (_: InterruptedException) {
@@ -98,19 +121,20 @@ object GameThreadHints {
         }
     }
 
-    private fun update(hm: PerformanceHintManager, session: PerformanceHintManager.Session?, tids: Set<Int>): PerformanceHintManager.Session? {
+    private fun update(hm: PerformanceHintManager, session: PerformanceHintManager.Session?, tids: Set<Int>, target: Long): PerformanceHintManager.Session? {
         session?.close()
         if (tids.isEmpty()) return null
         return try {
-            hm.createHintSession(tids.toIntArray(), TARGET_NS)
+            hm.createHintSession(tids.toIntArray(), target)
         } catch (t: RuntimeException) {
             Log.w(TAG, "createHintSession", t)
             null
         }
     }
 
-    internal fun holdsPace(fps: Double, refreshHz: Double): Boolean =
-        fps >= 10 && refreshHz > 0 && (1..4).any { k -> abs(fps - refreshHz / k) < PACE_TOLERANCE * refreshHz / k }
+    internal fun holdsPace(fps: Double, refreshHz: Double, cap: Int = 0): Boolean =
+        fps >= 10 && ((cap > 0 && abs(fps - cap) < PACE_TOLERANCE * cap) ||
+            (refreshHz > 0 && (1..4).any { k -> abs(fps - refreshHz / k) < PACE_TOLERANCE * refreshHz / k }))
 
     internal fun pick(boosted: Set<Int>, busy: Map<Int, Double>): Set<Int> =
         busy.entries

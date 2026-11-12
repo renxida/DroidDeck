@@ -732,6 +732,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.setPointerLockListener(pointerLockListener)
         SessionEvents.markReadyIfPossible()
         SessionState.endListener = endListener
+        com.droiddeck.launcher.session.GamePacing.listener = pacingListener
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (pipUi) return
@@ -1903,14 +1904,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun outputFpsLimit(): Int = outputFpsLimit(pipUi)
 
     private fun outputFpsLimit(pip: Boolean): Int =
-        SessionPrefs.compositorFpsLimit(if (noSteamSession()) SessionState.fpsLimit else 0, pip)
+        SessionPrefs.compositorFpsLimit(if (noSteamSession()) SessionState.fpsLimit else com.droiddeck.launcher.session.GamePacing.holdCap(), pip)
+
+    private fun voteFps(pip: Boolean): Int =
+        if (noSteamSession()) outputFpsLimit(pip) else com.droiddeck.launcher.session.GamePacing.vote(outputFpsLimit(pip))
+
+    private var lastGameVote = 0
+
+    private val pacingListener: () -> Unit = { runOnUiThread { applyOutputPacing() } }
 
     private fun applyOutputPacing() {
-        Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(false)))
+        val gameVote = if (noSteamSession()) 0 else com.droiddeck.launcher.session.GamePacing.displayCap()
+        if (gameVote != lastGameVote) {
+            lastGameVote = gameVote
+            Log.i(TAG, if (gameVote > 0) "pacing: display vote $gameVote fps for the game's frame cap, slowest fitting mode"
+                else "pacing: display vote back to the session's own")
+        }
+        Log.i(TAG, "perf: " + PerfMode.apply(this, voteFps(false), lowest = gameVote > 0))
         if (CompositorHost.isStarted) {
             val hz = refreshHz()
             val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
-            CompositorHost.updatePacing(hz, outputFpsLimit())
+            CompositorHost.updatePacing(hz, outputFpsLimit(), voteFps(pipUi))
             if (changed && ::surfaceView.isInitialized) applyFrameGen()
         }
     }
@@ -4182,6 +4196,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         if (AgentGuest.readyListener === agentReadyListener) AgentGuest.readyListener = null
+        if (com.droiddeck.launcher.session.GamePacing.listener === pacingListener) com.droiddeck.launcher.session.GamePacing.listener = null
         relativeMouseRequests.shutdownNow()
         backQamInput.cancel()
         uiHandler.removeCallbacks(steamTouchRetry)
