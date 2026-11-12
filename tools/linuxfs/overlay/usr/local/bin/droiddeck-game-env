@@ -429,6 +429,43 @@ def vram_cap(env):
     return result
 
 
+# Default GC conserve level per game (docs/research/memory-footprint.md). Slay the Spire 2 is a
+# turn-based Godot/CoreCLR game, so the blocking gen2 compactions this asks for cost little.
+DOTNET_CONSERVE_GAMES = {"2868840": "5"}
+DOTNET_HEAP_LIMIT_MB = (256, 16384)
+
+
+def dotnet_set(env, name):
+    return any(prefix + name in env for prefix in ("DOTNET_", "COMPlus_"))
+
+
+def dotnet_heap(env, app_id):
+    """(env, log line or None): DROIDDECK_DOTNET_CONSERVE (0-9) and DROIDDECK_DOTNET_HEAP_LIMIT_MB
+    become DOTNET_GCConserveMemory and DOTNET_GCHeapHardLimit (CLR config values are hex)."""
+    result = env.copy()
+    if dotnet_set(env, "GCConserveMemory"):
+        conserve, source = env.get("DOTNET_GCConserveMemory", env.get("COMPlus_GCConserveMemory")), "env"
+    elif re.fullmatch(r"[0-9]", env.get("DROIDDECK_DOTNET_CONSERVE", "")):
+        conserve, source = env["DROIDDECK_DOTNET_CONSERVE"], "setting"
+    else:
+        conserve, source = DOTNET_CONSERVE_GAMES.get(app_id, "0"), "default"
+    if source != "env" and conserve != "0":
+        result["DOTNET_GCConserveMemory"] = conserve
+    limit = env.get("DROIDDECK_DOTNET_HEAP_LIMIT_MB", "")
+    if dotnet_set(env, "GCHeapHardLimit") or dotnet_set(env, "GCHeapHardLimitPercent"):
+        limit_mb = "env"
+    elif re.fullmatch(r"[1-9][0-9]{0,5}", limit) and DOTNET_HEAP_LIMIT_MB[0] <= int(limit) <= DOTNET_HEAP_LIMIT_MB[1]:
+        result["DOTNET_GCHeapHardLimit"] = "%x" % (int(limit) << 20)
+        limit_mb = limit
+    elif limit:
+        limit_mb = "ignored"
+    else:
+        limit_mb = "-"
+    if conserve == "0" and limit_mb == "-":
+        return result, None
+    return result, "DROIDDECK_DOTNET_HEAP app=%s conserve=%s limit_mb=%s source=%s" % (app_id, conserve, limit_mb, source)
+
+
 def parse_cores(text):
     cores = set()
     for part in text.replace(" ", "").split(","):
@@ -1457,6 +1494,10 @@ def main():
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)
     env = vram_cap(env)
+    if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
+        env, note = dotnet_heap(env, app_id)
+        if note:
+            print(note, file=sys.stderr)
     note = render_path_defaults(command, env) if app_id else None
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)
