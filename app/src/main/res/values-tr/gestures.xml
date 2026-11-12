@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Çift dokunma aralığı</string>
     <string name="gesture_reset">İlk hareket ayarlarına sıfırla</string>
     <string name="gesture_cancel">İptal</string>
-    <string name="gesture_action">Eylem seç</string>
     <string name="gesture_left_click">Sol tıklama</string>
     <string name="gesture_right_click">Sağ tıklama</string>
     <string name="gesture_middle_click">Orta tıklama</string>

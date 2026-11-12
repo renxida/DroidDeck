@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Double-tap interval</string>
     <string name="gesture_reset">Reset to original gesture settings</string>
     <string name="gesture_cancel">Cancel</string>
-    <string name="gesture_action">Choose action</string>
     <string name="gesture_left_click">Left click</string>
     <string name="gesture_right_click">Right click</string>
     <string name="gesture_middle_click">Middle click</string>

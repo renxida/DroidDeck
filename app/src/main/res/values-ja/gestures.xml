@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">ダブルタップの間隔</string>
     <string name="gesture_reset">ジェスチャーの設定を初期状態に戻す</string>
     <string name="gesture_cancel">キャンセル</string>
-    <string name="gesture_action">操作を選択</string>
     <string name="gesture_left_click">左クリック</string>
     <string name="gesture_right_click">右クリック</string>
     <string name="gesture_middle_click">中クリック</string>

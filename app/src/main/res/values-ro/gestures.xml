@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Intervalul atingerii duble</string>
     <string name="gesture_reset">Restabilește setările originale ale gesturilor</string>
     <string name="gesture_cancel">Anulează</string>
-    <string name="gesture_action">Alege acțiunea</string>
     <string name="gesture_left_click">Clic stânga</string>
     <string name="gesture_right_click">Clic dreapta</string>
     <string name="gesture_middle_click">Clic mijloc</string>

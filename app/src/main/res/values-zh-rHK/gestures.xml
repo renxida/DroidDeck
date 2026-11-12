@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">連點兩下間隔</string>
     <string name="gesture_reset">還原初始手勢設定</string>
     <string name="gesture_cancel">取消</string>
-    <string name="gesture_action">選擇動作</string>
     <string name="gesture_left_click">按一下左鍵</string>
     <string name="gesture_right_click">按一下右鍵</string>
     <string name="gesture_middle_click">按一下中鍵</string>

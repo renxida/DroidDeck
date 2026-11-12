@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Intervalle du double appui</string>
     <string name="gesture_reset">Rétablir les paramètres des gestes d\'origine</string>
     <string name="gesture_cancel">Annuler</string>
-    <string name="gesture_action">Choisir une action</string>
     <string name="gesture_left_click">Clic gauche</string>
     <string name="gesture_right_click">Clic droit</string>
     <string name="gesture_middle_click">Clic du milieu</string>

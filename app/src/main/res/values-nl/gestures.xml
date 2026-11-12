@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Interval voor dubbeltikken</string>
     <string name="gesture_reset">Oorspronkelijke gebareninstellingen herstellen</string>
     <string name="gesture_cancel">Annuleren</string>
-    <string name="gesture_action">Actie kiezen</string>
     <string name="gesture_left_click">Linkermuisklik</string>
     <string name="gesture_right_click">Rechtermuisklik</string>
     <string name="gesture_middle_click">Middelste muisklik</string>

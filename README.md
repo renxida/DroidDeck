@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linux desktop, integration with GOG, Epic Games, Xbox, and other storefronts, Steam VR, and more!
+DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode through gamescope, Proton and FEX, with controllers, touch controls and a performance HUD.
 
 <p align="center"><b>100% open source. No ads. No telemetry. No proprietary components. No source withheld.</b></p>
 

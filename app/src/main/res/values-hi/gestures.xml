@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">दो टैप के बीच का अंतराल</string>
     <string name="gesture_reset">जेस्चर की मूल सेटिंग वापस लाएँ</string>
     <string name="gesture_cancel">रद्द करें</string>
-    <string name="gesture_action">कार्रवाई चुनें</string>
     <string name="gesture_left_click">बायाँ क्लिक</string>
     <string name="gesture_right_click">दायाँ क्लिक</string>
     <string name="gesture_middle_click">बीच का क्लिक</string>

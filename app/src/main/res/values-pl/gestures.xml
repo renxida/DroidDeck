@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Odstęp podwójnego stuknięcia</string>
     <string name="gesture_reset">Przywróć pierwotne ustawienia gestów</string>
     <string name="gesture_cancel">Anuluj</string>
-    <string name="gesture_action">Wybierz akcję</string>
     <string name="gesture_left_click">Lewy klik</string>
     <string name="gesture_right_click">Prawy klik</string>
     <string name="gesture_middle_click">Środkowy klik</string>

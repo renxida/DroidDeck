@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Интервал за двойно докосване</string>
     <string name="gesture_reset">Възстановяване на първоначалните настройки на жестовете</string>
     <string name="gesture_cancel">Отказ</string>
-    <string name="gesture_action">Избор на действие</string>
     <string name="gesture_left_click">Ляво щракване</string>
     <string name="gesture_right_click">Дясно щракване</string>
     <string name="gesture_middle_click">Средно щракване</string>

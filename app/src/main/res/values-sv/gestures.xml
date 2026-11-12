@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Intervall för dubbeltryck</string>
     <string name="gesture_reset">Återställ de ursprungliga gestinställningarna</string>
     <string name="gesture_cancel">Avbryt</string>
-    <string name="gesture_action">Välj åtgärd</string>
     <string name="gesture_left_click">Vänsterklick</string>
     <string name="gesture_right_click">Högerklick</string>
     <string name="gesture_middle_click">Mittenklick</string>

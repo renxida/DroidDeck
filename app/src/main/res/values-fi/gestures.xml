@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Kaksoisnapautuksen aikaväli</string>
     <string name="gesture_reset">Palauta alkuperäiset eleasetukset</string>
     <string name="gesture_cancel">Peruuta</string>
-    <string name="gesture_action">Valitse toiminto</string>
     <string name="gesture_left_click">Vasen napsautus</string>
     <string name="gesture_right_click">Oikea napsautus</string>
     <string name="gesture_middle_click">Keskinapsautus</string>

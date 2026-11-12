@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Інтервал подвійного дотику</string>
     <string name="gesture_reset">Відновити початкові налаштування жестів</string>
     <string name="gesture_cancel">Скасувати</string>
-    <string name="gesture_action">Виберіть дію</string>
     <string name="gesture_left_click">Ліва кнопка миші</string>
     <string name="gesture_right_click">Права кнопка миші</string>
     <string name="gesture_middle_click">Середня кнопка миші</string>

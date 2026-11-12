@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">Διάστημα διπλού πατήματος</string>
     <string name="gesture_reset">Επαναφορά αρχικών ρυθμίσεων χειρονομιών</string>
     <string name="gesture_cancel">Ακύρωση</string>
-    <string name="gesture_action">Επιλογή ενέργειας</string>
     <string name="gesture_left_click">Αριστερό κλικ</string>
     <string name="gesture_right_click">Δεξί κλικ</string>
     <string name="gesture_middle_click">Μεσαίο κλικ</string>

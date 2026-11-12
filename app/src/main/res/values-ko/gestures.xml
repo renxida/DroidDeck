@@ -21,7 +21,6 @@
     <string name="gesture_double_delay">두 번 탭 간격</string>
     <string name="gesture_reset">제스처 설정을 초기 상태로 재설정</string>
     <string name="gesture_cancel">취소</string>
-    <string name="gesture_action">동작 선택</string>
     <string name="gesture_left_click">왼쪽 클릭</string>
     <string name="gesture_right_click">오른쪽 클릭</string>
     <string name="gesture_middle_click">가운데 클릭</string>
