@@ -263,6 +263,15 @@ def parse_frames(text: str) -> dict:
                 i += 1
             if current and not current[3] and current[1] not in ("none", "GAMESCOPE"):
                 game.append((t, ft))
+        if not game:
+            # gamescope names no engine for some games: fall back to every frame without Steam focus
+            i, current = 0, None
+            for t, ft in rows:
+                while i < len(infos) and infos[i][0] <= t:
+                    current = infos[i]
+                    i += 1
+                if current and not current[3]:
+                    game.append((t, ft))
     else:
         game = rows
     stats = frame_stats(game)

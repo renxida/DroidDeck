@@ -137,6 +137,12 @@ class PerfReportTest(unittest.TestCase):
         self.assertAlmostEqual(fr["avg_fps"], 610 / (600 * 0.016667 + 10 * 0.05), places=2)
         self.assertAlmostEqual(fr["low1_fps"], 20.0)
 
+    def test_a_game_without_an_engine_name_still_counts_frames_without_steam_focus(self):
+        text = frames([16.667] * 100).replace("engine=DXVK", "engine=GAMESCOPE")
+        fr = perf_report.parse_frames(text)
+        self.assertEqual(fr["frames"], 100)
+        self.assertEqual(fr["engines"], [])
+
     def test_clocks_give_thermal_caps_and_battery(self):
         session, _ = self.share_zips()
         [s] = [perf_report.summarize(x) for x in perf_report.load([session])]
