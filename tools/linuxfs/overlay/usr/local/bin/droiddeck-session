@@ -1229,7 +1229,35 @@ case $mode in
       waited=0
       echo "== steam: interface up after $(($(_bl_ms) - began)) ms (Steam in front after $front ms); launching the requested game $game"
       _bl_hand_off
-      [ -n "$shortcut" ] || return 0
+      if [ -z "$shortcut" ]; then
+        # The client can drop a rungameid that lands while it is still signing in or updating a
+        # runtime (2026-11-12: Steam Linux Runtime was updating at the hand-off and the game never
+        # started). Ask again until the client holds a launch action for the game, the game runs,
+        # or something else takes focus.
+        local asked=1 action
+        while :; do
+          waited=0
+          while [ "$waited" -lt 15 ]; do
+            sleep 1
+            waited=$((waited + 1))
+            pgrep -f "SteamLaunch AppId=$game( |$)" >/dev/null 2>&1 && return 0
+            [ "$(_bl_focused)" = 769 ] || return 0
+            action=0
+            timeout 5 /usr/local/bin/droiddeck-agent --steam-game-action "$game" >/dev/null 2>&1 || action=$?
+            if [ "$action" -eq 0 ]; then
+              echo "== steam: the client took the launch of $game"
+              return 0
+            fi
+          done
+          if [ "$asked" -ge 3 ]; then
+            echo "== steam: the client did not take the launch of $game after $asked requests"
+            return 0
+          fi
+          asked=$((asked + 1))
+          echo "== steam: no launch of $game in the client after 15 s; asking again ($asked of 3)"
+          _bl_hand_off
+        done
+      fi
       while [ "$(_bl_focused)" = 769 ] && [ "$waited" -lt 20 ]; do
         sleep 1
         waited=$((waited + 1))
