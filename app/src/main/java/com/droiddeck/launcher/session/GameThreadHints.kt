@@ -32,14 +32,24 @@ object GameThreadHints {
     @Synchronized
     fun start(context: Context): String {
         if (!SessionPrefs.gameThreadHints(context)) return "game thread hints: off"
-        if (Build.VERSION.SDK_INT < 31 || Build.SOC_MODEL != "CQ8725S") return "game thread hints: Odin 3 only"
+        if (Build.VERSION.SDK_INT < 31) return "game thread hints: needs Android 12"
         val hm = context.getSystemService(PerformanceHintManager::class.java)
             ?: return "game thread hints: no PerformanceHintManager"
         val pm = context.getSystemService(PowerManager::class.java)
         worker?.interrupt()
         worker = Thread({ run(hm, pm) }, "game-thread-hints").apply { isDaemon = true; start() }
-        return "game thread hints: watching"
+        return "game thread hints: watching on ${Build.SOC_MANUFACTURER} ${Build.SOC_MODEL}, " + targetText() +
+            ", preferred update rate ${hm.preferredUpdateRateNanos} ns"
     }
+
+    internal fun targetText(): String =
+        "target ${TARGET_NS / 1_000_000} ms, reporting ${TARGET_NS * 3 / 2 / 1_000_000} ms every $REPORT_MS ms"
+
+    internal fun boostLine(threads: List<String>, sessionMissing: Boolean, fps: Int, paced: Boolean): String =
+        (if (sessionMissing && threads.isNotEmpty()) "no session for " else "boosting ") +
+            threads.joinToString().ifEmpty { "nothing" } +
+            (if (threads.isEmpty()) "" else " (${targetText()})") +
+            " (game $fps fps${if (paced) ", holding pace" else ""})"
 
     @Synchronized
     fun stop() {
@@ -72,9 +82,9 @@ object GameThreadHints {
                     if (next != boosted) {
                         session = update(hm, session, next)
                         boosted = if (session == null) emptySet() else next
-                        Log.i(TAG, (if (session == null && next.isNotEmpty()) "no session for " else "boosting ") +
-                            next.joinToString { "${readName("/proc/$it/comm")}/$it ${((busy[it] ?: 0.0) * 100).toInt()}%" }.ifEmpty { "nothing" } +
-                            " (game ${fps.toInt()} fps${if (paced) ", holding pace" else ""})")
+                        Log.i(TAG, boostLine(
+                            next.map { "${readName("/proc/$it/comm")}/$it ${((busy[it] ?: 0.0) * 100).toInt()}%" },
+                            session == null, fps.toInt(), paced))
                     }
                 }
                 session?.reportActualWorkDuration(TARGET_NS * 3 / 2)
