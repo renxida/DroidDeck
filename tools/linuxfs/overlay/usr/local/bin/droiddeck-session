@@ -58,6 +58,25 @@ hybris_index_session() {
   echo "== hybris-index-session: indexed hybris compat layer for gamescope, Steam and games"
 }
 
+# Experiment composite-timing (measurement only): turns on gamescope's GPU timestamps around its composite pass,
+# which print "composite_timing: <pass> <us> us avg over <n>" to session.log every 2 s. The PowerVR copy into the
+# swapchain comes after the end stamp and is not included. Independent of two-frames and layer-fence.
+composite_timing() {
+  local display=${GAMESCOPE_WAYLAND_DISPLAY:-}
+  [ -n "$display" ] || { echo "== composite-timing: gamescope has no Wayland display"; return 0; }
+  command -v gamescopectl >/dev/null 2>&1 || { echo "== composite-timing: gamescopectl missing"; return 0; }
+  (
+    for _ in $(seq 1 60); do
+      if WAYLAND_DISPLAY=$display timeout 5 gamescopectl log_composite_timing debug >/dev/null 2>&1; then
+        echo "== composite-timing: gamescope composite GPU timestamps on"
+        exit 0
+      fi
+      sleep 1
+    done
+    echo "== composite-timing: gamescope did not take log_composite_timing"
+  ) &
+}
+
 start_diagnostic_inventory() {
   [ "${DROIDDECK_ENHANCED_DIAGNOSTICS:-0}" = 1 ] || return 0
   [ -z "${BL_INSIDE:-}" ] || return 0
@@ -672,6 +691,7 @@ case $mode in
     esac
     ;;
   steam)
+    if [ "${DROIDDECK_EXP_COMPOSITE_TIMING:-}" = 1 ]; then composite_timing; fi
     if [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
       export WAYLAND_DISPLAY= XDG_SESSION_TYPE=x11
     fi

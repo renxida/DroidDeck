@@ -667,6 +667,23 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             self.assertIn("already indexed", MODULE["hybris_index"](session, str(layer_dir)))
             self.assertEqual(session["VK_LAYER_PATH"], base["VK_LAYER_PATH"])
 
+    def test_dxvk_arm64ec_picks_its_payload_only_when_on_complete_and_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = Path(tmp)
+            self.assertIsNone(MODULE["dxvk_arm64ec"](runtime, {}))
+            env = {"DROIDDECK_EXP_DXVK_ARM64EC": "1"}
+            self.assertIn("not in this runtime", MODULE["dxvk_arm64ec"](runtime, env))
+            self.assertNotIn("DROIDDECK_HYBRIS_DXVK", env)
+            for arch in ("x32", "x64"):
+                (runtime / "dxvk-arm64ec" / arch).mkdir(parents=True)
+                for name in ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"):
+                    (runtime / "dxvk-arm64ec" / arch / (name + ".dll")).write_bytes(b"MZ")
+            self.assertIn("native ARM64EC", MODULE["dxvk_arm64ec"](runtime, env))
+            self.assertEqual(env["DROIDDECK_HYBRIS_DXVK"], "dxvk-arm64ec")
+            xclipse = {"DROIDDECK_EXP_DXVK_ARM64EC": "1", "DROIDDECK_HYBRIS_DXVK": "dxvk-2.6.2"}
+            self.assertIn("kept the dxvk-2.6.2", MODULE["dxvk_arm64ec"](runtime, xclipse))
+            self.assertEqual(xclipse["DROIDDECK_HYBRIS_DXVK"], "dxvk-2.6.2")
+
     def test_other_gpus_and_non_game_calls_keep_the_original_launch(self):
         command = ["/proton", "waitforexitandrun", "game.exe"]
         base = {"STEAM_COMPAT_DATA_PATH": "/compatdata/42", "VK_LAYER_PATH": "original"}

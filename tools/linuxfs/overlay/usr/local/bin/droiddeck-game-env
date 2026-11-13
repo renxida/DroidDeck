@@ -76,7 +76,8 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
                "wayland-present", "vk-count",
                "native-inventory", "free-memory", "hybris-index", "fex-l1",
-               "hybris-index-session", "native-engine")
+               "hybris-index-session", "native-engine", "dxvk-arm64ec",
+               "composite-timing")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -134,7 +135,7 @@ def without_experiments(env):
 # Their effect is fixed when the session starts (the app, droiddeck-session and Steam's scripts); memory is split:
 # its game part follows the saved switches and its app part the session's.
 SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap",
-                       "hybris-index-session")
+                       "hybris-index-session", "composite-timing")
 
 
 def experiments_line(saved, session):
@@ -1997,13 +1998,35 @@ def system_graphics_launch(command, env):
     })
     for name in ("DISABLE_WSI_LAYER", "PROTON_USE_WINED3D", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
         result.pop(name, None)
-    for note in (wayland_present(directory, result), hybris_index(result), vk_count(result)):
+    for note in (wayland_present(directory, result), hybris_index(result), vk_count(result),
+                 dxvk_arm64ec(directory, result)):
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
     return [str(wrapper), *command], result
 
 
 VKCOUNT_DIR = "/usr/local/lib/droiddeck-vkcount"
+DXVK_ARM64EC = "dxvk-arm64ec"
+DXVK_NAMES = ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi")
+
+
+def dxvk_arm64ec(directory, env):
+    """Experiment dxvk-arm64ec: a 64-bit Direct3D game gets the runtime's dxvk-arm64ec payload in place of the
+    default x86-64 one, so DXVK runs as native ARM64EC code instead of through FEX. Same DXVK source and patches
+    (tools/dxvk/build_arm64ec.sh); 32-bit games keep a translated i686 build. Vulkan-native games (Slay the Spire 2)
+    only load its dxgi.dll to list adapters, so they should not change. Independent of two-frames and
+    layer-fence. Only the default payload is replaced, never Xclipse's."""
+    if not experiment(env, DXVK_ARM64EC):
+        return None
+    if (env.get("DROIDDECK_HYBRIS_DXVK") or "dxvk") != "dxvk":
+        return "dxvk-arm64ec: kept the %s payload" % env["DROIDDECK_HYBRIS_DXVK"]
+    for arch in ("x32", "x64"):
+        for name in DXVK_NAMES:
+            path = Path(directory) / DXVK_ARM64EC / arch / (name + ".dll")
+            if not path.is_file() or not path.stat().st_size:
+                return "dxvk-arm64ec: payload not in this runtime (%s)" % path
+    env["DROIDDECK_HYBRIS_DXVK"] = DXVK_ARM64EC
+    return "dxvk-arm64ec: 64-bit DXVK runs as native ARM64EC"
 HYBRIS_COMPAT_DIR = "/usr/local/lib/droiddeck-hybris-compat"
 
 
