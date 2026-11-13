@@ -481,8 +481,728 @@ static partial class Cards
     static int C477(int x) { switch ((x + 9) % 5) { case 0: return x * 4; case 1: return x - 9; case 2: return (x << 4) ^ 9; case 3: return x / 9 + 4; default: return ~x + 477; } }
     static int C478(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 17; return s; }
     static int C479(int x) { double d = x * 6.5; d = d / 2.25 + 23; return (int)(d * d) ^ 479; }
-    public const int Count = 480;
+    static int C480(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 7 + (k ^ 7); return s; }
+    static int C481(int x) { switch ((x + 6) % 5) { case 0: return x * 8; case 1: return x - 14; case 2: return (x << 1) ^ 14; case 3: return x / 6 + 8; default: return ~x + 481; } }
+    static int C482(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 22; return s; }
+    static int C483(int x) { double d = x * 10.5; d = d / 10.25 + 5; return (int)(d * d) ^ 483; }
+    static int C484(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 11 + (k ^ 12); return s; }
+    static int C485(int x) { switch ((x + 3) % 5) { case 0: return x * 12; case 1: return x - 19; case 2: return (x << 3) ^ 19; case 3: return x / 3 + 12; default: return ~x + 485; } }
+    static int C486(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 27; return s; }
+    static int C487(int x) { double d = x * 14.5; d = d / 7.25 + 10; return (int)(d * d) ^ 487; }
+    static int C488(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 15 + (k ^ 17); return s; }
+    static int C489(int x) { switch ((x + 11) % 5) { case 0: return x * 16; case 1: return x - 24; case 2: return (x << 1) ^ 24; case 3: return x / 11 + 16; default: return ~x + 489; } }
+    static int C490(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 9; return s; }
+    static int C491(int x) { double d = x * 18.5; d = d / 4.25 + 15; return (int)(d * d) ^ 491; }
+    static int C492(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 19 + (k ^ 22); return s; }
+    static int C493(int x) { switch ((x + 8) % 5) { case 0: return x * 3; case 1: return x - 6; case 2: return (x << 3) ^ 6; case 3: return x / 8 + 3; default: return ~x + 493; } }
+    static int C494(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 14; return s; }
+    static int C495(int x) { double d = x * 5.5; d = d / 1.25 + 20; return (int)(d * d) ^ 495; }
+    static int C496(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 6 + (k ^ 27); return s; }
+    static int C497(int x) { switch ((x + 5) % 5) { case 0: return x * 7; case 1: return x - 11; case 2: return (x << 0) ^ 11; case 3: return x / 5 + 7; default: return ~x + 497; } }
+    static int C498(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 19; return s; }
+    static int C499(int x) { double d = x * 9.5; d = d / 9.25 + 25; return (int)(d * d) ^ 499; }
+    static int C500(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 10 + (k ^ 9); return s; }
+    static int C501(int x) { switch ((x + 2) % 5) { case 0: return x * 11; case 1: return x - 16; case 2: return (x << 2) ^ 16; case 3: return x / 2 + 11; default: return ~x + 501; } }
+    static int C502(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 24; return s; }
+    static int C503(int x) { double d = x * 13.5; d = d / 6.25 + 7; return (int)(d * d) ^ 503; }
+    static int C504(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 14 + (k ^ 14); return s; }
+    static int C505(int x) { switch ((x + 10) % 5) { case 0: return x * 15; case 1: return x - 21; case 2: return (x << 0) ^ 21; case 3: return x / 10 + 15; default: return ~x + 505; } }
+    static int C506(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 6; return s; }
+    static int C507(int x) { double d = x * 17.5; d = d / 3.25 + 12; return (int)(d * d) ^ 507; }
+    static int C508(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 18 + (k ^ 19); return s; }
+    static int C509(int x) { switch ((x + 7) % 5) { case 0: return x * 19; case 1: return x - 26; case 2: return (x << 2) ^ 26; case 3: return x / 7 + 19; default: return ~x + 509; } }
+    static int C510(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 11; return s; }
+    static int C511(int x) { double d = x * 4.5; d = d / 11.25 + 17; return (int)(d * d) ^ 511; }
+    static int C512(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 5 + (k ^ 24); return s; }
+    static int C513(int x) { switch ((x + 4) % 5) { case 0: return x * 6; case 1: return x - 8; case 2: return (x << 4) ^ 8; case 3: return x / 4 + 6; default: return ~x + 513; } }
+    static int C514(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 16; return s; }
+    static int C515(int x) { double d = x * 8.5; d = d / 8.25 + 22; return (int)(d * d) ^ 515; }
+    static int C516(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 9 + (k ^ 6); return s; }
+    static int C517(int x) { switch ((x + 1) % 5) { case 0: return x * 10; case 1: return x - 13; case 2: return (x << 1) ^ 13; case 3: return x / 1 + 10; default: return ~x + 517; } }
+    static int C518(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 21; return s; }
+    static int C519(int x) { double d = x * 12.5; d = d / 5.25 + 27; return (int)(d * d) ^ 519; }
+    static int C520(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 13 + (k ^ 11); return s; }
+    static int C521(int x) { switch ((x + 9) % 5) { case 0: return x * 14; case 1: return x - 18; case 2: return (x << 4) ^ 18; case 3: return x / 9 + 14; default: return ~x + 521; } }
+    static int C522(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 26; return s; }
+    static int C523(int x) { double d = x * 16.5; d = d / 2.25 + 9; return (int)(d * d) ^ 523; }
+    static int C524(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 17 + (k ^ 16); return s; }
+    static int C525(int x) { switch ((x + 6) % 5) { case 0: return x * 18; case 1: return x - 23; case 2: return (x << 1) ^ 23; case 3: return x / 6 + 18; default: return ~x + 525; } }
+    static int C526(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 8; return s; }
+    static int C527(int x) { double d = x * 3.5; d = d / 10.25 + 14; return (int)(d * d) ^ 527; }
+    static int C528(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 4 + (k ^ 21); return s; }
+    static int C529(int x) { switch ((x + 3) % 5) { case 0: return x * 5; case 1: return x - 5; case 2: return (x << 3) ^ 5; case 3: return x / 3 + 5; default: return ~x + 529; } }
+    static int C530(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 13; return s; }
+    static int C531(int x) { double d = x * 7.5; d = d / 7.25 + 19; return (int)(d * d) ^ 531; }
+    static int C532(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 8 + (k ^ 26); return s; }
+    static int C533(int x) { switch ((x + 11) % 5) { case 0: return x * 9; case 1: return x - 10; case 2: return (x << 1) ^ 10; case 3: return x / 11 + 9; default: return ~x + 533; } }
+    static int C534(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 18; return s; }
+    static int C535(int x) { double d = x * 11.5; d = d / 4.25 + 24; return (int)(d * d) ^ 535; }
+    static int C536(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 12 + (k ^ 8); return s; }
+    static int C537(int x) { switch ((x + 8) % 5) { case 0: return x * 13; case 1: return x - 15; case 2: return (x << 3) ^ 15; case 3: return x / 8 + 13; default: return ~x + 537; } }
+    static int C538(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 23; return s; }
+    static int C539(int x) { double d = x * 15.5; d = d / 1.25 + 6; return (int)(d * d) ^ 539; }
+    static int C540(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 16 + (k ^ 13); return s; }
+    static int C541(int x) { switch ((x + 5) % 5) { case 0: return x * 17; case 1: return x - 20; case 2: return (x << 0) ^ 20; case 3: return x / 5 + 17; default: return ~x + 541; } }
+    static int C542(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 28; return s; }
+    static int C543(int x) { double d = x * 19.5; d = d / 9.25 + 11; return (int)(d * d) ^ 543; }
+    static int C544(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 3 + (k ^ 18); return s; }
+    static int C545(int x) { switch ((x + 2) % 5) { case 0: return x * 4; case 1: return x - 25; case 2: return (x << 2) ^ 25; case 3: return x / 2 + 4; default: return ~x + 545; } }
+    static int C546(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 10; return s; }
+    static int C547(int x) { double d = x * 6.5; d = d / 6.25 + 16; return (int)(d * d) ^ 547; }
+    static int C548(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 7 + (k ^ 23); return s; }
+    static int C549(int x) { switch ((x + 10) % 5) { case 0: return x * 8; case 1: return x - 7; case 2: return (x << 0) ^ 7; case 3: return x / 10 + 8; default: return ~x + 549; } }
+    static int C550(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 15; return s; }
+    static int C551(int x) { double d = x * 10.5; d = d / 3.25 + 21; return (int)(d * d) ^ 551; }
+    static int C552(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 11 + (k ^ 5); return s; }
+    static int C553(int x) { switch ((x + 7) % 5) { case 0: return x * 12; case 1: return x - 12; case 2: return (x << 2) ^ 12; case 3: return x / 7 + 12; default: return ~x + 553; } }
+    static int C554(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 20; return s; }
+    static int C555(int x) { double d = x * 14.5; d = d / 11.25 + 26; return (int)(d * d) ^ 555; }
+    static int C556(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 15 + (k ^ 10); return s; }
+    static int C557(int x) { switch ((x + 4) % 5) { case 0: return x * 16; case 1: return x - 17; case 2: return (x << 4) ^ 17; case 3: return x / 4 + 16; default: return ~x + 557; } }
+    static int C558(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 25; return s; }
+    static int C559(int x) { double d = x * 18.5; d = d / 8.25 + 8; return (int)(d * d) ^ 559; }
+    static int C560(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 19 + (k ^ 15); return s; }
+    static int C561(int x) { switch ((x + 1) % 5) { case 0: return x * 3; case 1: return x - 22; case 2: return (x << 1) ^ 22; case 3: return x / 1 + 3; default: return ~x + 561; } }
+    static int C562(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 7; return s; }
+    static int C563(int x) { double d = x * 5.5; d = d / 5.25 + 13; return (int)(d * d) ^ 563; }
+    static int C564(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 6 + (k ^ 20); return s; }
+    static int C565(int x) { switch ((x + 9) % 5) { case 0: return x * 7; case 1: return x - 27; case 2: return (x << 4) ^ 27; case 3: return x / 9 + 7; default: return ~x + 565; } }
+    static int C566(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 12; return s; }
+    static int C567(int x) { double d = x * 9.5; d = d / 2.25 + 18; return (int)(d * d) ^ 567; }
+    static int C568(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 10 + (k ^ 25); return s; }
+    static int C569(int x) { switch ((x + 6) % 5) { case 0: return x * 11; case 1: return x - 9; case 2: return (x << 1) ^ 9; case 3: return x / 6 + 11; default: return ~x + 569; } }
+    static int C570(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 17; return s; }
+    static int C571(int x) { double d = x * 13.5; d = d / 10.25 + 23; return (int)(d * d) ^ 571; }
+    static int C572(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 14 + (k ^ 7); return s; }
+    static int C573(int x) { switch ((x + 3) % 5) { case 0: return x * 15; case 1: return x - 14; case 2: return (x << 3) ^ 14; case 3: return x / 3 + 15; default: return ~x + 573; } }
+    static int C574(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 22; return s; }
+    static int C575(int x) { double d = x * 17.5; d = d / 7.25 + 5; return (int)(d * d) ^ 575; }
+    static int C576(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 18 + (k ^ 12); return s; }
+    static int C577(int x) { switch ((x + 11) % 5) { case 0: return x * 19; case 1: return x - 19; case 2: return (x << 1) ^ 19; case 3: return x / 11 + 19; default: return ~x + 577; } }
+    static int C578(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 27; return s; }
+    static int C579(int x) { double d = x * 4.5; d = d / 4.25 + 10; return (int)(d * d) ^ 579; }
+    static int C580(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 5 + (k ^ 17); return s; }
+    static int C581(int x) { switch ((x + 8) % 5) { case 0: return x * 6; case 1: return x - 24; case 2: return (x << 3) ^ 24; case 3: return x / 8 + 6; default: return ~x + 581; } }
+    static int C582(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 9; return s; }
+    static int C583(int x) { double d = x * 8.5; d = d / 1.25 + 15; return (int)(d * d) ^ 583; }
+    static int C584(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 9 + (k ^ 22); return s; }
+    static int C585(int x) { switch ((x + 5) % 5) { case 0: return x * 10; case 1: return x - 6; case 2: return (x << 0) ^ 6; case 3: return x / 5 + 10; default: return ~x + 585; } }
+    static int C586(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 14; return s; }
+    static int C587(int x) { double d = x * 12.5; d = d / 9.25 + 20; return (int)(d * d) ^ 587; }
+    static int C588(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 13 + (k ^ 27); return s; }
+    static int C589(int x) { switch ((x + 2) % 5) { case 0: return x * 14; case 1: return x - 11; case 2: return (x << 2) ^ 11; case 3: return x / 2 + 14; default: return ~x + 589; } }
+    static int C590(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 19; return s; }
+    static int C591(int x) { double d = x * 16.5; d = d / 6.25 + 25; return (int)(d * d) ^ 591; }
+    static int C592(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 17 + (k ^ 9); return s; }
+    static int C593(int x) { switch ((x + 10) % 5) { case 0: return x * 18; case 1: return x - 16; case 2: return (x << 0) ^ 16; case 3: return x / 10 + 18; default: return ~x + 593; } }
+    static int C594(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 24; return s; }
+    static int C595(int x) { double d = x * 3.5; d = d / 3.25 + 7; return (int)(d * d) ^ 595; }
+    static int C596(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 4 + (k ^ 14); return s; }
+    static int C597(int x) { switch ((x + 7) % 5) { case 0: return x * 5; case 1: return x - 21; case 2: return (x << 2) ^ 21; case 3: return x / 7 + 5; default: return ~x + 597; } }
+    static int C598(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 6; return s; }
+    static int C599(int x) { double d = x * 7.5; d = d / 11.25 + 12; return (int)(d * d) ^ 599; }
+    static int C600(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 8 + (k ^ 19); return s; }
+    static int C601(int x) { switch ((x + 4) % 5) { case 0: return x * 9; case 1: return x - 26; case 2: return (x << 4) ^ 26; case 3: return x / 4 + 9; default: return ~x + 601; } }
+    static int C602(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 11; return s; }
+    static int C603(int x) { double d = x * 11.5; d = d / 8.25 + 17; return (int)(d * d) ^ 603; }
+    static int C604(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 12 + (k ^ 24); return s; }
+    static int C605(int x) { switch ((x + 1) % 5) { case 0: return x * 13; case 1: return x - 8; case 2: return (x << 1) ^ 8; case 3: return x / 1 + 13; default: return ~x + 605; } }
+    static int C606(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 16; return s; }
+    static int C607(int x) { double d = x * 15.5; d = d / 5.25 + 22; return (int)(d * d) ^ 607; }
+    static int C608(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 16 + (k ^ 6); return s; }
+    static int C609(int x) { switch ((x + 9) % 5) { case 0: return x * 17; case 1: return x - 13; case 2: return (x << 4) ^ 13; case 3: return x / 9 + 17; default: return ~x + 609; } }
+    static int C610(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 21; return s; }
+    static int C611(int x) { double d = x * 19.5; d = d / 2.25 + 27; return (int)(d * d) ^ 611; }
+    static int C612(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 3 + (k ^ 11); return s; }
+    static int C613(int x) { switch ((x + 6) % 5) { case 0: return x * 4; case 1: return x - 18; case 2: return (x << 1) ^ 18; case 3: return x / 6 + 4; default: return ~x + 613; } }
+    static int C614(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 26; return s; }
+    static int C615(int x) { double d = x * 6.5; d = d / 10.25 + 9; return (int)(d * d) ^ 615; }
+    static int C616(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 7 + (k ^ 16); return s; }
+    static int C617(int x) { switch ((x + 3) % 5) { case 0: return x * 8; case 1: return x - 23; case 2: return (x << 3) ^ 23; case 3: return x / 3 + 8; default: return ~x + 617; } }
+    static int C618(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 8; return s; }
+    static int C619(int x) { double d = x * 10.5; d = d / 7.25 + 14; return (int)(d * d) ^ 619; }
+    static int C620(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 11 + (k ^ 21); return s; }
+    static int C621(int x) { switch ((x + 11) % 5) { case 0: return x * 12; case 1: return x - 5; case 2: return (x << 1) ^ 5; case 3: return x / 11 + 12; default: return ~x + 621; } }
+    static int C622(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 13; return s; }
+    static int C623(int x) { double d = x * 14.5; d = d / 4.25 + 19; return (int)(d * d) ^ 623; }
+    static int C624(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 15 + (k ^ 26); return s; }
+    static int C625(int x) { switch ((x + 8) % 5) { case 0: return x * 16; case 1: return x - 10; case 2: return (x << 3) ^ 10; case 3: return x / 8 + 16; default: return ~x + 625; } }
+    static int C626(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 18; return s; }
+    static int C627(int x) { double d = x * 18.5; d = d / 1.25 + 24; return (int)(d * d) ^ 627; }
+    static int C628(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 19 + (k ^ 8); return s; }
+    static int C629(int x) { switch ((x + 5) % 5) { case 0: return x * 3; case 1: return x - 15; case 2: return (x << 0) ^ 15; case 3: return x / 5 + 3; default: return ~x + 629; } }
+    static int C630(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 23; return s; }
+    static int C631(int x) { double d = x * 5.5; d = d / 9.25 + 6; return (int)(d * d) ^ 631; }
+    static int C632(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 6 + (k ^ 13); return s; }
+    static int C633(int x) { switch ((x + 2) % 5) { case 0: return x * 7; case 1: return x - 20; case 2: return (x << 2) ^ 20; case 3: return x / 2 + 7; default: return ~x + 633; } }
+    static int C634(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 28; return s; }
+    static int C635(int x) { double d = x * 9.5; d = d / 6.25 + 11; return (int)(d * d) ^ 635; }
+    static int C636(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 10 + (k ^ 18); return s; }
+    static int C637(int x) { switch ((x + 10) % 5) { case 0: return x * 11; case 1: return x - 25; case 2: return (x << 0) ^ 25; case 3: return x / 10 + 11; default: return ~x + 637; } }
+    static int C638(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 10; return s; }
+    static int C639(int x) { double d = x * 13.5; d = d / 3.25 + 16; return (int)(d * d) ^ 639; }
+    static int C640(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 14 + (k ^ 23); return s; }
+    static int C641(int x) { switch ((x + 7) % 5) { case 0: return x * 15; case 1: return x - 7; case 2: return (x << 2) ^ 7; case 3: return x / 7 + 15; default: return ~x + 641; } }
+    static int C642(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 15; return s; }
+    static int C643(int x) { double d = x * 17.5; d = d / 11.25 + 21; return (int)(d * d) ^ 643; }
+    static int C644(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 18 + (k ^ 5); return s; }
+    static int C645(int x) { switch ((x + 4) % 5) { case 0: return x * 19; case 1: return x - 12; case 2: return (x << 4) ^ 12; case 3: return x / 4 + 19; default: return ~x + 645; } }
+    static int C646(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 20; return s; }
+    static int C647(int x) { double d = x * 4.5; d = d / 8.25 + 26; return (int)(d * d) ^ 647; }
+    static int C648(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 5 + (k ^ 10); return s; }
+    static int C649(int x) { switch ((x + 1) % 5) { case 0: return x * 6; case 1: return x - 17; case 2: return (x << 1) ^ 17; case 3: return x / 1 + 6; default: return ~x + 649; } }
+    static int C650(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 25; return s; }
+    static int C651(int x) { double d = x * 8.5; d = d / 5.25 + 8; return (int)(d * d) ^ 651; }
+    static int C652(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 9 + (k ^ 15); return s; }
+    static int C653(int x) { switch ((x + 9) % 5) { case 0: return x * 10; case 1: return x - 22; case 2: return (x << 4) ^ 22; case 3: return x / 9 + 10; default: return ~x + 653; } }
+    static int C654(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 7; return s; }
+    static int C655(int x) { double d = x * 12.5; d = d / 2.25 + 13; return (int)(d * d) ^ 655; }
+    static int C656(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 13 + (k ^ 20); return s; }
+    static int C657(int x) { switch ((x + 6) % 5) { case 0: return x * 14; case 1: return x - 27; case 2: return (x << 1) ^ 27; case 3: return x / 6 + 14; default: return ~x + 657; } }
+    static int C658(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 12; return s; }
+    static int C659(int x) { double d = x * 16.5; d = d / 10.25 + 18; return (int)(d * d) ^ 659; }
+    static int C660(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 17 + (k ^ 25); return s; }
+    static int C661(int x) { switch ((x + 3) % 5) { case 0: return x * 18; case 1: return x - 9; case 2: return (x << 3) ^ 9; case 3: return x / 3 + 18; default: return ~x + 661; } }
+    static int C662(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 17; return s; }
+    static int C663(int x) { double d = x * 3.5; d = d / 7.25 + 23; return (int)(d * d) ^ 663; }
+    static int C664(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 4 + (k ^ 7); return s; }
+    static int C665(int x) { switch ((x + 11) % 5) { case 0: return x * 5; case 1: return x - 14; case 2: return (x << 1) ^ 14; case 3: return x / 11 + 5; default: return ~x + 665; } }
+    static int C666(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 22; return s; }
+    static int C667(int x) { double d = x * 7.5; d = d / 4.25 + 5; return (int)(d * d) ^ 667; }
+    static int C668(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 8 + (k ^ 12); return s; }
+    static int C669(int x) { switch ((x + 8) % 5) { case 0: return x * 9; case 1: return x - 19; case 2: return (x << 3) ^ 19; case 3: return x / 8 + 9; default: return ~x + 669; } }
+    static int C670(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 27; return s; }
+    static int C671(int x) { double d = x * 11.5; d = d / 1.25 + 10; return (int)(d * d) ^ 671; }
+    static int C672(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 12 + (k ^ 17); return s; }
+    static int C673(int x) { switch ((x + 5) % 5) { case 0: return x * 13; case 1: return x - 24; case 2: return (x << 0) ^ 24; case 3: return x / 5 + 13; default: return ~x + 673; } }
+    static int C674(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 9; return s; }
+    static int C675(int x) { double d = x * 15.5; d = d / 9.25 + 15; return (int)(d * d) ^ 675; }
+    static int C676(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 16 + (k ^ 22); return s; }
+    static int C677(int x) { switch ((x + 2) % 5) { case 0: return x * 17; case 1: return x - 6; case 2: return (x << 2) ^ 6; case 3: return x / 2 + 17; default: return ~x + 677; } }
+    static int C678(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 14; return s; }
+    static int C679(int x) { double d = x * 19.5; d = d / 6.25 + 20; return (int)(d * d) ^ 679; }
+    static int C680(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 3 + (k ^ 27); return s; }
+    static int C681(int x) { switch ((x + 10) % 5) { case 0: return x * 4; case 1: return x - 11; case 2: return (x << 0) ^ 11; case 3: return x / 10 + 4; default: return ~x + 681; } }
+    static int C682(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 19; return s; }
+    static int C683(int x) { double d = x * 6.5; d = d / 3.25 + 25; return (int)(d * d) ^ 683; }
+    static int C684(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 7 + (k ^ 9); return s; }
+    static int C685(int x) { switch ((x + 7) % 5) { case 0: return x * 8; case 1: return x - 16; case 2: return (x << 2) ^ 16; case 3: return x / 7 + 8; default: return ~x + 685; } }
+    static int C686(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 24; return s; }
+    static int C687(int x) { double d = x * 10.5; d = d / 11.25 + 7; return (int)(d * d) ^ 687; }
+    static int C688(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 11 + (k ^ 14); return s; }
+    static int C689(int x) { switch ((x + 4) % 5) { case 0: return x * 12; case 1: return x - 21; case 2: return (x << 4) ^ 21; case 3: return x / 4 + 12; default: return ~x + 689; } }
+    static int C690(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 6; return s; }
+    static int C691(int x) { double d = x * 14.5; d = d / 8.25 + 12; return (int)(d * d) ^ 691; }
+    static int C692(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 15 + (k ^ 19); return s; }
+    static int C693(int x) { switch ((x + 1) % 5) { case 0: return x * 16; case 1: return x - 26; case 2: return (x << 1) ^ 26; case 3: return x / 1 + 16; default: return ~x + 693; } }
+    static int C694(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 11; return s; }
+    static int C695(int x) { double d = x * 18.5; d = d / 5.25 + 17; return (int)(d * d) ^ 695; }
+    static int C696(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 19 + (k ^ 24); return s; }
+    static int C697(int x) { switch ((x + 9) % 5) { case 0: return x * 3; case 1: return x - 8; case 2: return (x << 4) ^ 8; case 3: return x / 9 + 3; default: return ~x + 697; } }
+    static int C698(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 16; return s; }
+    static int C699(int x) { double d = x * 5.5; d = d / 2.25 + 22; return (int)(d * d) ^ 699; }
+    static int C700(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 6 + (k ^ 6); return s; }
+    static int C701(int x) { switch ((x + 6) % 5) { case 0: return x * 7; case 1: return x - 13; case 2: return (x << 1) ^ 13; case 3: return x / 6 + 7; default: return ~x + 701; } }
+    static int C702(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 21; return s; }
+    static int C703(int x) { double d = x * 9.5; d = d / 10.25 + 27; return (int)(d * d) ^ 703; }
+    static int C704(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 10 + (k ^ 11); return s; }
+    static int C705(int x) { switch ((x + 3) % 5) { case 0: return x * 11; case 1: return x - 18; case 2: return (x << 3) ^ 18; case 3: return x / 3 + 11; default: return ~x + 705; } }
+    static int C706(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 26; return s; }
+    static int C707(int x) { double d = x * 13.5; d = d / 7.25 + 9; return (int)(d * d) ^ 707; }
+    static int C708(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 14 + (k ^ 16); return s; }
+    static int C709(int x) { switch ((x + 11) % 5) { case 0: return x * 15; case 1: return x - 23; case 2: return (x << 1) ^ 23; case 3: return x / 11 + 15; default: return ~x + 709; } }
+    static int C710(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 8; return s; }
+    static int C711(int x) { double d = x * 17.5; d = d / 4.25 + 14; return (int)(d * d) ^ 711; }
+    static int C712(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 18 + (k ^ 21); return s; }
+    static int C713(int x) { switch ((x + 8) % 5) { case 0: return x * 19; case 1: return x - 5; case 2: return (x << 3) ^ 5; case 3: return x / 8 + 19; default: return ~x + 713; } }
+    static int C714(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 13; return s; }
+    static int C715(int x) { double d = x * 4.5; d = d / 1.25 + 19; return (int)(d * d) ^ 715; }
+    static int C716(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 5 + (k ^ 26); return s; }
+    static int C717(int x) { switch ((x + 5) % 5) { case 0: return x * 6; case 1: return x - 10; case 2: return (x << 0) ^ 10; case 3: return x / 5 + 6; default: return ~x + 717; } }
+    static int C718(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 18; return s; }
+    static int C719(int x) { double d = x * 8.5; d = d / 9.25 + 24; return (int)(d * d) ^ 719; }
+    static int C720(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 9 + (k ^ 8); return s; }
+    static int C721(int x) { switch ((x + 2) % 5) { case 0: return x * 10; case 1: return x - 15; case 2: return (x << 2) ^ 15; case 3: return x / 2 + 10; default: return ~x + 721; } }
+    static int C722(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 23; return s; }
+    static int C723(int x) { double d = x * 12.5; d = d / 6.25 + 6; return (int)(d * d) ^ 723; }
+    static int C724(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 13 + (k ^ 13); return s; }
+    static int C725(int x) { switch ((x + 10) % 5) { case 0: return x * 14; case 1: return x - 20; case 2: return (x << 0) ^ 20; case 3: return x / 10 + 14; default: return ~x + 725; } }
+    static int C726(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 28; return s; }
+    static int C727(int x) { double d = x * 16.5; d = d / 3.25 + 11; return (int)(d * d) ^ 727; }
+    static int C728(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 17 + (k ^ 18); return s; }
+    static int C729(int x) { switch ((x + 7) % 5) { case 0: return x * 18; case 1: return x - 25; case 2: return (x << 2) ^ 25; case 3: return x / 7 + 18; default: return ~x + 729; } }
+    static int C730(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 10; return s; }
+    static int C731(int x) { double d = x * 3.5; d = d / 11.25 + 16; return (int)(d * d) ^ 731; }
+    static int C732(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 4 + (k ^ 23); return s; }
+    static int C733(int x) { switch ((x + 4) % 5) { case 0: return x * 5; case 1: return x - 7; case 2: return (x << 4) ^ 7; case 3: return x / 4 + 5; default: return ~x + 733; } }
+    static int C734(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 15; return s; }
+    static int C735(int x) { double d = x * 7.5; d = d / 8.25 + 21; return (int)(d * d) ^ 735; }
+    static int C736(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 8 + (k ^ 5); return s; }
+    static int C737(int x) { switch ((x + 1) % 5) { case 0: return x * 9; case 1: return x - 12; case 2: return (x << 1) ^ 12; case 3: return x / 1 + 9; default: return ~x + 737; } }
+    static int C738(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 20; return s; }
+    static int C739(int x) { double d = x * 11.5; d = d / 5.25 + 26; return (int)(d * d) ^ 739; }
+    static int C740(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 12 + (k ^ 10); return s; }
+    static int C741(int x) { switch ((x + 9) % 5) { case 0: return x * 13; case 1: return x - 17; case 2: return (x << 4) ^ 17; case 3: return x / 9 + 13; default: return ~x + 741; } }
+    static int C742(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 25; return s; }
+    static int C743(int x) { double d = x * 15.5; d = d / 2.25 + 8; return (int)(d * d) ^ 743; }
+    static int C744(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 16 + (k ^ 15); return s; }
+    static int C745(int x) { switch ((x + 6) % 5) { case 0: return x * 17; case 1: return x - 22; case 2: return (x << 1) ^ 22; case 3: return x / 6 + 17; default: return ~x + 745; } }
+    static int C746(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 7; return s; }
+    static int C747(int x) { double d = x * 19.5; d = d / 10.25 + 13; return (int)(d * d) ^ 747; }
+    static int C748(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 3 + (k ^ 20); return s; }
+    static int C749(int x) { switch ((x + 3) % 5) { case 0: return x * 4; case 1: return x - 27; case 2: return (x << 3) ^ 27; case 3: return x / 3 + 4; default: return ~x + 749; } }
+    static int C750(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 12; return s; }
+    static int C751(int x) { double d = x * 6.5; d = d / 7.25 + 18; return (int)(d * d) ^ 751; }
+    static int C752(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 7 + (k ^ 25); return s; }
+    static int C753(int x) { switch ((x + 11) % 5) { case 0: return x * 8; case 1: return x - 9; case 2: return (x << 1) ^ 9; case 3: return x / 11 + 8; default: return ~x + 753; } }
+    static int C754(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 17; return s; }
+    static int C755(int x) { double d = x * 10.5; d = d / 4.25 + 23; return (int)(d * d) ^ 755; }
+    static int C756(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 11 + (k ^ 7); return s; }
+    static int C757(int x) { switch ((x + 8) % 5) { case 0: return x * 12; case 1: return x - 14; case 2: return (x << 3) ^ 14; case 3: return x / 8 + 12; default: return ~x + 757; } }
+    static int C758(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 22; return s; }
+    static int C759(int x) { double d = x * 14.5; d = d / 1.25 + 5; return (int)(d * d) ^ 759; }
+    static int C760(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 15 + (k ^ 12); return s; }
+    static int C761(int x) { switch ((x + 5) % 5) { case 0: return x * 16; case 1: return x - 19; case 2: return (x << 0) ^ 19; case 3: return x / 5 + 16; default: return ~x + 761; } }
+    static int C762(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 27; return s; }
+    static int C763(int x) { double d = x * 18.5; d = d / 9.25 + 10; return (int)(d * d) ^ 763; }
+    static int C764(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 19 + (k ^ 17); return s; }
+    static int C765(int x) { switch ((x + 2) % 5) { case 0: return x * 3; case 1: return x - 24; case 2: return (x << 2) ^ 24; case 3: return x / 2 + 3; default: return ~x + 765; } }
+    static int C766(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 9; return s; }
+    static int C767(int x) { double d = x * 5.5; d = d / 6.25 + 15; return (int)(d * d) ^ 767; }
+    static int C768(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 6 + (k ^ 22); return s; }
+    static int C769(int x) { switch ((x + 10) % 5) { case 0: return x * 7; case 1: return x - 6; case 2: return (x << 0) ^ 6; case 3: return x / 10 + 7; default: return ~x + 769; } }
+    static int C770(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 14; return s; }
+    static int C771(int x) { double d = x * 9.5; d = d / 3.25 + 20; return (int)(d * d) ^ 771; }
+    static int C772(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 10 + (k ^ 27); return s; }
+    static int C773(int x) { switch ((x + 7) % 5) { case 0: return x * 11; case 1: return x - 11; case 2: return (x << 2) ^ 11; case 3: return x / 7 + 11; default: return ~x + 773; } }
+    static int C774(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 19; return s; }
+    static int C775(int x) { double d = x * 13.5; d = d / 11.25 + 25; return (int)(d * d) ^ 775; }
+    static int C776(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 14 + (k ^ 9); return s; }
+    static int C777(int x) { switch ((x + 4) % 5) { case 0: return x * 15; case 1: return x - 16; case 2: return (x << 4) ^ 16; case 3: return x / 4 + 15; default: return ~x + 777; } }
+    static int C778(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 24; return s; }
+    static int C779(int x) { double d = x * 17.5; d = d / 8.25 + 7; return (int)(d * d) ^ 779; }
+    static int C780(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 18 + (k ^ 14); return s; }
+    static int C781(int x) { switch ((x + 1) % 5) { case 0: return x * 19; case 1: return x - 21; case 2: return (x << 1) ^ 21; case 3: return x / 1 + 19; default: return ~x + 781; } }
+    static int C782(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 6; return s; }
+    static int C783(int x) { double d = x * 4.5; d = d / 5.25 + 12; return (int)(d * d) ^ 783; }
+    static int C784(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 5 + (k ^ 19); return s; }
+    static int C785(int x) { switch ((x + 9) % 5) { case 0: return x * 6; case 1: return x - 26; case 2: return (x << 4) ^ 26; case 3: return x / 9 + 6; default: return ~x + 785; } }
+    static int C786(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 11; return s; }
+    static int C787(int x) { double d = x * 8.5; d = d / 2.25 + 17; return (int)(d * d) ^ 787; }
+    static int C788(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 9 + (k ^ 24); return s; }
+    static int C789(int x) { switch ((x + 6) % 5) { case 0: return x * 10; case 1: return x - 8; case 2: return (x << 1) ^ 8; case 3: return x / 6 + 10; default: return ~x + 789; } }
+    static int C790(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 16; return s; }
+    static int C791(int x) { double d = x * 12.5; d = d / 10.25 + 22; return (int)(d * d) ^ 791; }
+    static int C792(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 13 + (k ^ 6); return s; }
+    static int C793(int x) { switch ((x + 3) % 5) { case 0: return x * 14; case 1: return x - 13; case 2: return (x << 3) ^ 13; case 3: return x / 3 + 14; default: return ~x + 793; } }
+    static int C794(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 21; return s; }
+    static int C795(int x) { double d = x * 16.5; d = d / 7.25 + 27; return (int)(d * d) ^ 795; }
+    static int C796(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 17 + (k ^ 11); return s; }
+    static int C797(int x) { switch ((x + 11) % 5) { case 0: return x * 18; case 1: return x - 18; case 2: return (x << 1) ^ 18; case 3: return x / 11 + 18; default: return ~x + 797; } }
+    static int C798(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 26; return s; }
+    static int C799(int x) { double d = x * 3.5; d = d / 4.25 + 9; return (int)(d * d) ^ 799; }
+    static int C800(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 4 + (k ^ 16); return s; }
+    static int C801(int x) { switch ((x + 8) % 5) { case 0: return x * 5; case 1: return x - 23; case 2: return (x << 3) ^ 23; case 3: return x / 8 + 5; default: return ~x + 801; } }
+    static int C802(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 8; return s; }
+    static int C803(int x) { double d = x * 7.5; d = d / 1.25 + 14; return (int)(d * d) ^ 803; }
+    static int C804(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 8 + (k ^ 21); return s; }
+    static int C805(int x) { switch ((x + 5) % 5) { case 0: return x * 9; case 1: return x - 5; case 2: return (x << 0) ^ 5; case 3: return x / 5 + 9; default: return ~x + 805; } }
+    static int C806(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 13; return s; }
+    static int C807(int x) { double d = x * 11.5; d = d / 9.25 + 19; return (int)(d * d) ^ 807; }
+    static int C808(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 12 + (k ^ 26); return s; }
+    static int C809(int x) { switch ((x + 2) % 5) { case 0: return x * 13; case 1: return x - 10; case 2: return (x << 2) ^ 10; case 3: return x / 2 + 13; default: return ~x + 809; } }
+    static int C810(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 18; return s; }
+    static int C811(int x) { double d = x * 15.5; d = d / 6.25 + 24; return (int)(d * d) ^ 811; }
+    static int C812(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 16 + (k ^ 8); return s; }
+    static int C813(int x) { switch ((x + 10) % 5) { case 0: return x * 17; case 1: return x - 15; case 2: return (x << 0) ^ 15; case 3: return x / 10 + 17; default: return ~x + 813; } }
+    static int C814(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 23; return s; }
+    static int C815(int x) { double d = x * 19.5; d = d / 3.25 + 6; return (int)(d * d) ^ 815; }
+    static int C816(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 3 + (k ^ 13); return s; }
+    static int C817(int x) { switch ((x + 7) % 5) { case 0: return x * 4; case 1: return x - 20; case 2: return (x << 2) ^ 20; case 3: return x / 7 + 4; default: return ~x + 817; } }
+    static int C818(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 28; return s; }
+    static int C819(int x) { double d = x * 6.5; d = d / 11.25 + 11; return (int)(d * d) ^ 819; }
+    static int C820(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 7 + (k ^ 18); return s; }
+    static int C821(int x) { switch ((x + 4) % 5) { case 0: return x * 8; case 1: return x - 25; case 2: return (x << 4) ^ 25; case 3: return x / 4 + 8; default: return ~x + 821; } }
+    static int C822(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 10; return s; }
+    static int C823(int x) { double d = x * 10.5; d = d / 8.25 + 16; return (int)(d * d) ^ 823; }
+    static int C824(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 11 + (k ^ 23); return s; }
+    static int C825(int x) { switch ((x + 1) % 5) { case 0: return x * 12; case 1: return x - 7; case 2: return (x << 1) ^ 7; case 3: return x / 1 + 12; default: return ~x + 825; } }
+    static int C826(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 15; return s; }
+    static int C827(int x) { double d = x * 14.5; d = d / 5.25 + 21; return (int)(d * d) ^ 827; }
+    static int C828(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 15 + (k ^ 5); return s; }
+    static int C829(int x) { switch ((x + 9) % 5) { case 0: return x * 16; case 1: return x - 12; case 2: return (x << 4) ^ 12; case 3: return x / 9 + 16; default: return ~x + 829; } }
+    static int C830(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 20; return s; }
+    static int C831(int x) { double d = x * 18.5; d = d / 2.25 + 26; return (int)(d * d) ^ 831; }
+    static int C832(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 19 + (k ^ 10); return s; }
+    static int C833(int x) { switch ((x + 6) % 5) { case 0: return x * 3; case 1: return x - 17; case 2: return (x << 1) ^ 17; case 3: return x / 6 + 3; default: return ~x + 833; } }
+    static int C834(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 25; return s; }
+    static int C835(int x) { double d = x * 5.5; d = d / 10.25 + 8; return (int)(d * d) ^ 835; }
+    static int C836(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 6 + (k ^ 15); return s; }
+    static int C837(int x) { switch ((x + 3) % 5) { case 0: return x * 7; case 1: return x - 22; case 2: return (x << 3) ^ 22; case 3: return x / 3 + 7; default: return ~x + 837; } }
+    static int C838(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 7; return s; }
+    static int C839(int x) { double d = x * 9.5; d = d / 7.25 + 13; return (int)(d * d) ^ 839; }
+    static int C840(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 10 + (k ^ 20); return s; }
+    static int C841(int x) { switch ((x + 11) % 5) { case 0: return x * 11; case 1: return x - 27; case 2: return (x << 1) ^ 27; case 3: return x / 11 + 11; default: return ~x + 841; } }
+    static int C842(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 12; return s; }
+    static int C843(int x) { double d = x * 13.5; d = d / 4.25 + 18; return (int)(d * d) ^ 843; }
+    static int C844(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 14 + (k ^ 25); return s; }
+    static int C845(int x) { switch ((x + 8) % 5) { case 0: return x * 15; case 1: return x - 9; case 2: return (x << 3) ^ 9; case 3: return x / 8 + 15; default: return ~x + 845; } }
+    static int C846(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 17; return s; }
+    static int C847(int x) { double d = x * 17.5; d = d / 1.25 + 23; return (int)(d * d) ^ 847; }
+    static int C848(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 18 + (k ^ 7); return s; }
+    static int C849(int x) { switch ((x + 5) % 5) { case 0: return x * 19; case 1: return x - 14; case 2: return (x << 0) ^ 14; case 3: return x / 5 + 19; default: return ~x + 849; } }
+    static int C850(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 22; return s; }
+    static int C851(int x) { double d = x * 4.5; d = d / 9.25 + 5; return (int)(d * d) ^ 851; }
+    static int C852(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 5 + (k ^ 12); return s; }
+    static int C853(int x) { switch ((x + 2) % 5) { case 0: return x * 6; case 1: return x - 19; case 2: return (x << 2) ^ 19; case 3: return x / 2 + 6; default: return ~x + 853; } }
+    static int C854(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 27; return s; }
+    static int C855(int x) { double d = x * 8.5; d = d / 6.25 + 10; return (int)(d * d) ^ 855; }
+    static int C856(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 9 + (k ^ 17); return s; }
+    static int C857(int x) { switch ((x + 10) % 5) { case 0: return x * 10; case 1: return x - 24; case 2: return (x << 0) ^ 24; case 3: return x / 10 + 10; default: return ~x + 857; } }
+    static int C858(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 9; return s; }
+    static int C859(int x) { double d = x * 12.5; d = d / 3.25 + 15; return (int)(d * d) ^ 859; }
+    static int C860(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 13 + (k ^ 22); return s; }
+    static int C861(int x) { switch ((x + 7) % 5) { case 0: return x * 14; case 1: return x - 6; case 2: return (x << 2) ^ 6; case 3: return x / 7 + 14; default: return ~x + 861; } }
+    static int C862(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 14; return s; }
+    static int C863(int x) { double d = x * 16.5; d = d / 11.25 + 20; return (int)(d * d) ^ 863; }
+    static int C864(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 17 + (k ^ 27); return s; }
+    static int C865(int x) { switch ((x + 4) % 5) { case 0: return x * 18; case 1: return x - 11; case 2: return (x << 4) ^ 11; case 3: return x / 4 + 18; default: return ~x + 865; } }
+    static int C866(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 19; return s; }
+    static int C867(int x) { double d = x * 3.5; d = d / 8.25 + 25; return (int)(d * d) ^ 867; }
+    static int C868(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 4 + (k ^ 9); return s; }
+    static int C869(int x) { switch ((x + 1) % 5) { case 0: return x * 5; case 1: return x - 16; case 2: return (x << 1) ^ 16; case 3: return x / 1 + 5; default: return ~x + 869; } }
+    static int C870(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 24; return s; }
+    static int C871(int x) { double d = x * 7.5; d = d / 5.25 + 7; return (int)(d * d) ^ 871; }
+    static int C872(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 8 + (k ^ 14); return s; }
+    static int C873(int x) { switch ((x + 9) % 5) { case 0: return x * 9; case 1: return x - 21; case 2: return (x << 4) ^ 21; case 3: return x / 9 + 9; default: return ~x + 873; } }
+    static int C874(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 6; return s; }
+    static int C875(int x) { double d = x * 11.5; d = d / 2.25 + 12; return (int)(d * d) ^ 875; }
+    static int C876(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 12 + (k ^ 19); return s; }
+    static int C877(int x) { switch ((x + 6) % 5) { case 0: return x * 13; case 1: return x - 26; case 2: return (x << 1) ^ 26; case 3: return x / 6 + 13; default: return ~x + 877; } }
+    static int C878(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 11; return s; }
+    static int C879(int x) { double d = x * 15.5; d = d / 10.25 + 17; return (int)(d * d) ^ 879; }
+    static int C880(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 16 + (k ^ 24); return s; }
+    static int C881(int x) { switch ((x + 3) % 5) { case 0: return x * 17; case 1: return x - 8; case 2: return (x << 3) ^ 8; case 3: return x / 3 + 17; default: return ~x + 881; } }
+    static int C882(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 16; return s; }
+    static int C883(int x) { double d = x * 19.5; d = d / 7.25 + 22; return (int)(d * d) ^ 883; }
+    static int C884(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 3 + (k ^ 6); return s; }
+    static int C885(int x) { switch ((x + 11) % 5) { case 0: return x * 4; case 1: return x - 13; case 2: return (x << 1) ^ 13; case 3: return x / 11 + 4; default: return ~x + 885; } }
+    static int C886(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 21; return s; }
+    static int C887(int x) { double d = x * 6.5; d = d / 4.25 + 27; return (int)(d * d) ^ 887; }
+    static int C888(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 7 + (k ^ 11); return s; }
+    static int C889(int x) { switch ((x + 8) % 5) { case 0: return x * 8; case 1: return x - 18; case 2: return (x << 3) ^ 18; case 3: return x / 8 + 8; default: return ~x + 889; } }
+    static int C890(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 26; return s; }
+    static int C891(int x) { double d = x * 10.5; d = d / 1.25 + 9; return (int)(d * d) ^ 891; }
+    static int C892(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 11 + (k ^ 16); return s; }
+    static int C893(int x) { switch ((x + 5) % 5) { case 0: return x * 12; case 1: return x - 23; case 2: return (x << 0) ^ 23; case 3: return x / 5 + 12; default: return ~x + 893; } }
+    static int C894(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 8; return s; }
+    static int C895(int x) { double d = x * 14.5; d = d / 9.25 + 14; return (int)(d * d) ^ 895; }
+    static int C896(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 15 + (k ^ 21); return s; }
+    static int C897(int x) { switch ((x + 2) % 5) { case 0: return x * 16; case 1: return x - 5; case 2: return (x << 2) ^ 5; case 3: return x / 2 + 16; default: return ~x + 897; } }
+    static int C898(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 13; return s; }
+    static int C899(int x) { double d = x * 18.5; d = d / 6.25 + 19; return (int)(d * d) ^ 899; }
+    static int C900(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 19 + (k ^ 26); return s; }
+    static int C901(int x) { switch ((x + 10) % 5) { case 0: return x * 3; case 1: return x - 10; case 2: return (x << 0) ^ 10; case 3: return x / 10 + 3; default: return ~x + 901; } }
+    static int C902(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 18; return s; }
+    static int C903(int x) { double d = x * 5.5; d = d / 3.25 + 24; return (int)(d * d) ^ 903; }
+    static int C904(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 6 + (k ^ 8); return s; }
+    static int C905(int x) { switch ((x + 7) % 5) { case 0: return x * 7; case 1: return x - 15; case 2: return (x << 2) ^ 15; case 3: return x / 7 + 7; default: return ~x + 905; } }
+    static int C906(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 23; return s; }
+    static int C907(int x) { double d = x * 9.5; d = d / 11.25 + 6; return (int)(d * d) ^ 907; }
+    static int C908(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 10 + (k ^ 13); return s; }
+    static int C909(int x) { switch ((x + 4) % 5) { case 0: return x * 11; case 1: return x - 20; case 2: return (x << 4) ^ 20; case 3: return x / 4 + 11; default: return ~x + 909; } }
+    static int C910(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 28; return s; }
+    static int C911(int x) { double d = x * 13.5; d = d / 8.25 + 11; return (int)(d * d) ^ 911; }
+    static int C912(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 14 + (k ^ 18); return s; }
+    static int C913(int x) { switch ((x + 1) % 5) { case 0: return x * 15; case 1: return x - 25; case 2: return (x << 1) ^ 25; case 3: return x / 1 + 15; default: return ~x + 913; } }
+    static int C914(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 10; return s; }
+    static int C915(int x) { double d = x * 17.5; d = d / 5.25 + 16; return (int)(d * d) ^ 915; }
+    static int C916(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 18 + (k ^ 23); return s; }
+    static int C917(int x) { switch ((x + 9) % 5) { case 0: return x * 19; case 1: return x - 7; case 2: return (x << 4) ^ 7; case 3: return x / 9 + 19; default: return ~x + 917; } }
+    static int C918(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 15; return s; }
+    static int C919(int x) { double d = x * 4.5; d = d / 2.25 + 21; return (int)(d * d) ^ 919; }
+    static int C920(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 5 + (k ^ 5); return s; }
+    static int C921(int x) { switch ((x + 6) % 5) { case 0: return x * 6; case 1: return x - 12; case 2: return (x << 1) ^ 12; case 3: return x / 6 + 6; default: return ~x + 921; } }
+    static int C922(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 20; return s; }
+    static int C923(int x) { double d = x * 8.5; d = d / 10.25 + 26; return (int)(d * d) ^ 923; }
+    static int C924(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 9 + (k ^ 10); return s; }
+    static int C925(int x) { switch ((x + 3) % 5) { case 0: return x * 10; case 1: return x - 17; case 2: return (x << 3) ^ 17; case 3: return x / 3 + 10; default: return ~x + 925; } }
+    static int C926(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 25; return s; }
+    static int C927(int x) { double d = x * 12.5; d = d / 7.25 + 8; return (int)(d * d) ^ 927; }
+    static int C928(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 13 + (k ^ 15); return s; }
+    static int C929(int x) { switch ((x + 11) % 5) { case 0: return x * 14; case 1: return x - 22; case 2: return (x << 1) ^ 22; case 3: return x / 11 + 14; default: return ~x + 929; } }
+    static int C930(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 7; return s; }
+    static int C931(int x) { double d = x * 16.5; d = d / 4.25 + 13; return (int)(d * d) ^ 931; }
+    static int C932(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 17 + (k ^ 20); return s; }
+    static int C933(int x) { switch ((x + 8) % 5) { case 0: return x * 18; case 1: return x - 27; case 2: return (x << 3) ^ 27; case 3: return x / 8 + 18; default: return ~x + 933; } }
+    static int C934(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 12; return s; }
+    static int C935(int x) { double d = x * 3.5; d = d / 1.25 + 18; return (int)(d * d) ^ 935; }
+    static int C936(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 4 + (k ^ 25); return s; }
+    static int C937(int x) { switch ((x + 5) % 5) { case 0: return x * 5; case 1: return x - 9; case 2: return (x << 0) ^ 9; case 3: return x / 5 + 5; default: return ~x + 937; } }
+    static int C938(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 17; return s; }
+    static int C939(int x) { double d = x * 7.5; d = d / 9.25 + 23; return (int)(d * d) ^ 939; }
+    static int C940(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 8 + (k ^ 7); return s; }
+    static int C941(int x) { switch ((x + 2) % 5) { case 0: return x * 9; case 1: return x - 14; case 2: return (x << 2) ^ 14; case 3: return x / 2 + 9; default: return ~x + 941; } }
+    static int C942(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 22; return s; }
+    static int C943(int x) { double d = x * 11.5; d = d / 6.25 + 5; return (int)(d * d) ^ 943; }
+    static int C944(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 12 + (k ^ 12); return s; }
+    static int C945(int x) { switch ((x + 10) % 5) { case 0: return x * 13; case 1: return x - 19; case 2: return (x << 0) ^ 19; case 3: return x / 10 + 13; default: return ~x + 945; } }
+    static int C946(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 27; return s; }
+    static int C947(int x) { double d = x * 15.5; d = d / 3.25 + 10; return (int)(d * d) ^ 947; }
+    static int C948(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 16 + (k ^ 17); return s; }
+    static int C949(int x) { switch ((x + 7) % 5) { case 0: return x * 17; case 1: return x - 24; case 2: return (x << 2) ^ 24; case 3: return x / 7 + 17; default: return ~x + 949; } }
+    static int C950(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 9; return s; }
+    static int C951(int x) { double d = x * 19.5; d = d / 11.25 + 15; return (int)(d * d) ^ 951; }
+    static int C952(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 3 + (k ^ 22); return s; }
+    static int C953(int x) { switch ((x + 4) % 5) { case 0: return x * 4; case 1: return x - 6; case 2: return (x << 4) ^ 6; case 3: return x / 4 + 4; default: return ~x + 953; } }
+    static int C954(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 14; return s; }
+    static int C955(int x) { double d = x * 6.5; d = d / 8.25 + 20; return (int)(d * d) ^ 955; }
+    static int C956(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 7 + (k ^ 27); return s; }
+    static int C957(int x) { switch ((x + 1) % 5) { case 0: return x * 8; case 1: return x - 11; case 2: return (x << 1) ^ 11; case 3: return x / 1 + 8; default: return ~x + 957; } }
+    static int C958(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 19; return s; }
+    static int C959(int x) { double d = x * 10.5; d = d / 5.25 + 25; return (int)(d * d) ^ 959; }
+    static int C960(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 11 + (k ^ 9); return s; }
+    static int C961(int x) { switch ((x + 9) % 5) { case 0: return x * 12; case 1: return x - 16; case 2: return (x << 4) ^ 16; case 3: return x / 9 + 12; default: return ~x + 961; } }
+    static int C962(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 24; return s; }
+    static int C963(int x) { double d = x * 14.5; d = d / 2.25 + 7; return (int)(d * d) ^ 963; }
+    static int C964(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 15 + (k ^ 14); return s; }
+    static int C965(int x) { switch ((x + 6) % 5) { case 0: return x * 16; case 1: return x - 21; case 2: return (x << 1) ^ 21; case 3: return x / 6 + 16; default: return ~x + 965; } }
+    static int C966(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 6; return s; }
+    static int C967(int x) { double d = x * 18.5; d = d / 10.25 + 12; return (int)(d * d) ^ 967; }
+    static int C968(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 19 + (k ^ 19); return s; }
+    static int C969(int x) { switch ((x + 3) % 5) { case 0: return x * 3; case 1: return x - 26; case 2: return (x << 3) ^ 26; case 3: return x / 3 + 3; default: return ~x + 969; } }
+    static int C970(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 11; return s; }
+    static int C971(int x) { double d = x * 5.5; d = d / 7.25 + 17; return (int)(d * d) ^ 971; }
+    static int C972(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 6 + (k ^ 24); return s; }
+    static int C973(int x) { switch ((x + 11) % 5) { case 0: return x * 7; case 1: return x - 8; case 2: return (x << 1) ^ 8; case 3: return x / 11 + 7; default: return ~x + 973; } }
+    static int C974(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 16; return s; }
+    static int C975(int x) { double d = x * 9.5; d = d / 4.25 + 22; return (int)(d * d) ^ 975; }
+    static int C976(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 10 + (k ^ 6); return s; }
+    static int C977(int x) { switch ((x + 8) % 5) { case 0: return x * 11; case 1: return x - 13; case 2: return (x << 3) ^ 13; case 3: return x / 8 + 11; default: return ~x + 977; } }
+    static int C978(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 21; return s; }
+    static int C979(int x) { double d = x * 13.5; d = d / 1.25 + 27; return (int)(d * d) ^ 979; }
+    static int C980(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 14 + (k ^ 11); return s; }
+    static int C981(int x) { switch ((x + 5) % 5) { case 0: return x * 15; case 1: return x - 18; case 2: return (x << 0) ^ 18; case 3: return x / 5 + 15; default: return ~x + 981; } }
+    static int C982(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 26; return s; }
+    static int C983(int x) { double d = x * 17.5; d = d / 9.25 + 9; return (int)(d * d) ^ 983; }
+    static int C984(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 18 + (k ^ 16); return s; }
+    static int C985(int x) { switch ((x + 2) % 5) { case 0: return x * 19; case 1: return x - 23; case 2: return (x << 2) ^ 23; case 3: return x / 2 + 19; default: return ~x + 985; } }
+    static int C986(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 8; return s; }
+    static int C987(int x) { double d = x * 4.5; d = d / 6.25 + 14; return (int)(d * d) ^ 987; }
+    static int C988(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 5 + (k ^ 21); return s; }
+    static int C989(int x) { switch ((x + 10) % 5) { case 0: return x * 6; case 1: return x - 5; case 2: return (x << 0) ^ 5; case 3: return x / 10 + 6; default: return ~x + 989; } }
+    static int C990(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 13; return s; }
+    static int C991(int x) { double d = x * 8.5; d = d / 3.25 + 19; return (int)(d * d) ^ 991; }
+    static int C992(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 9 + (k ^ 26); return s; }
+    static int C993(int x) { switch ((x + 7) % 5) { case 0: return x * 10; case 1: return x - 10; case 2: return (x << 2) ^ 10; case 3: return x / 7 + 10; default: return ~x + 993; } }
+    static int C994(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 18; return s; }
+    static int C995(int x) { double d = x * 12.5; d = d / 11.25 + 24; return (int)(d * d) ^ 995; }
+    static int C996(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 13 + (k ^ 8); return s; }
+    static int C997(int x) { switch ((x + 4) % 5) { case 0: return x * 14; case 1: return x - 15; case 2: return (x << 4) ^ 15; case 3: return x / 4 + 14; default: return ~x + 997; } }
+    static int C998(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 23; return s; }
+    static int C999(int x) { double d = x * 16.5; d = d / 8.25 + 6; return (int)(d * d) ^ 999; }
+    static int C1000(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 17 + (k ^ 13); return s; }
+    static int C1001(int x) { switch ((x + 1) % 5) { case 0: return x * 18; case 1: return x - 20; case 2: return (x << 1) ^ 20; case 3: return x / 1 + 18; default: return ~x + 1001; } }
+    static int C1002(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 28; return s; }
+    static int C1003(int x) { double d = x * 3.5; d = d / 5.25 + 11; return (int)(d * d) ^ 1003; }
+    static int C1004(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 4 + (k ^ 18); return s; }
+    static int C1005(int x) { switch ((x + 9) % 5) { case 0: return x * 5; case 1: return x - 25; case 2: return (x << 4) ^ 25; case 3: return x / 9 + 5; default: return ~x + 1005; } }
+    static int C1006(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 10; return s; }
+    static int C1007(int x) { double d = x * 7.5; d = d / 2.25 + 16; return (int)(d * d) ^ 1007; }
+    static int C1008(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 8 + (k ^ 23); return s; }
+    static int C1009(int x) { switch ((x + 6) % 5) { case 0: return x * 9; case 1: return x - 7; case 2: return (x << 1) ^ 7; case 3: return x / 6 + 9; default: return ~x + 1009; } }
+    static int C1010(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 15; return s; }
+    static int C1011(int x) { double d = x * 11.5; d = d / 10.25 + 21; return (int)(d * d) ^ 1011; }
+    static int C1012(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 12 + (k ^ 5); return s; }
+    static int C1013(int x) { switch ((x + 3) % 5) { case 0: return x * 13; case 1: return x - 12; case 2: return (x << 3) ^ 12; case 3: return x / 3 + 13; default: return ~x + 1013; } }
+    static int C1014(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 20; return s; }
+    static int C1015(int x) { double d = x * 15.5; d = d / 7.25 + 26; return (int)(d * d) ^ 1015; }
+    static int C1016(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 16 + (k ^ 10); return s; }
+    static int C1017(int x) { switch ((x + 11) % 5) { case 0: return x * 17; case 1: return x - 17; case 2: return (x << 1) ^ 17; case 3: return x / 11 + 17; default: return ~x + 1017; } }
+    static int C1018(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 25; return s; }
+    static int C1019(int x) { double d = x * 19.5; d = d / 4.25 + 8; return (int)(d * d) ^ 1019; }
+    static int C1020(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 3 + (k ^ 15); return s; }
+    static int C1021(int x) { switch ((x + 8) % 5) { case 0: return x * 4; case 1: return x - 22; case 2: return (x << 3) ^ 22; case 3: return x / 8 + 4; default: return ~x + 1021; } }
+    static int C1022(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 7; return s; }
+    static int C1023(int x) { double d = x * 6.5; d = d / 1.25 + 13; return (int)(d * d) ^ 1023; }
+    static int C1024(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 7 + (k ^ 20); return s; }
+    static int C1025(int x) { switch ((x + 5) % 5) { case 0: return x * 8; case 1: return x - 27; case 2: return (x << 0) ^ 27; case 3: return x / 5 + 8; default: return ~x + 1025; } }
+    static int C1026(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 12; return s; }
+    static int C1027(int x) { double d = x * 10.5; d = d / 9.25 + 18; return (int)(d * d) ^ 1027; }
+    static int C1028(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 11 + (k ^ 25); return s; }
+    static int C1029(int x) { switch ((x + 2) % 5) { case 0: return x * 12; case 1: return x - 9; case 2: return (x << 2) ^ 9; case 3: return x / 2 + 12; default: return ~x + 1029; } }
+    static int C1030(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 17; return s; }
+    static int C1031(int x) { double d = x * 14.5; d = d / 6.25 + 23; return (int)(d * d) ^ 1031; }
+    static int C1032(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 15 + (k ^ 7); return s; }
+    static int C1033(int x) { switch ((x + 10) % 5) { case 0: return x * 16; case 1: return x - 14; case 2: return (x << 0) ^ 14; case 3: return x / 10 + 16; default: return ~x + 1033; } }
+    static int C1034(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 22; return s; }
+    static int C1035(int x) { double d = x * 18.5; d = d / 3.25 + 5; return (int)(d * d) ^ 1035; }
+    static int C1036(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 19 + (k ^ 12); return s; }
+    static int C1037(int x) { switch ((x + 7) % 5) { case 0: return x * 3; case 1: return x - 19; case 2: return (x << 2) ^ 19; case 3: return x / 7 + 3; default: return ~x + 1037; } }
+    static int C1038(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 27; return s; }
+    static int C1039(int x) { double d = x * 5.5; d = d / 11.25 + 10; return (int)(d * d) ^ 1039; }
+    static int C1040(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 6 + (k ^ 17); return s; }
+    static int C1041(int x) { switch ((x + 4) % 5) { case 0: return x * 7; case 1: return x - 24; case 2: return (x << 4) ^ 24; case 3: return x / 4 + 7; default: return ~x + 1041; } }
+    static int C1042(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 9; return s; }
+    static int C1043(int x) { double d = x * 9.5; d = d / 8.25 + 15; return (int)(d * d) ^ 1043; }
+    static int C1044(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 10 + (k ^ 22); return s; }
+    static int C1045(int x) { switch ((x + 1) % 5) { case 0: return x * 11; case 1: return x - 6; case 2: return (x << 1) ^ 6; case 3: return x / 1 + 11; default: return ~x + 1045; } }
+    static int C1046(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 14; return s; }
+    static int C1047(int x) { double d = x * 13.5; d = d / 5.25 + 20; return (int)(d * d) ^ 1047; }
+    static int C1048(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 14 + (k ^ 27); return s; }
+    static int C1049(int x) { switch ((x + 9) % 5) { case 0: return x * 15; case 1: return x - 11; case 2: return (x << 4) ^ 11; case 3: return x / 9 + 15; default: return ~x + 1049; } }
+    static int C1050(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 19; return s; }
+    static int C1051(int x) { double d = x * 17.5; d = d / 2.25 + 25; return (int)(d * d) ^ 1051; }
+    static int C1052(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 18 + (k ^ 9); return s; }
+    static int C1053(int x) { switch ((x + 6) % 5) { case 0: return x * 19; case 1: return x - 16; case 2: return (x << 1) ^ 16; case 3: return x / 6 + 19; default: return ~x + 1053; } }
+    static int C1054(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 24; return s; }
+    static int C1055(int x) { double d = x * 4.5; d = d / 10.25 + 7; return (int)(d * d) ^ 1055; }
+    static int C1056(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 5 + (k ^ 14); return s; }
+    static int C1057(int x) { switch ((x + 3) % 5) { case 0: return x * 6; case 1: return x - 21; case 2: return (x << 3) ^ 21; case 3: return x / 3 + 6; default: return ~x + 1057; } }
+    static int C1058(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 6; return s; }
+    static int C1059(int x) { double d = x * 8.5; d = d / 7.25 + 12; return (int)(d * d) ^ 1059; }
+    static int C1060(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 9 + (k ^ 19); return s; }
+    static int C1061(int x) { switch ((x + 11) % 5) { case 0: return x * 10; case 1: return x - 26; case 2: return (x << 1) ^ 26; case 3: return x / 11 + 10; default: return ~x + 1061; } }
+    static int C1062(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 11; return s; }
+    static int C1063(int x) { double d = x * 12.5; d = d / 4.25 + 17; return (int)(d * d) ^ 1063; }
+    static int C1064(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 13 + (k ^ 24); return s; }
+    static int C1065(int x) { switch ((x + 8) % 5) { case 0: return x * 14; case 1: return x - 8; case 2: return (x << 3) ^ 8; case 3: return x / 8 + 14; default: return ~x + 1065; } }
+    static int C1066(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 16; return s; }
+    static int C1067(int x) { double d = x * 16.5; d = d / 1.25 + 22; return (int)(d * d) ^ 1067; }
+    static int C1068(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 17 + (k ^ 6); return s; }
+    static int C1069(int x) { switch ((x + 5) % 5) { case 0: return x * 18; case 1: return x - 13; case 2: return (x << 0) ^ 13; case 3: return x / 5 + 18; default: return ~x + 1069; } }
+    static int C1070(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 21; return s; }
+    static int C1071(int x) { double d = x * 3.5; d = d / 9.25 + 27; return (int)(d * d) ^ 1071; }
+    static int C1072(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 4 + (k ^ 11); return s; }
+    static int C1073(int x) { switch ((x + 2) % 5) { case 0: return x * 5; case 1: return x - 18; case 2: return (x << 2) ^ 18; case 3: return x / 2 + 5; default: return ~x + 1073; } }
+    static int C1074(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 26; return s; }
+    static int C1075(int x) { double d = x * 7.5; d = d / 6.25 + 9; return (int)(d * d) ^ 1075; }
+    static int C1076(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 8 + (k ^ 16); return s; }
+    static int C1077(int x) { switch ((x + 10) % 5) { case 0: return x * 9; case 1: return x - 23; case 2: return (x << 0) ^ 23; case 3: return x / 10 + 9; default: return ~x + 1077; } }
+    static int C1078(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 8; return s; }
+    static int C1079(int x) { double d = x * 11.5; d = d / 3.25 + 14; return (int)(d * d) ^ 1079; }
+    static int C1080(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 12 + (k ^ 21); return s; }
+    static int C1081(int x) { switch ((x + 7) % 5) { case 0: return x * 13; case 1: return x - 5; case 2: return (x << 2) ^ 5; case 3: return x / 7 + 13; default: return ~x + 1081; } }
+    static int C1082(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 13; return s; }
+    static int C1083(int x) { double d = x * 15.5; d = d / 11.25 + 19; return (int)(d * d) ^ 1083; }
+    static int C1084(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 16 + (k ^ 26); return s; }
+    static int C1085(int x) { switch ((x + 4) % 5) { case 0: return x * 17; case 1: return x - 10; case 2: return (x << 4) ^ 10; case 3: return x / 4 + 17; default: return ~x + 1085; } }
+    static int C1086(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 18; return s; }
+    static int C1087(int x) { double d = x * 19.5; d = d / 8.25 + 24; return (int)(d * d) ^ 1087; }
+    static int C1088(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 3 + (k ^ 8); return s; }
+    static int C1089(int x) { switch ((x + 1) % 5) { case 0: return x * 4; case 1: return x - 15; case 2: return (x << 1) ^ 15; case 3: return x / 1 + 4; default: return ~x + 1089; } }
+    static int C1090(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 23; return s; }
+    static int C1091(int x) { double d = x * 6.5; d = d / 5.25 + 6; return (int)(d * d) ^ 1091; }
+    static int C1092(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 7 + (k ^ 13); return s; }
+    static int C1093(int x) { switch ((x + 9) % 5) { case 0: return x * 8; case 1: return x - 20; case 2: return (x << 4) ^ 20; case 3: return x / 9 + 8; default: return ~x + 1093; } }
+    static int C1094(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 28; return s; }
+    static int C1095(int x) { double d = x * 10.5; d = d / 2.25 + 11; return (int)(d * d) ^ 1095; }
+    static int C1096(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 11 + (k ^ 18); return s; }
+    static int C1097(int x) { switch ((x + 6) % 5) { case 0: return x * 12; case 1: return x - 25; case 2: return (x << 1) ^ 25; case 3: return x / 6 + 12; default: return ~x + 1097; } }
+    static int C1098(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 10; return s; }
+    static int C1099(int x) { double d = x * 14.5; d = d / 10.25 + 16; return (int)(d * d) ^ 1099; }
+    static int C1100(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 15 + (k ^ 23); return s; }
+    static int C1101(int x) { switch ((x + 3) % 5) { case 0: return x * 16; case 1: return x - 7; case 2: return (x << 3) ^ 7; case 3: return x / 3 + 16; default: return ~x + 1101; } }
+    static int C1102(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 15; return s; }
+    static int C1103(int x) { double d = x * 18.5; d = d / 7.25 + 21; return (int)(d * d) ^ 1103; }
+    static int C1104(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 19 + (k ^ 5); return s; }
+    static int C1105(int x) { switch ((x + 11) % 5) { case 0: return x * 3; case 1: return x - 12; case 2: return (x << 1) ^ 12; case 3: return x / 11 + 3; default: return ~x + 1105; } }
+    static int C1106(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 20; return s; }
+    static int C1107(int x) { double d = x * 5.5; d = d / 4.25 + 26; return (int)(d * d) ^ 1107; }
+    static int C1108(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 6 + (k ^ 10); return s; }
+    static int C1109(int x) { switch ((x + 8) % 5) { case 0: return x * 7; case 1: return x - 17; case 2: return (x << 3) ^ 17; case 3: return x / 8 + 7; default: return ~x + 1109; } }
+    static int C1110(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 25; return s; }
+    static int C1111(int x) { double d = x * 9.5; d = d / 1.25 + 8; return (int)(d * d) ^ 1111; }
+    static int C1112(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 10 + (k ^ 15); return s; }
+    static int C1113(int x) { switch ((x + 5) % 5) { case 0: return x * 11; case 1: return x - 22; case 2: return (x << 0) ^ 22; case 3: return x / 5 + 11; default: return ~x + 1113; } }
+    static int C1114(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 7; return s; }
+    static int C1115(int x) { double d = x * 13.5; d = d / 9.25 + 13; return (int)(d * d) ^ 1115; }
+    static int C1116(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 14 + (k ^ 20); return s; }
+    static int C1117(int x) { switch ((x + 2) % 5) { case 0: return x * 15; case 1: return x - 27; case 2: return (x << 2) ^ 27; case 3: return x / 2 + 15; default: return ~x + 1117; } }
+    static int C1118(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 12; return s; }
+    static int C1119(int x) { double d = x * 17.5; d = d / 6.25 + 18; return (int)(d * d) ^ 1119; }
+    static int C1120(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 18 + (k ^ 25); return s; }
+    static int C1121(int x) { switch ((x + 10) % 5) { case 0: return x * 19; case 1: return x - 9; case 2: return (x << 0) ^ 9; case 3: return x / 10 + 19; default: return ~x + 1121; } }
+    static int C1122(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 17; return s; }
+    static int C1123(int x) { double d = x * 4.5; d = d / 3.25 + 23; return (int)(d * d) ^ 1123; }
+    static int C1124(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 5 + (k ^ 7); return s; }
+    static int C1125(int x) { switch ((x + 7) % 5) { case 0: return x * 6; case 1: return x - 14; case 2: return (x << 2) ^ 14; case 3: return x / 7 + 6; default: return ~x + 1125; } }
+    static int C1126(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 22; return s; }
+    static int C1127(int x) { double d = x * 8.5; d = d / 11.25 + 5; return (int)(d * d) ^ 1127; }
+    static int C1128(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 9 + (k ^ 12); return s; }
+    static int C1129(int x) { switch ((x + 4) % 5) { case 0: return x * 10; case 1: return x - 19; case 2: return (x << 4) ^ 19; case 3: return x / 4 + 10; default: return ~x + 1129; } }
+    static int C1130(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 27; return s; }
+    static int C1131(int x) { double d = x * 12.5; d = d / 8.25 + 10; return (int)(d * d) ^ 1131; }
+    static int C1132(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 13 + (k ^ 17); return s; }
+    static int C1133(int x) { switch ((x + 1) % 5) { case 0: return x * 14; case 1: return x - 24; case 2: return (x << 1) ^ 24; case 3: return x / 1 + 14; default: return ~x + 1133; } }
+    static int C1134(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 15; int s = 0; foreach (var v in arr) s += v % 9; return s; }
+    static int C1135(int x) { double d = x * 16.5; d = d / 5.25 + 15; return (int)(d * d) ^ 1135; }
+    static int C1136(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 17 + (k ^ 22); return s; }
+    static int C1137(int x) { switch ((x + 9) % 5) { case 0: return x * 18; case 1: return x - 6; case 2: return (x << 4) ^ 6; case 3: return x / 9 + 18; default: return ~x + 1137; } }
+    static int C1138(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 19; int s = 0; foreach (var v in arr) s += v % 14; return s; }
+    static int C1139(int x) { double d = x * 3.5; d = d / 2.25 + 20; return (int)(d * d) ^ 1139; }
+    static int C1140(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 4 + (k ^ 27); return s; }
+    static int C1141(int x) { switch ((x + 6) % 5) { case 0: return x * 5; case 1: return x - 11; case 2: return (x << 1) ^ 11; case 3: return x / 6 + 5; default: return ~x + 1141; } }
+    static int C1142(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 6; int s = 0; foreach (var v in arr) s += v % 19; return s; }
+    static int C1143(int x) { double d = x * 7.5; d = d / 10.25 + 25; return (int)(d * d) ^ 1143; }
+    static int C1144(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 8 + (k ^ 9); return s; }
+    static int C1145(int x) { switch ((x + 3) % 5) { case 0: return x * 9; case 1: return x - 16; case 2: return (x << 3) ^ 16; case 3: return x / 3 + 9; default: return ~x + 1145; } }
+    static int C1146(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 10; int s = 0; foreach (var v in arr) s += v % 24; return s; }
+    static int C1147(int x) { double d = x * 11.5; d = d / 7.25 + 7; return (int)(d * d) ^ 1147; }
+    static int C1148(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 12 + (k ^ 14); return s; }
+    static int C1149(int x) { switch ((x + 11) % 5) { case 0: return x * 13; case 1: return x - 21; case 2: return (x << 1) ^ 21; case 3: return x / 11 + 13; default: return ~x + 1149; } }
+    static int C1150(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 14; int s = 0; foreach (var v in arr) s += v % 6; return s; }
+    static int C1151(int x) { double d = x * 15.5; d = d / 4.25 + 12; return (int)(d * d) ^ 1151; }
+    static int C1152(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 16 + (k ^ 19); return s; }
+    static int C1153(int x) { switch ((x + 8) % 5) { case 0: return x * 17; case 1: return x - 26; case 2: return (x << 3) ^ 26; case 3: return x / 8 + 17; default: return ~x + 1153; } }
+    static int C1154(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 18; int s = 0; foreach (var v in arr) s += v % 11; return s; }
+    static int C1155(int x) { double d = x * 19.5; d = d / 1.25 + 17; return (int)(d * d) ^ 1155; }
+    static int C1156(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 3 + (k ^ 24); return s; }
+    static int C1157(int x) { switch ((x + 5) % 5) { case 0: return x * 4; case 1: return x - 8; case 2: return (x << 0) ^ 8; case 3: return x / 5 + 4; default: return ~x + 1157; } }
+    static int C1158(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 5; int s = 0; foreach (var v in arr) s += v % 16; return s; }
+    static int C1159(int x) { double d = x * 6.5; d = d / 9.25 + 22; return (int)(d * d) ^ 1159; }
+    static int C1160(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 7 + (k ^ 6); return s; }
+    static int C1161(int x) { switch ((x + 2) % 5) { case 0: return x * 8; case 1: return x - 13; case 2: return (x << 2) ^ 13; case 3: return x / 2 + 8; default: return ~x + 1161; } }
+    static int C1162(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 9; int s = 0; foreach (var v in arr) s += v % 21; return s; }
+    static int C1163(int x) { double d = x * 10.5; d = d / 6.25 + 27; return (int)(d * d) ^ 1163; }
+    static int C1164(int x) { int s = x; for (int k = 0; k < 11; k++) s = s * 11 + (k ^ 11); return s; }
+    static int C1165(int x) { switch ((x + 10) % 5) { case 0: return x * 12; case 1: return x - 18; case 2: return (x << 0) ^ 18; case 3: return x / 10 + 12; default: return ~x + 1165; } }
+    static int C1166(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 13; int s = 0; foreach (var v in arr) s += v % 26; return s; }
+    static int C1167(int x) { double d = x * 14.5; d = d / 3.25 + 9; return (int)(d * d) ^ 1167; }
+    static int C1168(int x) { int s = x; for (int k = 0; k < 15; k++) s = s * 15 + (k ^ 16); return s; }
+    static int C1169(int x) { switch ((x + 7) % 5) { case 0: return x * 16; case 1: return x - 23; case 2: return (x << 2) ^ 23; case 3: return x / 7 + 16; default: return ~x + 1169; } }
+    static int C1170(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 17; int s = 0; foreach (var v in arr) s += v % 8; return s; }
+    static int C1171(int x) { double d = x * 18.5; d = d / 11.25 + 14; return (int)(d * d) ^ 1171; }
+    static int C1172(int x) { int s = x; for (int k = 0; k < 10; k++) s = s * 19 + (k ^ 21); return s; }
+    static int C1173(int x) { switch ((x + 4) % 5) { case 0: return x * 3; case 1: return x - 5; case 2: return (x << 4) ^ 5; case 3: return x / 4 + 3; default: return ~x + 1173; } }
+    static int C1174(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 4; int s = 0; foreach (var v in arr) s += v % 13; return s; }
+    static int C1175(int x) { double d = x * 5.5; d = d / 8.25 + 19; return (int)(d * d) ^ 1175; }
+    static int C1176(int x) { int s = x; for (int k = 0; k < 14; k++) s = s * 6 + (k ^ 26); return s; }
+    static int C1177(int x) { switch ((x + 1) % 5) { case 0: return x * 7; case 1: return x - 10; case 2: return (x << 1) ^ 10; case 3: return x / 1 + 7; default: return ~x + 1177; } }
+    static int C1178(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 8; int s = 0; foreach (var v in arr) s += v % 18; return s; }
+    static int C1179(int x) { double d = x * 9.5; d = d / 5.25 + 24; return (int)(d * d) ^ 1179; }
+    static int C1180(int x) { int s = x; for (int k = 0; k < 9; k++) s = s * 10 + (k ^ 8); return s; }
+    static int C1181(int x) { switch ((x + 9) % 5) { case 0: return x * 11; case 1: return x - 15; case 2: return (x << 4) ^ 15; case 3: return x / 9 + 11; default: return ~x + 1181; } }
+    static int C1182(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 12; int s = 0; foreach (var v in arr) s += v % 23; return s; }
+    static int C1183(int x) { double d = x * 13.5; d = d / 2.25 + 6; return (int)(d * d) ^ 1183; }
+    static int C1184(int x) { int s = x; for (int k = 0; k < 13; k++) s = s * 14 + (k ^ 13); return s; }
+    static int C1185(int x) { switch ((x + 6) % 5) { case 0: return x * 15; case 1: return x - 20; case 2: return (x << 1) ^ 20; case 3: return x / 6 + 15; default: return ~x + 1185; } }
+    static int C1186(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 16; int s = 0; foreach (var v in arr) s += v % 28; return s; }
+    static int C1187(int x) { double d = x * 17.5; d = d / 10.25 + 11; return (int)(d * d) ^ 1187; }
+    static int C1188(int x) { int s = x; for (int k = 0; k < 8; k++) s = s * 18 + (k ^ 18); return s; }
+    static int C1189(int x) { switch ((x + 3) % 5) { case 0: return x * 19; case 1: return x - 25; case 2: return (x << 3) ^ 25; case 3: return x / 3 + 19; default: return ~x + 1189; } }
+    static int C1190(int x) { var arr = new int[6]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 3; int s = 0; foreach (var v in arr) s += v % 10; return s; }
+    static int C1191(int x) { double d = x * 4.5; d = d / 7.25 + 16; return (int)(d * d) ^ 1191; }
+    static int C1192(int x) { int s = x; for (int k = 0; k < 12; k++) s = s * 5 + (k ^ 23); return s; }
+    static int C1193(int x) { switch ((x + 11) % 5) { case 0: return x * 6; case 1: return x - 7; case 2: return (x << 1) ^ 7; case 3: return x / 11 + 6; default: return ~x + 1193; } }
+    static int C1194(int x) { var arr = new int[10]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 7; int s = 0; foreach (var v in arr) s += v % 15; return s; }
+    static int C1195(int x) { double d = x * 8.5; d = d / 4.25 + 21; return (int)(d * d) ^ 1195; }
+    static int C1196(int x) { int s = x; for (int k = 0; k < 16; k++) s = s * 9 + (k ^ 5); return s; }
+    static int C1197(int x) { switch ((x + 8) % 5) { case 0: return x * 10; case 1: return x - 12; case 2: return (x << 3) ^ 12; case 3: return x / 8 + 10; default: return ~x + 1197; } }
+    static int C1198(int x) { var arr = new int[14]; for (int k = 0; k < arr.Length; k++) arr[k] = x + k * 11; int s = 0; foreach (var v in arr) s += v % 20; return s; }
+    static int C1199(int x) { double d = x * 12.5; d = d / 1.25 + 26; return (int)(d * d) ^ 1199; }
+    public const int Count = 1200;
     public static readonly System.Func<int, int>[] All = {
-        C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16, C17, C18, C19, C20, C21, C22, C23, C24, C25, C26, C27, C28, C29, C30, C31, C32, C33, C34, C35, C36, C37, C38, C39, C40, C41, C42, C43, C44, C45, C46, C47, C48, C49, C50, C51, C52, C53, C54, C55, C56, C57, C58, C59, C60, C61, C62, C63, C64, C65, C66, C67, C68, C69, C70, C71, C72, C73, C74, C75, C76, C77, C78, C79, C80, C81, C82, C83, C84, C85, C86, C87, C88, C89, C90, C91, C92, C93, C94, C95, C96, C97, C98, C99, C100, C101, C102, C103, C104, C105, C106, C107, C108, C109, C110, C111, C112, C113, C114, C115, C116, C117, C118, C119, C120, C121, C122, C123, C124, C125, C126, C127, C128, C129, C130, C131, C132, C133, C134, C135, C136, C137, C138, C139, C140, C141, C142, C143, C144, C145, C146, C147, C148, C149, C150, C151, C152, C153, C154, C155, C156, C157, C158, C159, C160, C161, C162, C163, C164, C165, C166, C167, C168, C169, C170, C171, C172, C173, C174, C175, C176, C177, C178, C179, C180, C181, C182, C183, C184, C185, C186, C187, C188, C189, C190, C191, C192, C193, C194, C195, C196, C197, C198, C199, C200, C201, C202, C203, C204, C205, C206, C207, C208, C209, C210, C211, C212, C213, C214, C215, C216, C217, C218, C219, C220, C221, C222, C223, C224, C225, C226, C227, C228, C229, C230, C231, C232, C233, C234, C235, C236, C237, C238, C239, C240, C241, C242, C243, C244, C245, C246, C247, C248, C249, C250, C251, C252, C253, C254, C255, C256, C257, C258, C259, C260, C261, C262, C263, C264, C265, C266, C267, C268, C269, C270, C271, C272, C273, C274, C275, C276, C277, C278, C279, C280, C281, C282, C283, C284, C285, C286, C287, C288, C289, C290, C291, C292, C293, C294, C295, C296, C297, C298, C299, C300, C301, C302, C303, C304, C305, C306, C307, C308, C309, C310, C311, C312, C313, C314, C315, C316, C317, C318, C319, C320, C321, C322, C323, C324, C325, C326, C327, C328, C329, C330, C331, C332, C333, C334, C335, C336, C337, C338, C339, C340, C341, C342, C343, C344, C345, C346, C347, C348, C349, C350, C351, C352, C353, C354, C355, C356, C357, C358, C359, C360, C361, C362, C363, C364, C365, C366, C367, C368, C369, C370, C371, C372, C373, C374, C375, C376, C377, C378, C379, C380, C381, C382, C383, C384, C385, C386, C387, C388, C389, C390, C391, C392, C393, C394, C395, C396, C397, C398, C399, C400, C401, C402, C403, C404, C405, C406, C407, C408, C409, C410, C411, C412, C413, C414, C415, C416, C417, C418, C419, C420, C421, C422, C423, C424, C425, C426, C427, C428, C429, C430, C431, C432, C433, C434, C435, C436, C437, C438, C439, C440, C441, C442, C443, C444, C445, C446, C447, C448, C449, C450, C451, C452, C453, C454, C455, C456, C457, C458, C459, C460, C461, C462, C463, C464, C465, C466, C467, C468, C469, C470, C471, C472, C473, C474, C475, C476, C477, C478, C479
+        C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16, C17, C18, C19, C20, C21, C22, C23, C24, C25, C26, C27, C28, C29, C30, C31, C32, C33, C34, C35, C36, C37, C38, C39, C40, C41, C42, C43, C44, C45, C46, C47, C48, C49, C50, C51, C52, C53, C54, C55, C56, C57, C58, C59, C60, C61, C62, C63, C64, C65, C66, C67, C68, C69, C70, C71, C72, C73, C74, C75, C76, C77, C78, C79, C80, C81, C82, C83, C84, C85, C86, C87, C88, C89, C90, C91, C92, C93, C94, C95, C96, C97, C98, C99, C100, C101, C102, C103, C104, C105, C106, C107, C108, C109, C110, C111, C112, C113, C114, C115, C116, C117, C118, C119, C120, C121, C122, C123, C124, C125, C126, C127, C128, C129, C130, C131, C132, C133, C134, C135, C136, C137, C138, C139, C140, C141, C142, C143, C144, C145, C146, C147, C148, C149, C150, C151, C152, C153, C154, C155, C156, C157, C158, C159, C160, C161, C162, C163, C164, C165, C166, C167, C168, C169, C170, C171, C172, C173, C174, C175, C176, C177, C178, C179, C180, C181, C182, C183, C184, C185, C186, C187, C188, C189, C190, C191, C192, C193, C194, C195, C196, C197, C198, C199, C200, C201, C202, C203, C204, C205, C206, C207, C208, C209, C210, C211, C212, C213, C214, C215, C216, C217, C218, C219, C220, C221, C222, C223, C224, C225, C226, C227, C228, C229, C230, C231, C232, C233, C234, C235, C236, C237, C238, C239, C240, C241, C242, C243, C244, C245, C246, C247, C248, C249, C250, C251, C252, C253, C254, C255, C256, C257, C258, C259, C260, C261, C262, C263, C264, C265, C266, C267, C268, C269, C270, C271, C272, C273, C274, C275, C276, C277, C278, C279, C280, C281, C282, C283, C284, C285, C286, C287, C288, C289, C290, C291, C292, C293, C294, C295, C296, C297, C298, C299, C300, C301, C302, C303, C304, C305, C306, C307, C308, C309, C310, C311, C312, C313, C314, C315, C316, C317, C318, C319, C320, C321, C322, C323, C324, C325, C326, C327, C328, C329, C330, C331, C332, C333, C334, C335, C336, C337, C338, C339, C340, C341, C342, C343, C344, C345, C346, C347, C348, C349, C350, C351, C352, C353, C354, C355, C356, C357, C358, C359, C360, C361, C362, C363, C364, C365, C366, C367, C368, C369, C370, C371, C372, C373, C374, C375, C376, C377, C378, C379, C380, C381, C382, C383, C384, C385, C386, C387, C388, C389, C390, C391, C392, C393, C394, C395, C396, C397, C398, C399, C400, C401, C402, C403, C404, C405, C406, C407, C408, C409, C410, C411, C412, C413, C414, C415, C416, C417, C418, C419, C420, C421, C422, C423, C424, C425, C426, C427, C428, C429, C430, C431, C432, C433, C434, C435, C436, C437, C438, C439, C440, C441, C442, C443, C444, C445, C446, C447, C448, C449, C450, C451, C452, C453, C454, C455, C456, C457, C458, C459, C460, C461, C462, C463, C464, C465, C466, C467, C468, C469, C470, C471, C472, C473, C474, C475, C476, C477, C478, C479, C480, C481, C482, C483, C484, C485, C486, C487, C488, C489, C490, C491, C492, C493, C494, C495, C496, C497, C498, C499, C500, C501, C502, C503, C504, C505, C506, C507, C508, C509, C510, C511, C512, C513, C514, C515, C516, C517, C518, C519, C520, C521, C522, C523, C524, C525, C526, C527, C528, C529, C530, C531, C532, C533, C534, C535, C536, C537, C538, C539, C540, C541, C542, C543, C544, C545, C546, C547, C548, C549, C550, C551, C552, C553, C554, C555, C556, C557, C558, C559, C560, C561, C562, C563, C564, C565, C566, C567, C568, C569, C570, C571, C572, C573, C574, C575, C576, C577, C578, C579, C580, C581, C582, C583, C584, C585, C586, C587, C588, C589, C590, C591, C592, C593, C594, C595, C596, C597, C598, C599, C600, C601, C602, C603, C604, C605, C606, C607, C608, C609, C610, C611, C612, C613, C614, C615, C616, C617, C618, C619, C620, C621, C622, C623, C624, C625, C626, C627, C628, C629, C630, C631, C632, C633, C634, C635, C636, C637, C638, C639, C640, C641, C642, C643, C644, C645, C646, C647, C648, C649, C650, C651, C652, C653, C654, C655, C656, C657, C658, C659, C660, C661, C662, C663, C664, C665, C666, C667, C668, C669, C670, C671, C672, C673, C674, C675, C676, C677, C678, C679, C680, C681, C682, C683, C684, C685, C686, C687, C688, C689, C690, C691, C692, C693, C694, C695, C696, C697, C698, C699, C700, C701, C702, C703, C704, C705, C706, C707, C708, C709, C710, C711, C712, C713, C714, C715, C716, C717, C718, C719, C720, C721, C722, C723, C724, C725, C726, C727, C728, C729, C730, C731, C732, C733, C734, C735, C736, C737, C738, C739, C740, C741, C742, C743, C744, C745, C746, C747, C748, C749, C750, C751, C752, C753, C754, C755, C756, C757, C758, C759, C760, C761, C762, C763, C764, C765, C766, C767, C768, C769, C770, C771, C772, C773, C774, C775, C776, C777, C778, C779, C780, C781, C782, C783, C784, C785, C786, C787, C788, C789, C790, C791, C792, C793, C794, C795, C796, C797, C798, C799, C800, C801, C802, C803, C804, C805, C806, C807, C808, C809, C810, C811, C812, C813, C814, C815, C816, C817, C818, C819, C820, C821, C822, C823, C824, C825, C826, C827, C828, C829, C830, C831, C832, C833, C834, C835, C836, C837, C838, C839, C840, C841, C842, C843, C844, C845, C846, C847, C848, C849, C850, C851, C852, C853, C854, C855, C856, C857, C858, C859, C860, C861, C862, C863, C864, C865, C866, C867, C868, C869, C870, C871, C872, C873, C874, C875, C876, C877, C878, C879, C880, C881, C882, C883, C884, C885, C886, C887, C888, C889, C890, C891, C892, C893, C894, C895, C896, C897, C898, C899, C900, C901, C902, C903, C904, C905, C906, C907, C908, C909, C910, C911, C912, C913, C914, C915, C916, C917, C918, C919, C920, C921, C922, C923, C924, C925, C926, C927, C928, C929, C930, C931, C932, C933, C934, C935, C936, C937, C938, C939, C940, C941, C942, C943, C944, C945, C946, C947, C948, C949, C950, C951, C952, C953, C954, C955, C956, C957, C958, C959, C960, C961, C962, C963, C964, C965, C966, C967, C968, C969, C970, C971, C972, C973, C974, C975, C976, C977, C978, C979, C980, C981, C982, C983, C984, C985, C986, C987, C988, C989, C990, C991, C992, C993, C994, C995, C996, C997, C998, C999, C1000, C1001, C1002, C1003, C1004, C1005, C1006, C1007, C1008, C1009, C1010, C1011, C1012, C1013, C1014, C1015, C1016, C1017, C1018, C1019, C1020, C1021, C1022, C1023, C1024, C1025, C1026, C1027, C1028, C1029, C1030, C1031, C1032, C1033, C1034, C1035, C1036, C1037, C1038, C1039, C1040, C1041, C1042, C1043, C1044, C1045, C1046, C1047, C1048, C1049, C1050, C1051, C1052, C1053, C1054, C1055, C1056, C1057, C1058, C1059, C1060, C1061, C1062, C1063, C1064, C1065, C1066, C1067, C1068, C1069, C1070, C1071, C1072, C1073, C1074, C1075, C1076, C1077, C1078, C1079, C1080, C1081, C1082, C1083, C1084, C1085, C1086, C1087, C1088, C1089, C1090, C1091, C1092, C1093, C1094, C1095, C1096, C1097, C1098, C1099, C1100, C1101, C1102, C1103, C1104, C1105, C1106, C1107, C1108, C1109, C1110, C1111, C1112, C1113, C1114, C1115, C1116, C1117, C1118, C1119, C1120, C1121, C1122, C1123, C1124, C1125, C1126, C1127, C1128, C1129, C1130, C1131, C1132, C1133, C1134, C1135, C1136, C1137, C1138, C1139, C1140, C1141, C1142, C1143, C1144, C1145, C1146, C1147, C1148, C1149, C1150, C1151, C1152, C1153, C1154, C1155, C1156, C1157, C1158, C1159, C1160, C1161, C1162, C1163, C1164, C1165, C1166, C1167, C1168, C1169, C1170, C1171, C1172, C1173, C1174, C1175, C1176, C1177, C1178, C1179, C1180, C1181, C1182, C1183, C1184, C1185, C1186, C1187, C1188, C1189, C1190, C1191, C1192, C1193, C1194, C1195, C1196, C1197, C1198, C1199
     };
 }

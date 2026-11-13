@@ -56,9 +56,11 @@ static class Bench
     }
 
     // A game-like frame loop: the same small mix of work every frame, and every 50th frame new content loads
-    // (40 game methods called for the first time, and every 100th frame 10 freshly built expression lambdas), which
+    // (20 game methods called for the first time, and every 100th frame 10 freshly built expression lambdas), which
     // is when code is new to the .NET JIT and to FEX. Prints startup_ms (process start to Main), first_frame_ms,
-    // frame_p50_ms, frame_p99_ms, frame_max_ms, total_ms (Main to the last frame), and the checksum.
+    // frame_p50_ms and frame_p99_ms over ordinary frames, load_frame_ms (median) and load_frame_max_ms over the
+    // frames that loaded content, frame_max_ms, total_ms (Main to the last frame), and the checksum. With
+    // BENCH_MAPS set, also prints to stderr how the app and framework images are mapped (file-backed or not).
     static void Frames(int frames)
     {
         double startup = (DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds;
@@ -79,7 +81,7 @@ static class Bench
         {
             var sw = Stopwatch.StartNew();
             if (f % 50 == 0)
-                for (int k = 0; k < 40; k++, nextCard++) sink += Cards.All[nextCard % Cards.Count](f + k);
+                for (int k = 0; k < 20; k++, nextCard++) sink += Cards.All[nextCard % Cards.Count](f + k);
             if (f % 100 == 0)
                 for (int k = 0; k < 10; k++)
                 {
@@ -100,14 +102,20 @@ static class Bench
             times[f] = sw.Elapsed.TotalMilliseconds;
         }
         double all = total.Elapsed.TotalMilliseconds;
-        var rest = times.Skip(1).OrderBy(t => t).ToArray();
+        var rest = times.Where((t, i) => i % 50 != 0).OrderBy(t => t).ToArray();
+        var loads = times.Where((t, i) => i > 0 && i % 50 == 0).OrderBy(t => t).ToArray();
         double Pct(double q) => rest[Math.Min(rest.Length - 1, (int)Math.Ceiling(q * rest.Length) - 1)];
+        if (Environment.GetEnvironmentVariable("BENCH_MAPS") != null)
+            foreach (var l in System.IO.File.ReadLines("/proc/self/maps"))
+                if (l.Contains("Bench") || l.Contains(".r2r") || l.Contains("System.Private.CoreLib")) Console.Error.WriteLine("maps: " + l);
         Console.WriteLine("metric,value,unit");
         Console.WriteLine($"startup_ms,{startup:F1},ms");
         Console.WriteLine($"first_frame_ms,{times[0]:F2},ms");
         Console.WriteLine($"frame_p50_ms,{Pct(0.50):F2},ms");
         Console.WriteLine($"frame_p99_ms,{Pct(0.99):F2},ms");
-        Console.WriteLine($"frame_max_ms,{rest[^1]:F2},ms");
+        Console.WriteLine($"load_frame_ms,{loads[loads.Length / 2]:F2},ms");
+        Console.WriteLine($"load_frame_max_ms,{loads[^1]:F2},ms");
+        Console.WriteLine($"frame_max_ms,{times.Skip(1).Max():F2},ms");
         Console.WriteLine($"total_ms,{all:F1},ms");
         Console.WriteLine($"checksum,{sink},0");
     }

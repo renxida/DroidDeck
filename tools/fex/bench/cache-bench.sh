@@ -8,12 +8,12 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=${OUT:-$PWD/bench-out}
-FRAMES=${FRAMES:-600}
+FRAMES=${FRAMES:-3000}
 WARM=${WARM:-3}
 SEQS=${SEQS:-2}
 mkdir -p "$OUT"
 CSV="$OUT/frames.csv"
-echo "config,seq,run,startup_ms,first_frame_ms,frame_p50_ms,frame_p99_ms,frame_max_ms,total_ms,checksum,jit_ms,jit_blocks,disk_hit,disk_miss,code_buffer_full,max_rss_kb" > "$CSV"
+echo "config,seq,run,startup_ms,first_frame_ms,frame_p50_ms,frame_p99_ms,load_frame_ms,load_frame_max_ms,frame_max_ms,total_ms,checksum,jit_ms,jit_blocks,disk_hit,disk_miss,code_buffer_full,max_rss_kb" > "$CSV"
 GAME_DOTNET="DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 DOTNET_gcConcurrent=0 DOTNET_GCConserveMemory=5 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1"
 GAME_FEX="FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 FEX_HALFBARRIERTSOENABLED=1 FEX_MULTIBLOCK=1 FEX_DYNAMICL1CACHE=0 FEX_L1CACHEENTRIES=262144"
 metric() { awk -F, -v k="$1" '$1==k{print $2}' "$2"; }
@@ -31,18 +31,19 @@ for seq in $(seq 1 "$SEQS"); do
     for run in cold $(seq -f "warm%g" 1 "$WARM"); do
       [ "$runner" = native ] && [ "$run" != cold ] && [ "$run" != warm1 ] && continue
       echo "== $name seq $seq $run" >&2
+      maps=""; [ "$run" = cold ] && [ "$seq" = 1 ] && maps="BENCH_MAPS=1"
       txt="$OUT/$name.$seq.$run.txt"; st="$OUT/$name.$seq.$run.stats"; rss="$OUT/$name.$seq.$run.rss"
       rm -f "$st" "$rss"
       if [ "$runner" = native ]; then
         d=$JIT_DLL; [ "$dll" = r2r ] && d=$R2R_DLL
-        env $GAME_DOTNET /usr/bin/time -f "%M" -o "$rss" dotnet "$d" "$FRAMES" frames < /dev/null > "$txt"
+        env $GAME_DOTNET $maps /usr/bin/time -f "%M" -o "$rss" dotnet "$d" "$FRAMES" frames < /dev/null > "$txt" 2> >(sed "s/^/  /" >&2)
       else
         # A self-contained build (its own runtime, e.g. composite ReadyToRun) ships an apphost: run that instead.
         guest="/opt/dotnet/dotnet /bench/$dll/Bench.dll"; [ -x "$ROOTFS/bench/$dll/Bench" ] && guest="/bench/$dll/Bench"
         rm -f /dev/shm/fex-*-stats
         "$FEX_STATS" -s -i 50 > "$st" & sp=$!
-        env $GAME_DOTNET $GAME_FEX $envs FEX_DISKCACHEPATH="$cache" FEX_ROOTFS="$ROOTFS" FEX_PROFILESTATS=1 FEX_SILENTLOG=1 \
-          /usr/bin/time -f "%M" -o "$rss" "$FEX_BIN/FEX" $guest "$FRAMES" frames < /dev/null > "$txt" \
+        env $GAME_DOTNET $GAME_FEX $envs $maps FEX_DISKCACHEPATH="$cache" FEX_ROOTFS="$ROOTFS" FEX_PROFILESTATS=1 FEX_SILENTLOG=1 \
+          /usr/bin/time -f "%M" -o "$rss" "$FEX_BIN/FEX" $guest "$FRAMES" frames < /dev/null > "$txt" 2> >(sed "s/^/  /" >&2) \
           || echo "checksum,crashed-$?,0" >> "$txt"
         sleep 0.3; kill $sp 2>/dev/null || true; wait $sp 2>/dev/null || true
       fi
@@ -55,7 +56,7 @@ for seq in $(seq 1 "$SEQS"); do
         fx=$(awk -F, '{j+=$5; b+=$13; h+=$14; m+=$15; c+=$17} END{printf "%.1f,%d,%d,%d,%d", j, b, h, m, c}' "$st")
       fi
       r=$( [ -s "$rss" ] && tail -1 "$rss" || echo "")
-      echo "$name,$seq,$run,$(metric startup_ms "$txt"),$(metric first_frame_ms "$txt"),$(metric frame_p50_ms "$txt"),$(metric frame_p99_ms "$txt"),$(metric frame_max_ms "$txt"),$(metric total_ms "$txt"),$(metric checksum "$txt"),$fx,$r" >> "$CSV"
+      echo "$name,$seq,$run,$(metric startup_ms "$txt"),$(metric first_frame_ms "$txt"),$(metric frame_p50_ms "$txt"),$(metric frame_p99_ms "$txt"),$(metric load_frame_ms "$txt"),$(metric load_frame_max_ms "$txt"),$(metric frame_max_ms "$txt"),$(metric total_ms "$txt"),$(metric checksum "$txt"),$fx,$r" >> "$CSV"
       du -sh "$cache" 2>/dev/null | sed "s/^/  cache size: /" >&2 || true
     done
   done

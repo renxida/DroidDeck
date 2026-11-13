@@ -22,7 +22,7 @@ def f(v, d=1):
 sums = {r["checksum"] for r in rows}
 native = by.get("native_jit", {}).get("warm") or by.get("native_jit", {}).get("cold") or []
 base = med(native, "frame_p50_ms")
-print("| config | warm p50 ms | warm p99 ms | warm max ms | first run ms (cold) | cold total ms | warm total ms | "
+print("| config | warm p50 ms | warm p99 ms | load frame ms warm (max) | first run ms (cold) | cold total ms | warm total ms | "
       "translated ms cold / warm | cache hit warm | code buffer full | RSS MB warm |")
 print("|---|---|---|---|---|---|---|---|---|---|---|")
 for name in order:
@@ -38,7 +38,7 @@ for name in order:
     if hs and sum(h + m for h, m in hs):
         hit = 100 * sum(h for h, _ in hs) / sum(h + m for h, m in hs)
     rss = med(w, "max_rss_kb")
-    print(f"| {name} | {f(p50, 2)}{rel} | {f(med(w, 'frame_p99_ms'), 2)} | {f(med(w, 'frame_max_ms'), 1)} | {f(first)} | "
+    print(f"| {name} | {f(p50, 2)}{rel} | {f(med(w, 'frame_p99_ms'), 2)} | {f(med(w, 'load_frame_ms'), 1)} ({f(med(w, 'load_frame_max_ms'), 1)}) | {f(first)} | "
           f"{f(med(c, 'total_ms'))} | {f(med(w, 'total_ms'))} | {f(med(c, 'jit_ms'), 0)} / {f(med(w, 'jit_ms'), 0)} | "
           f"{'-' if hit is None else f'{hit:.0f}%'} | {f(med(c + w, 'code_buffer_full'), 0)} | {f(rss / 1024 if rss else None, 0)} |")
 print()
