@@ -6,6 +6,9 @@ on:
       run_id:
         description: Actions run ID to pull the droiddeck-apk artifact from
         required: true
+  workflow_run:
+    workflows: [Build APK]
+    types: [completed]
 
 permissions:
   contents: write
@@ -13,13 +16,19 @@ permissions:
 
 jobs:
   release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
     steps:
       - name: Download artifact
-        run: gh run download "${{ inputs.run_id }}" -n droiddeck-apk -D apk
+        run: gh run download "$RUN_ID" -n droiddeck-apk -D apk
 
       - name: Rename APK
         run: |
@@ -30,5 +39,5 @@ jobs:
       - name: Publish to release "latest"
         run: |
           gh release view latest >/dev/null 2>&1 || \
-            gh release create latest --title latest --notes "APK from run ${{ inputs.run_id }}" --target "${{ github.sha }}"
+            gh release create latest --title latest --notes "APK from run $RUN_ID" --target "${{ github.sha }}"
           gh release upload latest kestrel.apk --clobber
