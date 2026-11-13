@@ -266,6 +266,7 @@ static void device_lost(const char *reason) {}
 static int64_t perf_now(void) { return 0; }
 static void perf_add(int64_t *sum, int64_t *max, unsigned *count, int64_t duration) {}
 static VkResult timed_wait(int fence, uint64_t timeout) { return VK_SUCCESS; }
+static VkResult queue_present(VkPresentInfoKHR *pi) { return g_vk.QueuePresentKHR(g_queue, pi); }
 static void vkp_framegen_presented(int frames) {}
 static const char *vk_result_name(int result) { return "success"; }
 static void droiddeck_on_first_frame(void) {}

@@ -167,6 +167,13 @@ static struct vkp_image *g_pending_blits[PENDING_BLITS];
 static uint32_t g_vendor_id;
 
 static struct vkp_perf g_perf;
+
+/* VK_GOOGLE_display_timing on the screen swapchain: each present carries an id, and Android reports when
+ * the frame with that id reached the panel. Ids are never reused within the process. */
+static int g_display_timing;
+static PFN_vkGetPastPresentationTimingGOOGLE g_past_timing;
+static uint32_t g_present_id, g_present_seen;
+static unsigned g_present_count;
 static int64_t perf_now(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -415,6 +422,7 @@ static void destroy_swapchain(void) {
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
     if (g_swapchain) g_vk.DestroySwapchainKHR(g_dev, g_swapchain, NULL);
     g_swapchain = VK_NULL_HANDLE;
+    g_present_seen = g_present_id;
     g_swap_md_identity = 0;
     if (g_surface) g_vk.DestroySurfaceKHR(g_inst, g_surface, NULL);
     g_surface = VK_NULL_HANDLE;
@@ -737,7 +745,7 @@ static int dev_init(void) {
 
     static const char *const import_exts[4] = {"VK_KHR_external_memory_fd", "VK_EXT_external_memory_dma_buf",
                                                "VK_EXT_image_drm_format_modifier", "VK_KHR_image_format_list"};
-    const char *dev_exts[9] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    const char *dev_exts[10] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     uint32_t n_dev_exts = 1;
     uint32_t ne = 0;
     g_vk.EnumerateDeviceExtensionProperties(g_pd, NULL, &ne, NULL);
@@ -769,6 +777,8 @@ static int dev_init(void) {
     }
     const int want_sem_fd = has_ext(exts, ne, VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
     if (want_sem_fd) dev_exts[n_dev_exts++] = VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME;
+    const int want_timing = has_ext(exts, ne, VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
+    if (want_timing) dev_exts[n_dev_exts++] = VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME;
     g_ahb_import = has_ext(exts, ne, VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME) &&
                    has_ext(exts, ne, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);
     /* The present path's own AHB import (#561) stays on the phone's own driver. */
@@ -801,6 +811,12 @@ static int dev_init(void) {
     }
     vk_loader_load_device(g_dev);
     log_display_driver();
+    g_past_timing = want_timing ? (PFN_vkGetPastPresentationTimingGOOGLE)
+        g_vk.GetDeviceProcAddr(g_dev, "vkGetPastPresentationTimingGOOGLE") : NULL;
+    g_display_timing = g_past_timing != NULL;
+    droiddeck_log("perf", "display timing: %s", g_display_timing
+                  ? "VK_GOOGLE_display_timing on: input latency is measured to the panel"
+                  : "unavailable: input latency is measured to the present");
     g_vk.GetDeviceQueue(g_dev, g_qfam, 0, &g_queue);
     vkp_gpu_busy_device(g_pd, g_dev, g_qfam);
     if (want_ahb)
@@ -2135,6 +2151,20 @@ static void send_hdr_metadata(const struct droiddeck_color *c) {
                c->identity, c->text);
 }
 
+/* The screen swapchain's only present: numbers each one for VK_GOOGLE_display_timing when it is on. */
+static VkResult queue_present(VkPresentInfoKHR *pi) {
+    VkPresentTimeGOOGLE when = {.presentID = 0, .desiredPresentTime = 0};
+    VkPresentTimesInfoGOOGLE times = {.sType = VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE, .swapchainCount = 1,
+                                      .pTimes = &when};
+    if (g_display_timing) {
+        when.presentID = ++g_present_id;
+        times.pNext = pi->pNext;
+        pi->pNext = &times;
+    }
+    g_present_count++;
+    return g_vk.QueuePresentKHR(g_queue, pi);
+}
+
 static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *how) {
     if (how) *how = 0;
@@ -2404,7 +2434,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
                                .pWaitSemaphores = &g_rnds[slot + k], .swapchainCount = 1,
                                .pSwapchains = &g_swapchain, .pImageIndices = &img};
         const int64_t t_pres = perf_now();
-        pr = g_vk.QueuePresentKHR(g_queue, &pi);
+        pr = queue_present(&pi);
         perf_add(&g_perf.present_ns, &g_perf.present_max_ns, &g_perf.presents, perf_now() - t_pres);
         if (k < ngen) presented_gen++;
         if (pr == VK_ERROR_DEVICE_LOST) { device_lost("present"); return -1; }
@@ -2942,4 +2972,30 @@ void vkp_pass_abort(void) {
     g_pass.active = 0;
     if (g_dev_state == 1)
         g_vk.EndCommandBuffer(g_cmds[0]);
+}
+
+int vkp_display_timing(void) { return g_display_timing; }
+
+unsigned vkp_present_count(void) { return g_present_count; }
+
+uint32_t vkp_last_present_id(void) { return g_display_timing ? g_present_id : 0; }
+
+int vkp_swap_pending(void) { return g_display_timing ? (int)(g_present_id - g_present_seen) : -1; }
+
+int vkp_poll_display_times(void (*shown)(uint32_t id, int64_t display_ns)) {
+    if (!g_display_timing || !g_swapchain || g_dev_state != 1) return 0;
+    VkPastPresentationTimingGOOGLE t[16];
+    int got = 0;
+    for (int round = 0; round < 4; round++) {
+        uint32_t n = 16;
+        VkResult r = g_past_timing(g_dev, g_swapchain, &n, t);
+        if (r != VK_SUCCESS && r != VK_INCOMPLETE) return got;
+        for (uint32_t i = 0; i < n; i++) {
+            if (t[i].presentID > g_present_seen) g_present_seen = t[i].presentID;
+            if (t[i].actualPresentTime) shown(t[i].presentID, (int64_t)t[i].actualPresentTime);
+            got++;
+        }
+        if (r != VK_INCOMPLETE) break;
+    }
+    return got;
 }

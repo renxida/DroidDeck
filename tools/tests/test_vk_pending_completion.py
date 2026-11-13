@@ -120,7 +120,7 @@ typedef int VkResult;
 #define VK_NULL_HANDLE 0
 static int g_dev_state, g_base_black, g_swap_md_identity;
 static uintptr_t g_dev=1, g_inst=1, g_swapchain, g_surface, *g_images;
-static uint32_t g_nimg;
+static uint32_t g_nimg, g_present_id, g_present_seen;
 static unsigned resets, forgotten, destroyed, errors, lost;
 static VkResult answer;
 #define LOGE(...) (++errors)
