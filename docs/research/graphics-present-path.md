@@ -110,6 +110,33 @@ After the patch these costs stay flat as object counts grow. The BC decode probe
 deliberately broken coalescing build fails the probe. The hash map passed 20M random operations against a reference
 under ASan and UBSan. What this saves on the phone depends on calls per frame, which vk-count reports.
 
+## Gamescope on PowerVR: where the frame waits (design, no change yet)
+
+PowerVR sessions run gamescope's SDL backend (`BL_GAMESCOPE_BACKEND=sdl`, SystemVulkanDriver), not the Wayland
+backend, so every frame takes the full-composite path even for one fullscreen game. Per frame, the paint thread does:
+
+1. `vulkan_composite`: the compute composite into an offscreen image, then a copy into the swapchain image. The copy
+   happens because the hybris Wayland swapchain lacks storage usage or mutable format (patch 0920 picks it).
+2. `vulkan_wait`: a CPU block on the composite's timeline value (patch 0925, because present has no
+   render-finished semaphore).
+3. `vkQueuePresentKHR` → libhybris `queue_present` → `vkQueueSignalReleaseImageANDROID` → the Wayland window's
+   `queueBuffer`, which `sync_wait`s the release fence on the calling thread before attach and commit.
+4. `acquire_next_image`: dequeue (FIFO) plus a fence wait.
+
+What this means:
+
+- Replacing step 2 with a semaphore (0925's own TODO) gains nothing alone, because step 3 waits on the same GPU work
+  on the same thread.
+- Getting the composite off the paint thread's critical path needs both changes: a semaphore present in gamescope,
+  and a presenter thread in libhybris's `wayland_window.cpp` so that `queueBuffer` hands off (buffer, fence) and
+  returns while that thread waits and commits. The gain is latency per frame, about the GPU time of composite plus
+  copy, not CPU.
+- Steps 2 to 4 are blocking waits, not CPU burn. So gamescope's 6 to 7 ms of CPU per game frame is real work
+  somewhere else: the paint thread's command recording and the compat layer under it, wlserver, or the X window
+  manager. Choosing a fix needs gamescope's CPU split by thread.
+- Removing the copy would need a graphics-pipeline composite or a swapchain with storage usage. That's a large
+  change, to weigh only if GPU time turns out to bind.
+
 ## Next rounds
 
 - Read the first vk-count run: draws and submits per frame, and how the 60+ ms frames split between CPU and waits.
