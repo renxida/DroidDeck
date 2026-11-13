@@ -1080,8 +1080,22 @@ case $mode in
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
       _bl_setup_mark ui-scale
     fi
-    droiddeck-seed-redists "$steam_root" || true
-    _bl_setup_mark redists
+    if [ "${DROIDDECK_EXP_ALL:-}" = 1 ] && [ -n "${BL_LAUNCH_DIR:-}" ] && [ -d "$BL_LAUNCH_DIR" ]; then
+      # The redistributable marks go into Wine prefixes, which only a game launch reads; the client
+      # does not. They took 616 ms of the 943 ms before the client started (2026-11-12), so they
+      # run beside the client's start, and the game hand-off waits for them (steam_hold_launch).
+      : > "$BL_LAUNCH_DIR/redists-seeding"
+      {
+        printf '%s\n' "$BASHPID" > "$BL_LAUNCH_DIR/redists-seeding"
+        droiddeck-seed-redists "$steam_root" || true
+        rm -f "$BL_LAUNCH_DIR/redists-seeding"
+      } &
+      _bl_setup_mark "redists (background)"
+    else
+      [ -n "${BL_LAUNCH_DIR:-}" ] && rm -f "$BL_LAUNCH_DIR/redists-seeding"
+      droiddeck-seed-redists "$steam_root" || true
+      _bl_setup_mark redists
+    fi
     echo "== steam setup before the client starts: $_bl_setup"
     else
     _bl_x64_tool=$(droiddeck-steam-x64 --default-tool)
@@ -1226,6 +1240,16 @@ case $mode in
         sleep "$ready_poll"
         waited=$((waited + 1))
       done
+      waited=0
+      # The redistributable marks the session seeds beside the client's start go into the prefixes
+      # a game launch reads; they take well under a second, so this rarely waits.
+      while [ -e "$BL_LAUNCH_DIR/redists-seeding" ] && [ "$waited" -lt 40 ]; do
+        _bl_seeder=$(cat "$BL_LAUNCH_DIR/redists-seeding" 2>/dev/null)
+        [ -n "$_bl_seeder" ] && ! kill -0 "$_bl_seeder" 2>/dev/null && break
+        sleep 0.5
+        waited=$((waited + 1))
+      done
+      [ "$waited" -gt 0 ] && echo "== steam: the launch waited $((waited * 500)) ms for the redistributable marks"
       waited=0
       echo "== steam: interface up after $(($(_bl_ms) - began)) ms (Steam in front after $front ms); launching the requested game $game"
       _bl_hand_off
@@ -1479,6 +1503,17 @@ case $mode in
         elif steam_restart_for "$1" "the client lost shortcut $1"; then
           return
         fi
+      fi
+      # A Steam app the client has installed here starts through the client's local launch call
+      # (launch-speed experiment): steam://rungameid follows the play target picked for the app and
+      # streamed from a PC on the LAN first, 13 s before the local launch (2026-11-12).
+      if [ "$state" -eq 3 ] && [ "${DROIDDECK_EXP_ALL:-}" = 1 ]; then
+        local how
+        if how=$(/usr/local/bin/droiddeck-agent --steam-run-game "$1" 2>/dev/null); then
+          echo "== steam: $1 $how"
+          return
+        fi
+        echo "== steam: $1 not started directly (${how:-no answer}); asking with steam://rungameid"
       fi
       "${steam_client[@]:-$steam_root/steamrtarm64/steam}" "steam://rungameid/$1" >/dev/null 2>&1
       [ "$state" -eq 3 ] && return

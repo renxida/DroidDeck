@@ -894,6 +894,35 @@ def steam_game_action(agent_dir, app_id):
     return value is True
 
 
+def steam_run_game(agent_dir, app_id):
+    """Start an installed Steam app on this device through the client's own local launch call.
+
+    steam://rungameid goes through the Big Picture launch path, which honours the play target picked
+    for the app: with a Remote Play host on the LAN picked, the client tried to stream the game from
+    that PC first (2026-11-12: "streaming client started" a second after the URL, failed with code 26
+    seven seconds later, and the local launch began 13 s after the URL; an earlier session waited ten
+    minutes on the PC's authorization). Apps.RunGame starts the copy on this device. Only an app this
+    client lists as installed here is started this way; anything else stays with the URL."""
+    if not isinstance(app_id, str) or not app_id.isascii() or not app_id.isdigit() or not 0 < int(app_id) <= 0xFFFFFFFF:
+        raise AgentError("INVALID_APP_ID", "appId must be a positive decimal Steam app id")
+    expression = """(() => {
+        const apps = globalThis.SteamClient?.Apps;
+        const store = globalThis.appStore;
+        if (typeof apps?.RunGame !== 'function' || typeof store?.GetAppOverviewByAppID !== 'function') return {state: 'unavailable'};
+        const overview = store.GetAppOverviewByAppID(%d);
+        if (!overview) return {state: 'unknown'};
+        const local = overview.local_per_client_data;
+        if (local?.installed !== true) return {state: 'not-installed'};
+        const selected = String(overview.selected_clientid ?? '0');
+        apps.RunGame(%s, '', -1, 100);
+        return {state: 'started', selected: selected, local: String(local.clientid ?? '0')};
+    })()""" % (int(app_id), json.dumps(app_id))
+    value = cdp_eval(agent_dir, expression, await_promise=False, timeout=3).get("value")
+    if not isinstance(value, dict) or not isinstance(value.get("state"), str):
+        raise AgentError("NO_ANSWER", "the client did not answer the launch")
+    return value
+
+
 def game_pids(app_id):
     wanted = [("SteamAppId=%s" % app_id).encode(), ("SteamGameId=%s" % app_id).encode()]
     me = os.getpid()
@@ -1191,6 +1220,23 @@ def main(argv):
             return 0 if steam_game_action(Path(base) / "agent", argv[1]) else 1
         except (AgentError, OSError, ValueError):
             return 2
+    if argv and argv[0] == "--steam-run-game":
+        if len(argv) != 2:
+            print("usage: droiddeck-agent --steam-run-game <appid>", file=sys.stderr)
+            return 2
+        try:
+            result = steam_run_game(Path(base) / "agent", argv[1])
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not start the game in the client: %s" % error, file=sys.stderr)
+            return 2
+        if result["state"] != "started":
+            print(result["state"])
+            return 1
+        if (result.get("selected") or "0") not in ("0", result.get("local") or "0"):
+            print("started on this device (the client had another device picked to play it on)")
+        else:
+            print("started on this device")
+        return 0
     if argv and argv[0] == "--steam-clear-pending-interstitial":
         if len(argv) != 2:
             print("usage: droiddeck-agent --steam-clear-pending-interstitial <appid>", file=sys.stderr)
