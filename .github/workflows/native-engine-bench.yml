@@ -1,0 +1,92 @@
+name: Native engine bench (Godot 4.5.1 C#, arm64 native vs x86-64 under FEX)
+
+# Off-device answer to "how much would running StS2's engine natively save?".
+# Same Godot 4.5.1 .NET 9 stand-in workload, exported twice, run on an arm64 runner:
+# natively, and as the x86-64 build under FEX with Kestrel's game env.
+
+on:
+  push:
+    paths:
+      - 'tools/native-engine/**'
+      - '.github/workflows/native-engine-bench.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VER: 4.5.1-stable
+  GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.5.1-stable
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Fetch Godot 4.5.1 mono editor (arm64) and export templates
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSL -o ed.zip "$GODOT_URL/Godot_v${GODOT_VER}_mono_linux_arm64.zip"
+          unzip -q ed.zip
+          ED=$(find "$PWD" -name 'Godot_v*_mono_linux.arm64' -type f | head -1)
+          chmod +x "$ED"; echo "GODOT=$ED" >> "$GITHUB_ENV"
+          curl -fsSL -o t.tpz "$GODOT_URL/Godot_v${GODOT_VER}_mono_export_templates.tpz"
+          T=~/.local/share/godot/export_templates/4.5.1.stable.mono
+          mkdir -p "$T" && unzip -q t.tpz -d tt && mv tt/templates/* "$T"/
+          ls "$T" | grep -i linux
+      - name: Export the bench for arm64 and x86_64
+        working-directory: tools/native-engine/bench
+        run: |
+          set -euo pipefail
+          "$GODOT" --headless --path . --import || true
+          "$GODOT" --headless --path . --build-solutions --quit || true
+          mkdir -p out/arm64 out/x86_64
+          "$GODOT" --headless --path . --export-release arm64 out/arm64/NativeBench.arm64
+          "$GODOT" --headless --path . --export-release x86_64 out/x86_64/NativeBench.x86_64
+          ls -la out/*; ls out/*/ | head -40
+          file out/arm64/NativeBench.arm64 out/x86_64/NativeBench.x86_64
+      - name: Install FEX (upstream PPA) and an x86-64 rootfs
+        run: |
+          set -euo pipefail
+          sudo add-apt-repository -y ppa:fex-emu/fex
+          sudo apt-get update -q
+          sudo apt-get install -y -q fex-emu-armv8.4 squashfs-tools time || sudo apt-get install -y -q fex-emu-armv8.2 squashfs-tools time
+          FEXRootFSFetcher -y -x --distro-name=ubuntu --distro-version=24.04 || FEXRootFSFetcher -y -x
+          FEXInterpreter --version || true
+          FEXInterpreter /usr/bin/uname -m
+      - name: Run
+        working-directory: tools/native-engine/bench
+        run: |
+          set -uo pipefail
+          mkdir -p results
+          common="DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1"
+          # Kestrel's current game env for the managed side (fex-fast row).
+          kenv="FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 FEX_HALFBARRIERTSOENABLED=1 FEX_MULTIBLOCK=1 DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 DOTNET_gcConcurrent=0"
+          run() { # name, cmd...
+            local name=$1; shift
+            for i in 1 2 3; do
+              /usr/bin/time -v -o results/$name.$i.time timeout 900 env $common "$@" --headless > results/$name.$i.log 2>&1
+              echo "$name run $i exit=$?" | tee -a results/exits.txt
+              grep -h BENCH_JSON results/$name.$i.log | sed "s/^BENCH_JSON /$name /" | tee -a results/bench.txt
+            done
+          }
+          run native  env DOTNET_TieredPGO=0 out/arm64/NativeBench.arm64
+          run fex_kestrel env $kenv FEXInterpreter out/x86_64/NativeBench.x86_64
+          run fex_notso env FEX_TSOENABLED=0 FEX_MULTIBLOCK=1 DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 FEXInterpreter out/x86_64/NativeBench.x86_64
+          for f in results/*.time; do printf "%s " "$f"; grep -E "Elapsed|Maximum resident|User time|System time" "$f" | tr -s ' ' | tr '\n' ' '; echo; done | tee results/time.txt
+          {
+            echo '## Native vs FEX (Godot 4.5.1 C# stand-in, per-frame CPU ms)'; echo '```'; cat results/bench.txt; echo; cat results/exits.txt; echo; cat results/time.txt; echo '```'
+            for f in results/fex_kestrel.1.log results/native.1.log; do echo "### tail $f"; echo '```'; tail -25 "$f"; echo '```'; done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-engine-bench
+          path: tools/native-engine/bench/results
