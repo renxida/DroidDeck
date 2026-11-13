@@ -59,6 +59,7 @@ class ExperimentsTest {
             "fex-l1" to "DROIDDECK_EXP_FEX_L1",
             "hybris-index-session" to "DROIDDECK_EXP_HYBRIS_INDEX_SESSION",
             "native-engine" to "DROIDDECK_EXP_NATIVE_ENGINE",
+            "dxvk-arm64ec" to "DROIDDECK_EXP_DXVK_ARM64EC",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())
