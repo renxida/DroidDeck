@@ -102,7 +102,7 @@ jobs:
         working-directory: tools/native-engine/bench
         run: |
           set -euo pipefail
-          python3 -m unittest "$GITHUB_WORKSPACE/tools/tests/test_native_godot.py"
+          python3 "$GITHUB_WORKSPACE/tools/tests/test_native_godot.py"
           mkdir -p out/windows
           timeout 900 "$GODOT" --headless --path . --export-release windows out/windows/NativeBench.exe > export-win.log 2>&1 || echo "export exit $?"
           ls -la out/windows || true
