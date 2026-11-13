@@ -45,7 +45,8 @@ jobs:
           cmake -S fex-ec/src -B fex-linux -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LINKER=lld \
             -DTUNE_CPU=none -DTUNE_ARCH=armv8-a -DBUILD_TESTING=OFF -DBUILD_FEXCONFIG=OFF -DBUILD_THUNKS=OFF \
-            -DENABLE_ASSERTIONS=OFF -DENABLE_CCACHE=OFF -DENABLE_OFFLINE_TELEMETRY=OFF
+            -DENABLE_ASSERTIONS=OFF -DENABLE_CCACHE=OFF -DENABLE_OFFLINE_TELEMETRY=OFF \
+            -DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g
           ninja -C fex-linux FEX FEXServer
           gcc -O2 -Wall -o fex-stats tools/fex/stats/fex-stats.c
       - name: x86-64 rootfs with x64 .NET 9
