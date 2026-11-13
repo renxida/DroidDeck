@@ -119,7 +119,34 @@ jobs:
           echo "exit $rc"
           python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print({k: v for k, v in r.items() if k != "skipped"}, len(r["skipped"]), "skipped")' out/native-launch/native-launch.json || true
           grep -E "droiddeck-native-godot|native_compat|BENCH|ERROR|\.NET|hostfxr" win-run.log | head -40
-          grep -q "BENCH" win-run.log
+          if ! grep -q "BENCH" win-run.log; then
+            echo "--- diagnostics"
+            python3 - out/windows/data_NativeBench_windows_x86_64/NativeBench.dll "$KIT/NativeBench.dll" <<'PY'
+          import struct, sys
+          for p in sys.argv[1:]:
+              b = open(p, "rb").read()
+              pe = struct.unpack_from("<I", b, 0x3C)[0]
+              machine = struct.unpack_from("<H", b, pe + 4)[0]
+              opt = pe + 24
+              magic = struct.unpack_from("<H", b, opt)[0]
+              rva, size = struct.unpack_from("<II", b, opt + (112 if magic == 0x20B else 96) + 14 * 8)
+              nsec = struct.unpack_from("<H", b, pe + 6)[0]
+              sec = opt + struct.unpack_from("<H", b, pe + 20)[0]
+              off = None
+              for i in range(nsec):
+                  va, vs, raw_size, raw = struct.unpack_from("<IIII", b, sec + i * 40 + 8)
+                  if va <= rva < va + max(vs, raw_size):
+                      off = rva - va + raw
+              flags = struct.unpack_from("<I", b, off + 16)[0]
+              native_hdr = struct.unpack_from("<II", b, off + 64)
+              print(p, "machine=%#x" % machine, "corflags=%#x" % flags, "managed_native_header=", native_hdr, "size", len(b))
+          PY
+            for f in out/windows/data_NativeBench_windows_x86_64/NativeBench.runtimeconfig.json "$KIT/NativeBench.runtimeconfig.json" out/native-launch/data_NativeBench_linuxbsd_arm64/NativeBench.runtimeconfig.json; do echo "== $f"; cat "$f"; echo; done
+            COREHOST_TRACE=1 COREHOST_TRACE_VERBOSITY=4 COREHOST_TRACEFILE=$PWD/host.log DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 \
+              out/native-launch/NativeBench --main-pack "$PWD/out/windows/NativeBench.pck" --headless > /dev/null 2>&1 || true
+            grep -iE "error|fail|exception|could not|not found|Godot" host.log | tail -40
+            exit 1
+          fi
       - name: Draw a test skeleton with our template (NativeSkeleton2D, two frames, checked)
         timeout-minutes: 20
         working-directory: tools/native-engine/skeltest
@@ -148,6 +175,7 @@ jobs:
             ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono
             tools/native-engine/bench/run.log
             tools/native-engine/bench/win-run.log
+            tools/native-engine/bench/host.log
             tools/native-engine/bench/out/native-launch/native-launch.json
             tools/native-engine/skeltest/out/*.png
             tools/native-engine/skeltest/skel.log
