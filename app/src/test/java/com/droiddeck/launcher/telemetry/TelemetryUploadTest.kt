@@ -163,6 +163,23 @@ class TelemetryUploadTest {
         }
     }
 
+    @Test fun theUploadBundleCarriesGuestSampleFilesAsIsOnlyWhenWrittenThisSession() {
+        val dir = session()
+        val bytes = ByteArray(4096) { (it * 7).toByte() }
+        val fresh = File(tmp.root, "native-samples.zip").apply { writeBytes(bytes) }
+        val start = fresh.lastModified() - 1000
+        val upload = File(tmp.root, "upload.zip")
+        assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint",
+            TelemetryBundle.Sources(start, null, -1, emptyList(), guestFiles = listOf("native-samples.zip" to fresh))))
+        ZipFile(upload).use { archive ->
+            assertTrue(bytes.contentEquals(archive.getInputStream(archive.getEntry("native-samples.zip")).readBytes()))
+        }
+        val stale = File(tmp.root, "upload2.zip")
+        assertTrue(TelemetryBundle.write(app, dir, stale, 4096, "kind: checkpoint",
+            TelemetryBundle.Sources(fresh.lastModified() + 3_600_000, null, -1, emptyList(), guestFiles = listOf("native-samples.zip" to fresh))))
+        ZipFile(stale).use { assertNull(it.getEntry("native-samples.zip")) }
+    }
+
     @Test fun theFirstUploadNamesNoBranchSoAnEmptyRepositoryGetsItsFirstCommit() {
         val first = org.json.JSONObject(TelemetryUploader.requestHead("runs/a/b/c.zip", null) + "QQ==\"}")
         assertEquals(setOf("message", "content"), first.keys().asSequence().toSet())

@@ -697,6 +697,55 @@ jobs:
     uses: ./.github/workflows/publish-packs.yml
     secrets: inherit
 
+  fork-packs:
+    needs: [build, checks]
+    # A fork's APK downloads each add-on pack from upstream's DroidDeck-Components release, then from the fork's own
+    # release of the same tag (AddonPack.urls). A pack the fork changed exists only here, so publish it to the fork.
+    if: github.event_name == 'push' && github.event.repository.fork
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: fork-packs
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: droiddeck-packs
+          path: packs
+
+      - name: Publish this build's packs to the fork's releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for name in proot directaudio powervr; do
+            file="packs/$name.tar.zst"
+            [ -f "$file" ] || { echo "::error::$name.tar.zst is missing from this run's packs"; exit 1; }
+            sha=$(sha256sum "$file" | cut -d' ' -f1)
+            tag="pack-$name-${sha:0:16}"
+            if curl -fsIL -o /dev/null "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$tag/$name.tar.zst"; then
+              echo "$tag: upstream has it"
+              continue
+            fi
+            if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "$tag: already on the fork; published tags are never replaced"
+              continue
+            fi
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "$tag" --notes "$name add-on pack built by Build APK run $GITHUB_RUN_ID ($GITHUB_SHA). sha256 $sha" \
+              "$file"
+            echo "$tag: published"
+          done
+          for name in proot directaudio powervr; do
+            sha=$(sha256sum "packs/$name.tar.zst" | cut -d' ' -f1)
+            tag="pack-$name-${sha:0:16}"
+            curl -fsIL -o /dev/null "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$tag/$name.tar.zst" ||
+              curl -fsIL -o /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$name.tar.zst" ||
+              { echo "::error::$tag is not downloadable from upstream or the fork; this APK's setup would fail"; exit 1; }
+          done
+
   announce:
     needs: [build, sign, packs]
     # Release signing and publishing need upstream's keys and apps; forks stop at the testkey APK.

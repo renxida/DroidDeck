@@ -45,6 +45,8 @@ object Experiments {
     /** FEX's per-thread block lookup cache at a fixed size from the start: 4 MB with Kestrel's FEX, 16 MB otherwise. */
     const val FEX_L1 = "fex-l1"
     const val HYBRIS_INDEX_SESSION = "hybris-index-session"
+    /** Godot C# games run on Kestrel's own linux-arm64 engine (droiddeck-native-godot), skipping Wine and FEX; Proton if it fails to start. */
+    const val NATIVE_ENGINE = "native-engine"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -72,6 +74,7 @@ object Experiments {
         Switch(HYBRIS_INDEX, R.string.exp_hybris_index),
         Switch(FEX_L1, R.string.exp_fex_l1),
         Switch(HYBRIS_INDEX_SESSION, R.string.exp_hybris_index_session),
+        Switch(NATIVE_ENGINE, R.string.exp_native_engine),
     )
 
     /** At most one of each group is on. */
@@ -89,7 +92,7 @@ object Experiments {
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
         DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
         WAYLAND_PRESENT, VK_COUNT,
-        NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION)
+        NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
