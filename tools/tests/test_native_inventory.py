@@ -322,6 +322,113 @@ class NativeInventoryTest(unittest.TestCase):
         self.assertEqual({"path constraints": ["a.skel", "b.skel"], "attachment type 4": ["c.skel"]},
                          INV["unread_skeletons"](report))
 
+    def scene_game(self):
+        md5 = "0123456789abcdef0123456789abcdef"
+        data_res = b"""[gd_resource type="SpineSkeletonDataResource" load_steps=4 format=3 uid="uid://b1"]
+
+[ext_resource type="SpineSkeletonFileResource" path="res://monsters/jaw.skel" id="1_a"]
+[ext_resource type="SpineAtlasResource" path="res://monsters/jaw.atlas" id="2_b"]
+
+[sub_resource type="SpineAnimationMix" id="Mix_1"]
+from = "idle"
+to = "hurt"
+mix = 0.2
+
+[resource]
+atlas_res = ExtResource("2_b")
+skeleton_file_res = ExtResource("1_a")
+animation_mixes = [SubResource("Mix_1")]
+default_mix = 0.1
+"""
+        scene = b"""[gd_scene load_steps=3 format=3 uid="uid://c2"]
+
+[ext_resource type="SpineSkeletonDataResource" path="res://monsters/jaw_data.tres" id="1_x"]
+[ext_resource type="Script" path="res://src/Jaw.cs" id="2_y"]
+
+[node name="Jaw" type="Node2D"]
+script = ExtResource("2_y")
+
+[node name="Body" type="SpineSprite" parent="."]
+skeleton_data_res = ExtResource("1_x")
+preview_animation = "idle"
+preview_frame = false
+update_mode = 1
+
+[node name="Head" type="SpineBoneNode" parent="Body"]
+bone_name = "head"
+bone_mode = 0
+
+[connection signal="animation_completed" from="Body" to="." method="OnDone"]
+"""
+        big = scene.replace(b'preview_animation = "idle"', b'preview_animation = "idle"\nflip_x = true' + b"\n" * 4000)
+        sfx = b"""[gd_scene format=3]
+
+[node name="Sfx" type="FmodEventEmitter2D"]
+event_name = "event:/sfx/attack"
+event_guid = "{00000000-0000-0000-0000-000000000001}"
+autoplay = true
+fmod_parameters/Intensity/id = 0
+params = {
+"a": [1, 2,
+3],
+"b": "]"
+}
+attenuation = true
+"""
+        entries = [
+            ("monsters/jaw.skel.import", ('[remap]\nimporter="spine.skel"\ntype="SpineSkeletonFileResource"\npath="res://.godot/imported/jaw.skel-%s.spskel"\n' % md5).encode()),
+            ("monsters/jaw.atlas.import", ('[remap]\nimporter="spine.atlas"\ntype="SpineAtlasResource"\npath="res://.godot/imported/jaw.atlas-%s.spatlas"\n' % md5).encode()),
+            (".godot/imported/jaw.skel-%s.spskel" % md5, spine42()),
+            (".godot/imported/jaw.atlas-%s.spatlas" % md5, b"jaw.png\nsize: 64,64\n"),
+            ("monsters/jaw_data.tres", data_res),
+            ("scenes/jaw.tscn", scene),
+            ("scenes/jaw_big.tscn", big),
+            ("scenes/sfx.tscn", sfx),
+            ("scenes/plain.tscn", b'[gd_scene format=3]\n\n[node name="P" type="Control"]\n'),
+        ]
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        game = Path(tmp.name) / "Slay the Spire 2"
+        game.mkdir()
+        (game / "SlayTheSpire2.pck").write_bytes(pack(entries))
+        return game, tmp, md5
+
+    def test_scene_survey_reads_spine_and_fmod_usage(self):
+        game, tmp, _ = self.scene_game()
+        survey = self.run_inventory(game, tmp)["scene_survey"]
+        self.assertEqual(5, survey["files"])
+        sprite = survey["classes"]["SpineSprite"]
+        self.assertEqual({"node": 2}, sprite["as"])
+        self.assertEqual({"ExtResource:SpineSkeletonDataResource": 2}, sprite["props"]["skeleton_data_res"]["kinds"])
+        self.assertEqual(['"idle"'], sprite["props"]["preview_animation"]["eg"])
+        self.assertEqual({"int": 2}, sprite["props"]["update_mode"]["kinds"])
+        data = survey["classes"]["SpineSkeletonDataResource"]
+        self.assertEqual({"resource": 1, "ext_resource": 2}, data["as"])
+        self.assertEqual({"Array": 1}, data["props"]["animation_mixes"]["kinds"])
+        self.assertEqual({"ExtResource:SpineAtlasResource": 1}, data["props"]["atlas_res"]["kinds"])
+        self.assertEqual({"float": 1}, survey["classes"]["SpineAnimationMix"]["props"]["mix"]["kinds"])
+        emitter = survey["classes"]["FmodEventEmitter2D"]["props"]
+        self.assertEqual({"Dictionary": 1}, emitter["params"]["kinds"])
+        self.assertIn("attenuation", emitter)
+        self.assertIn("fmod_parameters/Intensity/id", emitter)
+        self.assertEqual({"SpineSprite.animation_completed": 2}, survey["signals"])
+        self.assertEqual(1, survey["node_types"]["Control"])
+        self.assertNotIn("Script", survey["classes"])
+
+    def test_scene_samples_take_the_smallest_scene_with_what_it_reaches(self):
+        import zipfile
+        game, tmp, md5 = self.scene_game()
+        survey = self.run_inventory(game, tmp)["scene_survey"]
+        reach = ["scenes/jaw.tscn", "monsters/jaw_data.tres", ".godot/imported/jaw.skel-%s.spskel" % md5,
+                 ".godot/imported/jaw.atlas-%s.spatlas" % md5]
+        self.assertEqual(reach, survey["samples"]["SpineSprite"]["files"])
+        self.assertEqual(reach, survey["samples"]["SpineBoneNode+SpineSlotNode"]["files"])
+        self.assertEqual(["scenes/sfx.tscn"], survey["samples"]["FmodEventEmitter2D"]["files"])
+        with zipfile.ZipFile(self.samples) as z:
+            names = [f["name"] for f in json.loads(z.read("manifest.json"))["files"]]
+        self.assertEqual(sorted(reach + ["scenes/sfx.tscn"]), sorted(names))
+        self.assertNotIn("scenes/jaw_big.tscn", names)
+
     def test_spine42_survey_walks_a_whole_skeleton(self):
         survey = INV["skel_survey"](spine42())
         self.assertTrue(survey["ok"], survey)
