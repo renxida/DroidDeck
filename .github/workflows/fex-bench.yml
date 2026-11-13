@@ -126,7 +126,10 @@ jobs:
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LINKER=lld \
             -DTUNE_CPU=none -DTUNE_ARCH=armv8-a -DBUILD_TESTING=OFF -DBUILD_FEXCONFIG=OFF -DBUILD_THUNKS=OFF \
             -DENABLE_ASSERTIONS=OFF -DENABLE_CCACHE=OFF -DENABLE_OFFLINE_TELEMETRY=OFF -DENABLE_VIXL_DISASSEMBLER=TRUE >/dev/null
-          ninja -C fex-dis FEX >/dev/null || { echo "disassembler build failed"; exit 0; }
+          ninja -C fex-dis FEX FEXServer >/dev/null || { echo "disassembler build failed"; exit 0; }
+          # FEX starts the FEXServer it finds on PATH; use this build's, not the one the earlier steps left running.
+          pkill -x FEXServer; sleep 1
+          export PATH="$PWD/fex-dis/Bin:$PATH"
           rm -f /tmp/perf-*.map
           env DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 DOTNET_gcConcurrent=0 DOTNET_GCConserveMemory=5 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
             FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 FEX_HALFBARRIERTSOENABLED=1 FEX_MULTIBLOCK=1 \
