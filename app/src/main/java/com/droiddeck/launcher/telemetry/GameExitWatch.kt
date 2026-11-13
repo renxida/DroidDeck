@@ -166,6 +166,26 @@ class GameExitWatch(private val alive: (Int) -> Boolean) {
 
         fun isCrashLine(text: String): Boolean = CRASH_MARKERS.any { text.contains(it) }
 
+        private const val EXPLORER_FAILED = "DROIDDECK_TIMELINE event=game_explorer_failed "
+        private const val RELAUNCH = "DROIDDECK_TIMELINE event=game_relaunch "
+
+        /**
+         * The events.jsonl name and fields of droiddeck-game-env's explorer watchdog lines: Wine's desktop never
+         * started for a launch (`action=relaunch` on the first attempt, `none` after), and the launch it then
+         * started once more.
+         */
+        fun relaunchEvent(text: String): Pair<String, Map<String, String>>? {
+            val name = when {
+                text.startsWith(EXPLORER_FAILED) -> "game.explorer_failed"
+                text.startsWith(RELAUNCH) -> "game.relaunch"
+                else -> return null
+            }
+            return name to text.trim().split(' ').drop(2).mapNotNull {
+                val at = it.indexOf('=')
+                if (at > 0) it.substring(0, at) to it.substring(at + 1) else null
+            }.toMap()
+        }
+
         private fun field(text: String, name: String): String? =
             text.split(' ').firstOrNull { it.startsWith("$name=") }?.substring(name.length + 1)?.takeIf { it.isNotEmpty() }
 
