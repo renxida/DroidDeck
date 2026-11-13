@@ -61,44 +61,74 @@ static class Bench
     // frame_p50_ms and frame_p99_ms over ordinary frames, load_frame_ms (median) and load_frame_max_ms over the
     // frames that loaded content, frame_max_ms, total_ms (Main to the last frame), and the checksum. With
     // BENCH_MAPS set, also prints to stderr how the app and framework images are mapped (file-backed or not).
+    // Per-frame state. The work lives in small methods called every frame, as a game's update and draw calls are,
+    // so .NET tiers them up (precompiled ReadyToRun code included) the way it would in a game; one long loop in a
+    // method called once would keep ReadyToRun code forever, since only freshly JIT'd code gets on-stack replacement.
+    static readonly IEffect[] fe = { new A(), new B(), new C() };
+    static readonly Card[] fc = { new Strike(), new Defend() };
+    static readonly Vector3[] pos = new Vector3[2048], vel = new Vector3[2048];
+    static readonly Matrix4x4 rot = Matrix4x4.CreateRotationZ(0.01f);
+    static readonly Dictionary<string, int> dict = new();
+    static readonly string[] keys = Enumerable.Range(0, 512).Select(i => "card_" + i).ToArray();
+    static readonly List<Item> items = Enumerable.Range(0, 2_000).Select(i => new Item(i, i % 7, "x" + (i % 50))).ToList();
+    static readonly StringBuilder fsb = new();
+    static int nextCard, fx;
+
+    static void LoadContent(int f)
+    {
+        for (int k = 0; k < 20; k++, nextCard++) sink += Cards.All[nextCard % Cards.Count](f + k);
+        if (f % 100 == 0)
+            for (int k = 0; k < 10; k++)
+            {
+                var p = Expression.Parameter(typeof(int));
+                Expression body = Expression.Add(Expression.Multiply(p, Expression.Constant(f + k * 3 + 1)), Expression.Constant(k));
+                sink += Expression.Lambda<Func<int, int>>(body, p).Compile()(f);
+            }
+    }
+    static void Logic() { int x = fx; for (int i = 0; i < 50_000; i++) x = fc[i & 1].Play(fe[i % 3].Apply(x)); fx = x; }
+    static void Physics() { for (int i = 0; i < pos.Length; i++) { vel[i] = Vector3.Transform(vel[i], rot) * 0.999f; pos[i] += vel[i]; } }
+    static int Spawn()
+    {
+        Node? head = null;
+        for (int i = 0; i < 5_000; i++) { var n = new Node { V = i, Next = (i & 3) == 0 ? head : null }; if ((i & 3) == 0) head = n; }
+        return head!.V;
+    }
+    static int Lookups(int f)
+    {
+        dict.Clear();
+        foreach (var k in keys) dict[k] = k.Length + f;
+        int x = 0;
+        foreach (var k in keys) x += dict[k];
+        return x;
+    }
+    static int Text(int f)
+    {
+        int x = 0;
+        for (int i = 0; i < 100; i++) { fsb.Clear(); fsb.Append("Deal ").Append((i + f) % 50).Append(" damage"); x += fsb.ToString().Length; }
+        return x;
+    }
+    static int Query() => items.Where(it => it.Cost < 4).GroupBy(it => it.Name).Select(g => g.Sum(y => y.Cost)).Max();
+
+    static void Frame(int f)
+    {
+        if (f % 50 == 0) LoadContent(f);
+        Logic();
+        Physics();
+        int x = Spawn() + Lookups(f) + Text(f);
+        if (f % 10 == 0) x += Query();
+        sink += fx + x + (int)pos[f & 2047].X;
+    }
+
     static void Frames(int frames)
     {
         double startup = (DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds;
         var total = Stopwatch.StartNew();
-        IEffect[] e = { new A(), new B(), new C() };
-        Card[] c = { new Strike(), new Defend() };
-        var pos = new Vector3[2048];
-        var vel = new Vector3[2048];
         for (int i = 0; i < pos.Length; i++) vel[i] = new Vector3(i, -i, 0.5f * i) * 0.001f;
-        var m = Matrix4x4.CreateRotationZ(0.01f);
-        var d = new Dictionary<string, int>();
-        var keys = Enumerable.Range(0, 512).Select(i => "card_" + i).ToArray();
-        var items = Enumerable.Range(0, 2_000).Select(i => new Item(i, i % 7, "x" + (i % 50))).ToList();
-        var sb = new StringBuilder();
         var times = new double[frames];
-        int nextCard = 0, x = 0;
         for (int f = 0; f < frames; f++)
         {
             var sw = Stopwatch.StartNew();
-            if (f % 50 == 0)
-                for (int k = 0; k < 20; k++, nextCard++) sink += Cards.All[nextCard % Cards.Count](f + k);
-            if (f % 100 == 0)
-                for (int k = 0; k < 10; k++)
-                {
-                    var p = Expression.Parameter(typeof(int));
-                    Expression body = Expression.Add(Expression.Multiply(p, Expression.Constant(f + k * 3 + 1)), Expression.Constant(k));
-                    sink += Expression.Lambda<Func<int, int>>(body, p).Compile()(f);
-                }
-            for (int i = 0; i < 50_000; i++) x = c[i & 1].Play(e[i % 3].Apply(x));
-            for (int i = 0; i < pos.Length; i++) { vel[i] = Vector3.Transform(vel[i], m) * 0.999f; pos[i] += vel[i]; }
-            Node? head = null;
-            for (int i = 0; i < 5_000; i++) { var n = new Node { V = i, Next = (i & 3) == 0 ? head : null }; if ((i & 3) == 0) head = n; }
-            d.Clear();
-            foreach (var k in keys) d[k] = k.Length + f;
-            foreach (var k in keys) x += d[k];
-            for (int i = 0; i < 100; i++) { sb.Clear(); sb.Append("Deal ").Append((i + f) % 50).Append(" damage"); x += sb.ToString().Length; }
-            if (f % 10 == 0) x += items.Where(it => it.Cost < 4).GroupBy(it => it.Name).Select(g => g.Sum(y => y.Cost)).Max();
-            sink += x + head!.V + (int)pos[f & 2047].X;
+            Frame(f);
             times[f] = sw.Elapsed.TotalMilliseconds;
         }
         double all = total.Elapsed.TotalMilliseconds;
