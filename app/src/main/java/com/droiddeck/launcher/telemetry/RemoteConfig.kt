@@ -177,7 +177,12 @@ object RemoteConfig {
 
     /** After a game exits: a run of two minutes or an abnormal end uses up this session's rotation row. */
     fun gameExited(context: Context, exit: GameExitWatch.Exit) {
-        if (exit.abnormal || (exit.runMs ?: 0L) >= PLAYED_MS) prefs(context).edit().putBoolean("played", true).apply()
+        if (exit.abnormal || (exit.runMs ?: 0L) >= PLAYED_MS) markPlayed(context)
+    }
+
+    /** A game has run two minutes in this session: the next session takes the next rotation row. */
+    fun markPlayed(context: Context) {
+        prefs(context).edit().putBoolean("played", true).apply()
     }
 
     /** Every session setting and switch the session started with, for the telemetry bundle. */

@@ -23,6 +23,7 @@ class FrameLogComponent(
     private val ring: File,
     private val steamLogs: List<File> = emptyList(),
     private val stderrLogs: List<File> = emptyList(),
+    private val onGamePlayed: () -> Unit = {},
     private val onGameExit: (GameExitWatch.Exit) -> Unit = {},
 ) : SessionPart() {
     @Volatile private var running = false
@@ -58,6 +59,8 @@ class FrameLogComponent(
         var steam = false
         var steamSeen = false
         var gameSeen = false
+        var launchedAt = 0L
+        var playedSent = false
         var focusEvents = 0
         val exits = GameExitWatch(GameExitWatch::procAlive)
         val stderr = GameExitWatch.Tail(stderrLogs)
@@ -109,11 +112,21 @@ class FrameLogComponent(
                         nextExitCheck = wallNow + EXIT_PERIOD_MS
                         stderr.read {
                             exits.line(it, wallNow)
-                            if (it.startsWith(EXPERIMENTS_LINE)) SessionEvents.record("game.experiments", experimentsFields(it))
+                            if (it.startsWith(EXPERIMENTS_LINE)) {
+                                SessionEvents.record("game.experiments", experimentsFields(it))
+                                launchedAt = wallNow
+                                playedSent = false
+                            }
                         }
                         for (exit in exits.poll(wallNow)) {
+                            launchedAt = 0L
                             SessionEvents.record("game.exited", exit.fields().mapValues { (_, v) -> if (v is List<*>) org.json.JSONArray(v) else v })
                             runCatching { onGameExit(exit) }
+                        }
+                        // A session stopped while the game runs never sees its exit, so a long run counts on its own.
+                        if (launchedAt > 0 && !playedSent && wallNow - launchedAt >= PLAYED_MS) {
+                            playedSent = true
+                            runCatching { onGamePlayed() }
                         }
                     }
                     try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
@@ -161,6 +174,7 @@ class FrameLogComponent(
         private const val TAG = "FrameLog"
         const val FILE = "frames.csv"
         private const val PERIOD_MS = 500L
+        private const val PLAYED_MS = 120_000L
         private const val REOPEN_NS = 2_000_000_000L
         private const val STALE_NS = 5_000_000_000L
         private const val MAX_BYTES = 32L shl 20

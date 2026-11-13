@@ -562,6 +562,7 @@ class SessionService : Service() {
             File(LinuxRuntime.rootDir(this), com.droiddeck.launcher.hud.HudFrames.PATH),
             if (steamHere) listOf("arm64", "x86_64").map { File(SessionPrefs.steamRoot(this, it), "logs/connection_log.txt") } else emptyList(),
             listOf(File(sessionDir, "session.log"), com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this)),
+            onGamePlayed = { com.droiddeck.launcher.telemetry.RemoteConfig.markPlayed(this) },
         ) { exit ->
             com.droiddeck.launcher.telemetry.RemoteConfig.gameExited(this, exit)
             if (exit.abnormal) com.droiddeck.launcher.telemetry.TelemetryUploader.uploadNow(this, sessionDir)

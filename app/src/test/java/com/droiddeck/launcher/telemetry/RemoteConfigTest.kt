@@ -65,6 +65,8 @@ class RemoteConfigTest {
         assertEquals(second.experiments, Experiments.enabled(app))
         RemoteConfig.gameExited(app, exit(5_000, status = 1))
         assertEquals(0, RemoteConfig.apply(app, cfg, "test").row)
+        RemoteConfig.markPlayed(app)
+        assertEquals(1, RemoteConfig.apply(app, cfg, "test").row)
     }
 
     @Test fun applyCachedUsesTheKeptCopyAndSnapshotListsSettings() {
