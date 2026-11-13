@@ -39,13 +39,26 @@ class NativeGodotTest(unittest.TestCase):
         (win / "System.Private.CoreLib.dll").write_bytes(pe(True))
         (win / "coreclr.dll").write_bytes(pe(False))
         (win / "steam_api64.dll").write_bytes(pe(False))
-        (win / "sts2.runtimeconfig.json").write_text('{"runtimeOptions": {"tfm": "net9.0"}}')
+        (win / "sts2.runtimeconfig.json").write_text('{"runtimeOptions": {"tfm": "net9.0", "configProperties": {"System.GC.Server": false}}}')
         (win / "sts2.deps.json").write_text("{}")
         self.kit = self.root / "kit"
         self.kit.mkdir()
-        for n in ("libhostfxr.so", "libcoreclr.so", "System.Private.CoreLib.dll", "GodotSharp.dll", "Kit.dll", "Kit.runtimeconfig.json"):
+        for n in ("libhostfxr.so", "libcoreclr.so", "System.Private.CoreLib.dll", "GodotSharp.dll", "Kit.dll"):
             (self.kit / n).write_bytes(b"k")
-        (self.kit / "kit.json").write_text(json.dumps({"app": ["Kit.dll", "Kit.runtimeconfig.json"]}))
+        rt = ".NETCoreApp,Version=v9.0/linux-arm64"
+        (self.kit / "Kit.deps.json").write_text(json.dumps({
+            "runtimeTarget": {"name": rt, "signature": ""},
+            "targets": {".NETCoreApp,Version=v9.0": {}, rt: {
+                "Kit/1.0.0": {"dependencies": {"GodotSharp": "4.5.1"}, "runtime": {"Kit.dll": {}}},
+                "GodotSharp/4.5.1": {"runtime": {"GodotSharp.dll": {}}},
+                "runtimepack.Microsoft.NETCore.App.Runtime.linux-arm64/9.0.0": {"native": {"libcoreclr.so": {}}}}},
+            "libraries": {"Kit/1.0.0": {"type": "project"}, "GodotSharp/4.5.1": {"type": "project"},
+                          "runtimepack.Microsoft.NETCore.App.Runtime.linux-arm64/9.0.0": {"type": "runtimepack"}}}))
+        (self.kit / "Kit.runtimeconfig.json").write_text(json.dumps(
+            {"runtimeOptions": {"tfm": "net9.0", "includedFrameworks": [{"name": "Microsoft.NETCore.App"}],
+                                "configProperties": {"System.GC.Concurrent": True}}}))
+        (self.kit / "kit.json").write_text(json.dumps({"app": ["Kit.dll", "Kit.deps.json", "Kit.runtimeconfig.json"],
+                                                       "deps": "Kit.deps.json", "runtimeconfig": "Kit.runtimeconfig.json"}))
         self.engine = self.root / "godot.template"
         self.engine.write_bytes(b"\x7fELF engine")
 
@@ -67,14 +80,22 @@ class NativeGodotTest(unittest.TestCase):
         self.assertTrue(r["pack"].endswith("SlayTheSpire2.pck"))
         names = sorted(os.listdir(data))
         self.assertEqual(sorted(["0Harmony.dll", "GodotSharp.dll", "System.Private.CoreLib.dll", "libcoreclr.so",
-                                 "libhostfxr.so", "sts2.dll", "sts2.runtimeconfig.json"]), names)
+                                 "libhostfxr.so", "sts2.dll", "sts2.deps.json", "sts2.runtimeconfig.json"]), names)
+        deps = json.loads((data / "sts2.deps.json").read_text())
+        rt = deps["targets"][deps["runtimeTarget"]["name"]]
+        self.assertEqual({"0Harmony.dll": {}, "sts2.dll": {}}, rt["sts2/1.0.0"]["runtime"])
+        self.assertNotIn("Kit/1.0.0", rt)
+        self.assertIn("runtimepack.Microsoft.NETCore.App.Runtime.linux-arm64/9.0.0", rt)
+        self.assertEqual("project", deps["libraries"]["sts2/1.0.0"]["type"])
+        cfg = json.loads((data / "sts2.runtimeconfig.json").read_text())["runtimeOptions"]
+        self.assertEqual({"System.GC.Concurrent": True, "System.GC.Server": False}, cfg["configProperties"])
+        self.assertIn("includedFrameworks", cfg)
         # Engine assemblies and the runtime come from the kit; the game's IL is linked, not copied.
         self.assertEqual(str(self.kit / "GodotSharp.dll"), os.readlink(data / "GodotSharp.dll"))
         self.assertEqual(str(self.kit / "System.Private.CoreLib.dll"), os.readlink(data / "System.Private.CoreLib.dll"))
         self.assertEqual(str(self.game / "data_sts2_windows_x86_64" / "sts2.dll"), os.readlink(data / "sts2.dll"))
         self.assertFalse((data / "sts2.runtimeconfig.json").is_symlink())
         self.assertIn("steam_api64.dll", r["skipped"])
-        self.assertIn("sts2.deps.json", r["skipped"])
         self.assertTrue((out / "sts2").is_file())
         # Composing again is idempotent.
         NG["compose"](str(self.game), str(self.kit), str(self.engine), str(out), "SlayTheSpire2.exe")

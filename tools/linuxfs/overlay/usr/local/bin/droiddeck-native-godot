@@ -79,14 +79,48 @@ def find_pack(game_dir, exe):
     raise SystemExit(f"no Godot pack found in {game_dir}")
 
 
-def kit_files(kit):
-    """The kit's files, minus its own stand-in app (listed in kit.json as "app": [...])."""
+def kit_manifest(kit):
+    """kit.json: {"app": [the kit's own stand-in app files], "deps": "<app>.deps.json", "runtimeconfig": "<app>.runtimeconfig.json"}."""
     manifest = os.path.join(kit, "kit.json")
-    skip = {"kit.json"}
-    if os.path.isfile(manifest):
-        with open(manifest) as f:
-            skip |= {n.lower() for n in json.load(f).get("app", [])}
+    if not os.path.isfile(manifest):
+        return {"app": []}
+    with open(manifest) as f:
+        return json.load(f)
+
+
+def kit_files(kit):
+    """The kit's files, minus its own stand-in app."""
+    skip = {"kit.json"} | {n.lower() for n in kit_manifest(kit).get("app", [])}
     return {n: os.path.join(kit, n) for n in os.listdir(kit) if n.lower() not in skip}
+
+
+def game_deps(kit_deps, asm, assemblies):
+    """The kit app's deps.json, with its project entry renamed to the game and listing the game's assemblies.
+
+    The runtime pack entries (linux-arm64 libcoreclr.so and the framework) stay as the kit built them, so
+    hostpolicy resolves the runtime exactly as it does for the kit's own app."""
+    deps = json.loads(json.dumps(kit_deps))
+    target = deps["runtimeTarget"]["name"]
+    libs = deps["libraries"]
+    app = next(k for k, v in libs.items() if v.get("type") == "project" and k in deps["targets"][target]
+               and not k.lower().startswith(("godotsharp/", "godotplugins/")))
+    new = f"{asm}/1.0.0"
+    for tname, tlibs in deps["targets"].items():
+        if app in tlibs:
+            entry = tlibs.pop(app)
+            if tname == target:
+                entry["runtime"] = {a: {} for a in assemblies}
+            tlibs[new] = entry
+    libs[new] = libs.pop(app)
+    return deps
+
+
+def game_runtimeconfig(kit_cfg, game_cfg):
+    """The kit's runtimeconfig (built for linux-arm64) with the game's own runtime switches on top."""
+    cfg = json.loads(json.dumps(kit_cfg))
+    props = cfg.setdefault("runtimeOptions", {}).setdefault("configProperties", {})
+    props.update((game_cfg or {}).get("runtimeOptions", {}).get("configProperties", {}))
+    return cfg
 
 
 def place(src, dst):
@@ -106,17 +140,18 @@ def compose(game_dir, kit, engine, out, exe=None):
     kit_lower = {n.lower() for n in kit_map}
     for name, path in kit_map.items():
         place(os.path.abspath(path), os.path.join(data, name))
-    taken, skipped = [], []
+    taken, skipped, game_cfg = [], [], None
     for name in sorted(os.listdir(win)):
         src = os.path.join(win, name)
         low = name.lower()
         if not os.path.isfile(src):
             continue
         if low == f"{asm.lower()}.runtimeconfig.json":
-            shutil.copyfile(src, os.path.join(data, name))
-            taken.append(name)
+            with open(src) as f:
+                game_cfg = json.load(f)
+            skipped.append(name)
         elif low == f"{asm.lower()}.deps.json":
-            skipped.append(name)  # lists win-x64 native assets; without it the folder is probed as a whole
+            skipped.append(name)  # describes the win-x64 runtime; rebuilt from the kit's below
         elif low in ENGINE_ASSEMBLIES or low in kit_lower:
             skipped.append(name)
         elif is_managed(src):
@@ -124,6 +159,20 @@ def compose(game_dir, kit, engine, out, exe=None):
             taken.append(name)
         else:
             skipped.append(name)  # native Windows libraries and data the runtime doesn't need
+    manifest = kit_manifest(kit)
+    if manifest.get("deps"):
+        with open(os.path.join(kit, manifest["deps"])) as f:
+            deps = game_deps(json.load(f), asm, [n for n in taken if n.lower().endswith(".dll")])
+        with open(os.path.join(data, f"{asm}.deps.json"), "w") as f:
+            json.dump(deps, f, indent=1)
+    if manifest.get("runtimeconfig"):
+        with open(os.path.join(kit, manifest["runtimeconfig"])) as f:
+            cfg = game_runtimeconfig(json.load(f), game_cfg)
+    else:
+        cfg = game_cfg
+    if cfg is not None:
+        with open(os.path.join(data, f"{asm}.runtimeconfig.json"), "w") as f:
+            json.dump(cfg, f, indent=1)
     # The engine finds its data folder next to its real path, so the binary itself lives in the launch dir.
     target = os.path.join(out, asm)
     if not (os.path.isfile(target) and os.path.getsize(target) == os.path.getsize(engine)

@@ -109,7 +109,7 @@ jobs:
           test -d out/windows/data_NativeBench_windows_x86_64 || { tail -40 export-win.log; exit 1; }
           # Kit: the arm64 export's data dir, minus its own app files.
           KIT=out/arm64/data_NativeBench_linuxbsd_arm64
-          python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")]}, open(os.path.join(k,"kit.json"),"w"))' "$KIT"
+          python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")], "deps": "NativeBench.deps.json", "runtimeconfig": "NativeBench.runtimeconfig.json"}, open(os.path.join(k,"kit.json"),"w"))' "$KIT"
           set +e
           DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 300 "$GITHUB_WORKSPACE/tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot" run \
             --game-dir out/windows --kit "$KIT" --engine ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono \
@@ -117,7 +117,7 @@ jobs:
           rc=$?
           set -e
           echo "exit $rc"
-          cat out/native-launch/native-launch.json || true
+          python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print({k: v for k, v in r.items() if k != "skipped"}, len(r["skipped"]), "skipped")' out/native-launch/native-launch.json || true
           grep -E "droiddeck-native-godot|native_compat|BENCH|ERROR|\.NET|hostfxr" win-run.log | head -40
           grep -q "BENCH" win-run.log
       - name: Draw a test skeleton with our template (NativeSkeleton2D, two frames, checked)
