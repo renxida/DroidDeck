@@ -847,6 +847,7 @@ class SessionService : Service() {
         lastPressureAt = 0L
         MemoryLog.start(File(sessionDir, "memory.csv"))
         ThreadLog.start(sessionDir)
+        if (Experiments.on(this, Experiments.FEX_STATS)) FexStatsLog.start(sessionDir, File(LinuxRuntime.liveDir(this), "shm"))
         if (Experiments.on(this, Experiments.MEMORY)) {
             AppCaches.drop(this, "session_start")
             startLmkWatch()
@@ -1895,6 +1896,7 @@ class SessionService : Service() {
                 releaseLocks()
                 MemoryLog.stop()
                 ThreadLog.stop()
+                FexStatsLog.stop()
                 stopLmkWatch()
                 Experiments.endSession()
                 com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
