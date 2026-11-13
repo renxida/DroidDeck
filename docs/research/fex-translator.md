@@ -7,8 +7,12 @@ Workstream: FEX inside Proton (ARM64EC). Branch `perf/emu-fex`. Nov 13, 2026.
 - Under FEX with the game's current settings (including FEX's disk cache, which `droiddeck-warmup` turns on for
   Slay the Spire 2), a .NET 9 workload that mirrors the game (Godot + coreclr + jitted C#) takes **2.29× native**
   time on an arm64 Neoverse runner (992 ms vs 434 ms per round).
-- The biggest single cost is **translating x86 code**: 30–40% of wall time goes to FEX's JIT, and the first call
-  of freshly jitted .NET code is **9–10× native**. Steady-state code is only 1.1–2.3× native.
+- The biggest single cost is **FEX's compile path**: 30–40% of wall time, and the first call of freshly jitted .NET
+  code is **9–10× native**. Steady-state code is only 1.1–2.3× native. Caveat: FEX's "JIT time" counter covers all of
+  `CompileBlock`, which also runs for every jump whose target missed the per-thread fast lookup (~500–650k times a
+  run, 1.8M with a warm disk cache) and for loading cached code, not only for translating new code. With a warm
+  cache FEX translated 1,167 blocks yet still spent 908 ms there, so lookups are a large share. Round 2 splits the
+  two with a profile.
 - **Memory ordering (TSO) at the game's settings costs only +5.5%** over no ordering at all. Full TSO would cost +40%
   (memmove 11× native, vector math 6.6×); the game already avoids that.
 - **Rewritten-code tracking (SMC)** accounts for about a quarter of first-call time without the disk cache
@@ -18,8 +22,9 @@ Workstream: FEX inside Proton (ARM64EC). Branch `perf/emu-fex`. Nov 13, 2026.
   that SMC tracking threw away is found again by content hash instead of retranslated.
 - Multiblock must stay on (+56% without it); turning .NET's tiered compilation off is worse (+36%).
 
-So the high-leverage targets in FEX are, in order: translation volume and cost (cache more, translate less), SMC
-handling for .NET's code heap, then dispatch. TSO tuning is mostly done.
+So the high-leverage targets in FEX are, in order: the compile path (translate less, and make lookups that miss the
+fast cache cheaper; cached code in particular seems to take that path far more often), SMC handling for .NET's code
+heap, then dispatch. TSO tuning is mostly done.
 
 ## How it was measured
 
@@ -91,16 +96,20 @@ hash); round 2 found 23,387 and translated only 1,167.
 
 ## Ranked next fixes (in FEX)
 
-1. **Make sure the disk cache actually hits on the phone.** It hashes anonymous code by content, so .NET's jitted
-   code can hit across sessions when the bytes match. `fex.csv` now shows disk_hit / disk_miss per process per
-   5 s, so the first phone run answers this directly. If it's low, find out why (cache location inside proot,
-   per-run address differences baked into code).
-2. **Cheaper SMC for .NET's code heap under ARM64EC.** Options, smallest first: invalidate only the blocks that
+1. **Split FEX's compile-path time into translating, loading cached code, and slow lookups** (off-device profile of
+   the bench with `perf`, then the phone). The warm-cache run says lookups are big: 1.8M slow lookups and 908 ms for
+   1,167 new blocks.
+2. **Cached code taking the slow lookup far more often** (1.8M vs ~0.5M slow lookups when the code was translated
+   fresh). If code loaded from the disk cache isn't linked block-to-block the way fresh code is, every exit goes
+   through the lookup. Fixing that is likely the cheapest large win, because the game always runs with the cache.
+3. **Make sure the disk cache actually hits on the phone.** It hashes anonymous code by content, so .NET's jitted
+   code can hit across sessions when the bytes match. `fex.csv` shows disk_hit / disk_miss per process per 5 s, so
+   the first phone run answers this directly.
+4. **Cheaper SMC for .NET's code heap under ARM64EC.** Options, smallest first: invalidate only the blocks that
    overlap the written range instead of the whole page; don't re-protect a page that only ever gets appended to;
-   take the invalidation off the global mutex. Upper bound from this bench: −25% first-call time, −2% overall.
-3. **Translate less per block or faster.** Profile FEX's JIT itself on the phone (simpleperf on the game process)
-   to see whether the time is in the frontend, IR passes or register allocation.
-4. Dispatch (2.3×): indirect-branch lookup cost; look at the L1/L2 lookup cache hit rate once 1–3 are done.
+   take the invalidation off the global mutex. Upper bound from this bench: −25% first-call time, −2% overall
+   without the disk cache; `fex_game_dc_nosmc` gives the bound with it.
+5. Dispatch (2.3×): indirect-branch lookup; the per-thread fast cache size and hit rate.
 
 ## What changed on the branch
 
