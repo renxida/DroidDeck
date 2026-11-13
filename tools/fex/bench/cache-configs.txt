@@ -4,21 +4,25 @@
 # Every fex line also gets the game's settings and fex-l1 (see cache-bench.sh).
 native_jit     | native | jit |
 native_r2r     | native | r2r |
-fex_nocache    | fex    | jit | FEX_DISKCACHE=0
-a_files        | fex    | jit | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=0
+# fex_nocache    | fex    | jit | FEX_DISKCACHE=0   (settled in round 3)
+# a_files        | fex    | jit | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=0   (settled in round 3)
 b_content      | fex    | jit | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1
-d_r2r_nocache  | fex    | r2r | FEX_DISKCACHE=0
-d_r2r_content  | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1
+# d_r2r_nocache  | fex    | r2r | FEX_DISKCACHE=0   (settled in round 3)
+# d_r2r_content  | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1   (settled in round 3)
 # ReadyToRun with tiering off: precompiled code is kept for good, only what it can't cover is JIT'd.
 d_r2r_tc0      | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_TieredCompilation=0
 # The framework's own precompiled code off too: the upper bound on what precompiling buys under FEX.
-d_jit_all      | fex    | jit | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_ReadyToRun=0
+# d_jit_all      | fex    | jit | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_ReadyToRun=0   (settled in round 3)
 # The other levers, each on top of b_content (FEX's stock cache), as headroom checks with switches FEX already has.
 # i2: memory-ordering barriers off entirely. Unsafe for the game: the ceiling for any escape-analysis relaxation.
-i2_tso_off     | fex    | jit | FEX_DISKCACHE=1 FEX_TSOENABLED=0
+# i2_tso_off     | fex    | jit | FEX_DISKCACHE=1 FEX_TSOENABLED=0   (settled in round 3)
 # i4: translate block by block instead of whole regions: what region formation already buys.
-i4_blockwise   | fex    | jit | FEX_DISKCACHE=1 FEX_MULTIBLOCK=0
+# i4_blockwise   | fex    | jit | FEX_DISKCACHE=1 FEX_MULTIBLOCK=0   (settled in round 3)
 # i6: transparent huge pages for all memory, translated code included (THP= is applied system-wide by the script).
-i6_hugepages   | fex    | jit | FEX_DISKCACHE=1 THP=always
+# i6_hugepages   | fex    | jit | FEX_DISKCACHE=1 THP=always   (settled in round 3)
 # Everything that helped, together.
-stacked        | fex    | r2r | FEX_DISKCACHE=1 FEX_TSOENABLED=0 THP=always
+# stacked        | fex    | r2r | FEX_DISKCACHE=1 FEX_TSOENABLED=0 THP=always   (settled in round 3)
+# Round 10: per-site cache for indirect jumps and calls (patch 0006, IndirectBranchCache), on the stock cache and
+# on the best .NET setup. The block mix put 19% of translated-code time in the indirect-branch lookup.
+i7_sitecache   | fex    | jit | FEX_DISKCACHE=1 FEX_INDIRECTBRANCHCACHE=1
+d_r2r_tc0_ic   | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_TieredCompilation=0 FEX_INDIRECTBRANCHCACHE=1

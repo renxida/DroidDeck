@@ -1,0 +1,231 @@
+From 5f75263fa3065284065be141133ec4f18be30465 Mon Sep 17 00:00:00 2001
+From: Kestrel <kestrel@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 10:01:01 +0000
+Subject: [PATCH] Add IndirectBranchCache: a one-entry cache of the last target
+ at each indirect jump and call site
+
+Each indirect jump or call site (not returns, which have the call-ret stack) gets a 16-byte aligned
+ExitFunctionLinkData record after the block. The site loads {HostCode, GuestRIP} with one LDP
+(single-copy atomic with FEAT_LSE2) and branches straight to the cached host code when the target
+matches, skipping the L1 probe's two dependent loads. An empty record is filled once through the
+exit linker, which registers a block link so invalidation empties it again. Off by default.
+---
+ .../Source/Interface/Config/Config.json.in    | 10 +++
+ FEXCore/Source/Interface/Context/Context.h    |  1 +
+ .../Source/Interface/Core/JIT/BranchOps.cpp   | 35 +++++++++-
+ FEXCore/Source/Interface/Core/JIT/JIT.cpp     | 64 +++++++++++++++++++
+ FEXCore/Source/Interface/Core/JIT/JITClass.h  | 15 +++++
+ 5 files changed, 124 insertions(+), 1 deletion(-)
+
+diff --git a/FEXCore/Source/Interface/Config/Config.json.in b/FEXCore/Source/Interface/Config/Config.json.in
+index b951382..3df047d 100644
+--- a/FEXCore/Source/Interface/Config/Config.json.in
++++ b/FEXCore/Source/Interface/Config/Config.json.in
+@@ -350,6 +350,16 @@
+           "Can potentially introduce more stutters."
+         ]
+       },
++      "IndirectBranchCache": {
++        "Type": "bool",
++        "Default": "false",
++        "AffectsCodeGen": "true",
++        "Desc": [
++          "Gives each indirect jump and call site a one-entry cache of its last target, checked before the",
++          "per-thread L1 lookup, so a site that keeps jumping to the same place branches there directly.",
++          "Needs FEAT_LSE2 (16-byte single-copy atomic LDP), present on Armv8.4 and later cores."
++        ]
++      },
+       "L1CacheEntries": {
+         "Type": "uint64",
+         "Default": "0",
+diff --git a/FEXCore/Source/Interface/Context/Context.h b/FEXCore/Source/Interface/Context/Context.h
+index 632767e..7fbd50d 100644
+--- a/FEXCore/Source/Interface/Context/Context.h
++++ b/FEXCore/Source/Interface/Context/Context.h
+@@ -373,6 +373,7 @@ public:
+     FEX_CONFIG_OPT(MonoHacks, MONOHACKS);
+     FEX_CONFIG_OPT(JITFeatures, JITFEATURES);
+     FEX_CONFIG_OPT(VolatileMetadataWholeBlocks, VOLATILEMETADATAWHOLEBLOCKS);
++    FEX_CONFIG_OPT(IndirectBranchCache, INDIRECTBRANCHCACHE);
+   } Config;
+ 
+   bool SoftwareRNGEnabled() const {
+diff --git a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+index ae3ed51..857c867 100644
+--- a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+@@ -202,6 +202,36 @@ DEF_OP(ExitFunction) {
+       (void)cbz(ARMEmitter::Size::i64Bit, TMP1, &SkipFullLookup);
+     }
+ 
++    const bool SiteCache = UseIndirectBranchCache && Op->Hint != IR::BranchHint::Return;
++    ARMEmitter::ForwardLabel l_SiteCallReturn;
++    if (SiteCache) {
++      if (Op->Hint == IR::BranchHint::Call) {
++        // Push the call-ret entry before the lookups (they only use TMP1/TMP2), so the fill thunk, which reaches the
++        // target through the exit linker's plain branch, still returns here.
++        if (!Op->CallReturnBlock.IsInvalid()) {
++          auto CallReturnAddressReg = GetReg(Op->CallReturnAddress).X();
++          PendingCallReturnTargetLabel = &CallReturnTargets.try_emplace(Op->CallReturnBlock.ID()).first->second;
++          (void)adr(TMP1, &l_SiteCallReturn);
++          stp<ARMEmitter::IndexType::PRE>(CallReturnAddressReg, TMP1, REG_CALLRET_SP, -0x10);
++        } else {
++          stp<ARMEmitter::IndexType::PRE>(ARMEmitter::XReg::zr, ARMEmitter::XReg::zr, REG_CALLRET_SP, -0x10);
++        }
++      }
++
++      // Site cache: {HostCode, GuestRIP} loaded as one 16-byte single-copy atomic pair (FEAT_LSE2).
++      PendingIndirectCaches.push_back(PendingIndirectCache {RipReg.X(), {}, {}});
++      auto& Site = PendingIndirectCaches.back();
++      (void)adr(TMP1, &Site.Record);
++      ldp<ARMEmitter::IndexType::OFFSET>(TMP2, TMP1, TMP1, 0);
++      // Note: sub+cbz used over cmp+br to preserve flags.
++      sub(TMP1, TMP1, RipReg.X());
++      (void)cbz(ARMEmitter::Size::i64Bit, TMP1, &SkipFullLookup);
++      // Still empty: fill it (once per site; a site whose target changes later uses the L1 lookup below).
++      add(ARMEmitter::Size::i64Bit, TMP1, TMP1, RipReg.X());
++      add(ARMEmitter::Size::i64Bit, TMP1, TMP1, 1);
++      (void)cbz(ARMEmitter::Size::i64Bit, TMP1, &Site.Fill);
++    }
++
+     // L1 Cache
+     ldp<ARMEmitter::IndexType::OFFSET>(TMP1, TMP2, STATE, offsetof(FEXCore::Core::CpuStateFrame, State.L1Pointer));
+ 
+@@ -219,7 +249,10 @@ DEF_OP(ExitFunction) {
+     str(RipReg.X(), STATE, offsetof(FEXCore::Core::CpuStateFrame, State.rip));
+ 
+     (void)Bind(&SkipFullLookup);
+-    if (Op->Hint == IR::BranchHint::Call) {
++    if (SiteCache && Op->Hint == IR::BranchHint::Call) {
++      blr(TMP2);
++      (void)Bind(&l_SiteCallReturn);
++    } else if (Op->Hint == IR::BranchHint::Call) {
+       ARMEmitter::ForwardLabel l_CallReturn;
+       if (!Op->CallReturnBlock.IsInvalid()) {
+         auto CallReturnAddressReg = GetReg(Op->CallReturnAddress).X();
+diff --git a/FEXCore/Source/Interface/Core/JIT/JIT.cpp b/FEXCore/Source/Interface/Core/JIT/JIT.cpp
+index 5055a92..c4b4967 100644
+--- a/FEXCore/Source/Interface/Core/JIT/JIT.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/JIT.cpp
+@@ -537,7 +537,55 @@ static void IndirectBlockDelinker(FEXCore::Context::ExitFunctionLinkData* Record
+   // No need to reset HostCode here as the exit linker pointer is stored separately, and if the block is relinked it will be updated.
+ }
+ 
++static void IndirectCacheDelinker(FEXCore::Context::ExitFunctionLinkData* Record) {
++  // Guest first, so a concurrent probe misses from here on; the site refills on its next miss.
++  std::atomic_ref<uint64_t>(Record->GuestRIP).store(~0ULL /* Arm64JITCore::IndirectCacheEmpty */, std::memory_order::release);
++  std::atomic_ref<uint64_t>(Record->HostCode).store(0, std::memory_order::release);
++}
++
++uint64_t Arm64JITCore::IndirectCacheLink(FEXCore::Core::CpuStateFrame* Frame, FEXCore::Context::ExitFunctionLinkData* Record) {
++  auto Thread = Frame->Thread;
++  const uint64_t GuestRip = Frame->State.rip;
++  if (Thread->CurrentFrame->State.flags[X86State::RFLAG_TF_RAW_LOC]) {
++    return Frame->Pointers.DispatcherLoopTop;
++  }
++#ifdef ARCHITECTURE_arm64ec
++  if (GuestRip < EC_CODE_BITMAP_MAX_ADDRESS && RtlIsEcCode(GuestRip)) {
++    // Native code is entered through the dispatcher; never cache this site.
++    std::atomic_ref<uint64_t>(Record->GuestRIP).store(IndirectCacheNever, std::memory_order::release);
++    return Frame->Pointers.DispatcherLoopTop;
++  }
++#endif
++
++  uintptr_t HostCode {};
++  {
++    auto lk_inval =
++      GuardSignalDeferringSection<std::shared_lock>(static_cast<Context::ContextImpl*>(Thread->CTX)->CodeInvalidationMutex, Thread);
++    HostCode = Thread->LookupCache->FindBlock(Thread, GuestRip);
++  }
++  if (!HostCode) {
++    auto CodeBuffer = static_cast<Arm64JITCore*>(Thread->CPUBackend.get())->CurrentCodeBuffer;
++    HostCode = static_cast<Context::ContextImpl*>(Thread->CTX)->CompileBlock(Frame, GuestRip, 0);
++    if (Thread->LookupCache->Shared != CodeBuffer->LookupCache.get()) {
++      return HostCode;
++    }
++  }
++
++  auto lk_inval = GuardSignalDeferringSection<std::shared_lock>(static_cast<Context::ContextImpl*>(Thread->CTX)->CodeInvalidationMutex, Thread);
++  auto lk = Thread->LookupCache->AcquireWriteLock();
++  if (std::atomic_ref<uint64_t>(Record->GuestRIP).load(std::memory_order::acquire) == IndirectCacheEmpty) {
++    // Host first, then guest: a probe sees {0, empty}, {host, empty} or {host, guest}, never a guest with no host.
++    std::atomic_ref<uint64_t>(Record->HostCode).store(HostCode, std::memory_order::release);
++    std::atomic_ref<uint64_t>(Record->GuestRIP).store(GuestRip, std::memory_order::release);
++    Thread->LookupCache->AddBlockLink(GuestRip, Record, IndirectCacheDelinker, lk);
++  }
++  return HostCode;
++}
++
+ uint64_t Arm64JITCore::ExitFunctionLink(FEXCore::Core::CpuStateFrame* Frame, FEXCore::Context::ExitFunctionLinkData* Record) {
++  if (Record->CallerOffset == IndirectCacheMarker) {
++    return IndirectCacheLink(Frame, Record);
++  }
+   auto Thread = Frame->Thread;
+   bool TFSet = Thread->CurrentFrame->State.flags[X86State::RFLAG_TF_RAW_LOC];
+   uintptr_t HostCode {};
+@@ -631,6 +679,7 @@ Arm64JITCore::Arm64JITCore(FEXCore::Context::ContextImpl* ctx, FEXCore::Core::In
+   , HostSupportsRPRES {ctx->HostFeatures.SupportsRPRES != 0}
+   , HostSupportsAFP {ctx->HostFeatures.SupportsAFP != 0}
+   , CTX {ctx}
++  , UseIndirectBranchCache {ctx->Config.IndirectBranchCache()}
+   , TempCodeBufferAllocator(ctx->CPUBackendAllocator, 0) {
+ 
+   RAPass = Thread->PassManager->GetPass<IR::RegisterAllocationPass>("RA");
+@@ -884,6 +933,7 @@ CPUBackend::CompiledCode Arm64JITCore::EmitJITCode(uint64_t Entry, uint64_t Size
+   JumpTargets.clear();
+   CallReturnTargets.clear();
+   PendingJumpThunks.clear();
++  PendingIndirectCaches.clear();
+   JumpTargets.resize(IR->GetHeader()->BlockCount, {});
+   Relocations.resize(PrevNumAllocations, FEXCore::CPU::Relocation::Default()); // Discard any relocations generated from a previous attempt
+ 
+@@ -1043,6 +1093,20 @@ CPUBackend::CompiledCode Arm64JITCore::EmitJITCode(uint64_t Entry, uint64_t Size
+     dc64(PendingJumpThunk.CallerAddress - ThunkAddress); // CallerOffset
+   }
+ 
++  for (auto& Site : PendingIndirectCaches) {
++    // The record follows the blr (the exit linker gets it from LR) and must be 16-byte aligned for the atomic ldp.
++    Align(16);
++    nop();
++    BindOrRestart(&Site.Fill);
++    str(Site.RipReg, STATE, offsetof(FEXCore::Core::CpuStateFrame, State.rip));
++    ldr(TMP1, &l_ExitLink);
++    blr(TMP1);
++    BindOrRestart(&Site.Record);
++    dc64(0);                                              // HostCode
++    dc64(IndirectCacheEmpty);                             // GuestRIP
++    dc64(static_cast<uint64_t>(IndirectCacheMarker));     // CallerOffset: marks a site cache for ExitFunctionLink
++  }
++
+   BindOrRestart(&l_ExitLink);
+   PlaceNamedSymbolLiteral(InsertNamedSymbolLiteral(RelocNamedSymbolLiteral::NamedSymbol::SYMBOL_LITERAL_EXITFUNCTION_LINKER));
+ 
+diff --git a/FEXCore/Source/Interface/Core/JIT/JITClass.h b/FEXCore/Source/Interface/Core/JIT/JITClass.h
+index 980a832..1239434 100644
+--- a/FEXCore/Source/Interface/Core/JIT/JITClass.h
++++ b/FEXCore/Source/Interface/Core/JIT/JITClass.h
+@@ -110,6 +110,21 @@ private:
+   };
+   fextl::vector<PendingJumpThunk> PendingJumpThunks;
+ 
++  // Per-site cache for indirect jumps and calls (IndirectBranchCache). Each site gets a 16-byte aligned
++  // ExitFunctionLinkData record {HostCode, GuestRIP, CallerOffset = IndirectCacheMarker} after the block, holding the
++  // last target it was filled with, and a fill thunk that stores the target RIP and calls the exit linker.
++  struct PendingIndirectCache {
++    ARMEmitter::XRegister RipReg;
++    ARMEmitter::ForwardLabel Record;
++    ARMEmitter::ForwardLabel Fill;
++  };
++  fextl::vector<PendingIndirectCache> PendingIndirectCaches;
++  const bool UseIndirectBranchCache {};
++  static constexpr int64_t IndirectCacheMarker = INT64_MIN;
++  static constexpr uint64_t IndirectCacheEmpty = ~0ULL;
++  static constexpr uint64_t IndirectCacheNever = ~1ULL;
++  static uint64_t IndirectCacheLink(FEXCore::Core::CpuStateFrame* Frame, FEXCore::Context::ExitFunctionLinkData* Record);
++
+   Utils::PoolBufferWithTimedRetirement<uint8_t*, 5000, 500> TempCodeBufferAllocator;
+ 
+   static uint64_t ExitFunctionLink(FEXCore::Core::CpuStateFrame* Frame, FEXCore::Context::ExitFunctionLinkData* Record);
+-- 
+2.43.0
+
