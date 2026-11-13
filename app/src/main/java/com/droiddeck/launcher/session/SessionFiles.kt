@@ -31,6 +31,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-wine-pe" to "usr/local/bin/droiddeck-wine-pe",
             "usr/local/bin/droiddeck-warmup" to "usr/local/bin/droiddeck-warmup",
             "usr/local/bin/droiddeck-dotnet-trace" to "usr/local/bin/droiddeck-dotnet-trace",
+            "usr/local/bin/droiddeck-dotnet-r2r" to "usr/local/bin/droiddeck-dotnet-r2r",
             "usr/local/bin/droiddeck-fex-memory" to "usr/local/bin/droiddeck-fex-memory",
             "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
@@ -143,6 +144,11 @@ object SessionFiles {
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
             "usr/local/lib/droiddeck-tso-litmus/tso-litmus.exe" to "usr/local/lib/droiddeck-tso-litmus/tso-litmus.exe",
             "usr/local/lib/droiddeck-tso-litmus/tso-litmus.dll" to "usr/local/lib/droiddeck-tso-litmus/tso-litmus.dll",
+            // crossgen2 (MIT) for droiddeck-dotnet-r2r: native arm64, compiles .NET assemblies to x64 ReadyToRun.
+            "usr/local/lib/droiddeck-crossgen2/crossgen2" to "usr/local/lib/droiddeck-crossgen2/crossgen2",
+            "usr/local/lib/droiddeck-crossgen2/libclrjit_win_x64_arm64.so" to "usr/local/lib/droiddeck-crossgen2/libclrjit_win_x64_arm64.so",
+            "usr/local/lib/droiddeck-crossgen2/libjitinterface_arm64.so" to "usr/local/lib/droiddeck-crossgen2/libjitinterface_arm64.so",
+            "usr/local/lib/droiddeck-crossgen2/LICENSE.TXT" to "usr/local/lib/droiddeck-crossgen2/LICENSE.TXT",
         ) + mangoapp + xclipse.map { it to it } + vkcount.map { it to it } + hybrisCompat.map { it to it } + maliCompat + msitools.map { it to it } + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)

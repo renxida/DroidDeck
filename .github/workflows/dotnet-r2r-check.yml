@@ -1,0 +1,95 @@
+name: .NET ReadyToRun check
+
+# droiddeck-dotnet-r2r end to end, as on the phone: the arm64 crossgen2 compiles a self-contained win-x64
+# .NET 9 program's own assembly, then Windows x64 runs it and counts what it still JITs.
+on:
+  push:
+    paths:
+      - 'tools/dotnet-r2r/**'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-dotnet-r2r'
+      - 'tools/tests/test_dotnet_r2r.py'
+      - '.github/workflows/dotnet-r2r-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Publish the program, compile it with the phone's crossgen2, check the output is stable
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools/tests/test_dotnet_r2r.py
+          T=$RUNNER_TEMP
+          dotnet publish tools/dotnet-r2r/check -c Release -r win-x64 --self-contained -p:UseAppHost=true -o "$T/out/jit"
+          bash tools/dotnet-r2r/fetch-crossgen2.sh "$T/crossgen2"
+          cp -a "$T/out/jit" "$T/out/r2r"
+          export DROIDDECK_CROSSGEN2="$T/crossgen2/crossgen2"
+          TOOL=tools/linuxfs/overlay/usr/local/bin/droiddeck-dotnet-r2r
+          DROIDDECK_R2R_CACHE="$T/cache" python3 "$TOOL" status "$T/out/r2r"
+          start=$(date +%s.%N)
+          DROIDDECK_R2R_CACHE="$T/cache" python3 "$TOOL" compile "$T/out/r2r"
+          echo "compile_s=$(echo "$(date +%s.%N) - $start" | bc)"
+          DROIDDECK_CROSSGEN2_THREADS=1 DROIDDECK_R2R_CACHE="$T/cache2" python3 "$TOOL" compile "$T/out/r2r"
+          for f in "$T"/cache/*.r2r.dll; do cmp "$f" "$T/cache2/$(basename "$f")"; done
+          echo "same image with 2 threads and 1 thread: $(sha256sum "$T"/cache/*.r2r.dll)"
+          DROIDDECK_R2R_CACHE="$T/cache" python3 "$TOOL" apply "$T/out/r2r" --on
+          DROIDDECK_R2R_CACHE="$T/cache" python3 "$TOOL" status "$T/out/r2r" | tee "$T/out/status.txt"
+          grep -q "swapped_in=1: r2r-check.dll" "$T/out/status.txt"
+          ls -la "$T/out/jit/r2r-check.dll" "$T/out/r2r/r2r-check.dll"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r2r-check
+          path: ${{ runner.temp }}/out
+
+  run:
+    needs: compile
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: r2r-check
+          path: out
+      - name: Run both builds, count JIT compiles and time startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "label,own_first_jit,own_tier1_rejit,all_jit" > counts.csv
+          for build in jit r2r; do
+            for tc in 1 0; do
+              label="$build-tc$tc"
+              DOTNET_TieredCompilation=$tc DOTNET_TieredPGO=0 DOTNET_JitDisasmSummary=1 DOTNET_JitStdOutFile="$PWD/$label.jit.txt" \
+                "out/$build/r2r-check.exe" 2000 > "$label.out"
+              python tools/dotnet-r2r/jit-count.py "$label" "$label.jit.txt" R2RCheck >> counts.csv
+              ms=()
+              for i in 1 2 3 4 5 6 7; do
+                s=$(date +%s%N); DOTNET_TieredCompilation=$tc DOTNET_TieredPGO=0 "out/$build/r2r-check.exe" 200 > /dev/null; e=$(date +%s%N)
+                ms+=($(( (e - s) / 1000000 )))
+              done
+              echo "$label wall_ms(200 runs, 7 tries): $(printf '%s\n' "${ms[@]}" | sort -n | tr '\n' ' ')" | tee -a times.txt
+            done
+          done
+          cat counts.csv
+          cat *.out
+          cmp jit-tc1.out r2r-tc1.out && cmp jit-tc1.out r2r-tc0.out && cmp jit-tc1.out jit-tc0.out
+          python - <<'PY'
+          import csv
+          rows = {r["label"]: r for r in csv.DictReader(open("counts.csv"))}
+          jit, r2r = int(rows["jit-tc1"]["own_first_jit"]), int(rows["r2r-tc1"]["own_first_jit"])
+          print("own methods JIT'd at first call: jit %d, r2r %d" % (jit, r2r))
+          assert jit >= 30 and r2r * 4 <= jit, "precompiled code was not used"
+          PY
+          { echo '### ReadyToRun from the arm64 crossgen2 on Windows x64'; echo '```'; cat counts.csv times.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
