@@ -160,6 +160,16 @@ class PerfReportTest(unittest.TestCase):
         self.assertIn("first CPU cap: +4s p7 2600/3000 MHz", text)
         self.assertIn("p7 max: 3000@+0s -> 2600@+4s -> 2200@+6s", text)
 
+    def test_memory_paging_rates_are_averaged_and_old_files_still_parse(self):
+        header = "t_wall_ms,used_mb,available_mb,swap_used_mb,game_mb,game_majflt_s,swapin_mb_s"
+        mem = perf_report.parse_memory("\n".join([header, "1,10,5,3,800,,", "2,10,5,3,700,120.0,2.5", "3,10,5,3,600,80.0,1.5"]))
+        self.assertEqual(mem["game_majflt_s_avg"], 100.0)
+        self.assertEqual(mem["game_majflt_s_max"], 120.0)
+        self.assertEqual(mem["swapin_mb_s_avg"], 2.0)
+        self.assertEqual(mem["game_mb_max"], 800)
+        old = perf_report.parse_memory("t_wall_ms,game_mb\n1,500")
+        self.assertNotIn("game_majflt_s_avg", old)
+
     def test_a_directory_of_upload_zips_compares_two_builds(self):
         runs = self.root / "runs"
         self.upload_zip(runs / "main-1a2b3c4/Google-Pixel-10/a.zip", "2025-11-12-01-steam", "main", [16.667] * 600)

@@ -20,7 +20,11 @@ internal object MemoryReadout {
         val gameKb: Long, val droiddeckKb: Long, val gpuKb: Long?,
         val gameSwapKb: Long = 0, val droiddeckSwapKb: Long = 0, val topName: String = "", val topKb: Long = 0,
         val processes: List<Proc> = emptyList(),
+        val gameMajflt: Long = 0, val droiddeckMajflt: Long = 0,
     )
+
+    /** Pages read back from swap or files since boot: the counters from /proc/vmstat that show thrashing. */
+    data class Paging(val swapInPages: Long, val swapOutPages: Long, val majorFaults: Long)
 
     /** One process of the session's tree; [cpuTicks] is utime + stime from /proc/<pid>/stat. */
     data class Proc(val pid: Int, val name: String, val windows: Boolean, val rssKb: Long, val swapKb: Long, val cpuTicks: Long)
@@ -33,6 +37,21 @@ internal object MemoryReadout {
         val system = fields.getOrNull(12)?.toLongOrNull() ?: return null
         return user + system
     }
+
+    /** Major page faults (field 12 of /proc/<pid>/stat): each one waited on a read from swap or disk. */
+    fun majorFaults(stat: String): Long? {
+        val close = stat.lastIndexOf(')')
+        if (close < 0 || close + 2 >= stat.length) return null
+        return stat.substring(close + 2).split(' ').getOrNull(9)?.toLongOrNull()
+    }
+
+    fun parseVmstat(text: String): Paging? {
+        fun field(name: String) = Regex("""(?m)^$name\s+(\d+)""").find(text)?.groupValues?.get(1)?.toLongOrNull()
+        val pswpin = field("pswpin") ?: return null
+        return Paging(pswpin, field("pswpout") ?: 0, field("pgmajfault") ?: 0)
+    }
+
+    fun paging(): Paging? = runCatching { parseVmstat(File("/proc/vmstat").readText()) }.getOrNull()
 
     fun parseMeminfo(text: String): Device? {
         fun field(name: String) = Regex("""(?m)^$name:\s+(\d+) kB""").find(text)?.groupValues?.get(1)?.toLongOrNull()
@@ -86,6 +105,8 @@ internal object MemoryReadout {
         var droiddeckSwap = 0L
         var topName = ""
         var topKb = 0L
+        var gameMajflt = 0L
+        var droiddeckMajflt = 0L
         val processes = ArrayList<Proc>()
         val queue = ArrayDeque<Int>().apply { add(root) }
         val seen = HashSet<Int>()
@@ -97,16 +118,18 @@ internal object MemoryReadout {
                 val kb = residentKb(status)
                 val swap = swapKb(status)
                 val windows = pid != root && runCatching { inWinePrefix(File("/proc/$pid/environ").readBytes()) }.getOrDefault(false)
-                if (windows) { game += kb; gameSwap += swap } else { droiddeck += kb; droiddeckSwap += swap }
+                val stat = runCatching { File("/proc/$pid/stat").readText() }.getOrNull()
+                val faults = stat?.let(::majorFaults) ?: 0L
+                if (windows) { game += kb; gameSwap += swap; gameMajflt += faults } else { droiddeck += kb; droiddeckSwap += swap; droiddeckMajflt += faults }
                 if (kb + swap > topKb) { topKb = kb + swap; topName = processName(status) }
                 if (withProcesses) {
-                    val ticks = runCatching { cpuTicks(File("/proc/$pid/stat").readText()) }.getOrNull() ?: 0L
+                    val ticks = stat?.let(::cpuTicks) ?: 0L
                     processes += Proc(pid, processName(status), windows, kb, swap, ticks)
                 }
             }
             children[pid]?.let(queue::addAll)
         }
-        return Split(game, droiddeck, gpuKb(), gameSwap, droiddeckSwap, topName, topKb, processes)
+        return Split(game, droiddeck, gpuKb(), gameSwap, droiddeckSwap, topName, topKb, processes, gameMajflt, droiddeckMajflt)
     }
 
     private fun parentOf(pid: Int): Int? {
@@ -133,12 +156,33 @@ object MemoryLog {
             "droiddeck ${split.droiddeckKb / 1024}, android ${MemoryReadout.androidKb(device, split) / 1024}, " +
             "gpu ${split.gpuKb?.div(1024) ?: "?"} MB"
 
-    internal const val CSV_HEADER = "t_wall_ms,used_mb,available_mb,swap_used_mb,game_mb,droiddeck_mb,app_mb,gpu_mb,game_swap_mb,droiddeck_swap_mb,top_process,top_mb"
+    internal const val CSV_HEADER = "t_wall_ms,used_mb,available_mb,swap_used_mb,game_mb,droiddeck_mb,app_mb,gpu_mb,game_swap_mb,droiddeck_swap_mb,top_process,top_mb," +
+        "game_majflt_s,droiddeck_majflt_s,swapin_mb_s,swapout_mb_s"
 
-    internal fun csvLine(at: Long, device: MemoryReadout.Device, split: MemoryReadout.Split, appKb: Long?): String =
+    /** Per-second rates between two cumulative counters, or blank without an earlier sample. */
+    internal class Rates(val gameMajflt: Double?, val droiddeckMajflt: Double?, val swapInMb: Double?, val swapOutMb: Double?) {
+        companion object {
+            val NONE = Rates(null, null, null, null)
+            fun between(before: MemoryReadout.Split?, beforePaging: MemoryReadout.Paging?, after: MemoryReadout.Split,
+                        afterPaging: MemoryReadout.Paging?, elapsedMs: Long): Rates {
+                if (elapsedMs <= 0) return NONE
+                val s = elapsedMs / 1000.0
+                fun rate(a: Long?, b: Long?) = if (a != null && b != null && b >= a) (b - a) / s else null
+                val pageMb = 4096.0 / (1024 * 1024)
+                return Rates(rate(before?.gameMajflt, after.gameMajflt), rate(before?.droiddeckMajflt, after.droiddeckMajflt),
+                    rate(beforePaging?.swapInPages, afterPaging?.swapInPages)?.times(pageMb),
+                    rate(beforePaging?.swapOutPages, afterPaging?.swapOutPages)?.times(pageMb))
+            }
+        }
+    }
+
+    private fun num(v: Double?) = v?.let { String.format(Locale.US, "%.1f", it) } ?: ""
+
+    internal fun csvLine(at: Long, device: MemoryReadout.Device, split: MemoryReadout.Split, appKb: Long?, rates: Rates = Rates.NONE): String =
         "$at,${device.usedKb / 1024},${device.availableKb / 1024},${device.swapUsedKb / 1024},${split.gameKb / 1024}," +
             "${split.droiddeckKb / 1024},${appKb?.div(1024) ?: ""},${split.gpuKb?.div(1024) ?: ""}," +
-            "${split.gameSwapKb / 1024},${split.droiddeckSwapKb / 1024},${split.topName},${split.topKb / 1024}"
+            "${split.gameSwapKb / 1024},${split.droiddeckSwapKb / 1024},${split.topName},${split.topKb / 1024}," +
+            "${num(rates.gameMajflt)},${num(rates.droiddeckMajflt)},${num(rates.swapInMb)},${num(rates.swapOutMb)}"
 
     internal const val PROCESS_FILE = "processes.csv"
     internal const val PROCESS_HEADER = "t_wall_ms,pid,name,side,rss_mb,swap_mb,cpu_pct"
@@ -172,6 +216,9 @@ object MemoryLog {
                 .getOrDefault(100L).takeIf { it > 0 } ?: 100L
             var lastTicks = emptyMap<Int, Long>()
             var lastSnapshotAt = 0L
+            var lastSplit: MemoryReadout.Split? = null
+            var lastPaging: MemoryReadout.Paging? = null
+            var lastSampleAt = 0L
             try {
                 if (out != null && csv?.length() == 0L) runCatching { out.write(CSV_HEADER + "\n"); out.flush() }
                 if (processOut != null && processFile?.length() == 0L) runCatching {
@@ -186,9 +233,14 @@ object MemoryLog {
                         val split = MemoryReadout.split(withProcesses = snapshot)
                         if (sample % LOG_EVERY == 0L) android.util.Log.i(TAG, line(device, split))
                         val now = System.currentTimeMillis()
+                        val paging = MemoryReadout.paging()
+                        val rates = Rates.between(lastSplit, lastPaging, split, paging, if (lastSampleAt > 0) now - lastSampleAt else 0L)
+                        lastSplit = split
+                        lastPaging = paging
+                        lastSampleAt = now
                         if (out != null) {
                             val app = runCatching { MemoryReadout.residentKb(java.io.File("/proc/self/status").readText()) }.getOrNull()
-                            out.write(csvLine(now, device, split, app) + "\n")
+                            out.write(csvLine(now, device, split, app, rates) + "\n")
                             out.flush()
                         }
                         if (snapshot && processOut != null) {

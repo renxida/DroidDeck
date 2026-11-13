@@ -77,7 +77,26 @@ class MemoryReadoutTest {
             gameSwapKb = 1_048_576, droiddeckSwapKb = 2_048, topName = "SlayTheSpire2.e", topKb = 3_145_728)
         val line = MemoryLog.csvLine(1L, device, split, 4_096)
         assertEquals(MemoryLog.CSV_HEADER.split(',').size, line.split(',').size)
-        assertTrue(line.endsWith(",1024,2,SlayTheSpire2.e,3072"))
+        assertTrue(line.endsWith(",1024,2,SlayTheSpire2.e,3072,,,,"))
+    }
+
+    @Test fun pagingRatesFollowMajorFaultsAndSwapCounters() {
+        val stat = "4242 (SlayTheSpire2.e) R 1 4242 4242 0 -1 4194560 100 0 37 0 1500 250 0 0 20 0 30 0 12345 0 0"
+        assertEquals(37L, MemoryReadout.majorFaults(stat))
+        assertNull(MemoryReadout.majorFaults("4242 (x"))
+        val before = MemoryReadout.parseVmstat("pgpgin 1\npswpin 1000\npswpout 2000\npgmajfault 50\n")!!
+        val after = MemoryReadout.parseVmstat("pswpin 3560\npswpout 2256\npgmajfault 90\n")!!
+        assertNull(MemoryReadout.parseVmstat("pgpgin 1\n"))
+        val a = MemoryReadout.Split(0, 0, null, gameMajflt = 100, droiddeckMajflt = 10)
+        val b = MemoryReadout.Split(0, 0, null, gameMajflt = 600, droiddeckMajflt = 5)
+        val rates = MemoryLog.Rates.between(a, before, b, after, 5_000L)
+        assertEquals(100.0, rates.gameMajflt!!, 1e-9)
+        assertNull(rates.droiddeckMajflt)
+        assertEquals(2.0, rates.swapInMb!!, 1e-9)
+        assertEquals(0.2, rates.swapOutMb!!, 1e-9)
+        val device = MemoryReadout.Device(1024, 512, 0, 0)
+        assertTrue(MemoryLog.csvLine(1L, device, b, null, rates).endsWith(",100.0,,2.0,0.2"))
+        assertNull(MemoryLog.Rates.between(null, null, b, after, 5_000L).gameMajflt)
     }
 
     @Test fun cpuTicksAreUserPlusSystemTimeAfterTheCommandName() {

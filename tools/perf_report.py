@@ -393,8 +393,23 @@ def parse_memory(text: str) -> dict:
         values = line.split(",")
         if len(values) != len(header):
             continue
-        rows.append({k: int(v) for k, v in zip(header, values) if v.strip().lstrip("-").isdigit()})
+        row = {}
+        for k, v in zip(header, values):
+            v = v.strip()
+            if v.lstrip("-").isdigit():
+                row[k] = int(v)
+            elif k.endswith("_s") and v:
+                try:
+                    row[k] = float(v)
+                except ValueError:
+                    pass
+        rows.append(row)
     out = {"samples": len(rows)}
+    for key in ("game_majflt_s", "swapin_mb_s", "swapout_mb_s"):
+        values = [r[key] for r in rows if key in r]
+        if values:
+            out[f"{key}_avg"] = round(sum(values) / len(values), 1)
+            out[f"{key}_max"] = round(max(values), 1)
     for key, agg in (("game_mb", max), ("droiddeck_mb", max), ("app_mb", max), ("swap_used_mb", max), ("available_mb", min)):
         values = [r[key] for r in rows if key in r]
         if values:
@@ -578,7 +593,7 @@ def report(s: dict) -> str:
                 out.append(f"  p{pol} max: {steps}")
     mem = s["memory"]
     if mem.get("samples"):
-        out.append("memory:  " + ", ".join(f"{k} {v} MB" for k, v in mem.items() if k != "samples"))
+        out.append("memory:  " + ", ".join(f"{k} {v}" + ("/s" if "_s_" in k else " MB") for k, v in mem.items() if k != "samples"))
     cr = s["crashes"]
     out.append(f"exits:   {cr['game_exits']} game, {len(cr['abnormal'])} abnormal, {cr['fex_faults']} FEX fault reports,"
                f" {cr['android_crash_entries']} Android crash-buffer entries")
