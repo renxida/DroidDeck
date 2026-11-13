@@ -26,6 +26,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-game-gpu" to "usr/local/bin/droiddeck-game-gpu",
             "usr/local/bin/droiddeck-diagnostic-inventory" to "usr/local/bin/droiddeck-diagnostic-inventory",
             "usr/local/bin/droiddeck-native-inventory" to "usr/local/bin/droiddeck-native-inventory",
+            "usr/local/bin/droiddeck-dotnet-trace" to "usr/local/bin/droiddeck-dotnet-trace",
             "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
             "usr/local/bin/droiddeck-wine-pe" to "usr/local/bin/droiddeck-wine-pe",
             "usr/local/bin/droiddeck-warmup" to "usr/local/bin/droiddeck-warmup",
