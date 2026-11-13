@@ -17,8 +17,13 @@ Workstream: FEX inside Proton (ARM64EC). Branch `perf/emu-fex`. Nov 13, 2026.
   Without the cache, FEX's own share is 34%, led by register allocation, flag elimination and decoding.
 - **Memory ordering (TSO) at the game's settings costs only +5.5%** over no ordering at all. Full TSO would cost +40%;
   the game already avoids that.
-- **Rewritten-code tracking (SMC)**: turning it off (unsafe, an upper bound) saves ~14% on top of the disk cache
-  (1,013 → 868 ms). Cheaper SMC for .NET's code heap is the next FEX change.
+- **Rewritten-code tracking (SMC) is no longer worth fixing.** Off (unsafe, an upper bound) it saved ~14% with the
+  disk cache alone, but **nothing on top of `fex-l1`** (788 vs 797 ms, round 3). Smaller blocks (MaxInst 500/1500) and
+  caching more code (relocation filter off) don't help either.
+- **Cost of `fex-l1`: ~40–60 MB more RSS** in the bench (dc 240–263 MB → l1 296–300 MB). Round 4 tests a cheaper
+  variant: FEX's dynamic L1 that never shrinks.
+- What's left is translated-code quality: with `fex-l1` and a warm cache FEX spends only 10% of wall time in its
+  compile path; dispatch is 2.5× native, strings 2.3×, allocation/GC 2.0×, first calls 4.1×.
 - Multiblock must stay on (+56% without it); turning .NET's tiered compilation off is worse (+36%).
 
 ## How it was measured
@@ -119,15 +124,35 @@ already reserved by FEX either way and backed only as touched, so the memory cos
 Caveat: the bench is 4 s; in a long game session the dynamic table may have grown by itself. The phone answers it:
 `fex.csv`'s `cache_miss` per 5 s with `fex-l1` on vs off.
 
+## Round 3: what's left on top of `fex-l1`
+
+Run 43368666336 (three rounds, best per phase; all configs reproduced native's checksum):
+
+| Config | Total ms | × native | first_jit | JIT share | max RSS MB |
+|---|---|---|---|---|---|
+| native | 416 | 1.00 | 42 | | |
+| fex_game | 986 | 2.37 | 394 | 39% | 195–200 |
+| fex_game_dc | 915 | 2.20 | 300 | 20% | 239–263 |
+| **fex_game_dc_l1** | **788** | **1.89** | **171** | **10%** | **296–300** |
+| fex_l1_nosmc | 797 | 1.92 | 158 | 20%* | 269–291 |
+| fex_l1_mi500 | 837 | 2.01 | 203 | 19%* | 281–309 |
+| fex_l1_mi1500 | 806 | 1.94 | 181 | 20%* | 277–300 |
+| fex_l1_noreloc | 820 | 1.97 | 186 | 9% | 300–304 |
+
+\* these change code generation, so round 1 starts with a cold disk cache and the mean JIT share is higher.
+
+Why the dynamic L1 hurts in a long session too: FEX samples once a second; above 250 slow lookups/s it doubles
+the table, below 50/s it halves it, and each change flushes the table. A thread whose table is big enough to have
+few misses gets shrunk, misses again, and regrows, so the default never settles.
+
 ## Ranked next fixes (in FEX)
 
-1. **Ship `fex-l1`** after the phone confirms lower `cache_miss` and `jit_ms` in `fex.csv` and no memory regression.
+1. **Ship `fex-l1`** after the phone confirms lower `cache_miss` and `jit_ms` in `fex.csv`, and that the extra
+   memory is acceptable (or ship the never-shrink variant if round 4 shows it keeps most of the gain for less).
 2. **Make sure the disk cache actually hits on the phone** (`disk_hit` / `disk_miss` in `fex.csv`).
-3. **Cheaper SMC for .NET's code heap under ARM64EC** (up to ~14% here). Options, smallest first: invalidate only the
-   blocks that overlap the written range instead of the whole page; don't re-protect a page that only ever gets
-   appended to; take the invalidation off the global mutex.
-4. **Cheaper linking of cached blocks** (CacheBlockMapping and the block map are FEX's top self-time with the cache).
-5. Translated-code quality: 76% of time with a warm cache, so dispatch and codegen are the long-term lever.
+3. **Translated-code quality**, now most of the remaining 1.9×: indirect calls (virtual/interface dispatch 2.5×),
+   string and allocation paths. Next step: per-block profile with FEX's block naming on the bench's hot phases.
+4. SMC, block size and the relocation filter: measured, no gain; dropped.
 
 ## What changed on the branch
 
