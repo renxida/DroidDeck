@@ -11,9 +11,10 @@ import java.util.zip.ZipOutputStream
 
 /**
  * The compact per-session zip the uploader sends: the app's own telemetry files as written, the
- * session's text reports, crash evidence ([CrashEvidence]: crash-lines.txt, crash.log, app exit
- * traces, the x86_64 Steam's output, Proton logs and the games' own logs, newest first within
- * [EVIDENCE_BYTES]) and an excerpt of session.log, all text through the share bundle's redactor.
+ * session's text reports, power-summary.txt (game-phase battery cost from power.csv), crash
+ * evidence ([CrashEvidence]: crash-lines.txt, crash.log, app exit traces, the x86_64 Steam's output,
+ * Proton logs and the games' own logs, newest first within [EVIDENCE_BYTES]) and an excerpt of
+ * session.log, all text through the share bundle's redactor.
  * Over [MAX_ZIP_BYTES] it drops session.log, then keeps only the tail of frames.csv.
  */
 object TelemetryBundle {
@@ -25,7 +26,8 @@ object TelemetryBundle {
     private const val X64_LOG_BYTES = 2L shl 20
     private const val X64_LOG_UNKNOWN_START = 2L shl 20
     private const val STEAM_LOG_BYTES = 256L shl 10
-    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log", "memory.csv", "processes.csv", com.droiddeck.launcher.session.ThreadLog.FILE, com.droiddeck.launcher.session.FexStatsLog.FILE,
+    internal const val POWER_SUMMARY = "power-summary.txt"
+    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log", PowerRow.FILE, "memory.csv", "processes.csv", com.droiddeck.launcher.session.ThreadLog.FILE, com.droiddeck.launcher.session.FexStatsLog.FILE,
         RemoteConfig.SETTINGS_FILE, com.droiddeck.launcher.session.SessionScreenshot.FILE)
     /** The Steam client's own logs that time shader pre-caching, downloads and compatibility-tool picks. */
     internal val STEAM_LOGS = listOf("shader_log.txt", "content_log.txt", "compat_log.txt", "bootstrap_log.txt", "console_log.txt")
@@ -115,12 +117,22 @@ object TelemetryBundle {
                 }
                 zip.closeEntry()
             }
+            powerSummary(dir)?.let {
+                zip.putNextEntry(ZipEntry(POWER_SUMMARY))
+                zip.write(it.toByteArray())
+                zip.closeEntry()
+            }
             for (name in SCRUBBED) scrubbed(zip, File(dir, name), name, Long.MAX_VALUE, scratch)
             runCatching { evidence(zip, dir, scratch, sources) }
             if (logBytes > 0) scrubbed(zip, File(dir, "session.log"), "session.log", logBytes, scratch)
         }
         tmp.renameTo(out)
     }.getOrDefault(false)
+
+    /** power-summary.txt: game-phase power, mAh and drain from power.csv ([PowerStats]); null without power.csv. */
+    internal fun powerSummary(dir: File): String? = runCatching {
+        File(dir, PowerRow.FILE).takeIf { it.isFile }?.let { PowerStats.of(it.readText(Charsets.ISO_8859_1)).summaryText() }
+    }.getOrNull()
 
     private fun evidence(zip: ZipOutputStream, dir: File, scratch: File, sources: Sources) {
         val seen = HashSet<String>()

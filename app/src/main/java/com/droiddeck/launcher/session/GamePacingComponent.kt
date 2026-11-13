@@ -58,7 +58,9 @@ class GamePacingComponent(private val logs: List<File>) : SessionPart() {
                 val gov = governor
                 if (plan != null && gov != null && power != null && now >= nextSample && Build.VERSION.SDK_INT >= 29) {
                     nextSample = now + SAMPLE_MS
-                    val read = if (Build.VERSION.SDK_INT >= 30) power.getThermalHeadroom(FORECAST_S) else Float.NaN
+                    val read = if (Build.VERSION.SDK_INT >= 30)
+                        com.droiddeck.launcher.telemetry.HeadroomCache.shared.get { power.getThermalHeadroom(FORECAST_S) } ?: Float.NaN
+                    else Float.NaN
                     if (!read.isNaN()) { headroom = read; headroomMs = now }
                     val recent = if (now - headroomMs <= STALE_MS) headroom else Float.NaN
                     val status = power.currentThermalStatus

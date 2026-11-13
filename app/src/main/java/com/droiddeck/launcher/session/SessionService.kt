@@ -1138,6 +1138,7 @@ class SessionService : Service() {
         val battery = BatteryComponent(
             File(filesDir, "session/sys/power_supply"),
             File(LinuxRuntime.rootDir(this), "run/vpower"),
+            File(sessionDir, com.droiddeck.launcher.telemetry.PowerRow.FILE),
         )
         battery.attach(this)
         components.add(battery)

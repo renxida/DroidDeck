@@ -88,6 +88,7 @@ class FrameLogComponent(
                             }
                         }
                         val n = HudFrames.nativePoll(handle, frametimes, times)
+                        GamePhase.inGame = !steam && engine.isNotEmpty() && engine != "none" && engine != "GAMESCOPE"
                         if (n > 0) {
                             out.add(frametimes, times, n)
                             lastFrameNs = now
@@ -103,6 +104,7 @@ class FrameLogComponent(
                         } else if (now - lastFrameNs > STALE_NS) {
                             HudFrames.nativeClose(handle)
                             handle = 0L
+                            GamePhase.inGame = false
                         }
                     }
                     out.flush()
@@ -136,6 +138,7 @@ class FrameLogComponent(
             Log.w(TAG, "frame log stopped: $e")
         } finally {
             if (handle != 0L) HudFrames.nativeClose(handle)
+            GamePhase.inGame = false
         }
     }
 

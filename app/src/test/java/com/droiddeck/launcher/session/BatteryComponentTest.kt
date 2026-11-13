@@ -60,9 +60,29 @@ class BatteryComponentTest {
         assertEquals("Charging", File(supplies, "BAT1/status").readText().trim())
     }
 
+    @Test fun powerLogGetsAHeaderAndARowPerTickWithDrawInMilliwatts() {
+        val supplies = tmp.newFolder("power_supply")
+        val vpower = tmp.newFolder("vpower")
+        val log = File(tmp.root, com.droiddeck.launcher.telemetry.PowerRow.FILE)
+        start(supplies, vpower, -2_000_000L, powerLog = log)
+        val lines = log.readLines()
+        assertEquals(com.droiddeck.launcher.telemetry.PowerRow.HEADER, lines[0])
+        val header = lines[0].split(',')
+        val row = lines[1].split(',')
+        fun cell(name: String) = row[header.indexOf(name)]
+        assertEquals("-2000000", cell("current_ua"))
+        assertEquals("4000000", cell("charge_uah"))
+        assertEquals("4000", cell("voltage_mv"))
+        assertEquals("8000", cell("power_mw"))
+        assertEquals("50", cell("level_pct"))
+        assertEquals("discharging", cell("status"))
+        assertEquals("none", cell("plugged"))
+        assertEquals("0", cell("game"))
+    }
+
     private fun start(
         supplies: File, vpower: File, currentUa: Long,
-        status: Int = BatteryManager.BATTERY_STATUS_DISCHARGING, level: Int = 50,
+        status: Int = BatteryManager.BATTERY_STATUS_DISCHARGING, level: Int = 50, powerLog: File? = null,
     ) {
         val context = RuntimeEnvironment.getApplication()
         context.sendStickyBroadcast(Intent(Intent.ACTION_BATTERY_CHANGED).apply {
@@ -76,7 +96,7 @@ class BatteryComponentTest {
             setLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW, currentUa)
             setLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE, currentUa)
         }
-        battery = BatteryComponent(supplies, vpower).also { it.attach(context); it.start() }
+        battery = BatteryComponent(supplies, vpower, powerLog).also { it.attach(context); it.start() }
     }
 
     private fun assertTelemetry(supplies: File, vpower: File) {
