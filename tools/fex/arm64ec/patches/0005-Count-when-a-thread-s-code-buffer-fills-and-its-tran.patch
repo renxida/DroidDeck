@@ -1,0 +1,43 @@
+From ab086e1b5643d84a89f4dc306b638981051f27f5 Mon Sep 17 00:00:00 2001
+From: Kestrel <kestrel@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 08:06:16 +0000
+Subject: [PATCH] Count when a thread's code buffer fills and its translated
+ code is thrown away
+
+ThreadStats' last (padding) slot becomes AccumulatedCodeBufferFullCount, so the layout and STATS_VERSION stay
+the same and readers that skip the padding are unaffected.
+---
+ FEXCore/Source/Interface/Core/JIT/JIT.cpp | 1 +
+ FEXCore/include/FEXCore/Utils/SHMStats.h  | 4 +++-
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/FEXCore/Source/Interface/Core/JIT/JIT.cpp b/FEXCore/Source/Interface/Core/JIT/JIT.cpp
+index 435afed..5055a92 100644
+--- a/FEXCore/Source/Interface/Core/JIT/JIT.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/JIT.cpp
+@@ -843,6 +843,7 @@ CodeBuffer::CodeBufferAllocation Arm64JITCore::AllocateCodeBufferInSharedCache(s
+ 
+     if (AllocatedInfo.BufferAllocationOffset == nullptr) {
+       // If it didn't fit then clear the buffer and try again.
++      FEXCORE_PROFILE_INSTANT_INCREMENT(ThreadState, AccumulatedCodeBufferFullCount, 1);
+       // This has the possibility of migrating the SharedCodeBuffer. See above in `Arm64JITCore::ClearCache()`
+       CTX->ClearCodeCache(ThreadState);
+       continue;
+diff --git a/FEXCore/include/FEXCore/Utils/SHMStats.h b/FEXCore/include/FEXCore/Utils/SHMStats.h
+index c5844fe..b15a07c 100644
+--- a/FEXCore/include/FEXCore/Utils/SHMStats.h
++++ b/FEXCore/include/FEXCore/Utils/SHMStats.h
+@@ -74,7 +74,9 @@ struct ThreadStats {
+   uint64_t AccumulatedDiskCacheHitCount;
+   uint64_t AccumulatedDiskCacheMissCount;
+   uint64_t AccumulatedDiskCacheLookupTime;
+-  uint64_t Padding;
++  // Kestrel: times a thread found the code buffer full and threw away every translated block (the Padding slot,
++  // so the layout and STATS_VERSION are unchanged and other readers ignore it).
++  uint64_t AccumulatedCodeBufferFullCount;
+ };
+ 
+ // Ensure 16-byte alignment to take advantage of ARM single-copy atomicity.
+-- 
+2.43.0
+
