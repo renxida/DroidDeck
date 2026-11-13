@@ -7,7 +7,7 @@ name: FEX translator bench (off-device)
 
 on:
   push:
-    branches: ['emu/fex', 'emu/fex-*']
+    branches: ['perf/emu-fex', 'perf/emu-fex-*', 'emu/fex', 'emu/fex-*']
     paths:
       - 'tools/fex/arm64ec/**'
       - 'tools/fex/bench/**'

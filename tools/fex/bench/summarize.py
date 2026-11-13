@@ -6,8 +6,12 @@ from collections import defaultdict
 res, stats = sys.argv[1], sys.argv[2]
 best = defaultdict(dict)
 configs, phases = [], []
+check = {}
 for r in csv.DictReader(open(res)):
     c, p = r["config"], r["phase"]
+    if p == "checksum":
+        check.setdefault(c, set()).add(r["best_ms"])
+        continue
     if p == "gc_count":
         continue
     if c not in configs: configs.append(c)
@@ -52,3 +56,10 @@ if agg:
         m = {k: sum(v) / len(v) for k, v in d.items() if v}
         share = m["jit_ms"] / (m["wall_s"] * 1000) if m.get("wall_s") else 0
         print(f"| {c} | {m['wall_s']:.1f} | {m['jit_ms']:,.0f} | {100 * share:.0f}% | {m['jit_blocks']:,.0f} | {m['smc']:,.0f} | {m['sigbus']:,.0f} | {m['signal_ms']:,.0f} |")
+
+if check:
+    ref = check.get("native", set())
+    bad = [c for c, v in check.items() if v != ref or len(v) != 1]
+    print()
+    print("Results check: " + ("every config computed the same answers as native." if not bad else
+          "WRONG ANSWERS under " + ", ".join(bad) + " (stale or mistranslated code)."))

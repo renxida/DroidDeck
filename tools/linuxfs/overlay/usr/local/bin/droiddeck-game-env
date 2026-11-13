@@ -73,7 +73,7 @@ DOTNET_FEX_EXPERIMENTS = (
 # saved settings at each launch; the Steam-side parts follow the values the Steam session started with.
 EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
-               "fex-tso", "fex-fast", "fex-kestrel")
+               "fex-tso", "fex-fast", "fex-kestrel", "fex-stats")
 
 
 def experiment_name(experiment):
@@ -2173,6 +2173,9 @@ def main():
             env, notes = fex_memory_model(command, env)
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
+    if experiment(env, "fex-stats"):
+        # FEX keeps per-thread JIT/SMC/SIGBUS counters in /dev/shm/fex-<pid>-stats; the app logs them to fex.csv.
+        env = dict(env, FEX_PROFILESTATS="1")
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"

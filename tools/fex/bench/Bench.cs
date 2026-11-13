@@ -50,7 +50,8 @@ static class Bench
             Console.WriteLine($"{name},{t[0]:F1},{t[t.Count / 2]:F1}");
         }
         Console.WriteLine($"gc_count,{GC.CollectionCount(0)},{GC.CollectionCount(2)}");
-        if (sink == 42) Console.WriteLine();
+        // Same IL, same inputs: every config must print the same checksum, or the translator ran stale or wrong code.
+        Console.WriteLine($"checksum,{sink},0");
     }
 
     // Many small distinct methods compiled once: what loading a game's assemblies does.
@@ -111,7 +112,7 @@ static class Bench
             int s = 0;
             foreach (var k in keys) s += d[k];
             var l = new List<int>(keys.Length);
-            foreach (var k in keys) l.Add(k.GetHashCode());
+            foreach (var k in keys) l.Add(d[k] * 7919 ^ k[k.Length - 1]); // deterministic, unlike string.GetHashCode
             l.Sort();
             sink += s + l[0];
         }

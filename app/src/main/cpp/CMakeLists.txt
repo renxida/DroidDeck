@@ -32,7 +32,7 @@ add_subdirectory(waylandcomp)
 add_library(sdnative SHARED sdnative/sdnative.c)
 target_link_libraries(sdnative log)
 
-add_library(deviceinfo SHARED deviceinfo/vkinfo.c)
+add_library(deviceinfo SHARED deviceinfo/vkinfo.c deviceinfo/timer.c)
 target_link_libraries(deviceinfo dl)
 
 add_library(gpuclock SHARED gpuclock/kgsl_clock.c gpuclock/kgsl_busy.c)

@@ -22,7 +22,8 @@ for round in $(seq 1 "$ROUNDS"); do
       rm -f /dev/shm/fex-*-stats
       "$FEX_STATS" -s -i 50 > "$OUT/$name.$round.stats" & sp=$!
       env $GAME_DOTNET $envs FEX_ROOTFS="$ROOTFS" FEX_PROFILESTATS=1 FEX_SILENTLOG=1 \
-        "$FEX_BIN/FEX" /opt/dotnet/dotnet /bench/Bench.dll "$REPS" > "$OUT/$name.$round.txt"
+        "$FEX_BIN/FEX" /opt/dotnet/dotnet /bench/Bench.dll "$REPS" > "$OUT/$name.$round.txt" \
+        || echo "checksum,crashed-$?,0" >> "$OUT/$name.$round.txt"
       sleep 0.3; kill $sp 2>/dev/null || true; wait $sp 2>/dev/null || true
     fi
     wall=$(echo "$(date +%s.%N) - $start" | bc)
