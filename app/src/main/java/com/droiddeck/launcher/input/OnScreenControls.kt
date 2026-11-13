@@ -39,6 +39,8 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     private var gameGesture = false
     private var padGesture = false
     private var lastPadTouch = Long.MIN_VALUE / 2
+    // View.post holds the action until the view is attached; the fold must not wait on that.
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     var onTouchMiss: ((MotionEvent) -> Unit)?
         get() = surface.onTouchMiss
         set(value) { surface.onTouchMiss = value }
@@ -114,7 +116,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         val handled = super.dispatchTouchEvent(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_UP -> {
-                if (gameGesture && !padGesture && foldsOnGameTap() && event.eventTime - lastPadTouch >= FOLD_QUIET_MS) post {
+                if (gameGesture && !padGesture && foldsOnGameTap() && event.eventTime - lastPadTouch >= FOLD_QUIET_MS) mainHandler.post {
                     if (foldsOnGameTap()) { setQuickHidden(true); onFoldChanged?.invoke(true) }
                 }
                 gameGesture = false; padGesture = false
