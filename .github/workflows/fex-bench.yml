@@ -74,6 +74,17 @@ jobs:
           export PATH="$FEX_BIN:$PATH"
           tools/fex/bench/run.sh
           cat bench-out/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Profile where FEX's time goes (warm disk cache, and fresh)
+        env:
+          FEX_BIN: ${{ github.workspace }}/fex-linux/Bin
+          ROOTFS: ${{ github.workspace }}/rootfs
+          OUT: ${{ github.workspace }}/bench-out
+        run: |
+          sudo apt-get install -y -qq "linux-tools-$(uname -r)" linux-tools-common >/dev/null 2>&1 \
+            || sudo apt-get install -y -qq linux-tools-azure linux-tools-generic >/dev/null 2>&1 || true
+          sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0 || true
+          CONFIG=fex_game_dc tools/fex/bench/profile.sh
+          CONFIG=fex_game tools/fex/bench/profile.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
