@@ -619,9 +619,11 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
                     if socket:
                         self.assertEqual(result["WAYLAND_DISPLAY"], socket)
                         self.assertEqual(result["PROTON_ENABLE_WAYLAND"], "1")
+                        self.assertEqual(result["DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER"], "1")
                     else:
                         self.assertEqual(result["WAYLAND_DISPLAY"], "")
                         self.assertNotIn("PROTON_ENABLE_WAYLAND", result)
+                        self.assertNotIn("DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER", result)
                     self.assertEqual(env.get("WAYLAND_DISPLAY"), "")
 
     def test_vk_count_puts_its_layer_first_only_when_on_and_installed(self):

@@ -2597,9 +2597,11 @@ def vk_count(env, layer_dir=VKCOUNT_DIR):
 
 def wayland_present(directory, env):
     """Experiment wayland-present: Wine's Wayland driver hands the game's frames to gamescope's own Wayland
-    socket, so the game's Xwayland and its DRI3 Present round trip drop out of every frame. The session clears
-    WAYLAND_DISPLAY for Steam (an empty one would make libwayland pick wayland-0, the app's compositor), so the
-    socket is named explicitly. Needs a WSI layer built with VK_KHR_wayland_surface."""
+    socket, so the game's Xwayland and its DRI3 Present round trip drop out of every frame. The session sets
+    WAYLAND_DISPLAY empty for Steam, and libwayland connects to an empty name as no socket at all (it falls back to
+    wayland-0 only when the variable is unset), so the socket is named explicitly. Needs a WSI layer built with
+    VK_KHR_wayland_surface. That layer connects to nothing itself: it only uses the wl_display a Wayland surface
+    hands it. Proton's Wayland Steam-overlay layer stays out of the game's Vulkan chain."""
     if not experiment(env, "wayland-present"):
         return None
     socket = env.get("GAMESCOPE_WAYLAND_DISPLAY", "").strip()
@@ -2613,6 +2615,9 @@ def wayland_present(directory, env):
         return "wayland-present: this WSI layer has no Wayland surface; the game stays on Xwayland"
     env["WAYLAND_DISPLAY"] = socket
     env["PROTON_ENABLE_WAYLAND"] = "1"
+    # With Steam's overlay preloaded, Proton would add GE's Wayland Steam-overlay Vulkan layer to the game's
+    # chain. It is untested on the PowerVR path and only bridges the in-game overlay's input.
+    env["DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER"] = "1"
     return "wayland-present: Wine's Wayland driver presents to gamescope (%s), skipping the game's Xwayland" % socket
 
 
