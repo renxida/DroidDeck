@@ -31,9 +31,10 @@ float cubic(float p0, float p1, float p2, float p3, float s) {
 // ---------------------------------------------------------------- attachments and skins
 
 void Attachment::update_region_offsets() {
-	float hw = width * 0.5f * scale_x, hh = height * 0.5f * scale_y;
+	float w = width * scale_x, h = height * scale_y;
+	float l = (trim[0] - 0.5f) * w, b = (trim[1] - 0.5f) * h, r = (trim[2] - 0.5f) * w, t = (trim[3] - 0.5f) * h;
 	float cs = std::cos(rotation * DEG), sn = std::sin(rotation * DEG);
-	const float corners[8] = { -hw, -hh, hw, -hh, hw, hh, -hw, hh }; // BL, BR, TR, TL
+	const float corners[8] = { l, b, r, b, r, t, l, t }; // BL, BR, TR, TL
 	for (int i = 0; i < 4; i++) {
 		float lx = corners[i * 2], ly = corners[i * 2 + 1];
 		offset[i * 2] = x + lx * cs - ly * sn;

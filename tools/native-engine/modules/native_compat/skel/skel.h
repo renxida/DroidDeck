@@ -78,6 +78,8 @@ struct Attachment {
 	float region_uv[8] = { 0, 1, 1, 1, 1, 0, 0, 0 }; // bottom-left, bottom-right, top-right, top-left
 	bool region_rotated = false;
 	float region_u = 0, region_v = 0, region_u2 = 1, region_v2 = 1;
+	float trim[4] = { 0, 0, 1, 1 }; // region: packed pixels within the original image (left, bottom, right, top; 0..1)
+	std::vector<float> page_uvs; // mesh: uvs mapped into the atlas page
 
 	bool weighted() const { return !bones.empty(); }
 	void update_region_offsets();

@@ -4,6 +4,6 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 out=${TMPDIR:-/tmp}/skel_test.$$
 c++ -std=c++17 -O1 -g -Wall -Wextra -fno-exceptions -fsanitize=address,undefined \
-  "$here/skel_test.cpp" "$here/../json.cpp" "$here/../skel.cpp" "$here/../skel_json.cpp" -o "$out"
+  "$here/skel_test.cpp" "$here/../json.cpp" "$here/../skel.cpp" "$here/../skel_json.cpp" "$here/../atlas.cpp" -o "$out"
 "$out"
 rm -f "$out"

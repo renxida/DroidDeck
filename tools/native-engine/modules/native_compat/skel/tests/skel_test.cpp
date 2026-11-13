@@ -1,4 +1,5 @@
 // Host tests for the clean-room skeleton core. Build: see run_tests.sh.
+#include "../atlas.h"
 #include "../json.h"
 #include "../skel.h"
 
@@ -224,7 +225,46 @@ static void test_json_reader() {
 	CHECK(!parse_json("{\"a\": }", 7, v, err));
 }
 
+
+static void test_atlas() {
+	const char *a4 = "\nmonsters.png\nsize: 100,50\nfilter: Linear,Linear\npma: true\nbody\nbounds: 10,20,4,2\nfx_spark\nbounds: 0,0,8,6\noffsets: 1,2,10,10\nrotate: 90\n\nsecond.png\nsize: 64,64\nspark\nbounds: 0,0,2,2\nflash\nbounds: 2,0,4,4\nskin\nbounds: 0,32,32,32\n";
+	Atlas at;
+	std::string err;
+	CHECK(parse_atlas(a4, std::strlen(a4), at, err));
+	CHECK(at.pages.size() == 2 && at.pages[0].pma && at.pages[0].width == 100);
+	CHECK(at.regions.size() == 5);
+	const AtlasRegion *body = at.find("body");
+	CHECK(body && body->page == 0);
+	NEAR(body->u, 0.1);
+	NEAR(body->v2, 22.0 / 50);
+	const AtlasRegion *fx = at.find("fx_spark");
+	CHECK(fx && fx->degrees == 90 && fx->original_width == 10);
+	NEAR(fx->u2, 6.0 / 100); // footprint is height wide when turned
+	const char *a3 = "page.png\nsize: 16,16\nformat: RGBA8888\nfilter: Nearest,Nearest\nrepeat: none\nr\n  rotate: false\n  xy: 4, 4\n  size: 8, 4\n  orig: 8, 8\n  offset: 0, 2\n  index: -1\n";
+	CHECK(parse_atlas(a3, std::strlen(a3), at, err));
+	CHECK(at.pages.size() == 1 && !at.pages[0].linear);
+	const AtlasRegion *r = at.find("r");
+	CHECK(r && r->x == 4 && r->height == 4 && r->original_height == 8 && r->offset_y == 2);
+
+	// Binding: a trimmed region shrinks its quad to the packed pixels; uvs land on the page.
+	auto sd = load(RIG4);
+	if (!sd) return;
+	CHECK(parse_atlas(a4, std::strlen(a4), at, err));
+	auto missing = bind_atlas(*sd, at);
+	CHECK(missing.empty());
+	const Attachment *bodyA = sd->default_skin->find(0, "body");
+	CHECK(bodyA->page == 0);
+	NEAR(bodyA->region_uv[0], 0.1); // bottom-left u
+	NEAR(bodyA->region_uv[1], 22.0 / 50); // bottom-left v (bottom of the region in the page)
+	NEAR(bodyA->region_uv[5], 20.0 / 50); // top-right v
+	const Attachment *mesh = sd->default_skin->find(1, "skin");
+	CHECK(mesh->page == 1 && mesh->page_uvs.size() == 4);
+	NEAR(mesh->page_uvs[0], 0);
+	NEAR(mesh->page_uvs[1], 0.5); // mesh uv v=0 is the image top: the top of the region in the page
+}
+
 int main() {
+	test_atlas();
 	test_json_reader();
 	test_world_transforms();
 	test_region_and_weighted_mesh();
