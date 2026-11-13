@@ -89,7 +89,17 @@ class NativeGodotTest(unittest.TestCase):
                         "--out", str(out), "--exe", "SlayTheSpire2.exe", "--", "--headless", "--verbose"])
         finally:
             NG["os"].execv = real
+            os.chdir(Path(__file__).resolve().parent)
         self.assertEqual([str(out / "sts2"), "--main-pack", str(self.game / "SlayTheSpire2.pck"), "--headless", "--verbose"], seen[0])
+
+    def test_relative_paths_become_absolute(self):
+        old = os.getcwd()
+        os.chdir(self.root)
+        try:
+            r = NG["compose"]("Slay the Spire 2", "kit", "godot.template", "launch", "SlayTheSpire2.exe")
+        finally:
+            os.chdir(old)
+        self.assertTrue(os.path.isabs(r["pack"]) and os.path.isabs(r["engine"]))
 
     def test_embedded_pack(self):
         (self.game / "SlayTheSpire2.pck").unlink()

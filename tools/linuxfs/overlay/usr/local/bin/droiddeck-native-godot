@@ -96,6 +96,7 @@ def place(src, dst):
 
 
 def compose(game_dir, kit, engine, out, exe=None):
+    game_dir, kit, engine, out = (os.path.abspath(p) for p in (game_dir, kit, engine, out))
     asm, win = windows_data_dir(game_dir)
     data = os.path.join(out, f"data_{asm}_linuxbsd_arm64")
     if os.path.isdir(data):
