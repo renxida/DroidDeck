@@ -773,13 +773,19 @@ struct BinaryLoader {
 					if (!att) {
 						return fail(where + "attachment " + key + " not in skin " + skin->name);
 					}
-					if (type == 1) { // sequence: time, mode and index, delay
-						for (int f = 0; f < frames && !r.bad; f++) {
-							r.f32();
-							r.i32();
-							r.f32();
+					if (type == 1) { // sequence: time, start index << 4 | mode, seconds per image
+						Timeline tl;
+						tl.type = TimelineType::Sequence;
+						tl.target = slot;
+						tl.attachment = att->timeline_attachment;
+						tl.curve.channels = 1;
+						for (int f = 0; f < frames && ok(); f++) {
+							float none = 0;
+							tl.curve.add(r.f32(), &none, Curve::STEPPED);
+							tl.sequence_keys.push_back(r.i32());
+							tl.sequence_delays.push_back(r.f32());
 						}
-						unsupported.push_back("sequence timelines");
+						keep(std::move(tl));
 						continue;
 					}
 					if (type != 0) {

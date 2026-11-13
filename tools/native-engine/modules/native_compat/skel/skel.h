@@ -42,6 +42,7 @@ struct SlotData {
 };
 
 // Attachment frames that come from numbered images (path + zero-padded index).
+enum class SequenceMode { Hold, Once, Loop, PingPong, OnceReverse, LoopReverse, PingPongReverse };
 struct Sequence {
 	int count = 0, start = 0, digits = 0, setup = 0;
 	std::string frame_path(const std::string &base, int index) const;
@@ -89,8 +90,14 @@ struct Attachment {
 	float region_u = 0, region_v = 0, region_u2 = 1, region_v2 = 1;
 	float trim[4] = { 0, 0, 1, 1 }; // region: packed pixels within the original image (left, bottom, right, top; 0..1)
 	std::vector<float> page_uvs; // mesh: uvs mapped into the atlas page
+	// A sequence's frames, each bound to its own atlas region by bind_atlas (empty until then).
+	std::vector<Attachment> sequence_frames;
 
 	bool weighted() const { return !bones.empty(); }
+	// The attachment to draw for a sequence frame (-1 = the setup frame, which is this one).
+	const Attachment *frame(int index) const {
+		return index < 0 || sequence_frames.empty() ? this : &sequence_frames[size_t(index) % sequence_frames.size()];
+	}
 	void update_region_offsets();
 };
 
@@ -163,7 +170,7 @@ struct Curve {
 
 enum class TimelineType {
 	Rotate, Translate, TranslateX, TranslateY, Scale, ScaleX, ScaleY, Shear, ShearX, ShearY,
-	Attachment, RGBA, RGB, Alpha, RGBA2, RGB2, Deform, DrawOrder, Event, Ik, Inherit, Transform
+	Attachment, RGBA, RGB, Alpha, RGBA2, RGB2, Deform, DrawOrder, Event, Ik, Inherit, Transform, Sequence
 };
 
 struct Timeline {
@@ -175,6 +182,8 @@ struct Timeline {
 	std::vector<std::vector<float>> deforms; // deform: per frame, offsets for every vertex value
 	std::vector<std::vector<int>> draw_orders; // per frame, slot index per draw position; empty = setup
 	std::vector<Event> events;
+	std::vector<int> sequence_keys; // sequence: per frame, start index << 4 | SequenceMode
+	std::vector<float> sequence_delays; // sequence: per frame, seconds per image
 	std::vector<uint8_t> flags; // ik: bend_positive, compress, stretch per frame (bit 0, 1, 2); inherit: mode per frame
 };
 
@@ -232,7 +241,9 @@ struct Slot {
 	Color dark;
 	const Attachment *attachment = nullptr;
 	std::vector<float> deform; // per vertex value offsets; empty when none
+	int sequence_index = -1; // frame of a sequence attachment; -1 = its setup frame
 	void setup(const struct Skeleton &skeleton);
+	const Attachment *drawn() const { return attachment ? attachment->frame(sequence_index) : nullptr; }
 };
 
 struct IkConstraint {

@@ -217,6 +217,7 @@ void Slot::setup(const Skeleton &skeleton) {
 	dark = data->dark;
 	attachment = data->attachment.empty() ? nullptr : skeleton.attachment(data->index, data->attachment);
 	deform.clear();
+	sequence_index = -1;
 }
 
 Skeleton::Skeleton(const SkeletonData *d) : data(d) {
@@ -325,6 +326,7 @@ bool Skeleton::set_attachment(const std::string &slot_name, const std::string &k
 	}
 	if (slots[s].attachment != a) {
 		slots[s].deform.clear();
+		slots[s].sequence_index = -1;
 	}
 	slots[s].attachment = a;
 	return true;
@@ -652,7 +654,7 @@ void Skeleton::update_world_transform() {
 
 int Skeleton::world_vertices(int slot_index, std::vector<float> &out) const {
 	const Slot &slot = slots[slot_index];
-	const Attachment *a = slot.attachment;
+	const Attachment *a = slot.drawn();
 	out.clear();
 	if (!a) {
 		return 0;
@@ -847,6 +849,7 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 				const Attachment *a = sk.attachment(tl.target, tl.names[cv.search(time)]);
 				if (a != s.attachment) {
 					s.deform.clear();
+					s.sequence_index = -1;
 				}
 				s.attachment = a;
 				break;
@@ -919,6 +922,50 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 				mix_value(k.mix_scale_x, d.mix_scale_x, cv.evaluate(time, 3), alpha, blend);
 				mix_value(k.mix_scale_y, d.mix_scale_y, cv.evaluate(time, 4), alpha, blend);
 				mix_value(k.mix_shear_y, d.mix_shear_y, cv.evaluate(time, 5), alpha, blend);
+				break;
+			}
+			case TimelineType::Sequence: {
+				Slot &s = sk.slots[tl.target];
+				if (!s.attachment || s.attachment->timeline_attachment != tl.attachment || !s.attachment->has_sequence) {
+					break;
+				}
+				int i = cv.search(time);
+				int key = tl.sequence_keys[i];
+				int mode = key & 15, index = key >> 4;
+				int count = s.attachment->sequence.count;
+				if (count <= 0) {
+					break;
+				}
+				float delay = tl.sequence_delays[i];
+				if (mode != int(SequenceMode::Hold) && delay > 0) {
+					index += int((time - cv.time(i)) / delay + 1e-4f);
+				}
+				int bounce = 2 * count - 2;
+				switch (SequenceMode(mode)) {
+					case SequenceMode::Hold:
+						break;
+					case SequenceMode::Once:
+						index = std::min(index, count - 1);
+						break;
+					case SequenceMode::Loop:
+						index %= count;
+						break;
+					case SequenceMode::PingPong:
+						index = bounce ? index % bounce : 0;
+						if (index >= count) index = bounce - index;
+						break;
+					case SequenceMode::OnceReverse:
+						index = std::max(count - 1 - index, 0);
+						break;
+					case SequenceMode::LoopReverse:
+						index = count - 1 - index % count;
+						break;
+					case SequenceMode::PingPongReverse:
+						index = bounce ? (index + count - 1) % bounce : 0;
+						if (index >= count) index = bounce - index;
+						break;
+				}
+				s.sequence_index = std::max(0, std::min(index, count - 1));
 				break;
 			}
 			case TimelineType::Inherit: {

@@ -188,6 +188,46 @@ void region_uv(const AtlasRegion &r, float s, float t, float &u, float &v) {
 	v = r.v + (1 - t) * (r.v2 - r.v);
 }
 
+bool bind_one(Attachment &a, const Atlas &atlas, std::vector<std::string> &missing) {
+	const AtlasRegion *r = atlas.find(a.path);
+	if (!r) {
+		missing.push_back(a.path);
+		return false;
+	}
+	a.page = r->page;
+	a.region_rotated = r->degrees == 90;
+	a.region_u = r->u;
+	a.region_v = r->v;
+	a.region_u2 = r->u2;
+	a.region_v2 = r->v2;
+	if (a.type == AttachmentType::Region) {
+		// Corners in unrotated image space: BL, BR, TR, TL; trimmed to the packed pixels.
+		float ow = r->original_width ? float(r->original_width) : 1, oh = r->original_height ? float(r->original_height) : 1;
+		float l = r->offset_x / ow, b = r->offset_y / oh;
+		float rr = (r->offset_x + r->width) / ow, tt = (r->offset_y + r->height) / oh;
+		const float st[8] = { l, b, rr, b, rr, tt, l, tt };
+		for (int i = 0; i < 4; i++) {
+			region_uv(*r, (st[i * 2] - l) / (rr - l), (st[i * 2 + 1] - b) / (tt - b), a.region_uv[i * 2], a.region_uv[i * 2 + 1]);
+		}
+		a.trim[0] = l;
+		a.trim[1] = b;
+		a.trim[2] = rr;
+		a.trim[3] = tt;
+		a.update_region_offsets();
+	} else {
+		// Mesh uvs are 0..1 over the original (untrimmed) image; map into the page.
+		a.page_uvs.resize(a.uvs.size());
+		float ow = r->original_width ? float(r->original_width) : 1, oh = r->original_height ? float(r->original_height) : 1;
+		for (size_t i = 0; i + 1 < a.uvs.size(); i += 2) {
+			float px = a.uvs[i] * ow - r->offset_x; // pixels from the packed left edge
+			float py = (1 - a.uvs[i + 1]) * oh - r->offset_y; // pixels from the packed bottom edge
+			float s = r->width ? px / r->width : 0, t = r->height ? py / r->height : 0;
+			region_uv(*r, s, t, a.page_uvs[i], a.page_uvs[i + 1]);
+		}
+	}
+	return true;
+}
+
 } // namespace
 
 std::vector<std::string> bind_atlas(SkeletonData &data, const Atlas &atlas) {
@@ -199,41 +239,19 @@ std::vector<std::string> bind_atlas(SkeletonData &data, const Atlas &atlas) {
 				if (a.type != AttachmentType::Region && a.type != AttachmentType::Mesh) {
 					continue;
 				}
-				const AtlasRegion *r = atlas.find(a.path);
-				if (!r) {
-					missing.push_back(a.path);
+				bind_one(a, atlas, missing);
+				if (!a.has_sequence) {
 					continue;
 				}
-				a.page = r->page;
-				a.region_rotated = r->degrees == 90;
-				a.region_u = r->u;
-				a.region_v = r->v;
-				a.region_u2 = r->u2;
-				a.region_v2 = r->v2;
-				if (a.type == AttachmentType::Region) {
-					// Corners in unrotated image space: BL, BR, TR, TL; trimmed to the packed pixels.
-					float ow = r->original_width ? float(r->original_width) : 1, oh = r->original_height ? float(r->original_height) : 1;
-					float l = r->offset_x / ow, b = r->offset_y / oh;
-					float rr = (r->offset_x + r->width) / ow, tt = (r->offset_y + r->height) / oh;
-					const float st[8] = { l, b, rr, b, rr, tt, l, tt };
-					for (int i = 0; i < 4; i++) {
-						region_uv(*r, (st[i * 2] - l) / (rr - l), (st[i * 2 + 1] - b) / (tt - b), a.region_uv[i * 2], a.region_uv[i * 2 + 1]);
-					}
-					a.trim[0] = l;
-					a.trim[1] = b;
-					a.trim[2] = rr;
-					a.trim[3] = tt;
-					a.update_region_offsets();
-				} else {
-					// Mesh uvs are 0..1 over the original (untrimmed) image; map into the page.
-					a.page_uvs.resize(a.uvs.size());
-					float ow = r->original_width ? float(r->original_width) : 1, oh = r->original_height ? float(r->original_height) : 1;
-					for (size_t i = 0; i + 1 < a.uvs.size(); i += 2) {
-						float px = a.uvs[i] * ow - r->offset_x; // pixels from the packed left edge
-						float py = (1 - a.uvs[i + 1]) * oh - r->offset_y; // pixels from the packed bottom edge
-						float s = r->width ? px / r->width : 0, t = r->height ? py / r->height : 0;
-						region_uv(*r, s, t, a.page_uvs[i], a.page_uvs[i + 1]);
-					}
+				// Each sequence image is its own region; frames copy the attachment and rebind it.
+				a.sequence_frames.clear();
+				Attachment base = a;
+				base.sequence_frames.clear();
+				for (int i = 0; i < a.sequence.count; i++) {
+					Attachment f = base;
+					f.path = a.sequence.frame_path(a.sequence_base, i);
+					bind_one(f, atlas, missing);
+					a.sequence_frames.push_back(std::move(f));
 				}
 			}
 		}

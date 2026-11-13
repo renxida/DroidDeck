@@ -148,7 +148,7 @@ void NativeSkeleton2D::_draw_skeleton() {
 	Vector<Color> colors;
 	for (int slot_index : skeleton->draw_order) {
 		const skel::Slot &slot = skeleton->slots[slot_index];
-		const skel::Attachment *a = slot.attachment;
+		const skel::Attachment *a = slot.drawn();
 		if (!a || !skeleton->bones[slot.data->bone].active) {
 			continue;
 		}

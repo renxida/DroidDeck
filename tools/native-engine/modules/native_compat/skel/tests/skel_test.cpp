@@ -331,7 +331,8 @@ static std::vector<uint8_t> synthetic_binary() {
 	// Default skin.
 	w.v(2);
 	w.v(0); w.v(1); w.v(1);
-	w.u8(0 | 32 | 128); w.u32(0x00ff00ff); w.f(90); // region with color and rotation
+	w.u8(0 | 32 | 64 | 128); w.u32(0x00ff00ff); // region with color, a 4-image sequence and rotation
+	w.v(4); w.v(1); w.v(2); w.v(0); w.f(90);
 	for (float x : { 1.0f, 2.0f, 1.0f, 1.0f, 20.0f, 10.0f }) w.f(x);
 	w.v(1); w.v(2);
 	w.v(3); w.u8(2); w.v(3); w.v(3); // mesh: hull 3, 3 vertices
@@ -358,9 +359,10 @@ static std::vector<uint8_t> synthetic_binary() {
 	w.u8(4 | 16); w.f(1); w.f(0.25f); // stretch, bend negative, mix 0.25
 	w.v(1); w.v(0); w.v(1); w.v(0); w.f(0); for (float x : { 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }) w.f(x);
 	w.v(0); w.v(0); // path, physics timelines
-	w.v(1); w.v(0); w.v(1); w.v(1); w.v(1); w.v(3); w.u8(0); w.v(2); w.v(0); // deform on "mesh"
+	w.v(1); w.v(0); w.v(2); w.v(1); w.v(1); w.v(3); w.u8(0); w.v(2); w.v(0); // deform on "mesh"
 	w.f(0); w.v(0);
 	w.f(1); w.v(4); w.v(2); w.f(3); w.f(4); w.u8(0);
+	w.v(0); w.v(1); w.v(1); w.u8(1); w.v(1); w.f(0); w.u32(0 << 4 | 1); w.f(0.1f); // sequence on "body": once, 0.1 s per image
 	w.v(1); w.f(0.25f); w.v(1); w.v(1); w.v(0xffffffffu); // draw order: slot 1 moves back one
 	w.v(1); w.f(0.75f); w.v(0); w.v(14); w.f(2); w.u8(0); // event: int 7, float 2, data string
 	return w.b;
@@ -385,6 +387,7 @@ static void test_binary() {
 	const Attachment *region = sd->default_skin->find(0, "body");
 	CHECK(region && region->type == AttachmentType::Region);
 	NEAR(region->rotation, 90);
+	CHECK(region->has_sequence && region->path == "body01" && region->sequence.frame_path(region->sequence_base, 3) == "body04");
 	NEAR(region->color.g, 1);
 	NEAR(region->color.r, 0);
 	const Attachment *mesh = sd->default_skin->find(1, "mesh");
@@ -412,7 +415,11 @@ static void test_binary() {
 	CHECK(sk.draw_order[0] == 1 && sk.draw_order[1] == 0);
 	CHECK(sk.ik[0].mix == 1 && sk.ik[0].bend_positive);
 	NEAR(sk.transforms[0].mix_rotate, 0.5);
+	CHECK(sk.slots[0].sequence_index == 3); // once: 5 images in at 0.1 s each, held on the last
 	CHECK(ev.empty());
+	sk.setup_pose();
+	apply_animation(*anim, sk, -1, 0.25f, false, nullptr, 1, MixBlend::Replace);
+	CHECK(sk.slots[0].sequence_index == 2);
 	apply_animation(*anim, sk, 0.5f, 1, false, &ev, 1, MixBlend::Replace);
 	NEAR(sk.bones[0].x, 10);
 	NEAR(sk.bones[0].y, 20);
