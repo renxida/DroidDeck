@@ -2,7 +2,8 @@ name: Native engine build (Godot 4.5.1 mono template, linux arm64, with our comp
 
 # Builds our own Godot 4.5.1 linux-arm64 mono export template with the
 # clean-room compat modules under tools/native-engine/modules, then swaps it into
-# the bench export and checks it starts and loads the module.
+# the bench export and checks it starts and loads the module, runs the bench's
+# Windows export through droiddeck-native-godot, and packs the engine component.
 # No game files, no Spine or FMOD code: the modules are written from scratch.
 
 on:

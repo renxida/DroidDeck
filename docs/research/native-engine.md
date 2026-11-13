@@ -70,20 +70,33 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
   into it fail with missing-member errors; the community port running on stock 4.5.1 suggests it mostly
   doesn't.
 
-## 3. How Kestrel would launch it (design, launcher not built yet)
+## 3. How Kestrel launches it (experiment `native-engine`, off by default)
 
-- Hook: the compat-tool launcher (`droiddeck-proton`, written by `steam-compatibility`). When the program
-  is `SlayTheSpire2.exe` and `DROIDDECK_EXP_NATIVE_ENGINE=1`, exec `droiddeck-native-godot` instead of
-  Proton. Steam keeps installing the Windows depot and tracking the session; Auto-Cloud still syncs.
-- `droiddeck-native-godot` builds a launch dir in `~/.cache/droiddeck/native/<buildid>/`: symlink the
-  `.pck`, `data_sts2_linuxbsd_arm64/` with the .NET linux-arm64 runtime + the game's managed DLLs
-  (never copied out of the device), our engine binary, the stubs, and the FMOD/Spine-enabled extension.
-- The pck's `.gdextension` entries have no `linux.arm64` library, so Godot logs an error and skips them.
-  Our module registers stand-in classes under the names the game's scenes use, so the scenes still load.
-- Runs as a normal X11/Wayland Vulkan client under gamescope, using the same glibc Vulkan loader ->
-  libhybris -> `vulkan.powervr.so` path winevulkan uses today, minus Wine and FEX.
-- Fallback: if the native process exits within 60 s, the launcher logs it and starts the Proton path,
-  so a test run is still normal play.
+- Hook: `droiddeck-game-env`. For a Godot game with one `data_*_windows_x86_64` folder and
+  `DROIDDECK_EXP_NATIVE_ENGINE=1`, it runs `droiddeck-native-godot run --fetch` before any Proton work.
+  Steam keeps installing the Windows depot and tracking the session; Auto-Cloud still syncs.
+- Fallback: an error exit within 60 s is "did not start"; the last 30 lines of `native-engine.log` go to the
+  session log and the game starts on Proton in the same launch. A later exit ends the launch with its code.
+- `droiddeck-native-godot` fetches the pinned component (a release on this repository, sha256-checked,
+  cached in `~/.cache/droiddeck/native/<tag>/`): our engine, the kit (the linux-arm64 data folder of a stock
+  4.5.1 C# export: .NET runtime, GodotSharp, GodotPlugins) and a Steamworks stub. It then builds
+  `~/.cache/droiddeck/native/launch/<appid>/` with the engine hardlinked in and
+  `data_<asm>_linuxbsd_arm64/` holding the kit, the stub and the game's managed DLLs (hardlinked; they never
+  leave the phone), and runs `engine --main-pack <game>.pck`.
+- Three things learned on the CI runner (VERIFIED, run 43374974943, the bench's Windows export):
+  - the .NET host resolves the main assembly's real path, so symlinks send it to the Windows folder;
+    hardlinks work;
+  - the Windows `deps.json` describes the win-x64 runtime, so the launch folder gets the kit's
+    `deps.json` with its app entry renamed to the game and listing the game's assemblies, and the kit's
+    `runtimeconfig.json` with the game's runtime switches on top;
+  - a Windows build stamps its IL assemblies AMD64, which arm64 CoreCLR refuses; the launch copy is
+    relabelled ARM64 (ReadyToRun x64 code, if any, is dropped so the IL is JIT-compiled).
+- The pck's `.gdextension` entries (Spine, FMOD, Sentry) have no `linux.arm64` library, so Godot logs an
+  error and skips them. Our module will register stand-in classes under the names the game's scenes use.
+- Runs as a normal X11/Wayland client under gamescope (Vulkan via the guest's glibc loader, the same driver
+  path winevulkan uses), minus Wine and FEX. INFERRED until a phone run.
+- Expected first-run gaps: no Spine drawing and no audio until the stand-ins match the game's names;
+  Steam features beyond file sync do nothing (stub); Sentry absent.
 
 ## 4. Measurements
 
