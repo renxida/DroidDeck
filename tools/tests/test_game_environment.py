@@ -2,6 +2,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import struct
 from pathlib import Path
@@ -10,6 +11,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from unittest import mock
 import unittest
 from unittest.mock import patch
@@ -19,6 +21,47 @@ MODULE = runpy.run_path(str(BIN / "droiddeck-game-env"))
 COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
 STATE = tempfile.TemporaryDirectory()
 COMPAT["main"].__globals__["COMPAT_DIR"] = STATE.name
+
+
+class FreeMemoryRequestTest(unittest.TestCase):
+    def test_the_game_waits_for_the_apps_answer_to_its_own_request(self):
+        import threading
+        with tempfile.TemporaryDirectory() as tmp:
+            request = Path(tmp) / "free-memory"
+            (Path(tmp) / "free-memory-done").write_text("2868840-stale method=none\n")
+
+            def app():
+                for _ in range(200):
+                    if request.exists():
+                        token = request.read_text().strip()
+                        request.unlink()
+                        staged = Path(tmp) / "free-memory-done.tmp"
+                        staged.write_text(token + " method=kill_background+balloon freedMb=1800 availableMb=4100\n")
+                        os.replace(staged, Path(tmp) / "free-memory-done")
+                        return
+                    time.sleep(0.01)
+
+            answering = threading.Thread(target=app)
+            answering.start()
+            answer = MODULE["free_memory"](tmp, "2868840", wait=5, poll=0.01)
+            answering.join()
+            self.assertEqual(answer, "method=kill_background+balloon freedMb=1800 availableMb=4100")
+            self.assertFalse((Path(tmp) / "free-memory-done").exists())
+
+    def test_without_an_answer_or_a_launch_directory_the_game_goes_on(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(MODULE["free_memory"](tmp, "2868840", wait=0.05, poll=0.01), "no answer in 0 s")
+            token = (Path(tmp) / "free-memory").read_text().strip()
+            self.assertRegex(token, r"^2868840-[0-9a-f]{16}$")
+        self.assertEqual(MODULE["free_memory"]("", "2868840"), "no launch directory")
+        self.assertEqual(MODULE["free_memory"]("/nonexistent/launch", "2868840"), "no launch directory")
+
+    def test_the_guest_lists_the_same_experiments_as_the_app(self):
+        source = (Path(__file__).resolve().parents[2] /
+                  "app/src/main/java/com/droiddeck/launcher/session/Experiments.kt").read_text()
+        names = dict(re.findall(r'const val (\w+) = "([^"]+)"', source))
+        ids = re.search(r"val ids = listOf\(([^)]*)\)", source).group(1)
+        self.assertEqual(tuple(names[n.strip()] for n in ids.split(",")), MODULE["EXPERIMENTS"])
 
 
 class SupergiantDotnetReporterTest(unittest.TestCase):

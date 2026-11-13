@@ -164,6 +164,10 @@
             android:exported="false"
             android:stopWithTask="false" />
         <service
+            android:name=".session.MemoryBalloonService"
+            android:process=":balloon"
+            android:exported="false" />
+        <service
             android:name=".runtime.RuntimeInstallService"
             android:exported="false" />
         <service
