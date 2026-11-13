@@ -22,6 +22,8 @@ object OnScreenLayout {
 
     private const val TOLERANCE = .01f
     private const val KEYBOARD_ID = "builtin:keyboard"
+    /** Generated controls whose default place has changed: an untouched gamepad saved before still counts as generated. */
+    private val MOVED_SINCE = setOf("legacy:guide", "legacy:qam")
 
     fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect,
         buttonsOnly: Boolean = false, dock: Dock? = null): List<InputSurfaceElement> {
@@ -88,6 +90,7 @@ object OnScreenLayout {
     private fun matches(stored: List<InputSurfaceElement>, generated: List<InputSurfaceElement>): Boolean {
         val byId = generated.associateBy { it.id }
         return stored.all { e ->
+            if (e.id in MOVED_SINCE) return@all true
             val g = byId[e.id] ?: return@all false
             abs(e.x - g.x) <= TOLERANCE && abs(e.y - g.y) <= TOLERANCE && abs(e.width - g.width) <= TOLERANCE && abs(e.height - g.height) <= TOLERANCE
         }

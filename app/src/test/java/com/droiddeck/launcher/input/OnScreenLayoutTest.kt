@@ -49,6 +49,31 @@ class OnScreenLayoutTest {
         }
     }
 
+    @Test fun onAPhoneSteamAndQamSitOnTheShoulderRowNotAtTheBottomMiddle() {
+        val (w, h) = 1200 to 540
+        val placed = OnScreenLayout.elements(context, gamepad(), w, h, Rect())
+        fun centreY(id: String) = placed.first { it.id == id }.let { (it.y + it.height / 2f) * h }
+        fun centreX(id: String) = placed.first { it.id == id }.let { (it.x + it.width / 2f) * w }
+        for (id in listOf("legacy:guide", "legacy:qam")) {
+            assertEquals(id, centreY("legacy:lb"), centreY(id), 1f)
+            assertTrue(id, centreY(id) < h / 3f)
+        }
+        assertEquals(w / 2f, (centreX("legacy:guide") + centreX("legacy:qam")) / 2f, 1f)
+        assertInside(placed, w, h)
+    }
+
+    @Test fun aGamepadSavedWithSteamAndQamAtTheBottomIsStillRegenerated() {
+        val (w, h) = 1200 to 540
+        val old = gamepad().let { g -> g.copy(elements = g.elements.map {
+            when (it.id) {
+                "legacy:guide" -> it.copy(x = .42f, y = .85f)
+                "legacy:qam" -> it.copy(x = .52f, y = .85f)
+                else -> it
+            }
+        }) }
+        assertEquals(LegacyGamepadLayout(context, w, h).regenerate(old.elements), OnScreenLayout.elements(context, old, w, h, Rect()))
+    }
+
     @Test fun regenerationKeepsTheUsersButtonStylesAndRemovedButtons() {
         val layout = gamepad().let { g -> g.copy(elements = g.elements.filterNot { it.id == "legacy:y" }.map { if (it.id == "legacy:a") it.copy(opacity = .4f, icon = 0, name = "Jump") else it }) }
         val placed = OnScreenLayout.elements(context, layout, 2000, 1000, Rect())

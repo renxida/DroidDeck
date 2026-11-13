@@ -95,6 +95,12 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
             put("start", w - sx, sy)
             if (crowded("start", gap)) above("start", "rs", gap)
         }
+        if (phone) {
+            // The middle of a phone's bottom edge is where games keep what is played most (a hand of cards, a hotbar),
+            // so Steam and QAM join the shoulder row there instead.
+            put("guide", w / 2f - spread, shoulderY)
+            put("qam", w / 2f + spread, shoulderY)
+        }
         if (crowded("guide", gap, gap, "qam") || crowded("qam", gap, gap, "guide")) {
             val row = centre("select").second
             put("guide", w / 2f - spread, row)

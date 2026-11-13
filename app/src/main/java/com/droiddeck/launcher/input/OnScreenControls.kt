@@ -32,6 +32,13 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     var isPinnedOnly = false
         private set
     val hasPinned get() = layout?.elements?.any { it.alwaysShown } == true
+    /** Folds the pad (as the − button does) when a finger lifts from a gesture that started on the game, not on the pad. */
+    var foldOnGameTap = false
+    /** Called when the person folds or unfolds the pad: with the − / + button or by playing on the game itself. */
+    var onFoldChanged: ((Boolean) -> Unit)? = null
+    private var gameGesture = false
+    private var padGesture = false
+    private var lastPadTouch = Long.MIN_VALUE / 2
     var onTouchMiss: ((MotionEvent) -> Unit)?
         get() = surface.onTouchMiss
         set(value) { surface.onTouchMiss = value }
@@ -94,6 +101,30 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         quickToggle.visibility = if (isButtonsOnly || isPinnedOnly || layout == null || dock != null) GONE else VISIBLE
         quickToggle.invalidate()
     }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                padGesture = takesTouchAt(event.x, event.y)
+                gameGesture = !padGesture
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> if (takesTouchAt(event.getX(event.actionIndex), event.getY(event.actionIndex))) padGesture = true
+        }
+        if (padGesture) lastPadTouch = event.eventTime
+        val handled = super.dispatchTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_UP -> {
+                if (gameGesture && !padGesture && foldsOnGameTap() && event.eventTime - lastPadTouch >= FOLD_QUIET_MS) post {
+                    if (foldsOnGameTap()) { setQuickHidden(true); onFoldChanged?.invoke(true) }
+                }
+                gameGesture = false; padGesture = false
+            }
+            MotionEvent.ACTION_CANCEL -> { gameGesture = false; padGesture = false }
+        }
+        return handled
+    }
+
+    private fun foldsOnGameTap() = foldOnGameTap && !isQuickHidden && !isButtonsOnly && !isPinnedOnly && quickToggle.visibility == VISIBLE
 
     fun takesTouchAt(x: Float, y: Float) = surface.takesTouchAt(x, y) ||
         quickToggle.visibility == VISIBLE && x >= quickToggle.left && x < quickToggle.right && y >= quickToggle.top && y < quickToggle.bottom
@@ -166,6 +197,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
                     if (armed && event.x in 0f..width.toFloat() && event.y in 0f..height.toFloat()) {
                         performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         setQuickHidden(!isQuickHidden)
+                        onFoldChanged?.invoke(isQuickHidden)
                     }
                     armed = false
                 }
@@ -179,5 +211,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         const val QUICK_HIT_DP = 26f
         const val QUICK_RADIUS_DP = 18f
         const val PLACEMENT_CACHE = 4
+        /** A touch on the game this soon after the last touch on the pad is taken as a slip, not as leaving the pad. */
+        const val FOLD_QUIET_MS = 3000L
     }
 }

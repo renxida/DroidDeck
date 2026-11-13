@@ -237,6 +237,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var steamTouchAvailable by mutableStateOf(false)
     private var steamTouchInUse by mutableStateOf(false)
     private val steamTouchRetry = Runnable { updateOnScreenControls() }
+    private val sessionScreenshot = Runnable { takeSessionScreenshot() }
     private var steamTouchOptions: com.droiddeck.launcher.input.SteamTouchConfig.Options? = null
     private var routedTouchMode = SessionPrefs.TOUCH_AUTO
     private var touchRoute: com.droiddeck.launcher.input.TouchRouter.Route? = null
@@ -665,6 +666,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         bridge.setOnPlayerInput(::onPadInput)
         onScreenControls = OnScreenControls(this, bridge).also { controls ->
             controls.updateLayout(primaryInputLayout)
+            controls.onFoldChanged = ::rememberPadFold
             controls.onTouchMiss = miss@{ event ->
                 if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.ON_SCREEN_CONTROLS, event)) return@miss
                 event.offsetLocation(controls.left - surfaceView.left.toFloat(), controls.top - surfaceView.top.toFloat())
@@ -825,6 +827,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     if (nextGame != gestureGame) {
                         if (nextGame != null) gameStarts++
                         gestureGame = nextGame
+                        applyGamePadFold()
+                        scheduleSessionScreenshot()
                         refreshGestureConfig()
                     }
                     if (secondScreenDisplays.isNotEmpty()) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -3729,6 +3733,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 (bottom?.parent as? android.view.ViewGroup)?.removeView(bottom)
                 bottom = OnScreenControls(bottomRoot.context, padBridge).also { view ->
                     view.onTouchMiss = { event -> onBottomGameTouch(event) }
+                    view.onFoldChanged = ::rememberPadFold
+                    applyGamePadFold(view)
                     bottomRoot.addView(view, android.view.ViewGroup.LayoutParams(-1, -1))
                 }
                 bottomInputControls = bottom
@@ -3748,6 +3754,37 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             buttonsOnly -> "Steam + QAM"
             else -> "full pad"
         })
+    }
+
+    /** A game in front starts with the pad folded unless the person unfolded it in that game before; playing on the game folds it again. */
+    private fun applyGamePadFold() {
+        listOfNotNull(onScreenControls, bottomInputControls).forEach { applyGamePadFold(it) }
+    }
+
+    private fun applyGamePadFold(controls: OnScreenControls) {
+        val game = gestureGame
+        controls.foldOnGameTap = game != null
+        if (game != null) controls.setQuickHidden(SessionPrefs.padFolded(this, game))
+    }
+
+    private fun rememberPadFold(folded: Boolean) {
+        val game = gestureGame ?: return
+        SessionPrefs.setPadFolded(this, game, folded)
+        listOfNotNull(onScreenControls, bottomInputControls).forEach { it.setQuickHidden(folded) }
+    }
+
+    /** One picture for the session's telemetry, a few minutes after a game comes to the front (again from the start if it changes). */
+    private fun scheduleSessionScreenshot() {
+        uiHandler.removeCallbacks(sessionScreenshot)
+        if (gestureGame != null && !com.droiddeck.launcher.session.SessionScreenshot.taken(SessionState.logDirectory))
+            uiHandler.postDelayed(sessionScreenshot, com.droiddeck.launcher.session.SessionScreenshot.DELAY_MS)
+    }
+
+    private fun takeSessionScreenshot() {
+        val dir = SessionState.logDirectory?.takeIf { it.isDirectory } ?: return
+        if (gestureGame == null || isFinishing || isDestroyed || com.droiddeck.launcher.session.SessionScreenshot.taken(dir)) return
+        if (pipUi || SessionState.suspended || !resumed) { uiHandler.postDelayed(sessionScreenshot, 30_000L); return }
+        com.droiddeck.launcher.session.SessionScreenshot.capture(window, surfaceView, dir, uiHandler)
     }
 
     private fun keyboardCoversPad() =
@@ -4275,6 +4312,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         backQamInput.cancel()
         uiHandler.removeCallbacks(steamTouchRetry)
         uiHandler.removeCallbacks(cursorResync)
+        uiHandler.removeCallbacks(sessionScreenshot)
         releaseEvdevMouse()
         if (runtimeRemovalBlocked) { super.onDestroy(); return }
         watching = false

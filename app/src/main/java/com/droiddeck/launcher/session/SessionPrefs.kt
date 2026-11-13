@@ -372,6 +372,17 @@ object SessionPrefs {
 
     fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
 
+    /**
+     * Whether the on-screen gamepad starts folded (only its + button and the keyboard key) while [game] is in front.
+     * A game starts folded until the person unfolds the pad during it: many games are played by touch, and the pad
+     * would cover what they tap. The choice is kept per game.
+     */
+    fun padFolded(context: Context, game: String): Boolean = prefs(context).getBoolean("padFolded.$game", true)
+
+    fun setPadFolded(context: Context, game: String, folded: Boolean) {
+        prefs(context).edit().putBoolean("padFolded.$game", folded).apply()
+    }
+
     fun setOscMode(context: Context, mode: String) {
         prefs(context).edit().putString("osc", mode).apply()
     }

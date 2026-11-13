@@ -227,6 +227,70 @@ class OnScreenControlsTest {
         assertFalse(view.hasPinned)
     }
 
+    @Test fun playingOnTheGameFoldsThePadOnlyWhenAskedAndTellsTheSession() {
+        val folds = mutableListOf<Boolean>()
+        view.onFoldChanged = { folds += it }
+        time += 5000
+        tapGame()
+        assertFalse(view.isQuickHidden)
+        view.foldOnGameTap = true
+        touch(MotionEvent.ACTION_DOWN, 1 to (500f to 100f))
+        touch(MotionEvent.ACTION_MOVE, 1 to (560f to 300f))
+        assertFalse(view.isQuickHidden)
+        touch(MotionEvent.ACTION_UP, 1 to (560f to 300f))
+        idle()
+        assertTrue(view.isQuickHidden)
+        assertEquals(listOf(true), folds)
+        measure(view)
+        assertFalse(view.takesTouchAt(800f, 250f))
+        val density = context.resources.displayMetrics.density
+        val x = 34 * density
+        val y = 600 - 34 * density
+        touch(MotionEvent.ACTION_DOWN, 2 to (x to y)); touch(MotionEvent.ACTION_UP, 2 to (x to y))
+        idle()
+        assertFalse(view.isQuickHidden)
+        assertEquals(listOf(true, false), folds)
+    }
+
+    @Test fun aGameTouchRightAfterUsingThePadOrWithAFingerOnThePadKeepsItOpen() {
+        view.foldOnGameTap = true
+        touch(MotionEvent.ACTION_DOWN, 1 to (800f to 250f)); touch(MotionEvent.ACTION_UP, 1 to (800f to 250f))
+        time += 1000
+        tapGame()
+        assertFalse(view.isQuickHidden)
+        time += 5000
+        touch(MotionEvent.ACTION_DOWN, 3 to (500f to 100f))
+        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 3 to (500f to 100f), 4 to (800f to 250f))
+        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 3 to (500f to 100f), 4 to (800f to 250f))
+        touch(MotionEvent.ACTION_UP, 3 to (500f to 100f))
+        idle()
+        assertFalse(view.isQuickHidden)
+        time += 5000
+        tapGame()
+        assertTrue(view.isQuickHidden)
+    }
+
+    @Test fun buttonsOnlyAndPinnedOnlyPadsAreNotFolded() {
+        view.foldOnGameTap = true
+        time += 5000
+        view.setButtonsOnly(true)
+        measure(view)
+        tapGame()
+        assertFalse(view.isQuickHidden)
+        view.setButtonsOnly(false)
+        view.setPinnedOnly(true)
+        measure(view)
+        tapGame()
+        assertFalse(view.isQuickHidden)
+    }
+
+    private fun tapGame() {
+        touch(MotionEvent.ACTION_DOWN, 9 to (500f to 100f)); touch(MotionEvent.ACTION_UP, 9 to (500f to 100f))
+        idle()
+    }
+
+    private fun idle() = org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
     private companion object { const val ASPECT = 1000f / 600f }
 
     private fun touch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>, flags: Int = 0): Boolean {
