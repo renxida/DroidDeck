@@ -31,6 +31,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
+      - name: Host tests for the clean-room skeleton core
+        run: sh tools/native-engine/modules/native_compat/skel/tests/run_tests.sh
       - name: Build deps
         run: |
           sudo apt-get update -qq
