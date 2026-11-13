@@ -2,5 +2,8 @@ Import("env")
 Import("env_modules")
 
 env_native_compat = env_modules.Clone()
+# Vorbis and Ogg headers for the sound bank (the engine builds these libraries itself).
+env_native_compat.Prepend(CPPPATH=["#thirdparty/libogg", "#thirdparty/libvorbis"])
 env_native_compat.add_source_files(env.modules_sources, "*.cpp")
 env_native_compat.add_source_files(env.modules_sources, "skel/*.cpp")
+env_native_compat.add_source_files(env.modules_sources, "fsb/*.cpp")
