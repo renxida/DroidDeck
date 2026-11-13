@@ -56,6 +56,7 @@ class ExperimentsTest {
             "native-inventory" to "DROIDDECK_EXP_NATIVE_INVENTORY",
             "free-memory" to "DROIDDECK_EXP_FREE_MEMORY",
             "hybris-index" to "DROIDDECK_EXP_HYBRIS_INDEX",
+            "fex-l1" to "DROIDDECK_EXP_FEX_L1",
             "hybris-index-session" to "DROIDDECK_EXP_HYBRIS_INDEX_SESSION",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
