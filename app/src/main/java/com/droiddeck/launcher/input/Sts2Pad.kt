@@ -22,8 +22,8 @@ internal object Sts2Pad {
     private const val REFERENCE_DENSITY = 2.625f
     private const val TOLERANCE = .002f
     private const val RADIUS_DP = 22f
-    private const val SPREAD_DP = 44f
-    private const val EDGE_DP = 6f
+    private const val SPREAD_DP = 46f
+    private const val EDGE_DP = 4f
     private const val GAP_DP = 6f
     private const val REST = .70f
     private const val CLUSTER_SHARE = .34f
