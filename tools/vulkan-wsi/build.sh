@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# CI build of a vendor-neutral X11 surface/swapchain layer.
+# CI build of a vendor-neutral X11 and Wayland surface/swapchain layer.
+# WSI_CMAKE_ARGS adds CMake options, e.g. -DCMAKE_TOOLCHAIN_FILE=... for a cross build.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 . "$root/tools/vulkan-wsi/source.env"
@@ -19,8 +20,8 @@ git -C "$work/source" apply --check "$root/tools/vulkan-wsi/patches/0001-link-x1
 git -C "$work/source" apply "$root/tools/vulkan-wsi/patches/0001-link-x11-external-memory.patch"
 cmake -S "$work/source" -B "$work/build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr -DVULKAN_CXX_INCLUDE="$work/headers/include" \
-  -DBUILD_WSI_HEADLESS=OFF -DBUILD_WSI_WAYLAND=OFF -DBUILD_WSI_DISPLAY=OFF -DBUILD_WSI_X11=ON \
-  -DSELECT_EXTERNAL_ALLOCATOR=dma_buf_heaps -DWSIALLOC_MEMORY_HEAP_NAME=system -DKERNEL_HEADER_DIR=/usr/include
+  -DBUILD_WSI_HEADLESS=OFF -DBUILD_WSI_WAYLAND=ON -DBUILD_WSI_DISPLAY=OFF -DBUILD_WSI_X11=ON \
+  -DSELECT_EXTERNAL_ALLOCATOR=dma_buf_heaps -DWSIALLOC_MEMORY_HEAP_NAME=system -DKERNEL_HEADER_DIR=/usr/include ${WSI_CMAKE_ARGS:-}
 cmake --build "$work/build" --parallel 4
 DESTDIR="$work/stage" cmake --install "$work/build"
 cp "$work/stage/usr/share/vulkan/implicit_layer.d/"* "$out/"
