@@ -57,6 +57,8 @@ class NativeInventoryTest(unittest.TestCase):
         entries = [
             ("monsters/cultist.json", skeleton),
             ("monsters/jaw.skel", b"\x8a\x91hashbytes\x064.2.43\x00\x00rest"),
+            ("monsters/jaw.atlas", b"jaw.png\nsize: 64,64\n"),
+            ("monsters/other.atlas", b"other.png\n"),
             ("addons/fmod/fmod.gdextension", b'[configuration]\nentry_symbol = "fmod_library_init"\n'),
             ("banks/Master.strings.bank", b"RIFF\0\0\0\0FEV event:/sfx/attack\0event:/music/act1\0bus:/SFX\0"),
             ("banks/Master.bank", bank()),
@@ -73,7 +75,8 @@ class NativeInventoryTest(unittest.TestCase):
 
     def run_inventory(self, game, tmp):
         out = Path(tmp.name) / "report.json"
-        self.assertEqual(0, INV["main"](["--game-dir", str(game), "--no-cache", "--json", str(out)]))
+        self.samples = Path(tmp.name) / "samples.zip"
+        self.assertEqual(0, INV["main"](["--game-dir", str(game), "--no-cache", "--json", str(out), "--samples", str(self.samples)]))
         return json.loads(out.read_text())
 
     def test_reads_pack_skeletons_banks_and_scenes(self):
@@ -106,6 +109,20 @@ class NativeInventoryTest(unittest.TestCase):
                 self.assertEqual(2, summary["skeletons"])
                 self.assertEqual({"vorbis": 12}, summary["audio_samples_by_codec"])
                 self.assertEqual(2, summary["bank_events"])
+
+    def test_samples_take_skeletons_atlases_and_banks_within_budget(self):
+        import zipfile
+        game, tmp = self.build()
+        self.run_inventory(game, tmp)
+        with zipfile.ZipFile(self.samples) as z:
+            manifest = json.loads(z.read("manifest.json"))
+            names = [f["name"] for f in manifest["files"]]
+            self.assertEqual(sorted(["banks/Master.strings.bank", "banks/Master.bank", "monsters/cultist.json",
+                                     "monsters/jaw.skel", "monsters/jaw.atlas", "monsters/jaw.skel.import"]), sorted(names))
+            jaw = next(f for f in manifest["files"] if f["name"] == "monsters/jaw.skel")
+            self.assertEqual(b"\x8a\x91hashbytes\x064.2.43\x00\x00rest", z.read(jaw["file"]))
+        small = INV["pick_samples"](INV["game_sources"](str(game)), budget=40)
+        self.assertLessEqual(sum(s.size for s in small), 40)
 
     def test_user_strings_heap(self):
         heap = b"\0" + bytes([2 * 5 + 1]) + "event".encode("utf-16-le") + b"\0"
