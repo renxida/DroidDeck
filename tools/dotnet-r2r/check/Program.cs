@@ -99,8 +99,11 @@ namespace R2RCheck
                 turn++;
                 player.StartTurn(enemy);
                 deck.Draw(5);
-                for (Card c; (c = Ai.Choose(deck.Hand, player, enemy)) != null;)
+                // At most 10 plays a turn: zero-cost draw cards could otherwise cycle the deck for ever.
+                for (int plays = 0; plays < 10; plays++)
                 {
+                    Card c = Ai.Choose(deck.Hand, player, enemy);
+                    if (c == null) break;
                     player.Energy -= c.Cost;
                     deck.Play(c);
                     Resolve(c, player, enemy, deck);
