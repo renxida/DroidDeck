@@ -11,6 +11,7 @@ on:
     branches: [perf/emu-native]
     paths:
       - 'tools/native-engine/modules/**'
+      - 'tools/native-engine/skeltest/**'
       - '.github/workflows/native-engine-build.yml'
 
 permissions:
