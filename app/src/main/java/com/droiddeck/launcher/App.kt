@@ -17,6 +17,8 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        if (android.os.Build.VERSION.SDK_INT >= 28 &&
+            Application.getProcessName().endsWith(com.droiddeck.launcher.session.MemoryBalloonService.PROCESS_SUFFIX)) return
         Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)

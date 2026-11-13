@@ -321,7 +321,7 @@ internal class LiveSampler(private val dir: File) {
         private val NO_ENGINE = setOf("none", "GAMESCOPE")
         private val NOTABLE = setOf("game.first_frame", "game.exited", "pacing.cap", "game.experiments",
             "steam.game_launch_requested", "steam.signed_in", "steam.return_after_game", "guest.exited", "session.ready",
-            "app.exit", "exit.classified", "memory.lmk_risk", "memory.trim", "session.paged_out", "session.paged_in")
+            "app.exit", "exit.classified", "memory.lmk_risk", "memory.trim", "memory.freed", "session.paged_out", "session.paged_in")
         private val NOTABLE_WORDS = listOf("fail", "error", "crash", "abnormal")
         private val T0 = Regex("""t0_wall_ms=(\d+)""")
         private val FOCUS = Regex("""^# t_ms=-?\d+ engine=(\S+) pid=(\d+) steam=(\d)""")

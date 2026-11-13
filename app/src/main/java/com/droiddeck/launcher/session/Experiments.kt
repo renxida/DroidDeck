@@ -40,6 +40,7 @@ object Experiments {
     const val WAYLAND_PRESENT = "wayland-present"
     const val VK_COUNT = "vk-count"
     const val NATIVE_INVENTORY = "native-inventory"
+    const val FREE_MEMORY = "free-memory"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -63,6 +64,7 @@ object Experiments {
         Switch(WAYLAND_PRESENT, R.string.exp_wayland_present),
         Switch(VK_COUNT, R.string.exp_vk_count),
         Switch(NATIVE_INVENTORY, R.string.exp_native_inventory),
+        Switch(FREE_MEMORY, R.string.exp_free_memory),
     )
 
     /** At most one of each group is on. */
@@ -80,11 +82,11 @@ object Experiments {
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
         DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
         WAYLAND_PRESENT, VK_COUNT,
-        NATIVE_INVENTORY)
+        NATIVE_INVENTORY, FREE_MEMORY)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
-        QUICK_TAP, FEX_CODEGEN, FEX_FAST, FEX_STATS)
+        QUICK_TAP, FEX_CODEGEN, FEX_FAST, FEX_STATS, FREE_MEMORY)
 
     fun envName(id: String) = "DROIDDECK_EXP_" + id.uppercase().replace('-', '_')
 

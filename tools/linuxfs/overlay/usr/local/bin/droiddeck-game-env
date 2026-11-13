@@ -75,7 +75,43 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
                "wayland-present", "vk-count",
-               "native-inventory")
+               "native-inventory", "free-memory")
+
+
+FREE_MEMORY_WAIT_S = 15
+
+
+def free_memory(launch_dir, app_id, wait=FREE_MEMORY_WAIT_S, poll=0.1):
+    """Asks the app (SessionService, FreeMemory) to close other apps' background processes before the game starts and
+    waits for its answer, which starts with the request's token."""
+    if not launch_dir or not os.path.isdir(launch_dir):
+        return "no launch directory"
+    token = "%s-%s" % (re.sub(r"[^A-Za-z0-9_]", "", str(app_id))[:40] or "game", os.urandom(8).hex())
+    done = os.path.join(launch_dir, "free-memory-done")
+    staged = os.path.join(launch_dir, "free-memory.tmp")
+    try:
+        with open(staged, "w", encoding="utf-8") as out:
+            out.write(token + "\n")
+        os.replace(staged, os.path.join(launch_dir, "free-memory"))
+    except OSError as error:
+        return "not asked (%s)" % error
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            with open(done, encoding="utf-8") as source:
+                answer = source.read().strip()
+        except OSError:
+            answer = ""
+        mine, _, summary = answer.partition(" ")
+        if mine == token:
+            try:
+                os.unlink(done)
+            except OSError:
+                pass
+            return summary or "done"
+        if time.monotonic() >= deadline:
+            return "no answer in %d s" % wait
+        time.sleep(poll)
 
 
 def experiment_name(experiment):
@@ -2354,6 +2390,9 @@ def main():
     watch = bool(waiting and app_id and exit_watch(app_id, env, bool(pacing)))
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
+    if waiting and experiment(env, "free-memory"):
+        print("droiddeck-game-env: free memory: " + free_memory(os.environ.get("BL_LAUNCH_DIR"), app_id),
+              file=sys.stderr, flush=True)
     if waiting:
         print("DROIDDECK_TIMELINE event=game_exec app_id=%s wall_ms=%d" % (app_id, int(time.time() * 1000)),
               file=sys.stderr, flush=True)
