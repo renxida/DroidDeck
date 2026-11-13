@@ -93,6 +93,26 @@ jobs:
           grep -E "native_compat|BENCH|ERROR|\.NET|hostfxr" run.log | head -40
           grep -q "native_compat: module loaded" run.log
           grep -q "BENCH" run.log
+      - name: Draw a test skeleton with our template (NativeSkeleton2D, two frames, checked)
+        timeout-minutes: 20
+        working-directory: tools/native-engine/skeltest
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 > /dev/null
+          timeout 300 "$GODOT" --headless --path . --import > import.log 2>&1 || true
+          mkdir -p out
+          timeout 600 "$GODOT" --headless --path . --export-release arm64 out/SkelTest.arm64 > export.log 2>&1 || echo "export exit $?"
+          test -f out/SkelTest.pck || { tail -40 export.log; exit 1; }
+          cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono out/SkelTest.arm64
+          chmod +x out/SkelTest.arm64
+          set +e
+          SKELTEST_OUT=$PWD/out DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 xvfb-run -a -s "-screen 0 256x256x24" \
+            out/SkelTest.arm64 --rendering-driver opengl3 --verbose > skel.log 2>&1
+          rc=$?
+          set -e
+          echo "exit $rc"
+          grep -E "SKELTEST|NativeSkeleton2D|native_compat|ERROR|OpenGL" skel.log | head -40
+          python3 check.py out
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -100,4 +120,6 @@ jobs:
           path: |
             ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono
             tools/native-engine/bench/run.log
+            tools/native-engine/skeltest/out/*.png
+            tools/native-engine/skeltest/skel.log
           if-no-files-found: warn
