@@ -24,7 +24,7 @@ on:
       - '.github/workflows/native-engine-build.yml'
 
 permissions:
-  contents: write  # only the publish step uses it, on a manual run with publish=true
+  contents: write  # only the publish step uses it
 
 env:
   GODOT_VER: 4.5.1-stable
@@ -187,8 +187,8 @@ jobs:
           tar --owner=0 --group=0 -c . | zstd -q -19 -T0 -o "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
           ls -la "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
           sha256sum "$GITHUB_WORKSPACE/out/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Publish the component (manual run with publish=true)
-        if: github.event_name == 'workflow_dispatch' && inputs.publish
+      - name: Publish the component (manual run with publish=true, or a push whose message says [publish native-engine])
+        if: (github.event_name == 'workflow_dispatch' && inputs.publish) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish native-engine]'))
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
