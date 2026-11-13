@@ -827,7 +827,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     if (nextGame != gestureGame) {
                         if (nextGame != null) gameStarts++
                         gestureGame = nextGame
-                        applyGamePadFold()
+                        refreshInputProfile()
                         scheduleSessionScreenshot()
                         refreshGestureConfig()
                     }
@@ -1130,6 +1130,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onComponentDownload = drawerComponentMenu::downloadComponent,
             gameProfiles = drawerGameProfileRefresh.data?.profiles.orEmpty(),
             selectedGameProfileId = drawerGameProfileId,
+            runningGame = gestureGame,
             selectedGameProfile = drawerGameProfileRefresh.data
                 ?.takeIf { it.selectedAppId == drawerGameProfileId }?.profile,
             gameProfilesLoaded = drawerGameProfileRefresh.loaded,
@@ -3040,7 +3041,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun refreshInputProfile() {
-        val library = com.droiddeck.launcher.input.InputLibraries.read(this)
+        val library = com.droiddeck.launcher.input.Sts2Pad.forGame(com.droiddeck.launcher.input.InputLibraries.read(this), gestureGame)
         inputProfile = library.compileActive(secondScreenMode.panel(this))
         primaryInputLayout = library.activeLayout(InputRole.PRIMARY)
         adaptiveSticks = primaryInputLayout?.adaptiveSticks
@@ -3060,6 +3061,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls?.updateLayout(primaryInputLayout)
         bottomInputControls?.updateLayout(primaryInputLayout)
         unfoldedPanel?.updateLayout(primaryInputLayout)
+        applyGamePadFold()
         if (unfoldedPanel != null) applyUnfoldedControls()
         showUnfoldedDeckPanel()
         updateOnScreenPad()
@@ -3764,14 +3766,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         listOfNotNull(onScreenControls, bottomInputControls).forEach { applyGamePadFold(it) }
     }
 
+    /** Slay the Spire 2's pad is played beside touch, so it starts unfolded, stays unfolded while the game is touched, and keeps its own fold. */
     private fun applyGamePadFold(controls: OnScreenControls) {
-        val game = gestureGame
-        controls.foldOnGameTap = game != null
-        if (game != null) controls.setQuickHidden(SessionPrefs.padFolded(this, game))
+        val game = padFoldKey()
+        val sts2 = com.droiddeck.launcher.input.Sts2Pad.owns(primaryInputLayout)
+        controls.foldOnGameTap = game != null && !sts2
+        if (game != null) controls.setQuickHidden(SessionPrefs.padFolded(this, game, default = !sts2))
     }
 
+    private fun padFoldKey(): String? = gestureGame?.let { if (com.droiddeck.launcher.input.Sts2Pad.owns(primaryInputLayout)) "$it.sts2pad" else it }
+
     private fun rememberPadFold(folded: Boolean) {
-        val game = gestureGame ?: return
+        val game = padFoldKey() ?: return
         SessionPrefs.setPadFolded(this, game, folded)
         listOfNotNull(onScreenControls, bottomInputControls).forEach { it.setQuickHidden(folded) }
     }

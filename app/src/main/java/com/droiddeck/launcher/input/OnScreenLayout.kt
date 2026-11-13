@@ -32,6 +32,9 @@ object OnScreenLayout {
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
         val (reference, generated) = reference(context, layout, width, height)
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
+        if (dock == null && Sts2Pad.owns(layout)) return Sts2Pad.place(stored, width, height, context.resources.displayMetrics.density, safe.top, safe.bottom) {
+            fit(it, reference.first, reference.second, width, height, safe)
+        }
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
         val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val placed = when {

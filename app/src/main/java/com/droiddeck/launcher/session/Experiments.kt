@@ -30,6 +30,9 @@ object Experiments {
     const val FEX_VECTOR_TSO = "fex-vector-tso"
     const val FEX_TSO = "fex-tso"
     const val FEX_FAST = "fex-fast"
+    const val DOTNET_TRACE = "dotnet-trace"
+    const val DOTNET_GEN0 = "dotnet-gen0"
+    const val DOTNET_GC_STOCK = "dotnet-gc-stock"
     const val WAYLAND_PRESENT = "wayland-present"
     const val VK_COUNT = "vk-count"
 
@@ -47,6 +50,9 @@ object Experiments {
         Switch(NATIVE_HZ, R.string.exp_native_hz),
         Switch(QUICK_TAP, R.string.exp_quick_tap),
         Switch(FEX_CODEGEN, R.string.exp_fex_codegen),
+        Switch(DOTNET_TRACE, R.string.exp_dotnet_trace),
+        Switch(DOTNET_GEN0, R.string.exp_dotnet_gen0),
+        Switch(DOTNET_GC_STOCK, R.string.exp_dotnet_gc_stock),
         Switch(WAYLAND_PRESENT, R.string.exp_wayland_present),
         Switch(VK_COUNT, R.string.exp_vk_count),
     )
@@ -64,6 +70,7 @@ object Experiments {
     /** The order the guest's droiddeck-game-env lists them in. */
     val ids = listOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, LAYER_FENCE,
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
+        DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK,
         WAYLAND_PRESENT, VK_COUNT)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */

@@ -128,10 +128,10 @@ class DirectTouchHold(
                 touch.down(event.getPointerId(index), event.getX(index), event.getY(index))
             }
             MotionEvent.ACTION_MOVE -> {
-                if (!forwarded && (event.pointerCount > 1 ||
-                        abs(event.x - downX) > slopPx || abs(event.y - downY) > slopPx)) {
+                if (event.pointerCount > 1 || abs(event.x - downX) > slopPx || abs(event.y - downY) > slopPx) {
+                    // A drag is never a long press, also when a quick tap's down is already in the game.
                     handler.removeCallbacks(hold)
-                    forwardDown()
+                    if (!forwarded) forwardDown()
                 }
                 if (forwarded) for (index in 0 until event.pointerCount)
                     touch.move(event.getPointerId(index), event.getX(index), event.getY(index))

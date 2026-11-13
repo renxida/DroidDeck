@@ -1,0 +1,455 @@
+#!/usr/bin/python3
+"""Summarise a .NET EventPipe trace (.nettrace, format V4 as .NET 5-9 write it) into two CSV tables.
+
+droiddeck-game-env turns tracing on for a .NET game under the dotnet-trace experiment and runs
+`droiddeck-dotnet-trace --watch TRACE_DIR OUT_DIR` beside it, which re-summarises every minute and at the
+game's exit. Telemetry uploads .txt files from the game's log folder, so the tables are written as:
+
+  dotnet-gc.txt        one row per GC: start time, generation, type, reason, pause (suspend to restart),
+                       thread suspension time, heap sizes after it.
+  dotnet-counters.txt  one row per second: the System.Runtime counters (time in GC and JIT, allocation
+                       rate, methods jitted, thread pool, lock contention, working set...).
+  dotnet-summary.txt   totals per minute of the trace.
+
+The trace may still be growing, so a truncated last block is ignored.
+"""
+import argparse
+import os
+import struct
+import sys
+import time
+from pathlib import Path
+
+RUNTIME = "Microsoft-Windows-DotNETRuntime"
+GC_START, GC_END, GC_RESTART_END, GC_HEAP_STATS = 1, 2, 3, 4
+GC_RESTART_BEGIN, GC_SUSPEND_END, GC_SUSPEND_BEGIN = 7, 8, 9
+GC_GLOBAL_HEAP_HISTORY = 205
+TC_BACKGROUND_START, TC_BACKGROUND_STOP = 283, 284
+GC_TYPES = {0: "blocking", 1: "background", 2: "foreground"}
+GC_REASONS = {0: "alloc_small", 1: "induced", 2: "lowmem", 3: "empty", 4: "alloc_large", 5: "oos_small",
+              6: "oos_large", 7: "induced_noforce", 8: "stress", 9: "lowmem_blocking", 10: "induced_compacting",
+              11: "lowmem_host", 12: "pm_full", 13: "lowmem_host_blocking", 14: "bgc_tuning_soh",
+              15: "bgc_tuning_loh", 16: "bgc_stepping"}
+SUSPEND_REASONS = {1: "gc", 2: "appdomain_shutdown", 3: "code_pitching", 4: "shutdown", 5: "debugger",
+                   6: "gc_prep", 7: "debugger_sweep", 8: "profiler", 9: "for_rejit"}
+COUNTERS = ("cpu-usage", "working-set", "gc-heap-size", "gen-0-gc-count", "gen-1-gc-count", "gen-2-gc-count",
+            "time-in-gc", "gc-fragmentation", "gc-committed", "total-pause-time-by-gc", "alloc-rate",
+            "gen-0-size", "gen-1-size", "gen-2-size", "loh-size", "poh-size", "methods-jitted-count",
+            "il-bytes-jitted", "time-in-jit", "threadpool-thread-count", "threadpool-queue-length",
+            "threadpool-completed-items-count", "monitor-lock-contention-count", "active-timer-count",
+            "exception-count", "assembly-count")
+
+
+class Truncated(Exception):
+    pass
+
+
+class Reader:
+    def __init__(self, data, pos=0, end=None, base=0):
+        self.data, self.pos, self.end, self.base = data, pos, len(data) if end is None else end, base
+
+    def take(self, n):
+        if self.pos + n > self.end:
+            raise Truncated()
+        out = self.data[self.pos:self.pos + n]
+        self.pos += n
+        return out
+
+    def unpack(self, fmt):
+        return struct.unpack(fmt, self.take(struct.calcsize(fmt)))
+
+    def u8(self):
+        return self.take(1)[0]
+
+    def i32(self):
+        return self.unpack("<i")[0]
+
+    def varint(self):
+        result, shift = 0, 0
+        while True:
+            byte = self.u8()
+            result |= (byte & 0x7F) << shift
+            if byte < 0x80:
+                return result
+            shift += 7
+            if shift > 63:
+                raise ValueError("bad varint")
+
+    def utf16z(self):
+        start = self.pos
+        while True:
+            if self.pos + 2 > self.end:
+                raise Truncated()
+            if self.data[self.pos] == 0 and self.data[self.pos + 1] == 0:
+                text = self.data[start:self.pos].decode("utf-16-le", "replace")
+                self.pos += 2
+                return text
+            self.pos += 2
+
+
+# EventPipe field type codes (System.TypeCode plus Array).
+SCALARS = {3: "<i", 4: "<H", 5: "<b", 6: "<B", 7: "<h", 8: "<H", 9: "<i", 10: "<I", 11: "<q", 12: "<Q",
+           13: "<f", 14: "<d", 16: "<q"}
+
+
+def read_fields(r):
+    fields = []
+    for _ in range(r.i32()):
+        code = r.i32()
+        element = None
+        if code == 19:
+            element = r.i32()
+        nested = read_fields(r) if code == 1 or element == 1 else None
+        fields.append((r.utf16z(), code, element, nested))
+    return fields
+
+
+def decode_fields(r, fields):
+    out = {}
+    for name, code, element, nested in fields:
+        out[name] = decode_value(r, code, nested)
+    return out
+
+
+def decode_value(r, code, nested):
+    if code in SCALARS:
+        return r.unpack(SCALARS[code])[0]
+    if code == 18:
+        return r.utf16z()
+    if code == 1:
+        return decode_fields(r, nested)
+    if code == 17:
+        return r.take(16).hex()
+    if code == 15:
+        return r.take(16)
+    raise ValueError("field type %d" % code)
+
+
+class Metadata:
+    __slots__ = ("provider", "event_id", "name", "version", "fields")
+
+    def __init__(self, provider, event_id, name, version, fields):
+        self.provider, self.event_id, self.name, self.version, self.fields = provider, event_id, name, version, fields
+
+
+def parse_metadata(payload):
+    r = Reader(payload)
+    metadata_id = r.i32()
+    provider = r.utf16z()
+    event_id, = r.unpack("<i")
+    name = r.utf16z()
+    r.unpack("<q")
+    version, = r.unpack("<i")
+    r.unpack("<i")
+    fields = None
+    if r.pos < r.end:
+        try:
+            fields = read_fields(r)
+        except (Truncated, ValueError):
+            fields = None
+    return metadata_id, Metadata(provider, event_id, name, version, fields)
+
+
+class TraceStream:
+    """Reads a .nettrace file that may still be growing: each read() returns the events of the objects
+    completed since the last call and remembers where the next object starts."""
+
+    def __init__(self, path):
+        self.path, self.offset, self.header, self.metadata = Path(path), 0, None, {}
+
+    def read(self):
+        with self.path.open("rb") as source:
+            source.seek(self.offset)
+            data = source.read()
+        r = Reader(data, base=self.offset)
+        out = []
+        try:
+            if self.offset == 0:
+                if r.take(8) != b"Nettrace":
+                    raise ValueError("not a nettrace file")
+                if r.take(r.i32()) != b"!FastSerialization.1":
+                    raise ValueError("unknown serialization")
+                self.offset += r.pos
+            while r.pos < r.end:
+                found = self.next_object(r)
+                if found is None:
+                    self.offset = r.base + r.pos
+                    break
+                out += found
+                self.offset = r.base + r.pos
+        except Truncated:
+            pass
+        return out
+
+    def next_object(self, r):
+        tag = r.u8()
+        if tag == 1:
+            return None
+        if tag != 5 or r.u8() != 5 or r.u8() != 1:
+            raise ValueError("unexpected tag at %d" % (r.base + r.pos))
+        version, _ = r.unpack("<ii")
+        name = r.take(r.i32()).decode("ascii")
+        if r.u8() != 6:
+            raise ValueError("bad type end")
+        found = []
+        if name == "Trace":
+            (year, month, _, day, hour, minute, second, ms, sync_qpc, freq, _pointer_size, pid, cpus,
+             _rate) = r.unpack("<8HqqIIII")
+            self.header = {"sync_qpc": sync_qpc, "freq": freq, "pid": pid, "cpus": cpus, "version": version,
+                           "start": "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ" % (year, month, day, hour, minute, second, ms)}
+        else:
+            size = r.i32()
+            r.take((-(r.base + r.pos)) % 4)
+            block = Reader(r.data, r.pos, r.pos + size, r.base)
+            r.take(size)
+            if name == "MetadataBlock":
+                metadata = dict(block_events(block, None))
+            elif name == "EventBlock":
+                found = list(block_events(block, self.metadata))
+        if r.u8() != 6:
+            raise ValueError("bad object end")
+        if name == "MetadataBlock":
+            self.metadata.update(metadata)
+        return found
+
+
+def block_events(r, metadata):
+    header_size, flags = r.unpack("<hh")
+    r.take(header_size - 4)
+    if not flags & 1:
+        raise ValueError("uncompressed event headers are not supported")
+    meta_id = seq = thread = timestamp = size = 0
+    while r.pos < r.end:
+        bits = r.u8()
+        if bits & 0x01:
+            meta_id = r.varint()
+        if bits & 0x02:
+            seq += r.varint() + 1
+            r.varint()
+            r.varint()
+        elif meta_id:
+            seq += 1
+        if bits & 0x04:
+            thread = r.varint()
+        if bits & 0x08:
+            r.varint()
+        timestamp = (timestamp + r.varint()) & 0xFFFFFFFFFFFFFFFF
+        if bits & 0x10:
+            r.take(16)
+        if bits & 0x20:
+            r.take(16)
+        if bits & 0x80:
+            size = r.varint()
+        payload = r.take(size)
+        if metadata is None:
+            yield parse_metadata(payload)
+        else:
+            meta = metadata.get(meta_id)
+            if meta is not None:
+                yield meta, timestamp - (1 << 64) if timestamp >> 63 else timestamp, thread, payload
+
+
+class Summary:
+    """GC table, per-second counters and tier-1 JIT totals, built up event by event."""
+
+    def __init__(self):
+        self.header, self.gcs, self.counters = {}, [], {}
+        self.open_gc = self.suspend = self.tier1_start = None
+        self.background = {}
+        self.tier1_methods, self.tier1_busy_ms = 0, 0.0
+
+    def add_all(self, stream, items):
+        self.header = stream.header or self.header
+        for meta, ts, _thread, payload in items:
+            try:
+                self.add(meta, (ts - self.header["sync_qpc"]) * 1000.0 / self.header["freq"], payload)
+            except (struct.error, Truncated, ValueError):
+                continue
+
+    def add(self, meta, ms, payload):
+        if meta.provider == RUNTIME:
+            self.runtime_event(meta.event_id, ms, payload)
+        elif meta.name == "EventCounters" and meta.fields:
+            fields = decode_fields(Reader(payload), meta.fields)
+            body = fields.get("Payload") or (fields.get("") or {}).get("Payload") or {}
+            name = body.get("Name")
+            if name in COUNTERS:
+                self.counters.setdefault(int(ms // 1000), {})[name] = body.get("Increment", body.get("Mean"))
+
+    def runtime_event(self, e, ms, payload):
+        gcs = self.gcs
+        if e == GC_SUSPEND_BEGIN:
+            reason, _count = struct.unpack_from("<II", payload)
+            self.suspend = (ms, reason)
+        elif e == GC_SUSPEND_END and self.suspend:
+            self.suspend = (self.suspend[0], self.suspend[1], ms)
+        elif e == GC_START:
+            count, depth, reason, gc_type = struct.unpack_from("<IIII", payload)
+            gc = {"t_ms": ms, "n": count, "gen": depth, "type": GC_TYPES.get(gc_type, gc_type),
+                  "reason": GC_REASONS.get(reason, reason)}
+            if self.suspend and len(self.suspend) == 3:
+                gc["suspend_ms"] = self.suspend[2] - self.suspend[0]
+                gc["pause_from"] = self.suspend[0]
+            if gc_type == 1:
+                self.background[count] = gc
+            gcs.append(gc)
+            self.open_gc = gc
+        elif e == GC_END:
+            count, = struct.unpack_from("<I", payload)
+            gc = self.background.pop(count, None) or (self.open_gc if self.open_gc and self.open_gc["n"] == count else None)
+            if gc:
+                gc["end_ms"] = ms
+        elif e == GC_HEAP_STATS and self.open_gc is not None:
+            values = struct.unpack_from("<QQQQQQQQ", payload)
+            self.open_gc.update(gen0_mb=values[0] / 2**20, gen1_mb=values[2] / 2**20, gen2_mb=values[4] / 2**20,
+                                loh_mb=values[6] / 2**20, promoted_mb=(values[1] + values[3] + values[5]) / 2**20)
+        elif e == GC_GLOBAL_HEAP_HISTORY and self.open_gc is not None:
+            mechanisms, = struct.unpack_from("<I", payload, 24)
+            self.open_gc["compacting"] = bool(mechanisms & 0x2)
+        elif e == GC_RESTART_END and self.suspend:
+            pause = ms - self.suspend[0]
+            target = next((gc for gc in reversed(gcs[-3:]) if gc.get("pause_from") == self.suspend[0]), None)
+            if target is not None:
+                target["pause_ms"] = pause
+            elif gcs and gcs[-1]["type"] == "background" and "end_ms" not in gcs[-1]:
+                gcs[-1]["bgc_pause_ms"] = gcs[-1].get("bgc_pause_ms", 0) + pause
+            self.suspend = None
+        elif e == TC_BACKGROUND_START:
+            self.tier1_start = ms
+        elif e == TC_BACKGROUND_STOP and self.tier1_start is not None:
+            _pending, count = struct.unpack_from("<II", payload)
+            self.tier1_methods += count
+            self.tier1_busy_ms += ms - self.tier1_start
+            self.tier1_start = None
+
+
+def fmt(value):
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return "%.2f" % value
+    return str(value)
+
+
+def gc_table(gcs):
+    columns = ("t_ms", "n", "gen", "type", "reason", "compacting", "pause_ms", "suspend_ms", "bgc_pause_ms",
+               "gen0_mb", "gen1_mb", "gen2_mb", "loh_mb", "promoted_mb")
+    lines = [",".join(columns)]
+    for gc in gcs:
+        lines.append(",".join(fmt(gc.get(c)) for c in columns))
+    return "\n".join(lines) + "\n"
+
+
+def counter_table(counters):
+    lines = ["t_s," + ",".join(COUNTERS)]
+    for second in sorted(counters):
+        row = counters[second]
+        lines.append(",".join([str(second)] + [fmt(row.get(c)) for c in COUNTERS]))
+    return "\n".join(lines) + "\n"
+
+
+def percentile(values, q):
+    if not values:
+        return 0.0
+    values = sorted(values)
+    return values[min(len(values) - 1, int(q * len(values)))]
+
+
+def summary_text(summary):
+    header, gcs, counters = summary.header, summary.gcs, summary.counters
+    lines = ["trace_start=%s pid=%s cpus=%s" % (header.get("start"), header.get("pid"), header.get("cpus")),
+             "tier1_background_methods=%d tier1_background_busy_ms=%.0f" % (summary.tier1_methods, summary.tier1_busy_ms),
+             "minute,gcs,gen0,gen1,gen2,background,compacting,pause_ms_total,pause_ms_p95,pause_ms_max,"
+             "suspend_ms_total,suspend_ms_max,time_in_gc_pct,time_in_jit_ms,alloc_mb,methods_jitted,heap_mb_end"]
+    minutes = sorted({int(g["t_ms"] // 60000) for g in gcs} | {s // 60 for s in counters})
+    previous_jitted = 0
+    for minute in minutes:
+        mine = [g for g in gcs if int(g["t_ms"] // 60000) == minute]
+        pauses = [g["pause_ms"] for g in mine if g.get("pause_ms") is not None] + \
+                 [g["bgc_pause_ms"] for g in mine if g.get("bgc_pause_ms")]
+        suspends = [g["suspend_ms"] for g in mine if g.get("suspend_ms") is not None]
+        rows = [counters[s] for s in sorted(counters) if s // 60 == minute]
+        tgc = [r["time-in-gc"] for r in rows if r.get("time-in-gc") is not None]
+        jit = sum(r.get("time-in-jit") or 0 for r in rows)
+        alloc = sum(r.get("alloc-rate") or 0 for r in rows) / 2**20
+        jitted = [r["methods-jitted-count"] for r in rows if r.get("methods-jitted-count") is not None]
+        methods = int(jitted[-1] - previous_jitted) if jitted else None
+        previous_jitted = jitted[-1] if jitted else previous_jitted
+        heap = [r["gc-heap-size"] for r in rows if r.get("gc-heap-size") is not None]
+        lines.append(",".join(fmt(v) for v in (
+            minute, len(mine), sum(g["gen"] == 0 for g in mine), sum(g["gen"] == 1 for g in mine),
+            sum(g["gen"] == 2 for g in mine), sum(g["type"] == "background" for g in mine),
+            sum(bool(g.get("compacting")) for g in mine), float(sum(pauses)), float(percentile(pauses, 0.95)),
+            float(max(pauses or [0])), float(sum(suspends)), float(max(suspends or [0])),
+            float(sum(tgc) / len(tgc)) if tgc else None, float(jit), float(alloc), methods,
+            float(heap[-1]) if heap else None)))
+    return "\n".join(lines) + "\n"
+
+
+def write_tables(summary, out_dir):
+    out = Path(out_dir)
+    for name, text in (("dotnet-gc.txt", gc_table(summary.gcs)), ("dotnet-counters.txt", counter_table(summary.counters)),
+                       ("dotnet-summary.txt", summary_text(summary))):
+        temp = out / (name + ".tmp")
+        temp.write_text(text)
+        os.replace(temp, out / name)
+
+
+def summarise(path):
+    stream, summary = TraceStream(path), Summary()
+    summary.add_all(stream, stream.read())
+    return summary
+
+
+def newest_trace(folder):
+    traces = sorted(Path(folder).glob("*.nettrace"), key=lambda p: p.stat().st_mtime)
+    return traces[-1] if traces else None
+
+
+def alive(pid):
+    return pid is None or Path("/proc/%d" % pid).exists()
+
+
+def watch(folder, out_dir, every, pid=None, max_bytes=512 << 20, sleep=time.sleep):
+    """Adds what the newest trace gained every `every` seconds and rewrites the tables, until `pid` exits
+    (then once more). A new trace file (the game restarted in the same folder) starts a new summary."""
+    stream = summary = None
+    while True:
+        running = alive(pid)
+        trace = newest_trace(folder)
+        if trace is not None:
+            if stream is None or stream.path != trace:
+                stream, summary = TraceStream(trace), Summary()
+            if stream.offset < max_bytes:
+                try:
+                    summary.add_all(stream, stream.read())
+                    write_tables(summary, out_dir)
+                except (OSError, ValueError) as error:
+                    print("droiddeck-dotnet-trace: %s: %s" % (trace, error), file=sys.stderr)
+        if not running or pid is None:
+            return 0
+        sleep(every)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("trace", help=".nettrace file, or with --watch the folder it is written to")
+    parser.add_argument("out", nargs="?", help="folder for the tables (default: next to the trace)")
+    parser.add_argument("--watch", type=float, metavar="SECONDS", help="add new events every SECONDS")
+    parser.add_argument("--pid", type=int, help="with --watch: stop after this process exits")
+    parser.add_argument("--print", action="store_true", help="print the per-minute summary")
+    args = parser.parse_args(argv)
+    if args.watch:
+        return watch(args.trace, args.out or args.trace, args.watch, args.pid)
+    out = args.out or str(Path(args.trace).parent)
+    summary = summarise(args.trace)
+    write_tables(summary, out)
+    if args.print:
+        sys.stdout.write(summary_text(summary))
+    print("droiddeck-dotnet-trace: %d GCs, %d s of counters -> %s" % (len(summary.gcs), len(summary.counters), out),
+          file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
