@@ -13,6 +13,9 @@ d_r2r_content  | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1
 d_r2r_tc0      | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_TieredCompilation=0
 # The framework's own precompiled code off too: the upper bound on what precompiling buys under FEX.
 d_jit_all      | fex    | jit | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_ReadyToRun=0
+# Full ahead-of-time: framework plus bench in one composite ReadyToRun image (self-contained, own apphost).
+d_composite    | fex    | composite | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1
+d_composite_tc0 | fex   | composite | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_TieredCompilation=0
 # The other levers, each on top of b_content (FEX's stock cache), as headroom checks with switches FEX already has.
 # i2: memory-ordering barriers off entirely. Unsafe for the game: the ceiling for any escape-analysis relaxation.
 i2_tso_off     | fex    | jit | FEX_DISKCACHE=1 FEX_TSOENABLED=0

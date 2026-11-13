@@ -69,6 +69,17 @@ jobs:
           ls -l bench-bin/Bench.dll bench-r2r-x64/Bench.dll bench-r2r-arm64/Bench.dll
           mkdir -p rootfs/bench/jit rootfs/bench/r2r && cp bench-bin/* rootfs/bench/ && cp bench-bin/* rootfs/bench/jit/
           cp bench-r2r-x64/* rootfs/bench/r2r/
+          # Full ahead-of-time: framework and bench in one composite ReadyToRun image, self-contained, run through
+          # its own apphost. Built twice to check the output is byte-identical.
+          for out in bench-comp-x64 bench-comp-x64-again; do
+            dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishReadyToRun=true \
+              -p:PublishReadyToRunComposite=true -p:UseAppHost=true -o "$out" tools/fex/bench/Bench.csproj
+          done
+          (cd bench-comp-x64 && find . -type f | sort | xargs sha256sum) > comp-a.sha
+          (cd bench-comp-x64-again && find . -type f | sort | xargs sha256sum) > comp-b.sha
+          diff comp-a.sha comp-b.sha && echo "composite build is byte-identical across builds"
+          ls -l bench-comp-x64/*.r2r.dll bench-comp-x64/Bench
+          mkdir -p rootfs/bench/composite && cp -a bench-comp-x64/. rootfs/bench/composite/
           ls rootfs/opt/dotnet/shared/Microsoft.NETCore.App
       - name: Run
         env:
