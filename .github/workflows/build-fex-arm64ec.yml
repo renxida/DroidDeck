@@ -1,0 +1,74 @@
+name: Build FEX for games (ARM64EC, patched)
+
+# The FEX inside Proton (libarm64ecfex.dll + libwow64fex.dll + unixlibs), from upstream FEX at
+# tools/fex/arm64ec/FEX_REF plus tools/fex/arm64ec/patches, packaged as a Kestrel component (.wcp).
+# A push to an emu/fex* branch publishes it as a prerelease of this repo, tag kestrel-fex-<version>;
+# a version is never replaced, so a new patch set gets a new tag.
+
+on:
+  push:
+    branches: ['emu/fex', 'emu/fex-*']
+    paths:
+      - 'tools/fex/arm64ec/**'
+      - '.github/workflows/build-fex-arm64ec.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fex-arm64ec-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build zstd >/dev/null
+          curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
+          echo "$RUNNER_TEMP/$LLVM_MINGW/bin" >> "$GITHUB_PATH"
+      - name: Build the DLLs (llvm-mingw)
+        run: WORK="$PWD/fex-ec" tools/fex/arm64ec/build.sh dlls
+      - name: Build the unixlibs (Debian 11, glibc 2.31, so any Proton runtime can load them)
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/work" -w /work debian:bullseye bash -c '
+            apt-get update -qq && apt-get install -y -qq g++ cmake ninja-build git binutils >/dev/null
+            git config --global --add safe.directory "*"
+            WORK=/work/fex-ec tools/fex/arm64ec/build.sh unixlib'
+          sudo chown -R "$(id -u):$(id -g)" fex-ec
+      - name: Package
+        run: WORK="$PWD/fex-ec" tools/fex/arm64ec/build.sh package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fex-arm64ec
+          path: |
+            fex-ec/*.wcp
+            fex-ec/*.wcp.sha256
+      - name: Publish
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          name=$(cat fex-ec/wcp-name)
+          tag=$(basename "$name" .wcp | sed 's/^Kestrel-FEXCore-/kestrel-fex-/')
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$tag already published; versions are never replaced"
+            exit 0
+          fi
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "$tag" \
+            --notes "FEX for games (ARM64EC + WOW64 + unixlibs) from FEX-Emu/FEX $(cat tools/fex/arm64ec/FEX_REF) with tools/fex/arm64ec/patches ($GITHUB_REF_NAME $GITHUB_SHA, run $GITHUB_RUN_ID). Source: this repo plus upstream FEX (MIT). sha256 $(cut -d' ' -f1 "fex-ec/$name.sha256")" \
+            "fex-ec/$name" "fex-ec/$name.sha256"
