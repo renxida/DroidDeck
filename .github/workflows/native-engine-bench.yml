@@ -79,6 +79,7 @@ jobs:
           ls $R/usr/lib/x86_64-linux-gnu | grep -E "libstdc|libgcc_s|libc.so" || true
       - name: Run
         working-directory: tools/native-engine/bench
+        shell: bash {0}
         run: |
           set -uo pipefail
           mkdir -p results
@@ -90,6 +91,7 @@ jobs:
             for i in 1 2 3; do
               /usr/bin/time -v -o results/$name.$i.time timeout 900 env $common "$@" --headless > results/$name.$i.log 2>&1
               echo "$name run $i exit=$?" | tee -a results/exits.txt
+              [ $i = 1 ] && { echo "--- $name log (tail)"; tail -30 results/$name.$i.log; }
               grep -h BENCH_JSON results/$name.$i.log | sed "s/^BENCH_JSON /$name /" | tee -a results/bench.txt
             done
           }
