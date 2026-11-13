@@ -234,6 +234,41 @@ What it says:
   measures what the hottest translated blocks are made of (flag keeping, ordering, state-block spills, vector code)
   to size cross-block flag liveness and SSE-to-NEON work, and to pick blocks for hand-tuning.
 
+### What the hottest translated code is made of (round 9)
+
+`blockmix.py` joins a FEX built with the ARM disassembler (`FEX_DISASSEMBLE=blocks,stats`, each block's guest and
+host address logged) with `perf script` sample addresses, and charges each sample to the ARM instruction it hit. Same
+frame loop, JIT build with tiering off (so per-thread log lines don't interleave), disk cache off. Run 43404512287:
+3.64 ARM instructions per x86 instruction in the hot blocks; time in translated code by kind:
+
+| kind | share of time in translated code |
+|---|---|
+| ordinary ALU and moves | 49.8% |
+| **indirect-branch lookup** (inline per-thread table probe, return-stack check) | **19.1%** |
+| ordinary loads and stores | 7.5% |
+| memory ordering (`ldapur`/`stlur` and their padding `nop`s) | 5.5% |
+| FEX state block (`[x28]`: spills, RIP, context) | 5.2% |
+| direct branches | 3.7% |
+| building 64-bit constants (`movk`) | 3.5% |
+| flag-setting compares/ALU | 3.3% |
+| flag moves (`nzcv`, `rmif`, `setf`) | 0.3% |
+| vector/NEON | 0.6% |
+
+- **Flags (idea 3): 3.6% total**, and most of that is the compare the x86 code asked for. Cross-block flag
+  elimination can win well under that: dropped.
+- **SSE→NEON (idea 5): 0.6%** for jitted .NET code: dropped for this workload (worth a look only if the phone
+  profile shows the game's native SIMD libraries hot).
+- **Indirect-branch lookups are the one big item.** The hottest block alone (6.7% of all samples) is .NET's
+  interface-dispatch resolve stub: a hash probe of its own cache, then `jmp rax`, which FEX turns into a probe of its
+  per-thread table (`ldp [x28,#160]; and; add; ldp; sub; cbz`) before `br`. Two dependent loads per indirect jump
+  or call. Candidate fix: a per-site inline cache (compare the target against the last one seen, branch directly),
+  registered with FEX's block delinker so invalidation stays correct. Expected ceiling: a few % to ~10% of steady
+  frame time, depending on how monomorphic the sites are; it needs a prototype to know.
+- Ordering costs 5.5% of time with the game's settings, matching the 2–4% measured with TSO fully off.
+
+The .NET workstream's composite ReadyToRun (framework compiled with the game) with tiering off is the best row on
+the same harness so far: first run 404 ms vs 771 stock, warm total −13%, load frames 1.5 ms, steady p50 2.08×.
+
 ## Ranked next fixes (in FEX)
 
 0. **ReadyToRun for the game's assemblies** (.NET workstream, `dotnet-r2r`): new-content hitches 9.3 → 1.5 ms and
