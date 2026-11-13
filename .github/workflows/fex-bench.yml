@@ -123,6 +123,7 @@ jobs:
         run: |
           set +e -u
           command -v perf >/dev/null || { echo "perf not available"; exit 0; }
+          mkdir -p "$OUT"
           # A second FEX with the ARM disassembler, logging each block's guest RIP and host address so the profile's
           # hottest blocks can be matched to their code. Bench-only: the game's FEX is built without it.
           sed -i 's|LogMan::Msg::IFmt("RIP: 0x{:x}", Entry);|LogMan::Msg::IFmt("RIP: 0x{:x} Host: 0x{:x}", Entry, reinterpret_cast<uintptr_t>(CodeData.BlockBegin));|' \
