@@ -49,6 +49,7 @@ class ExperimentsTest {
             "fex-memcpy-tso" to "DROIDDECK_EXP_FEX_MEMCPY_TSO", "fex-vector-tso" to "DROIDDECK_EXP_FEX_VECTOR_TSO",
             "fex-tso" to "DROIDDECK_EXP_FEX_TSO", "fex-fast" to "DROIDDECK_EXP_FEX_FAST",
             "wayland-present" to "DROIDDECK_EXP_WAYLAND_PRESENT",
+            "vk-count" to "DROIDDECK_EXP_VK_COUNT",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

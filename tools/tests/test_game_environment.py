@@ -581,6 +581,24 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
                         self.assertNotIn("PROTON_ENABLE_WAYLAND", result)
                     self.assertEqual(env.get("WAYLAND_DISPLAY"), "")
 
+    def test_vk_count_puts_its_layer_first_only_when_on_and_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layer_dir = Path(tmp) / "vkcount"
+            layer_dir.mkdir()
+            base = {"VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat",
+                    "VK_LAYER_PATH": "/rt/wsi:/rt/lib"}
+            env = dict(base)
+            self.assertIsNone(MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env, base)
+            env = dict(base, DROIDDECK_EXP_VK_COUNT="1")
+            self.assertIn("not installed", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"], base["VK_INSTANCE_LAYERS"])
+            (layer_dir / "libVkLayer_droiddeck_vkcount.so").write_bytes(b"\x7fELF")
+            self.assertIn("counting", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"],
+                             "VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+
     def test_other_gpus_and_non_game_calls_keep_the_original_launch(self):
         command = ["/proton", "waitforexitandrun", "game.exe"]
         base = {"STEAM_COMPAT_DATA_PATH": "/compatdata/42", "VK_LAYER_PATH": "original"}

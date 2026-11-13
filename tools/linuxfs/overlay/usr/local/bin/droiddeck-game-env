@@ -73,7 +73,7 @@ DOTNET_FEX_EXPERIMENTS = (
 # saved settings at each launch; the Steam-side parts follow the values the Steam session started with.
 EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
-               "fex-tso", "fex-fast", "wayland-present")
+               "fex-tso", "fex-fast", "wayland-present", "vk-count")
 
 
 def experiment_name(experiment):
@@ -1935,10 +1935,25 @@ def system_graphics_launch(command, env):
     })
     for name in ("DISABLE_WSI_LAYER", "PROTON_USE_WINED3D", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
         result.pop(name, None)
-    note = wayland_present(directory, result)
-    if note:
-        print("droiddeck-game-env: " + note, file=sys.stderr)
+    for note in (wayland_present(directory, result), vk_count(result)):
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
     return [str(wrapper), *command], result
+
+
+VKCOUNT_DIR = "/usr/local/lib/droiddeck-vkcount"
+
+
+def vk_count(env, layer_dir=VKCOUNT_DIR):
+    """Experiment vk-count: VK_LAYER_DROIDDECK_vkcount goes first in the game's layers and prints per-frame Vulkan
+    call counts and blocking-call times to stderr every 10 s ("droiddeck-vkcount:" lines in the game's log)."""
+    if not experiment(env, "vk-count"):
+        return None
+    if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_vkcount.so")):
+        return "vk-count: layer not installed at %s" % layer_dir
+    env["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount:" + env["VK_INSTANCE_LAYERS"]
+    env["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
+    return "vk-count: counting Vulkan calls per frame"
 
 
 def wayland_present(directory, env):
