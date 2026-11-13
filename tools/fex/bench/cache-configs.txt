@@ -26,3 +26,7 @@ d_r2r_tc0      | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNE
 # on the best .NET setup. The block mix put 19% of translated-code time in the indirect-branch lookup.
 # i7_sitecache   | fex    | jit | FEX_DISKCACHE=1 FEX_INDIRECTBRANCHCACHE=1   (settled in round 10: no gain; patch kept in docs/research/patches)
 # d_r2r_tc0_ic   | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_TieredCompilation=0 FEX_INDIRECTBRANCHCACHE=1   (settled in round 10: 7% slower)
+# Round 11: every run above fills FEX's first 16 MB code buffer once, which throws away all translated code
+# (code_buffer_full = 1). A larger first buffer (patch 0006, InitialCodeBufferMB) avoids that.
+b_content_cb64 | fex    | jit | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 FEX_INITIALCODEBUFFERMB=64
+d_r2r_tc0_cb64 | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_TieredCompilation=0 FEX_INITIALCODEBUFFERMB=64
