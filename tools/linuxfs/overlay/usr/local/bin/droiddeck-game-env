@@ -73,7 +73,7 @@ DOTNET_FEX_EXPERIMENTS = (
 # saved settings at each launch; the Steam-side parts follow the values the Steam session started with.
 EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
-               "fex-tso", "fex-fast")
+               "fex-tso", "fex-fast", "wayland-present")
 
 
 def experiment_name(experiment):
@@ -1935,13 +1935,37 @@ def system_graphics_launch(command, env):
     })
     for name in ("DISABLE_WSI_LAYER", "PROTON_USE_WINED3D", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
         result.pop(name, None)
+    note = wayland_present(directory, result)
+    if note:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
     return [str(wrapper), *command], result
+
+
+def wayland_present(directory, env):
+    """Experiment wayland-present: Wine's Wayland driver hands the game's frames to gamescope's own Wayland
+    socket, so the game's Xwayland and its DRI3 Present round trip drop out of every frame. The session clears
+    WAYLAND_DISPLAY for Steam (an empty one would make libwayland pick wayland-0, the app's compositor), so the
+    socket is named explicitly. Needs a WSI layer built with VK_KHR_wayland_surface."""
+    if not experiment(env, "wayland-present"):
+        return None
+    socket = env.get("GAMESCOPE_WAYLAND_DISPLAY", "").strip()
+    if not socket:
+        return "wayland-present: no gamescope Wayland socket; the game stays on Xwayland"
+    try:
+        manifest = (directory / "wsi" / "VkLayer_window_system_integration.json").read_text(encoding="utf-8")
+    except OSError as error:
+        return "wayland-present: WSI layer manifest unreadable (%s); the game stays on Xwayland" % error
+    if "VK_KHR_wayland_surface" not in manifest:
+        return "wayland-present: this WSI layer has no Wayland surface; the game stays on Xwayland"
+    env["WAYLAND_DISPLAY"] = socket
+    env["PROTON_ENABLE_WAYLAND"] = "1"
+    return "wayland-present: Wine's Wayland driver presents to gamescope (%s), skipping the game's Xwayland" % socket
 
 
 # PROTON_LOG=1 alone makes Proton default WINEDEBUG to +seh,+unwind,... (proton_10.0 `proton` 1618-1619):
 # every caught .NET exception then writes hundreds of unwind lines from the thread that threw it.
 GAME_LOG_WINEDEBUG = "+timestamp,+pid,+tid,+threadname,+loaddll"
-FINAL_ENV_PREFIXES = ("VK_", "WINE", "DOTNET_", "DXVK_", "VKD3D", "PROTON_", "FEX_", "HYBRIS_", "MESA_", "GODOT", "SteamGameId")
+FINAL_ENV_PREFIXES = ("VK_", "WINE", "DOTNET_", "DXVK_", "VKD3D", "PROTON_", "FEX_", "HYBRIS_", "MESA_", "GODOT", "SteamGameId", "WAYLAND")
 
 
 def game_logs(command, env, app_id, now=None):

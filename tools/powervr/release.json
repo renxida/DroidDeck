@@ -149,15 +149,15 @@
           "mode": 420,
           "name": "libVkLayer_window_system_integration.so",
           "path": "wsi/libVkLayer_window_system_integration.so",
-          "sha256": "d07b961181b9547fd48ad9f05cc6d3b808b824676eb5a186fe3feb8caa013f19",
-          "size": 436888
+          "sha256": "034e2a6441f18fcacd338028ceb15a65d459c66a1f8b212a4112cd402f99cd85",
+          "size": 459184
         },
         {
           "mode": 420,
           "name": "VkLayer_window_system_integration.json",
           "path": "wsi/VkLayer_window_system_integration.json",
-          "sha256": "a1df8b1cee7315015d8fe82534451e373ae4d9cb2adfc232c68346ecbf2818ee",
-          "size": 3683
+          "sha256": "b80f1a621be6994e5cdb4760acee98bb013d0ff57fd63b1cc8de17cc764daaa2",
+          "size": 3754
         },
         {
           "mode": 420,
@@ -177,7 +177,7 @@
           "mode": 420,
           "name": "SHA256SUMS",
           "path": "provenance/wsi-SHA256SUMS",
-          "sha256": "fda6f61028659648801de0e3a6fe1676efd99e1551881a5db8630970eae86158",
+          "sha256": "22431f2ab70969aae7f6bd97d054ddfcd5a45552138221dfe621a4bc36b9c0a2",
           "size": 108
         },
         {
@@ -191,8 +191,8 @@
           "mode": 420,
           "name": "source.tar.zst",
           "path": "licenses/wsi-source.tar.zst",
-          "sha256": "22ae7c2d8aa3dfffdda601c3442d1966ab53ad225acdfadee69ba38974d0c4c5",
-          "size": 209468
+          "sha256": "48ecf662408acfef9a8ac7eb941899cb8a118d80bdc630dec46269e6979822b5",
+          "size": 208393
         },
         {
           "mode": 420,
@@ -205,8 +205,9 @@
       "id": "wsi",
       "ignored": [],
       "provenance": {
-        "ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/38047627963",
-        "repository_commit": "abe58618a5194f1f15499cbd5f9ec75503782556",
+        "built_by": "tools/vulkan-wsi/build.sh cross-built for aarch64 (Ubuntu 24.04 g++-aarch64-linux-gnu, WSI_CMAKE_ARGS=-DCMAKE_TOOLCHAIN_FILE) off-device for experiment wayland-present; branch emu/graphics",
+        "change": "BUILD_WSI_WAYLAND=ON adds VK_KHR_wayland_surface; X11 path and source revision unchanged",
+        "previous_pin": "https://github.com/wallentx/DroidDeck/releases/download/v0.3.2-progress.20261010.4/wsi-abe5861.zip",
         "vulkan_headers_licenses": {
           "note": "Added from tracked assembly inputs; the original WSI archive and compiled library are unchanged.",
           "revision": "8d6039a455a7ecc7d2a592ff97f62db4e59b70bf",
@@ -217,15 +218,15 @@
         }
       },
       "recipe_inputs": {
-        "tools/vulkan-wsi/build.sh": "9e403151c58e6b2ee15241f525c4bacb2495f072191da6a63065e7fcc25b3b3c",
+        "tools/vulkan-wsi/build.sh": "eeab39ff26a55a7e0c3c9389d206c795a57a471ea4b2cf5808fe5d013086dd51",
         "tools/vulkan-wsi/licenses/Vulkan-Headers/LICENSE.md": "95ad366d23fadf701d355bc45fb8b82ae2d700239471d35d41286ac3b08ff903",
         "tools/vulkan-wsi/licenses/Vulkan-Headers/MIT.txt": "1ca3502222d967f3be5751c55f6b7ee735b5383909c3b501495f54b216dbf227",
         "tools/vulkan-wsi/patches/0001-link-x11-external-memory.patch": "e2ed113d22f05563248ef606c774c22658b184fbc05912229007cd5281027e78",
         "tools/vulkan-wsi/source.env": "71a88087265a09b4ce06e7c9b98ef6799c6a7657cc6ef9084de663e96f5cfe63"
       },
-      "sha256": "348f9ec42159c1ee6e2baba4312a5e845d26687238f29e3f4a1b0c3c97e13b3c",
-      "size": 362717,
-      "url": "https://github.com/wallentx/DroidDeck/releases/download/v0.3.2-progress.20261010.4/wsi-abe5861.zip"
+      "sha256": "a84cc2aeb1aebb04de4b8c210840ddba4c6c8fef627758bc4e9fe3d6bc9571eb",
+      "size": 384395,
+      "url": "https://github.com/renxida/DroidDeck/releases/download/wsi-wayland-40cfec0-1/wsi-wayland.zip"
     },
     {
       "files": [
