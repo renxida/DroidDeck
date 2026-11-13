@@ -180,6 +180,7 @@ jobs:
           set -e
           echo "exit $rc"
           grep -E "SKELTEST|NativeSkeleton2D|native_compat|ERROR|OpenGL" skel.log | head -40
+          grep -q "SKELTEST binary load 0 .* same=true" skel.log
           python3 check.py out
       - name: Pack the component
         run: |

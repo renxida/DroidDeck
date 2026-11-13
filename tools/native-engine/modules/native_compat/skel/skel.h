@@ -41,13 +41,22 @@ struct SlotData {
 	BlendMode blend = BlendMode::Normal;
 };
 
+// Attachment frames that come from numbered images (path + zero-padded index).
+struct Sequence {
+	int count = 0, start = 0, digits = 0, setup = 0;
+	std::string frame_path(const std::string &base, int index) const;
+};
+
 enum class AttachmentType { Region, Mesh, BoundingBox, Path, Point, Clipping };
 
 struct Attachment {
 	AttachmentType type = AttachmentType::Region;
 	std::string name; // key inside the skin
-	std::string path; // texture lookup name
+	std::string path; // texture lookup name (for a sequence, the setup frame's image)
 	Color color;
+	bool has_sequence = false;
+	Sequence sequence;
+	std::string sequence_base; // path without the frame number
 
 	// Region: placement inside the bone, and the 4 corner offsets computed from it.
 	float x = 0, y = 0, rotation = 0, scale_x = 1, scale_y = 1, width = 0, height = 0;
@@ -120,6 +129,18 @@ struct IkData {
 	bool bend_positive = true, compress = false, stretch = false, uniform = false;
 };
 
+// Moves bones toward a target bone's transform. World mode works on world matrices; local mode on
+// local values. Offsets are captured relative to the target so the setup pose is unchanged.
+struct TransformData {
+	std::string name;
+	int order = 0;
+	std::vector<int> bones;
+	int target = 0;
+	bool local = false, relative = false;
+	float offset_rotation = 0, offset_x = 0, offset_y = 0, offset_scale_x = 0, offset_scale_y = 0, offset_shear_y = 0;
+	float mix_rotate = 0, mix_x = 0, mix_y = 0, mix_scale_x = 0, mix_scale_y = 0, mix_shear_y = 0;
+};
+
 // Keyframes with per-channel values and per-segment curves. Bezier controls are stored in absolute
 // time/value space so loaders for different format versions can share one evaluator.
 struct Curve {
@@ -142,7 +163,7 @@ struct Curve {
 
 enum class TimelineType {
 	Rotate, Translate, TranslateX, TranslateY, Scale, ScaleX, ScaleY, Shear, ShearX, ShearY,
-	Attachment, RGBA, RGB, Alpha, RGBA2, RGB2, Deform, DrawOrder, Event, Ik
+	Attachment, RGBA, RGB, Alpha, RGBA2, RGB2, Deform, DrawOrder, Event, Ik, Inherit, Transform
 };
 
 struct Timeline {
@@ -154,7 +175,7 @@ struct Timeline {
 	std::vector<std::vector<float>> deforms; // deform: per frame, offsets for every vertex value
 	std::vector<std::vector<int>> draw_orders; // per frame, slot index per draw position; empty = setup
 	std::vector<Event> events;
-	std::vector<uint8_t> flags; // ik: bend_positive, compress, stretch per frame (bit 0, 1, 2)
+	std::vector<uint8_t> flags; // ik: bend_positive, compress, stretch per frame (bit 0, 1, 2); inherit: mode per frame
 };
 
 struct Animation {
@@ -173,6 +194,7 @@ struct SkeletonData {
 	const Skin *default_skin = nullptr;
 	std::vector<EventData> events;
 	std::vector<IkData> ik;
+	std::vector<TransformData> transforms;
 	std::vector<Animation> animations;
 	std::vector<std::string> unsupported; // features in the file this core ignores, for logging
 
@@ -182,12 +204,14 @@ struct SkeletonData {
 	const Animation *find_animation(const std::string &name) const;
 	const EventData *find_event(const std::string &name) const;
 	int find_ik(const std::string &name) const;
+	int find_transform(const std::string &name) const;
 	int major_version() const;
 };
 
 struct Bone {
 	const BoneData *data = nullptr;
 	float x = 0, y = 0, rotation = 0, scale_x = 1, scale_y = 1, shear_x = 0, shear_y = 0;
+	Inherit inherit = Inherit::Normal;
 	float a = 1, b = 0, c = 0, d = 1, world_x = 0, world_y = 0; // world transform
 	bool active = true;
 
@@ -217,12 +241,19 @@ struct IkConstraint {
 	bool bend_positive = true, compress = false, stretch = false;
 };
 
+struct TransformConstraint {
+	const TransformData *data = nullptr;
+	float mix_rotate = 0, mix_x = 0, mix_y = 0, mix_scale_x = 0, mix_scale_y = 0, mix_shear_y = 0;
+};
+
 struct Skeleton {
 	const SkeletonData *data = nullptr;
 	std::vector<Bone> bones;
 	std::vector<Slot> slots;
 	std::vector<int> draw_order; // slot indices, back to front
 	std::vector<IkConstraint> ik;
+	std::vector<TransformConstraint> transforms;
+	std::vector<std::pair<bool, int>> constraint_order; // (is transform, index), by data order
 	const Skin *skin = nullptr;
 	Color color;
 	float x = 0, y = 0, scale_x = 1, scale_y = 1;
@@ -242,6 +273,10 @@ struct Skeleton {
 private:
 	void update_bone(Bone &bone);
 	void apply_ik(IkConstraint &ik);
+	void apply_transform(TransformConstraint &t);
+	void set_world(Bone &bone, float a, float b, float c, float d, float wx, float wy);
+	void update_after(const std::vector<int> &constrained);
+	std::vector<Bone> pose_; // local values before constraints, restored after the world transform
 };
 
 enum class MixBlend {
@@ -305,5 +340,9 @@ private:
 
 // Loads skeleton JSON (3.x and 4.x naming). Returns nullptr and fills error on failure.
 std::unique_ptr<SkeletonData> load_json(const char *text, size_t length, float scale, std::string &error);
+
+// Loads a 4.2 binary skeleton. Returns nullptr and fills error on failure, including for features
+// whose binary layout is not known yet (path and physics constraints).
+std::unique_ptr<SkeletonData> load_binary(const uint8_t *data, size_t length, float scale, std::string &error);
 
 } // namespace skel

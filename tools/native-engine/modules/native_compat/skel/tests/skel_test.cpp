@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
 
 using namespace skel;
 
@@ -263,6 +264,177 @@ static void test_atlas() {
 	NEAR(mesh->page_uvs[1], 0.5); // mesh uv v=0 is the image top: the top of the region in the page
 }
 
+// ------------------------------------------------------------------ binary (synthetic data only)
+
+struct BinWriter {
+	std::vector<uint8_t> b;
+	void u8(int v) { b.push_back(uint8_t(v)); }
+	void u32(uint32_t v) {
+		for (int i = 3; i >= 0; i--) u8(int((v >> (i * 8)) & 0xff));
+	}
+	void f(float v) {
+		uint32_t u;
+		std::memcpy(&u, &v, 4);
+		u32(u);
+	}
+	void v(uint32_t x) {
+		do {
+			uint8_t c = x & 0x7f;
+			x >>= 7;
+			u8(c | (x ? 0x80 : 0));
+		} while (x);
+	}
+	void s(const char *t) {
+		if (!t) { v(0); return; }
+		v(uint32_t(std::strlen(t)) + 1);
+		for (const char *c = t; *c; c++) u8(*c);
+	}
+	void bone(const char *name, int parent, float rot, float x, float y, float len) {
+		s(name);
+		if (parent >= 0) v(uint32_t(parent));
+		for (float x8 : { rot, x, y, 1.0f, 1.0f, 0.0f, 0.0f, len }) f(x8);
+		u8(0); // inherit normal
+		u8(0); // skin required
+	}
+};
+
+static std::vector<uint8_t> synthetic_binary() {
+	BinWriter w;
+	for (int i = 0; i < 8; i++) w.u8(i);
+	w.s("4.2.43");
+	for (float x : { 0.0f, 0.0f, 100.0f, 100.0f, 100.0f }) w.f(x); // bounds, reference scale
+	w.u8(0); // no editor-only data
+	const char *strings[] = { "body", "skin", "mesh", "linked" };
+	w.v(4);
+	for (const char *t : strings) w.s(t);
+	// Bones: an arm of two 10-unit bones bent counter-clockwise, its IK target at the tip, and a follower.
+	w.v(5);
+	w.bone("root", -1, 0, 0, 0, 0);
+	w.bone("upper", 0, 90, 0, 0, 10);
+	w.bone("lower", 1, 90, 10, 0, 10);
+	w.bone("target", 0, 0, -10, 10, 0);
+	w.bone("follow", 0, 0, 0, -5, 0);
+	// Slots.
+	w.v(2);
+	w.s("a"); w.v(0); w.u32(0xffffffff); w.u32(0xffffffff); w.v(1); w.v(0);
+	w.s("b"); w.v(2); w.u32(0xff000080); w.u32(0x10203040); w.v(3); w.v(1);
+	// IK: bend positive, mix 1.
+	w.v(1);
+	w.s("ik"); w.v(0); w.v(2); w.v(1); w.v(2); w.v(3); w.u8(2 | 32);
+	// Transform (world): offsets rotation 10, x 1, y 2; mixes rotate 1, x 1, y 0.5.
+	w.v(1);
+	w.s("tc"); w.v(1); w.v(1); w.v(4); w.v(3);
+	w.u8(8 | 16 | 32); w.f(10); w.f(1); w.f(2);
+	w.u8(2 | 4 | 8); w.f(1); w.f(1); w.f(0.5f);
+	w.v(0); // path constraints
+	w.v(0); // physics constraints
+	// Default skin.
+	w.v(2);
+	w.v(0); w.v(1); w.v(1);
+	w.u8(0 | 32 | 128); w.u32(0x00ff00ff); w.f(90); // region with color and rotation
+	for (float x : { 1.0f, 2.0f, 1.0f, 1.0f, 20.0f, 10.0f }) w.f(x);
+	w.v(1); w.v(2);
+	w.v(3); w.u8(2); w.v(3); w.v(3); // mesh: hull 3, 3 vertices
+	for (float x : { 0.0f, 0.0f, 10.0f, 0.0f, 0.0f, 10.0f }) w.f(x);
+	for (float x : { 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f }) w.f(x);
+	w.v(0); w.v(1); w.v(2);
+	w.v(4); w.u8(3 | 128); w.v(0); w.v(3); // linked mesh sharing deform keys with "mesh"
+	w.v(0); // named skins
+	// Events.
+	w.v(1);
+	w.s("hit"); w.v(5); w.f(1.5f); w.s("str"); w.s(nullptr);
+	// One animation.
+	w.v(1);
+	w.s("anim"); w.v(0);
+	w.v(1); w.v(1); w.v(2); // slot 1, two timelines
+	w.u8(0); w.v(2); w.f(0); w.v(4); w.f(0.75f); w.v(3); // attachment: linked, then mesh
+	w.u8(5); w.v(2); w.v(0); w.f(0); w.u8(255); w.f(1); w.u8(0); w.u8(0); // alpha 1 -> 0, linear
+	w.v(1); w.v(0); w.v(2); // bone 0, two timelines
+	w.u8(0); w.v(2); w.v(1); w.f(0); w.f(0); w.f(1); w.f(90); w.u8(2);
+	for (float x : { 0.25f, 0.0f, 0.75f, 90.0f }) w.f(x); // rotate 0 -> 90, eased symmetric bezier
+	w.u8(1); w.v(2); w.v(0); w.f(0); w.f(0); w.f(0); w.f(1); w.f(10); w.f(20); w.u8(1); // translate, stepped
+	w.v(1); w.v(0); w.v(2); w.v(0); // ik timeline
+	w.u8(1 | 8 | 64); w.f(0); // bend positive, mix 1, stepped
+	w.u8(4 | 16); w.f(1); w.f(0.25f); // stretch, bend negative, mix 0.25
+	w.v(1); w.v(0); w.v(1); w.v(0); w.f(0); for (float x : { 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }) w.f(x);
+	w.v(0); w.v(0); // path, physics timelines
+	w.v(1); w.v(0); w.v(1); w.v(1); w.v(1); w.v(3); w.u8(0); w.v(2); w.v(0); // deform on "mesh"
+	w.f(0); w.v(0);
+	w.f(1); w.v(4); w.v(2); w.f(3); w.f(4); w.u8(0);
+	w.v(1); w.f(0.25f); w.v(1); w.v(1); w.v(0xffffffffu); // draw order: slot 1 moves back one
+	w.v(1); w.f(0.75f); w.v(0); w.v(14); w.f(2); w.u8(0); // event: int 7, float 2, data string
+	return w.b;
+}
+
+static void test_binary() {
+	std::vector<uint8_t> bin = synthetic_binary();
+	std::string err;
+	auto sd = load_binary(bin.data(), bin.size(), 1, err);
+	if (!sd) {
+		std::printf("binary load error: %s\n", err.c_str());
+		failures++;
+		return;
+	}
+	CHECK(sd->version == "4.2.43" && sd->hash == "0001020304050607");
+	CHECK(sd->bones.size() == 5 && sd->bones[2].parent == 1);
+	CHECK(sd->slots[1].blend == BlendMode::Additive && sd->slots[1].has_dark);
+	NEAR(sd->slots[1].color.a, 128.0 / 255);
+	CHECK(sd->ik.size() == 1 && sd->ik[0].bend_positive && sd->ik[0].mix == 1);
+	CHECK(sd->transforms.size() == 1 && !sd->transforms[0].local);
+	CHECK(sd->events[0].int_value == -3 && sd->events[0].string_value == "str");
+	const Attachment *region = sd->default_skin->find(0, "body");
+	CHECK(region && region->type == AttachmentType::Region);
+	NEAR(region->rotation, 90);
+	NEAR(region->color.g, 1);
+	NEAR(region->color.r, 0);
+	const Attachment *mesh = sd->default_skin->find(1, "mesh");
+	const Attachment *linked = sd->default_skin->find(1, "linked");
+	CHECK(mesh && linked && linked->triangles.size() == 3 && linked->timeline_attachment == mesh);
+
+	// The solved IK chain reproduces the authored bend; the follower takes the target's rotation and position.
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	NEAR(std::cos(sk.bones[2].world_rotation_x() * 3.14159265 / 180), -1); // pointing along -x
+	NEAR(sk.bones[4].world_rotation_x(), 10);
+	NEAR(sk.bones[4].world_x, -9);
+	NEAR(sk.bones[4].world_y, 3.5);
+	NEAR(sk.bones[4].y, -5); // the animated pose is kept; constraints only change the world transform
+
+	const Animation *anim = sd->find_animation("anim");
+	CHECK(anim && anim->duration == 1);
+	std::vector<Event> ev;
+	sk.setup_pose();
+	apply_animation(*anim, sk, -1, 0.5f, false, &ev, 1, MixBlend::Replace);
+	NEAR(sk.bones[0].rotation, 45); // symmetric ease: halfway at half time
+	NEAR(sk.bones[0].x, 0); // stepped
+	NEAR(sk.slots[1].color.a, 0.5);
+	CHECK(sk.slots[1].attachment == linked);
+	CHECK(sk.draw_order[0] == 1 && sk.draw_order[1] == 0);
+	CHECK(sk.ik[0].mix == 1 && sk.ik[0].bend_positive);
+	NEAR(sk.transforms[0].mix_rotate, 0.5);
+	CHECK(ev.empty());
+	apply_animation(*anim, sk, 0.5f, 1, false, &ev, 1, MixBlend::Replace);
+	NEAR(sk.bones[0].x, 10);
+	NEAR(sk.bones[0].y, 20);
+	CHECK(sk.slots[1].attachment == mesh);
+	CHECK(ev.size() == 1 && ev[0].int_value == 7 && ev[0].string_value == "str");
+	NEAR(sk.ik[0].mix, 0.25);
+	CHECK(!sk.ik[0].bend_positive && sk.ik[0].stretch);
+	CHECK(sk.slots[1].deform.size() == 6);
+	if (sk.slots[1].deform.size() == 6) {
+		NEAR(sk.slots[1].deform[2], 3);
+		NEAR(sk.slots[1].deform[3], 4);
+	}
+
+	// Damaged files fail cleanly.
+	CHECK(!load_binary(bin.data(), bin.size() - 1, 1, err));
+	bin.push_back(0);
+	CHECK(!load_binary(bin.data(), bin.size(), 1, err));
+	bin.pop_back();
+	bin[9] = '3'; // version "4.3.43"
+	CHECK(!load_binary(bin.data(), bin.size(), 1, err));
+}
+
 int main() {
 	test_atlas();
 	test_json_reader();
@@ -273,6 +445,7 @@ int main() {
 	test_crossfade();
 	test_ik();
 	test_spine3_layout();
+	test_binary();
 	if (failures) {
 		std::printf("%d failure(s)\n", failures);
 		return 1;
