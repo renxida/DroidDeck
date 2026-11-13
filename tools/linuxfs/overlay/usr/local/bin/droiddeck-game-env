@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import errno
 import hashlib
 import json
 import os
@@ -1055,6 +1056,15 @@ def fastest_first(cores):
     return sorted(cores, key=lambda core: -speeds[core]) if speeds else cores
 
 
+def slow_cores(speeds):
+    """The cores a big budget leaves out: cpu_capacity is IPC-weighted (little cores sit near a quarter of the
+    prime core); cpufreq is not."""
+    capacity = all(speed <= 1024 for speed in speeds.values())
+    top = max(speeds.values())
+    floor = top / 2 if capacity else top * 0.7
+    return {core for core, speed in speeds.items() if speed < floor}
+
+
 def thread_budget(budget, cores):
     """Wine confines every game thread to the host cores in WINE_CPU_TOPOLOGY, and Godot's worker pool
     and .NET's processor count follow the cores Windows sees."""
@@ -1064,11 +1074,8 @@ def thread_budget(budget, cores):
             print("droiddeck-game-env: thread budget big: core speeds unreadable; all %d cores kept" % len(cores),
                   file=sys.stderr)
             return cores
-        # cpu_capacity is IPC-weighted (little cores sit near a quarter of the prime core); cpufreq is not.
-        capacity = all(speed <= 1024 for speed in speeds.values())
-        top = max(speeds.values())
-        floor = top / 2 if capacity else top * 0.7
-        kept = [core for core in cores if speeds[core] >= floor]
+        slow = slow_cores(speeds)
+        kept = [core for core in cores if core not in slow]
     elif re.fullmatch(r"[1-9][0-9]{0,2}", budget):
         kept = cores[:int(budget)]
     else:
@@ -1240,6 +1247,8 @@ def proton_cpu_limit(command, env):
 
 
 def cpu_topology(env, command=()):
+    """Sets WINE_CPU_TOPOLOGY to the cores the game runs on. Returns the plan CoreWatch keeps them with when it
+    chose them itself and the budget was not turned off (all or 0, or DROIDDECK_GAME_REPIN=0), else None."""
     if "PROTON_CPU_TOPOLOGY" in env:
         return
     if "WINE_CPU_TOPOLOGY" in env:
@@ -1261,6 +1270,7 @@ def cpu_topology(env, command=()):
     if not cores or cores[-1] >= len(online):
         return
     picked = picked and not set(cores) >= online
+    base = set(cores) if picked else None
     if fastest:
         limit = None if picked else proton_cpu_limit(command, env)
         if isinstance(limit, str):
@@ -1274,6 +1284,212 @@ def cpu_topology(env, command=()):
         return
     env["WINE_CPU_TOPOLOGY"] = env["PROTON_CPU_TOPOLOGY"] = "%d:%s" % (len(cores), ",".join(map(str, cores)))
     print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
+    if env.get("DROIDDECK_GAME_CPU_BUDGET", "").strip().lower() in ("all", "0") or \
+            env.get("DROIDDECK_GAME_REPIN", "").strip() == "0":
+        return None
+    return {"cores": list(cores), "budget": budget, "base": base}
+
+
+REPIN_POLL_S = 5
+REPIN_MAX_POLL_S = 80
+REPIN_CALM_S = 300
+REPIN_EARLY_POLLS = 12
+REPIN_RESCAN_POLLS = 6
+REPIN_FLAP_WINDOW_S = 120
+REPIN_FLAP_COUNT = 3
+REPIN_FAILED_ROUNDS = 3
+# Native helpers Wine starts without ntdll, which never get WINE_CPU_TOPOLOGY's cores at launch.
+REPIN_SKIP = frozenset({"wineserver"})
+
+
+def format_cores(cores):
+    runs, cores = [], sorted(cores)
+    for core in cores:
+        if runs and core == runs[-1][1] + 1:
+            runs[-1][1] = core
+        else:
+            runs.append([core, core])
+    return ",".join("%d" % a if a == b else "%d-%d" % (a, b) for a, b in runs) or "-"
+
+
+class CoreWatch:
+    """Keeps the game on the cores cpu_topology chose. Wine pins each of its processes to WINE_CPU_TOPOLOGY's
+    cores as it starts, but when Android moves the app to another cpuset (thermal, or top-app to foreground) the
+    kernel resets every task's affinity to the new cpuset and the pin is gone: the game then runs on the little
+    cores. Every few seconds this reads the affinity of the main thread of each Wine process in the launch's tree
+    that carried the pin; when one has cores outside the pin, it works the cores out again the way the launch did,
+    from that new allowed set, and pins every thread of those processes there. It never widens past the allowed
+    set, leaves the kernel's mask alone when only little cores are left, and polls less often when the mask flaps
+    or a pin fails, stopping after REPIN_FAILED_ROUNDS failed rounds in a row."""
+
+    def __init__(self, plan, app_id="", root=None, proc="/proc", setaffinity=None, online=None, speeds=None,
+                 clock=time.monotonic, wall=time.time):
+        self.cores = set(plan["cores"])
+        self.size = len(plan["cores"])
+        self.budget = plan.get("budget") or ""
+        self.base = set(plan["base"]) if plan.get("base") else None
+        self.app_id = app_id or "-"
+        self.root = root if root is not None else os.getpid()
+        self.proc = proc
+        self.setaffinity = setaffinity or os.sched_setaffinity
+        self.online = online or online_cores
+        self.speeds = speeds or core_speeds
+        self.clock, self.wall = clock, wall
+        self.budgeted = {}
+        self.left_alone = None
+        self.interval = REPIN_POLL_S
+        self.repins = []
+        self.changed = clock()
+        self.failed_rounds = 0
+        self.polls = 0
+        self.done = threading.Event()
+        self.thread = None
+
+    def start(self):
+        self.thread = threading.Thread(target=self.run, name="core-watch", daemon=True)
+        self.thread.start()
+        return self
+
+    def stop(self):
+        self.done.set()
+
+    def run(self):
+        while not self.done.wait(self.interval):
+            try:
+                self.poll()
+            except Exception as error:  # the watch must never take the launch down
+                print("droiddeck-game-env: core watch stopped (%s)" % error, file=sys.stderr, flush=True)
+                return
+
+    def read(self, path):
+        try:
+            with open(path, "rb") as f:
+                return f.read().decode("ascii", "replace")
+        except OSError:
+            return None
+
+    def mask(self, path):
+        text = self.read(path + "/status")
+        match = text and re.search(r"^Cpus_allowed_list:\s*(\S+)", text, re.M)
+        return parse_cores(match.group(1)) if match else None
+
+    def started(self, pid):
+        text = self.read("%s/%d/stat" % (self.proc, pid))
+        fields = text[text.rfind(")") + 2:].split() if text else []
+        return fields[19] if len(fields) > 19 else None
+
+    def rescan(self):
+        tree = set(descendants(self.root, self.proc))
+        for pid in list(self.budgeted):
+            if pid not in tree:
+                del self.budgeted[pid]
+        for pid in tree:
+            if pid in self.budgeted:
+                continue
+            comm = (self.read("%s/%d/comm" % (self.proc, pid)) or "").strip()
+            if not comm or comm in REPIN_SKIP:
+                continue
+            mask = self.mask("%s/%d" % (self.proc, pid))
+            if mask and mask <= self.cores:
+                started = self.started(pid)
+                if started:
+                    self.budgeted[pid] = started
+
+    def target(self, allowed):
+        """The launch's choice made again from the allowed cores: the fastest first, at most as many as the
+        launch kept, without the little cores on a big budget unless fewer than two others are left (None)."""
+        online = set(self.online())
+        allowed = allowed & online & (self.base or online)
+        if not allowed:
+            return None
+        speeds = self.speeds(sorted(online))
+        order = sorted(allowed, key=lambda core: (-speeds[core], core)) if speeds else sorted(allowed)
+        if self.budget == "big" and speeds:
+            slow = slow_cores(speeds)
+            order = [core for core in order if core not in slow]
+            if len(order) < 2:
+                return None
+        kept = order[:max(self.size, 2)]
+        return set(kept)
+
+    def log(self, seen, to, action, extra=""):
+        print("DROIDDECK_TIMELINE event=game_cores_reset app_id=%s from=%s to=%s action=%s%s next_s=%d wall_ms=%d" % (
+            self.app_id, format_cores(seen), format_cores(to), action, extra, self.interval, int(self.wall() * 1000)),
+            file=sys.stderr, flush=True)
+
+    def pin(self, target):
+        """Pins every thread of the budgeted processes that has a core outside target; (pinned, failed, error)."""
+        pinned = failed = 0
+        error = None
+        for pid, started in list(self.budgeted.items()):
+            if self.started(pid) != started:
+                del self.budgeted[pid]
+                continue
+            try:
+                tasks = os.listdir("%s/%d/task" % (self.proc, pid))
+            except OSError:
+                continue
+            for tid in tasks:
+                if not tid.isdigit():
+                    continue
+                mask = self.mask("%s/%d/task/%s" % (self.proc, pid, tid))
+                if mask is None or mask <= target:
+                    continue
+                try:
+                    self.setaffinity(int(tid), target)
+                    pinned += 1
+                except OSError as e:
+                    if e.errno == errno.ESRCH:
+                        continue
+                    failed += 1
+                    error = errno.errorcode.get(e.errno, str(e.errno))
+        return pinned, failed, error
+
+    def poll(self):
+        self.polls += 1
+        now = self.clock()
+        if self.polls <= REPIN_EARLY_POLLS or self.polls % REPIN_RESCAN_POLLS == 0 or not self.budgeted:
+            self.rescan()
+        seen = set()
+        for pid in list(self.budgeted):
+            mask = self.mask("%s/%d" % (self.proc, pid))
+            if mask is None:
+                del self.budgeted[pid]
+            elif not mask <= self.cores:
+                seen |= mask
+        if not seen:
+            self.left_alone = None
+            if self.interval > REPIN_POLL_S and now - self.changed >= REPIN_CALM_S:
+                self.interval = REPIN_POLL_S
+                self.changed = now
+            return
+        if seen == self.left_alone:
+            return
+        target = self.target(seen)
+        if target is None:
+            self.left_alone = seen
+            self.log(seen, seen, "kept")
+            return
+        self.left_alone = None
+        pinned, failed, error = self.pin(target)
+        if not self.budgeted:
+            return
+        self.changed = now
+        if failed and not pinned:
+            self.failed_rounds += 1
+            self.interval = min(self.interval * 2, REPIN_MAX_POLL_S)
+            stop = self.failed_rounds >= REPIN_FAILED_ROUNDS
+            self.log(seen, target, "stopped" if stop else "failed", " error=%s threads=%d" % (error, failed))
+            if stop:
+                self.done.set()
+            return
+        self.failed_rounds = 0
+        self.cores = target
+        self.repins = [t for t in self.repins if now - t < REPIN_FLAP_WINDOW_S] + [now]
+        if len(self.repins) >= REPIN_FLAP_COUNT:
+            self.interval = min(self.interval * 2, REPIN_MAX_POLL_S)
+            self.repins = []
+        self.log(seen, target, "repin", " threads=%d%s" % (pinned, " failed=%d error=%s" % (failed, error) if failed else ""))
 
 
 def gl_vsync(env):
@@ -1957,17 +2173,17 @@ def wineserver_for(launch, env):
     return next((path for path in candidates if path and os.path.isfile(path) and os.access(path, os.X_OK)), None)
 
 
-def descendants(pid):
+def descendants(pid, proc="/proc"):
     children = {}
     try:
-        entries = os.listdir("/proc")
+        entries = os.listdir(proc)
     except OSError:
         return []
     for entry in entries:
         if not entry.isdigit():
             continue
         try:
-            with open("/proc/%s/stat" % entry, "rb") as f:
+            with open("%s/%s/stat" % (proc, entry), "rb") as f:
                 parent = int(f.read().rsplit(b")", 1)[1].split()[1])
         except (OSError, IndexError, ValueError):
             continue
@@ -2214,7 +2430,7 @@ def run_watched(guard):
     return raw_code, guard.started, drain
 
 
-def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False):
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False, cores=None):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
@@ -2233,12 +2449,15 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
         if diagnostic_app_id is not None:
             diagnostic_game_event("game_start", diagnostic_app_id)
         drain = None
+        core_watch = CoreWatch(cores, timeline_app_id).start() if cores else None
         try:
             if explorer:
                 raw_code, started, drain = run_watched(guard)
             else:
                 raw_code = wait_forwarding_signals_raw(process)
         finally:
+            if core_watch:
+                core_watch.stop()
             if after:
                 try:
                     after()
@@ -2823,7 +3042,7 @@ def main():
         print("droiddeck-game-env: " + note, file=sys.stderr)
     env = force_ssbs(command, env)
     game_cores(env)
-    cpu_topology(env, command)
+    core_plan = cpu_topology(env, command)
     pacing = None
     if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
         command, note = frame_cap(command, env)
@@ -2873,15 +3092,16 @@ def main():
     if waiting:
         print("DROIDDECK_TIMELINE event=game_exec app_id=%s wall_ms=%d" % (app_id, int(time.time() * 1000)),
               file=sys.stderr, flush=True)
+    core_plan = core_plan if waiting and app_id else None
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch)
+            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch)
+        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan)
     except OSError:
         if after:
             try:
