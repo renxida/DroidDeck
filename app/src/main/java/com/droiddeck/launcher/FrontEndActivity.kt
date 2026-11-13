@@ -1426,6 +1426,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!SessionState.running) com.droiddeck.launcher.telemetry.RemoteConfig.refreshAsync(this)
         integrationState = readIntegration()
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
         compatLaunchVisible = true

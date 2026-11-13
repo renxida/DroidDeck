@@ -420,6 +420,8 @@ class SessionService : Service() {
 
 
     private fun runSession(gen: Int) {
+        val remoteConfig = com.droiddeck.launcher.telemetry.RemoteConfig.applyCached(this)
+        com.droiddeck.launcher.telemetry.RemoteConfig.refreshAsync(this, apply = false)
         SessionPrefs.ensurePowerVrAutoDrivers(this)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
@@ -501,6 +503,8 @@ class SessionService : Service() {
         val sessionDir = openSessionFolder()
         Log.i(TAG, "experiments: " + Experiments.line(experiments))
         SessionEvents.record("session.experiments", mapOf("on" to Experiments.line(experiments)))
+        SessionEvents.record("session.remote_config", mapOf("applied" to (remoteConfig?.line() ?: "none")))
+        com.droiddeck.launcher.telemetry.RemoteConfig.writeSnapshot(this, sessionDir, remoteConfig, experiments)
         try {
             GameEnvironmentStore.publish(this)
         } catch (e: Exception) {
@@ -558,7 +562,10 @@ class SessionService : Service() {
             File(LinuxRuntime.rootDir(this), com.droiddeck.launcher.hud.HudFrames.PATH),
             if (steamHere) listOf("arm64", "x86_64").map { File(SessionPrefs.steamRoot(this, it), "logs/connection_log.txt") } else emptyList(),
             listOf(File(sessionDir, "session.log"), com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this)),
-        ) { exit -> if (exit.abnormal) com.droiddeck.launcher.telemetry.TelemetryUploader.uploadNow(this, sessionDir) }.let {
+        ) { exit ->
+            com.droiddeck.launcher.telemetry.RemoteConfig.gameExited(this, exit)
+            if (exit.abnormal) com.droiddeck.launcher.telemetry.TelemetryUploader.uploadNow(this, sessionDir)
+        }.let {
             it.attach(this)
             components.add(it)
         }
