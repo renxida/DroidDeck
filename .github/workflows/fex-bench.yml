@@ -88,6 +88,8 @@ jobs:
           sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0 || true
           CONFIG=fex_game_dc tools/fex/bench/profile.sh
           CONFIG=fex_game tools/fex/bench/profile.sh
+          # Which guest library the time in translated code belongs to (disk cache off so every block is named).
+          CONFIG=fex_l1_256k EXTRA="FEX_DISKCACHE=0 FEX_LIBRARYJITNAMING=1" tools/fex/bench/profile.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
