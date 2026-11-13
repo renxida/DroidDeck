@@ -61,6 +61,7 @@ class ExperimentsTest {
             "native-engine" to "DROIDDECK_EXP_NATIVE_ENGINE",
             "dxvk-arm64ec" to "DROIDDECK_EXP_DXVK_ARM64EC",
             "composite-timing" to "DROIDDECK_EXP_COMPOSITE_TIMING",
+            "dotnet-r2r" to "DROIDDECK_EXP_DOTNET_R2R",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

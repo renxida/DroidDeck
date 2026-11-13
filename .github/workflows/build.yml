@@ -504,6 +504,8 @@ jobs:
           D=app/src/main/assets/linuxfs/usr/local/lib/droiddeck-tso-litmus
           bash tools/tso-litmus/build.sh "$D" --smoke 20
           test -f "$D/tso-litmus.exe" && test -f "$D/tso-litmus.dll"
+      - name: Fetch crossgen2 for droiddeck-dotnet-r2r (MIT, Microsoft.NETCore.App.Crossgen2.linux-arm64)
+        run: bash tools/dotnet-r2r/fetch-crossgen2.sh app/src/main/assets/linuxfs/usr/local/lib/droiddeck-crossgen2
 
       - name: Build
         id: build
