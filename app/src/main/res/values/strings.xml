@@ -2120,6 +2120,7 @@
     <string name="exp_one_limiter">Capped Godot games: the frame cap is the only limiter (vsync off)</string>
     <string name="exp_native_hz">Capped games: the screen keeps its own refresh rate</string>
     <string name="exp_quick_tap">Taps: release reaches the game after 20 ms, not 50 ms</string>
+    <string name="exp_free_memory">Close other apps\' background processes when a session or game starts</string>
     <string name="exp_fex_codegen">FEX: no LRCPC2 on cores with the LDAPUR erratum</string>
     <string name="exp_present">Screen frames</string>
     <string name="exp_present_off">One in flight</string>
