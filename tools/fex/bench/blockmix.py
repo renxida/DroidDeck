@@ -87,8 +87,12 @@ def kind(ins):
         return "flags"
     if op in ("dmb", "dsb", "isb") or re.match(r"(ldapr|ldar|stlr|ldapur|stlur|ldaxr|stlxr|ldxr|stxr|cas|ldadd|ldclr|ldset|ldeor|swp)", op):
         return "ordering"
+    if "[x28, #160]" in ins:
+        return "branch lookup"  # loads the per-thread lookup table for an indirect branch, call or return
     if "[x28" in ins:
         return "state"
+    if op == "movk":
+        return "constants"  # 64-bit immediates (guest addresses) built 16 bits at a time
     if op in ("adds", "subs", "cmp", "cmn", "tst", "ands", "bics", "adcs", "sbcs", "ccmp", "ccmn", "fcmp", "fcmpe", "negs", "ngcs"):
         return "sets flags"
     if re.search(r"\b[vqdsbh]\d+\b|\bz\d+\b", ins) and not op.startswith(("b", "cb", "tb")):
@@ -99,7 +103,7 @@ def kind(ins):
         return "branch"
     return "alu/other"
 
-KINDS = ["alu/other", "load/store", "branch", "sets flags", "flags", "ordering", "state", "vector"]
+KINDS = ["alu/other", "load/store", "branch", "sets flags", "flags", "ordering", "state", "vector", "branch lookup", "constants"]
 w = collections.Counter()
 wsum = blow = blow_w = covered = 0.0
 rows = []
@@ -123,7 +127,10 @@ if blow_w:
 if wsum:
     print("ARM instruction mix in the hot blocks (sample-weighted):")
     for k in KINDS:
-        print(f"  mix: {k:11s} {100 * w[k] / wsum:5.1f}%")
+        print(f"  mix: {k:13s} {100 * w[k] / wsum:5.1f}%")
+    # Each lookup is the table load plus about 6 more instructions (mask, add, pair load, compare, branch, fallback).
+    print(f"  est. inline indirect-branch lookups (8 instr each): {800 * w['branch lookup'] / wsum:5.1f}%")
+    print(f"  est. 64-bit constant building (movk plus its mov): {100 * w['constants'] * 4 / 3 / wsum:5.1f}%")
 print()
 for pct, name, b, c, n in rows[:8]:
     mix = ", ".join(f"{k} {c[k]}" for k in KINDS if c[k])
