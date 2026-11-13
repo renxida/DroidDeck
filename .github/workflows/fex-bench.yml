@@ -71,6 +71,8 @@ jobs:
           cp bench-r2r-x64/* rootfs/bench/r2r/
           ls rootfs/opt/dotnet/shared/Microsoft.NETCore.App
       - name: Run
+        # A push whose commit message has [blockmix-only] runs just the instruction-mix step, for iterating on it.
+        if: ${{ !contains(github.event.head_commit.message, '[blockmix-only]') }}
         env:
           BENCH_DLL: ${{ github.workspace }}/bench-bin/Bench.dll
           FEX_BIN: ${{ github.workspace }}/fex-linux/Bin
@@ -83,6 +85,8 @@ jobs:
           ROUNDS=2 tools/fex/bench/run.sh
           cat bench-out/summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Frame loop, every approach (code caches, ReadyToRun, ordering, regions, huge pages)
+        # A push whose commit message has [blockmix-only] runs just the instruction-mix step, for iterating on it.
+        if: ${{ !contains(github.event.head_commit.message, '[blockmix-only]') }}
         env:
           JIT_DLL: ${{ github.workspace }}/bench-bin/Bench.dll
           R2R_DLL: ${{ github.workspace }}/bench-r2r-arm64/Bench.dll
@@ -96,6 +100,8 @@ jobs:
           tools/fex/bench/cache-bench.sh
           cat bench-out/frames-summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Profile where FEX's time goes (warm disk cache, and fresh)
+        # A push whose commit message has [blockmix-only] runs just the instruction-mix step, for iterating on it.
+        if: ${{ !contains(github.event.head_commit.message, '[blockmix-only]') }}
         env:
           FEX_BIN: ${{ github.workspace }}/fex-linux/Bin
           ROOTFS: ${{ github.workspace }}/rootfs
