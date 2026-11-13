@@ -72,7 +72,8 @@ DOTNET_FEX_EXPERIMENTS = (
 # Settings > Advanced > Experiments, one DROIDDECK_EXP_<NAME>=1 each. The game-level parts follow the
 # saved settings at each launch; the Steam-side parts follow the values the Steam session started with.
 EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
-               "sched", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso", "fex-tso", "fex-fast")
+               "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
+               "fex-tso", "fex-fast")
 
 
 def experiment_name(experiment):
@@ -93,7 +94,7 @@ def without_experiments(env):
 
 # Their effect is fixed when the session starts (the app, droiddeck-session and Steam's scripts); memory is split:
 # its game part follows the saved switches and its app part the session's.
-SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence")
+SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap")
 
 
 def experiments_line(saved, session):
@@ -1020,9 +1021,15 @@ def thread_budget(budget, cores):
 
 
 FPS_CAP = re.compile(r"[1-9][0-9]{0,2}")
+GAME_IMAGES = "8"
+CAPPED_IMAGES = "3"
 
 
 def frame_cap(command, env):
+    """One limiter per game. Godot sleeps for --max-fps at the end of its main loop, so the next frame reads input
+    right after the wait; DXVK's and VKD3D's limiters sleep in present, after the frame's input was read, and
+    another limiter at the same rate drifts against Godot's and adds a queued frame each time it falls behind.
+    DXVK and VKD3D limit only games that are not Godot."""
     value = env.get("DROIDDECK_FPS_CAP", "").strip()
     if not value or value == "0":
         return command, None
@@ -1036,15 +1043,27 @@ def frame_cap(command, env):
             ways.append("Godot --max-fps from the launch options kept")
         else:
             cut = next((i for i, arg in enumerate(args) if arg in ("--", "++")), len(args))
-            command = command[:3] + args[:cut] + ["--max-fps", fps] + args[cut:]
-            ways.append("Godot --max-fps")
-    own = env.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
-    if not re.search(r"(?:^|;)\s*dxvk\.maxFrameRate\s*=", own):
-        env["DXVK_CONFIG"] = own + "; dxvk.maxFrameRate = " + fps if own else "dxvk.maxFrameRate = " + fps
-        ways.append("DXVK")
-    if not env.get("VKD3D_FRAME_RATE"):
-        env["VKD3D_FRAME_RATE"] = fps
-        ways.append("VKD3D")
+            extra = ["--max-fps", fps]
+            # Godot's vsync is a second limiter at the panel rate: its FIFO swapchain fills whenever the timer runs
+            # ahead of the screen. Xwayland and gamescope never tear, so without it the cap is the only pacing.
+            if experiment(env, "one-limiter") and "--disable-vsync" not in args[:cut]:
+                extra.append("--disable-vsync")
+            command = command[:3] + args[:cut] + extra + args[cut:]
+            ways.append("Godot --max-fps" + (", vsync off" if len(extra) > 2 else ""))
+    else:
+        own = env.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
+        if not re.search(r"(?:^|;)\s*dxvk\.maxFrameRate\s*=", own):
+            env["DXVK_CONFIG"] = own + "; dxvk.maxFrameRate = " + fps if own else "dxvk.maxFrameRate = " + fps
+            ways.append("DXVK")
+        if not env.get("VKD3D_FRAME_RATE"):
+            env["VKD3D_FRAME_RATE"] = fps
+            ways.append("VKD3D")
+    # With gamescope's WSI layer a FIFO game gets GAMESCOPE_WSI_MIN_IMAGE_COUNT images and gamescope queues every
+    # one of them: a capped game running a little ahead of the screen keeps seven frames waiting. Three is the
+    # layer's own default (one shown, one queued, one drawing).
+    if env.get("GAMESCOPE_WSI_MIN_IMAGE_COUNT") == GAME_IMAGES:
+        env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"] = CAPPED_IMAGES
+        ways.append("%s swapchain images" % CAPPED_IMAGES)
     return command, "frame cap %s fps (%s)" % (fps, ", ".join(ways) or "already set")
 
 
@@ -1054,11 +1073,15 @@ PACING_SWITCHES = (("adpf", "DROIDDECK_PACING_ADPF"), ("display", "DROIDDECK_PAC
 
 def pacing_line(env, app_id):
     """The line the app reads from session.log to pace the launch's frame cap: the ADPF target, the
-    display vote and the thermal governor, each on unless its variable is 0."""
+    display vote and the thermal governor, each on unless its variable is 0. Experiment native-hz turns the
+    display vote off unless the game's profile sets it: a 60 Hz panel doubles every wait for a refresh between
+    the game and the screen."""
     fps = env.get("DROIDDECK_FPS_CAP", "").strip()
     if not app_id or not FPS_CAP.fullmatch(fps):
         return None
-    switches = " ".join("%s=%d" % (key, env.get(name, "1").strip().lower() not in ("0", "off", "false", "no"))
+    defaults = {"DROIDDECK_PACING_DISPLAY": "0" if experiment(env, "native-hz") else "1"}
+    switches = " ".join("%s=%d" % (key, env.get(name, defaults.get(name, "1")).strip().lower()
+                                   not in ("0", "off", "false", "no"))
                         for key, name in PACING_SWITCHES)
     return "DROIDDECK_PACING app_id=%s cap=%s %s" % (app_id, fps, switches)
 
@@ -1197,7 +1220,7 @@ def gl_vsync(env):
 def game_images(env):
     if game_id(env) is None:
         return False
-    env.setdefault("GAMESCOPE_WSI_MIN_IMAGE_COUNT", "8")
+    env.setdefault("GAMESCOPE_WSI_MIN_IMAGE_COUNT", GAME_IMAGES)
     env.setdefault("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT", "1")
     return True
 

@@ -97,25 +97,57 @@ class FrameCapTest(unittest.TestCase):
         env = {"DROIDDECK_FPS_CAP": "60"}
         command, note = self.cap([str(self.godot), "--rendering-driver", "vulkan", "--", "--mod"], env)
         self.assertEqual(command[3:], ["--rendering-driver", "vulkan", "--max-fps", "60", "--", "--mod"])
-        self.assertEqual(note, "frame cap 60 fps (Godot --max-fps, DXVK, VKD3D)")
-        self.assertEqual(env["DXVK_CONFIG"], "dxvk.maxFrameRate = 60")
-        self.assertEqual(env["VKD3D_FRAME_RATE"], "60")
+        self.assertEqual(note, "frame cap 60 fps (Godot --max-fps)")
+
+    def test_godot_is_capped_in_one_place_only(self):
+        env = {"DROIDDECK_FPS_CAP": "60", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 2048"}
+        self.cap([str(self.godot)], env)
+        self.assertEqual(env, {"DROIDDECK_FPS_CAP": "60", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 2048"})
+
+    def test_one_limiter_turns_godots_vsync_off_under_the_cap(self):
+        env = {"DROIDDECK_FPS_CAP": "60", "DROIDDECK_EXP_ONE_LIMITER": "1"}
+        command, note = self.cap([str(self.godot), "--", "--mod"], env)
+        self.assertEqual(command[3:], ["--max-fps", "60", "--disable-vsync", "--", "--mod"])
+        self.assertEqual(note, "frame cap 60 fps (Godot --max-fps, vsync off)")
+        command, note = self.cap([str(self.godot), "--disable-vsync"], dict(env))
+        self.assertEqual(command[3:], ["--disable-vsync", "--max-fps", "60"])
+        self.assertEqual(note, "frame cap 60 fps (Godot --max-fps)")
+        command, _ = self.cap([str(self.godot), "--max-fps", "90"], dict(env))
+        self.assertEqual(command[3:], ["--max-fps", "90"])
+        command, _ = self.cap([str(self.other)], dict(env))
+        self.assertEqual(command[3:], [])
+
+    def test_a_capped_game_gets_three_gamescope_swapchain_images_not_eight(self):
+        env = {"DROIDDECK_FPS_CAP": "60", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8"}
+        _, note = self.cap([str(self.godot)], env)
+        self.assertEqual(env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "3")
+        self.assertEqual(note, "frame cap 60 fps (Godot --max-fps, 3 swapchain images)")
+        env = {"DROIDDECK_FPS_CAP": "60", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "5"}
+        self.cap([str(self.other)], env)
+        self.assertEqual(env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "5")
+        env = {"GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8"}
+        self.cap([str(self.other)], env)
+        self.assertEqual(env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "8")
 
     def test_settings_the_player_made_are_kept(self):
         env = {"DROIDDECK_FPS_CAP": "30", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 2048;", "VKD3D_FRAME_RATE": "45"}
         command, note = self.cap([str(self.godot), "--max-fps", "90"], env)
         self.assertEqual(command[3:], ["--max-fps", "90"])
+        self.assertEqual(note, "frame cap 30 fps (Godot --max-fps from the launch options kept)")
+        command, note = self.cap([str(self.other)], env)
         self.assertEqual(env["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 30")
         self.assertEqual(env["VKD3D_FRAME_RATE"], "45")
-        self.assertEqual(note, "frame cap 30 fps (Godot --max-fps from the launch options kept, DXVK)")
+        self.assertEqual(note, "frame cap 30 fps (DXVK)")
         env = {"DROIDDECK_FPS_CAP": "30", "DXVK_CONFIG": "dxvk.maxFrameRate = 120", "VKD3D_FRAME_RATE": "45"}
         self.assertEqual(self.cap([str(self.other)], env)[1], "frame cap 30 fps (already set)")
 
     def test_other_games_are_capped_through_dxvk_and_vkd3d_only(self):
         env = {"DROIDDECK_FPS_CAP": "40"}
-        command, _ = self.cap([str(self.other), "-windowed"], env)
+        command, note = self.cap([str(self.other), "-windowed"], env)
         self.assertEqual(command[3:], ["-windowed"])
+        self.assertEqual(env["DXVK_CONFIG"], "dxvk.maxFrameRate = 40")
         self.assertEqual(env["VKD3D_FRAME_RATE"], "40")
+        self.assertEqual(note, "frame cap 40 fps (DXVK, VKD3D)")
 
     def test_no_cap_or_a_bad_value_leaves_the_launch_alone(self):
         for value in (None, "", "0"):
@@ -150,19 +182,25 @@ class FrameCapTest(unittest.TestCase):
         for name in ("DROIDDECK_FPS_CAP", "DROIDDECK_GAME_CPU_BUDGET", "VKD3D_FRAME_RATE", "DXVK_CONFIG",
                      "DROIDDECK_FPS_GOVERNOR", "DROIDDECK_PACING_ADPF", "DROIDDECK_PACING_DISPLAY"):
             env.pop(name, None)
-        for profile, args, cap in (({}, ["--max-fps", "60"], "60"), ({"DROIDDECK_FPS_CAP": "0"}, [], "0"),
-                                   ({"DROIDDECK_FPS_CAP": "30", "DROIDDECK_FPS_GOVERNOR": "0"}, ["--max-fps", "30"], "30")):
-            with self.subTest(profile=profile):
-                config.write_text(json.dumps({"version": 1, "shared": {"DROIDDECK_EXP_SCHED": "1"}, "games": {"2868840": profile}}))
+        cases = (({}, {}, ["--max-fps", "60"], "60", 1), ({"DROIDDECK_FPS_CAP": "0"}, {}, [], "0", 1),
+                 ({"DROIDDECK_FPS_CAP": "30", "DROIDDECK_FPS_GOVERNOR": "0"}, {}, ["--max-fps", "30"], "30", 1),
+                 ({}, {"DROIDDECK_EXP_ONE_LIMITER": "1", "DROIDDECK_EXP_NATIVE_HZ": "1"},
+                  ["--max-fps", "60", "--disable-vsync"], "60", 0),
+                 ({"DROIDDECK_PACING_DISPLAY": "1"}, {"DROIDDECK_EXP_NATIVE_HZ": "1"}, ["--max-fps", "60"], "60", 1))
+        for profile, switches, args, cap, display in cases:
+            with self.subTest(profile=profile, switches=switches):
+                config.write_text(json.dumps({"version": 1, "shared": {"DROIDDECK_EXP_SCHED": "1", **switches},
+                                              "games": {"2868840": profile}}))
                 result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
                                          str(proton), "waitforexitandrun", str(self.godot)],
                                         env=env, text=True, capture_output=True, check=True)
                 argv, seen_cap, vkd3d = json.loads(result.stdout.strip().splitlines()[-1])
                 self.assertEqual(argv, ["waitforexitandrun", str(self.godot), "--rendering-driver", "vulkan", *args])
                 self.assertEqual(seen_cap, cap)
-                self.assertEqual(vkd3d, None if cap == "0" else cap)
+                self.assertEqual(vkd3d, None)
                 self.assertIn("Slay the Spire 2: game threads kept off the little cores", result.stderr)
-                self.assertEqual("droiddeck-game-env: frame cap %s fps (Godot --max-fps, DXVK, VKD3D)" % cap in result.stderr,
+                ways = "Godot --max-fps" + (", vsync off" if "--disable-vsync" in args else "") + ", 3 swapchain images"
+                self.assertEqual("droiddeck-game-env: frame cap %s fps (%s)" % (cap, ways) in result.stderr,
                                  cap != "0", result.stderr)
                 pacing = [line for line in result.stderr.splitlines() if line.startswith("DROIDDECK_PACING ")]
                 exits = [line for line in result.stderr.splitlines() if line.startswith("DROIDDECK_TIMELINE event=game_exit ")]
@@ -170,7 +208,8 @@ class FrameCapTest(unittest.TestCase):
                     self.assertEqual(pacing, [])
                 else:
                     governor = 0 if profile.get("DROIDDECK_FPS_GOVERNOR") == "0" else 1
-                    self.assertEqual(pacing, ["DROIDDECK_PACING app_id=2868840 cap=%s adpf=1 display=1 governor=%d" % (cap, governor)])
+                    self.assertEqual(pacing, ["DROIDDECK_PACING app_id=2868840 cap=%s adpf=1 display=%d governor=%d"
+                                              % (cap, display, governor)])
                 self.assertEqual(len(exits), 1, result.stderr)
                 self.assertIn("app_id=2868840 status=0 ", exits[0])
 
@@ -186,6 +225,13 @@ class PacingLineTest(unittest.TestCase):
         for env in ({}, {"DROIDDECK_FPS_CAP": "0"}, {"DROIDDECK_FPS_CAP": "fast"}):
             self.assertIsNone(line(env, "7"))
         self.assertIsNone(line({"DROIDDECK_FPS_CAP": "60"}, None))
+
+    def test_native_hz_leaves_the_display_at_its_own_rate_unless_the_profile_asks(self):
+        line = MODULE["pacing_line"]
+        native = {"DROIDDECK_FPS_CAP": "60", "DROIDDECK_EXP_NATIVE_HZ": "1"}
+        self.assertEqual(line(native, "7"), "DROIDDECK_PACING app_id=7 cap=60 adpf=1 display=0 governor=1")
+        self.assertEqual(line({**native, "DROIDDECK_PACING_DISPLAY": "1"}, "7"),
+                         "DROIDDECK_PACING app_id=7 cap=60 adpf=1 display=1 governor=1")
 
     def test_a_pacing_line_makes_the_launch_wait_unless_the_exit_watch_is_switched_off(self):
         watch = MODULE["exit_watch"]

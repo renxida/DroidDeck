@@ -43,7 +43,9 @@ class ExperimentsTest {
             "all" to "DROIDDECK_EXP_ALL", "compat-quiet" to "DROIDDECK_EXP_COMPAT_QUIET",
             "memory" to "DROIDDECK_EXP_MEMORY", "adpf-all" to "DROIDDECK_EXP_ADPF_ALL",
             "two-frames" to "DROIDDECK_EXP_TWO_FRAMES", "layer-fence" to "DROIDDECK_EXP_LAYER_FENCE",
-            "sched" to "DROIDDECK_EXP_SCHED", "fex-codegen" to "DROIDDECK_EXP_FEX_CODEGEN",
+            "sched" to "DROIDDECK_EXP_SCHED", "one-limiter" to "DROIDDECK_EXP_ONE_LIMITER",
+            "native-hz" to "DROIDDECK_EXP_NATIVE_HZ", "quick-tap" to "DROIDDECK_EXP_QUICK_TAP",
+            "fex-codegen" to "DROIDDECK_EXP_FEX_CODEGEN",
             "fex-memcpy-tso" to "DROIDDECK_EXP_FEX_MEMCPY_TSO", "fex-vector-tso" to "DROIDDECK_EXP_FEX_VECTOR_TSO",
             "fex-tso" to "DROIDDECK_EXP_FEX_TSO", "fex-fast" to "DROIDDECK_EXP_FEX_FAST",
         )
@@ -62,11 +64,11 @@ class ExperimentsTest {
 
     @Test fun aFreshInstallTurnsEverythingOnButLayerFenceAndTheFrameCap() {
         val everything = setOf("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames",
-            "fex-codegen", "fex-fast")
+            "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-fast")
         assertEquals(everything, Experiments.defaults)
         assertEquals(everything, Experiments.enabled(context))
         assertEquals(1, Experiments.presentMode(Experiments.enabled(context)))
-        assertEquals("godot-render,warmup,all,compat-quiet,memory,adpf-all,two-frames,fex-codegen,fex-fast",
+        assertEquals("godot-render,warmup,all,compat-quiet,memory,adpf-all,two-frames,one-limiter,native-hz,quick-tap,fex-codegen,fex-fast",
             Experiments.line(Experiments.enabled(context)))
         GameEnvironmentStore.publish(context)
         assertEquals(everything.map { Experiments.envName(it) }.toSet(),

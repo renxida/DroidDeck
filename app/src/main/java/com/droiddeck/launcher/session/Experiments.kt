@@ -22,6 +22,9 @@ object Experiments {
     const val TWO_FRAMES = "two-frames"
     const val LAYER_FENCE = "layer-fence"
     const val SCHED = "sched"
+    const val ONE_LIMITER = "one-limiter"
+    const val NATIVE_HZ = "native-hz"
+    const val QUICK_TAP = "quick-tap"
     const val FEX_CODEGEN = "fex-codegen"
     const val FEX_MEMCPY_TSO = "fex-memcpy-tso"
     const val FEX_VECTOR_TSO = "fex-vector-tso"
@@ -38,6 +41,9 @@ object Experiments {
         Switch(MEMORY, R.string.exp_memory),
         Switch(ADPF_ALL, R.string.exp_adpf_all),
         Switch(SCHED, R.string.exp_sched),
+        Switch(ONE_LIMITER, R.string.exp_one_limiter),
+        Switch(NATIVE_HZ, R.string.exp_native_hz),
+        Switch(QUICK_TAP, R.string.exp_quick_tap),
         Switch(FEX_CODEGEN, R.string.exp_fex_codegen),
     )
 
@@ -53,10 +59,11 @@ object Experiments {
 
     /** The order the guest's droiddeck-game-env lists them in. */
     val ids = listOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, LAYER_FENCE,
-        SCHED, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST)
+        SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
-    val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, FEX_CODEGEN, FEX_FAST)
+    val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
+        QUICK_TAP, FEX_CODEGEN, FEX_FAST)
 
     fun envName(id: String) = "DROIDDECK_EXP_" + id.uppercase().replace('-', '_')
 

@@ -2632,7 +2632,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         setRelativeMouse(relativeMouseMode)
         gestureTouchStreamGate.reset()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.configure(gestureConfig)
-        if (::directTouchHold.isInitialized) directTouchHold.configure(gestureConfig)
+        if (::directTouchHold.isInitialized) {
+            directTouchHold.configure(gestureConfig)
+            directTouchHold.quickLift = com.droiddeck.launcher.session.Experiments.on(this, com.droiddeck.launcher.session.Experiments.QUICK_TAP)
+        }
         gesturePointerReady = false
         recognizedGesture = null
     }
