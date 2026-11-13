@@ -9,6 +9,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 
 import com.droiddeck.launcher.session.SessionState;
+import com.droiddeck.launcher.telemetry.InputLatency;
 
 import java.io.File;
 import java.util.Arrays;
@@ -416,6 +417,8 @@ public final class PadBridge {
         scheduleStats();
         publish(slot);
         InputTiming.end(timing);
+        if (event.getRepeatCount() == 0)
+            InputLatency.INSTANCE.mark(pressed ? InputLatency.PAD_DOWN : InputLatency.PAD_UP, event.getEventTime() * 1_000_000L);
         return true;
     }
 

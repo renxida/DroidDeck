@@ -17,6 +17,7 @@
 #include "effects_chain.h"
 #include "droiddeck_color.h"
 #include "gpu_clock_pin.h"
+#include "latency_probe.h"
 
 extern int droiddeck_wayland_run(void);
 extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
@@ -31,6 +32,7 @@ extern int  droiddeck_cursor_input_pos(int *x, int *y);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_set_cursor_composite(int on);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
+extern void droiddeck_wayland_input_mark(int kind, int64_t event_ns);
 extern void droiddeck_stream_set(int on);
 extern void droiddeck_stream_frame(AHardwareBuffer *ahb);
 extern unsigned droiddeck_stream_frames(void);
@@ -346,6 +348,35 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendSceneInput(
         JNIEnv *env, jclass clazz, jint type, jint a, jint b) {
     droiddeck_wayland_send_scene_input(type, a, b);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeInputMark(JNIEnv *env, jclass clazz, jint kind, jlong eventNs) {
+    droiddeck_wayland_input_mark((int)kind, (int64_t)eventNs);
+}
+
+JNIEXPORT jint JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLatencyDrain(JNIEnv *env, jclass clazz, jlongArray out) {
+    if (!out) return 0;
+    const jsize len = (*env)->GetArrayLength(env, out);
+    const int rows = len / LP_FIELDS;
+    if (rows <= 0) return 0;
+    int64_t *buf = malloc((size_t)rows * LP_FIELDS * sizeof(int64_t));
+    if (!buf) return 0;
+    const int n = lp_drain(buf, rows);
+    if (n > 0) (*env)->SetLongArrayRegion(env, out, 0, n * LP_FIELDS, (const jlong *)buf);
+    free(buf);
+    return n;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLatencyDropped(JNIEnv *env, jclass clazz) {
+    return (jint)lp_dropped();
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeDisplayTiming(JNIEnv *env, jclass clazz) {
+    return vkp_display_timing() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL

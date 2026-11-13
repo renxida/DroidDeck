@@ -277,6 +277,37 @@ the widened ADPF hints.
 Untouched: the DOTNET_FEX TSO values and telemetry code (only its `Tail` reader and `SessionEvents`
 are used).
 
+### 5.2 Input latency (perf/latency)
+
+A tap on StS2, from the Android event to the panel. Worst cases are read from the code at a 60 fps
+cap on the Pixel 10 (PowerVR: the game presents through the vulkan-wsi-layer X11 backend, three
+images; gamescope's WSI layer is off). "After" is with one-limiter, native-hz and quick-tap on and a
+120 Hz panel. None of it is measured yet; latency.csv is how to measure it.
+
+| Stage | Mechanism | Before | After |
+|---|---|---|---|
+| Android dispatch | DOWN/UP are not batched; waits for the app's main thread | main-thread load | same |
+| DirectTouchHold | a tap's down waits for the lift, then the up waits `LIFT_MS` | 50 ms | 20 ms after the down reached the game, 0 if it already had (quick-tap) |
+| App → compositor | pipe message, read on the compositor thread between composites | one composite | same |
+| Compositor → game | wl_touch → gamescope → Xwayland → Wine, flushed at once | ~1–2 ms | same |
+| Game reads input | Godot reads events after its `--max-fps` sleep | 16.7 ms (25/33 under the governor) | same |
+| Second limiter | VKD3D/DXVK at the same rate drift against Godot's timer when in the path | 0–16.7 ms | 0 (Godot capped in one place) |
+| Godot vsync | FIFO, target = last shown + 1, two images can queue | 2 × 16.7 = 33 ms | ~0 (one-limiter: vsync off, one present in flight) |
+| gamescope | composites on its vblank at the host rate | 16.7 ms | 8.3 ms (native-hz) |
+| gamescope WSI (Adreno only) | FIFO commits, `GAMESCOPE_WSI_MIN_IMAGE_COUNT=8` | 7 × 16.7 = 117 ms | 2 × refresh (3 images when capped) |
+| App compositor | renders on commit, once per Choreographer tick, may hold to the next tick | 33 ms | 16.7 ms |
+| Governor hold | `g_fps_limit` at 40/30 holds scene renders | 25/33 ms when stepped down | same |
+| Screen swapchain | FIFO, minImageCount+1+extra (4): up to 3 queued | 50 ms | 25 ms |
+| SurfaceFlinger + scanout | latch at vsync, present at the next | 33 ms | 16.7 ms |
+
+latency.csv (session folder, also in the telemetry upload) has one row per touch down/up and pad
+button: `t_ms,kind,inject_us,commit_us,present_us,display_us,present_id,swap_pending,refresh_us,cap`.
+Times are µs after the Android event. `commit_us` is the first new game frame after the input reached
+the guest, a lower bound on the game's reaction. `display_us` comes from VK_GOOGLE_display_timing on
+the screen swapchain and is empty without it. events.jsonl gets an `input.latency` event per minute
+with input: medians and 90th percentiles of touch→present, touch→display, touch→commit, inject, and
+pad→present.
+
 ## 6. On-device experiment plan
 
 Setup: Pixel 10, Kestrel APK from this branch, StS2. Use the same save, a 15-minute loop (map

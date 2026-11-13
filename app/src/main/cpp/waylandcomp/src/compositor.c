@@ -35,6 +35,7 @@
 #include "droiddeck_ext.h"
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
+#include "latency_probe.h"
 
 #define WLOGI(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", __VA_ARGS__)
 #define WLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", __VA_ARGS__)
@@ -831,6 +832,7 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
             g_hud_shm = s;
             g_hud_shm_ns = now;
             g_hud_new = 1;
+            lp_commit(now);
             droiddeck_on_game_frame();
         }
     }
@@ -933,7 +935,11 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     }
     if (s == g_hud_surface) {
         g_hud_alive_ns = now_ns();
-        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_hud_new = 1; g_game_frames++; droiddeck_on_game_frame(); }
+        if (!repeat) {
+            g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_hud_new = 1; g_game_frames++;
+            lp_commit(g_hud_alive_ns);
+            droiddeck_on_game_frame();
+        }
     }
 }
 
@@ -2209,6 +2215,7 @@ static void render_scene(void) {
     struct surface *s;
     int w, h;
     const int64_t t_scene = now_ns();
+    const unsigned presents_before = vkp_present_count();
     int copy = 0;
 
     if (g_dirty_since_ns) {
@@ -2376,6 +2383,8 @@ static void render_scene(void) {
             g_hud_new = 0;
             hud_frame_shown(t);
         }
+        lp_presented(now_ns(), copy && vkp_present_count() != presents_before ? vkp_last_present_id() : 0,
+                     vkp_swap_pending(), g_refresh_ns);
         wl_list_for_each(s, &g_surfaces, link) {
             if (s->drawn) feedback_present_all(&s->feedback, t);
             else g_pace.undrawn += feedback_discard_all(&s->feedback);
@@ -2442,6 +2451,12 @@ static void on_commit_idle(void *data) {
     render_scene();
 }
 
+static void latency_tick(int64_t now) {
+    if (!lp_busy()) return;
+    vkp_poll_display_times(lp_displayed);
+    lp_expire(now);
+}
+
 static void on_vsync(int64_t frame_time_ns) {
     int64_t now = now_ns();
     g_perf.ticks++;
@@ -2458,6 +2473,7 @@ static void on_vsync(int64_t frame_time_ns) {
     }
     g_last_vsync_ns = now;
     g_tick_vsync_ns = frame_time_ns;
+    latency_tick(now);
     int tick_change = 0;
     if (vkp_apply_window_request()) tick_change = 1;
     if (vkp_effects_sync()) tick_change = 1;
@@ -3548,6 +3564,12 @@ static void output_resized(void) {
     wl_display_flush_clients(g_display);
 }
 
+static void input_mark_read(const struct input_msg *m) {
+    const int64_t java_ns = ((int64_t)m->p3 << 32) | (uint32_t)m->p4;
+    const int64_t event_ns = java_ns - (int64_t)(uint32_t)m->p2 * 1000;
+    lp_input(m->p1, event_ns, m->p1 == LP_TOUCH_DOWN || m->p1 == LP_TOUCH_UP ? now_ns() : java_ns);
+}
+
 static int on_input_readable(int fd, uint32_t mask, void *data) {
     struct input_msg m;
     int vsync = 0;
@@ -3572,6 +3594,7 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 20: stream_take(); break;
         case 21: if (!m.p1) stream_forget_all(); schedule_render(); break;
         case 22: schedule_render(); break;
+        case 30: input_mark_read(&m); break;
         default: deliver_pointer(&m); break;
         }
     }
@@ -3642,6 +3665,19 @@ void droiddeck_wayland_vsync(int64_t frame_time_ns) {
 void droiddeck_wayland_send_scene_input(int type, int a, int b) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { type, a, b, 0, 0 };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+/* After the input itself is queued: touch reaches the game when this message is read, a pad button when
+ * the app published it (now). */
+void droiddeck_wayland_input_mark(int kind, int64_t event_ns) {
+    if (g_input_pipe[1] < 0) return;
+    const int64_t java_ns = now_ns();
+    int64_t age_us = (java_ns - event_ns) / 1000;
+    if (age_us < 0 || event_ns <= 0) age_us = 0;
+    if (age_us > 0x7fffffffLL) age_us = 0x7fffffffLL;
+    struct input_msg m = { 30, kind, (int)age_us, (int)(java_ns >> 32), (int)(uint32_t)java_ns };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
     (void)n;
 }

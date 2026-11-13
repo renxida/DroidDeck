@@ -43,6 +43,7 @@ class TelemetryUploadTest {
         resolve("clocks.log").writeText("== clocks: test\nstart: wall_ms=1762941600000 tz_offset_min=0\n10:00:02 p0 1800/1800\n")
         resolve(FrameLogComponent.FILE).writeText("# frames t0_wall_ms=1762941600000 t0_mono_ns=1 source=gamescope\nt_ms,frametime_us\n10,16666\n")
         resolve("memory.csv").writeText("t_wall_ms,used_mb\n1762941600000,4000\n")
+        resolve(LatencyLogComponent.FILE).writeText("# latency t0_wall_ms=1762941600000 t0_mono_ns=1\n${LatencyCsvWriter.COLUMNS}\n5,touch_up,40,9000,9500,25000,7,2,8333,60\n")
         resolve("device.txt").writeText("Model: test\n")
         BuildInfo.write(app, this)
     }
@@ -76,7 +77,7 @@ class TelemetryUploadTest {
         val dir = session()
         val sessionZip = EnhancedSessionLogShare.create(app, dir).single { it.name.endsWith("-session.zip") }
         ZipFile(sessionZip).use { archive ->
-            listOf("clocks.log", FrameLogComponent.FILE, "events.jsonl", BuildInfo.FILE, "memory.csv").forEach {
+            listOf("clocks.log", FrameLogComponent.FILE, LatencyLogComponent.FILE, "events.jsonl", BuildInfo.FILE, "memory.csv").forEach {
                 assertNotNull(it, archive.getEntry("${dir.name}/$it"))
             }
         }
@@ -89,7 +90,7 @@ class TelemetryUploadTest {
         assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint"))
         ZipFile(upload).use { archive ->
             val names = archive.entries().toList().map { it.name }.toSet()
-            assertTrue(names.containsAll(listOf("upload.txt", BuildInfo.FILE, FrameLogComponent.FILE, "clocks.log",
+            assertTrue(names.containsAll(listOf("upload.txt", BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log",
                 "memory.csv", "events.jsonl", "device.txt", "session.log")))
             val log = archive.getInputStream(archive.getEntry("session.log")).bufferedReader().readText()
             assertTrue(log.startsWith("first line\n"))

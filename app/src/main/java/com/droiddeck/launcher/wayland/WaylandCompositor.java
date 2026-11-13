@@ -178,6 +178,14 @@ public final class WaylandCompositor {
 
     public static native void nativeVsync(long frameTimeNanos);
 
+    public static native void nativeInputMark(int kind, long eventNanos);
+
+    public static native int nativeLatencyDrain(long[] out);
+
+    public static native int nativeLatencyDropped();
+
+    public static native boolean nativeDisplayTiming();
+
     public static native int nativeCompositorTid();
 
     private static native String nativeCompositorFault();

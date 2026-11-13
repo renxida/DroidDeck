@@ -570,6 +570,13 @@ class SessionService : Service() {
             components.add(it)
         }
 
+        com.droiddeck.launcher.telemetry.LatencyLogComponent(
+            File(sessionDir, com.droiddeck.launcher.telemetry.LatencyLogComponent.FILE),
+        ).let {
+            it.attach(this)
+            components.add(it)
+        }
+
         GamePacingComponent(listOf(sessionLog, com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this))).let {
             it.attach(this)
             components.add(it)

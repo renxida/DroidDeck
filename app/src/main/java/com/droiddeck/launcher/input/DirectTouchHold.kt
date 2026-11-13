@@ -2,7 +2,9 @@ package com.droiddeck.launcher.input
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.MotionEvent
+import com.droiddeck.launcher.telemetry.InputLatency
 import kotlin.math.abs
 
 class DirectTouchHold(
@@ -17,10 +19,16 @@ class DirectTouchHold(
         fun cancel()
     }
 
+    /** Lift a tap once its down has been in the game [QUICK_GAP_MS], instead of [LIFT_MS] after the finger. */
+    var quickLift = false
+
     private val handler = Handler(Looper.getMainLooper())
     private var downX = 0f
     private var downY = 0f
     private var downId = 0
+    private var downEventMs = 0L
+    private var upEventMs = 0L
+    private var forwardedAtMs = 0L
     private var delayMs = 0L
     private var holdBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_CLICK
     private var forwarded = false
@@ -34,6 +42,7 @@ class DirectTouchHold(
         liftPending = false
         if (forwarded) {
             touch.up(liftId, upX, upY)
+            InputLatency.mark(InputLatency.TOUCH_UP, upEventMs * 1_000_000L)
             forwarded = false
         }
     }
@@ -88,6 +97,7 @@ class DirectTouchHold(
             downX = event.x
             downY = event.y
             downId = event.getPointerId(0)
+            downEventMs = event.eventTime
             if (holdBehavior == TouchGestureConfig.MOUSE_BEHAVIOR_NONE) forwardDown()
             else handler.postDelayed(hold, delayMs)
             return true
@@ -125,8 +135,10 @@ class DirectTouchHold(
                 upX = event.x
                 upY = event.y
                 liftId = event.getPointerId(event.actionIndex)
+                upEventMs = event.eventTime
                 liftPending = true
-                handler.postDelayed(lift, LIFT_MS)
+                val wait = if (quickLift) forwardedAtMs + QUICK_GAP_MS - SystemClock.uptimeMillis() else LIFT_MS
+                if (wait > 0) handler.postDelayed(lift, wait) else lift.run()
             }
             MotionEvent.ACTION_CANCEL -> cancel()
         }
@@ -136,9 +148,12 @@ class DirectTouchHold(
     private fun forwardDown() {
         touch.down(downId, downX, downY)
         forwarded = true
+        forwardedAtMs = SystemClock.uptimeMillis()
+        InputLatency.mark(InputLatency.TOUCH_DOWN, downEventMs * 1_000_000L)
     }
 
     private companion object {
         const val LIFT_MS = 50L
+        const val QUICK_GAP_MS = 20L
     }
 }
