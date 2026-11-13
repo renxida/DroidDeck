@@ -75,7 +75,8 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
                "wayland-present", "vk-count",
-               "native-inventory", "free-memory", "hybris-index")
+               "native-inventory", "free-memory", "hybris-index",
+               "hybris-index-session")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -132,7 +133,8 @@ def without_experiments(env):
 
 # Their effect is fixed when the session starts (the app, droiddeck-session and Steam's scripts); memory is split:
 # its game part follows the saved switches and its app part the session's.
-SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap")
+SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap",
+                       "hybris-index-session")
 
 
 def experiments_line(saved, session):
@@ -2013,6 +2015,8 @@ def hybris_index(env, layer_dir=HYBRIS_COMPAT_DIR):
     if not experiment(env, "hybris-index"):
         return None
     layers = env.get("VK_INSTANCE_LAYERS", "").split(":")
+    if "VK_LAYER_DROIDDECK_hybris_compat" in layers:
+        return "hybris-index: already indexed for the whole session (hybris-index-session)"
     if "VK_LAYER_HYBRIS_compat" not in layers:
         return "hybris-index: the game has no hybris compat layer to replace"
     if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_hybris_compat.so")):

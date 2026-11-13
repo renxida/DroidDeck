@@ -2119,6 +2119,7 @@
     <string name="exp_sched">Frame cap and thermal step-down for Slay the Spire 2</string>
     <string name="exp_vk_count">PowerVR games log Vulkan calls and blocking time per frame</string>
     <string name="exp_hybris_index">PowerVR games use the texture compatibility layer with faster per-call lookups</string>
+    <string name="exp_hybris_index_session">PowerVR: gamescope and Steam use it too (needs a new session)</string>
     <string name="exp_wayland_present">PowerVR games present to gamescope over Wayland, skipping their Xwayland</string>
     <string name="exp_one_limiter">Capped Godot games: the frame cap is the only limiter (vsync off)</string>
     <string name="exp_native_hz">Capped games: the screen keeps its own refresh rate</string>

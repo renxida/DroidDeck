@@ -662,6 +662,10 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             xclipse = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
                            VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_xclipse")
             self.assertIn("no hybris compat", MODULE["hybris_index"](xclipse, str(layer_dir)))
+            session = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertIn("already indexed", MODULE["hybris_index"](session, str(layer_dir)))
+            self.assertEqual(session["VK_LAYER_PATH"], base["VK_LAYER_PATH"])
 
     def test_other_gpus_and_non_game_calls_keep_the_original_launch(self):
         command = ["/proton", "waitforexitandrun", "game.exe"]

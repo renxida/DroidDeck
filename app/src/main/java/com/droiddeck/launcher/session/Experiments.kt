@@ -42,6 +42,7 @@ object Experiments {
     const val NATIVE_INVENTORY = "native-inventory"
     const val FREE_MEMORY = "free-memory"
     const val HYBRIS_INDEX = "hybris-index"
+    const val HYBRIS_INDEX_SESSION = "hybris-index-session"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -67,6 +68,7 @@ object Experiments {
         Switch(NATIVE_INVENTORY, R.string.exp_native_inventory),
         Switch(FREE_MEMORY, R.string.exp_free_memory),
         Switch(HYBRIS_INDEX, R.string.exp_hybris_index),
+        Switch(HYBRIS_INDEX_SESSION, R.string.exp_hybris_index_session),
     )
 
     /** At most one of each group is on. */
@@ -84,7 +86,7 @@ object Experiments {
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
         DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
         WAYLAND_PRESENT, VK_COUNT,
-        NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX)
+        NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, HYBRIS_INDEX_SESSION)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
