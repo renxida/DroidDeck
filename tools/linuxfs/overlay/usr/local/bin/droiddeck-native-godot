@@ -35,7 +35,9 @@ import tempfile
 import urllib.request
 
 # The published component. Built by .github/workflows/native-engine-build.yml (publish=true).
-COMPONENT = {"tag": "", "url": "", "sha256": ""}
+COMPONENT = {"tag": "native-engine-20",
+             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-20/native-engine.tar.zst",
+             "sha256": "c84254fca828b3d9be4e859fa32b3e99074d2dc4c090c13fdeeee11ab5b6f609"}
 CACHE = os.path.join(os.path.expanduser("~"), ".cache", "droiddeck", "native")
 
 # Files the game's data folder may hold that must come from the kit (runtime- or engine-specific).
