@@ -27,6 +27,9 @@ for round in $(seq 1 "$ROUNDS"); do
       sleep 0.3; kill $sp 2>/dev/null || true; wait $sp 2>/dev/null || true
     fi
     wall=$(echo "$(date +%s.%N) - $start" | bc)
+    # The job log is the only place these can be read from outside GitHub's artifact storage.
+    sed "s/^/  /" "$OUT/$name.$round.txt" >&2
+    [ -s "$OUT/$name.$round.stats" ] 2>/dev/null && sed "s/^/  stats: /" "$OUT/$name.$round.stats" >&2
     tail -n +2 "$OUT/$name.$round.txt" | sed "s/^/$name,$round,/" >> "$OUT/results.csv"
     if [ -s "$OUT/$name.$round.stats" ] 2>/dev/null; then
       sed "s/^/$name,$round,$wall,/" "$OUT/$name.$round.stats" >> "$OUT/fexstats.csv"
