@@ -1480,6 +1480,17 @@ case $mode in
           return
         fi
       fi
+      # A Steam app the client has installed here starts through the client's local launch call
+      # (launch-speed experiment): steam://rungameid follows the play target picked for the app and
+      # streamed from a PC on the LAN first, 13 s before the local launch (2026-11-12).
+      if [ "$state" -eq 3 ] && [ "${DROIDDECK_EXP_ALL:-}" = 1 ]; then
+        local how
+        if how=$(/usr/local/bin/droiddeck-agent --steam-run-game "$1" 2>/dev/null); then
+          echo "== steam: $1 $how"
+          return
+        fi
+        echo "== steam: $1 not started directly (${how:-no answer}); asking with steam://rungameid"
+      fi
       "${steam_client[@]:-$steam_root/steamrtarm64/steam}" "steam://rungameid/$1" >/dev/null 2>&1
       [ "$state" -eq 3 ] && return
       for tries in 1 2 3 4 5 6 7 8; do
