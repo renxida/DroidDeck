@@ -24,5 +24,5 @@ d_r2r_tc0      | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNE
 # stacked        | fex    | r2r | FEX_DISKCACHE=1 FEX_TSOENABLED=0 THP=always   (settled in round 3)
 # Round 10: per-site cache for indirect jumps and calls (patch 0006, IndirectBranchCache), on the stock cache and
 # on the best .NET setup. The block mix put 19% of translated-code time in the indirect-branch lookup.
-i7_sitecache   | fex    | jit | FEX_DISKCACHE=1 FEX_INDIRECTBRANCHCACHE=1
-d_r2r_tc0_ic   | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_TieredCompilation=0 FEX_INDIRECTBRANCHCACHE=1
+# i7_sitecache   | fex    | jit | FEX_DISKCACHE=1 FEX_INDIRECTBRANCHCACHE=1   (settled in round 10: no gain; patch kept in docs/research/patches)
+# d_r2r_tc0_ic   | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1 DOTNET_TieredCompilation=0 FEX_INDIRECTBRANCHCACHE=1   (settled in round 10: 7% slower)

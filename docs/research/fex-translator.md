@@ -269,6 +269,25 @@ frame loop, JIT build with tiering off (so per-thread log lines don't interleave
 The .NET workstream's composite ReadyToRun (framework compiled with the game) with tiering off is the best row on
 the same harness so far: first run 404 ms vs 771 stock, warm total −13%, load frames 1.5 ms, steady p50 2.08×.
 
+### A per-site cache for indirect jumps and calls (round 10): no gain
+
+Built to go after the 19%: each indirect jump or call site gets a 16-byte `{host, guest}` record after its block,
+loaded with one `ldp` and compared before the per-thread table probe; an empty record is filled once through FEX's
+exit linker and emptied again by a block-link delinker on invalidation (calls push their return-stack entry first so
+the fill path still returns correctly). It compiled for ARM64EC and every result matched. Run 43405871544:
+
+| config | steady p50 | p99 | dispatch phase |
+|---|---|---|---|
+| stock cache | 0.82 ms (2.10×) | 1.28 | 2.4× (fex-l1) |
+| + site cache | 0.82 ms (2.10×) | 1.27 | 2.5× |
+| ReadyToRun, tiering off | 0.84 ms (2.15×) | 1.13 | |
+| + site cache | 0.90 ms (2.31×) | 1.19 | |
+
+So the lookup instructions weren't the cost: their samples were mostly the stall of the loads that produce the
+jump target (sample skid puts a load's stall on the instructions after it), and the hottest site, .NET's
+interface-dispatch stub, jumps to many targets. The patch is kept at `docs/research/patches/fex-indirect-branch-cache.patch`
+and is not in the game's build.
+
 ## Ranked next fixes (in FEX)
 
 0. **ReadyToRun for the game's assemblies** (.NET workstream, `dotnet-r2r`): new-content hitches 9.3 → 1.5 ms and
