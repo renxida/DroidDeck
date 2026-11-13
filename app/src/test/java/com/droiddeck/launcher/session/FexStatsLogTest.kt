@@ -26,7 +26,7 @@ class FexStatsLogTest {
         return b.array()
     }
 
-    private fun counters(jit: Long, smc: Long, blocks: Long) = LongArray(12).also { it[0] = jit; it[3] = smc; it[8] = blocks }
+    private fun counters(jit: Long, smc: Long, blocks: Long) = LongArray(13).also { it[0] = jit; it[3] = smc; it[8] = blocks }
 
     @Test fun readsEveryThreadOfAVersion2File() {
         val s = FexStatsLog.parse(file(101 to counters(5, 1, 10), 102 to counters(7, 0, 3)))!!
@@ -51,7 +51,7 @@ class FexStatsLogTest {
     }
 
     @Test fun rowConvertsTicksToMilliseconds() {
-        val d = LongArray(12).also { it[0] = 2_000_000; it[3] = 4; it[8] = 9 }
+        val d = LongArray(13).also { it[0] = 2_000_000; it[3] = 4; it[8] = 9 }
         val row = FexStatsLog.row(1000, 5000, 77, "SlayTheSpire2.exe", 12, d, 1_000_000_000.0)
         val cols = row.split(',')
         assertEquals(FexStatsLog.HEADER.split(',').size, cols.size)

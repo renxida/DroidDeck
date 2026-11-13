@@ -9,7 +9,7 @@ REPS=${REPS:-5}
 ROUNDS=${ROUNDS:-2}
 mkdir -p "$OUT"
 echo "config,round,phase,best_ms,median_ms" > "$OUT/results.csv"
-echo "config,round,wall_s,fex,t_s,pid,threads,jit_ms,signal_ms,sigbus,smc,float_fallback,cache_miss,cache_rlock_ms,cache_wlock_ms,jit_blocks,disk_hit,disk_miss,disk_lookup_ms" > "$OUT/fexstats.csv"
+echo "config,round,wall_s,fex,t_s,pid,threads,jit_ms,signal_ms,sigbus,smc,float_fallback,cache_miss,cache_rlock_ms,cache_wlock_ms,jit_blocks,disk_hit,disk_miss,disk_lookup_ms,code_buffer_full" > "$OUT/fexstats.csv"
 GAME_DOTNET="DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 DOTNET_gcConcurrent=0 DOTNET_GCConserveMemory=5 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1"
 for round in $(seq 1 "$ROUNDS"); do
   grep -v '^\s*#' "$HERE/configs.txt" | grep -v '^\s*$' | while IFS='|' read -r name runner envs; do
@@ -35,7 +35,7 @@ for round in $(seq 1 "$ROUNDS"); do
     if [ -s "$OUT/$name.$round.stats" ] 2>/dev/null; then
       sed "s/^/$name,$round,$wall,/" "$OUT/$name.$round.stats" >> "$OUT/fexstats.csv"
     else
-      echo "$name,$round,$wall,,,,,,,,,,,,,,,," >> "$OUT/fexstats.csv"
+      echo "$name,$round,$wall,,,,,,,,,,,,,,,,," >> "$OUT/fexstats.csv"
     fi
   done
 done

@@ -20,6 +20,7 @@ static class Bench
     {
         int reps = args.Length > 0 ? int.Parse(args[0]) : 5;
         string only = args.Length > 1 ? args[1] : "";
+        if (only == "frames") { Frames(reps); return; }
         var phases = new (string, Action)[]
         {
             ("first_jit", FirstJit),
@@ -51,6 +52,63 @@ static class Bench
         }
         Console.WriteLine($"gc_count,{GC.CollectionCount(0)},{GC.CollectionCount(2)}");
         // Same IL, same inputs: every config must print the same checksum, or the translator ran stale or wrong code.
+        Console.WriteLine($"checksum,{sink},0");
+    }
+
+    // A game-like frame loop: the same small mix of work every frame, and every 50th frame new content loads
+    // (40 game methods called for the first time, and every 100th frame 10 freshly built expression lambdas), which
+    // is when code is new to the .NET JIT and to FEX. Prints startup_ms (process start to Main), first_frame_ms,
+    // frame_p50_ms, frame_p99_ms, frame_max_ms, total_ms (Main to the last frame), and the checksum.
+    static void Frames(int frames)
+    {
+        double startup = (DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+        var total = Stopwatch.StartNew();
+        IEffect[] e = { new A(), new B(), new C() };
+        Card[] c = { new Strike(), new Defend() };
+        var pos = new Vector3[2048];
+        var vel = new Vector3[2048];
+        for (int i = 0; i < pos.Length; i++) vel[i] = new Vector3(i, -i, 0.5f * i) * 0.001f;
+        var m = Matrix4x4.CreateRotationZ(0.01f);
+        var d = new Dictionary<string, int>();
+        var keys = Enumerable.Range(0, 512).Select(i => "card_" + i).ToArray();
+        var items = Enumerable.Range(0, 2_000).Select(i => new Item(i, i % 7, "x" + (i % 50))).ToList();
+        var sb = new StringBuilder();
+        var times = new double[frames];
+        int nextCard = 0, x = 0;
+        for (int f = 0; f < frames; f++)
+        {
+            var sw = Stopwatch.StartNew();
+            if (f % 50 == 0)
+                for (int k = 0; k < 40; k++, nextCard++) sink += Cards.All[nextCard % Cards.Count](f + k);
+            if (f % 100 == 0)
+                for (int k = 0; k < 10; k++)
+                {
+                    var p = Expression.Parameter(typeof(int));
+                    Expression body = Expression.Add(Expression.Multiply(p, Expression.Constant(f + k * 3 + 1)), Expression.Constant(k));
+                    sink += Expression.Lambda<Func<int, int>>(body, p).Compile()(f);
+                }
+            for (int i = 0; i < 50_000; i++) x = c[i & 1].Play(e[i % 3].Apply(x));
+            for (int i = 0; i < pos.Length; i++) { vel[i] = Vector3.Transform(vel[i], m) * 0.999f; pos[i] += vel[i]; }
+            Node? head = null;
+            for (int i = 0; i < 5_000; i++) { var n = new Node { V = i, Next = (i & 3) == 0 ? head : null }; if ((i & 3) == 0) head = n; }
+            d.Clear();
+            foreach (var k in keys) d[k] = k.Length + f;
+            foreach (var k in keys) x += d[k];
+            for (int i = 0; i < 100; i++) { sb.Clear(); sb.Append("Deal ").Append((i + f) % 50).Append(" damage"); x += sb.ToString().Length; }
+            if (f % 10 == 0) x += items.Where(it => it.Cost < 4).GroupBy(it => it.Name).Select(g => g.Sum(y => y.Cost)).Max();
+            sink += x + head!.V + (int)pos[f & 2047].X;
+            times[f] = sw.Elapsed.TotalMilliseconds;
+        }
+        double all = total.Elapsed.TotalMilliseconds;
+        var rest = times.Skip(1).OrderBy(t => t).ToArray();
+        double Pct(double q) => rest[Math.Min(rest.Length - 1, (int)Math.Ceiling(q * rest.Length) - 1)];
+        Console.WriteLine("metric,value,unit");
+        Console.WriteLine($"startup_ms,{startup:F1},ms");
+        Console.WriteLine($"first_frame_ms,{times[0]:F2},ms");
+        Console.WriteLine($"frame_p50_ms,{Pct(0.50):F2},ms");
+        Console.WriteLine($"frame_p99_ms,{Pct(0.99):F2},ms");
+        Console.WriteLine($"frame_max_ms,{rest[^1]:F2},ms");
+        Console.WriteLine($"total_ms,{all:F1},ms");
         Console.WriteLine($"checksum,{sink},0");
     }
 

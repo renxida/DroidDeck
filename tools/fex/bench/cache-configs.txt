@@ -1,0 +1,19 @@
+# Ways to cut translation cost for the frame-loop stand-in (Bench.dll frames), compared by cache-bench.sh.
+# name | runner | dll | env      runner: native or fex; dll: jit (plain IL) or r2r (ReadyToRun precompiled)
+# Every fex line also gets the game's settings and fex-l1 (see cache-bench.sh).
+native_jit     | native | jit |
+native_r2r     | native | r2r |
+fex_nocache    | fex    | jit | FEX_DISKCACHE=0
+a_files        | fex    | jit | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=0
+b_content      | fex    | jit | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1
+d_r2r_nocache  | fex    | r2r | FEX_DISKCACHE=0
+d_r2r_content  | fex    | r2r | FEX_DISKCACHE=1 FEX_DISKCACHEANONCACHING=1
+# The other levers, each on top of b_content (FEX's stock cache), as headroom checks with switches FEX already has.
+# i2: memory-ordering barriers off entirely. Unsafe for the game: the ceiling for any escape-analysis relaxation.
+i2_tso_off     | fex    | jit | FEX_DISKCACHE=1 FEX_TSOENABLED=0
+# i4: translate block by block instead of whole regions: what region formation already buys.
+i4_blockwise   | fex    | jit | FEX_DISKCACHE=1 FEX_MULTIBLOCK=0
+# i6: transparent huge pages for all memory, translated code included (THP= is applied system-wide by the script).
+i6_hugepages   | fex    | jit | FEX_DISKCACHE=1 THP=always
+# Everything that helped, together.
+stacked        | fex    | r2r | FEX_DISKCACHE=1 FEX_TSOENABLED=0 THP=always

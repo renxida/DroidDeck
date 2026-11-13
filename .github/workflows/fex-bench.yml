@@ -63,7 +63,12 @@ jobs:
             "https://builds.dotnet.microsoft.com/dotnet/Runtime/$ver/dotnet-runtime-$ver-linux-x64.tar.gz"
           tar -C rootfs/opt/dotnet -xzf dotnet-x64.tar.gz
           dotnet build -c Release -o bench-bin tools/fex/bench/Bench.csproj
-          mkdir -p rootfs/bench && cp bench-bin/* rootfs/bench/
+          # The same bench precompiled with ReadyToRun (crossgen2), for x64 under FEX and for native arm64.
+          dotnet publish -c Release -r linux-x64 --self-contained false -p:PublishReadyToRun=true -o bench-r2r-x64 tools/fex/bench/Bench.csproj
+          dotnet publish -c Release -r linux-arm64 --self-contained false -p:PublishReadyToRun=true -o bench-r2r-arm64 tools/fex/bench/Bench.csproj
+          ls -l bench-bin/Bench.dll bench-r2r-x64/Bench.dll bench-r2r-arm64/Bench.dll
+          mkdir -p rootfs/bench/jit rootfs/bench/r2r && cp bench-bin/* rootfs/bench/ && cp bench-bin/* rootfs/bench/jit/
+          cp bench-r2r-x64/* rootfs/bench/r2r/
           ls rootfs/opt/dotnet/shared/Microsoft.NETCore.App
       - name: Run
         env:
@@ -75,8 +80,21 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="$FEX_BIN:$PATH"
-          ROUNDS=3 tools/fex/bench/run.sh
+          ROUNDS=2 tools/fex/bench/run.sh
           cat bench-out/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Frame loop, every approach (code caches, ReadyToRun, ordering, regions, huge pages)
+        env:
+          JIT_DLL: ${{ github.workspace }}/bench-bin/Bench.dll
+          R2R_DLL: ${{ github.workspace }}/bench-r2r-arm64/Bench.dll
+          FEX_BIN: ${{ github.workspace }}/fex-linux/Bin
+          ROOTFS: ${{ github.workspace }}/rootfs
+          FEX_STATS: ${{ github.workspace }}/fex-stats
+          OUT: ${{ github.workspace }}/bench-out
+        run: |
+          set -euo pipefail
+          export PATH="$FEX_BIN:$PATH"
+          tools/fex/bench/cache-bench.sh
+          cat bench-out/frames-summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Profile where FEX's time goes (warm disk cache, and fresh)
         env:
           FEX_BIN: ${{ github.workspace }}/fex-linux/Bin
@@ -88,8 +106,10 @@ jobs:
             || sudo apt-get install -y -qq linux-tools-azure linux-tools-generic >/dev/null 2>&1 || true
           sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0 || true
                     # Which guest library the time in translated code belongs to (disk cache off so every block is named).
-          CONFIG=fex_l1_256k EXTRA="FEX_DISKCACHE=0 FEX_LIBRARYJITNAMING=1" tools/fex/bench/profile.sh
-          CONFIG=fex_l1_256k EXTRA="FEX_DISKCACHE=0 FEX_BLOCKJITNAMING=1" tools/fex/bench/profile.sh
+          # The frame loop: which guest library the translated time belongs to (thunking headroom), then the hottest
+          # blocks disassembled (vector code, flags, candidates for hand tuning).
+          CONFIG=fex_l1_256k ARGS="600 frames" EXTRA="FEX_DISKCACHE=0 FEX_LIBRARYJITNAMING=1" tools/fex/bench/profile.sh
+          CONFIG=fex_l1_256k ARGS="600 frames" EXTRA="FEX_DISKCACHE=0 FEX_BLOCKJITNAMING=1" tools/fex/bench/profile.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

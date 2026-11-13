@@ -17,16 +17,18 @@ import java.util.Locale
 object FexStatsLog {
     const val FILE = "fex.csv"
     internal const val HEADER = "t_wall_ms,interval_ms,pid,process,threads,jit_ms,jit_blocks,smc,sigbus,signal_ms," +
-        "float_fallback,cache_miss,cache_rlock_ms,cache_wlock_ms,disk_hit,disk_miss,disk_lookup_ms"
+        "float_fallback,cache_miss,cache_rlock_ms,cache_wlock_ms,disk_hit,disk_miss,disk_lookup_ms,code_buffer_full"
     private const val TAG = "FexStatsLog"
     private const val PERIOD_MS = 5_000L
     private const val HEADER_BYTES = 64
-    private const val FIELDS = 12
+    private const val FIELDS = 13
     /** JITTime, SignalTime, SIGBUS, SMC, FloatFallback, CacheMiss, CacheReadLock, CacheWriteLock, JITCount, DiskHit,
-     *  DiskMiss, DiskLookupTime: which are cycle counts. */
-    private val IS_TIME = booleanArrayOf(true, true, false, false, false, false, true, true, false, false, false, true)
+     *  DiskMiss, DiskLookupTime, CodeBufferFull: which are cycle counts. CodeBufferFull is Kestrel's FEX (the struct's
+     *  last, padding slot): how often a thread's translated code filled its buffer and all of it was thrown away.
+     *  Stock FEX leaves it 0. */
+    private val IS_TIME = booleanArrayOf(true, true, false, false, false, false, true, true, false, false, false, true, false)
     /** Column order in fex.csv after `threads`, as indices into the FEX fields. */
-    private val COLUMNS = intArrayOf(0, 8, 3, 2, 1, 4, 5, 6, 7, 9, 10, 11)
+    private val COLUMNS = intArrayOf(0, 8, 3, 2, 1, 4, 5, 6, 7, 9, 10, 11, 12)
 
     internal data class Snapshot(val version: Int, val fexVersion: String, val threads: Map<Int, LongArray>)
 
