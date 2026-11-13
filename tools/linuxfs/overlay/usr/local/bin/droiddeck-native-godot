@@ -6,8 +6,8 @@ This tool builds a launch folder next to our engine binary:
 
     <launch>/<engine>                          our Godot 4.5.1 linux-arm64 mono template
     <launch>/data_<asm>_linuxbsd_arm64/        the "kit" (linux-arm64 .NET runtime + stock GodotSharp)
-                                               plus the game's own managed DLLs, symlinked from the game
-                                               folder (never copied out of the device)
+                                               plus the game's own managed DLLs, hardlinked from the game
+                                               folder (they never leave the device)
 
 and starts the engine on the game's pack. Game files stay where Steam put them; nothing is uploaded.
 
