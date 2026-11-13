@@ -1,0 +1,109 @@
+// Clean-room code for DroidDeck/Kestrel; see native_sound_bank.h.
+#include "native_sound_bank.h"
+
+#include "core/io/file_access.h"
+#include "modules/ogg/ogg_packet_sequence.h"
+
+Error NativeSoundBank::load(const String &p_path) {
+	Error err = OK;
+	Vector<uint8_t> raw = FileAccess::get_file_as_bytes(p_path, &err);
+	if (err != OK) {
+		load_error = "cannot read " + p_path;
+		return err;
+	}
+	return load_bytes(raw);
+}
+
+Error NativeSoundBank::load_bytes(const PackedByteArray &p_bytes) {
+	bytes.clear();
+	container = fsb::Container();
+	size_t at = 0;
+	if (!fsb::find_fsb5(p_bytes.ptr(), p_bytes.size(), at)) {
+		load_error = "no FSB5 block in the file";
+		return ERR_FILE_UNRECOGNIZED;
+	}
+	std::string error;
+	fsb::Container parsed;
+	if (!fsb::parse_fsb5(p_bytes.ptr() + at, p_bytes.size() - at, parsed, error)) {
+		load_error = String::utf8(error.c_str());
+		return ERR_FILE_CORRUPT;
+	}
+	const size_t keep = MIN(parsed.size, size_t(p_bytes.size()) - at);
+	bytes = p_bytes.slice(int64_t(at), int64_t(at + keep));
+	container = parsed;
+	load_error = String();
+	return OK;
+}
+
+String NativeSoundBank::get_sound_name(int p_index) const {
+	ERR_FAIL_INDEX_V(p_index, int(container.samples.size()), String());
+	return String::utf8(container.samples[p_index].name.c_str());
+}
+
+int NativeSoundBank::find_sound(const String &p_name) const {
+	const CharString name = p_name.utf8();
+	for (size_t i = 0; i < container.samples.size(); i++) {
+		if (container.samples[i].name == name.get_data()) {
+			return int(i);
+		}
+	}
+	return -1;
+}
+
+int NativeSoundBank::get_sound_frames(int p_index) const {
+	ERR_FAIL_INDEX_V(p_index, int(container.samples.size()), 0);
+	return int(container.samples[p_index].frames);
+}
+
+Ref<AudioStreamOggVorbis> NativeSoundBank::get_stream(int p_index) {
+	ERR_FAIL_INDEX_V(p_index, int(container.samples.size()), Ref<AudioStreamOggVorbis>());
+	if (container.codec != fsb::CODEC_VORBIS) {
+		load_error = "codec " + itos(container.codec) + " is not Vorbis";
+		return Ref<AudioStreamOggVorbis>();
+	}
+	fsb::VorbisStream v;
+	std::string error;
+	if (!fsb::vorbis_stream(bytes.ptr(), bytes.size(), container.samples[p_index], v, error)) {
+		load_error = String::utf8(error.c_str());
+		return Ref<AudioStreamOggVorbis>();
+	}
+	auto to_bytes = [](const std::vector<uint8_t> &p) {
+		PackedByteArray out;
+		out.resize(p.size());
+		memcpy(out.ptrw(), p.data(), p.size());
+		return out;
+	};
+	Ref<OggPacketSequence> sequence;
+	sequence.instantiate();
+	Vector<PackedByteArray> page;
+	for (const std::vector<uint8_t> &h : v.headers) {
+		page.push_back(to_bytes(h));
+	}
+	sequence->push_page(0, page);
+	// One page per 16 packets keeps seeking cheap; a page's granule is the frame count after its last packet.
+	const size_t per_page = 16;
+	for (size_t i = 0; i < v.packets.size(); i += per_page) {
+		page.clear();
+		const size_t end = MIN(i + per_page, v.packets.size());
+		for (size_t j = i; j < end; j++) {
+			page.push_back(to_bytes(v.packets[j]));
+		}
+		sequence->push_page(v.granules[end - 1], page);
+	}
+	sequence->set_sampling_rate(float(v.rate));
+	Ref<AudioStreamOggVorbis> stream;
+	stream.instantiate();
+	stream->set_packet_sequence(sequence);
+	return stream;
+}
+
+void NativeSoundBank::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("load", "path"), &NativeSoundBank::load);
+	ClassDB::bind_method(D_METHOD("load_bytes", "bytes"), &NativeSoundBank::load_bytes);
+	ClassDB::bind_method(D_METHOD("get_load_error"), &NativeSoundBank::get_load_error);
+	ClassDB::bind_method(D_METHOD("get_sound_count"), &NativeSoundBank::get_sound_count);
+	ClassDB::bind_method(D_METHOD("get_sound_name", "index"), &NativeSoundBank::get_sound_name);
+	ClassDB::bind_method(D_METHOD("find_sound", "name"), &NativeSoundBank::find_sound);
+	ClassDB::bind_method(D_METHOD("get_sound_frames", "index"), &NativeSoundBank::get_sound_frames);
+	ClassDB::bind_method(D_METHOD("get_stream", "index"), &NativeSoundBank::get_stream);
+}

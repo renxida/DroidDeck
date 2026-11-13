@@ -44,6 +44,8 @@ jobs:
           dotnet-version: '9.0.x'
       - name: Host tests for the clean-room skeleton core
         run: sh tools/native-engine/modules/native_compat/skel/tests/run_tests.sh
+      - name: Host tests for the clean-room FSB5 sound reader
+        run: sh tools/native-engine/modules/native_compat/fsb/tests/run_tests.sh
       - name: Build deps
         run: |
           sudo apt-get update -qq
@@ -181,6 +183,7 @@ jobs:
           echo "exit $rc"
           grep -E "SKELTEST|NativeSkeleton2D|native_compat|ERROR|OpenGL" skel.log | head -40
           grep -q "SKELTEST binary load 0 .* same=true" skel.log
+          grep -q "SKELTEST sound .* ok=true" skel.log
           python3 check.py out
       - name: Pack the component
         run: |
