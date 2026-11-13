@@ -1,0 +1,42 @@
+name: .NET GC bench
+
+on:
+  push:
+    paths:
+      - 'tools/dotnet-gc-bench/**'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-dotnet-trace'
+      - '.github/workflows/dotnet-gc-bench.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Run the bench under each GC experiment and check the trace parser
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools/tests/test_dotnet_trace.py
+          tools/dotnet-gc-bench/run.sh "$RUNNER_TEMP/gc-bench" 20
+          { echo "### ${{ matrix.runner }}"; cat "$RUNNER_TEMP/gc-bench/summary.md"; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gc-bench-${{ matrix.runner }}
+          path: |
+            ${{ runner.temp }}/gc-bench/*/*.txt
+            ${{ runner.temp }}/gc-bench/*/result.json
+            ${{ runner.temp }}/gc-bench/summary.md

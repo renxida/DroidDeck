@@ -48,6 +48,8 @@ class ExperimentsTest {
             "fex-codegen" to "DROIDDECK_EXP_FEX_CODEGEN",
             "fex-memcpy-tso" to "DROIDDECK_EXP_FEX_MEMCPY_TSO", "fex-vector-tso" to "DROIDDECK_EXP_FEX_VECTOR_TSO",
             "fex-tso" to "DROIDDECK_EXP_FEX_TSO", "fex-fast" to "DROIDDECK_EXP_FEX_FAST",
+            "dotnet-trace" to "DROIDDECK_EXP_DOTNET_TRACE", "dotnet-gen0" to "DROIDDECK_EXP_DOTNET_GEN0",
+            "dotnet-gc-stock" to "DROIDDECK_EXP_DOTNET_GC_STOCK",
             "fex-kestrel" to "DROIDDECK_EXP_FEX_KESTREL", "fex-stats" to "DROIDDECK_EXP_FEX_STATS",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)

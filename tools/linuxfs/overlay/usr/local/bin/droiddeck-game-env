@@ -73,7 +73,7 @@ DOTNET_FEX_EXPERIMENTS = (
 # saved settings at each launch; the Steam-side parts follow the values the Steam session started with.
 EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
-               "fex-tso", "fex-fast", "fex-kestrel", "fex-stats")
+               "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats")
 
 
 def experiment_name(experiment):
@@ -299,6 +299,28 @@ def dotnet_memory_ordering(game):
     if "coreclr.dll" in game.files:
         values, note = dotnet_fex(game.env)
         return values, [], note
+
+
+# docs/research/dotnet-runtime.md. Workstation GC sizes gen0 from the largest CPU cache Windows reports
+# (GetLogicalProcessorInformation, which Wine fills from sysfs) and caps it at 6 MB while background GC is on,
+# so a game may collect every few MB; each collection suspends every managed thread through Wine.
+DOTNET_GEN0_BYTES = 64 << 20
+
+
+@fix
+def dotnet_runtime_experiments(game):
+    if "coreclr.dll" not in game.files:
+        return None
+    values, said = {}, []
+    if experiment(game.env, "dotnet-gen0"):
+        values["DOTNET_GCgen0size"] = "%x" % DOTNET_GEN0_BYTES
+        said.append("gen0 budget %d MB (dotnet-gen0)" % (DOTNET_GEN0_BYTES >> 20))
+    if experiment(game.env, "dotnet-gc-stock"):
+        values.update({"DOTNET_gcConcurrent": "1", "DOTNET_GCConserveMemory": "0"})
+        said.append("stock GC: background GC on, no conserve-memory compaction (dotnet-gc-stock)")
+    if values:
+        return values, [], ".NET runtime: " + "; ".join(said)
+    return None
 
 
 @fix
@@ -1999,6 +2021,39 @@ def game_logs(command, env, app_id, now=None):
     return result
 
 
+DOTNET_TRACE = "/usr/local/bin/droiddeck-dotnet-trace"
+DOTNET_TRACE_PROVIDERS = ("Microsoft-Windows-DotNETRuntime:0x400000001:4,"
+                          "System.Runtime:0:4:EventCounterIntervalSec=1")
+DOTNET_TRACE_EVERY_S = 60
+
+
+def windows_path(path):
+    return "Z:" + str(path).replace("/", "\\")
+
+
+def dotnet_trace(command, env, popen=subprocess.Popen):
+    """(env, note): under dotnet-trace, a .NET game writes its GC events and System.Runtime counters as an
+    EventPipe trace into its log folder, and droiddeck-dotnet-trace turns the trace into dotnet-gc.txt,
+    dotnet-counters.txt and dotnet-summary.txt there every minute and at the game's exit."""
+    if not experiment(env, "dotnet-trace") or len(command) < 3 or "coreclr.dll" not in game_files(command[2]):
+        return env, None
+    folder = env.get("DROIDDECK_GAME_LOG_DIR")
+    if not folder:
+        return env, "dotnet-trace: no game log folder (detailed graphics logs off), so no trace"
+    if any(name in env for name in ("DOTNET_EnableEventPipe", "COMPlus_EnableEventPipe")):
+        return env, "dotnet-trace: EventPipe already set in the environment; left as it is"
+    result = dict(env, DOTNET_EnableEventPipe="1", DOTNET_EventPipeOutputStreaming="1", DOTNET_EventPipeRundown="0",
+                  DOTNET_EventPipeOutputPath=windows_path(Path(folder) / "dotnet-{pid}.nettrace"),
+                  DOTNET_EventPipeConfig=DOTNET_TRACE_PROVIDERS)
+    try:
+        popen([sys.executable, DOTNET_TRACE, folder, "--watch", str(DOTNET_TRACE_EVERY_S), "--pid", str(os.getpid())],
+              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError as error:
+        return result, "dotnet-trace: trace on, summary not started (%s)" % error
+    return result, "dotnet-trace: GC events and runtime counters to %s, summarised every %d s" % (
+        folder, DOTNET_TRACE_EVERY_S)
+
+
 def load_warmup():
     try:
         return runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-warmup"))
@@ -2185,6 +2240,10 @@ def main():
         env, note = dotnet_heap(env, app_id)
         if note:
             print(note, file=sys.stderr)
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        env, note = dotnet_trace(command, env)
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
     note = render_path_defaults(command, env) if app_id else None
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)

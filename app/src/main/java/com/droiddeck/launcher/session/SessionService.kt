@@ -846,6 +846,7 @@ class SessionService : Service() {
         SessionLogCapture.start(File(sessionDir, "app.log"))
         lastPressureAt = 0L
         MemoryLog.start(File(sessionDir, "memory.csv"))
+        ThreadLog.start(sessionDir)
         if (Experiments.on(this, Experiments.FEX_STATS)) FexStatsLog.start(sessionDir, File(LinuxRuntime.liveDir(this), "shm"))
         if (Experiments.on(this, Experiments.MEMORY)) {
             AppCaches.drop(this, "session_start")
@@ -1894,6 +1895,7 @@ class SessionService : Service() {
                     .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
                 releaseLocks()
                 MemoryLog.stop()
+                ThreadLog.stop()
                 FexStatsLog.stop()
                 stopLmkWatch()
                 Experiments.endSession()
