@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 15
+    private const val VERSION = 16
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -34,6 +34,7 @@ object InputLibraries {
         if (version < 13) library = LegacyScreenKeyMigration.pin(library)
         if (version < 14) library = deckGamepadSurfaces(context, library)
         if (version < 15) library = withSts2Pad(library)
+        if (version < 16) library = raiseGamepadThumbs(context, library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -276,6 +277,10 @@ object InputLibraries {
         if (saved.elements != InputStockLayouts.gamepad(leftPad = false, rightStick = false)) return library
         return library.withLayout(saved.copy(elements = InputStockLayouts.gamepad(leftPad, rightStick))).validate()
     }
+
+    /** Gamepads saved untouched get the d-pad and face buttons raised into the strips beside the picture; edited ones keep their places. */
+    private fun raiseGamepadThumbs(context: Context, library: InputLibrary): InputLibrary =
+        library.copy(layouts = library.layouts.map { OnScreenLayout.raiseThumbs(context, it) })
 
     private fun withSts2Pad(library: InputLibrary): InputLibrary =
         if (library.layouts.any { it.id == Sts2Pad.LAYOUT }) library else library.withLayout(Sts2Pad.layout()).withPreset(Sts2Pad.bindings()).validate()

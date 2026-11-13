@@ -2,6 +2,7 @@ package com.droiddeck.launcher.input
 
 import com.droiddeck.launcher.input.GamepadGeometry.Box
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
 
 /**
@@ -25,7 +26,10 @@ internal object Sts2Pad {
     private const val SPREAD_DP = 46f
     private const val EDGE_DP = 4f
     private const val GAP_DP = 6f
-    private const val REST = .70f
+    /** Centre of the d-pad and A / B / Y as a share of the usable height: upper middle, in the empty strips beside the picture. */
+    private const val REST = .45f
+    /** Where they sat before (low, near the piles), kept to recognise a pad saved untouched from then. */
+    private const val LOW_REST = .70f
     private const val CLUSTER_SHARE = .34f
     private const val HUD_OPACITY = .35f
     private const val KEYBOARD_X_DP = 34f
@@ -51,6 +55,7 @@ internal object Sts2Pad {
     val HUD_IDS = HUD.map { it.id }.toSet()
 
     private val stock by lazy { elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY) }
+    private val lowStock by lazy { elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, raised = false) }
 
     fun owns(layout: SavedInputLayout?) = layout != null && (layout.origin ?: layout.id) == LAYOUT
 
@@ -82,7 +87,27 @@ internal object Sts2Pad {
         }
     }
 
-    fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0): List<InputSurfaceElement> {
+    /**
+     * Moves the d-pad and A / B / Y of a saved pad that still has them where the pad put them before they were raised
+     * up to where they sit now; buttons the person moved, and every other button, are left as they are.
+     */
+    fun raiseThumbs(layout: SavedInputLayout): SavedInputLayout {
+        if (!owns(layout)) return layout
+        val low = lowStock.associateBy { it.id }
+        val raised = stock.associateBy { it.id }
+        val elements = layout.elements.map { e ->
+            val before = low[e.id]?.takeIf { e.id in THUMB_IDS } ?: return@map e
+            if (abs(before.x - e.x) > TOLERANCE || abs(before.y - e.y) > TOLERANCE || abs(before.width - e.width) > TOLERANCE ||
+                abs(before.height - e.height) > TOLERANCE) return@map e
+            raised.getValue(e.id).let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) }
+        }
+        return if (elements == layout.elements) layout else layout.copy(elements = elements)
+    }
+
+    fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0): List<InputSurfaceElement> =
+        elements(width, height, density, top, bottom, raised = true)
+
+    private fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0, raised: Boolean): List<InputSurfaceElement> {
         val w = width.toFloat()
         val h = height.toFloat()
         val pictureW = min(w, h * PICTURE_ASPECT)
@@ -96,25 +121,41 @@ internal object Sts2Pad {
         val spread = SPREAD_DP * density * scale
         val edge = EDGE_DP * density
         val gap = GAP_DP * density
-        // The bars beside the picture are empty; the clusters rise only when a narrower screen puts them over the piles below.
-        fun cluster(buttons: List<Pair<InputControl, Pair<Float, Float>>>, cx: Float): List<Pair<InputControl, Box>> {
-            var cy = (h - bottom) * REST
+        val keyboardR = KEYBOARD_RADIUS_DP * density
+        val keyboardBox = Box(KEYBOARD_X_DP * density, top + KEYBOARD_Y_DP * density, 2 * keyboardR, 2 * keyboardR)
+        // The bars beside the picture are empty, so the clusters sit high in them, within the thumbs' reach: below the keyboard
+        // key and the game's top icons, and above the piles at the bottom, which win when a short screen leaves no room for both.
+        fun beside(b: Box, x: Float) = b.left < x + radius + gap && x - radius - gap < b.right
+        fun belowTop(buttons: List<Pair<InputControl, Pair<Float, Float>>>, cx: Float, start: Float): Float {
+            var cy = start
             for ((_, offset) in buttons) {
                 val x = cx + offset.first * spread
-                for ((_, b) in hud) if (b.cy > h / 2f && b.left < x + radius + gap && x - radius - gap < b.right)
+                for (b in hud.map { it.second } + keyboardBox) if (b.cy < h / 2f && beside(b, x))
+                    cy = max(cy, b.bottom + gap + radius - offset.second * spread)
+            }
+            return cy
+        }
+        val leftX = edge + spread + radius
+        val rightX = w - edge - spread - radius
+        // Both clusters start level, low enough to clear whatever is at the top on either side.
+        val rest = if (raised) top + (h - top - bottom) * REST else (h - bottom) * LOW_REST
+        val start = if (raised) max(belowTop(DPAD, leftX, rest), belowTop(FACE, rightX, rest)) else rest
+        fun cluster(buttons: List<Pair<InputControl, Pair<Float, Float>>>, cx: Float): List<Pair<InputControl, Box>> {
+            var cy = start
+            for ((_, offset) in buttons) {
+                val x = cx + offset.first * spread
+                for ((_, b) in hud) if (b.cy > h / 2f && beside(b, x))
                     cy = min(cy, b.top - gap - radius - offset.second * spread)
             }
             cy = cy.coerceAtLeast(top + edge + spread + radius)
             return buttons.map { (control, offset) -> control to Box(cx + offset.first * spread, cy + offset.second * spread, 2 * radius, 2 * radius) }
         }
-        val thumbs = cluster(DPAD, edge + spread + radius) + cluster(FACE, w - edge - spread - radius)
+        val thumbs = cluster(DPAD, leftX) + cluster(FACE, rightX)
         fun element(control: InputControl, b: Box, id: String = "legacy:${control.id}", name: String = control.label,
             shape: InputButtonShape = InputButtonShape.CIRCLE, opacity: Float = 1f, icon: Int = 0) =
             InputSurfaceElement(control, b.left / w, b.top / h, b.width / w, b.height / h, id, name = name, floating = false,
                 icon = icon, opacity = opacity, buttonShape = shape).bounded()
-        val keyboardR = KEYBOARD_RADIUS_DP * density
-        val keyboard = element(InputControl.A, Box(KEYBOARD_X_DP * density, top + KEYBOARD_Y_DP * density, 2 * keyboardR, 2 * keyboardR), KEYBOARD,
-            "Keyboard", icon = InputButtonIcons.KEYBOARD)
+        val keyboard = element(InputControl.A, keyboardBox, KEYBOARD, "Keyboard", icon = InputButtonIcons.KEYBOARD)
         return thumbs.map { (control, b) -> element(control, b) } +
             hud.map { (s, b) -> element(s.control, b, s.id, s.name, s.shape, HUD_OPACITY) } + keyboard
     }
