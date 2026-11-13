@@ -89,7 +89,7 @@ object ComponentUpdater {
 
     private fun lineOf(context: Context, state: JSONObject, p: ComponentsManager.Proton, comp: String): ComponentUpdates.Line? {
         if (!ComponentUpdates.follows(p) || !ComponentsManager.supports(p, comp)) return null
-        if (comp == "fex") return ComponentUpdates.line("fex", false)
+        if (comp == "fex") return if (Experiments.on(context, Experiments.FEX_KESTREL)) ComponentUpdates.KESTREL_FEX else ComponentUpdates.line("fex", false)
         val key = "${p.id}|${p.version}"
         val flavors = state.obj("flavors").obj(key)
         val arm64ec = if (flavors.has(comp)) flavors.optBoolean(comp) else ComponentsManager.arm64ec(context, p, comp)?.also { flavors.put(comp, it) }

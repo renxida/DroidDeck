@@ -81,6 +81,10 @@ def required():
               ['msiinfo', 'cabextract', '7z', '7z.so', 'libmsi-1.0.so.0', 'libgsf-1.so.114', 'libgcab-1.0.so.0']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-xclipse/' + name for name in
               ['libVkLayer_droiddeck_xclipse.so', 'VkLayer_droiddeck_xclipse.json']]
+    paths += ['assets/linuxfs/usr/local/lib/droiddeck-vkcount/' + name for name in
+              ['libVkLayer_droiddeck_vkcount.so', 'VkLayer_droiddeck_vkcount.json']]
+    paths += ['assets/linuxfs/usr/local/lib/droiddeck-hybris-compat/' + name for name in
+              ['libVkLayer_droiddeck_hybris_compat.so', 'VkLayer_droiddeck_hybris_compat.json']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-gpuload/' + name for name in
               ['libVkLayer_droiddeck_gpuload.so', 'VK_LAYER_DROIDDECK_gpu_load.json',
                'libVkLayer_droiddeck_vramcap.so', 'VK_LAYER_DROIDDECK_vram_cap.json']]

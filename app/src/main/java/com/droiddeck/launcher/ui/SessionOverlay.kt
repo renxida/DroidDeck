@@ -307,6 +307,7 @@ class DrawerActions(
     val onComponentDownload: (ComponentsManager.CatalogItem) -> Unit = {},
     val gameProfiles: List<Pair<Long, String>> = emptyList(),
     val selectedGameProfileId: Long? = null,
+    val runningGame: String? = null,
     val selectedGameProfile: SelectedGameProfile? = null,
     val gameProfilesLoaded: Boolean = false,
     val gameProfileRefreshFailed: Boolean = false,
@@ -534,7 +535,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
-                                InputQuickSettings(host, onChanged = a.onInputSelection, onEdit = a.onInputSettings) { key -> focus.track(page, key) }
+                                InputQuickSettings(host, onChanged = a.onInputSelection, onEdit = a.onInputSettings, game = a.runningGame) { key -> focus.track(page, key) }
                             }
                             SettingsGroup(stringResource(R.string.input_device_settings)) {
                                 a.padType?.let { type ->

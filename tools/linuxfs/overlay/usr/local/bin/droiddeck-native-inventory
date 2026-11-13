@@ -1,0 +1,653 @@
+#!/usr/bin/env python3
+"""Inventory of what a Godot game needs from native engine pieces, for the native-engine work.
+
+droiddeck-game-env starts this in the background under the native-inventory experiment, for Godot games.
+It reads the game's own files where they are installed and prints names, counts and sizes only, never
+file contents: which GDExtensions the pack declares and what their config says, which Spine skeletons
+the pack holds (format and version), which FMOD banks there are and how their audio is encoded, and
+which Spine and FMOD names the game's managed code uses. The work is done once per game build and kept
+under /var/tmp/droiddeck; every later session writes the kept result again so it reaches telemetry.
+
+Output:
+    stderr (the session log): DROIDDECK_NATIVE_INVENTORY_SUMMARY {json}, a short summary
+    /var/tmp/droiddeck/native-inventory.txt: the full report as JSON, which the telemetry bundle picks up
+    /var/tmp/droiddeck/native-samples.zip: a handful of the game's skeleton, atlas and sound bank files
+        (Cedar agreed on Nov 13 to send a few to the private telemetry repository so their formats can be
+        decoded for the clean-room runtimes). At most SAMPLE_BUDGET bytes; never anything else.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import struct
+import sys
+import time
+import zipfile
+
+SCHEMA = 1
+PREFIX = "DROIDDECK_NATIVE_INVENTORY"
+MAX_LIST = 4000
+MAX_GDEXT_BYTES = 8192
+SCAN_HEAD = 4096
+READ_CHUNK = 4 << 20
+CACHE_DIR = Path("/var/tmp/droiddeck")
+REPORT = CACHE_DIR / "native-inventory.txt"
+SAMPLES = CACHE_DIR / "native-samples.zip"
+SAMPLE_BUDGET = 3 << 20
+SAMPLE_FILE_MAX = 1536 << 10
+FOURCC = re.compile(rb"^[A-Za-z0-9 _]{4}$")
+VERSION_TEXT = re.compile(rb"(?<![0-9.])([34])\.(\d)\.(\d{1,3})(?![0-9])")
+FMOD_PATH = re.compile(rb"(?:event|bus|vca|snapshot|bank|parameter):/[\x20-\x7e]{0,200}")
+NAME_HINTS = ("spine", "fmod", "anim", "skin", "bone", "slot", "track", "event", "bank", "param", "bus", "vca",
+              "sound", "audio", "music", "sfx", "attach", "skeleton", "mix", "loop", "volume", "pitch", "play",
+              "stop", "emitter", "listener", "snapshot")
+SNAKE = re.compile(r"^[a-z][a-z0-9_]{1,47}$")
+FSB_CODECS = {0: "none", 1: "pcm8", 2: "pcm16", 3: "pcm24", 4: "pcm32", 5: "pcmfloat", 6: "gcadpcm",
+              7: "imaadpcm", 8: "vag", 9: "hevag", 10: "xma", 11: "mpeg", 12: "celt", 13: "at9", 14: "xwma",
+              15: "vorbis", 16: "fadpcm", 17: "opus"}
+
+
+def say(line):
+    print(line, file=sys.stderr, flush=True)
+
+
+# --- Godot pack (format from Godot's own MIT sources: core/io/file_access_pack) -----------------------------
+
+def read_pack(path):
+    """{"version", "godot", "flags", "files": [(name, offset, size, flags)]} or {"error"}."""
+    with open(path, "rb") as f:
+        head = f.read(8)
+        start = 0
+        if head[:4] != b"GDPC":
+            # A pack embedded at the end of an executable: [.. pack ..][u64 pack size]["GDPC"].
+            f.seek(-12, os.SEEK_END)
+            tail = f.read(12)
+            if tail[8:] != b"GDPC":
+                return {"error": "no GDPC header"}
+            size = struct.unpack("<Q", tail[:8])[0]
+            start = f.seek(-12 - size, os.SEEK_END)
+            head = f.read(8)
+            if head[:4] != b"GDPC":
+                return {"error": "embedded pack header not found"}
+        version = struct.unpack("<I", head[4:8])[0]
+        major, minor, patch, flags = struct.unpack("<4I", f.read(16))
+        file_base = struct.unpack("<Q", f.read(8))[0]
+        dir_offset = None
+        if version >= 3:
+            dir_offset = struct.unpack("<Q", f.read(8))[0]
+        f.read(16 * 4)
+        if flags & 2:
+            file_base += start
+        if flags & 1:
+            return {"version": version, "godot": "%d.%d.%d" % (major, minor, patch), "flags": flags,
+                    "error": "directory encrypted"}
+        if dir_offset:
+            f.seek(start + dir_offset)
+        count = struct.unpack("<I", f.read(4))[0]
+        if count > 2_000_000:
+            return {"version": version, "error": "implausible file count %d" % count}
+        files = []
+        for _ in range(count):
+            length = struct.unpack("<I", f.read(4))[0]
+            if length > 4096:
+                return {"version": version, "error": "bad entry after %d files" % len(files)}
+            name = f.read(length).rstrip(b"\0").decode("utf-8", "replace")
+            offset, size = struct.unpack("<QQ", f.read(16))
+            f.read(16)
+            entry_flags = struct.unpack("<I", f.read(4))[0]
+            if name.startswith("res://"):
+                name = name[6:]
+            files.append((name, file_base + offset, size, entry_flags))
+    return {"version": version, "godot": "%d.%d.%d" % (major, minor, patch), "flags": flags, "files": files}
+
+
+class Source:
+    """A file either loose on disk or inside the pack."""
+
+    def __init__(self, name, path, offset, size, encrypted=False):
+        self.name, self.path, self.offset, self.size, self.encrypted = name, path, offset, size, encrypted
+
+    def read(self, start=0, length=None):
+        length = self.size - start if length is None else min(length, self.size - start)
+        if length <= 0:
+            return b""
+        with open(self.path, "rb") as f:
+            f.seek(self.offset + start)
+            return f.read(length)
+
+    def chunks(self):
+        done = 0
+        with open(self.path, "rb") as f:
+            f.seek(self.offset)
+            while done < self.size:
+                block = f.read(min(READ_CHUNK, self.size - done))
+                if not block:
+                    return
+                yield done, block
+                done += len(block)
+
+
+def ext_of(name):
+    base = name.rsplit("/", 1)[-1].lower()
+    for double in (".skel.bytes", ".atlas.txt", ".strings.bank"):
+        if base.endswith(double):
+            return double
+    return "." + base.rsplit(".", 1)[-1] if "." in base else ""
+
+
+# --- Spine skeletons: format, version and, for JSON, which features appear -----------------------------------
+
+def json_features(data):
+    """Generic walk of a JSON skeleton: counts per top-level section, attachment types and every key seen
+    under animations, so the feature set shows without knowing the format."""
+    out = {"format": "json"}
+    skeleton = data.get("skeleton") if isinstance(data, dict) else None
+    if isinstance(skeleton, dict):
+        out["version"] = skeleton.get("spine")
+        out["skeleton_keys"] = sorted(skeleton)
+    sections = {}
+    for key, value in (data.items() if isinstance(data, dict) else ()):
+        sections[key] = len(value) if isinstance(value, (list, dict)) else type(value).__name__
+    out["sections"] = sections
+    types, anim_keys, keys = {}, {}, {}
+
+    def walk(node, in_anim, depth):
+        if depth > 12:
+            return
+        if isinstance(node, dict):
+            if isinstance(node.get("type"), str):
+                types[node["type"]] = types.get(node["type"], 0) + 1
+            for k, v in node.items():
+                if in_anim:
+                    anim_keys[k] = anim_keys.get(k, 0) + 1
+                walk(v, in_anim, depth + 1)
+        elif isinstance(node, list):
+            for v in node[:2000]:
+                walk(v, in_anim, depth + 1)
+
+    for key in ("bones", "slots", "ik", "transform", "path", "physics", "skins", "events"):
+        if isinstance(data, dict) and key in data:
+            walk(data[key], False, 1)
+            for item in data[key] if isinstance(data[key], list) else ():
+                if isinstance(item, dict):
+                    for k in item:
+                        keys.setdefault(key, {})
+                        keys[key][k] = keys[key].get(k, 0) + 1
+    if isinstance(data, dict) and "animations" in data:
+        walk(data["animations"], True, 1)
+    out["attachment_types"] = types
+    out["animation_keys"] = dict(sorted(anim_keys.items(), key=lambda kv: -kv[1])[:200])
+    out["section_keys"] = keys
+    return out
+
+
+def skeleton_info(src):
+    head = src.read(0, SCAN_HEAD)
+    info = {"name": src.name, "size": src.size}
+    stripped = head.lstrip()
+    if stripped[:1] == b"{":
+        try:
+            info.update(json_features(json.loads(src.read().decode("utf-8", "replace"))))
+        except ValueError as error:
+            info["format"] = "json?"
+            info["error"] = str(error)[:120]
+        return info
+    if head[:4] == b"RSRC":
+        info["container"] = "godot-resource"
+    match = VERSION_TEXT.search(head)
+    if match:
+        info["version"] = match.group(0).decode()
+        info["version_at"] = match.start()
+        info["format"] = "binary"
+        # Bytes before the version: lets the header layout be checked without copying any data.
+        info["pre_version_bytes"] = match.start()
+    else:
+        info["format"] = "unknown"
+    if b"{\"skeleton\"" in head or b"\"skeleton\":" in head:
+        info["embedded_json"] = True
+    return info
+
+
+# --- FMOD banks: chunk layout and how the audio is encoded ---------------------------------------------------
+
+def riff_chunks(blob, limit=400):
+    """FourCC counts of a RIFF tree read from the bank's first bytes (no payloads)."""
+    counts, order = {}, []
+    if blob[:4] != b"RIFF":
+        return counts, order
+
+    def walk(start, end, depth):
+        pos = start
+        while pos + 8 <= end and len(order) < limit:
+            cc = blob[pos:pos + 4]
+            size = struct.unpack("<I", blob[pos + 4:pos + 8])[0]
+            if not FOURCC.match(cc):
+                return
+            name = cc.decode()
+            body = pos + 8
+            if name in ("RIFF", "LIST") and body + 4 <= len(blob):
+                name = name + ":" + blob[body:body + 4].decode("latin-1")
+                if depth < 6:
+                    walk(body + 4, min(body + size, len(blob)), depth + 1)
+            counts[name] = counts.get(name, 0) + 1
+            if len(order) < 60:
+                order.append((name, size))
+            pos = body + size + (size & 1)
+
+    walk(0, len(blob), 0)
+    return counts, order
+
+
+def fsb5_headers(src):
+    """Each FSB5 sound bank inside the file: version, sample count and codec (layout per the public FSB5
+    notes used by vgmstream and others)."""
+    found, carry, seen = [], b"", set()
+    for start, block in src.chunks():
+        data = carry + block
+        base = start - len(carry)
+        pos = data.find(b"FSB5")
+        while pos >= 0:
+            at = base + pos
+            if at not in seen and pos + 28 <= len(data):
+                seen.add(at)
+                version, samples, sample_headers, names, data_size, mode = struct.unpack("<6I", data[pos + 4:pos + 28])
+                found.append({"at": at, "version": version, "samples": samples, "codec": FSB_CODECS.get(mode, mode),
+                              "data_size": data_size, "name_table": names > 0})
+            pos = data.find(b"FSB5", pos + 4)
+        carry = data[-32:]
+        if len(found) > 200:
+            break
+    return found
+
+
+def strings_of(src, pattern, limit=MAX_LIST):
+    out, carry = [], b""
+    for _, block in src.chunks():
+        data = carry + block
+        for m in pattern.finditer(data):
+            text = m.group(0).decode("latin-1")
+            if text not in out:
+                out.append(text)
+                if len(out) >= limit:
+                    return out
+        carry = data[-256:]
+    return out
+
+
+def bank_info(src):
+    info = {"name": src.name, "size": src.size}
+    head = src.read(0, 1 << 20)
+    counts, order = riff_chunks(head)
+    info["riff_form"] = head[8:12].decode("latin-1") if head[:4] == b"RIFF" else None
+    info["chunk_counts"] = counts
+    info["chunk_order"] = order
+    info["fsb5"] = fsb5_headers(src)
+    if src.name.lower().endswith(".strings.bank") or src.size < (4 << 20):
+        paths = strings_of(src, FMOD_PATH)
+        if paths:
+            info["paths"] = paths
+    return info
+
+
+# --- The game's managed code: names from the .NET metadata heaps (ECMA-335) --------------------------------
+
+def dotnet_heaps(blob):
+    """(#Strings, #US) heap bytes of a .NET PE file, or (None, None)."""
+    if blob[:2] != b"MZ":
+        return None, None
+    pe = struct.unpack("<I", blob[0x3C:0x40])[0]
+    if blob[pe:pe + 4] != b"PE\0\0":
+        return None, None
+    sections = struct.unpack("<H", blob[pe + 6:pe + 8])[0]
+    opt_size = struct.unpack("<H", blob[pe + 20:pe + 22])[0]
+    opt = pe + 24
+    magic = struct.unpack("<H", blob[opt:opt + 2])[0]
+    dirs = opt + (96 if magic == 0x10B else 112)
+    cli_rva = struct.unpack("<I", blob[dirs + 14 * 8:dirs + 14 * 8 + 4])[0]
+    table = opt + opt_size
+    spans = []
+    for i in range(sections):
+        s = table + 40 * i
+        vsize, rva, rsize, raw = struct.unpack("<IIII", blob[s + 8:s + 24])
+        spans.append((rva, max(vsize, rsize), raw))
+
+    def at(rva):
+        for start, size, raw in spans:
+            if start <= rva < start + size:
+                return raw + rva - start
+        return None
+
+    cli = at(cli_rva) if cli_rva else None
+    if cli is None:
+        return None, None
+    meta_rva = struct.unpack("<I", blob[cli + 8:cli + 12])[0]
+    meta = at(meta_rva)
+    if meta is None or blob[meta:meta + 4] != b"BSJB":
+        return None, None
+    vlen = struct.unpack("<I", blob[meta + 12:meta + 16])[0]
+    pos = meta + 16 + vlen + 2
+    streams = struct.unpack("<H", blob[pos:pos + 2])[0]
+    pos += 2
+    heaps = {}
+    for _ in range(streams):
+        offset, size = struct.unpack("<II", blob[pos:pos + 8])
+        end = blob.index(b"\0", pos + 8)
+        name = blob[pos + 8:end].decode("latin-1")
+        pos = (end + 4) & ~3
+        heaps[name] = blob[meta + offset:meta + offset + size]
+    return heaps.get("#Strings"), heaps.get("#US")
+
+
+def user_strings(heap):
+    out, pos = [], 1
+    while pos < len(heap):
+        b = heap[pos]
+        if b & 0x80 == 0:
+            length, pos = b, pos + 1
+        elif b & 0xC0 == 0x80:
+            length, pos = ((b & 0x3F) << 8) | heap[pos + 1], pos + 2
+        else:
+            length, pos = ((b & 0x1F) << 24) | (heap[pos + 1] << 16) | (heap[pos + 2] << 8) | heap[pos + 3], pos + 4
+        if length:
+            out.append(heap[pos:pos + length - 1].decode("utf-16-le", "replace"))
+        pos += length
+    return out
+
+
+def assembly_names(path):
+    try:
+        blob = Path(path).read_bytes()
+    except OSError as error:
+        return {"error": str(error)}
+    strings, us = dotnet_heaps(blob)
+    if strings is None:
+        return {"error": "not a .NET assembly"}
+    names = [s.decode("utf-8", "replace") for s in strings.split(b"\0") if s]
+    picked = sorted({n for n in names if re.search(r"(?i)spine|fmod", n)})
+    literals = user_strings(us or b"")
+    fmod_paths = sorted({s for s in literals if FMOD_PATH.match(s.encode("latin-1", "replace"))})
+    hinted = sorted({s for s in literals if SNAKE.match(s) and any(h in s for h in NAME_HINTS)})
+    classes = sorted({s for s in literals if re.match(r"^(Spine|Fmod|FMOD)[A-Za-z0-9_]*$", s)})
+    return {"metadata_names": picked[:MAX_LIST], "class_literals": classes, "fmod_paths": fmod_paths[:MAX_LIST],
+            "hinted_literals": hinted[:MAX_LIST], "literal_count": len(literals)}
+
+
+# --- Putting it together --------------------------------------------------------------------------------------
+
+def find_pack(game_dir):
+    packs = sorted(Path(game_dir).glob("*.pck"), key=lambda p: -p.stat().st_size)
+    if packs:
+        return packs[0]
+    exes = sorted(Path(game_dir).glob("*.exe"), key=lambda p: -p.stat().st_size)
+    return exes[0] if exes else None
+
+
+def inventory(game_dir):
+    game_dir = Path(game_dir)
+    report = {"schema": SCHEMA, "game_dir_name": game_dir.name, "made": int(time.time())}
+    sources = []
+    pack = find_pack(game_dir)
+    if pack is not None:
+        parsed = read_pack(pack)
+        report["pack"] = {k: v for k, v in parsed.items() if k != "files"}
+        report["pack"]["name"] = pack.name
+        report["pack"]["size"] = pack.stat().st_size
+        for name, offset, size, flags in parsed.get("files", []):
+            sources.append(Source(name, pack, offset, size, bool(flags & 1)))
+    for path in game_dir.rglob("*"):
+        if path.is_file() and path != pack:
+            sources.append(Source("disk:" + str(path.relative_to(game_dir)), path, 0, path.stat().st_size))
+    exts = {}
+    for src in sources:
+        e = ext_of(src.name)
+        n, total = exts.get(e, (0, 0))
+        exts[e] = (n + 1, total + src.size)
+    report["extensions"] = {e: {"files": n, "bytes": b} for e, (n, b) in sorted(exts.items(), key=lambda kv: -kv[1][1])}
+    report["encrypted_files"] = sum(1 for s in sources if s.encrypted)
+
+    gdext = []
+    for src in sources:
+        if src.name.lower().endswith(".gdextension") and not src.encrypted:
+            gdext.append({"name": src.name, "text": src.read(0, MAX_GDEXT_BYTES).decode("utf-8", "replace")})
+    report["gdextensions"] = gdext
+    report["native_libraries"] = sorted(s.name for s in sources
+                                        if s.name.startswith("disk:") and ext_of(s.name) in (".dll", ".so", ".dylib"))[:400]
+
+    importers = {}
+    for src in sources:
+        if src.name.endswith(".import") and not src.encrypted and src.size < 65536:
+            text = src.read().decode("utf-8", "replace")
+            m = re.search(r'importer="([^"]+)"', text)
+            t = re.search(r'type="([^"]+)"', text)
+            key = "%s -> %s" % (m.group(1) if m else "?", t.group(1) if t else "?")
+            importers[key] = importers.get(key, 0) + 1
+    report["importers"] = importers
+
+    skeleton_ext = (".skel", ".skel.bytes", ".spskel", ".spine-json", ".spjson")
+    skeletons = []
+    for src in sources:
+        e = ext_of(src.name)
+        if src.encrypted:
+            continue
+        if e in skeleton_ext or (e == ".json" and b"\"skeleton\"" in src.read(0, 512)):
+            skeletons.append(skeleton_info(src))
+    report["skeletons"] = skeletons[:MAX_LIST]
+    report["skeleton_count"] = len(skeletons)
+    report["atlas_count"] = sum(1 for s in sources if ext_of(s.name) in (".atlas", ".atlas.txt", ".spatlas"))
+
+    banks = [bank_info(s) for s in sources if ext_of(s.name) in (".bank", ".strings.bank") and not s.encrypted]
+    report["banks"] = banks
+
+    resource_hits = {}
+    pattern = re.compile(rb"(?:Spine|Fmod)[A-Z][A-Za-z0-9]{2,40}")
+    for src in sources:
+        if ext_of(src.name) in (".scn", ".tscn", ".res", ".tres", ".remap") and not src.encrypted and src.size < (8 << 20):
+            for m in set(pattern.findall(src.read())):
+                name = m.decode()
+                resource_hits[name] = resource_hits.get(name, 0) + 1
+    report["resource_class_hits"] = dict(sorted(resource_hits.items(), key=lambda kv: -kv[1]))
+
+    managed = {}
+    for src in sources:
+        if src.name.startswith("disk:") and src.name.lower().endswith(".dll") and src.size < (64 << 20):
+            base = src.name.rsplit("/", 1)[-1].lower()
+            if base.startswith(("system.", "microsoft.", "mscorlib", "netstandard", "windowsbase", "api-ms-")):
+                continue
+            names = assembly_names(src.path)
+            if "error" in names:
+                continue
+            if base == "sts2.dll" or any(names[k] for k in ("metadata_names", "class_literals", "fmod_paths")):
+                managed[src.name] = names
+            else:
+                managed[src.name] = {"literal_count": names["literal_count"]}
+    report["managed"] = managed
+    return report
+
+
+SKELETON_EXT = (".skel", ".skel.bytes", ".spskel", ".spine-json", ".spjson")
+ATLAS_EXT = (".atlas", ".atlas.txt", ".spatlas")
+
+
+def game_sources(game_dir):
+    game_dir = Path(game_dir)
+    sources = []
+    pack = find_pack(game_dir)
+    if pack is not None:
+        for name, offset, size, flags in read_pack(pack).get("files", []):
+            sources.append(Source(name, pack, offset, size, bool(flags & 1)))
+    for path in game_dir.rglob("*"):
+        if path.is_file() and path != pack:
+            sources.append(Source("disk:" + str(path.relative_to(game_dir)), path, 0, path.stat().st_size))
+    return sources
+
+
+def stem_key(name):
+    base = name.rsplit("/", 1)[-1].lower()
+    for e in SKELETON_EXT + ATLAS_EXT + (".json",):
+        if base.endswith(e):
+            return name.rsplit("/", 1)[0].lower() if "/" in name else "", base[:-len(e)]
+    return None
+
+
+def pick_samples(sources, budget=SAMPLE_BUDGET):
+    """A few skeletons of each format (small, middle and large) with their atlases and import notes, the
+    strings bank, the smallest bank with audio and the smallest bank without, all within [budget]."""
+    usable = [s for s in sources if not s.encrypted and 0 < s.size <= SAMPLE_FILE_MAX]
+    skel = {}
+    for src in usable:
+        e = ext_of(src.name)
+        if e in SKELETON_EXT:
+            fmt = "json" if e in (".spine-json", ".spjson") else "binary"
+        elif e == ".json" and b"\"skeleton\"" in src.read(0, 512):
+            fmt = "json"
+        else:
+            continue
+        skel.setdefault(fmt, []).append(src)
+    chosen = []
+    for fmt in ("binary", "json"):
+        group = sorted(skel.get(fmt, []), key=lambda s: s.size)
+        if group:
+            picks = {0, len(group) // 2, len(group) - 1}
+            chosen += [group[i] for i in sorted(picks)]
+    by_stem = {}
+    for src in usable:
+        key = stem_key(src.name)
+        if key and ext_of(src.name) in ATLAS_EXT:
+            by_stem.setdefault(key, []).append(src)
+    imports = {s.name[:-len(".import")]: s for s in usable if s.name.endswith(".import")}
+    extra = []
+    for src in chosen:
+        extra += by_stem.get(stem_key(src.name), [])
+        if src.name in imports:
+            extra.append(imports[src.name])
+    banks = [s for s in usable if ext_of(s.name) in (".bank", ".strings.bank")]
+    strings = sorted((b for b in banks if b.name.lower().endswith(".strings.bank")), key=lambda s: s.size)[:1]
+    with_audio, without = [], []
+    for b in sorted(banks, key=lambda s: s.size):
+        if b in strings:
+            continue
+        (with_audio if bank_info(b).get("fsb5") else without).append(b)
+    picked, total, seen = [], 0, set()
+    for src in strings + with_audio[:1] + without[:1] + chosen + extra:
+        if src.name in seen or total + src.size > budget:
+            continue
+        seen.add(src.name)
+        picked.append(src)
+        total += src.size
+    return picked
+
+
+def write_samples(picked, out):
+    """A zip of the picked files under their own names, with a manifest; written atomically."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_suffix(".tmp")
+    manifest = []
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+        for i, src in enumerate(picked):
+            data = src.read()
+            arc = "%02d_%s" % (i, re.sub(r"[^A-Za-z0-9._-]+", "_", src.name.replace("disk:", "disk_"))[-120:])
+            z.writestr(arc, data)
+            manifest.append({"file": arc, "name": src.name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        z.writestr("manifest.json", json.dumps({"schema": SCHEMA, "files": manifest}, indent=1))
+    tmp.replace(out)
+    return manifest
+
+
+def summary(report):
+    versions = {}
+    for s in report.get("skeletons", []):
+        key = "%s %s" % (s.get("format"), s.get("version"))
+        versions[key] = versions.get(key, 0) + 1
+    codecs = {}
+    for b in report.get("banks", []):
+        for f in b.get("fsb5", []):
+            codecs[str(f["codec"])] = codecs.get(str(f["codec"]), 0) + f["samples"]
+    events = set()
+    for b in report.get("banks", []):
+        events.update(p for p in b.get("paths", []) if p.startswith("event:/"))
+    called = set()
+    for m in report.get("managed", {}).values():
+        called.update(p for p in m.get("fmod_paths", []) if p.startswith("event:/"))
+    return {"schema": SCHEMA, "pack": report.get("pack"), "skeletons": report.get("skeleton_count"),
+            "skeleton_versions": versions, "atlases": report.get("atlas_count"), "banks": len(report.get("banks", [])),
+            "audio_samples_by_codec": codecs, "bank_events": len(events), "code_events": len(called),
+            "gdextensions": [g["name"] for g in report.get("gdextensions", [])],
+            "spine_classes_in_scenes": [k for k in report.get("resource_class_hits", {}) if k.startswith("Spine")][:40],
+            "fmod_classes_in_scenes": [k for k in report.get("resource_class_hits", {}) if k.startswith("Fmod")][:40],
+            "encrypted_files": report.get("encrypted_files")}
+
+
+def emit(report, out=REPORT):
+    say(PREFIX + "_SUMMARY " + json.dumps(summary(report), separators=(",", ":"), sort_keys=True)[:4000])
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_suffix(".tmp")
+        tmp.write_text(json.dumps(report, separators=(",", ":")))
+        tmp.replace(out)
+    except OSError as error:
+        say(PREFIX + "_SUMMARY " + json.dumps({"schema": SCHEMA, "error": "report not written (%s)" % error}))
+
+
+def stamp(game_dir):
+    h = hashlib.sha256()
+    for path in sorted(Path(game_dir).glob("*")):
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        h.update(("%s %d %d\n" % (path.name, st.st_size, int(st.st_mtime))).encode())
+    return h.hexdigest()[:16]
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--game-dir", required=True)
+    parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument("--json", help="write the full report here instead (for tests)")
+    parser.add_argument("--samples", help="write the sample zip here instead (for tests)")
+    args = parser.parse_args(argv)
+    if not os.path.isdir(args.game_dir):
+        say(PREFIX + "_SUMMARY " + json.dumps({"schema": SCHEMA, "error": "game folder missing"}))
+        return 1
+    cache = CACHE_DIR / ("native-inventory-%s.json" % stamp(args.game_dir))
+    report = None
+    if not args.no_cache:
+        try:
+            report = json.loads(cache.read_text())
+        except (OSError, ValueError):
+            report = None
+    if report is None:
+        started = time.monotonic()
+        try:
+            report = inventory(args.game_dir)
+        except Exception as error:  # a partial answer is still worth sending; never disturb the game
+            report = {"schema": SCHEMA, "error": "%s: %s" % (type(error).__name__, error)}
+        report["seconds"] = round(time.monotonic() - started, 1)
+        if not args.no_cache:
+            try:
+                CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                cache.write_text(json.dumps(report))
+            except OSError:
+                pass
+    emit(report, Path(args.json) if args.json else REPORT)
+    samples_out = Path(args.samples) if args.samples else SAMPLES
+    kept = CACHE_DIR / ("native-samples-%s.json" % stamp(args.game_dir))
+    try:
+        if not args.no_cache and kept.is_file():
+            # Sent once per game build: the telemetry bundle takes the zip only in the session that wrote it.
+            say(PREFIX + "_SAMPLES " + json.dumps({"already_sent": kept.name}))
+        else:
+            manifest = write_samples(pick_samples(game_sources(args.game_dir)), samples_out)
+            say(PREFIX + "_SAMPLES " + json.dumps({"files": [m["name"] for m in manifest],
+                                                     "bytes": sum(m["size"] for m in manifest)})[:4000])
+            if not args.no_cache:
+                kept.write_text(json.dumps(manifest))
+    except Exception as error:  # never disturb the game
+        say(PREFIX + "_SAMPLES " + json.dumps({"error": "%s: %s" % (type(error).__name__, error)}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

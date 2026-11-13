@@ -19,6 +19,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY, haptics = dock != null)
     private var layout: SavedInputLayout? = null
     private val safe = Rect()
+    private val cutout = Rect()
     private var viewWidth = 0
     private var viewHeight = 0
     private val placements = object : LinkedHashMap<Placement, List<InputSurfaceElement>>(4, .75f, true) {
@@ -102,6 +103,24 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         quickToggle.alpha = style.opacity / 100f
         quickToggle.visibility = if (isButtonsOnly || isPinnedOnly || layout == null || dock != null) GONE else VISIBLE
         quickToggle.invalidate()
+        placeQuickToggle()
+    }
+
+    /** Slay the Spire 2 keeps its draw pile in the bottom-left corner, so its pad has the toggle at the top of the empty bar beside the picture. */
+    private fun placeQuickToggle() {
+        val top = Sts2Pad.owns(layout)
+        val offset = ((QUICK_CENTER_DP - QUICK_HIT_DP) * resources.displayMetrics.density).toInt()
+        val params = quickToggle.layoutParams as LayoutParams
+        val gravity = Gravity.START or (if (top) Gravity.TOP else Gravity.BOTTOM)
+        val left = if (top) offset else cutout.left + offset
+        val topMargin = if (top) cutout.top + offset else 0
+        val bottomMargin = if (top) 0 else cutout.bottom + offset
+        if (params.gravity == gravity && params.leftMargin == left && params.topMargin == topMargin && params.bottomMargin == bottomMargin) return
+        params.gravity = gravity
+        params.leftMargin = left
+        params.topMargin = topMargin
+        params.bottomMargin = bottomMargin
+        quickToggle.layoutParams = params
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -148,15 +167,8 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-        val offset = ((QUICK_CENTER_DP - QUICK_HIT_DP) * resources.displayMetrics.density).toInt()
-        val params = quickToggle.layoutParams as LayoutParams
-        val left = (cutout?.safeInsetLeft ?: 0) + offset
-        val bottom = (cutout?.safeInsetBottom ?: 0) + offset
-        if (params.leftMargin != left || params.bottomMargin != bottom) {
-            params.leftMargin = left
-            params.bottomMargin = bottom
-            quickToggle.layoutParams = params
-        }
+        this.cutout.set(cutout?.safeInsetLeft ?: 0, cutout?.safeInsetTop ?: 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
+        placeQuickToggle()
         val fresh = Rect(cutout?.safeInsetLeft ?: 0, if (dock == null) cutout?.safeInsetTop ?: 0 else 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
         if (fresh != safe) {
             safe.set(fresh)

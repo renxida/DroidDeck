@@ -1,0 +1,135 @@
+name: Native engine bench (Godot 4.5.1 C#, arm64 native vs x86-64 under FEX)
+
+# Off-device answer to "how much would running StS2's engine natively save?".
+# Same Godot 4.5.1 .NET 9 stand-in workload, exported twice, run on an arm64 runner:
+# natively, and as the x86-64 build under FEX with Kestrel's game env.
+
+on:
+  push:
+    paths:
+      - 'tools/native-engine/**'
+      - '.github/workflows/native-engine-bench.yml'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-inventory'
+      - 'tools/tests/test_native_inventory.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VER: 4.5.1-stable
+  GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.5.1-stable
+
+jobs:
+  bench:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Fetch Godot 4.5.1 mono editor (arm64) and export templates
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSL -o ed.zip "$GODOT_URL/Godot_v${GODOT_VER}_mono_linux_arm64.zip"
+          unzip -q ed.zip
+          ED=$(find "$PWD" -name 'Godot_v*_mono_linux.arm64' -type f | head -1)
+          chmod +x "$ED"; echo "GODOT=$ED" >> "$GITHUB_ENV"
+          curl -fsSL -o t.tpz "$GODOT_URL/Godot_v${GODOT_VER}_mono_export_templates.tpz"
+          T=~/.local/share/godot/export_templates/4.5.1.stable.mono
+          mkdir -p "$T" && unzip -q t.tpz -d tt && mv tt/templates/* "$T"/
+          ls "$T" | grep -i linux
+      - name: Export the bench for arm64 and x86_64
+        timeout-minutes: 30
+        working-directory: tools/native-engine/bench
+        run: |
+          set -euo pipefail
+          export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
+          # Godot's export only publishes C# when <assembly_name>.sln exists.
+          # (committed as a classic .sln: newer SDKs make .slnx, which Godot ignores)
+          ls -la NativeBench.sln
+          echo "::group::dotnet build"; timeout 600 dotnet build NativeBench.csproj -c ExportRelease 2>&1 | tail -20; echo "::endgroup::"
+          echo "::group::import"; timeout 300 "$GODOT" --headless --verbose --path . --import 2>&1 | tail -40 || echo "import exit $?"; echo "::endgroup::"
+          mkdir -p out/arm64 out/x86_64
+          for a in arm64 x86_64; do
+            echo "::group::export $a"
+            timeout 900 "$GODOT" --headless --verbose --path . --export-release $a out/$a/NativeBench.$a > export-$a.log 2>&1 || echo "export $a exit $?"
+            grep -iE "error|warn|dotnet|publish|\.NET|mono|csproj|assembl" export-$a.log | grep -v "^ *$" | head -60
+            echo "::endgroup::"
+          done
+          ls -la out/*; ls out/*/ | head -40
+          file out/arm64/NativeBench.arm64 out/x86_64/NativeBench.x86_64
+      - name: Inventory a real Godot 4.5.1 C# export
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools/tests/test_native_inventory.py
+          INV=tools/linuxfs/overlay/usr/local/bin/droiddeck-native-inventory
+          python3 $INV --game-dir tools/native-engine/bench/out/x86_64 --no-cache --json /tmp/inv.json
+          python3 - <<'PY'
+          import json
+          r = json.load(open("/tmp/inv.json"))
+          print(json.dumps({k: r.get(k) for k in ("pack", "extensions", "importers", "gdextensions")}, indent=1))
+          print(json.dumps({k: {kk: (vv if not isinstance(vv, list) else len(vv)) for kk, vv in v.items()} for k, v in r["managed"].items()}, indent=1))
+          assert r["pack"].get("godot") == "4.5.1" and "error" not in r["pack"], r["pack"]
+          assert r["extensions"], "no files listed from the pack"
+          assert any(v.get("literal_count", 0) > 0 for v in r["managed"].values()), "no .NET user strings read"
+          PY
+
+      - name: Install FEX (upstream PPA) and an x86-64 rootfs
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          sudo add-apt-repository -y ppa:fex-emu/fex
+          sudo apt-get update -q
+          sudo apt-get install -y -q fex-emu-armv8.4 time || sudo apt-get install -y -q fex-emu-armv8.2 time
+          dpkg -L fex-emu-armv8.4 2>/dev/null | grep /bin/ || true
+          # FEX 25xx renamed FEXInterpreter to FEX; take whichever exists.
+          FEXBIN=$(command -v FEX || command -v FEXInterpreter)
+          echo "FEXBIN=$FEXBIN" >> "$GITHUB_ENV"
+          # Plain Ubuntu 24.04 amd64 base as the x86-64 rootfs (no GUI fetcher).
+          R=$HOME/rootfs-amd64; mkdir -p $R
+          base=https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release
+          f=$(curl -fsSL $base/SHA256SUMS | awk '/ubuntu-base-.*-base-amd64.tar.gz/{print $2}' | tr -d '*' | tail -1)
+          curl -fsSL "$base/$f" | sudo tar -xz -C $R
+          sudo chown -R "$(id -u):$(id -g)" $R
+          echo "FEX_ROOTFS=$R" >> "$GITHUB_ENV"
+          FEX_ROOTFS=$R "$FEXBIN" $R/usr/bin/uname -m
+          ls $R/usr/lib/x86_64-linux-gnu | grep -E "libstdc|libgcc_s|libc.so" || true
+      - name: Run
+        working-directory: tools/native-engine/bench
+        shell: bash {0}
+        run: |
+          set -uo pipefail
+          mkdir -p results
+          common="DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1"
+          # Kestrel's current game env for the managed side (fex-fast row).
+          kenv="FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 FEX_HALFBARRIERTSOENABLED=1 FEX_MULTIBLOCK=1 DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 DOTNET_gcConcurrent=0"
+          run() { # name, cmd...
+            local name=$1; shift
+            for i in 1 2 3; do
+              /usr/bin/time -v -o results/$name.$i.time timeout 900 env $common "$@" --headless > results/$name.$i.log 2>&1
+              echo "$name run $i exit=$?" | tee -a results/exits.txt
+              [ $i = 1 ] && { echo "--- $name log (tail)"; tail -30 results/$name.$i.log; }
+              grep -h BENCH_JSON results/$name.$i.log | sed "s/^BENCH_JSON /$name /" | tee -a results/bench.txt
+            done
+          }
+          echo "--- export log keys"; grep -iE "error|dotnet|publish|csproj|assembl" export-arm64.log | head -40; echo "--- export layout"; ls -la out/arm64 out/x86_64; ls out/arm64/data_* 2>/dev/null | head -20; file out/arm64/NativeBench.arm64
+          sudo apt-get install -y -q gdb >/dev/null 2>&1 || true
+          echo "--- native under gdb"; DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 300 gdb -q -batch -ex run -ex bt -ex 'info sharedlibrary' --args out/arm64/NativeBench.arm64 --headless --verbose 2>&1 | tail -80
+          run native  env DOTNET_TieredPGO=0 out/arm64/NativeBench.arm64
+          run fex_kestrel env $kenv "$FEXBIN" out/x86_64/NativeBench.x86_64
+          run fex_notso env FEX_TSOENABLED=0 FEX_MULTIBLOCK=1 DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 "$FEXBIN" out/x86_64/NativeBench.x86_64
+          for f in results/*.time; do printf "%s " "$f"; grep -E "Elapsed|Maximum resident|User time|System time" "$f" | tr -s ' ' | tr '\n' ' '; echo; done | tee results/time.txt
+          {
+            echo '## Native vs FEX (Godot 4.5.1 C# stand-in, per-frame CPU ms)'; echo '```'; cat results/bench.txt; echo; cat results/exits.txt; echo; cat results/time.txt; echo '```'
+            for f in results/fex_kestrel.1.log results/native.1.log; do echo "### tail $f"; echo '```'; tail -25 "$f"; echo '```'; done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-engine-bench
+          path: tools/native-engine/bench/results

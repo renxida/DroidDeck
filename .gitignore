@@ -33,3 +33,7 @@ __pycache__/
 app/src/main/assets/directaudio/
 app/src/main/assets/hybris/
 /tools/vr/out/
+fex-ec/
+fex-linux/
+bench-out/
+bench-bin/

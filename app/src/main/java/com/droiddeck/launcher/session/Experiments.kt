@@ -33,6 +33,20 @@ object Experiments {
     const val DOTNET_TRACE = "dotnet-trace"
     const val DOTNET_GEN0 = "dotnet-gen0"
     const val DOTNET_GC_STOCK = "dotnet-gc-stock"
+    /** Games use Kestrel's own FEX build (tools/fex/arm64ec) through the Auto component line instead of DD-FEXCore. */
+    const val FEX_KESTREL = "fex-kestrel"
+    /** FEX keeps its per-thread counters (FEX_PROFILESTATS=1) and the app logs them to fex.csv. */
+    const val FEX_STATS = "fex-stats"
+    const val WAYLAND_PRESENT = "wayland-present"
+    const val VK_COUNT = "vk-count"
+    const val NATIVE_INVENTORY = "native-inventory"
+    const val FREE_MEMORY = "free-memory"
+    const val HYBRIS_INDEX = "hybris-index"
+    /** FEX's per-thread block lookup cache at a fixed size from the start: 4 MB with Kestrel's FEX, 16 MB otherwise. */
+    const val FEX_L1 = "fex-l1"
+    const val HYBRIS_INDEX_SESSION = "hybris-index-session"
+    /** Godot C# games run on Kestrel's own linux-arm64 engine (droiddeck-native-godot), skipping Wine and FEX; Proton if it fails to start. */
+    const val NATIVE_ENGINE = "native-engine"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -51,6 +65,16 @@ object Experiments {
         Switch(DOTNET_TRACE, R.string.exp_dotnet_trace),
         Switch(DOTNET_GEN0, R.string.exp_dotnet_gen0),
         Switch(DOTNET_GC_STOCK, R.string.exp_dotnet_gc_stock),
+        Switch(FEX_KESTREL, R.string.exp_fex_kestrel),
+        Switch(FEX_STATS, R.string.exp_fex_stats),
+        Switch(WAYLAND_PRESENT, R.string.exp_wayland_present),
+        Switch(VK_COUNT, R.string.exp_vk_count),
+        Switch(NATIVE_INVENTORY, R.string.exp_native_inventory),
+        Switch(FREE_MEMORY, R.string.exp_free_memory),
+        Switch(HYBRIS_INDEX, R.string.exp_hybris_index),
+        Switch(FEX_L1, R.string.exp_fex_l1),
+        Switch(HYBRIS_INDEX_SESSION, R.string.exp_hybris_index_session),
+        Switch(NATIVE_ENGINE, R.string.exp_native_engine),
     )
 
     /** At most one of each group is on. */
@@ -66,11 +90,13 @@ object Experiments {
     /** The order the guest's droiddeck-game-env lists them in. */
     val ids = listOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, LAYER_FENCE,
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
-        DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK)
+        DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
+        WAYLAND_PRESENT, VK_COUNT,
+        NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
-        QUICK_TAP, FEX_CODEGEN, FEX_FAST)
+        QUICK_TAP, FEX_CODEGEN, FEX_FAST, FEX_STATS, FREE_MEMORY)
 
     fun envName(id: String) = "DROIDDECK_EXP_" + id.uppercase().replace('-', '_')
 

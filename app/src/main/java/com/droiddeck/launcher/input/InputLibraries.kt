@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 14
+    private const val VERSION = 15
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -24,7 +24,7 @@ object InputLibraries {
         val p = prefs(context)
         val raw = p.getString(KEY, null)
         val decoded = raw?.let(::decode)
-        if (raw != null && decoded == null) return scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context))))
+        if (raw != null && decoded == null) return withSts2Pad(scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context)))))
         var library = decoded ?: scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context))))
         val version = raw?.let { JSONObject(it).getInt("version") } ?: 0
         if (version < 5) library = scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, library)))
@@ -33,6 +33,7 @@ object InputLibraries {
         if (version < 12) library = barStockLayouts(library)
         if (version < 13) library = LegacyScreenKeyMigration.pin(library)
         if (version < 14) library = deckGamepadSurfaces(context, library)
+        if (version < 15) library = withSts2Pad(library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -140,6 +141,7 @@ object InputLibraries {
 
     fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): List<InputSurfaceElement>? {
         val origin = layout.origin ?: layout.id
+        if (origin == Sts2Pad.LAYOUT) return Sts2Pad.layout().elements
         InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements }
         if (origin == OVERLAY || origin.startsWith("migrated.layout.")) {
             val (surfaceContext, metrics) = primaryDisplay(context)
@@ -274,6 +276,9 @@ object InputLibraries {
         if (saved.elements != InputStockLayouts.gamepad(leftPad = false, rightStick = false)) return library
         return library.withLayout(saved.copy(elements = InputStockLayouts.gamepad(leftPad, rightStick))).validate()
     }
+
+    private fun withSts2Pad(library: InputLibrary): InputLibrary =
+        if (library.layouts.any { it.id == Sts2Pad.LAYOUT }) library else library.withLayout(Sts2Pad.layout()).withPreset(Sts2Pad.bindings()).validate()
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {
         val seed = JSONArray(listOf(binding, layout)).toString().toByteArray(Charsets.UTF_8)

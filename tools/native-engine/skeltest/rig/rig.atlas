@@ -1,0 +1,9 @@
+
+rig.png
+size: 64,32
+filter: Nearest,Nearest
+pma: false
+box
+bounds: 0,0,32,8
+head
+bounds: 32,0,16,16

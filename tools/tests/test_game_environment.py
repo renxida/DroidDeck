@@ -2,6 +2,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import struct
 from pathlib import Path
@@ -10,6 +11,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from unittest import mock
 import unittest
 from unittest.mock import patch
@@ -19,6 +21,47 @@ MODULE = runpy.run_path(str(BIN / "droiddeck-game-env"))
 COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
 STATE = tempfile.TemporaryDirectory()
 COMPAT["main"].__globals__["COMPAT_DIR"] = STATE.name
+
+
+class FreeMemoryRequestTest(unittest.TestCase):
+    def test_the_game_waits_for_the_apps_answer_to_its_own_request(self):
+        import threading
+        with tempfile.TemporaryDirectory() as tmp:
+            request = Path(tmp) / "free-memory"
+            (Path(tmp) / "free-memory-done").write_text("2868840-stale method=none\n")
+
+            def app():
+                for _ in range(200):
+                    if request.exists():
+                        token = request.read_text().strip()
+                        request.unlink()
+                        staged = Path(tmp) / "free-memory-done.tmp"
+                        staged.write_text(token + " method=kill_background+balloon freedMb=1800 availableMb=4100\n")
+                        os.replace(staged, Path(tmp) / "free-memory-done")
+                        return
+                    time.sleep(0.01)
+
+            answering = threading.Thread(target=app)
+            answering.start()
+            answer = MODULE["free_memory"](tmp, "2868840", wait=5, poll=0.01)
+            answering.join()
+            self.assertEqual(answer, "method=kill_background+balloon freedMb=1800 availableMb=4100")
+            self.assertFalse((Path(tmp) / "free-memory-done").exists())
+
+    def test_without_an_answer_or_a_launch_directory_the_game_goes_on(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(MODULE["free_memory"](tmp, "2868840", wait=0.05, poll=0.01), "no answer in 0 s")
+            token = (Path(tmp) / "free-memory").read_text().strip()
+            self.assertRegex(token, r"^2868840-[0-9a-f]{16}$")
+        self.assertEqual(MODULE["free_memory"]("", "2868840"), "no launch directory")
+        self.assertEqual(MODULE["free_memory"]("/nonexistent/launch", "2868840"), "no launch directory")
+
+    def test_the_guest_lists_the_same_experiments_as_the_app(self):
+        source = (Path(__file__).resolve().parents[2] /
+                  "app/src/main/java/com/droiddeck/launcher/session/Experiments.kt").read_text()
+        names = dict(re.findall(r'const val (\w+) = "([^"]+)"', source))
+        ids = re.search(r"val ids = listOf\(([^)]*)\)", source).group(1)
+        self.assertEqual(tuple(names[n.strip()] for n in ids.split(",")), MODULE["EXPERIMENTS"])
 
 
 class SupergiantDotnetReporterTest(unittest.TestCase):
@@ -554,6 +597,75 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             target.write_bytes(b"component")
         (runtime / "run-proton.py").chmod(0o755)
         return runtime, files
+
+    def test_wayland_present_names_gamescope_socket_only_with_a_wayland_capable_layer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime, _ = self.runtime(Path(tmp))
+            manifest = runtime / "wsi" / "VkLayer_window_system_integration.json"
+            base = {"DROIDDECK_POWERVR_RUNTIME": str(runtime), "STEAM_COMPAT_DATA_PATH": "/compatdata/42",
+                    "WAYLAND_DISPLAY": "", "GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0"}
+            command = ["/proton", "waitforexitandrun", "game.exe"]
+            on = dict(base, DROIDDECK_EXP_WAYLAND_PRESENT="1")
+            cases = [
+                ("off", base, '{"name": "VK_KHR_wayland_surface"}', None),
+                ("x11-only layer", on, '{"name": "VK_KHR_xcb_surface"}', None),
+                ("no socket", dict(on, GAMESCOPE_WAYLAND_DISPLAY=""), '{"name": "VK_KHR_wayland_surface"}', None),
+                ("on", on, '{"name": "VK_KHR_wayland_surface"}', "gamescope-0"),
+            ]
+            for name, env, text, socket in cases:
+                with self.subTest(name), mock.patch("sys.stderr", new=io.StringIO()):
+                    manifest.write_text(text)
+                    _, result = MODULE["system_graphics_launch"](command, env)
+                    if socket:
+                        self.assertEqual(result["WAYLAND_DISPLAY"], socket)
+                        self.assertEqual(result["PROTON_ENABLE_WAYLAND"], "1")
+                    else:
+                        self.assertEqual(result["WAYLAND_DISPLAY"], "")
+                        self.assertNotIn("PROTON_ENABLE_WAYLAND", result)
+                    self.assertEqual(env.get("WAYLAND_DISPLAY"), "")
+
+    def test_vk_count_puts_its_layer_first_only_when_on_and_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layer_dir = Path(tmp) / "vkcount"
+            layer_dir.mkdir()
+            base = {"VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat",
+                    "VK_LAYER_PATH": "/rt/wsi:/rt/lib"}
+            env = dict(base)
+            self.assertIsNone(MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env, base)
+            env = dict(base, DROIDDECK_EXP_VK_COUNT="1")
+            self.assertIn("not installed", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"], base["VK_INSTANCE_LAYERS"])
+            (layer_dir / "libVkLayer_droiddeck_vkcount.so").write_bytes(b"\x7fELF")
+            self.assertIn("counting", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"],
+                             "VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+
+    def test_hybris_index_swaps_in_its_compat_layer_only_when_on_and_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layer_dir = Path(tmp) / "hybris-compat"
+            layer_dir.mkdir()
+            base = {"VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat",
+                    "VK_LAYER_PATH": "/rt/wsi:/rt/lib"}
+            env = dict(base)
+            self.assertIsNone(MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env, base)
+            env = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1")
+            self.assertIn("not installed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"], base["VK_INSTANCE_LAYERS"])
+            (layer_dir / "libVkLayer_droiddeck_hybris_compat.so").write_bytes(b"\x7fELF")
+            self.assertIn("indexed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"],
+                             "VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+            xclipse = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_xclipse")
+            self.assertIn("no hybris compat", MODULE["hybris_index"](xclipse, str(layer_dir)))
+            session = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertIn("already indexed", MODULE["hybris_index"](session, str(layer_dir)))
+            self.assertEqual(session["VK_LAYER_PATH"], base["VK_LAYER_PATH"])
 
     def test_other_gpus_and_non_game_calls_keep_the_original_launch(self):
         command = ["/proton", "waitforexitandrun", "game.exe"]
@@ -1307,6 +1419,13 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.split(), ["1", "0"])
             self.assertIn("FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=0", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_DYNAMICL1CACHE'), os.environ.get('FEX_L1CACHEENTRIES'))\n")
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None", "None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_L1": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["0", "262144"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-l1\n", result.stderr)
 
     def test_easy_anti_cheat_games_start_offline_only_when_opted_in(self):
         with tempfile.TemporaryDirectory() as tmp:

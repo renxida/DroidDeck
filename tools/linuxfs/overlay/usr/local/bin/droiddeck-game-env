@@ -73,7 +73,46 @@ DOTNET_FEX_EXPERIMENTS = (
 # saved settings at each launch; the Steam-side parts follow the values the Steam session started with.
 EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
-               "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock")
+               "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
+               "wayland-present", "vk-count",
+               "native-inventory", "free-memory", "hybris-index", "fex-l1",
+               "hybris-index-session", "native-engine")
+
+
+FREE_MEMORY_WAIT_S = 15
+
+
+def free_memory(launch_dir, app_id, wait=FREE_MEMORY_WAIT_S, poll=0.1):
+    """Asks the app (SessionService, FreeMemory) to close other apps' background processes before the game starts and
+    waits for its answer, which starts with the request's token."""
+    if not launch_dir or not os.path.isdir(launch_dir):
+        return "no launch directory"
+    token = "%s-%s" % (re.sub(r"[^A-Za-z0-9_]", "", str(app_id))[:40] or "game", os.urandom(8).hex())
+    done = os.path.join(launch_dir, "free-memory-done")
+    staged = os.path.join(launch_dir, "free-memory.tmp")
+    try:
+        with open(staged, "w", encoding="utf-8") as out:
+            out.write(token + "\n")
+        os.replace(staged, os.path.join(launch_dir, "free-memory"))
+    except OSError as error:
+        return "not asked (%s)" % error
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            with open(done, encoding="utf-8") as source:
+                answer = source.read().strip()
+        except OSError:
+            answer = ""
+        mine, _, summary = answer.partition(" ")
+        if mine == token:
+            try:
+                os.unlink(done)
+            except OSError:
+                pass
+            return summary or "done"
+        if time.monotonic() >= deadline:
+            return "no answer in %d s" % wait
+        time.sleep(poll)
 
 
 def experiment_name(experiment):
@@ -94,7 +133,8 @@ def without_experiments(env):
 
 # Their effect is fixed when the session starts (the app, droiddeck-session and Steam's scripts); memory is split:
 # its game part follows the saved switches and its app part the session's.
-SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap")
+SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap",
+                       "hybris-index-session")
 
 
 def experiments_line(saved, session):
@@ -1957,13 +1997,73 @@ def system_graphics_launch(command, env):
     })
     for name in ("DISABLE_WSI_LAYER", "PROTON_USE_WINED3D", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
         result.pop(name, None)
+    for note in (wayland_present(directory, result), hybris_index(result), vk_count(result)):
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
     return [str(wrapper), *command], result
+
+
+VKCOUNT_DIR = "/usr/local/lib/droiddeck-vkcount"
+HYBRIS_COMPAT_DIR = "/usr/local/lib/droiddeck-hybris-compat"
+
+
+def hybris_index(env, layer_dir=HYBRIS_COMPAT_DIR):
+    """Experiment hybris-index: the game gets VK_LAYER_DROIDDECK_hybris_compat in place of the runtime's
+    VK_LAYER_HYBRIS_compat. It is the same libhybris source and patches plus tools/hybris/compat-layer's, which
+    index the per-call lookups (command buffers, images, pipeline layouts, entry points) that otherwise walk every
+    live object on each bind, push and barrier."""
+    if not experiment(env, "hybris-index"):
+        return None
+    layers = env.get("VK_INSTANCE_LAYERS", "").split(":")
+    if "VK_LAYER_DROIDDECK_hybris_compat" in layers:
+        return "hybris-index: already indexed for the whole session (hybris-index-session)"
+    if "VK_LAYER_HYBRIS_compat" not in layers:
+        return "hybris-index: the game has no hybris compat layer to replace"
+    if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_hybris_compat.so")):
+        return "hybris-index: layer not installed at %s" % layer_dir
+    env["VK_INSTANCE_LAYERS"] = ":".join(
+        "VK_LAYER_DROIDDECK_hybris_compat" if layer == "VK_LAYER_HYBRIS_compat" else layer for layer in layers)
+    env["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
+    return "hybris-index: indexed hybris compat layer"
+
+
+def vk_count(env, layer_dir=VKCOUNT_DIR):
+    """Experiment vk-count: VK_LAYER_DROIDDECK_vkcount goes first in the game's layers and prints per-frame Vulkan
+    call counts and blocking-call times to stderr every 10 s ("droiddeck-vkcount:" lines in the game's log)."""
+    if not experiment(env, "vk-count"):
+        return None
+    if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_vkcount.so")):
+        return "vk-count: layer not installed at %s" % layer_dir
+    env["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount:" + env["VK_INSTANCE_LAYERS"]
+    env["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
+    return "vk-count: counting Vulkan calls per frame"
+
+
+def wayland_present(directory, env):
+    """Experiment wayland-present: Wine's Wayland driver hands the game's frames to gamescope's own Wayland
+    socket, so the game's Xwayland and its DRI3 Present round trip drop out of every frame. The session clears
+    WAYLAND_DISPLAY for Steam (an empty one would make libwayland pick wayland-0, the app's compositor), so the
+    socket is named explicitly. Needs a WSI layer built with VK_KHR_wayland_surface."""
+    if not experiment(env, "wayland-present"):
+        return None
+    socket = env.get("GAMESCOPE_WAYLAND_DISPLAY", "").strip()
+    if not socket:
+        return "wayland-present: no gamescope Wayland socket; the game stays on Xwayland"
+    try:
+        manifest = (directory / "wsi" / "VkLayer_window_system_integration.json").read_text(encoding="utf-8")
+    except OSError as error:
+        return "wayland-present: WSI layer manifest unreadable (%s); the game stays on Xwayland" % error
+    if "VK_KHR_wayland_surface" not in manifest:
+        return "wayland-present: this WSI layer has no Wayland surface; the game stays on Xwayland"
+    env["WAYLAND_DISPLAY"] = socket
+    env["PROTON_ENABLE_WAYLAND"] = "1"
+    return "wayland-present: Wine's Wayland driver presents to gamescope (%s), skipping the game's Xwayland" % socket
 
 
 # PROTON_LOG=1 alone makes Proton default WINEDEBUG to +seh,+unwind,... (proton_10.0 `proton` 1618-1619):
 # every caught .NET exception then writes hundreds of unwind lines from the thread that threw it.
 GAME_LOG_WINEDEBUG = "+timestamp,+pid,+tid,+threadname,+loaddll"
-FINAL_ENV_PREFIXES = ("VK_", "WINE", "DOTNET_", "DXVK_", "VKD3D", "PROTON_", "FEX_", "HYBRIS_", "MESA_", "GODOT", "SteamGameId")
+FINAL_ENV_PREFIXES = ("VK_", "WINE", "DOTNET_", "DXVK_", "VKD3D", "PROTON_", "FEX_", "HYBRIS_", "MESA_", "GODOT", "SteamGameId", "WAYLAND")
 
 
 def game_logs(command, env, app_id, now=None):
@@ -2052,6 +2152,72 @@ def dotnet_trace(command, env, popen=subprocess.Popen):
         return result, "dotnet-trace: trace on, summary not started (%s)" % error
     return result, "dotnet-trace: GC events and runtime counters to %s, summarised every %d s" % (
         folder, DOTNET_TRACE_EVERY_S)
+
+
+NATIVE_INVENTORY = "/usr/local/bin/droiddeck-native-inventory"
+
+
+def native_inventory(exe, env, popen=subprocess.Popen):
+    """Under native-inventory, a Godot game's folder is inventoried in the background (names, counts and
+    sizes only) for the native-engine work; the result goes to the session log and the telemetry bundle."""
+    if not experiment(env, "native-inventory"):
+        return []
+    try:
+        popen(["nice", "-n", "19", sys.executable, NATIVE_INVENTORY, "--game-dir", os.path.dirname(os.path.abspath(exe))],
+              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=None, start_new_session=True)
+    except OSError as error:
+        return ["native-inventory: not started (%s)" % error]
+    return ["native-inventory: started for %s" % os.path.basename(os.path.dirname(os.path.abspath(exe)))]
+
+
+NATIVE_GODOT = "/usr/local/bin/droiddeck-native-godot"
+# A native run that ends sooner than this with an error is taken as "did not start"; the game then starts on Proton.
+NATIVE_START_S = 60
+
+
+def native_engine(command, env, run=subprocess.run, clock=time.monotonic):
+    """Under native-engine, a Godot C# game (a data_*_windows_x86_64 folder next to the exe) runs on Kestrel's
+    own linux-arm64 engine. Returns the exit code to end with, or None to go on to Proton."""
+    if not experiment(env, "native-engine") or len(command) < 3:
+        return None, []
+    exe = os.path.abspath(command[2])
+    folder = os.path.dirname(exe)
+    try:
+        managed = [n for n in os.listdir(folder) if n.startswith("data_") and n.endswith("_windows_x86_64")]
+    except OSError:
+        managed = []
+    if len(managed) != 1:
+        return None, ["native-engine: not a Godot C# game; Proton"]
+    out = os.path.join(os.path.expanduser("~"), ".cache", "droiddeck", "native", "launch", game_id(env) or "game")
+    args = [sys.executable, NATIVE_GODOT, "run", "--fetch", "--game-dir", folder, "--exe", os.path.basename(exe),
+            "--out", out, "--"] + list(command[3:])
+    log_dir = env.get("DROIDDECK_GAME_LOG_DIR") or env.get("BL_DEBUG_DIR")
+    path = os.path.join(log_dir, "native-engine.log") if log_dir else None
+    log = None
+    if path:
+        try:
+            log = open(path, "a", encoding="utf-8")
+        except OSError:
+            log, path = None, None
+    began = clock()
+    try:
+        rc = run(args, env=env, stdin=subprocess.DEVNULL, stdout=log or None, stderr=subprocess.STDOUT if log else None).returncode
+    except OSError as error:
+        return None, ["native-engine: could not start (%s); Proton" % error]
+    finally:
+        if log:
+            log.close()
+    took = clock() - began
+    notes = []
+    if rc != 0 and path:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                notes = ["native-engine log: " + line.rstrip() for line in f.readlines()[-30:]]
+        except OSError:
+            pass
+    if rc != 0 and took < NATIVE_START_S:
+        return None, notes + ["native-engine: exited with %d after %.0f s; starting on Proton" % (rc, took)]
+    return rc, notes + ["native-engine: ran %.0f s natively, exit %d" % (took, rc)]
 
 
 def load_warmup():
@@ -2187,6 +2353,12 @@ def main():
                             notes += [note for note in (godot_override(game),) if note]
                     except (OSError, ValueError) as error:
                         notes.append("Godot: cache and log check skipped (%s)" % error)
+                    notes += native_inventory(command[2], effective_env)
+                    native_rc, native_notes = native_engine(command, effective_env)
+                    for note in native_notes:
+                        print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
+                    if native_rc is not None:
+                        return native_rc
             if not gl_default:
                 fixes.pop("vblank_mode", None)
             for note in notes:
@@ -2228,6 +2400,15 @@ def main():
             env, notes = fex_memory_model(command, env)
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
+    if experiment(env, "fex-stats"):
+        # FEX keeps per-thread JIT/SMC/SIGBUS counters in /dev/shm/fex-<pid>-stats; the app logs them to fex.csv.
+        env = dict(env, FEX_PROFILESTATS="1")
+    if experiment(env, "fex-l1"):
+        # FEX's per-thread block lookup starts at 8k entries and grows only after seconds of misses, flushing on
+        # every resize. A fixed table halved first-call time off-device. Kestrel's FEX (patch 0004) takes the size:
+        # 256k entries (4 MB per thread) kept nearly all of the gain of the full 1M for well under half the memory.
+        # Other FEX builds ignore FEX_L1CACHEENTRIES and use the full 1M (16 MB per thread, touched as used).
+        env = dict(env, FEX_DYNAMICL1CACHE="0", FEX_L1CACHEENTRIES="262144")
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
@@ -2293,6 +2474,9 @@ def main():
     watch = bool(waiting and app_id and exit_watch(app_id, env, bool(pacing)))
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
+    if waiting and experiment(env, "free-memory"):
+        print("droiddeck-game-env: free memory: " + free_memory(os.environ.get("BL_LAUNCH_DIR"), app_id),
+              file=sys.stderr, flush=True)
     if waiting:
         print("DROIDDECK_TIMELINE event=game_exec app_id=%s wall_ms=%d" % (app_id, int(time.time() * 1000)),
               file=sys.stderr, flush=True)

@@ -29,6 +29,9 @@ object ComponentsManager {
     private const val NIGHTLIES = "The412Banner/Nightlies"
     private const val DD_COMPONENTS = "Droid-Deck/DroidDeck-Components"
     internal const val DD_NIGHTLY = "linux-nightly"
+    internal const val KESTREL_REPO = "renxida/DroidDeck"
+    internal const val KESTREL_FEX_RELEASE = "kestrel-fex"
+    internal const val KESTREL_FEX_PREFIX = "Kestrel-FEXCore-"
     private val RELEASES = linkedMapOf(
         "FexCore-Linux" to "fex",
         "Dxvk-Linux" to "dxvk",
@@ -37,8 +40,8 @@ object ComponentsManager {
         "Vkd3d-proton-Linux" to "vkd3d",
     )
     private val NIGHTLY_PREFIXES = linkedMapOf("DD-dxvk-" to "dxvk", "DD-vkd3d-proton-" to "vkd3d", "DD-FEXCore-" to "fex")
-    private val SOURCES = RELEASES.keys.map { NIGHTLIES to it } + (DD_COMPONENTS to DD_NIGHTLY)
-    private val DOWNLOAD_REPOS = listOf(NIGHTLIES, DD_COMPONENTS)
+    private val SOURCES = RELEASES.keys.map { NIGHTLIES to it } + (DD_COMPONENTS to DD_NIGHTLY) + (KESTREL_REPO to KESTREL_FEX_RELEASE)
+    private val DOWNLOAD_REPOS = listOf(NIGHTLIES, DD_COMPONENTS, KESTREL_REPO)
     private val TYPES = mapOf("FEXCore-Linux" to "fex", "DXVK-Linux" to "dxvk", "VKD3D-Linux" to "vkd3d")
     private val TYPE_OF = mapOf("fex" to "FEXCore-Linux", "dxvk" to "DXVK-Linux", "vkd3d" to "VKD3D-Linux")
     val COMPONENTS = listOf("fex", "dxvk", "vkd3d")
@@ -1037,7 +1040,11 @@ object ComponentsManager {
     }
 
     internal fun assetComp(release: String, name: String): String? =
-        RELEASES[release] ?: if (release == DD_NIGHTLY) NIGHTLY_PREFIXES.entries.firstOrNull { name.startsWith(it.key) }?.value else null
+        RELEASES[release] ?: when (release) {
+            DD_NIGHTLY -> NIGHTLY_PREFIXES.entries.firstOrNull { name.startsWith(it.key) }?.value
+            KESTREL_FEX_RELEASE -> if (name.startsWith(KESTREL_FEX_PREFIX)) "fex" else null
+            else -> null
+        }
 
     internal val CATALOG_ORDER: Comparator<CatalogItem> =
         compareBy<CatalogItem> { it.comp }.thenBy { it.release == DD_NIGHTLY }.then(newestFirst { it.file })

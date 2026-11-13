@@ -128,7 +128,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
     val bindingUsers = library.usersOfBindings(savedBindings.id).size
     val draft = remember {
         val (display, metrics) = InputLibraries.primaryDisplay(context)
-        val gamepad = savedLayout.elements.takeIf { e -> e.any { it.id.startsWith("legacy:") } }?.let {
+        val gamepad = savedLayout.elements.takeIf { e -> !Sts2Pad.owns(savedLayout) && e.any { it.id.startsWith("legacy:") } }?.let {
             val (w, h) = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels) ?: (metrics.widthPixels to metrics.heightPixels)
             GamepadScaler(display, w, h)
         }
