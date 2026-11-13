@@ -9,6 +9,8 @@ on:
     paths:
       - 'tools/native-engine/**'
       - '.github/workflows/native-engine-bench.yml'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-inventory'
+      - 'tools/tests/test_native_inventory.py'
   workflow_dispatch:
 
 permissions:
@@ -61,6 +63,22 @@ jobs:
           done
           ls -la out/*; ls out/*/ | head -40
           file out/arm64/NativeBench.arm64 out/x86_64/NativeBench.x86_64
+      - name: Inventory a real Godot 4.5.1 C# export
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools/tests/test_native_inventory.py
+          INV=tools/linuxfs/overlay/usr/local/bin/droiddeck-native-inventory
+          python3 $INV --game-dir tools/native-engine/bench/out/x86_64 --no-cache --json /tmp/inv.json
+          python3 - <<'PY'
+          import json
+          r = json.load(open("/tmp/inv.json"))
+          print(json.dumps({k: r.get(k) for k in ("pack", "extensions", "importers", "gdextensions")}, indent=1))
+          print(json.dumps({k: {kk: (vv if not isinstance(vv, list) else len(vv)) for kk, vv in v.items()} for k, v in r["managed"].items()}, indent=1))
+          assert r["pack"].get("godot") == "4.5.1" and "error" not in r["pack"], r["pack"]
+          assert r["extensions"], "no files listed from the pack"
+          assert any(v.get("literal_count", 0) > 0 for v in r["managed"].values()), "no .NET user strings read"
+          PY
+
       - name: Install FEX (upstream PPA) and an x86-64 rootfs
         timeout-minutes: 30
         run: |
