@@ -20,8 +20,10 @@ Workstream: FEX inside Proton (ARM64EC). Branch `perf/emu-fex`. Nov 13, 2026.
 - **Rewritten-code tracking (SMC) is no longer worth fixing.** Off (unsafe, an upper bound) it saved ~14% with the
   disk cache alone, but **nothing on top of `fex-l1`** (788 vs 797 ms, round 3). Smaller blocks (MaxInst 500/1500) and
   caching more code (relocation filter off) don't help either.
-- **Cost of `fex-l1`: ~40–60 MB more RSS** in the bench (dc 240–263 MB → l1 296–300 MB). Round 4 tests a cheaper
-  variant: FEX's dynamic L1 that never shrinks.
+- **Memory: a 4 MB table keeps the gain.** The full table costs ~40 MB more RSS in the bench. Kestrel's FEX now takes
+  a size (patch 0004, `FEX_L1CACHEENTRIES`): 256k entries (4 MB per thread) ran 840 ms vs 833 for the full table and
+  1,030 without, for +15 MB instead of +39 MB. `fex-l1` uses that size; on other FEX builds it gets the full table.
+  A dynamic table that never shrinks grows too slowly to help (round 4).
 - What's left is translated-code quality: with `fex-l1` and a warm cache FEX spends only 10% of wall time in its
   compile path; dispatch is 2.5× native, strings 2.3×, allocation/GC 2.0×, first calls 4.1×.
 - Multiblock must stay on (+56% without it); turning .NET's tiered compilation off is worse (+36%).
@@ -145,10 +147,25 @@ Why the dynamic L1 hurts in a long session too: FEX samples once a second; above
 the table, below 50/s it halves it, and each change flushes the table. A thread whose table is big enough to have
 few misses gets shrunk, misses again, and regrows, so the default never settles.
 
+## Rounds 4 and 5: the memory cost of a bigger table
+
+Warm disk cache, max RSS of the bench process (rounds 2–3), total ms best of three:
+
+| Config | L1 per thread | Total ms | max RSS MB | vs default |
+|---|---|---|---|---|
+| fex_game_dc (default, dynamic from 8k) | 128 KB+ | 1,030 | 256–258 | |
+| fex_l1grow (dynamic, never shrinks) | grows | 1,030 | 256–257 | no gain |
+| fex_l1grow20 (same, grows at 20 misses/s) | grows | 1,013 | 257–258 | no gain |
+| fex_l1_64k (patch 0004) | 1 MB | 874 | 261–262 | −15%, +4 MB |
+| **fex_l1_256k (patch 0004)** | **4 MB** | **840** | **272–273** | **−18%, +15 MB** |
+| fex_game_dc_l1 (full) | 16 MB | 833 | 296 | −19%, +39 MB |
+
+Runs 43369383459 (round 4) and 43370044898 (round 5). Every config reproduced native's checksum.
+
 ## Ranked next fixes (in FEX)
 
-1. **Ship `fex-l1`** after the phone confirms lower `cache_miss` and `jit_ms` in `fex.csv`, and that the extra
-   memory is acceptable (or ship the never-shrink variant if round 4 shows it keeps most of the gain for less).
+1. **Ship `fex-l1`** (4 MB table with Kestrel's FEX) after the phone confirms lower `cache_miss` and `jit_ms` in
+   `fex.csv` with no memory regression in `memory.csv` / `processes.csv`.
 2. **Make sure the disk cache actually hits on the phone** (`disk_hit` / `disk_miss` in `fex.csv`).
 3. **Translated-code quality**, now most of the remaining 1.9×: indirect calls (virtual/interface dispatch 2.5×),
    string and allocation paths. Next step: per-block profile with FEX's block naming on the bench's hot phases.
@@ -160,6 +177,7 @@ few misses gets shrunk, misses again, and regrows, so the default never settles.
   - 0001: vector TSO half barrier follows the op, so forced-TSO vector ranges keep their ordering.
   - 0002: `VolatileMetadataWholeBlocks` (default off).
   - 0003: keep `STLUR` on cores whose `LDAPUR` has erratum 3877900 (Cortex-X4 is one; Tensor G5 has one).
+  - 0004: `L1CacheEntries` (`FEX_L1CACHEENTRIES`), a chosen starting or fixed size for the per-thread lookup table.
 - `.github/workflows/build-fex-arm64ec.yml`: builds it and publishes `Kestrel-FEXCore-<date>.<run>-<upstream>-<patch set>.wcp`
   to the `kestrel-fex` prerelease. First: `Kestrel-FEXCore-20261113.3-ab135df09-664c5b38.wcp` (1.5 MB).
 - Experiment `fex-kestrel` (off by default): installs the newest of those through the Auto component line, with the
@@ -169,8 +187,8 @@ few misses gets shrunk, misses again, and regrows, so the default never settles.
   bundle. Columns: `t_wall_ms, interval_ms, pid, process, threads, jit_ms, jit_blocks, smc, sigbus, signal_ms,
   float_fallback, cache_miss, cache_rlock_ms, cache_wlock_ms, disk_hit, disk_miss, disk_lookup_ms`; every value is
   the change over the interval, so `jit_ms / interval_ms` is the share of one core spent translating.
-- Experiment `fex-l1` (off by default): sets `FEX_DYNAMICL1CACHE=0` for games, so FEX's per-thread block lookup
-  cache is full size from the start.
+- Experiment `fex-l1` (off by default): sets `FEX_DYNAMICL1CACHE=0 FEX_L1CACHEENTRIES=262144` for games, so FEX's
+  per-thread block lookup table is a fixed 4 MB with Kestrel's FEX (16 MB with other builds).
 - `.github/workflows/fex-bench.yml` and `tools/fex/bench/`: the off-device bench above, plus `profile.sh` (perf).
 
 ## Notes

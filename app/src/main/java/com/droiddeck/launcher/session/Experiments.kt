@@ -41,7 +41,7 @@ object Experiments {
     const val VK_COUNT = "vk-count"
     const val NATIVE_INVENTORY = "native-inventory"
     const val FREE_MEMORY = "free-memory"
-    /** FEX's per-thread block lookup cache at full size from the start (FEX_DYNAMICL1CACHE=0). */
+    /** FEX's per-thread block lookup cache at a fixed size from the start: 4 MB with Kestrel's FEX, 16 MB otherwise. */
     const val FEX_L1 = "fex-l1"
 
     class Switch(val id: String, @StringRes val label: Int)
