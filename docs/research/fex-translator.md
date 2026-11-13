@@ -4,15 +4,18 @@ Workstream: FEX inside Proton (ARM64EC). Branch `perf/emu-fex`. Nov 13, 2026.
 
 ## Short version
 
-- Under FEX with the game's current settings, a .NET 9 workload that mirrors the game (Godot + coreclr + jitted C#)
-  takes **2.36× native** time on an arm64 Neoverse runner (1,021 ms vs 434 ms per round).
-- The biggest single cost is **translating x86 code**: about **40% of wall time** goes to FEX's JIT, and the first
-  call of freshly jitted .NET code is **10× native**. Steady-state code is only 1.1–2.3× native.
+- Under FEX with the game's current settings (including FEX's disk cache, which `droiddeck-warmup` turns on for
+  Slay the Spire 2), a .NET 9 workload that mirrors the game (Godot + coreclr + jitted C#) takes **2.29× native**
+  time on an arm64 Neoverse runner (992 ms vs 434 ms per round).
+- The biggest single cost is **translating x86 code**: 30–40% of wall time goes to FEX's JIT, and the first call
+  of freshly jitted .NET code is **9–10× native**. Steady-state code is only 1.1–2.3× native.
 - **Memory ordering (TSO) at the game's settings costs only +5.5%** over no ordering at all. Full TSO would cost +40%
   (memmove 11× native, vector math 6.6×); the game already avoids that.
-- **Rewritten-code tracking (SMC)** accounts for about a quarter of first-call time (437 → 325 ms with it off).
-- **FEX's disk cache** cuts translation time by ~30% (1,755 → 1,215 ms of JIT) once warm; it is already on in the
-  game (`FEX_DISKCACHE=1`).
+- **Rewritten-code tracking (SMC)** accounts for about a quarter of first-call time without the disk cache
+  (437 → 325 ms with it off). How much of that the disk cache already wins back is the next measurement
+  (`fex_game_dc_nosmc`).
+- **FEX's disk cache** cuts translation time by ~30% (1,755 → 1,215 ms of JIT), partly within a single run: code
+  that SMC tracking threw away is found again by content hash instead of retranslated.
 - Multiblock must stay on (+56% without it); turning .NET's tiered compilation off is worse (+36%).
 
 So the high-leverage targets in FEX are, in order: translation volume and cost (cache more, translate less), SMC
@@ -46,11 +49,11 @@ Total per round, ms, and multiple of native:
 |---|---|---|---|---|
 | native | arm64 .NET | 434 | 1.00 | |
 | fex_notso | FEX, no memory ordering | 968 | 2.23 | 0 |
-| **fex_game** | **the game's settings today** | **1,021** | **2.36** | **+5.5%** |
+| fex_game | the game's FEX and .NET settings, disk cache off | 1,021 | 2.36 | +5.5% |
 | fex_fulltso | full TSO incl. vector and memcpy | 1,360 | 3.14 | +40.4% |
 | fex_game_nomb | multiblock off | 1,510 | 3.48 | +56.0% |
 | fex_game_tc0 | .NET tiered compilation off | 1,315 | 3.03 | +35.9% |
-| fex_game_dc | + FEX disk cache | 992 | 2.29 | +2.5% |
+| **fex_game_dc** | **+ FEX disk cache: what the game runs** | **992** | **2.29** | **+2.5%** |
 | fex_game_nosmc | SMC tracking off (upper bound, unsafe) | 989 | 2.28 | +2.1% |
 | fex_game_ldapr | LRCPC2 disabled | crashed (SIGSEGV) on Linux FEX | | |
 
@@ -69,14 +72,16 @@ FEX's counters (mean of two rounds; whole process including .NET startup):
 | fex_game_dc | 4.3 | 1,215 | 29% | 6,806 | 1,400 | 1,972 | 54 |
 | fex_game_nosmc | 4.4 | 1,656 | 38% | 23,010 | 0 | 2,002 | 0 |
 
-`fex_game_dc` round 2 found 23,387 blocks in the disk cache and translated only 1,167.
+`fex_game_dc` round 1 already found 11,538 blocks in the cache (code thrown away by SMC tracking and found again by
+hash); round 2 found 23,387 and translated only 1,167.
 
 ## What it means for the game
 
 1. **Translation is the bill.** ~25k blocks at ~70 µs each is 1.75 s of one core for a 4 s run. The game is far
    bigger (Godot, coreclr, RyuJIT, FMOD, DXVK, ICU and every jitted C# method) and keeps jitting new methods as
    new cards, relics and screens appear, which is where hitches come from. Every block FEX doesn't have to
-   translate again is a direct win; the disk cache already removes ~70% of them when warm.
+   translate again is a direct win; when the disk cache is warm it finds about 95% of blocks instead of translating them, yet JIT time only drops ~30%,
+   so lookups, loading and linking cached code are now a real share of the bill (disk_lookup_ms in `fex.csv`).
 2. **SMC is a quarter of first-call cost.** With W^X off, .NET writes new methods into RWX pages next to code that
    already ran. Each write to a page FEX has translated faults, invalidates the whole 4 KB page, and retranslates
    what was on it. In ARM64EC that fault is handled under a global mutex. ~1,350 faults per run here.
