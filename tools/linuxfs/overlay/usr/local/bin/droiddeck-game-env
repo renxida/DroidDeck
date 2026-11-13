@@ -75,7 +75,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
                "wayland-present", "vk-count",
-               "native-inventory", "free-memory", "hybris-index")
+               "native-inventory", "free-memory", "hybris-index", "fex-l1")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -2344,6 +2344,12 @@ def main():
     if experiment(env, "fex-stats"):
         # FEX keeps per-thread JIT/SMC/SIGBUS counters in /dev/shm/fex-<pid>-stats; the app logs them to fex.csv.
         env = dict(env, FEX_PROFILESTATS="1")
+    if experiment(env, "fex-l1"):
+        # FEX's per-thread block lookup starts at 8k entries and grows only after seconds of misses, flushing on
+        # every resize. A fixed table halved first-call time off-device. Kestrel's FEX (patch 0004) takes the size:
+        # 256k entries (4 MB per thread) kept nearly all of the gain of the full 1M for well under half the memory.
+        # Other FEX builds ignore FEX_L1CACHEENTRIES and use the full 1M (16 MB per thread, touched as used).
+        env = dict(env, FEX_DYNAMICL1CACHE="0", FEX_L1CACHEENTRIES="262144")
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"

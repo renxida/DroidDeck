@@ -5,26 +5,28 @@ Workstream: FEX inside Proton (ARM64EC). Branch `perf/emu-fex`. Nov 13, 2026.
 ## Short version
 
 - Under FEX with the game's current settings (including FEX's disk cache, which `droiddeck-warmup` turns on for
-  Slay the Spire 2), a .NET 9 workload that mirrors the game (Godot + coreclr + jitted C#) takes **2.29× native**
-  time on an arm64 Neoverse runner (992 ms vs 434 ms per round).
-- The biggest single cost is **FEX's compile path**: 30–40% of wall time, and the first call of freshly jitted .NET
-  code is **9–10× native**. Steady-state code is only 1.1–2.3× native. Caveat: FEX's "JIT time" counter covers all of
-  `CompileBlock`, which also runs for every jump whose target missed the per-thread fast lookup (~500–650k times a
-  run, 1.8M with a warm disk cache) and for loading cached code, not only for translating new code. With a warm
-  cache FEX translated 1,167 blocks yet still spent 908 ms there, so lookups are a large share. Round 2 splits the
-  two with a profile.
-- **Memory ordering (TSO) at the game's settings costs only +5.5%** over no ordering at all. Full TSO would cost +40%
-  (memmove 11× native, vector math 6.6×); the game already avoids that.
-- **Rewritten-code tracking (SMC)** accounts for about a quarter of first-call time without the disk cache
-  (437 → 325 ms with it off). How much of that the disk cache already wins back is the next measurement
-  (`fex_game_dc_nosmc`).
-- **FEX's disk cache** cuts translation time by ~30% (1,755 → 1,215 ms of JIT), partly within a single run: code
-  that SMC tracking threw away is found again by content hash instead of retranslated.
+  Slay the Spire 2), a .NET 9 workload that mirrors the game (Godot + coreclr + jitted C#) takes **2.3–2.4× native**
+  time on an arm64 Neoverse runner (992–1,013 ms vs 424–434 ms per round).
+- **Round 2 win: a full-size block lookup cache.** FEX ships with a small per-thread lookup cache (8k entries) that
+  only grows after a second of misses and is flushed on every resize. Starting it at full size
+  (`FEX_DYNAMICL1CACHE=0`) cut total time **19%** (1,013 → 822 ms, 2.39× → 1.94× native) and **first-call time 2×**
+  (401 → 189 ms), and slow lookups fell ~8× (452k → 60k). The shared L2 lookup (`FEX_DISABLEL2CACHE=0`) gives the
+  same; both together add nothing. It is experiment **`fex-l1`** (off by default, for the phone rotation).
+- Profile (warm disk cache): 76% of time is in translated code, 16% in FEX itself, 7% kernel. FEX's top costs are
+  linking cached blocks and hash-table lookups (CacheBlockMapping, the block map, AddBlockMapping), not translating.
+  Without the cache, FEX's own share is 34%, led by register allocation, flag elimination and decoding.
+- **Memory ordering (TSO) at the game's settings costs only +5.5%** over no ordering at all. Full TSO would cost +40%;
+  the game already avoids that.
+- **Rewritten-code tracking (SMC) is no longer worth fixing.** Off (unsafe, an upper bound) it saved ~14% with the
+  disk cache alone, but **nothing on top of `fex-l1`** (788 vs 797 ms, round 3). Smaller blocks (MaxInst 500/1500) and
+  caching more code (relocation filter off) don't help either.
+- **Memory: a 4 MB table keeps the gain.** The full table costs ~40 MB more RSS in the bench. Kestrel's FEX now takes
+  a size (patch 0004, `FEX_L1CACHEENTRIES`): 256k entries (4 MB per thread) ran 840 ms vs 833 for the full table and
+  1,030 without, for +15 MB instead of +39 MB. `fex-l1` uses that size; on other FEX builds it gets the full table.
+  A dynamic table that never shrinks grows too slowly to help (round 4).
+- What's left is translated-code quality: with `fex-l1` and a warm cache FEX spends only 10% of wall time in its
+  compile path; dispatch is 2.5× native, strings 2.3×, allocation/GC 2.0×, first calls 4.1×.
 - Multiblock must stay on (+56% without it); turning .NET's tiered compilation off is worse (+36%).
-
-So the high-leverage targets in FEX are, in order: the compile path (translate less, and make lookups that miss the
-fast cache cheaper; cached code in particular seems to take that path far more often), SMC handling for .NET's code
-heap, then dispatch. TSO tuning is mostly done.
 
 ## How it was measured
 
@@ -94,22 +96,80 @@ hash); round 2 found 23,387 and translated only 1,167.
 4. **Unaligned atomics (SIGBUS) are cheap**: ~2k per run, tens of ms.
 5. Keep multiblock on and .NET tiered compilation on.
 
+## Round 2: profile and lookup caches
+
+Run 43366998791 (`perf record` on the bench under FEX, `tools/fex/bench/profile.sh`), share of samples:
+
+| Config | Translated code | FEX | Kernel | Top FEX symbols |
+|---|---|---|---|---|
+| fex_game_dc (warm cache) | 75.7% | 15.9% | 6.9% | CacheBlockMapping 1.5%, block map find 1.2%, register allocation 1.0%, block entry search 0.9%, decode 0.9% |
+| fex_game (no cache) | 57.7% | 34.4% | 5.6% | register allocation 4.4%, dead-flag pass 2.8%, decode 2.8%, IR generation 1.8%, code emission 1.8% |
+
+Run 43367728801, three rounds, best per phase:
+
+| Config | Total ms | × native | first_jit ms | slow lookups | JIT ms |
+|---|---|---|---|---|---|
+| native | 424 | 1.00 | 42 | | |
+| fex_game | 1,009 | 2.38 | | | |
+| fex_game_dc | 1,013 | 2.39 | 401 | ~452k | ~670 |
+| fex_game_dc_nosmc | 868 | 2.05 | | | |
+| fex_game_dc_l2 (`FEX_DISABLEL2CACHE=0`) | 820 | 1.93 | 188 | ~52k | ~525 |
+| fex_game_dc_l1 (`FEX_DYNAMICL1CACHE=0`) | 822 | 1.94 | 189 | ~60k | ~525 |
+| fex_game_dc_l1l2 | 819 | 1.93 | 191 | ~40k | ~525 |
+
+All configs reproduced native's checksum. Why it helps: with the disk cache, blocks are found rather than
+translated, so far more jumps leave a block and look up the next one; with an 8k-entry per-thread table those miss
+into the slow path (counted as JIT time). A full table is 1M entries × 16 B = 16 MB of address space per thread,
+already reserved by FEX either way and backed only as touched, so the memory cost is bounded. The L2 option backs
+64 KB per guest code page, so `fex-l1` is the one to ship.
+
+Caveat: the bench is 4 s; in a long game session the dynamic table may have grown by itself. The phone answers it:
+`fex.csv`'s `cache_miss` per 5 s with `fex-l1` on vs off.
+
+## Round 3: what's left on top of `fex-l1`
+
+Run 43368666336 (three rounds, best per phase; all configs reproduced native's checksum):
+
+| Config | Total ms | × native | first_jit | JIT share | max RSS MB |
+|---|---|---|---|---|---|
+| native | 416 | 1.00 | 42 | | |
+| fex_game | 986 | 2.37 | 394 | 39% | 195–200 |
+| fex_game_dc | 915 | 2.20 | 300 | 20% | 239–263 |
+| **fex_game_dc_l1** | **788** | **1.89** | **171** | **10%** | **296–300** |
+| fex_l1_nosmc | 797 | 1.92 | 158 | 20%* | 269–291 |
+| fex_l1_mi500 | 837 | 2.01 | 203 | 19%* | 281–309 |
+| fex_l1_mi1500 | 806 | 1.94 | 181 | 20%* | 277–300 |
+| fex_l1_noreloc | 820 | 1.97 | 186 | 9% | 300–304 |
+
+\* these change code generation, so round 1 starts with a cold disk cache and the mean JIT share is higher.
+
+Why the dynamic L1 hurts in a long session too: FEX samples once a second; above 250 slow lookups/s it doubles
+the table, below 50/s it halves it, and each change flushes the table. A thread whose table is big enough to have
+few misses gets shrunk, misses again, and regrows, so the default never settles.
+
+## Rounds 4 and 5: the memory cost of a bigger table
+
+Warm disk cache, max RSS of the bench process (rounds 2–3), total ms best of three:
+
+| Config | L1 per thread | Total ms | max RSS MB | vs default |
+|---|---|---|---|---|
+| fex_game_dc (default, dynamic from 8k) | 128 KB+ | 1,030 | 256–258 | |
+| fex_l1grow (dynamic, never shrinks) | grows | 1,030 | 256–257 | no gain |
+| fex_l1grow20 (same, grows at 20 misses/s) | grows | 1,013 | 257–258 | no gain |
+| fex_l1_64k (patch 0004) | 1 MB | 874 | 261–262 | −15%, +4 MB |
+| **fex_l1_256k (patch 0004)** | **4 MB** | **840** | **272–273** | **−18%, +15 MB** |
+| fex_game_dc_l1 (full) | 16 MB | 833 | 296 | −19%, +39 MB |
+
+Runs 43369383459 (round 4) and 43370044898 (round 5). Every config reproduced native's checksum.
+
 ## Ranked next fixes (in FEX)
 
-1. **Split FEX's compile-path time into translating, loading cached code, and slow lookups** (off-device profile of
-   the bench with `perf`, then the phone). The warm-cache run says lookups are big: 1.8M slow lookups and 908 ms for
-   1,167 new blocks.
-2. **Cached code taking the slow lookup far more often** (1.8M vs ~0.5M slow lookups when the code was translated
-   fresh). If code loaded from the disk cache isn't linked block-to-block the way fresh code is, every exit goes
-   through the lookup. Fixing that is likely the cheapest large win, because the game always runs with the cache.
-3. **Make sure the disk cache actually hits on the phone.** It hashes anonymous code by content, so .NET's jitted
-   code can hit across sessions when the bytes match. `fex.csv` shows disk_hit / disk_miss per process per 5 s, so
-   the first phone run answers this directly.
-4. **Cheaper SMC for .NET's code heap under ARM64EC.** Options, smallest first: invalidate only the blocks that
-   overlap the written range instead of the whole page; don't re-protect a page that only ever gets appended to;
-   take the invalidation off the global mutex. Upper bound from this bench: −25% first-call time, −2% overall
-   without the disk cache; `fex_game_dc_nosmc` gives the bound with it.
-5. Dispatch (2.3×): indirect-branch lookup; the per-thread fast cache size and hit rate.
+1. **Ship `fex-l1`** (4 MB table with Kestrel's FEX) after the phone confirms lower `cache_miss` and `jit_ms` in
+   `fex.csv` with no memory regression in `memory.csv` / `processes.csv`.
+2. **Make sure the disk cache actually hits on the phone** (`disk_hit` / `disk_miss` in `fex.csv`).
+3. **Translated-code quality**, now most of the remaining 1.9×: indirect calls (virtual/interface dispatch 2.5×),
+   string and allocation paths. Next step: per-block profile with FEX's block naming on the bench's hot phases.
+4. SMC, block size and the relocation filter: measured, no gain; dropped.
 
 ## What changed on the branch
 
@@ -117,6 +177,7 @@ hash); round 2 found 23,387 and translated only 1,167.
   - 0001: vector TSO half barrier follows the op, so forced-TSO vector ranges keep their ordering.
   - 0002: `VolatileMetadataWholeBlocks` (default off).
   - 0003: keep `STLUR` on cores whose `LDAPUR` has erratum 3877900 (Cortex-X4 is one; Tensor G5 has one).
+  - 0004: `L1CacheEntries` (`FEX_L1CACHEENTRIES`), a chosen starting or fixed size for the per-thread lookup table.
 - `.github/workflows/build-fex-arm64ec.yml`: builds it and publishes `Kestrel-FEXCore-<date>.<run>-<upstream>-<patch set>.wcp`
   to the `kestrel-fex` prerelease. First: `Kestrel-FEXCore-20261113.3-ab135df09-664c5b38.wcp` (1.5 MB).
 - Experiment `fex-kestrel` (off by default): installs the newest of those through the Auto component line, with the
@@ -126,7 +187,9 @@ hash); round 2 found 23,387 and translated only 1,167.
   bundle. Columns: `t_wall_ms, interval_ms, pid, process, threads, jit_ms, jit_blocks, smc, sigbus, signal_ms,
   float_fallback, cache_miss, cache_rlock_ms, cache_wlock_ms, disk_hit, disk_miss, disk_lookup_ms`; every value is
   the change over the interval, so `jit_ms / interval_ms` is the share of one core spent translating.
-- `.github/workflows/fex-bench.yml` and `tools/fex/bench/`: the off-device bench above.
+- Experiment `fex-l1` (off by default): sets `FEX_DYNAMICL1CACHE=0 FEX_L1CACHEENTRIES=262144` for games, so FEX's
+  per-thread block lookup table is a fixed 4 MB with Kestrel's FEX (16 MB with other builds).
+- `.github/workflows/fex-bench.yml` and `tools/fex/bench/`: the off-device bench above, plus `profile.sh` (perf).
 
 ## Notes
 
