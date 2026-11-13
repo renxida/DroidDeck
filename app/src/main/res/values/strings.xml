@@ -831,6 +831,7 @@
     <string name="games_empty">Games you install in Steam show up here after the session.</string>
     <string name="games_play_steam">Open Steam</string>
     <string name="home_play_game">Play %1$s</string>
+    <string name="home_play_game_beta">Play %1$s beta</string>
     <string name="home_games">Your games</string>
     <string name="home_empty">Games you install in Steam show up here.</string>
     <string name="games_files">Game files</string>
@@ -1669,6 +1670,8 @@
     <string name="lib_search_open">Search</string>
     <string name="lib_nothing_matches">No games</string>
     <string name="lib_play">Play</string>
+    <string name="lib_play_beta">Play beta</string>
+    <string name="lib_play_stable">Play stable</string>
     <string name="lib_refresh">Refresh</string>
     <string name="lib_sort">Sort</string>
     <string name="setup_rail_labels">Sidebar labels</string>

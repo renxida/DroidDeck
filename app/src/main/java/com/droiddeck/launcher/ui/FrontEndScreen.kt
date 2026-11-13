@@ -167,6 +167,7 @@ class FrontEndActions(
     val onPlay: () -> Unit,
     val onSteamUrl: (String) -> Unit = {},
     val onSteamGame: (Library.SteamGame) -> Unit,
+    val onSteamGameStable: (Library.SteamGame) -> Unit = onSteamGame,
     val onGameShortcut: (Library.SteamGame) -> Unit = {},
     val onExportGameFile: (Library.SteamGame) -> Unit = {},
     val onSyncGameFiles: () -> Unit = {},
