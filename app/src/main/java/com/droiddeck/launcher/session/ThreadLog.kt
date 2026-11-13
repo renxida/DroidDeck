@@ -4,7 +4,8 @@ import java.io.File
 import java.util.Locale
 
 /**
- * Per-thread CPU of the session's Windows processes (the game and Wine's helpers), every 5 s, into threads.csv:
+ * Per-thread CPU of the session's Windows processes (the game and Wine's helpers) and of the display and Steam
+ * processes around them ([ALSO]), every 5 s, into threads.csv:
  * time on a CPU and time waiting for one (from /proc/<pid>/task/<tid>/schedstat), major faults, the core it last
  * ran on and the cores it may run on. The newest sample also goes into the live status file.
  */
@@ -17,6 +18,7 @@ object ThreadLog {
     private const val MIN_PROCESS_PCT = 2.0
     private const val MIN_ROW_PCT = 0.5
     private const val LIVE_ROWS = 10
+    internal val ALSO = setOf("Xwayland", "gamescope-wl", "steam")
 
     internal data class Task(val tid: Int, val name: String, val runNs: Long, val waitNs: Long, val majflt: Long, val core: Int, val allowed: String)
 
@@ -140,7 +142,7 @@ object ThreadLog {
                     runCatching {
                         if (round % FIND_EVERY == 0L) {
                             watched = MemoryReadout.split(withProcesses = true).processes
-                                .filter { it.windows }.associate { it.pid to it.name }
+                                .filter { it.windows || it.name in ALSO }.associate { it.pid to it.name }
                             last.keys.retainAll(watched.keys)
                         }
                         val now = System.currentTimeMillis()
