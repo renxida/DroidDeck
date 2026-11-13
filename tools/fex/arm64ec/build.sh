@@ -65,7 +65,9 @@ package() {
   local upstream patches version files=() f
   upstream=$(cut -c1-9 < "$HERE/FEX_REF")
   patches=$(cat "$HERE"/patches/*.patch | sha256sum | cut -c1-8)
-  version=${FEX_VERSION_NAME:-kestrel-$upstream-$patches}
+  # Starts with a digit (the Auto line needs it) and sorts by build: <yyyymmdd>.<build>-<upstream>-<patch set>.
+  version=${FEX_BUILD:-$(date -u +%Y%m%d).0}-$upstream-$patches
+  echo "$upstream-$patches" > "$WORK/patchset"
   local stage=$WORK/wcp
   rm -rf "$stage" && mkdir -p "$stage/files/lib/wine/aarch64-windows" "$stage/files/lib/wine/aarch64-unix"
   for f in aarch64-windows/libarm64ecfex.dll aarch64-windows/libwow64fex.dll \

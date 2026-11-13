@@ -48,6 +48,7 @@ class ExperimentsTest {
             "fex-codegen" to "DROIDDECK_EXP_FEX_CODEGEN",
             "fex-memcpy-tso" to "DROIDDECK_EXP_FEX_MEMCPY_TSO", "fex-vector-tso" to "DROIDDECK_EXP_FEX_VECTOR_TSO",
             "fex-tso" to "DROIDDECK_EXP_FEX_TSO", "fex-fast" to "DROIDDECK_EXP_FEX_FAST",
+            "fex-kestrel" to "DROIDDECK_EXP_FEX_KESTREL",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

@@ -30,6 +30,8 @@ object Experiments {
     const val FEX_VECTOR_TSO = "fex-vector-tso"
     const val FEX_TSO = "fex-tso"
     const val FEX_FAST = "fex-fast"
+    /** Games use Kestrel's own FEX build (tools/fex/arm64ec) through the Auto component line instead of DD-FEXCore. */
+    const val FEX_KESTREL = "fex-kestrel"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -45,6 +47,7 @@ object Experiments {
         Switch(NATIVE_HZ, R.string.exp_native_hz),
         Switch(QUICK_TAP, R.string.exp_quick_tap),
         Switch(FEX_CODEGEN, R.string.exp_fex_codegen),
+        Switch(FEX_KESTREL, R.string.exp_fex_kestrel),
     )
 
     /** At most one of each group is on. */
@@ -59,7 +62,7 @@ object Experiments {
 
     /** The order the guest's droiddeck-game-env lists them in. */
     val ids = listOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, LAYER_FENCE,
-        SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST)
+        SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST, FEX_KESTREL)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
