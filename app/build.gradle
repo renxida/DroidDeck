@@ -201,6 +201,8 @@ android {
             maxParallelForks = 2
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
+            def hostProot = providers.environmentVariable('KESTREL_TEST_PROOT').orNull
+            if (hostProot != null) environment 'KESTREL_TEST_PROOT', hostProot
         }
     }
 
