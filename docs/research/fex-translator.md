@@ -162,13 +162,38 @@ Warm disk cache, max RSS of the bench process (rounds 2–3), total ms best of t
 
 Runs 43369383459 (round 4) and 43370044898 (round 5). Every config reproduced native's checksum.
 
+## Where translated time goes, by guest library
+
+Runs 43371497701 and 43372146309 (`fex_l1_256k`, disk cache off so every block is named; `FEX_LIBRARYJITNAMING=1`
+and `FEX_BLOCKJITNAMING=1`; `tools/fex/bench/hotblocks.py` disassembles the hottest blocks). Share of all samples:
+
+| | run 1 | run 2 |
+|---|---|---|
+| translated code, total | 56% | 60% |
+| jitted C# (anonymous blocks) | 17% | 33% |
+| libcoreclr.so (GC, helpers, type system) | 15% | 14% |
+| libclrjit.so (RyuJIT compiling methods) | 11% | 10% |
+| libc.so.6 (malloc, memmove) | 15% | 2% |
+| FEX's dispatcher | 0.05% | 0.05% |
+
+- No single runtime function dominates: the hottest coreclr block is 2% and RyuJIT's are under 1% each. The
+  big unnamed hot spots are the bench's own C# loops.
+- The dispatcher is negligible, so the 2.3–2.5× on virtual calls is in the translated call sequences themselves,
+  not in FEX's lookup.
+- libc swings between runs (one malloc block took 14.5% in run 1). On the phone this cost doesn't exist in the same
+  form: under ARM64EC the C runtime and ntdll are Wine's native arm64 DLLs, so `malloc`/`memcpy` run natively. The
+  Linux bench overstates it.
+
+So off-device there is no cheap library-level target left in FEX. The next measurements need the phone: how often
+the disk cache hits there, and `fex.csv` with `fex-l1` on vs off.
+
 ## Ranked next fixes (in FEX)
 
 1. **Ship `fex-l1`** (4 MB table with Kestrel's FEX) after the phone confirms lower `cache_miss` and `jit_ms` in
    `fex.csv` with no memory regression in `memory.csv` / `processes.csv`.
 2. **Make sure the disk cache actually hits on the phone** (`disk_hit` / `disk_miss` in `fex.csv`).
-3. **Translated-code quality**, now most of the remaining 1.9×: indirect calls (virtual/interface dispatch 2.5×),
-   string and allocation paths. Next step: per-block profile with FEX's block naming on the bench's hot phases.
+3. **Translated-code quality**, now most of the remaining 1.9×. Spread across jitted C#, coreclr and RyuJIT with no
+   single hot function (profile above), so it is general codegen work in FEX, not a targeted fix.
 4. SMC, block size and the relocation filter: measured, no gain; dropped.
 
 ## What changed on the branch
