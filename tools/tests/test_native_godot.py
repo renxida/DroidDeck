@@ -80,6 +80,17 @@ class NativeGodotTest(unittest.TestCase):
         NG["compose"](str(self.game), str(self.kit), str(self.engine), str(out), "SlayTheSpire2.exe")
         self.assertEqual(names, sorted(os.listdir(data)))
 
+    def test_run_passes_engine_args(self):
+        out = self.root / "launch"
+        seen = []
+        NG["os"].execv, real = (lambda path, args: seen.append(args)), NG["os"].execv
+        try:
+            NG["main"](["run", "--game-dir", str(self.game), "--kit", str(self.kit), "--engine", str(self.engine),
+                        "--out", str(out), "--exe", "SlayTheSpire2.exe", "--", "--headless", "--verbose"])
+        finally:
+            NG["os"].execv = real
+        self.assertEqual([str(out / "sts2"), "--main-pack", str(self.game / "SlayTheSpire2.pck"), "--headless", "--verbose"], seen[0])
+
     def test_embedded_pack(self):
         (self.game / "SlayTheSpire2.pck").unlink()
         self.assertTrue(NG["find_pack"](str(self.game), "SlayTheSpire2.exe").endswith("SlayTheSpire2.exe"))
