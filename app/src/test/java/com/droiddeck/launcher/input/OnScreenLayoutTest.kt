@@ -163,6 +163,107 @@ class OnScreenLayoutTest {
         assertEquals(.1f * 2208f / 1768 / .2f, fitted.width * 2208 / (fitted.height * 800), .01f)
     }
 
+    private fun centre(elements: List<InputSurfaceElement>, ids: Collection<String>, w: Int, h: Int): Pair<Float, Float> {
+        val chosen = elements.filter { it.id in ids }
+        return chosen.map { (it.x + it.width / 2f) * w }.average().toFloat() to chosen.map { (it.y + it.height / 2f) * h }.average().toFloat()
+    }
+
+    private fun assertNoOverlap(elements: List<InputSurfaceElement>, w: Int, h: Int, label: String) {
+        for ((i, a) in elements.withIndex()) for (b in elements.drop(i + 1)) {
+            val round = { e: InputSurfaceElement -> e.buttonShape == InputButtonShape.CIRCLE && e.kind != InputElementKind.STICK }
+            val overlap = if (round(a) && round(b))
+                Math.hypot(((a.x + a.width / 2f) - (b.x + b.width / 2f)) * w.toDouble(), ((a.y + a.height / 2f) - (b.y + b.height / 2f)) * h.toDouble()) <
+                    (a.width * w + b.width * w) / 2f - .5f
+            else a.x * w < (b.x + b.width) * w - .5f && b.x * w < (a.x + a.width) * w - .5f && a.y * h < (b.y + b.height) * h - .5f && b.y * h < (a.y + a.height) * h - .5f
+            assertFalse("$label: ${a.id} overlaps ${b.id}", overlap)
+        }
+    }
+
+    private val dpadIds = listOf("legacy:up", "legacy:right", "legacy:down", "legacy:left")
+    private val faceIds = listOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")
+
+    @Test @Config(qualifiers = "w923dp-h411dp-land-420dpi")
+    fun onAPixelTheDpadAndFaceButtonsSitHighInTheStripsBesideThePicture() {
+        for ((w, h) in listOf(2424 to 1080, 2400 to 1080, 2340 to 1080, 1920 to 1080)) {
+            val strip = (w - h * 16f / 9f) / 2f
+            for (scale in listOf(.8f, 1f, 1.25f)) {
+                val label = "$w x $h at $scale"
+                val elements = LegacyGamepadLayout(context, w, h, scale = scale).elements()
+                val (dpadX, dpadY) = centre(elements, dpadIds, w, h)
+                val (faceX, faceY) = centre(elements, faceIds, w, h)
+                val (lsX, lsY) = centre(elements, listOf("legacy:ls"), w, h)
+                val (rsX, rsY) = centre(elements, listOf("legacy:rs"), w, h)
+                // Upper middle of the screen, both sides level, sticks below and inboard.
+                for (y in listOf(dpadY, faceY)) assertTrue("$label $y", y in h * .35f..h * .55f)
+                assertEquals(label, dpadY, faceY, 1f)
+                assertTrue(label, lsY > dpadY + h * .15f && rsY > faceY + h * .15f)
+                assertTrue(label, lsX > dpadX && rsX < faceX)
+                // In the empty strips: centred there when the strip is wide enough, else as far out as the cluster fits.
+                val edge = elements.filter { it.id in dpadIds }.minOf { it.x } * w
+                val margin = 12 * density
+                if (strip >= 2 * (dpadX - edge + margin)) assertEquals(label, strip / 2f, dpadX, 1f) else assertEquals(label, margin, edge, 1f)
+                assertEquals(label, w - dpadX, faceX, 1f)
+                // Shoulders stay on the top row above them, Steam and QAM between.
+                val lb = centre(elements, listOf("legacy:lb"), w, h).second
+                assertTrue(label, lb < dpadY - h * .2f)
+                assertNoOverlap(elements, w, h, label)
+                assertInside(elements, w, h)
+            }
+        }
+    }
+
+    @Test @Config(qualifiers = "w923dp-h411dp-land-420dpi")
+    fun theRaisedClustersKeepClearOfACutoutAndStayInside() {
+        for (safe in listOf(Rect(130, 0, 0, 0), Rect(0, 0, 130, 0), Rect(0, 60, 0, 40))) {
+            val placed = OnScreenLayout.elements(context, gamepad(), 2424, 1080, safe)
+            assertInside(placed, 2424, 1080, safe)
+            assertNoOverlap(placed, 2424, 1080, "$safe")
+        }
+    }
+
+    @Test @Config(qualifiers = "w923dp-h411dp-land-420dpi")
+    fun theOldPlacementIsKeptOnlyToRecogniseGamepadsSavedFromIt() {
+        val old = LegacyGamepadLayout(context, 2424, 1080, raisedThumbs = false).elements()
+        val (dpadX, dpadY) = centre(old, dpadIds, 2424, 1080)
+        val (lsX, lsY) = centre(old, listOf("legacy:ls"), 2424, 1080)
+        assertTrue(lsX < dpadX && lsY < dpadY)
+        assertNotEquals(old, LegacyGamepadLayout(context, 2424, 1080).elements())
+        // Away from a phone (a taller screen) both placements are the same.
+        assertEquals(LegacyGamepadLayout(context, 2560, 1600, raisedThumbs = false).elements(), LegacyGamepadLayout(context, 2560, 1600).elements())
+    }
+
+    @Test @Config(qualifiers = "w923dp-h411dp-land-420dpi")
+    fun anUntouchedGamepadSavedBeforeTheRaiseMovesUpAndAnEditedOneStaysWhereThePersonPutIt() {
+        val (display, metrics) = InputLibraries.primaryDisplay(context)
+        val (w, h) = maxOf(metrics.widthPixels, metrics.heightPixels) to minOf(metrics.widthPixels, metrics.heightPixels)
+        val fresh = InputLibraries.read(context)
+        val current = fresh.layouts.first { it.id == InputLibraries.OVERLAY }
+        val low = LegacyGamepadLayout(display, w, h, raisedThumbs = false).regenerate(current.elements)
+        assertNotEquals(current.elements, low)
+        fun upgrade(elements: List<InputSurfaceElement>): SavedInputLayout {
+            val stored = fresh.withLayout(current.copy(elements = elements))
+            prefs.edit().putString("library", JSONObject(InputLibraries.encode(stored)).put("version", 15).toString()).commit()
+            return InputLibraries.read(context).layouts.first { it.id == InputLibraries.OVERLAY }
+        }
+        val styled = low.map { if (it.id == "legacy:a") it.copy(name = "Jump", opacity = .5f) else it }
+        val raised = upgrade(styled)
+        assertEquals(LegacyGamepadLayout(display, w, h).regenerate(styled), raised.elements)
+        assertEquals("Jump", raised.elements.first { it.id == "legacy:a" }.name)
+        assertNotNull(OnScreenLayout.generatedSize(context, raised, w, h))
+        assertEquals(raised, InputLibraries.read(context).layouts.first { it.id == InputLibraries.OVERLAY })
+
+        val edited = low.map { if (it.id == "legacy:a") it.copy(x = it.x - .05f) else it }
+        assertEquals(edited, upgrade(edited).elements)
+        assertEquals(current.elements, upgrade(current.elements).elements)
+    }
+
+    @Test fun raisingLeavesLayoutsThatAreNotAGeneratedGamepadAlone() {
+        val user = SavedInputLayout("edited", "Edited", listOf(InputSurfaceElement(InputControl.A, .8f, .6f, .1f, .2f, "legacy:a")))
+        assertSame(user, OnScreenLayout.raiseThumbs(context, user))
+        val stock = InputStockLayouts.layouts().first()
+        assertSame(stock, OnScreenLayout.raiseThumbs(context, stock))
+    }
+
     private val legacyKeys = "29+33:0.3,0.7,44::Find::0.6:1:1:1"
 
     private fun importedOn(library: InputLibrary) = library.activeLayout(InputRole.PRIMARY)!!.elements.filter { it.id.startsWith("imported:") }
