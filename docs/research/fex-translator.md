@@ -80,7 +80,7 @@ hash); round 2 found 23,387 and translated only 1,167.
 1. **Translation is the bill.** ~25k blocks at ~70 µs each is 1.75 s of one core for a 4 s run. The game is far
    bigger (Godot, coreclr, RyuJIT, FMOD, DXVK, ICU and every jitted C# method) and keeps jitting new methods as
    new cards, relics and screens appear, which is where hitches come from. Every block FEX doesn't have to
-   translate again is a direct win; when the disk cache is warm it finds about 95% of blocks instead of translating them, yet JIT time only drops ~30%,
+   translate again is a direct win; when the disk cache is warm it finds about 95% of blocks instead of translating them, yet JIT time only halves (1,726 → 908 ms),
    so lookups, loading and linking cached code are now a real share of the bill (disk_lookup_ms in `fex.csv`).
 2. **SMC is a quarter of first-call cost.** With W^X off, .NET writes new methods into RWX pages next to code that
    already ran. Each write to a page FEX has translated faults, invalidates the whole 4 KB page, and retranslates
