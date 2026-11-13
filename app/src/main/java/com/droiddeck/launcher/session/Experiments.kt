@@ -49,6 +49,8 @@ object Experiments {
     const val NATIVE_ENGINE = "native-engine"
     /** PowerVR: 64-bit Direct3D games use DXVK built as ARM64EC (native) instead of x86-64 (translated by FEX). */
     const val DXVK_ARM64EC = "dxvk-arm64ec"
+    /** Measurement only: gamescope logs the GPU time of its composite pass to session.log (log_composite_timing debug). */
+    const val COMPOSITE_TIMING = "composite-timing"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -78,6 +80,7 @@ object Experiments {
         Switch(HYBRIS_INDEX_SESSION, R.string.exp_hybris_index_session),
         Switch(NATIVE_ENGINE, R.string.exp_native_engine),
         Switch(DXVK_ARM64EC, R.string.exp_dxvk_arm64ec),
+        Switch(COMPOSITE_TIMING, R.string.exp_composite_timing),
     )
 
     /** At most one of each group is on. */
@@ -96,7 +99,7 @@ object Experiments {
         DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
         WAYLAND_PRESENT, VK_COUNT,
         NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE,
-        DXVK_ARM64EC)
+        DXVK_ARM64EC, COMPOSITE_TIMING)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
