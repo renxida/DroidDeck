@@ -665,6 +665,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         bridge.setOnPlayerInput(::onPadInput)
         onScreenControls = OnScreenControls(this, bridge).also { controls ->
             controls.updateLayout(primaryInputLayout)
+            controls.onFoldChanged = ::rememberPadFold
             controls.onTouchMiss = miss@{ event ->
                 if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.ON_SCREEN_CONTROLS, event)) return@miss
                 event.offsetLocation(controls.left - surfaceView.left.toFloat(), controls.top - surfaceView.top.toFloat())
@@ -825,6 +826,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     if (nextGame != gestureGame) {
                         if (nextGame != null) gameStarts++
                         gestureGame = nextGame
+                        applyGamePadFold()
                         refreshGestureConfig()
                     }
                     if (secondScreenDisplays.isNotEmpty()) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -3729,6 +3731,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 (bottom?.parent as? android.view.ViewGroup)?.removeView(bottom)
                 bottom = OnScreenControls(bottomRoot.context, padBridge).also { view ->
                     view.onTouchMiss = { event -> onBottomGameTouch(event) }
+                    view.onFoldChanged = ::rememberPadFold
+                    applyGamePadFold(view)
                     bottomRoot.addView(view, android.view.ViewGroup.LayoutParams(-1, -1))
                 }
                 bottomInputControls = bottom
@@ -3748,6 +3752,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             buttonsOnly -> "Steam + QAM"
             else -> "full pad"
         })
+    }
+
+    /** A game in front starts with the pad folded unless the person unfolded it in that game before; playing on the game folds it again. */
+    private fun applyGamePadFold() {
+        listOfNotNull(onScreenControls, bottomInputControls).forEach { applyGamePadFold(it) }
+    }
+
+    private fun applyGamePadFold(controls: OnScreenControls) {
+        val game = gestureGame
+        controls.foldOnGameTap = game != null
+        if (game != null) controls.setQuickHidden(SessionPrefs.padFolded(this, game))
+    }
+
+    private fun rememberPadFold(folded: Boolean) {
+        val game = gestureGame ?: return
+        SessionPrefs.setPadFolded(this, game, folded)
+        listOfNotNull(onScreenControls, bottomInputControls).forEach { it.setQuickHidden(folded) }
     }
 
     private fun keyboardCoversPad() =
