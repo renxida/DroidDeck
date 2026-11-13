@@ -48,7 +48,8 @@ jobs:
           set -euo pipefail
           export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
           # Godot's export only publishes C# when <assembly_name>.sln exists.
-          [ -f NativeBench.sln ] || { dotnet new sln -n NativeBench >/dev/null && dotnet sln NativeBench.sln add NativeBench.csproj; }
+          # (committed as a classic .sln: newer SDKs make .slnx, which Godot ignores)
+          ls -la NativeBench.sln
           echo "::group::dotnet build"; timeout 600 dotnet build NativeBench.csproj -c ExportRelease 2>&1 | tail -20; echo "::endgroup::"
           echo "::group::import"; timeout 300 "$GODOT" --headless --verbose --path . --import 2>&1 | tail -40 || echo "import exit $?"; echo "::endgroup::"
           mkdir -p out/arm64 out/x86_64
