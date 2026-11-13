@@ -148,6 +148,20 @@ class TelemetryUploadTest {
         }
     }
 
+    @Test fun theUploadBundleCarriesTheSessionScreenshotAsIs() {
+        val dir = session()
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()) + ByteArray(2048) { it.toByte() } +
+            byteArrayOf(0xFF.toByte(), 0xD9.toByte())
+        dir.resolve(com.droiddeck.launcher.session.SessionScreenshot.FILE).writeBytes(jpeg)
+        val upload = File(tmp.root, "upload.zip")
+        assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint", TelemetryBundle.Sources(1762941600000L, null, -1, emptyList())))
+        ZipFile(upload).use { archive ->
+            val entry = archive.getEntry(com.droiddeck.launcher.session.SessionScreenshot.FILE)
+            assertNotNull(entry)
+            assertTrue(jpeg.contentEquals(archive.getInputStream(entry).readBytes()))
+        }
+    }
+
     @Test fun theFirstUploadNamesNoBranchSoAnEmptyRepositoryGetsItsFirstCommit() {
         val first = org.json.JSONObject(TelemetryUploader.requestHead("runs/a/b/c.zip", null) + "QQ==\"}")
         assertEquals(setOf("message", "content"), first.keys().asSequence().toSet())
