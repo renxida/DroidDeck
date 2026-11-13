@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""Run a Windows Godot 4 C# game on Kestrel's own linux-arm64 engine, skipping Wine and FEX.
+
+The game's managed code (its own DLLs) is portable IL, so it can run on a linux-arm64 .NET runtime.
+This tool builds a launch folder next to our engine binary:
+
+    <launch>/<engine>                          our Godot 4.5.1 linux-arm64 mono template
+    <launch>/data_<asm>_linuxbsd_arm64/        the "kit" (linux-arm64 .NET runtime + stock GodotSharp)
+                                               plus the game's own managed DLLs, symlinked from the game
+                                               folder (never copied out of the device)
+
+and starts the engine on the game's pack. Game files stay where Steam put them; nothing is uploaded.
+
+Usage:
+  droiddeck-native-godot compose --game-dir DIR --kit DIR --engine FILE --out DIR [--exe NAME]
+  droiddeck-native-godot run     --game-dir DIR --kit DIR --engine FILE --out DIR [--exe NAME] [-- ARGS...]
+"""
+import argparse
+import json
+import os
+import shutil
+import struct
+import sys
+
+# Files the game's data folder may hold that must come from the kit (runtime- or engine-specific).
+ENGINE_ASSEMBLIES = {"godotsharp.dll", "godotsharp.xml", "godotplugins.dll"}
+
+
+def log(msg):
+    print("droiddeck-native-godot: " + msg, file=sys.stderr, flush=True)
+
+
+def is_managed(path):
+    """True when the file is a PE image with a CLI (.NET) header."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(4096)
+            if head[:2] != b"MZ" or len(head) < 0x40:
+                return False
+            pe = struct.unpack_from("<I", head, 0x3C)[0]
+            f.seek(pe)
+            sig = f.read(24)
+            if sig[:4] != b"PE\0\0":
+                return False
+            opt_size = struct.unpack_from("<H", sig, 20)[0]
+            opt = f.read(opt_size)
+    except OSError:
+        return False
+    if len(opt) < 2:
+        return False
+    magic = struct.unpack_from("<H", opt, 0)[0]
+    dirs_at = 96 if magic == 0x10B else 112 if magic == 0x20B else None
+    if dirs_at is None or len(opt) < dirs_at + 15 * 8:
+        return False
+    rva, size = struct.unpack_from("<II", opt, dirs_at + 14 * 8)
+    return rva != 0 and size != 0
+
+
+def windows_data_dir(game_dir):
+    """(assembly name, path) of the game's data_<asm>_windows_x86_64 folder."""
+    found = []
+    for name in sorted(os.listdir(game_dir)):
+        if name.startswith("data_") and name.endswith("_windows_x86_64") and os.path.isdir(os.path.join(game_dir, name)):
+            found.append((name[len("data_"):-len("_windows_x86_64")], os.path.join(game_dir, name)))
+    if len(found) != 1:
+        raise SystemExit(f"expected one data_*_windows_x86_64 folder in {game_dir}, found {[f[0] for f in found]}")
+    return found[0]
+
+
+def find_pack(game_dir, exe):
+    stem = os.path.splitext(exe)[0] if exe else None
+    if stem and os.path.isfile(os.path.join(game_dir, stem + ".pck")):
+        return os.path.join(game_dir, stem + ".pck")
+    packs = [n for n in os.listdir(game_dir) if n.endswith(".pck")]
+    if len(packs) == 1:
+        return os.path.join(game_dir, packs[0])
+    if exe and os.path.isfile(os.path.join(game_dir, exe)):
+        return os.path.join(game_dir, exe)  # pack embedded in the executable
+    raise SystemExit(f"no Godot pack found in {game_dir}")
+
+
+def kit_files(kit):
+    """The kit's files, minus its own stand-in app (listed in kit.json as "app": [...])."""
+    manifest = os.path.join(kit, "kit.json")
+    skip = {"kit.json"}
+    if os.path.isfile(manifest):
+        with open(manifest) as f:
+            skip |= {n.lower() for n in json.load(f).get("app", [])}
+    return {n: os.path.join(kit, n) for n in os.listdir(kit) if n.lower() not in skip}
+
+
+def place(src, dst):
+    if os.path.lexists(dst):
+        os.unlink(dst)
+    os.symlink(src, dst)
+
+
+def compose(game_dir, kit, engine, out, exe=None):
+    asm, win = windows_data_dir(game_dir)
+    data = os.path.join(out, f"data_{asm}_linuxbsd_arm64")
+    if os.path.isdir(data):
+        shutil.rmtree(data)
+    os.makedirs(data)
+    kit_map = kit_files(kit)
+    kit_lower = {n.lower() for n in kit_map}
+    for name, path in kit_map.items():
+        place(os.path.abspath(path), os.path.join(data, name))
+    taken, skipped = [], []
+    for name in sorted(os.listdir(win)):
+        src = os.path.join(win, name)
+        low = name.lower()
+        if not os.path.isfile(src):
+            continue
+        if low == f"{asm.lower()}.runtimeconfig.json":
+            shutil.copyfile(src, os.path.join(data, name))
+            taken.append(name)
+        elif low == f"{asm.lower()}.deps.json":
+            skipped.append(name)  # lists win-x64 native assets; without it the folder is probed as a whole
+        elif low in ENGINE_ASSEMBLIES or low in kit_lower:
+            skipped.append(name)
+        elif is_managed(src):
+            place(os.path.abspath(src), os.path.join(data, name))
+            taken.append(name)
+        else:
+            skipped.append(name)  # native Windows libraries and data the runtime doesn't need
+    # The engine finds its data folder next to its real path, so the binary itself lives in the launch dir.
+    target = os.path.join(out, asm)
+    if not (os.path.isfile(target) and os.path.getsize(target) == os.path.getsize(engine)
+            and os.path.getmtime(target) >= os.path.getmtime(engine)):
+        try:
+            if os.path.lexists(target):
+                os.unlink(target)
+            os.link(engine, target)
+        except OSError:
+            shutil.copy2(engine, target)
+        os.chmod(target, 0o755)
+    report = {"assembly": asm, "pack": find_pack(game_dir, exe), "engine": target, "data": data,
+              "game_assemblies": taken, "skipped": skipped, "kit_files": len(kit_map)}
+    with open(os.path.join(out, "native-launch.json"), "w") as f:
+        json.dump(report, f, indent=1)
+    return report
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("command", choices=("compose", "run"))
+    ap.add_argument("--game-dir", required=True)
+    ap.add_argument("--kit", required=True)
+    ap.add_argument("--engine", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--exe")
+    ap.add_argument("rest", nargs=argparse.REMAINDER)
+    a = ap.parse_args(argv)
+    os.makedirs(a.out, exist_ok=True)
+    r = compose(a.game_dir, a.kit, a.engine, a.out, a.exe)
+    log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files, {r['kit_files']} kit files, "
+        f"skipped {len(r['skipped'])}")
+    if a.command == "compose":
+        print(json.dumps(r))
+        return 0
+    rest = a.rest[1:] if a.rest[:1] == ["--"] else a.rest
+    cmd = [r["engine"], "--main-pack", r["pack"]] + rest
+    log("exec " + " ".join(cmd))
+    os.chdir(a.game_dir)
+    os.execv(cmd[0], cmd)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

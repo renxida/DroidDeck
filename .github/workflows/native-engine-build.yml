@@ -12,6 +12,9 @@ on:
     paths:
       - 'tools/native-engine/modules/**'
       - 'tools/native-engine/skeltest/**'
+      - 'tools/native-engine/bench/**'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
+      - 'tools/tests/test_native_godot.py'
       - '.github/workflows/native-engine-build.yml'
 
 permissions:
@@ -94,6 +97,29 @@ jobs:
           grep -E "native_compat|BENCH|ERROR|\.NET|hostfxr" run.log | head -40
           grep -q "native_compat: module loaded" run.log
           grep -q "BENCH" run.log
+      - name: Run the bench's Windows export through droiddeck-native-godot on our template
+        timeout-minutes: 30
+        working-directory: tools/native-engine/bench
+        run: |
+          set -euo pipefail
+          python3 -m unittest "$GITHUB_WORKSPACE/tools/tests/test_native_godot.py"
+          mkdir -p out/windows
+          timeout 900 "$GODOT" --headless --path . --export-release windows out/windows/NativeBench.exe > export-win.log 2>&1 || echo "export exit $?"
+          ls -la out/windows || true
+          test -d out/windows/data_NativeBench_windows_x86_64 || { tail -40 export-win.log; exit 1; }
+          # Kit: the arm64 export's data dir, minus its own app files.
+          KIT=out/arm64/data_NativeBench_linuxbsd_arm64
+          python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")]}, open(os.path.join(k,"kit.json"),"w"))' "$KIT"
+          set +e
+          DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 300 "$GITHUB_WORKSPACE/tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot" run \
+            --game-dir out/windows --kit "$KIT" --engine ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono \
+            --out "$PWD/out/native-launch" --exe NativeBench.exe -- --headless --verbose > win-run.log 2>&1
+          rc=$?
+          set -e
+          echo "exit $rc"
+          cat out/native-launch/native-launch.json || true
+          grep -E "droiddeck-native-godot|native_compat|BENCH|ERROR|\.NET|hostfxr" win-run.log | head -40
+          grep -q "BENCH" win-run.log
       - name: Draw a test skeleton with our template (NativeSkeleton2D, two frames, checked)
         timeout-minutes: 20
         working-directory: tools/native-engine/skeltest
@@ -121,6 +147,8 @@ jobs:
           path: |
             ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono
             tools/native-engine/bench/run.log
+            tools/native-engine/bench/win-run.log
+            tools/native-engine/bench/out/native-launch/native-launch.json
             tools/native-engine/skeltest/out/*.png
             tools/native-engine/skeltest/skel.log
           if-no-files-found: warn
