@@ -82,6 +82,34 @@ GPU/CPU split, per window, with no GPU timestamps needed. `pipelines` catches sh
 Counting is relaxed atomics and one clock read around each blocking call, so the overhead is tens of nanoseconds per
 command. Tested on lavapipe with a headless swapchain (tools/tests/test_vkcount_layer.py).
 
+## Experiment `hybris-index`
+
+The libhybris compat layer (VK_LAYER_HYBRIS_compat) sits under every PowerVR game call. Reading its source showed
+per-call work that grows with the number of live objects:
+
+- each bind, push and barrier looks its command buffer up in a linked list under a global mutex;
+- each image barrier walks every live image, and each push walks every pipeline layout;
+- each hooked call fetches the next entry point with GetDeviceProcAddr by string;
+- each push or bind adds a calloc'd journal entry that is replayed later.
+
+`tools/hybris/compat-layer/0001-indexed-lookups.patch` adds open-addressed hash indexes beside those lists, a
+per-device proc table read without the lock, and coalesces a journal entry into the previous one when it has the
+same shape (replay gives the same state). The experiment swaps the runtime's layer for this build in the game's
+`VK_INSTANCE_LAYERS`. It is built separately by `compat-layer/build.sh` because the layer links only libc, which
+leaves the pinned runtime tarball untouched.
+
+Lavapipe, `HYBRIS_BC_TEXTURES=dxvk` (the phone's policy), 64 command buffers, 3000 images, 300 layouts:
+
+| call | before | after |
+| --- | --- | --- |
+| push constants | 1886 ns | 138 ns |
+| bind descriptor sets | 334 ns | 106 ns |
+| image barrier | 10192 ns | 202 ns |
+
+After the patch these costs stay flat as object counts grow. The BC decode probe's output is byte-identical, and a
+deliberately broken coalescing build fails the probe. The hash map passed 20M random operations against a reference
+under ASan and UBSan. What this saves on the phone depends on calls per frame, which vk-count reports.
+
 ## Next rounds
 
 - Read the first vk-count run: draws and submits per frame, and how the 60+ ms frames split between CPU and waits.
