@@ -52,6 +52,7 @@ class ExperimentsTest {
             "dotnet-gc-stock" to "DROIDDECK_EXP_DOTNET_GC_STOCK",
             "wayland-present" to "DROIDDECK_EXP_WAYLAND_PRESENT",
             "vk-count" to "DROIDDECK_EXP_VK_COUNT",
+            "hybris-index" to "DROIDDECK_EXP_HYBRIS_INDEX",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

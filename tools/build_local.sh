@@ -150,6 +150,8 @@ docker run --rm --platform "${docker_platform}" \
             -o "$d/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so" tools/linuxfs/vkcount-layer/vkcount_layer.c
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so"
         install -m644 tools/linuxfs/vkcount-layer/VkLayer_droiddeck_vkcount.json "$d/usr/local/lib/droiddeck-vkcount/"
+        bash tools/hybris/compat-layer/build.sh "$d/usr/local/lib/droiddeck-hybris-compat"
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-hybris-compat/libVkLayer_droiddeck_hybris_compat.so"
         mkdir -p "$d/usr/local/bin"
         external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
         aarch64-linux-gnu-gcc -O2 -Wall -o "$d/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl

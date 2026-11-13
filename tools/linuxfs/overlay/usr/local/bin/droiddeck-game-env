@@ -74,7 +74,7 @@ DOTNET_FEX_EXPERIMENTS = (
 EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock",
-               "wayland-present", "vk-count")
+               "wayland-present", "vk-count", "hybris-index")
 
 
 def experiment_name(experiment):
@@ -1958,13 +1958,32 @@ def system_graphics_launch(command, env):
     })
     for name in ("DISABLE_WSI_LAYER", "PROTON_USE_WINED3D", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
         result.pop(name, None)
-    for note in (wayland_present(directory, result), vk_count(result)):
+    for note in (wayland_present(directory, result), hybris_index(result), vk_count(result)):
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
     return [str(wrapper), *command], result
 
 
 VKCOUNT_DIR = "/usr/local/lib/droiddeck-vkcount"
+HYBRIS_COMPAT_DIR = "/usr/local/lib/droiddeck-hybris-compat"
+
+
+def hybris_index(env, layer_dir=HYBRIS_COMPAT_DIR):
+    """Experiment hybris-index: the game gets VK_LAYER_DROIDDECK_hybris_compat in place of the runtime's
+    VK_LAYER_HYBRIS_compat. It is the same libhybris source and patches plus tools/hybris/compat-layer's, which
+    index the per-call lookups (command buffers, images, pipeline layouts, entry points) that otherwise walk every
+    live object on each bind, push and barrier."""
+    if not experiment(env, "hybris-index"):
+        return None
+    layers = env.get("VK_INSTANCE_LAYERS", "").split(":")
+    if "VK_LAYER_HYBRIS_compat" not in layers:
+        return "hybris-index: the game has no hybris compat layer to replace"
+    if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_hybris_compat.so")):
+        return "hybris-index: layer not installed at %s" % layer_dir
+    env["VK_INSTANCE_LAYERS"] = ":".join(
+        "VK_LAYER_DROIDDECK_hybris_compat" if layer == "VK_LAYER_HYBRIS_compat" else layer for layer in layers)
+    env["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
+    return "hybris-index: indexed hybris compat layer"
 
 
 def vk_count(env, layer_dir=VKCOUNT_DIR):

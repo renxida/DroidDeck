@@ -107,6 +107,9 @@ object SessionFiles {
         // Experiment vk-count: per-frame Vulkan call counts (droiddeck-game-env adds it to the game's layers).
         val vkcount = listOf("libVkLayer_droiddeck_vkcount.so", "VkLayer_droiddeck_vkcount.json")
             .map { "usr/local/lib/droiddeck-vkcount/$it" }
+        // Experiment hybris-index: the PowerVR compat layer with indexed lookups (droiddeck-game-env swaps it in).
+        val hybrisCompat = listOf("libVkLayer_droiddeck_hybris_compat.so", "VkLayer_droiddeck_hybris_compat.json")
+            .map { "usr/local/lib/droiddeck-hybris-compat/$it" }
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
@@ -138,7 +141,7 @@ object SessionFiles {
             "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
             "usr/local/lib/droiddeck-tso-litmus/tso-litmus.exe" to "usr/local/lib/droiddeck-tso-litmus/tso-litmus.exe",
             "usr/local/lib/droiddeck-tso-litmus/tso-litmus.dll" to "usr/local/lib/droiddeck-tso-litmus/tso-litmus.dll",
-        ) + mangoapp + xclipse.map { it to it } + vkcount.map { it to it } + maliCompat + msitools.map { it to it } + gpuLoad + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + xclipse.map { it to it } + vkcount.map { it to it } + hybrisCompat.map { it to it } + maliCompat + msitools.map { it to it } + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }

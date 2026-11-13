@@ -599,6 +599,27 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
                              "VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat")
             self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
 
+    def test_hybris_index_swaps_in_its_compat_layer_only_when_on_and_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layer_dir = Path(tmp) / "hybris-compat"
+            layer_dir.mkdir()
+            base = {"VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat",
+                    "VK_LAYER_PATH": "/rt/wsi:/rt/lib"}
+            env = dict(base)
+            self.assertIsNone(MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env, base)
+            env = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1")
+            self.assertIn("not installed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"], base["VK_INSTANCE_LAYERS"])
+            (layer_dir / "libVkLayer_droiddeck_hybris_compat.so").write_bytes(b"\x7fELF")
+            self.assertIn("indexed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"],
+                             "VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+            xclipse = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_xclipse")
+            self.assertIn("no hybris compat", MODULE["hybris_index"](xclipse, str(layer_dir)))
+
     def test_other_gpus_and_non_game_calls_keep_the_original_launch(self):
         command = ["/proton", "waitforexitandrun", "game.exe"]
         base = {"STEAM_COMPAT_DATA_PATH": "/compatdata/42", "VK_LAYER_PATH": "original"}

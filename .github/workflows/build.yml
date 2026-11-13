@@ -214,7 +214,7 @@ jobs:
         if: steps.proot.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py proot
 
-      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse and vkcount layers)
+      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse, vkcount and indexed hybris compat layers)
         run: |
           set -euo pipefail
           bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
@@ -229,6 +229,8 @@ jobs:
             -o "$D/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so" tools/linuxfs/vkcount-layer/vkcount_layer.c
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so"
           install -m644 tools/linuxfs/vkcount-layer/VkLayer_droiddeck_vkcount.json "$D/usr/local/lib/droiddeck-vkcount/"
+          bash tools/hybris/compat-layer/build.sh "$D/usr/local/lib/droiddeck-hybris-compat"
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-hybris-compat/libVkLayer_droiddeck_hybris_compat.so"
           aarch64-linux-gnu-gcc -O2 -Wall -o "$D/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-glprobe"
 

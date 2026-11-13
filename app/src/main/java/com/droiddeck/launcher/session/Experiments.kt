@@ -35,6 +35,7 @@ object Experiments {
     const val DOTNET_GC_STOCK = "dotnet-gc-stock"
     const val WAYLAND_PRESENT = "wayland-present"
     const val VK_COUNT = "vk-count"
+    const val HYBRIS_INDEX = "hybris-index"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -55,6 +56,7 @@ object Experiments {
         Switch(DOTNET_GC_STOCK, R.string.exp_dotnet_gc_stock),
         Switch(WAYLAND_PRESENT, R.string.exp_wayland_present),
         Switch(VK_COUNT, R.string.exp_vk_count),
+        Switch(HYBRIS_INDEX, R.string.exp_hybris_index),
     )
 
     /** At most one of each group is on. */
@@ -71,7 +73,7 @@ object Experiments {
     val ids = listOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, LAYER_FENCE,
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
         DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK,
-        WAYLAND_PRESENT, VK_COUNT)
+        WAYLAND_PRESENT, VK_COUNT, HYBRIS_INDEX)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
