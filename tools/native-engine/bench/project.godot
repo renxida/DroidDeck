@@ -1,0 +1,13 @@
+; Godot 4.5.1 C# stand-in workload for Slay the Spire 2 (emu/native bench).
+config_version=5
+
+[application]
+config/name="NativeBench"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.5", "C#", "Mobile")
+
+[dotnet]
+project/assembly_name="NativeBench"
+
+[rendering]
+renderer/rendering_method="mobile"

@@ -73,8 +73,9 @@ DOTNET_FEX_EXPERIMENTS = (
 # saved settings at each launch; the Steam-side parts follow the values the Steam session started with.
 EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
-               "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock",
-               "wayland-present", "vk-count", "hybris-index")
+               "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
+               "wayland-present", "vk-count",
+               "native-inventory", "hybris-index")
 
 
 def experiment_name(experiment):
@@ -2113,6 +2114,22 @@ def dotnet_trace(command, env, popen=subprocess.Popen):
         folder, DOTNET_TRACE_EVERY_S)
 
 
+NATIVE_INVENTORY = "/usr/local/bin/droiddeck-native-inventory"
+
+
+def native_inventory(exe, env, popen=subprocess.Popen):
+    """Under native-inventory, a Godot game's folder is inventoried in the background (names, counts and
+    sizes only) for the native-engine work; the result goes to the session log and the telemetry bundle."""
+    if not experiment(env, "native-inventory"):
+        return []
+    try:
+        popen(["nice", "-n", "19", sys.executable, NATIVE_INVENTORY, "--game-dir", os.path.dirname(os.path.abspath(exe))],
+              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=None, start_new_session=True)
+    except OSError as error:
+        return ["native-inventory: not started (%s)" % error]
+    return ["native-inventory: started for %s" % os.path.basename(os.path.dirname(os.path.abspath(exe)))]
+
+
 def load_warmup():
     try:
         return runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-warmup"))
@@ -2246,6 +2263,7 @@ def main():
                             notes += [note for note in (godot_override(game),) if note]
                     except (OSError, ValueError) as error:
                         notes.append("Godot: cache and log check skipped (%s)" % error)
+                    notes += native_inventory(command[2], effective_env)
             if not gl_default:
                 fixes.pop("vblank_mode", None)
             for note in notes:
@@ -2287,6 +2305,9 @@ def main():
             env, notes = fex_memory_model(command, env)
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
+    if experiment(env, "fex-stats"):
+        # FEX keeps per-thread JIT/SMC/SIGBUS counters in /dev/shm/fex-<pid>-stats; the app logs them to fex.csv.
+        env = dict(env, FEX_PROFILESTATS="1")
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"

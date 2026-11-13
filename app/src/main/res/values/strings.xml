@@ -2127,6 +2127,9 @@
     <string name="exp_dotnet_trace">.NET games: log garbage collections and JIT time to the game logs</string>
     <string name="exp_dotnet_gen0">.NET games: collect garbage every 64 MB of allocation, not every few MB</string>
     <string name="exp_dotnet_gc_stock">.NET games: stock garbage collector settings (background GC, no forced compaction)</string>
+    <string name="exp_fex_kestrel">FEX: Kestrel\'s own build for games (Auto components)</string>
+    <string name="exp_fex_stats">FEX: log translation time and code-rewrite counts (fex.csv)</string>
+    <string name="exp_native_inventory">Godot games: list which engine add-ons, animations and sound banks the game uses (names and counts only)</string>
     <string name="exp_present">Screen frames</string>
     <string name="exp_present_off">One in flight</string>
     <string name="exp_two_frames">Two in flight</string>

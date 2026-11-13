@@ -25,7 +25,7 @@ object TelemetryBundle {
     private const val X64_LOG_BYTES = 2L shl 20
     private const val X64_LOG_UNKNOWN_START = 2L shl 20
     private const val STEAM_LOG_BYTES = 256L shl 10
-    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log", "memory.csv", "processes.csv", com.droiddeck.launcher.session.ThreadLog.FILE,
+    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log", "memory.csv", "processes.csv", com.droiddeck.launcher.session.ThreadLog.FILE, com.droiddeck.launcher.session.FexStatsLog.FILE,
         RemoteConfig.SETTINGS_FILE, com.droiddeck.launcher.session.SessionScreenshot.FILE)
     /** The Steam client's own logs that time shader pre-caching, downloads and compatibility-tool picks. */
     internal val STEAM_LOGS = listOf("shader_log.txt", "content_log.txt", "compat_log.txt", "bootstrap_log.txt", "console_log.txt")
@@ -34,7 +34,12 @@ object TelemetryBundle {
 
     /** Where the evidence comes from: [x64LogFrom] is the x86_64 Steam log's length at the session start (-1: unknown). */
     class Sources(val sinceMs: Long, val x64Log: File?, val x64LogFrom: Long, val compatdata: List<File>,
-                  val steamLogDirs: List<Pair<String, File>> = emptyList())
+                  val steamLogDirs: List<Pair<String, File>> = emptyList(),
+                  val guestReports: List<Pair<String, File>> = emptyList())
+
+    /** Reports guest tools write for upload, as (zip name, path under the Linux root); taken when written this session. */
+    internal val GUEST_REPORTS = listOf("native-inventory.txt" to "var/tmp/droiddeck/native-inventory.txt")
+    private const val GUEST_REPORT_BYTES = 4L shl 20
 
     fun sources(context: Context, sessionDir: File, x64LogFrom: Long = -1): Sources = Sources(
         sessionStartMs(sessionDir), CrashEvidence.x64Log(context), x64LogFrom,
@@ -46,6 +51,7 @@ object TelemetryBundle {
             "arm64" to File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs"),
             "x86_64" to File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/.local/share/Steam/logs"),
         ),
+        GUEST_REPORTS.map { (name, path) -> name to File(LinuxRuntime.rootDir(context), path) },
     )
 
     /** Steam client logs written since [sinceMs], as (zip name, file). */
@@ -134,6 +140,8 @@ object TelemetryBundle {
             ?.forEach { add(it, it.name, 256L shl 10) }
         if (x64 != null && x64From >= 0 && x64.length() > x64From) add(x64, "steam-x64.log", X64_LOG_BYTES, x64From)
         for ((name, file) in steamLogs(sources.steamLogDirs, sources.sinceMs)) add(file, name, STEAM_LOG_BYTES)
+        for ((name, file) in sources.guestReports)
+            if (file.isFile && file.lastModified() >= sources.sinceMs - 60_000) add(file, name, GUEST_REPORT_BYTES)
         var budget = EVIDENCE_BYTES
         val logs = CrashEvidence.protonLogs(dir) + runCatching { CrashEvidence.gameLogs(sources.compatdata, sources.sinceMs) }.getOrDefault(emptyList())
         for ((name, file) in logs.sortedByDescending { it.second.lastModified() }) {
