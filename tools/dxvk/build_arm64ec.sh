@@ -64,7 +64,22 @@ rm -f "$out"/x32/*.a "$out"/x64/*.a
 python3 - "$out" <<'EOF'
 import struct, sys
 from pathlib import Path
-# x32: i386 PE32. x64: x86-64 PE32+ whose whole code map is ARM64EC (CHPE metadata present).
+
+
+def chpe_metadata(data, pe):
+    # Load config (data directory 10) of a PE32+ image; CHPEMetadataPointer sits at 0xC8 in it.
+    optsize = struct.unpack_from("<H", data, pe + 20)[0]
+    rva, size = struct.unpack_from("<II", data, pe + 24 + 112 + 10 * 8)
+    if not rva or size < 0xD0:
+        return 0
+    for i in range(struct.unpack_from("<H", data, pe + 6)[0]):
+        vsize, va, rawsize, raw = struct.unpack_from("<IIII", data, pe + 24 + optsize + 40 * i + 8)
+        if va <= rva < va + max(vsize, rawsize):
+            return struct.unpack_from("<Q", data, raw + rva - va + 0xC8)[0]
+    return 0
+
+
+# x32: i386 PE32. x64: x86-64 PE32+ carrying ARM64EC (CHPE) metadata, i.e. the ARM64EC build.
 for arch, machine, magic in (("x32", 0x14c, 0x10b), ("x64", 0x8664, 0x20b)):
     for name in ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"):
         data = (Path(sys.argv[1]) / arch / (name + ".dll")).read_bytes()
@@ -72,7 +87,7 @@ for arch, machine, magic in (("x32", 0x14c, 0x10b), ("x64", 0x8664, 0x20b)):
         assert data[pe:pe + 4] == b"PE\0\0", name
         assert struct.unpack_from("<H18xH", data, pe + 4) == (machine, magic), (arch, name)
         if arch == "x64":
-            assert b"aarch64" in data, "x64/%s.dll is not the ARM64EC build" % name
+            assert chpe_metadata(data, pe), "x64/%s.dll is not the ARM64EC build" % name
 EOF
 cp "$work/source/LICENSE" "$out/LICENSE"
 printf '%s\n' "$DXVK_REVISION" > "$out/source-commit"
