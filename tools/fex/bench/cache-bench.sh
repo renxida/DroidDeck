@@ -2,8 +2,9 @@
 # Compare ways of cutting translation cost on one stand-in: Bench.dll's frame loop (see Bench.Frames), under each line
 # of cache-configs.txt. Each config runs as a sequence: cold (its own empty FEX code cache), then WARM warm runs that
 # reuse that cache, as a game does on its next launch. The sequence repeats SEQS times. Writes frames.csv and prints
-# frames-summary.md. Inputs: JIT_DLL and R2R_DLL (native arm64 builds), ROOTFS with the x64 builds at /bench/jit and
-# /bench/r2r, FEX_BIN, FEX_STATS.
+# frames-summary.md. Inputs: JIT_DLL and R2R_DLL (native arm64 builds), ROOTFS with each x64 build in its own folder
+# /bench/<dll> (the config's dll column: jit, r2r, or any other variant), FEX_BIN, FEX_STATS. A folder holding an
+# executable Bench (self-contained) runs that instead of /opt/dotnet/dotnet. DOTNET_* in a config's env apply too.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=${OUT:-$PWD/bench-out}
@@ -36,10 +37,12 @@ for seq in $(seq 1 "$SEQS"); do
         d=$JIT_DLL; [ "$dll" = r2r ] && d=$R2R_DLL
         env $GAME_DOTNET /usr/bin/time -f "%M" -o "$rss" dotnet "$d" "$FRAMES" frames < /dev/null > "$txt"
       else
+        # A self-contained build (its own runtime, e.g. composite ReadyToRun) ships an apphost: run that instead.
+        guest="/opt/dotnet/dotnet /bench/$dll/Bench.dll"; [ -x "$ROOTFS/bench/$dll/Bench" ] && guest="/bench/$dll/Bench"
         rm -f /dev/shm/fex-*-stats
         "$FEX_STATS" -s -i 50 > "$st" & sp=$!
         env $GAME_DOTNET $GAME_FEX $envs FEX_DISKCACHEPATH="$cache" FEX_ROOTFS="$ROOTFS" FEX_PROFILESTATS=1 FEX_SILENTLOG=1 \
-          /usr/bin/time -f "%M" -o "$rss" "$FEX_BIN/FEX" /opt/dotnet/dotnet "/bench/$dll/Bench.dll" "$FRAMES" frames < /dev/null > "$txt" \
+          /usr/bin/time -f "%M" -o "$rss" "$FEX_BIN/FEX" $guest "$FRAMES" frames < /dev/null > "$txt" \
           || echo "checksum,crashed-$?,0" >> "$txt"
         sleep 0.3; kill $sp 2>/dev/null || true; wait $sp 2>/dev/null || true
       fi

@@ -1,5 +1,6 @@
 # Ways to cut translation cost for the frame-loop stand-in (Bench.dll frames), compared by cache-bench.sh.
-# name | runner | dll | env      runner: native or fex; dll: jit (plain IL) or r2r (ReadyToRun precompiled)
+# name | runner | dll | env      runner: native or fex; dll: the build's folder under /bench (jit: plain IL, r2r:
+# ReadyToRun; native runs know only jit and r2r)
 # Every fex line also gets the game's settings and fex-l1 (see cache-bench.sh).
 native_jit     | native | jit |
 native_r2r     | native | r2r |
