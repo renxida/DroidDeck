@@ -91,10 +91,10 @@ class NativeGodotTest(unittest.TestCase):
         self.assertEqual({"System.GC.Concurrent": True, "System.GC.Server": False}, cfg["configProperties"])
         self.assertIn("includedFrameworks", cfg)
         # Engine assemblies and the runtime come from the kit; the game's IL is linked, not copied.
-        self.assertEqual(str(self.kit / "GodotSharp.dll"), os.readlink(data / "GodotSharp.dll"))
-        self.assertEqual(str(self.kit / "System.Private.CoreLib.dll"), os.readlink(data / "System.Private.CoreLib.dll"))
-        self.assertEqual(str(self.game / "data_sts2_windows_x86_64" / "sts2.dll"), os.readlink(data / "sts2.dll"))
-        self.assertFalse((data / "sts2.runtimeconfig.json").is_symlink())
+        self.assertTrue(os.path.samefile(self.kit / "GodotSharp.dll", data / "GodotSharp.dll"))
+        self.assertTrue(os.path.samefile(self.kit / "System.Private.CoreLib.dll", data / "System.Private.CoreLib.dll"))
+        self.assertTrue(os.path.samefile(self.game / "data_sts2_windows_x86_64" / "sts2.dll", data / "sts2.dll"))
+        self.assertFalse(any((data / n).is_symlink() for n in names))
         self.assertIn("steam_api64.dll", r["skipped"])
         self.assertTrue((out / "sts2").is_file())
         # Composing again is idempotent.

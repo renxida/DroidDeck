@@ -124,9 +124,14 @@ def game_runtimeconfig(kit_cfg, game_cfg):
 
 
 def place(src, dst):
+    """Hardlink (copy across filesystems). Not a symlink: the .NET host resolves the main assembly's real
+    path and looks for the runtime next to it, so a symlinked game DLL sends it to the Windows folder."""
     if os.path.lexists(dst):
         os.unlink(dst)
-    os.symlink(src, dst)
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
 
 
 def compose(game_dir, kit, engine, out, exe=None):
