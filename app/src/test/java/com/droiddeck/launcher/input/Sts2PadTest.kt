@@ -1,0 +1,140 @@
+package com.droiddeck.launcher.input
+
+import android.content.Context
+import android.graphics.Rect
+import org.json.JSONObject
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34], manifest = Config.NONE)
+class Sts2PadTest {
+    private val context: Context get() = RuntimeEnvironment.getApplication()
+    private val prefs get() = context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE)
+
+    @Before fun reset() {
+        for (name in listOf("input-profiles", "input-surfaces", "controller", "session")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
+    private data class Screen(val width: Int, val height: Int, val density: Float)
+
+    private val screens = listOf(Screen(2424, 1080, 2.625f), Screen(1920, 1080, 2.625f), Screen(2400, 1080, 2.625f), Screen(2340, 1080, 2.625f),
+        Screen(1600, 720, 2f), Screen(2560, 1600, 2f), Screen(2048, 1536, 2f), Screen(1280, 570, 1.4f), Screen(1280, 800, 1f), Screen(2208, 1840, 2.625f))
+
+    private fun box(e: InputSurfaceElement, s: Screen) = GamepadGeometry.Box((e.x + e.width / 2f) * s.width, (e.y + e.height / 2f) * s.height,
+        e.width * s.width, e.height * s.height)
+
+    private fun elements(s: Screen) = Sts2Pad.elements(s.width, s.height, s.density)
+
+    @Test fun everyButtonIsInsideTheScreenAndStorable() {
+        for (s in screens) {
+            val elements = elements(s)
+            assertEquals(Sts2Pad.THUMB_IDS + Sts2Pad.HUD_IDS + "builtin:keyboard", elements.map { it.id }.toSet())
+            assertEquals(elements.size, elements.map { it.id }.distinct().size)
+            for (e in elements) {
+                assertEquals("$s ${e.id}", e, e.bounded())
+                val b = box(e, s)
+                assertTrue("$s ${e.id}", b.left >= -.5f && b.top >= -.5f && b.right <= s.width + .5f && b.bottom <= s.height + .5f)
+            }
+        }
+    }
+
+    @Test fun theThumbsHoldOnlyTheDpadOnTheLeftAndABYOnTheRight() {
+        for (s in screens) {
+            val elements = elements(s)
+            val thumbs = elements.filter { it.id in Sts2Pad.THUMB_IDS }
+            val dpad = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
+            val face = setOf(InputControl.A, InputControl.B, InputControl.Y)
+            assertEquals(dpad + face, thumbs.map { it.control }.toSet())
+            for (e in thumbs) {
+                val centre = box(e, s).cx
+                if (e.control in dpad) assertTrue("$s ${e.id}", centre < s.width / 2f) else assertTrue("$s ${e.id}", centre > s.width / 2f)
+            }
+            assertTrue(elements.none { it.kind == InputElementKind.STICK || it.kind == InputElementKind.TRACKPAD })
+        }
+    }
+
+    @Test fun noButtonOverlapsAnotherOrTheFoldToggleCorner() {
+        for (s in screens) {
+            val elements = elements(s)
+            for ((i, a) in elements.withIndex()) for (b in elements.drop(i + 1))
+                assertFalse("$s ${a.id} overlaps ${b.id}", box(a, s).overlaps(box(b, s)))
+            val corner = 64 * s.density
+            val toggle = GamepadGeometry.Box(corner / 2f, corner / 2f, corner, corner)
+            for (e in elements) assertFalse("$s ${e.id}", box(e, s).overlaps(toggle))
+        }
+    }
+
+    @Test fun onAPixel10TheHudButtonsSitOnTheGameIconsAndTheThumbsInTheBlackBars() {
+        val s = Screen(2424, 1080, 2.625f)
+        val elements = elements(s).associateBy { it.id }
+        // Centres of the game's icons on a Pixel 10 screenshot (combat, death screen), in screen pixels.
+        val icons = mapOf("legacy:lt" to (303f to 1023f), "legacy:rt" to (2112f to 1023f), "legacy:rb" to (2117f to 828f),
+            Sts2Pad.END_TURN to (1964f to 888f), "legacy:select" to (1951f to 39f), "legacy:lb" to (2036f to 39f), "legacy:start" to (2115f to 39f))
+        for ((id, at) in icons) {
+            val b = box(elements.getValue(id), s)
+            assertEquals(id, at.first, b.cx, 20f)
+            assertEquals(id, at.second, b.cy, 20f)
+        }
+        val pictureLeft = (2424 - 1080 * 16f / 9f) / 2f
+        val pictureRight = 2424 - pictureLeft
+        for (id in listOf("legacy:y", "legacy:b", "legacy:a")) assertTrue(id, box(elements.getValue(id), s).left >= pictureRight)
+        val dpad = listOf("legacy:up", "legacy:down").map { box(elements.getValue(it), s) }
+        assertTrue(dpad.all { it.cx < pictureLeft })
+        assertTrue(box(elements.getValue("builtin:keyboard"), s).right < pictureLeft)
+    }
+
+    @Test fun theLibraryOffersThePadAndUsesItForSlayTheSpire2Only() {
+        val library = InputLibraries.read(context)
+        val layout = library.layouts.single { it.id == Sts2Pad.LAYOUT }
+        assertEquals(Sts2Pad.layout(), layout)
+        assertTrue(layout.supports(InputRole.PRIMARY))
+        assertEquals(Sts2Pad.LAYOUT, library.preset(Sts2Pad.BINDINGS).layoutId)
+        assertEquals(library, InputLibraries.decode(InputLibraries.encode(library)))
+
+        val sts2 = Sts2Pad.forGame(library, Sts2Pad.APP_ID)
+        assertEquals(Sts2Pad.LAYOUT, sts2.validate().activeLayout(InputRole.PRIMARY)?.id)
+        val profile = sts2.compileActive()
+        assertEquals(InputAction.Native(InputControl.Y), profile.elementAction(InputRole.PRIMARY, Sts2Pad.END_TURN, InputControl.A))
+        assertEquals(InputAction.Command(InputCommand.KEYBOARD), profile.elementAction(InputRole.PRIMARY, "builtin:keyboard", InputControl.A))
+        for (control in listOf(InputControl.LT, InputControl.RT, InputControl.RB, InputControl.LB, InputControl.SELECT, InputControl.START, InputControl.UP, InputControl.A))
+            assertEquals(InputAction.Native(), profile.elementAction(InputRole.PRIMARY, "legacy:${control.id}", control))
+
+        for (game in listOf(null, "1145360")) assertEquals(InputLibraries.OVERLAY, Sts2Pad.forGame(library, game).activeLayout(InputRole.PRIMARY)?.id)
+        val chosen = library.selectPart(InputRole.PRIMARY, library.activePart(InputRole.PRIMARY).bindings)
+        assertEquals(InputLibraries.OVERLAY, Sts2Pad.forGame(chosen, Sts2Pad.APP_ID).activeLayout(InputRole.PRIMARY)?.id)
+        assertEquals(Sts2Pad.LAYOUT, library.selectPart(InputRole.PRIMARY, Sts2Pad.BINDINGS).validate().activeLayout(InputRole.PRIMARY)?.id)
+    }
+
+    @Test fun versionFourteenLibrariesGainThePadOnceAndADeletedPadStaysDeleted() {
+        val fresh = InputLibraries.read(context)
+        val old = fresh.copy(layouts = fresh.layouts.filterNot { it.id == Sts2Pad.LAYOUT }, bindings = fresh.bindings.filterNot { it.id == Sts2Pad.BINDINGS }).validate()
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(old)).put("version", 14).toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        assertEquals(old.profiles, upgraded.profiles)
+        assertEquals(old.layouts, upgraded.layouts.filterNot { it.id == Sts2Pad.LAYOUT })
+        assertEquals(Sts2Pad.layout(), upgraded.layouts.single { it.id == Sts2Pad.LAYOUT })
+        assertEquals(upgraded, InputLibraries.read(context))
+        InputLibraries.update(context) { it.removeLayout(Sts2Pad.LAYOUT) }
+        assertTrue(InputLibraries.read(context).layouts.none { it.id == Sts2Pad.LAYOUT })
+        assertEquals(InputLibraries.OVERLAY, Sts2Pad.forGame(InputLibraries.read(context), Sts2Pad.APP_ID).activeLayout(InputRole.PRIMARY)?.id)
+    }
+
+    @Test fun onScreenPlacementFollowsTheGamesPictureAndKeepsButtonsThePersonMoved() {
+        val layout = InputLibraries.read(context).layouts.single { it.id == Sts2Pad.LAYOUT }
+        val density = context.resources.displayMetrics.density
+        for ((w, h) in listOf(2424 to 1080, 1920 to 1080, 1600 to 720))
+            assertEquals(Sts2Pad.elements(w, h, density), OnScreenLayout.elements(context, layout, w, h, Rect()))
+        val moved = layout.copy(elements = layout.elements.map { if (it.id == "legacy:a") it.copy(x = .5f, y = .5f) else it })
+        val placed = OnScreenLayout.elements(context, moved, 2424, 1080, Rect())
+        assertEquals(.5f, placed.single { it.id == "legacy:a" }.x, .02f)
+        assertEquals(.5f, placed.single { it.id == "legacy:a" }.y, .02f)
+        assertEquals(Sts2Pad.elements(2424, 1080, density).single { it.id == "legacy:lt" }, placed.single { it.id == "legacy:lt" })
+        assertEquals(Sts2Pad.layout().elements, InputLibraries.defaultPositions(context, InputLibraries.read(context), layout))
+    }
+}
