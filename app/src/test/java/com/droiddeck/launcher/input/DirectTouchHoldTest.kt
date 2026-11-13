@@ -35,16 +35,49 @@ class DirectTouchHoldTest {
 
     @After fun noSink() { InputLatency.sink = null }
 
+    @Test fun quickTapSendsTheDownWhenTheFingerLands() {
+        hold.quickLift = true
+        touch(MotionEvent.ACTION_DOWN)
+        assertEquals(listOf("down 0 at 40.0,30.0"), touches)
+        advance(100)
+        touch(MotionEvent.ACTION_UP, 50f)
+        assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 50.0,30.0"), touches)
+        advance(600)
+        assertTrue(buttons.isEmpty())
+    }
+
     @Test fun quickTapLiftsTwentyMsAfterTheDownReachesTheGame() {
         hold.quickLift = true
         touch(MotionEvent.ACTION_DOWN)
-        advance(100)
+        advance(5)
         touch(MotionEvent.ACTION_UP, 50f)
         assertEquals(listOf("down 0 at 40.0,30.0"), touches)
-        advance(19)
+        advance(14)
         assertEquals(listOf("down 0 at 40.0,30.0"), touches)
         advance(1)
         assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 50.0,30.0"), touches)
+    }
+
+    @Test fun quickTapLongPressCancelsTheTouchThenClicksRight() {
+        hold.quickLift = true
+        touch(MotionEvent.ACTION_DOWN)
+        advance(500)
+        assertEquals(listOf("down 0 at 40.0,30.0", "cancel"), touches)
+        assertEquals(listOf("true at 40.0,30.0"), buttons)
+        touch(MotionEvent.ACTION_UP)
+        advance(100)
+        assertEquals(listOf("down 0 at 40.0,30.0", "cancel"), touches)
+    }
+
+    @Test fun quickTapDragKeepsTheTouch() {
+        hold.quickLift = true
+        touch(MotionEvent.ACTION_DOWN)
+        touch(MotionEvent.ACTION_MOVE, 44f)
+        touch(MotionEvent.ACTION_MOVE, 60f)
+        advance(600)
+        assertTrue(buttons.isEmpty())
+        touch(MotionEvent.ACTION_UP, 60f)
+        assertEquals(listOf("down 0 at 40.0,30.0", "move 0 at 44.0,30.0", "move 0 at 60.0,30.0", "up 0 at 60.0,30.0"), touches)
     }
 
     @Test fun quickTapLiftsAtOnceWhenTheDownHasBeenInTheGameLongEnough() {

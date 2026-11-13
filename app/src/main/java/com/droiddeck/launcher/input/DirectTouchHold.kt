@@ -19,7 +19,11 @@ class DirectTouchHold(
         fun cancel()
     }
 
-    /** Lift a tap once its down has been in the game [QUICK_GAP_MS], instead of [LIFT_MS] after the finger. */
+    /**
+     * Quick taps: the down reaches the game the moment the finger lands, instead of when it lifts or
+     * moves, and the lift follows once the down has been in the game [QUICK_GAP_MS], instead of [LIFT_MS]
+     * after the finger. A long press still clicks right: the touch the game already has is cancelled first.
+     */
     var quickLift = false
 
     private val handler = Handler(Looper.getMainLooper())
@@ -51,6 +55,10 @@ class DirectTouchHold(
         pressing = false
     }
     private val hold = Runnable {
+        if (forwarded) {
+            touch.cancel()
+            forwarded = false
+        }
         held = true
         listener.onLongPress()
         listener.onButton(PointerGestures.BTN_RIGHT, true, downX, downY)
@@ -99,7 +107,10 @@ class DirectTouchHold(
             downId = event.getPointerId(0)
             downEventMs = event.eventTime
             if (holdBehavior == TouchGestureConfig.MOUSE_BEHAVIOR_NONE) forwardDown()
-            else handler.postDelayed(hold, delayMs)
+            else {
+                if (quickLift) forwardDown()
+                handler.postDelayed(hold, delayMs)
+            }
             return true
         }
         if (held) {
