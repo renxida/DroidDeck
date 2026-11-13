@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shutil
 import struct
 import tempfile
 import unittest
@@ -131,12 +132,12 @@ class NativeGodotTest(unittest.TestCase):
     def test_run_passes_engine_args(self):
         out = self.root / "launch"
         seen = []
-        NG["os"].execv, real = (lambda path, args: seen.append(args)), NG["os"].execv
+        NG["os"].execve, real = (lambda path, args, env: seen.append(args)), NG["os"].execve
         try:
             NG["main"](["run", "--game-dir", str(self.game), "--kit", str(self.kit), "--engine", str(self.engine),
                         "--out", str(out), "--exe", "SlayTheSpire2.exe", "--", "--headless", "--verbose"])
         finally:
-            NG["os"].execv = real
+            NG["os"].execve = real
             os.chdir(Path(__file__).resolve().parent)
         self.assertEqual([str(out / "sts2"), "--main-pack", str(self.game / "SlayTheSpire2.pck"), "--headless", "--verbose"], seen[0])
 
@@ -149,9 +150,99 @@ class NativeGodotTest(unittest.TestCase):
             os.chdir(old)
         self.assertTrue(os.path.isabs(r["pack"]) and os.path.isabs(r["engine"]))
 
+    def test_component_layout_and_stubs(self):
+        comp = self.root / "component"
+        (comp / "stubs").mkdir(parents=True)
+        (comp / "stubs" / "libsteam_api64.so").write_bytes(b"stub")
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        out = self.root / "launch"
+        self.assertEqual(0, NG["main"](["compose", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                        "--exe", "SlayTheSpire2.exe"]))
+        self.assertTrue((out / "data_sts2_linuxbsd_arm64" / "libsteam_api64.so").is_file())
+
+    @unittest.skipUnless(shutil.which("zstd"), "zstd not installed")
+    def test_fetch_checks_and_caches(self):
+        import hashlib, io, subprocess
+        src = self.root / "src"
+        (src / "kit").mkdir(parents=True)
+        (src / "godot").write_bytes(b"engine")
+        archive = self.root / "c.tar.zst"
+        subprocess.run(["sh", "-c", 'tar -C "$1" -c . | zstd -q -o "$2"', "sh", str(src), str(archive)], check=True)
+        data = archive.read_bytes()
+        comp = {"tag": "native-engine-t1", "url": "https://example.invalid/c.tar.zst", "sha256": hashlib.sha256(data).hexdigest()}
+        calls = []
+        def opener(url, timeout):
+            calls.append(url)
+            return io.BytesIO(data)
+        cache = self.root / "cache"
+        folder = NG["fetch"](comp, str(cache), opener)
+        self.assertEqual(b"engine", (Path(folder) / "godot").read_bytes())
+        NG["fetch"](comp, str(cache), opener)
+        self.assertEqual(1, len(calls))
+        with self.assertRaises(SystemExit):
+            NG["fetch"](dict(comp, tag="native-engine-t2", sha256="0" * 64), str(cache), opener)
+        self.assertFalse((cache / "native-engine-t2").exists())
+        with self.assertRaises(SystemExit):
+            NG["fetch"]({"tag": "", "url": "", "sha256": ""}, str(cache), opener)
+
     def test_embedded_pack(self):
         (self.game / "SlayTheSpire2.pck").unlink()
         self.assertTrue(NG["find_pack"](str(self.game), "SlayTheSpire2.exe").endswith("SlayTheSpire2.exe"))
+
+
+class GameEnvHookTest(unittest.TestCase):
+    def setUp(self):
+        self.env_mod = runpy.run_path(str(BIN / "droiddeck-game-env"))
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.game = self.root / "Slay the Spire 2"
+        (self.game / "data_sts2_windows_x86_64").mkdir(parents=True)
+        self.exe = str(self.game / "SlayTheSpire2.exe")
+        self.cmd = ["/proton", "waitforexitandrun", self.exe, "-force-x"]
+        self.on = {"DROIDDECK_EXP_NATIVE_ENGINE": "1", "BL_DEBUG_DIR": str(self.root)}
+
+    def hook(self, env, rc=0, took=5.0):
+        calls = []
+        times = iter([100.0, 100.0 + took])
+
+        class Done:
+            returncode = rc
+
+        def run(args, **kw):
+            calls.append(args)
+            if kw.get("stdout"):
+                kw["stdout"].write("ERROR: something\n")
+            return Done()
+        result = self.env_mod["native_engine"](self.cmd, env, run=run, clock=lambda: next(times))
+        return result, calls
+
+    def test_off_without_the_experiment(self):
+        (rc, notes), calls = self.hook({})
+        self.assertEqual((None, [], []), (rc, notes, calls))
+        self.assertIn("native-engine", self.env_mod["EXPERIMENTS"])
+
+    def test_runs_natively_and_ends_with_its_code(self):
+        (rc, notes), calls = self.hook(self.on, rc=0, took=900)
+        self.assertEqual(0, rc)
+        self.assertEqual(["run", "--fetch", "--game-dir", str(self.game), "--exe", "SlayTheSpire2.exe"], calls[0][2:8])
+        self.assertEqual(["--", "-force-x"], calls[0][-2:])
+
+    def test_falls_back_to_proton_when_it_fails_early(self):
+        (rc, notes), _ = self.hook(self.on, rc=134, took=4)
+        self.assertIsNone(rc)
+        self.assertIn("native-engine log: ERROR: something", notes)
+        self.assertTrue(notes[-1].endswith("starting on Proton"))
+
+    def test_a_late_failure_is_not_retried(self):
+        (rc, _), _ = self.hook(self.on, rc=1, took=600)
+        self.assertEqual(1, rc)
+
+    def test_not_a_csharp_game(self):
+        (self.game / "data_sts2_windows_x86_64").rmdir()
+        (rc, notes), calls = self.hook(self.on)
+        self.assertEqual((None, []), (rc, calls))
 
 
 if __name__ == "__main__":

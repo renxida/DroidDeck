@@ -7,18 +7,24 @@ name: Native engine build (Godot 4.5.1 mono template, linux arm64, with our comp
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the engine component as a release on this repository
+        type: boolean
+        default: false
   push:
     branches: [perf/emu-native]
     paths:
       - 'tools/native-engine/modules/**'
       - 'tools/native-engine/skeltest/**'
       - 'tools/native-engine/bench/**'
+      - 'tools/native-engine/stubs/**'
       - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
       - 'tools/tests/test_native_godot.py'
       - '.github/workflows/native-engine-build.yml'
 
 permissions:
-  contents: read
+  contents: write  # only the publish step uses it, on a manual run with publish=true
 
 env:
   GODOT_VER: 4.5.1-stable
@@ -107,12 +113,18 @@ jobs:
           timeout 900 "$GODOT" --headless --path . --export-release windows out/windows/NativeBench.exe > export-win.log 2>&1 || echo "export exit $?"
           ls -la out/windows || true
           test -d out/windows/data_NativeBench_windows_x86_64 || { tail -40 export-win.log; exit 1; }
-          # Kit: the arm64 export's data dir, minus its own app files.
-          KIT=out/arm64/data_NativeBench_linuxbsd_arm64
-          python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")], "deps": "NativeBench.deps.json", "runtimeconfig": "NativeBench.runtimeconfig.json"}, open(os.path.join(k,"kit.json"),"w"))' "$KIT"
+          # The component: our engine, the kit (the arm64 export's data dir, minus its own app files) and the stubs.
+          C=$GITHUB_WORKSPACE/out/component
+          rm -rf "$C" && mkdir -p "$C"
+          cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono "$C/godot"
+          cp -a out/arm64/data_NativeBench_linuxbsd_arm64 "$C/kit"
+          python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")], "deps": "NativeBench.deps.json", "runtimeconfig": "NativeBench.runtimeconfig.json"}, open(os.path.join(k,"kit.json"),"w"))' "$C/kit"
+          sh "$GITHUB_WORKSPACE/tools/native-engine/stubs/build.sh" "$C/stubs"
+          echo "${GITHUB_SHA}" > "$C/VERSION"
+          KIT=$C/kit
           set +e
-          DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 300 "$GITHUB_WORKSPACE/tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot" run \
-            --game-dir out/windows --kit "$KIT" --engine ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono \
+          timeout 300 "$GITHUB_WORKSPACE/tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot" run \
+            --game-dir out/windows --component "$C" \
             --out "$PWD/out/native-launch" --exe NativeBench.exe -- --headless --verbose > win-run.log 2>&1
           rc=$?
           set -e
@@ -168,6 +180,27 @@ jobs:
           echo "exit $rc"
           grep -E "SKELTEST|NativeSkeleton2D|native_compat|ERROR|OpenGL" skel.log | head -40
           python3 check.py out
+      - name: Pack the component
+        run: |
+          set -euo pipefail
+          cd out/component
+          tar --owner=0 --group=0 -c . | zstd -q -19 -T0 -o "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
+          ls -la "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
+          sha256sum "$GITHUB_WORKSPACE/out/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Publish the component (manual run with publish=true)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="native-engine-${GITHUB_RUN_NUMBER}"
+          sha=$(sha256sum out/native-engine.tar.zst | cut -d' ' -f1)
+          printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, Steam stub.\nCommit %s. sha256 %s\nNo game files.\n' \
+            "$(cat out/component/kit/*.runtimeconfig.json | python3 -c 'import json,sys; print([f.get("version") for f in json.load(sys.stdin)["runtimeOptions"].get("includedFrameworks",[])])')" \
+            "$GITHUB_SHA" "$sha" > notes.txt
+          gh release create "$tag" out/native-engine.tar.zst -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$tag" --notes-file notes.txt --prerelease
+          echo "COMPONENT tag=$tag sha256=$sha url=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -54,6 +54,7 @@ class ExperimentsTest {
             "wayland-present" to "DROIDDECK_EXP_WAYLAND_PRESENT",
             "vk-count" to "DROIDDECK_EXP_VK_COUNT",
             "native-inventory" to "DROIDDECK_EXP_NATIVE_INVENTORY",
+            "native-engine" to "DROIDDECK_EXP_NATIVE_ENGINE",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())
