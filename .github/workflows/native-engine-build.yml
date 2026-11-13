@@ -121,7 +121,7 @@ jobs:
           grep -E "droiddeck-native-godot|native_compat|BENCH|ERROR|\.NET|hostfxr" win-run.log | head -40
           if ! grep -q "BENCH" win-run.log; then
             echo "--- diagnostics"
-            python3 - out/windows/data_NativeBench_windows_x86_64/NativeBench.dll "$KIT/NativeBench.dll" <<'PY'
+            python3 - out/windows/data_NativeBench_windows_x86_64/NativeBench.dll "$KIT/NativeBench.dll" <<'PY' || true
           import struct, sys
           for p in sys.argv[1:]:
               b = open(p, "rb").read()
@@ -134,13 +134,14 @@ jobs:
               sec = opt + struct.unpack_from("<H", b, pe + 20)[0]
               off = None
               for i in range(nsec):
-                  va, vs, raw_size, raw = struct.unpack_from("<IIII", b, sec + i * 40 + 8)
+                  vs, va, raw_size, raw = struct.unpack_from("<IIII", b, sec + i * 40 + 8)
                   if va <= rva < va + max(vs, raw_size):
                       off = rva - va + raw
               flags = struct.unpack_from("<I", b, off + 16)[0]
               native_hdr = struct.unpack_from("<II", b, off + 64)
               print(p, "machine=%#x" % machine, "corflags=%#x" % flags, "managed_native_header=", native_hdr, "size", len(b))
           PY
+            cat out/native-launch/native-launch.json | head -40
             for f in out/windows/data_NativeBench_windows_x86_64/NativeBench.runtimeconfig.json "$KIT/NativeBench.runtimeconfig.json" out/native-launch/data_NativeBench_linuxbsd_arm64/NativeBench.runtimeconfig.json; do echo "== $f"; cat "$f"; echo; done
             COREHOST_TRACE=1 COREHOST_TRACE_VERBOSITY=4 COREHOST_TRACEFILE=$PWD/host.log DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 \
               out/native-launch/NativeBench --main-pack "$PWD/out/windows/NativeBench.pck" --headless > /dev/null 2>&1 || true

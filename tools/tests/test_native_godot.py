@@ -10,17 +10,28 @@ BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 NG = runpy.run_path(str(BIN / "droiddeck-native-godot"))
 
 
-def pe(managed):
-    """A minimal PE32+ image; managed ones carry a CLI data directory entry."""
+def pe(managed, machine=0xAA64, r2r=False, ilonly=True):
+    """A minimal PE32+ image with one section; managed ones carry a CLI header in it."""
     opt = bytearray(240)
     struct.pack_into("<H", opt, 0, 0x20B)
     if managed:
         struct.pack_into("<II", opt, 112 + 14 * 8, 0x2008, 0x48)
-    coff = struct.pack("<HHIIIHH", 0xAA64, 1, 0, 0, 0, len(opt), 0x22)
+    coff = struct.pack("<HHIIIHH", machine, 1, 0, 0, 0, len(opt), 0x22)
     head = bytearray(0x80)
     head[:2] = b"MZ"
     struct.pack_into("<I", head, 0x3C, 0x80)
-    return bytes(head) + b"PE\0\0" + coff + bytes(opt) + b"\0" * 64
+    hdr_len = 0x80 + 24 + len(opt) + 40
+    raw = (hdr_len + 0x1FF) & ~0x1FF
+    section = b".text\0\0\0" + struct.pack("<IIII", 0x200, 0x2000, 0x200, raw) + b"\0" * 16
+    body = bytearray(0x200)
+    cor = bytearray(0x48)
+    struct.pack_into("<I", cor, 0, 0x48)
+    struct.pack_into("<I", cor, 16, (1 if ilonly else 0) | (4 if r2r else 0))
+    if r2r:
+        struct.pack_into("<II", cor, 64, 0x2100, 0x40)
+    body[8:8 + 0x48] = cor
+    image = bytes(head) + b"PE\0\0" + coff + bytes(opt) + section
+    return image + b"\0" * (raw - len(image)) + bytes(body)
 
 
 class NativeGodotTest(unittest.TestCase):
@@ -34,7 +45,7 @@ class NativeGodotTest(unittest.TestCase):
         (self.game / "SlayTheSpire2.exe").write_bytes(pe(False))
         (self.game / "SlayTheSpire2.pck").write_bytes(b"GDPC")
         (win / "sts2.dll").write_bytes(pe(True))
-        (win / "0Harmony.dll").write_bytes(pe(True))
+        (win / "0Harmony.dll").write_bytes(pe(True, machine=0x8664, r2r=True))
         (win / "GodotSharp.dll").write_bytes(pe(True))
         (win / "System.Private.CoreLib.dll").write_bytes(pe(True))
         (win / "coreclr.dll").write_bytes(pe(False))
@@ -71,6 +82,19 @@ class NativeGodotTest(unittest.TestCase):
         p.write_bytes(b"not a pe")
         self.assertFalse(NG["is_managed"](str(p)))
 
+    def test_x64_assemblies_are_relabelled(self):
+        img, note = NG["portable_image"](pe(True, machine=0x8664))
+        info = NG["pe_info"](img)
+        self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
+        self.assertEqual("relabelled x64 -> arm64", note)
+        img, note = NG["portable_image"](pe(True, machine=0x8664, r2r=True))
+        info = NG["pe_info"](img)
+        self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
+        self.assertIn("ReadyToRun", note)
+        self.assertEqual((None, None), NG["portable_image"](pe(True, machine=0x14C)))
+        with self.assertRaises(ValueError):
+            NG["portable_image"](pe(True, machine=0x8664, ilonly=False))
+
     def test_compose(self):
         out = self.root / "launch"
         out.mkdir()
@@ -94,6 +118,9 @@ class NativeGodotTest(unittest.TestCase):
         self.assertTrue(os.path.samefile(self.kit / "GodotSharp.dll", data / "GodotSharp.dll"))
         self.assertTrue(os.path.samefile(self.kit / "System.Private.CoreLib.dll", data / "System.Private.CoreLib.dll"))
         self.assertTrue(os.path.samefile(self.game / "data_sts2_windows_x86_64" / "sts2.dll", data / "sts2.dll"))
+        self.assertEqual(["0Harmony.dll"], list(r["patched"]))
+        self.assertEqual(0xAA64, NG["pe_info"]((data / "0Harmony.dll").read_bytes())["machine"])
+        self.assertEqual(0x8664, NG["pe_info"]((self.game / "data_sts2_windows_x86_64" / "0Harmony.dll").read_bytes())["machine"])
         self.assertFalse(any((data / n).is_symlink() for n in names))
         self.assertIn("steam_api64.dll", r["skipped"])
         self.assertTrue((out / "sts2").is_file())

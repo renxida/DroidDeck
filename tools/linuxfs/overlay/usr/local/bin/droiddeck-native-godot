@@ -30,30 +30,74 @@ def log(msg):
     print("droiddeck-native-godot: " + msg, file=sys.stderr, flush=True)
 
 
+AMD64, ARM64 = 0x8664, 0xAA64
+ILONLY, IL_LIBRARY = 0x1, 0x4
+
+
+def pe_info(data):
+    """Where the fields we read or patch live in a PE image, or None if it isn't a .NET assembly."""
+    if data[:2] != b"MZ" or len(data) < 0x40:
+        return None
+    pe = struct.unpack_from("<I", data, 0x3C)[0]
+    if data[pe:pe + 4] != b"PE\0\0" or len(data) < pe + 24:
+        return None
+    machine, nsec = struct.unpack_from("<HH", data, pe + 4)
+    opt_size = struct.unpack_from("<H", data, pe + 20)[0]
+    opt = pe + 24
+    if len(data) < opt + 2:
+        return None
+    magic = struct.unpack_from("<H", data, opt)[0]
+    dirs = {0x10B: 96, 0x20B: 112}.get(magic)
+    if dirs is None or opt_size < dirs + 15 * 8 or len(data) < opt + opt_size:
+        return None
+    rva, size = struct.unpack_from("<II", data, opt + dirs + 14 * 8)
+    if not rva or not size:
+        return None
+    cli = None
+    for i in range(nsec):
+        sec = opt + opt_size + 40 * i
+        if len(data) < sec + 40:
+            return None
+        vsize, va, raw_size, raw = struct.unpack_from("<IIII", data, sec + 8)
+        if va <= rva < va + max(vsize, raw_size):
+            cli = rva - va + raw
+    if cli is None or len(data) < cli + 72:
+        return None
+    flags = struct.unpack_from("<I", data, cli + 16)[0]
+    native = struct.unpack_from("<II", data, cli + 64)
+    return {"machine": machine, "machine_at": pe + 4, "flags": flags, "flags_at": cli + 16,
+            "native_header": native, "native_header_at": cli + 64}
+
+
 def is_managed(path):
     """True when the file is a PE image with a CLI (.NET) header."""
     try:
         with open(path, "rb") as f:
-            head = f.read(4096)
-            if head[:2] != b"MZ" or len(head) < 0x40:
-                return False
-            pe = struct.unpack_from("<I", head, 0x3C)[0]
-            f.seek(pe)
-            sig = f.read(24)
-            if sig[:4] != b"PE\0\0":
-                return False
-            opt_size = struct.unpack_from("<H", sig, 20)[0]
-            opt = f.read(opt_size)
+            return pe_info(f.read()) is not None
     except OSError:
         return False
-    if len(opt) < 2:
-        return False
-    magic = struct.unpack_from("<H", opt, 0)[0]
-    dirs_at = 96 if magic == 0x10B else 112 if magic == 0x20B else None
-    if dirs_at is None or len(opt) < dirs_at + 15 * 8:
-        return False
-    rva, size = struct.unpack_from("<II", opt, dirs_at + 14 * 8)
-    return rva != 0 and size != 0
+
+
+def portable_image(data):
+    """(bytes, note) for a Windows x64 build of an IL-only assembly that arm64 .NET will load, or (None, None)
+    when it loads as it is.
+
+    CoreCLR refuses an assembly whose PE machine is AMD64 on arm64. When the code inside is plain IL the
+    machine field is only a label, so it is relabelled ARM64. A ReadyToRun image also carries precompiled x64
+    code; its pointer to that code is cleared so the runtime JITs the IL instead, which is always present."""
+    info = pe_info(data)
+    if info is None or info["machine"] != AMD64:
+        return None, None
+    if not info["flags"] & ILONLY:
+        raise ValueError("mixed-mode (native C++) assembly; it cannot run on arm64")
+    out = bytearray(data)
+    struct.pack_into("<H", out, info["machine_at"], ARM64)
+    note = "relabelled x64 -> arm64"
+    if info["native_header"] != (0, 0):
+        struct.pack_into("<II", out, info["native_header_at"], 0, 0)
+        struct.pack_into("<I", out, info["flags_at"], info["flags"] & ~IL_LIBRARY)
+        note += ", dropped ReadyToRun x64 code"
+    return bytes(out), note
 
 
 def windows_data_dir(game_dir):
@@ -145,7 +189,7 @@ def compose(game_dir, kit, engine, out, exe=None):
     kit_lower = {n.lower() for n in kit_map}
     for name, path in kit_map.items():
         place(os.path.abspath(path), os.path.join(data, name))
-    taken, skipped, game_cfg = [], [], None
+    taken, skipped, patched, game_cfg = [], [], {}, None
     for name in sorted(os.listdir(win)):
         src = os.path.join(win, name)
         low = name.lower()
@@ -160,7 +204,14 @@ def compose(game_dir, kit, engine, out, exe=None):
         elif low in ENGINE_ASSEMBLIES or low in kit_lower:
             skipped.append(name)
         elif is_managed(src):
-            place(os.path.abspath(src), os.path.join(data, name))
+            with open(src, "rb") as f:
+                fixed, note = portable_image(f.read())
+            if fixed is None:
+                place(os.path.abspath(src), os.path.join(data, name))
+            else:
+                with open(os.path.join(data, name), "wb") as f:
+                    f.write(fixed)
+                patched[name] = note
             taken.append(name)
         else:
             skipped.append(name)  # native Windows libraries and data the runtime doesn't need
@@ -190,7 +241,7 @@ def compose(game_dir, kit, engine, out, exe=None):
             shutil.copy2(engine, target)
         os.chmod(target, 0o755)
     report = {"assembly": asm, "pack": find_pack(game_dir, exe), "engine": target, "data": data,
-              "game_assemblies": taken, "skipped": skipped, "kit_files": len(kit_map)}
+              "game_assemblies": taken, "patched": patched, "skipped": skipped, "kit_files": len(kit_map)}
     with open(os.path.join(out, "native-launch.json"), "w") as f:
         json.dump(report, f, indent=1)
     return report
@@ -209,8 +260,8 @@ def main(argv=None):
     a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
     os.makedirs(a.out, exist_ok=True)
     r = compose(a.game_dir, a.kit, a.engine, a.out, a.exe)
-    log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files, {r['kit_files']} kit files, "
-        f"skipped {len(r['skipped'])}")
+    log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
+        f"{r['kit_files']} kit files, skipped {len(r['skipped'])}")
     if a.command == "compose":
         print(json.dumps(r))
         return 0
