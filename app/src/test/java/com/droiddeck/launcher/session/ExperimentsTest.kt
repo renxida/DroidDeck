@@ -51,6 +51,10 @@ class ExperimentsTest {
             "dotnet-trace" to "DROIDDECK_EXP_DOTNET_TRACE", "dotnet-gen0" to "DROIDDECK_EXP_DOTNET_GEN0",
             "dotnet-gc-stock" to "DROIDDECK_EXP_DOTNET_GC_STOCK",
             "fex-kestrel" to "DROIDDECK_EXP_FEX_KESTREL", "fex-stats" to "DROIDDECK_EXP_FEX_STATS",
+            "wayland-present" to "DROIDDECK_EXP_WAYLAND_PRESENT",
+            "vk-count" to "DROIDDECK_EXP_VK_COUNT",
+            "native-inventory" to "DROIDDECK_EXP_NATIVE_INVENTORY",
+            "free-memory" to "DROIDDECK_EXP_FREE_MEMORY",
             "fex-l1" to "DROIDDECK_EXP_FEX_L1",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
@@ -68,11 +72,11 @@ class ExperimentsTest {
 
     @Test fun aFreshInstallTurnsEverythingOnButLayerFenceAndTheFrameCap() {
         val everything = setOf("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames",
-            "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-fast", "fex-stats")
+            "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-fast", "fex-stats", "free-memory")
         assertEquals(everything, Experiments.defaults)
         assertEquals(everything, Experiments.enabled(context))
         assertEquals(1, Experiments.presentMode(Experiments.enabled(context)))
-        assertEquals("godot-render,warmup,all,compat-quiet,memory,adpf-all,two-frames,one-limiter,native-hz,quick-tap,fex-codegen,fex-fast,fex-stats",
+        assertEquals("godot-render,warmup,all,compat-quiet,memory,adpf-all,two-frames,one-limiter,native-hz,quick-tap,fex-codegen,fex-fast,fex-stats,free-memory",
             Experiments.line(Experiments.enabled(context)))
         GameEnvironmentStore.publish(context)
         assertEquals(everything.map { Experiments.envName(it) }.toSet(),

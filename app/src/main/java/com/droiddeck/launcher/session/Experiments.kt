@@ -37,6 +37,10 @@ object Experiments {
     const val FEX_KESTREL = "fex-kestrel"
     /** FEX keeps its per-thread counters (FEX_PROFILESTATS=1) and the app logs them to fex.csv. */
     const val FEX_STATS = "fex-stats"
+    const val WAYLAND_PRESENT = "wayland-present"
+    const val VK_COUNT = "vk-count"
+    const val NATIVE_INVENTORY = "native-inventory"
+    const val FREE_MEMORY = "free-memory"
     /** FEX's per-thread block lookup cache at full size from the start (FEX_DYNAMICL1CACHE=0). */
     const val FEX_L1 = "fex-l1"
 
@@ -59,6 +63,10 @@ object Experiments {
         Switch(DOTNET_GC_STOCK, R.string.exp_dotnet_gc_stock),
         Switch(FEX_KESTREL, R.string.exp_fex_kestrel),
         Switch(FEX_STATS, R.string.exp_fex_stats),
+        Switch(WAYLAND_PRESENT, R.string.exp_wayland_present),
+        Switch(VK_COUNT, R.string.exp_vk_count),
+        Switch(NATIVE_INVENTORY, R.string.exp_native_inventory),
+        Switch(FREE_MEMORY, R.string.exp_free_memory),
         Switch(FEX_L1, R.string.exp_fex_l1),
     )
 
@@ -75,11 +83,13 @@ object Experiments {
     /** The order the guest's droiddeck-game-env lists them in. */
     val ids = listOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, LAYER_FENCE,
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
-        DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS, FEX_L1)
+        DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
+        WAYLAND_PRESENT, VK_COUNT,
+        NATIVE_INVENTORY, FREE_MEMORY, FEX_L1)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
-        QUICK_TAP, FEX_CODEGEN, FEX_FAST, FEX_STATS)
+        QUICK_TAP, FEX_CODEGEN, FEX_FAST, FEX_STATS, FREE_MEMORY)
 
     fun envName(id: String) = "DROIDDECK_EXP_" + id.uppercase().replace('-', '_')
 

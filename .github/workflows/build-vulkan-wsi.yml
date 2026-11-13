@@ -1,0 +1,68 @@
+name: Build the PowerVR WSI layer
+
+# Builds tools/vulkan-wsi/build.sh (X11 and Wayland) natively on arm64 and publishes the zip that
+# tools/powervr/release.json pins. Published tags are never replaced: a new recipe gets a new tag.
+on:
+  push:
+    branches: [ 'emu/graphics' ]
+    paths:
+      - 'tools/vulkan-wsi/**'
+      - '.github/workflows/build-vulkan-wsi.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vulkan-wsi-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends cmake ninja-build g++ pkg-config zstd zip \
+            libx11-dev libx11-xcb-dev libxrandr-dev libxcb1-dev libxcb-shm0-dev libxcb-dri3-dev libxcb-present-dev \
+            libxcb-sync-dev libxshmfence-dev libwayland-dev wayland-protocols libdrm-dev
+      - name: Build
+        run: bash tools/vulkan-wsi/build.sh out
+      - name: Package
+        id: package
+        run: |
+          set -euo pipefail
+          recipe=$(cat tools/vulkan-wsi/build.sh tools/vulkan-wsi/source.env tools/vulkan-wsi/patches/* | sha256sum | cut -c1-8)
+          source=$(cut -c1-7 out/source-commit)
+          echo "tag=wsi-$source-wayland-$recipe" >> "$GITHUB_OUTPUT"
+          cd out
+          find . -maxdepth 1 -type f -exec touch -d '2026-11-13 00:00:00 UTC' {} +
+          zip -X -q ../wsi.zip LICENSE VkLayer_window_system_integration.json SHA256SUMS downstream.patch \
+            libVkLayer_window_system_integration.so source-commit source.tar.zst vulkan-headers-commit
+          cd ..
+          sha256sum wsi.zip | tee wsi.zip.sha256
+          grep -q VK_KHR_wayland_surface out/VkLayer_window_system_integration.json
+          readelf -d out/libVkLayer_window_system_integration.so | grep NEEDED
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vulkan-wsi
+          path: |
+            wsi.zip
+            wsi.zip.sha256
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.package.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG is already published; published tags are never replaced"
+            exit 0
+          fi
+          gh release create "$TAG" --target "$GITHUB_SHA" --prerelease --latest=false --title "$TAG" \
+            --notes "ginkage/vulkan-wsi-layer $(cat out/source-commit) built by tools/vulkan-wsi/build.sh with X11 and Wayland surfaces ($GITHUB_REPOSITORY $GITHUB_SHA, run $GITHUB_RUN_ID). MIT; source.tar.zst and downstream.patch inside. sha256 $(cut -d' ' -f1 wsi.zip.sha256)" \
+            wsi.zip wsi.zip.sha256
