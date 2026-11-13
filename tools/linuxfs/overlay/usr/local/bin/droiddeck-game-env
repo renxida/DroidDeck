@@ -4,11 +4,14 @@ import json
 import os
 import re
 import runpy
+import select
+import shutil
 import signal
 import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -1914,18 +1917,327 @@ def timeline_game_exit(app_id, raw_code, started):
         int((time.monotonic() - started) * 1000), int(time.time() * 1000)), file=sys.stderr, flush=True)
 
 
+# win32u/driver.c load_desktop_driver: the default driver_load_error, which nodrv_CreateWindow prints on
+# err:winediag when the desktop never registered a graphics driver. That process then waits in user32 for
+# ever without a window.
+EXPLORER_FAILED = b"The explorer process failed to start."
+EXPLORER_WINDOW_S = 300
+EXPLORER_POLL_S = 1.0
+EXPLORER_KILL_WAIT_S = 15
+EXPLORER_DRAIN_S = 5
+PIPE_BUF = 4096
+
+
+def proton_log_path(env):
+    """Where Proton sends Wine's output instead of stderr (its setup_logging), or None."""
+    value = env.get("PROTON_LOG", "")
+    if not value or value == "0" or not env.get("SteamGameId"):
+        return None
+    return (env.get("PROTON_LOG_DIR") or env.get("HOME", "")) + "/steam-" + env["SteamGameId"] + ".log"
+
+
+def explorer_watch_wanted(launch, env):
+    return env.get("DROIDDECK_EXPLORER_WATCHDOG") != "0" and "waitforexitandrun" in launch[1:]
+
+
+def with_winediag(env):
+    """Proton's default WINEDEBUG=-all hides err:winediag, the channel the explorer failure is printed on."""
+    debug = env.get("WINEDEBUG", "")
+    if debug:
+        return env if debug.rsplit(",", 1)[-1] == "err+winediag" else dict(env, WINEDEBUG=debug + ",err+winediag")
+    return env if proton_log_path(env) else dict(env, WINEDEBUG="-all,err+winediag")
+
+
+def wineserver_for(launch, env):
+    candidates = [env.get("WINESERVER", "")]
+    if "waitforexitandrun" in launch[1:]:
+        proton = os.path.dirname(launch[launch.index("waitforexitandrun", 1) - 1])
+        candidates += [os.path.join(proton, sub, "wineserver") for sub in ("files/bin-arm64", "files/bin", "files/bin-wow64")]
+    candidates.append(shutil.which("wineserver", path=env.get("PATH", os.defpath)) or "")
+    return next((path for path in candidates if path and os.path.isfile(path) and os.access(path, os.X_OK)), None)
+
+
+def descendants(pid):
+    children = {}
+    try:
+        entries = os.listdir("/proc")
+    except OSError:
+        return []
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        try:
+            with open("/proc/%s/stat" % entry, "rb") as f:
+                parent = int(f.read().rsplit(b")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            continue
+        children.setdefault(parent, []).append(int(entry))
+    found, queue = [], [pid]
+    while queue:
+        for child in children.get(queue.pop(), ()):
+            if child not in found:
+                found.append(child)
+                queue.append(child)
+    return found
+
+
+def file_identity(path):
+    try:
+        st = os.stat(path)
+        return (st.st_dev, st.st_ino), st.st_size
+    except OSError:
+        return None, 0
+
+
+class StderrRelay:
+    """Copies a child's stderr to ours in whole lines, each write at most PIPE_BUF so it stays as atomic as
+    the child's own, and shows every chunk to a scanner. It keeps reading after ours fails, so the child
+    never blocks on a full pipe."""
+
+    def __init__(self, fd, scan, out=2):
+        self.fd, self.scan, self.out = fd, scan, out
+        self.broken = False
+        self.thread = threading.Thread(target=self.run, name="stderr-relay", daemon=True)
+        self.thread.start()
+
+    def write(self, data):
+        while data and not self.broken:
+            try:
+                data = data[os.write(self.out, data):]
+            except InterruptedError:
+                continue
+            except OSError:
+                self.broken = True
+
+    def write_lines(self, data):
+        while data:
+            cut = len(data) if len(data) <= PIPE_BUF else \
+                (data.rfind(b"\n", 0, PIPE_BUF) + 1 or data.find(b"\n") + 1 or len(data))
+            self.write(data[:cut])
+            data = data[cut:]
+
+    def run(self):
+        pending = b""
+        try:
+            while True:
+                if pending and not select.select([self.fd], [], [], 0.5)[0]:
+                    self.write(pending)
+                    pending = b""
+                    continue
+                try:
+                    data = os.read(self.fd, 65536)
+                except OSError:
+                    break
+                if not data:
+                    break
+                text = pending + data
+                cut = text.rfind(b"\n") + 1
+                self.write_lines(text[:cut])
+                pending = text[cut:]
+                self.scan(data)
+                if len(pending) >= PIPE_BUF:
+                    self.write(pending)
+                    pending = b""
+        finally:
+            self.write(pending)
+            os.close(self.fd)
+
+
+class ExplorerGuard:
+    """One launch attempt, watched for Wine's explorer failure during its first EXPLORER_WINDOW_S. On the
+    first attempt the failure ends that attempt's Wine (wineserver -k for the prefix, then the Proton process
+    tree) so the caller can start the game once more; on a later attempt it is only reported."""
+
+    def __init__(self, launch, env, app_id, attempt=1, signalled=lambda: False):
+        self.launch, self.env, self.app_id, self.attempt = launch, env, app_id, attempt
+        self.signalled = signalled
+        self.log = proton_log_path(env)
+        self.lock = threading.Lock()
+        self.exited = threading.Event()
+        self.closed = self.fired = self.ended = False
+        self.process = self.killer = self.relay = None
+        self.tail = b""
+        self.how = ""
+        self.started = self.deadline = 0.0
+
+    def spawn(self):
+        self.started = time.monotonic()
+        self.deadline = self.started + EXPLORER_WINDOW_S
+        if self.log:
+            before = file_identity(self.log)
+            self.process = subprocess.Popen(self.launch, env=self.env)
+            threading.Thread(target=self.follow, args=(before,), name="explorer-log", daemon=True).start()
+        else:
+            self.process = subprocess.Popen(self.launch, env=self.env, stderr=subprocess.PIPE)
+            fd = os.dup(self.process.stderr.fileno())
+            self.process.stderr.close()
+            self.process.stderr = None
+            self.relay = StderrRelay(fd, self.scan)
+        return self.process
+
+    def scan(self, data):
+        if self.fired or self.closed or time.monotonic() > self.deadline:
+            return
+        text = self.tail + data
+        if EXPLORER_FAILED in text:
+            self.fire()
+        else:
+            self.tail = text[1 - len(EXPLORER_FAILED):]
+
+    def follow(self, before):
+        """With PROTON_LOG on, Proton deletes the old log and writes Wine's output to a new one."""
+        identity, offset = before
+        while not self.exited.wait(EXPLORER_POLL_S) and not self.fired and time.monotonic() <= self.deadline:
+            current, size = file_identity(self.log)
+            if current is None:
+                continue
+            if current != identity or size < offset:
+                identity, offset = current, 0
+            try:
+                with open(self.log, "rb") as f:
+                    f.seek(offset)
+                    while not self.fired:
+                        data = f.read(1 << 20)
+                        if not data:
+                            break
+                        offset += len(data)
+                        self.scan(data)
+            except OSError:
+                continue
+
+    def fire(self):
+        with self.lock:
+            if self.fired or self.closed or self.exited.is_set():
+                return
+            self.fired = True
+            self.killer = threading.Thread(target=self.end, name="explorer-end", daemon=True)
+            self.killer.start()
+
+    def end(self):
+        retry = self.attempt == 1 and not self.signalled()
+        print("droiddeck-game-env: Wine reports its desktop (explorer.exe) never started, so the game cannot open a "
+              "window; %s" % ("ending this launch's Wine and starting the game once more" if retry else
+                              "the launch is left as it is (end the game from Steam)"), file=sys.stderr, flush=True)
+        print("DROIDDECK_TIMELINE event=game_explorer_failed app_id=%s attempt=%d action=%s run_ms=%d wall_ms=%d" % (
+            self.app_id, self.attempt, "relaunch" if retry else "none", int((time.monotonic() - self.started) * 1000),
+            int(time.time() * 1000)), file=sys.stderr, flush=True)
+        if not retry:
+            return
+        self.ended = True
+        server = wineserver_for(self.launch, self.env)
+        killed = False
+        if server:
+            prefix = os.path.join(self.env.get("STEAM_COMPAT_DATA_PATH", ""), "pfx")
+            try:
+                killed = subprocess.run([server, "-k"], env=dict(self.env, WINEPREFIX=prefix), stdin=subprocess.DEVNULL,
+                                        stdout=subprocess.DEVNULL, timeout=EXPLORER_KILL_WAIT_S).returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                pass
+        self.how = "wineserver" if killed else ""
+        if killed and self.exited.wait(EXPLORER_KILL_WAIT_S):
+            return
+        if not self.exited.is_set():
+            for pid in descendants(self.process.pid)[::-1] + [self.process.pid]:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            self.how = (self.how + "+" if self.how else "") + "tree"
+
+    def finished(self):
+        with self.lock:
+            self.closed = True
+            killer = self.killer
+        self.exited.set()
+        if killer:
+            killer.join()
+
+    def keep_log(self):
+        """The next attempt's Proton deletes the log this attempt wrote."""
+        if self.log and os.path.isfile(self.log):
+            try:
+                os.replace(self.log, self.log[:-len(".log")] + "-explorer-failed.log")
+            except OSError:
+                pass
+
+
+def run_watched(guard):
+    """Waits for the first attempt's Proton with SIGTERM, SIGINT and SIGHUP forwarded as
+    wait_forwarding_signals_raw does, and starts it once more when Wine's desktop never came up on it and no
+    signal asked the launch to stop. Returns the raw status and start time of the attempt that ended the
+    launch, and a drain that waits a little for the relayed stderr to close."""
+    state = {"process": guard.process, "signalled": False}
+    guard.signalled = lambda: state["signalled"]
+
+    def forward(signum, frame):
+        state["signalled"] = True
+        if state["process"] is not None:
+            try:
+                state["process"].send_signal(signum)
+            except OSError:
+                pass
+
+    relays = []
+    previous = {signum: signal.signal(signum, forward) for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+    try:
+        attempt = 1
+        while True:
+            if attempt > 1:
+                again = ExplorerGuard(guard.launch, guard.env, guard.app_id, attempt, lambda: state["signalled"])
+                try:
+                    state["process"] = again.spawn()
+                except OSError as error:
+                    print("droiddeck-game-env: the game could not be started again (%s)" % error, file=sys.stderr, flush=True)
+                    break
+                guard = again
+                if state["signalled"]:
+                    guard.process.terminate()
+            if guard.relay:
+                relays.append(guard.relay)
+            raw_code = guard.process.wait()
+            guard.finished()
+            state["process"] = None
+            if not guard.ended or state["signalled"] or attempt > 1:
+                break
+            guard.keep_log()
+            attempt += 1
+            print("DROIDDECK_TIMELINE event=game_relaunch app_id=%s attempt=%d reason=explorer_failed ended_by=%s "
+                  "wall_ms=%d" % (guard.app_id, attempt, guard.how or "none", int(time.time() * 1000)), file=sys.stderr, flush=True)
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+    def drain():
+        end = time.monotonic() + EXPLORER_DRAIN_S
+        for relay in relays:
+            relay.thread.join(max(0.0, end - time.monotonic()))
+    return raw_code, guard.started, drain
+
+
 def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
+    waited = bool(after or diagnostic_app_id is not None or watch)
+    explorer = bool(waited and timeline_app_id and explorer_watch_wanted(launch, launch_env))
+    if explorer:
+        launch_env = with_winediag(launch_env)
     record_final_env(launch, launch_env)
     started = time.monotonic()
-    if after or diagnostic_app_id is not None or watch:
-        process = subprocess.Popen(launch, env=launch_env)
+    if waited:
+        if explorer:
+            guard = ExplorerGuard(launch, launch_env, timeline_app_id)
+            process = guard.spawn()
+        else:
+            process = subprocess.Popen(launch, env=launch_env)
         if diagnostic_app_id is not None:
             diagnostic_game_event("game_start", diagnostic_app_id)
+        drain = None
         try:
-            raw_code = wait_forwarding_signals_raw(process)
+            if explorer:
+                raw_code, started, drain = run_watched(guard)
+            else:
+                raw_code = wait_forwarding_signals_raw(process)
         finally:
             if after:
                 try:
@@ -1941,6 +2253,8 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
         if timeline_app_id:
             timeline_game_exit(timeline_app_id, raw_code, started)
             report_game_exit(timeline_app_id, raw_code, int(time.monotonic() - started))
+        if drain:
+            drain()
         return code
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode

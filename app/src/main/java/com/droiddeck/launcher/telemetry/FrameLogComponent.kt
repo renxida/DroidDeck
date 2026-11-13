@@ -13,8 +13,9 @@ import java.io.RandomAccessFile
 
 /**
  * Writes every frame gamescope publishes in the HUD ring to frames.csv for the whole session, shown
- * HUD or not, and marks the timeline's first Steam frame, first game frame, Steam sign-in and each
- * game's exit ([GameExitWatch]).
+ * HUD or not, and marks the timeline's first Steam frame, first game frame, Steam sign-in, each
+ * game's exit ([GameExitWatch]) and each launch droiddeck-game-env ended and started again because
+ * Wine's desktop never came up.
  * Its own ring handle keeps its own read position, so the HUD's reader is untouched. Polls twice a
  * second on a background-priority thread; the ring holds 1024 frames, over 8 s at 120 fps.
  */
@@ -112,6 +113,9 @@ class FrameLogComponent(
                         nextExitCheck = wallNow + EXIT_PERIOD_MS
                         stderr.read {
                             exits.line(it, wallNow)
+                            GameExitWatch.relaunchEvent(it)?.let { (event, fields) ->
+                                SessionEvents.record(event, fields, at = fields["wall_ms"]?.toLongOrNull())
+                            }
                             if (it.startsWith(EXPERIMENTS_LINE)) {
                                 SessionEvents.record("game.experiments", experimentsFields(it))
                                 launchedAt = wallNow
