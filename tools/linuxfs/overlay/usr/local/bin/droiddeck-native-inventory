@@ -26,7 +26,7 @@ import sys
 import time
 import zipfile
 
-SCHEMA = 2  # 2: report as JSON lines, Vorbis setup ids, imported skeleton pairing, FSB5 slice
+SCHEMA = 3  # 2: JSON lines, Vorbis setup ids, imported pairing, FSB5 slice; 3: Spine 4.2 binary survey
 PREFIX = "DROIDDECK_NATIVE_INVENTORY"
 MAX_LIST = 4000
 MAX_GDEXT_BYTES = 8192
@@ -203,6 +203,8 @@ def skeleton_info(src):
         info["version"] = match.group(0).decode()
         info["version_at"] = match.start()
         info["format"] = "binary"
+        if match.group(0).startswith(b"4.2.") and match.start() == 9 and src.size <= (64 << 20):
+            info["survey"] = skel_survey(src.read())
         # Bytes before the version: lets the header layout be checked without copying any data.
         info["pre_version_bytes"] = match.start()
     else:
@@ -210,6 +212,349 @@ def skeleton_info(src):
     if b"{\"skeleton\"" in head or b"\"skeleton\":" in head:
         info["embedded_json"] = True
     return info
+
+
+# --- Spine 4.2 binary skeletons: walk the whole file and count features (no data kept) ----------------------
+# Layout worked out on Nov 13 from three of the game's own skeletons and the public JSON format notes (the
+# public binary page describes 3.8). Walking every skeleton on the device says whether that layout holds for
+# all of them, and which features the clean-room runtime needs, without sending any more files.
+
+class SkelReader:
+    def __init__(self, blob):
+        self.b, self.p, self.strings = blob, 0, []
+
+    def byte(self):
+        v = self.b[self.p]
+        self.p += 1
+        return v
+
+    def flt(self):
+        v = struct.unpack(">f", self.b[self.p:self.p + 4])[0]
+        self.p += 4
+        return v
+
+    def i32(self):
+        v = struct.unpack(">i", self.b[self.p:self.p + 4])[0]
+        self.p += 4
+        return v
+
+    def varint(self):
+        out, shift = 0, 0
+        while True:
+            b = self.byte()
+            out |= (b & 0x7F) << shift
+            shift += 7
+            if not b & 0x80 or shift > 35:
+                return out
+
+    def string(self):
+        n = self.varint()
+        if n == 0:
+            return None
+        v = self.b[self.p:self.p + n - 1]
+        if len(v) != n - 1:
+            raise IndexError("string past end")
+        self.p += n - 1
+        return v.decode("utf-8", "replace")
+
+    def ref(self):
+        i = self.varint()
+        return None if i == 0 else self.strings[i - 1]
+
+    def skip(self, n):
+        if self.p + n > len(self.b):
+            raise IndexError("past end")
+        self.p += n
+
+
+SKEL_BONE_CHANNELS = {0: 1, 1: 2, 2: 1, 3: 1, 4: 2, 5: 1, 6: 1, 7: 2, 8: 1, 9: 1}
+SKEL_SLOT_BYTES = {1: 4, 2: 3, 3: 7, 4: 6, 5: 1}  # rgba, rgb, rgba+rgb, rgb+rgb, alpha
+SKEL_SLOT_CHANNELS = {1: 4, 2: 3, 3: 7, 4: 6, 5: 1}
+
+
+def skel_survey(blob):
+    """Walk a Spine 4.2 binary skeleton; returns feature counts and whether the walk ended exactly at the
+    end of the file (the check that the layout was read right)."""
+    r, c = SkelReader(blob), {}
+
+    def add(key, n=1):
+        c[key] = c.get(key, 0) + n
+
+    def curves(frames, channels, value_bytes):
+        r.skip(4 + value_bytes)
+        for _ in range(1, frames):
+            r.skip(4 + value_bytes)
+            kind = r.byte()
+            if kind == 2:
+                r.skip(16 * channels)
+                add("bezier_segments")
+            elif kind == 1:
+                add("stepped_segments")
+
+    def vertices(count, weighted):
+        if not weighted:
+            r.skip(8 * count)
+            return
+        for _ in range(count):
+            for _ in range(r.varint()):
+                r.varint()
+                r.skip(12)
+
+    stage = "header"
+    try:
+        r.skip(8)
+        c["version"] = r.string()
+        r.skip(20)
+        nonessential = r.byte() != 0
+        if nonessential:
+            r.skip(4)
+            r.string()
+            r.string()
+        r.strings = [r.string() for _ in range(r.varint())]
+        stage = "bones"
+        bones = r.varint()
+        c["bones"] = bones
+        for i in range(bones):
+            r.string()
+            if i:
+                r.varint()
+            r.skip(32)
+            inherit = r.byte()
+            if inherit:
+                add("bone_inherit_%d" % inherit)
+            if r.byte():
+                add("bone_skin_required")
+            if nonessential:
+                r.skip(4)
+                r.string()
+                r.byte()
+        stage = "slots"
+        slots = r.varint()
+        c["slots"] = slots
+        for _ in range(slots):
+            r.string()
+            r.varint()
+            r.skip(4)
+            if r.i32() != -1:
+                add("slot_dark")
+            r.ref()
+            blend = r.varint()
+            if blend:
+                add("slot_blend_%d" % blend)
+            if nonessential:
+                r.byte()
+        stage = "ik"
+        for _ in range(r.varint()):
+            add("ik")
+            r.string()
+            r.varint()
+            for _ in range(r.varint()):
+                r.varint()
+            r.varint()
+            flags = r.byte()
+            r.skip(4 * bool(flags & 64) + 4 * bool(flags & 128))
+        stage = "transform"
+        for _ in range(r.varint()):
+            add("transform")
+            r.string()
+            r.varint()
+            for _ in range(r.varint()):
+                r.varint()
+            r.varint()
+            f1 = r.byte()
+            if f1 & 2:
+                add("transform_local")
+            if f1 & 4:
+                add("transform_relative")
+            r.skip(4 * bin(f1 & 0xF8).count("1"))
+            f2 = r.byte()
+            r.skip(4 * bin(f2 & 0x7F).count("1"))
+        stage = "path"
+        n = r.varint()
+        if n:
+            c["path_constraints"] = n
+            return dict(c, ok=False, stage="path constraints (layout unknown)", at=r.p)
+        stage = "physics"
+        n = r.varint()
+        if n:
+            c["physics_constraints"] = n
+            return dict(c, ok=False, stage="physics constraints (layout unknown)", at=r.p)
+
+        def skin(default):
+            if not default:
+                r.ref()
+                if nonessential:
+                    r.skip(4)
+                for _ in range(5):
+                    for _ in range(r.varint()):
+                        r.varint()
+            for _ in range(r.varint()):
+                r.varint()
+                for _ in range(r.varint()):
+                    r.ref()
+                    flags = r.byte()
+                    kind = flags & 7
+                    add("attachment_%d" % kind)
+                    if flags & 8:
+                        r.ref()
+                    if kind in (0, 2, 3):
+                        if flags & 16:
+                            r.ref()
+                        if flags & 32:
+                            r.skip(4)
+                        if flags & 64:
+                            add("sequences")
+                            for _ in range(4):
+                                r.varint()
+                    if kind == 0:
+                        r.skip(4 * bool(flags & 128) + 24)
+                    elif kind == 2:
+                        hull, count = r.varint(), r.varint()
+                        vertices(count, flags & 128)
+                        r.skip(8 * count)
+                        for _ in range((2 * count - hull - 2) * 3):
+                            if r.varint() >= count:
+                                raise ValueError("triangle index out of range")
+                        if nonessential:
+                            for _ in range(r.varint()):
+                                r.varint()
+                            r.skip(8)
+                    elif kind == 3:
+                        r.ref()
+                        r.ref()
+                        if nonessential:
+                            r.skip(8)
+                    elif kind in (1, 6):
+                        if kind == 6:
+                            r.varint()
+                        vertices(r.varint(), flags & 16)
+                        if nonessential:
+                            r.skip(4)
+                    elif kind == 5:
+                        r.skip(12 + 4 * nonessential)
+                    else:
+                        raise ValueError("attachment type %d (layout unknown)" % kind)
+
+        stage = "default skin"
+        skin(True)
+        stage = "skins"
+        n = r.varint()
+        c["skins"] = n + 1
+        for _ in range(n):
+            skin(False)
+        stage = "events"
+        audio = []
+        for _ in range(r.varint()):
+            add("events")
+            r.string()
+            r.varint()
+            r.skip(4)
+            r.string()
+            has_audio = r.string() is not None
+            audio.append(has_audio)
+            if has_audio:
+                r.skip(8)
+        stage = "animations"
+        n = r.varint()
+        c["animations"] = n
+        for _ in range(n):
+            r.string()
+            r.varint()
+            for _ in range(r.varint()):
+                r.varint()
+                for _ in range(r.varint()):
+                    kind, frames = r.byte(), r.varint()
+                    add("slot_timeline_%d" % kind)
+                    if kind == 0:
+                        for _ in range(frames):
+                            r.skip(4)
+                            r.ref()
+                        continue
+                    r.varint()
+                    curves(frames, SKEL_SLOT_CHANNELS[kind], SKEL_SLOT_BYTES[kind])
+            for _ in range(r.varint()):
+                r.varint()
+                for _ in range(r.varint()):
+                    kind, frames = r.byte(), r.varint()
+                    add("bone_timeline_%d" % kind)
+                    if kind == 10:
+                        r.skip(5 * frames)
+                        continue
+                    r.varint()
+                    ch = SKEL_BONE_CHANNELS[kind]
+                    curves(frames, ch, 4 * ch)
+            for _ in range(r.varint()):
+                add("ik_timelines")
+                r.varint()
+                frames = r.varint()
+                r.varint()
+                for f in range(frames):
+                    flags = r.byte()
+                    r.skip(4 + 4 * bool(flags & 16) + 4 * bool(flags & 32))
+                    if flags & 128 and f < frames - 1:
+                        r.skip(32)
+            for _ in range(r.varint()):
+                add("transform_timelines")
+                r.varint()
+                frames = r.varint()
+                r.varint()
+                curves(frames, 6, 24)
+            n = r.varint()
+            if n:
+                c["path_timelines"] = c.get("path_timelines", 0) + n
+                return dict(c, ok=False, stage="path timelines (layout unknown)", at=r.p)
+            n = r.varint()
+            if n:
+                c["physics_timelines"] = c.get("physics_timelines", 0) + n
+                return dict(c, ok=False, stage="physics timelines (layout unknown)", at=r.p)
+            for _ in range(r.varint()):
+                r.varint()
+                for _ in range(r.varint()):
+                    r.varint()
+                    for _ in range(r.varint()):
+                        r.ref()
+                        kind, frames = r.byte(), r.varint()
+                        if kind == 0:
+                            add("deform_timelines")
+                            r.varint()
+                            for f in range(frames):
+                                r.skip(4)
+                                end = r.varint()
+                                if end:
+                                    r.varint()
+                                    r.skip(4 * end)
+                                if f:
+                                    kind2 = r.byte()
+                                    if kind2 == 2:
+                                        r.skip(16)
+                        elif kind == 1:
+                            add("sequence_timelines")
+                            r.skip(12 * frames)
+                        else:
+                            raise ValueError("attachment timeline %d (layout unknown)" % kind)
+            n = r.varint()
+            if n:
+                add("draw_order_timelines")
+                for _ in range(n):
+                    r.skip(4)
+                    for _ in range(r.varint()):
+                        r.varint()
+                        r.varint()
+            n = r.varint()
+            if n:
+                add("event_timelines")
+                for _ in range(n):
+                    r.skip(4)
+                    e = r.varint()
+                    r.varint()
+                    r.skip(4)
+                    if r.byte():
+                        r.string()
+                    if e < len(audio) and audio[e]:
+                        r.skip(8)
+        return dict(c, ok=r.p == len(blob), stage="end", at=r.p, size=len(blob))
+    except (IndexError, ValueError, KeyError, struct.error) as error:
+        return dict(c, ok=False, stage=stage, at=r.p, error="%s: %s" % (type(error).__name__, str(error)[:80]))
 
 
 # --- FMOD banks: chunk layout and how the audio is encoded ---------------------------------------------------
@@ -655,6 +1000,21 @@ def summary(report):
         for f in b.get("fsb5", []):
             for key, n in f.get("vorbis_setups", {}).items():
                 setups[key] = setups.get(key, 0) + n
+    survey = {"ok": 0, "failed": 0, "fail_stages": {}, "skeletons_with": {}}
+    for sk in report.get("skeletons", []):
+        sv = sk.get("survey")
+        if not sv:
+            continue
+        if sv.get("ok"):
+            survey["ok"] += 1
+        else:
+            survey["failed"] += 1
+            stage = sv.get("stage", "?") + (" " + sv["error"] if sv.get("error") else "")
+            survey["fail_stages"][stage[:80]] = survey["fail_stages"].get(stage[:80], 0) + 1
+        for key, value in sv.items():
+            if isinstance(value, int) and not isinstance(value, bool) and value and key not in (
+                    "at", "size", "bones", "slots", "animations", "skins", "bezier_segments", "stepped_segments"):
+                survey["skeletons_with"][key] = survey["skeletons_with"].get(key, 0) + 1
     called = set()
     for m in report.get("managed", {}).values():
         called.update(p for p in m.get("fmod_paths", []) if p.startswith("event:/"))
@@ -662,6 +1022,7 @@ def summary(report):
             "skeleton_versions": versions, "atlases": report.get("atlas_count"), "banks": len(report.get("banks", [])),
             "audio_samples_by_codec": codecs,
             "vorbis_setups": dict(sorted(setups.items(), key=lambda kv: -kv[1])[:40]), "bank_events": len(events), "code_events": len(called),
+            "skel_survey": survey,
             "gdextensions": [g["name"] for g in report.get("gdextensions", [])],
             "spine_classes_in_scenes": [k for k in report.get("resource_class_hits", {}) if k.startswith("Spine")][:40],
             "fmod_classes_in_scenes": [k for k in report.get("resource_class_hits", {}) if k.startswith("Fmod")][:40],

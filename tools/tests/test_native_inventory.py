@@ -63,6 +63,26 @@ def bank():
     return b"RIFF" + struct.pack("<I", len(body)) + body
 
 
+def spine42():
+    """A small Spine 4.2 binary skeleton in the layout the survey walks: two bones, one slot with a region,
+    one animation with a bezier rotate key and an attachment key."""
+    f = lambda v: struct.pack(">f", v)
+    s = lambda t: bytes([len(t) + 1]) + t.encode()
+    out = b"\x01" * 8 + s("4.2.43") + f(0) * 4 + f(100) + b"\x00"  # hash, version, bounds, reference scale, nonessential off
+    out += b"\x01" + s("body")  # shared strings
+    out += b"\x02" + s("root") + f(0) * 3 + f(1) * 2 + f(0) * 3 + b"\x00\x00"
+    out += s("hip") + b"\x00" + f(10) * 3 + f(1) * 2 + f(0) * 3 + b"\x03\x00"  # inherit noScale
+    out += b"\x01" + s("body") + b"\x01" + b"\xff" * 4 + b"\xff" * 4 + b"\x01" + b"\x00"
+    out += b"\x00\x00\x00\x00"  # ik, transform, path, physics
+    out += b"\x01\x00\x01\x01" + b"\x80" + f(90) + f(0) * 2 + f(1) * 2 + f(64) * 2  # default skin: region with rotation
+    out += b"\x00\x00"  # skins, events
+    out += b"\x01" + s("idle") + b"\x02"
+    out += b"\x01\x00\x01" + b"\x00\x01" + f(0) + b"\x01"  # slot 0 attachment timeline
+    out += b"\x01\x01\x01" + b"\x00\x02\x01" + f(0) + f(0) + f(1) + f(45) + b"\x02" + f(0.3) + f(10) + f(0.6) + f(40)
+    out += b"\x00" * 7  # ik, transform, path, physics, attachment, draw order, event timelines
+    return out
+
+
 class NativeInventoryTest(unittest.TestCase):
     def build(self, version=3, embedded=False):
         skeleton = json.dumps({"skeleton": {"spine": "4.2.43"}, "bones": [{"name": "root"}, {"name": "a", "parent": "root", "inherit": "noScale"}],
@@ -72,6 +92,7 @@ class NativeInventoryTest(unittest.TestCase):
         entries = [
             ("monsters/cultist.json", skeleton),
             ("monsters/jaw.skel", b"\x8a\x91hashbytes\x064.2.43\x00\x00rest"),
+            ("monsters/hip.skel", spine42()),
             ("monsters/jaw.atlas", b"jaw.png\nsize: 64,64\n"),
             ("monsters/other.atlas", b"other.png\n"),
             ("addons/fmod/fmod.gdextension", b'[configuration]\nentry_symbol = "fmod_library_init"\n'),
@@ -122,7 +143,9 @@ class NativeInventoryTest(unittest.TestCase):
                 self.assertIn("FmodEventEmitter2D", report["resource_class_hits"])
                 self.assertEqual({"spine.skel -> SpineSkeletonFileResource": 1}, report["importers"])
                 summary = INV["summary"](report)
-                self.assertEqual(2, summary["skeletons"])
+                self.assertEqual(3, summary["skeletons"])
+                self.assertEqual(1, summary["skel_survey"]["ok"])
+                self.assertEqual(1, summary["skel_survey"]["skeletons_with"]["bone_inherit_3"])
                 self.assertEqual({"vorbis": 12}, summary["audio_samples_by_codec"])
                 self.assertEqual(2, summary["bank_events"])
 
@@ -133,7 +156,7 @@ class NativeInventoryTest(unittest.TestCase):
         with zipfile.ZipFile(self.samples) as z:
             manifest = json.loads(z.read("manifest.json"))
             names = [f["name"] for f in manifest["files"]]
-            self.assertEqual(sorted(["banks/Master.strings.bank", "banks/Master.bank", "monsters/cultist.json",
+            self.assertEqual(sorted(["banks/Master.strings.bank", "banks/Master.bank", "monsters/cultist.json", "monsters/hip.skel",
                                      "monsters/jaw.skel", "monsters/jaw.atlas", "monsters/jaw.skel.import"]), sorted(names))
             jaw = next(f for f in manifest["files"] if f["name"] == "monsters/jaw.skel")
             self.assertEqual(b"\x8a\x91hashbytes\x064.2.43\x00\x00rest", z.read(jaw["file"]))
@@ -172,6 +195,15 @@ class NativeInventoryTest(unittest.TestCase):
             data = z.read(cut["file"])
             self.assertEqual(b"FSB5", data[:4])
             self.assertEqual(len(bank()) - bank().index(b"FSB5"), len(data))
+
+    def test_spine42_survey_walks_a_whole_skeleton(self):
+        survey = INV["skel_survey"](spine42())
+        self.assertTrue(survey["ok"], survey)
+        self.assertEqual(1, survey["bone_inherit_3"])
+        self.assertEqual(1, survey["bezier_segments"])
+        self.assertEqual(1, survey["slot_timeline_0"])
+        broken = INV["skel_survey"](spine42()[:-3])
+        self.assertFalse(broken["ok"])
 
     def test_user_strings_heap(self):
         heap = b"\0" + bytes([2 * 5 + 1]) + "event".encode("utf-16-le") + b"\0"
