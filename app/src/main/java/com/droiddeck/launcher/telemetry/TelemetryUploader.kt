@@ -23,8 +23,9 @@ import java.util.concurrent.TimeUnit
  * Uploads each session's [TelemetryBundle] to runs/{build}/{device}/{start}.zip in the user's own
  * GitHub repository through the contents API, when Telemetry upload is on and has a token: a
  * checkpoint every five minutes (overwriting the same file, so a crash still leaves data), the
- * whole bundle at the session's end, and whatever is still queued at the next app start. All work
- * runs on one background-priority thread; the token only ever goes into the Authorization header.
+ * whole bundle at the session's end, and whatever is still queued at the next app start. Every 30 s
+ * it also rewrites a small text file beside the zip ([LiveStatus]) so a running session can be watched.
+ * All work runs on one background-priority thread; the token only ever goes into the Authorization header.
  */
 object TelemetryUploader {
     private const val TAG = "TelemetryUpload"
@@ -41,6 +42,10 @@ object TelemetryUploader {
         }, "telemetry-upload").apply { isDaemon = true }
     }
     @Volatile private var checkpoint: Future<*>? = null
+    @Volatile private var live: Future<*>? = null
+    private var liveSession: LiveSession? = null
+    private const val LIVE_FIRST_MS = 10_000L
+    private const val LIVE_MS = 30_000L
     @Volatile private var lastImmediateMs = 0L
     private const val IMMEDIATE_GAP_MS = 30_000L
 
@@ -89,12 +94,47 @@ object TelemetryUploader {
         val app = context.applicationContext
         checkpoint?.cancel(false)
         checkpoint = null
+        live?.cancel(false)
+        live = null
         if (!TelemetryUploadSettings.active(app)) return
         executor.execute { runCatching { entryFor(app, dir, create = true) } }
         checkpoint = executor.scheduleWithFixedDelay({
             runCatching { entryFor(app, dir, create = true)?.let { upload(app, it, complete = false) } }
                 .onFailure { Log.w(TAG, "checkpoint: ${it.javaClass.simpleName}") }
         }, CHECKPOINT_MS, CHECKPOINT_MS, TimeUnit.MILLISECONDS)
+        live = executor.scheduleWithFixedDelay({
+            runCatching { liveText(app, dir, ended = false)?.let { sendLive(app, it) } }
+                .onFailure { Log.w(TAG, "live status: ${it.javaClass.simpleName}") }
+        }, LIVE_FIRST_MS, LIVE_MS, TimeUnit.MILLISECONDS)
+    }
+
+    /** The live file's text for this tick; samples even when offline, so the history has no gaps. */
+    private fun liveText(context: Context, dir: File, ended: Boolean): String? {
+        val entry = entryFor(context, dir, create = true) ?: return null
+        if (entry.path.isEmpty()) return null
+        val session = liveSession?.takeIf { it.dir.path == dir.path }
+            ?: LiveSession(dir, LiveStatus.remotePath(entry.path)).also { liveSession = it }
+        return session.render(BuildInfo.slug(), BuildInfo.deviceSlug(), System.currentTimeMillis(), ended,
+            com.droiddeck.launcher.session.SessionState.gameId, RemoteConfig.last?.line(), LiveStatus.extraSections())
+    }
+
+    private fun online(context: Context): Boolean = runCatching {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        cm.activeNetwork != null
+    }.getOrDefault(true)
+
+    private fun sendLive(context: Context, text: String) {
+        val session = liveSession ?: return
+        val token = TelemetryUploadSettings.token(context) ?: return
+        if (!online(context)) return
+        val url = "$API/repos/${TelemetryUploadSettings.repo(context)}/contents/${session.path}"
+        val body = text.toByteArray(Charsets.UTF_8)
+        var code = putSmall(url, token, session.path, session.sha, body) { session.sha = it }
+        if (code == 409 || code == 422) {
+            session.sha = currentSha(url, token)
+            code = putSmall(url, token, session.path, session.sha, body) { session.sha = it }
+        }
+        if (code != 200 && code != 201) Log.w(TAG, "live status ${session.path} answered HTTP $code")
     }
 
     /** Upload was switched on or given a token while a session runs: start its checkpoints and send one now. */
@@ -117,10 +157,20 @@ object TelemetryUploader {
         val app = context.applicationContext
         checkpoint?.cancel(false)
         checkpoint = null
+        live?.cancel(false)
+        live = null
         if (!TelemetryUploadSettings.active(app)) return
-        val built = executor.submit<Entry?> { entryFor(app, dir, create = true)?.takeIf { build(app, it, complete = true) } }
-        val entry = runCatching { built.get(2, TimeUnit.MINUTES) }.getOrNull() ?: return
-        executor.execute { runCatching { send(app, entry) } }
+        val built = executor.submit<Pair<Entry?, String?>> {
+            val entry = entryFor(app, dir, create = true)?.takeIf { build(app, it, complete = true) }
+            val text = if (liveSession?.dir?.path == dir.path) runCatching { liveText(app, dir, ended = true) }.getOrNull() else null
+            entry to text
+        }
+        val (entry, text) = runCatching { built.get(2, TimeUnit.MINUTES) }.getOrNull() ?: return
+        executor.execute {
+            text?.let { runCatching { sendLive(app, it) } }
+            liveSession = null
+            entry?.let { runCatching { send(app, it) } }
+        }
     }
 
     /** Uploads a checkpoint now (a game ended abnormally), at most once every 30 seconds. */
@@ -229,6 +279,31 @@ object TelemetryUploader {
                 val body = conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
                 runCatching { JSONObject(body).optJSONObject("content")?.optString("sha") }.getOrNull()
                     ?.takeIf { it.isNotEmpty() }?.let { entry.sha = it }
+            } else runCatching { conn.errorStream?.use { it.readBytes() } }
+            code
+        } catch (e: IOException) {
+            -1
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** PUT of a small in-memory file with short timeouts; [onSha] gets the new blob sha. Returns the HTTP code, or -1 when offline. */
+    private fun putSmall(url: String, token: String, path: String, sha: String?, body: ByteArray, onSha: (String) -> Unit): Int {
+        val json = (requestHead(path, sha) + Base64.getEncoder().encodeToString(body) + "\"}").toByteArray(Charsets.US_ASCII)
+        val conn = try { connect(url, token, "PUT") } catch (e: IOException) { return -1 }
+        return try {
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 20_000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.setFixedLengthStreamingMode(json.size)
+            conn.outputStream.use { it.write(json) }
+            val code = conn.responseCode
+            if (code == 200 || code == 201) {
+                val reply = conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+                runCatching { JSONObject(reply).optJSONObject("content")?.optString("sha") }.getOrNull()
+                    ?.takeIf { it.isNotEmpty() }?.let(onSha)
             } else runCatching { conn.errorStream?.use { it.readBytes() } }
             code
         } catch (e: IOException) {
