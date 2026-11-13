@@ -187,14 +187,64 @@ and `FEX_BLOCKJITNAMING=1`; `tools/fex/bench/hotblocks.py` disassembles the hott
 So off-device there is no cheap library-level target left in FEX. The next measurements need the phone: how often
 the disk cache hits there, and `fex.csv` with `fex-l1` on vs off.
 
+## Every approach on one frame loop (rounds 6–8)
+
+Cedar's ask: pre-translation with caching, and a list of translator ideas, each benchmarked alone and stacked
+against native. `cache-bench.sh` runs a game-like frame loop (`Bench.dll 3000 frames`): steady per-frame work in
+small methods called every frame, and every 50th frame new content loads (20 game methods called for the first
+time, every 100th frame 10 new expression lambdas). Each config runs cold (empty FEX code cache), then 3 warm runs,
+twice. Steady p50/p99 are over ordinary frames; load frames are the ones where new code first runs. Run
+43394349378 (arm64 Neoverse runner, warm medians):
+
+| config | steady p50 ms | steady p99 | load frame ms (worst) | first frame, cold | cache hit |
+|---|---|---|---|---|---|
+| native, JIT | 0.39 (1.00×) | 0.67 | 1.5 (2.1) | 116 | – |
+| native, ReadyToRun | 0.41 (1.06×) | 0.69 | 0.8 (1.6) | 50 | – |
+| FEX, no code cache | 0.96 (2.49×) | 1.54 | 10.3 (27.3) | 1,107 | 0% |
+| FEX, file-backed cache only | 0.82 (2.13×) | 1.29 | 10.1 (11.5) | 818 | 51% |
+| **FEX, stock cache (files + content-keyed JIT'd code)** — the game today | 0.82 (2.13×) | 1.31 | 9.3 (10.2) | 799 | 97% |
+| + ReadyToRun x64 | 0.87 (2.26×) | 1.31 | **1.7** (9.4) | 567 | 97% |
+| + ReadyToRun, tiering off | 0.84 (2.18×) | 1.13 | **1.5** (6.6) | **494** | 97% |
+| + framework precompiled code off too | 0.96 (2.49×) | 1.58 | 8.1 (12.8) | 1,184 | 96% |
+| + memory ordering off (unsafe ceiling) | 0.80 (2.08×) | 1.24 | 8.7 | 800 | 97% |
+| block by block (region formation off) | 1.71 (4.44×) | 2.46 | 14.9 | 726 | 99% |
+| + transparent huge pages | 0.82 (2.13×) | 1.29 | 9.2 | 792 | 97% |
+| ReadyToRun + ordering off + huge pages | 1.01 | 1.50 | 1.9 | 429 | 97% |
+
+All configs printed the same checksum. Under FEX, both `Bench.dll`'s ReadyToRun code and CoreLib are file-backed
+`r-xp` mappings, so FEX keys them by (file, offset).
+
+What it says:
+
+- **Content-keyed pre-translation already exists.** FEX's disk cache keys anonymous (JIT'd) code by a hash of its
+  guest bytes with embedded data masked (`DiskCacheAnonCaching`, on with the cache). Warm, 97% of blocks come from
+  it. It takes first run from 1.1 s to 0.8 s and steady frames from 2.5× to 2.1× native, and it is what the game uses.
+  A better-normalized key could win at most the last 3%.
+- **ReadyToRun is the big lever for hitches.** New-content frames drop from 9.3 ms to 1.5–1.7 ms, about native, and
+  first run from 0.8 s to 0.5 s, because the .NET JIT (itself translated x86 code) no longer runs for that code. The
+  .NET workstream owns the game version (experiment `dotnet-r2r`). Steady frames cost 2–6% more with it under FEX.
+- **Memory-ordering relaxation: ceiling 2–4%.** The game's settings already drop most barriers; removing all of them
+  (unsafe) gains 0.02 ms a frame. Escape analysis or per-access profiling can't beat that, so it is dropped.
+- **Huge pages: nothing** (0.82 either way), dropped.
+- **Region formation already pays 2×**: FEX's multiblock translation is on; block by block is 4.4× native. Earlier
+  rounds found no gain from bigger or smaller regions (MaxInst 500/1500).
+- **Library thunking (CPU side): under 0.5%** of samples are in libc in the frame-loop profile, and on the phone the
+  C runtime and ntdll are already native ARM64EC Wine DLLs. The Vulkan/D3D side belongs to the graphics workstream.
+- The steady gap left (2.1×) is translated-code quality spread across jitted C#, coreclr and RyuJIT. The next step
+  measures what the hottest translated blocks are made of (flag keeping, ordering, state-block spills, vector code)
+  to size cross-block flag liveness and SSE-to-NEON work, and to pick blocks for hand-tuning.
+
 ## Ranked next fixes (in FEX)
 
+0. **ReadyToRun for the game's assemblies** (.NET workstream, `dotnet-r2r`): new-content hitches 9.3 → 1.5 ms and
+   first run −40% on the frame loop. The largest measured win for hitches.
 1. **Ship `fex-l1`** (4 MB table with Kestrel's FEX) after the phone confirms lower `cache_miss` and `jit_ms` in
    `fex.csv` with no memory regression in `memory.csv` / `processes.csv`.
 2. **Make sure the disk cache actually hits on the phone** (`disk_hit` / `disk_miss` in `fex.csv`).
 3. **Translated-code quality**, now most of the remaining 1.9×. Spread across jitted C#, coreclr and RyuJIT with no
    single hot function (profile above), so it is general codegen work in FEX, not a targeted fix.
-4. SMC, block size and the relocation filter: measured, no gain; dropped.
+4. SMC, block size and the relocation filter: measured, no gain; dropped. Memory-ordering relaxation (ceiling 2–4%),
+   huge pages (0%) and CPU-library thunking (<0.5%): measured, dropped.
 
 ## What changed on the branch
 
@@ -203,6 +253,8 @@ the disk cache hits there, and `fex.csv` with `fex-l1` on vs off.
   - 0002: `VolatileMetadataWholeBlocks` (default off).
   - 0003: keep `STLUR` on cores whose `LDAPUR` has erratum 3877900 (Cortex-X4 is one; Tensor G5 has one).
   - 0004: `L1CacheEntries` (`FEX_L1CACHEENTRIES`), a chosen starting or fixed size for the per-thread lookup table.
+  - 0005: counts each time a thread's code buffer fills and all its translated code is thrown away (stats column
+    `code_buffer_full` in `fex-stats` and `fex.csv`; the struct's padding slot, so the layout is unchanged).
 - `.github/workflows/build-fex-arm64ec.yml`: builds it and publishes `Kestrel-FEXCore-<date>.<run>-<upstream>-<patch set>.wcp`
   to the `kestrel-fex` prerelease. First: `Kestrel-FEXCore-20261113.3-ab135df09-664c5b38.wcp` (1.5 MB).
 - Experiment `fex-kestrel` (off by default): installs the newest of those through the Auto component line, with the
@@ -210,11 +262,13 @@ the disk cache hits there, and `fex.csv` with `fex-l1` on vs off.
 - Experiment `fex-stats` (on by default): sets `FEX_PROFILESTATS=1` for the game, and the app writes FEX's counters for
   every emulated process to `fex.csv` in the session folder every 5 s (`FexStatsLog.kt`), included in the telemetry
   bundle. Columns: `t_wall_ms, interval_ms, pid, process, threads, jit_ms, jit_blocks, smc, sigbus, signal_ms,
-  float_fallback, cache_miss, cache_rlock_ms, cache_wlock_ms, disk_hit, disk_miss, disk_lookup_ms`; every value is
+  float_fallback, cache_miss, cache_rlock_ms, cache_wlock_ms, disk_hit, disk_miss, disk_lookup_ms, code_buffer_full`; every value is
   the change over the interval, so `jit_ms / interval_ms` is the share of one core spent translating.
 - Experiment `fex-l1` (off by default): sets `FEX_DYNAMICL1CACHE=0 FEX_L1CACHEENTRIES=262144` for games, so FEX's
   per-thread block lookup table is a fixed 4 MB with Kestrel's FEX (16 MB with other builds).
-- `.github/workflows/fex-bench.yml` and `tools/fex/bench/`: the off-device bench above, plus `profile.sh` (perf).
+- `.github/workflows/fex-bench.yml` and `tools/fex/bench/`: the off-device bench above, plus `profile.sh` (perf),
+  `cache-bench.sh` (the frame-loop table: `cache-configs.txt`, `frames_summary.py`, `gen_cards.py`) and
+  `blockmix.py` (instruction mix of the hottest blocks, from a FEX built with the ARM disassembler).
 
 ## Notes
 
