@@ -156,7 +156,7 @@ class NativeInventoryTest(unittest.TestCase):
         with zipfile.ZipFile(self.samples) as z:
             manifest = json.loads(z.read("manifest.json"))
             names = [f["name"] for f in manifest["files"]]
-            self.assertEqual(sorted(["banks/Master.strings.bank", "banks/Master.bank", "monsters/cultist.json", "monsters/hip.skel",
+            self.assertEqual(sorted(["banks/Master.strings.bank", "banks/Master.bank.meta-head", "monsters/cultist.json", "monsters/hip.skel",
                                      "monsters/jaw.skel", "monsters/jaw.atlas", "monsters/jaw.skel.import"]), sorted(names))
             jaw = next(f for f in manifest["files"] if f["name"] == "monsters/jaw.skel")
             self.assertEqual(b"\x8a\x91hashbytes\x064.2.43\x00\x00rest", z.read(jaw["file"]))
@@ -180,21 +180,28 @@ class NativeInventoryTest(unittest.TestCase):
         self.assertNotEqual(key(".godot/imported/axe_bot.skel-c463f96be77e24ccb76061b5d3b68508.spskel"),
                             key(".godot/imported/axe.atlas-0123456789abcdef0123456789abcdef.spatlas"))
 
-    def test_a_bank_too_big_to_send_gives_the_front_of_its_fsb5(self):
+    def test_a_bank_sample_stops_before_its_audio(self):
         import zipfile
         game, tmp = self.build()
-        old = INV["main"].__globals__["SAMPLE_FILE_MAX"]
-        INV["main"].__globals__["SAMPLE_FILE_MAX"] = 300
-        try:
-            self.run_inventory(game, tmp)
-        finally:
-            INV["main"].__globals__["SAMPLE_FILE_MAX"] = old
+        self.run_inventory(game, tmp)
         with zipfile.ZipFile(self.samples) as z:
             manifest = json.loads(z.read("manifest.json"))
-            cut = next(f for f in manifest["files"] if f["name"] == "banks/Master.bank.fsb5-head")
-            data = z.read(cut["file"])
-            self.assertEqual(b"FSB5", data[:4])
-            self.assertEqual(len(bank()) - bank().index(b"FSB5"), len(data))
+            head = next(f for f in manifest["files"] if f["name"] == "banks/Master.bank.meta-head")
+            data = z.read(head["file"])
+            self.assertEqual(bank()[:len(data)], data)
+            fsb = data.index(b"FSB5")
+            version, _, headers, names, size = struct.unpack("<5I", data[fsb + 4:fsb + 24])
+            self.assertEqual(fsb + INV["fsb5_header_size"](version) + headers + names, len(data))
+            self.assertGreater(size, 0)
+
+    def test_skeletons_with_unread_layouts_are_sampled_first(self):
+        report = {"skeletons": [
+            {"name": "a.skel", "survey": {"ok": False, "stage": "path constraints (layout unknown)"}},
+            {"name": "b.skel", "survey": {"ok": False, "stage": "path constraints (layout unknown)"}},
+            {"name": "c.skel", "survey": {"ok": False, "stage": "skins", "error": "ValueError: attachment type 4 (layout unknown)"}},
+            {"name": "d.skel", "survey": {"ok": True}}]}
+        self.assertEqual({"path constraints": ["a.skel", "b.skel"], "attachment type 4": ["c.skel"]},
+                         INV["unread_skeletons"](report))
 
     def test_spine42_survey_walks_a_whole_skeleton(self):
         survey = INV["skel_survey"](spine42())
