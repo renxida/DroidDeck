@@ -41,9 +41,12 @@ own Wayland socket. The game's Xwayland, its DRI3 round trip and the X11 window 
   `PROTON_ENABLE_WAYLAND=1`. The socket is named explicitly because the session clears `WAYLAND_DISPLAY`, and an empty
   one makes libwayland fall back to wayland-0 (Kestrel's compositor). Any guard failing leaves the game on Xwayland
   and prints why on stderr.
-- `tools/vulkan-wsi/build.sh`: `BUILD_WSI_WAYLAND=ON`. The only new dependency is libwayland-client.so.0, which both
-  runtimes ship. The X11 path and the source revision are unchanged; with the experiment off nothing calls the
-  Wayland code. The new archive is pinned in `tools/powervr/release.json`.
+- The pinned WSI layer (wallentx wsi-abe5861) is built X11-only, so on its own the experiment is a no-op that logs
+  "this WSI layer has no Wayland surface". A rebuild with `BUILD_WSI_WAYLAND=ON` (same source revision 40cfec09, one
+  new dependency, libwayland-client.so.0, which both runtimes ship) is ready, but this branch can't publish release
+  assets. Once someone publishes `wsi-wayland.zip` (sha256 a84cc2ae...71eb, 384395 bytes) as a release asset, apply
+  the repin patch (build.sh flag plus the release.json entry) with the asset's real URL. Both files are in the
+  project's shared folder under kestrel/graphics.
 
 What to look for in a run with the experiment on:
 
