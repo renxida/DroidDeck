@@ -41,12 +41,11 @@ own Wayland socket. The game's Xwayland, its DRI3 round trip and the X11 window 
   `PROTON_ENABLE_WAYLAND=1`. The socket is named explicitly because the session clears `WAYLAND_DISPLAY`, and an empty
   one makes libwayland fall back to wayland-0 (Kestrel's compositor). Any guard failing leaves the game on Xwayland
   and prints why on stderr.
-- The pinned WSI layer (wallentx wsi-abe5861) is built X11-only, so on its own the experiment is a no-op that logs
-  "this WSI layer has no Wayland surface". A rebuild with `BUILD_WSI_WAYLAND=ON` (same source revision 40cfec09, one
-  new dependency, libwayland-client.so.0, which both runtimes ship) is ready, but this branch can't publish release
-  assets. Once someone publishes `wsi-wayland.zip` (sha256 a84cc2ae...71eb, 384395 bytes) as a release asset, apply
-  the repin patch (build.sh flag plus the release.json entry) with the asset's real URL. Both files are in the
-  project's shared folder under kestrel/graphics.
+- `tools/vulkan-wsi/build.sh` now builds the Wayland surface too (`BUILD_WSI_WAYLAND=ON`; same source revision
+  40cfec09; one new dependency, libwayland-client.so.0, which both runtimes ship; same GLIBC/GLIBCXX floor). The
+  X11 path is unchanged, and with the experiment off nothing calls the Wayland code.
+  `.github/workflows/build-vulkan-wsi.yml` builds it on arm64 and publishes it (release
+  wsi-40cfec0-wayland-73eceb9a on renxida/DroidDeck), and `tools/powervr/release.json` pins that zip.
 
 What to look for in a run with the experiment on:
 
@@ -64,8 +63,27 @@ Known risks, all of which fail loudly in the logs:
   sync is optional and falls back to the same CPU fence wait as today.
 - Fullscreen and size: the game window settles at 1616x720 today; Wine's Wayland driver may pick a different size.
 
+## Experiment `vk-count`
+
+`tools/linuxfs/vkcount-layer`: VK_LAYER_DROIDDECK_vkcount, built from source in CI like the Xclipse layer. With the
+experiment on, droiddeck-game-env puts it first in the PowerVR game's layer list. Every 10 s of presents
+(`DROIDDECK_VKCOUNT_SECONDS`) it prints one line to the game's stderr:
+
+```
+droiddeck-vkcount: window 10.0s 142 frames 14.2 fps | per frame: 3.1 submits 3.1 cmdbufs 412 draws (0 indirect) ...
+  | ms/frame: submit 1.20 present 4.30 acquire 0.20 fence-wait 6.10 idle 0.00 | pipelines 12 in 340 ms, allocations 2
+```
+
+Being first, its times cover everything below it: the WSI layer, the libhybris compat layer and the driver.
+`present` includes the WSI layer's CPU wait on the present fence. `present + acquire + fence-wait + idle` is time the
+render thread spent blocked on the GPU or the compositor; the rest of the frame interval is CPU work. That is the
+GPU/CPU split, per window, with no GPU timestamps needed. `pipelines` catches shader-compile stutter.
+
+Counting is relaxed atomics and one clock read around each blocking call, so the overhead is tens of nanoseconds per
+command. Tested on lavapipe with a headless swapchain (tools/tests/test_vkcount_layer.py).
+
 ## Next rounds
 
-- A small counting layer (calls, submits and queue waits per frame, time in each layer), off by default.
+- Read the first vk-count run: draws and submits per frame, and how the 60+ ms frames split between CPU and waits.
 - Gamescope's offscreen composite plus copy and its wait before present on PowerVR.
-- BC texture decode in the hybris compat layer.
+- BC texture decode in the hybris compat layer (vk-count's copies and the compat layer's own decode time).
