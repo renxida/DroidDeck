@@ -2121,7 +2121,7 @@
     <string name="exp_native_hz">Capped games: the screen keeps its own refresh rate</string>
     <string name="exp_quick_tap">Taps: the press reaches the game when the finger lands, the release 20 ms later</string>
     <string name="exp_fex_codegen">FEX: no LRCPC2 on cores with the LDAPUR erratum</string>
-    <string name="exp_fex_kestrel">FEX: Kestrel's own build for games (Auto components)</string>
+    <string name="exp_fex_kestrel">FEX: Kestrel\'s own build for games (Auto components)</string>
     <string name="exp_fex_stats">FEX: log translation time and code-rewrite counts (fex.csv)</string>
     <string name="exp_present">Screen frames</string>
     <string name="exp_present_off">One in flight</string>
