@@ -73,7 +73,8 @@ DOTNET_FEX_EXPERIMENTS = (
 # saved settings at each launch; the Steam-side parts follow the values the Steam session started with.
 EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "layer-fence",
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
-               "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats")
+               "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
+               "fex-l1")
 
 
 def experiment_name(experiment):
@@ -2231,6 +2232,10 @@ def main():
     if experiment(env, "fex-stats"):
         # FEX keeps per-thread JIT/SMC/SIGBUS counters in /dev/shm/fex-<pid>-stats; the app logs them to fex.csv.
         env = dict(env, FEX_PROFILESTATS="1")
+    if experiment(env, "fex-l1"):
+        # FEX's per-thread block lookup starts at 8k entries and grows only after seconds of misses, flushing on
+        # every resize; full size (1M entries, 16 MB reserved, touched as used) halved first-call time off-device.
+        env = dict(env, FEX_DYNAMICL1CACHE="0")
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"

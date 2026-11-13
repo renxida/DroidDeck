@@ -51,6 +51,7 @@ class ExperimentsTest {
             "dotnet-trace" to "DROIDDECK_EXP_DOTNET_TRACE", "dotnet-gen0" to "DROIDDECK_EXP_DOTNET_GEN0",
             "dotnet-gc-stock" to "DROIDDECK_EXP_DOTNET_GC_STOCK",
             "fex-kestrel" to "DROIDDECK_EXP_FEX_KESTREL", "fex-stats" to "DROIDDECK_EXP_FEX_STATS",
+            "fex-l1" to "DROIDDECK_EXP_FEX_L1",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

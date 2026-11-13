@@ -2126,6 +2126,7 @@
     <string name="exp_dotnet_gc_stock">.NET games: stock garbage collector settings (background GC, no forced compaction)</string>
     <string name="exp_fex_kestrel">FEX: Kestrel\'s own build for games (Auto components)</string>
     <string name="exp_fex_stats">FEX: log translation time and code-rewrite counts (fex.csv)</string>
+    <string name="exp_fex_l1">FEX: full-size code lookup cache from the start</string>
     <string name="exp_present">Screen frames</string>
     <string name="exp_present_off">One in flight</string>
     <string name="exp_two_frames">Two in flight</string>
