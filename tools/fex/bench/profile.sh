@@ -24,8 +24,32 @@ perf report -i "$OUT/perf.data" --children --sort symbol --dsos FEX --stdio -g n
   | grep -E 'CompileBlock|CompileCode|FindBlock|LoadCachedCode|DiskCache|EmitJITCode|Optimize|RegisterAllocation|Decode|AddBlockMapping|Invalidate|HandleSignal|ExitFunctionLink|LinkBlock|Dispatcher' \
   | head -30 | sed 's/^/  incl: /' >&2
 if [ -n "$EXTRA" ]; then
-  # Self time by translated-code symbol (with library naming, one symbol per guest library).
+  # Self time in translated code, grouped: FEX's dispatcher, each guest library, and anonymous (jitted C#) blocks.
   perf report -i "$OUT/perf.data" --no-children --sort dso,symbol --stdio -g none 2>/dev/null | grep -v '^#' | grep '%' \
-    | grep -v ' FEX ' | head -40 | sed 's/^/  jit: /' >&2
+    | python3 -c '
+import collections, re, sys
+groups, top = collections.Counter(), []
+for line in sys.stdin:
+    m = re.match(r"\s*([\d.]+)%\s+(.*?)\s+\[\.\]\s+(\S+)", line)
+    if not m:
+        continue
+    pct, dso, sym = float(m.group(1)), m.group(2).strip(), m.group(3)
+    if not dso.startswith("[JIT]"):
+        continue
+    if sym.startswith("Dispatch_"):
+        key = "FEX dispatcher"
+    elif "/" in sym:
+        key = sym.split("/")[-1].split("+")[0]
+    elif sym.startswith("JIT_0x"):
+        key = "anonymous guest code (jitted C#)"
+    else:
+        key = "unnamed " + sym[:-3] + "xxx"
+    groups[key] += pct
+    top.append((pct, sym))
+for key, pct in groups.most_common(25):
+    print("  group: %6.2f%% %s" % (pct, key))
+for pct, sym in sorted(top, reverse=True)[:25]:
+    print("  hot: %6.2f%% %s" % (pct, sym[-90:]))
+' >&2
 fi
 exit 0
