@@ -1,0 +1,249 @@
+import json
+import os
+from pathlib import Path
+import runpy
+import shutil
+import struct
+import tempfile
+import unittest
+
+BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
+NG = runpy.run_path(str(BIN / "droiddeck-native-godot"))
+
+
+def pe(managed, machine=0xAA64, r2r=False, ilonly=True):
+    """A minimal PE32+ image with one section; managed ones carry a CLI header in it."""
+    opt = bytearray(240)
+    struct.pack_into("<H", opt, 0, 0x20B)
+    if managed:
+        struct.pack_into("<II", opt, 112 + 14 * 8, 0x2008, 0x48)
+    coff = struct.pack("<HHIIIHH", machine, 1, 0, 0, 0, len(opt), 0x22)
+    head = bytearray(0x80)
+    head[:2] = b"MZ"
+    struct.pack_into("<I", head, 0x3C, 0x80)
+    hdr_len = 0x80 + 24 + len(opt) + 40
+    raw = (hdr_len + 0x1FF) & ~0x1FF
+    section = b".text\0\0\0" + struct.pack("<IIII", 0x200, 0x2000, 0x200, raw) + b"\0" * 16
+    body = bytearray(0x200)
+    cor = bytearray(0x48)
+    struct.pack_into("<I", cor, 0, 0x48)
+    struct.pack_into("<I", cor, 16, (1 if ilonly else 0) | (4 if r2r else 0))
+    if r2r:
+        struct.pack_into("<II", cor, 64, 0x2100, 0x40)
+    body[8:8 + 0x48] = cor
+    image = bytes(head) + b"PE\0\0" + coff + bytes(opt) + section
+    return image + b"\0" * (raw - len(image)) + bytes(body)
+
+
+class NativeGodotTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.game = self.root / "Slay the Spire 2"
+        win = self.game / "data_sts2_windows_x86_64"
+        win.mkdir(parents=True)
+        (self.game / "SlayTheSpire2.exe").write_bytes(pe(False))
+        (self.game / "SlayTheSpire2.pck").write_bytes(b"GDPC")
+        (win / "sts2.dll").write_bytes(pe(True))
+        (win / "0Harmony.dll").write_bytes(pe(True, machine=0x8664, r2r=True))
+        (win / "GodotSharp.dll").write_bytes(pe(True))
+        (win / "System.Private.CoreLib.dll").write_bytes(pe(True))
+        (win / "coreclr.dll").write_bytes(pe(False))
+        (win / "steam_api64.dll").write_bytes(pe(False))
+        (win / "sts2.runtimeconfig.json").write_text('{"runtimeOptions": {"tfm": "net9.0", "configProperties": {"System.GC.Server": false}}}')
+        (win / "sts2.deps.json").write_text("{}")
+        self.kit = self.root / "kit"
+        self.kit.mkdir()
+        for n in ("libhostfxr.so", "libcoreclr.so", "System.Private.CoreLib.dll", "GodotSharp.dll", "Kit.dll"):
+            (self.kit / n).write_bytes(b"k")
+        rt = ".NETCoreApp,Version=v9.0/linux-arm64"
+        (self.kit / "Kit.deps.json").write_text(json.dumps({
+            "runtimeTarget": {"name": rt, "signature": ""},
+            "targets": {".NETCoreApp,Version=v9.0": {}, rt: {
+                "Kit/1.0.0": {"dependencies": {"GodotSharp": "4.5.1"}, "runtime": {"Kit.dll": {}}},
+                "GodotSharp/4.5.1": {"runtime": {"GodotSharp.dll": {}}},
+                "runtimepack.Microsoft.NETCore.App.Runtime.linux-arm64/9.0.0": {"native": {"libcoreclr.so": {}}}}},
+            "libraries": {"Kit/1.0.0": {"type": "project"}, "GodotSharp/4.5.1": {"type": "project"},
+                          "runtimepack.Microsoft.NETCore.App.Runtime.linux-arm64/9.0.0": {"type": "runtimepack"}}}))
+        (self.kit / "Kit.runtimeconfig.json").write_text(json.dumps(
+            {"runtimeOptions": {"tfm": "net9.0", "includedFrameworks": [{"name": "Microsoft.NETCore.App"}],
+                                "configProperties": {"System.GC.Concurrent": True}}}))
+        (self.kit / "kit.json").write_text(json.dumps({"app": ["Kit.dll", "Kit.deps.json", "Kit.runtimeconfig.json"],
+                                                       "deps": "Kit.deps.json", "runtimeconfig": "Kit.runtimeconfig.json"}))
+        self.engine = self.root / "godot.template"
+        self.engine.write_bytes(b"\x7fELF engine")
+
+    def test_managed_detection(self):
+        p = self.root / "x.dll"
+        p.write_bytes(pe(True))
+        self.assertTrue(NG["is_managed"](str(p)))
+        p.write_bytes(pe(False))
+        self.assertFalse(NG["is_managed"](str(p)))
+        p.write_bytes(b"not a pe")
+        self.assertFalse(NG["is_managed"](str(p)))
+
+    def test_x64_assemblies_are_relabelled(self):
+        img, note = NG["portable_image"](pe(True, machine=0x8664))
+        info = NG["pe_info"](img)
+        self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
+        self.assertEqual("relabelled x64 -> arm64", note)
+        img, note = NG["portable_image"](pe(True, machine=0x8664, r2r=True))
+        info = NG["pe_info"](img)
+        self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
+        self.assertIn("ReadyToRun", note)
+        self.assertEqual((None, None), NG["portable_image"](pe(True, machine=0x14C)))
+        with self.assertRaises(ValueError):
+            NG["portable_image"](pe(True, machine=0x8664, ilonly=False))
+
+    def test_compose(self):
+        out = self.root / "launch"
+        out.mkdir()
+        r = NG["compose"](str(self.game), str(self.kit), str(self.engine), str(out), "SlayTheSpire2.exe")
+        data = out / "data_sts2_linuxbsd_arm64"
+        self.assertEqual("sts2", r["assembly"])
+        self.assertTrue(r["pack"].endswith("SlayTheSpire2.pck"))
+        names = sorted(os.listdir(data))
+        self.assertEqual(sorted(["0Harmony.dll", "GodotSharp.dll", "System.Private.CoreLib.dll", "libcoreclr.so",
+                                 "libhostfxr.so", "sts2.dll", "sts2.deps.json", "sts2.runtimeconfig.json"]), names)
+        deps = json.loads((data / "sts2.deps.json").read_text())
+        rt = deps["targets"][deps["runtimeTarget"]["name"]]
+        self.assertEqual({"0Harmony.dll": {}, "sts2.dll": {}}, rt["sts2/1.0.0"]["runtime"])
+        self.assertNotIn("Kit/1.0.0", rt)
+        self.assertIn("runtimepack.Microsoft.NETCore.App.Runtime.linux-arm64/9.0.0", rt)
+        self.assertEqual("project", deps["libraries"]["sts2/1.0.0"]["type"])
+        cfg = json.loads((data / "sts2.runtimeconfig.json").read_text())["runtimeOptions"]
+        self.assertEqual({"System.GC.Concurrent": True, "System.GC.Server": False}, cfg["configProperties"])
+        self.assertIn("includedFrameworks", cfg)
+        # Engine assemblies and the runtime come from the kit; the game's IL is linked, not copied.
+        self.assertTrue(os.path.samefile(self.kit / "GodotSharp.dll", data / "GodotSharp.dll"))
+        self.assertTrue(os.path.samefile(self.kit / "System.Private.CoreLib.dll", data / "System.Private.CoreLib.dll"))
+        self.assertTrue(os.path.samefile(self.game / "data_sts2_windows_x86_64" / "sts2.dll", data / "sts2.dll"))
+        self.assertEqual(["0Harmony.dll"], list(r["patched"]))
+        self.assertEqual(0xAA64, NG["pe_info"]((data / "0Harmony.dll").read_bytes())["machine"])
+        self.assertEqual(0x8664, NG["pe_info"]((self.game / "data_sts2_windows_x86_64" / "0Harmony.dll").read_bytes())["machine"])
+        self.assertFalse(any((data / n).is_symlink() for n in names))
+        self.assertIn("steam_api64.dll", r["skipped"])
+        self.assertTrue((out / "sts2").is_file())
+        # Composing again is idempotent.
+        NG["compose"](str(self.game), str(self.kit), str(self.engine), str(out), "SlayTheSpire2.exe")
+        self.assertEqual(names, sorted(os.listdir(data)))
+
+    def test_run_passes_engine_args(self):
+        out = self.root / "launch"
+        seen = []
+        NG["os"].execve, real = (lambda path, args, env: seen.append(args)), NG["os"].execve
+        try:
+            NG["main"](["run", "--game-dir", str(self.game), "--kit", str(self.kit), "--engine", str(self.engine),
+                        "--out", str(out), "--exe", "SlayTheSpire2.exe", "--", "--headless", "--verbose"])
+        finally:
+            NG["os"].execve = real
+            os.chdir(Path(__file__).resolve().parent)
+        self.assertEqual([str(out / "sts2"), "--main-pack", str(self.game / "SlayTheSpire2.pck"), "--headless", "--verbose"], seen[0])
+
+    def test_relative_paths_become_absolute(self):
+        old = os.getcwd()
+        os.chdir(self.root)
+        try:
+            r = NG["compose"]("Slay the Spire 2", "kit", "godot.template", "launch", "SlayTheSpire2.exe")
+        finally:
+            os.chdir(old)
+        self.assertTrue(os.path.isabs(r["pack"]) and os.path.isabs(r["engine"]))
+
+    def test_component_layout_and_stubs(self):
+        comp = self.root / "component"
+        (comp / "stubs").mkdir(parents=True)
+        (comp / "stubs" / "libsteam_api64.so").write_bytes(b"stub")
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        out = self.root / "launch"
+        self.assertEqual(0, NG["main"](["compose", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                        "--exe", "SlayTheSpire2.exe"]))
+        self.assertTrue((out / "data_sts2_linuxbsd_arm64" / "libsteam_api64.so").is_file())
+
+    @unittest.skipUnless(shutil.which("zstd"), "zstd not installed")
+    def test_fetch_checks_and_caches(self):
+        import hashlib, io, subprocess
+        src = self.root / "src"
+        (src / "kit").mkdir(parents=True)
+        (src / "godot").write_bytes(b"engine")
+        archive = self.root / "c.tar.zst"
+        subprocess.run(["sh", "-c", 'tar -C "$1" -c . | zstd -q -o "$2"', "sh", str(src), str(archive)], check=True)
+        data = archive.read_bytes()
+        comp = {"tag": "native-engine-t1", "url": "https://example.invalid/c.tar.zst", "sha256": hashlib.sha256(data).hexdigest()}
+        calls = []
+        def opener(url, timeout):
+            calls.append(url)
+            return io.BytesIO(data)
+        cache = self.root / "cache"
+        folder = NG["fetch"](comp, str(cache), opener)
+        self.assertEqual(b"engine", (Path(folder) / "godot").read_bytes())
+        NG["fetch"](comp, str(cache), opener)
+        self.assertEqual(1, len(calls))
+        with self.assertRaises(SystemExit):
+            NG["fetch"](dict(comp, tag="native-engine-t2", sha256="0" * 64), str(cache), opener)
+        self.assertFalse((cache / "native-engine-t2").exists())
+        with self.assertRaises(SystemExit):
+            NG["fetch"]({"tag": "", "url": "", "sha256": ""}, str(cache), opener)
+
+    def test_embedded_pack(self):
+        (self.game / "SlayTheSpire2.pck").unlink()
+        self.assertTrue(NG["find_pack"](str(self.game), "SlayTheSpire2.exe").endswith("SlayTheSpire2.exe"))
+
+
+class GameEnvHookTest(unittest.TestCase):
+    def setUp(self):
+        self.env_mod = runpy.run_path(str(BIN / "droiddeck-game-env"))
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.game = self.root / "Slay the Spire 2"
+        (self.game / "data_sts2_windows_x86_64").mkdir(parents=True)
+        self.exe = str(self.game / "SlayTheSpire2.exe")
+        self.cmd = ["/proton", "waitforexitandrun", self.exe, "-force-x"]
+        self.on = {"DROIDDECK_EXP_NATIVE_ENGINE": "1", "BL_DEBUG_DIR": str(self.root)}
+
+    def hook(self, env, rc=0, took=5.0):
+        calls = []
+        times = iter([100.0, 100.0 + took])
+
+        class Done:
+            returncode = rc
+
+        def run(args, **kw):
+            calls.append(args)
+            if kw.get("stdout"):
+                kw["stdout"].write("ERROR: something\n")
+            return Done()
+        result = self.env_mod["native_engine"](self.cmd, env, run=run, clock=lambda: next(times))
+        return result, calls
+
+    def test_off_without_the_experiment(self):
+        (rc, notes), calls = self.hook({})
+        self.assertEqual((None, [], []), (rc, notes, calls))
+        self.assertIn("native-engine", self.env_mod["EXPERIMENTS"])
+
+    def test_runs_natively_and_ends_with_its_code(self):
+        (rc, notes), calls = self.hook(self.on, rc=0, took=900)
+        self.assertEqual(0, rc)
+        self.assertEqual(["run", "--fetch", "--game-dir", str(self.game), "--exe", "SlayTheSpire2.exe"], calls[0][2:8])
+        self.assertEqual(["--", "-force-x"], calls[0][-2:])
+
+    def test_falls_back_to_proton_when_it_fails_early(self):
+        (rc, notes), _ = self.hook(self.on, rc=134, took=4)
+        self.assertIsNone(rc)
+        self.assertIn("native-engine log: ERROR: something", notes)
+        self.assertTrue(notes[-1].endswith("starting on Proton"))
+
+    def test_a_late_failure_is_not_retried(self):
+        (rc, _), _ = self.hook(self.on, rc=1, took=600)
+        self.assertEqual(1, rc)
+
+    def test_not_a_csharp_game(self):
+        (self.game / "data_sts2_windows_x86_64").rmdir()
+        (rc, notes), calls = self.hook(self.on)
+        self.assertEqual((None, []), (rc, calls))
+
+
+if __name__ == "__main__":
+    unittest.main()

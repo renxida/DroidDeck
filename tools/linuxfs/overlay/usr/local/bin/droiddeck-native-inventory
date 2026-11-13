@@ -11,6 +11,9 @@ under /var/tmp/droiddeck; every later session writes the kept result again so it
 Output:
     stderr (the session log): DROIDDECK_NATIVE_INVENTORY_SUMMARY {json}, a short summary
     /var/tmp/droiddeck/native-inventory.txt: the full report as JSON, which the telemetry bundle picks up
+    /var/tmp/droiddeck/native-samples.zip: a handful of the game's skeleton, atlas and sound bank files
+        (Cedar agreed on Nov 13 to send a few to the private telemetry repository so their formats can be
+        decoded for the clean-room runtimes). At most SAMPLE_BUDGET bytes; never anything else.
 """
 import argparse
 import hashlib
@@ -21,6 +24,7 @@ import re
 import struct
 import sys
 import time
+import zipfile
 
 SCHEMA = 1
 PREFIX = "DROIDDECK_NATIVE_INVENTORY"
@@ -30,6 +34,9 @@ SCAN_HEAD = 4096
 READ_CHUNK = 4 << 20
 CACHE_DIR = Path("/var/tmp/droiddeck")
 REPORT = CACHE_DIR / "native-inventory.txt"
+SAMPLES = CACHE_DIR / "native-samples.zip"
+SAMPLE_BUDGET = 3 << 20
+SAMPLE_FILE_MAX = 1536 << 10
 FOURCC = re.compile(rb"^[A-Za-z0-9 _]{4}$")
 VERSION_TEXT = re.compile(rb"(?<![0-9.])([34])\.(\d)\.(\d{1,3})(?![0-9])")
 FMOD_PATH = re.compile(rb"(?:event|bus|vca|snapshot|bank|parameter):/[\x20-\x7e]{0,200}")
@@ -459,6 +466,95 @@ def inventory(game_dir):
     return report
 
 
+SKELETON_EXT = (".skel", ".skel.bytes", ".spskel", ".spine-json", ".spjson")
+ATLAS_EXT = (".atlas", ".atlas.txt", ".spatlas")
+
+
+def game_sources(game_dir):
+    game_dir = Path(game_dir)
+    sources = []
+    pack = find_pack(game_dir)
+    if pack is not None:
+        for name, offset, size, flags in read_pack(pack).get("files", []):
+            sources.append(Source(name, pack, offset, size, bool(flags & 1)))
+    for path in game_dir.rglob("*"):
+        if path.is_file() and path != pack:
+            sources.append(Source("disk:" + str(path.relative_to(game_dir)), path, 0, path.stat().st_size))
+    return sources
+
+
+def stem_key(name):
+    base = name.rsplit("/", 1)[-1].lower()
+    for e in SKELETON_EXT + ATLAS_EXT + (".json",):
+        if base.endswith(e):
+            return name.rsplit("/", 1)[0].lower() if "/" in name else "", base[:-len(e)]
+    return None
+
+
+def pick_samples(sources, budget=SAMPLE_BUDGET):
+    """A few skeletons of each format (small, middle and large) with their atlases and import notes, the
+    strings bank, the smallest bank with audio and the smallest bank without, all within [budget]."""
+    usable = [s for s in sources if not s.encrypted and 0 < s.size <= SAMPLE_FILE_MAX]
+    skel = {}
+    for src in usable:
+        e = ext_of(src.name)
+        if e in SKELETON_EXT:
+            fmt = "json" if e in (".spine-json", ".spjson") else "binary"
+        elif e == ".json" and b"\"skeleton\"" in src.read(0, 512):
+            fmt = "json"
+        else:
+            continue
+        skel.setdefault(fmt, []).append(src)
+    chosen = []
+    for fmt in ("binary", "json"):
+        group = sorted(skel.get(fmt, []), key=lambda s: s.size)
+        if group:
+            picks = {0, len(group) // 2, len(group) - 1}
+            chosen += [group[i] for i in sorted(picks)]
+    by_stem = {}
+    for src in usable:
+        key = stem_key(src.name)
+        if key and ext_of(src.name) in ATLAS_EXT:
+            by_stem.setdefault(key, []).append(src)
+    imports = {s.name[:-len(".import")]: s for s in usable if s.name.endswith(".import")}
+    extra = []
+    for src in chosen:
+        extra += by_stem.get(stem_key(src.name), [])
+        if src.name in imports:
+            extra.append(imports[src.name])
+    banks = [s for s in usable if ext_of(s.name) in (".bank", ".strings.bank")]
+    strings = sorted((b for b in banks if b.name.lower().endswith(".strings.bank")), key=lambda s: s.size)[:1]
+    with_audio, without = [], []
+    for b in sorted(banks, key=lambda s: s.size):
+        if b in strings:
+            continue
+        (with_audio if bank_info(b).get("fsb5") else without).append(b)
+    picked, total, seen = [], 0, set()
+    for src in strings + with_audio[:1] + without[:1] + chosen + extra:
+        if src.name in seen or total + src.size > budget:
+            continue
+        seen.add(src.name)
+        picked.append(src)
+        total += src.size
+    return picked
+
+
+def write_samples(picked, out):
+    """A zip of the picked files under their own names, with a manifest; written atomically."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_suffix(".tmp")
+    manifest = []
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+        for i, src in enumerate(picked):
+            data = src.read()
+            arc = "%02d_%s" % (i, re.sub(r"[^A-Za-z0-9._-]+", "_", src.name.replace("disk:", "disk_"))[-120:])
+            z.writestr(arc, data)
+            manifest.append({"file": arc, "name": src.name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        z.writestr("manifest.json", json.dumps({"schema": SCHEMA, "files": manifest}, indent=1))
+    tmp.replace(out)
+    return manifest
+
+
 def summary(report):
     versions = {}
     for s in report.get("skeletons", []):
@@ -510,6 +606,7 @@ def main(argv=None):
     parser.add_argument("--game-dir", required=True)
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--json", help="write the full report here instead (for tests)")
+    parser.add_argument("--samples", help="write the sample zip here instead (for tests)")
     args = parser.parse_args(argv)
     if not os.path.isdir(args.game_dir):
         say(PREFIX + "_SUMMARY " + json.dumps({"schema": SCHEMA, "error": "game folder missing"}))
@@ -535,6 +632,20 @@ def main(argv=None):
             except OSError:
                 pass
     emit(report, Path(args.json) if args.json else REPORT)
+    samples_out = Path(args.samples) if args.samples else SAMPLES
+    kept = CACHE_DIR / ("native-samples-%s.json" % stamp(args.game_dir))
+    try:
+        if not args.no_cache and kept.is_file():
+            # Sent once per game build: the telemetry bundle takes the zip only in the session that wrote it.
+            say(PREFIX + "_SAMPLES " + json.dumps({"already_sent": kept.name}))
+        else:
+            manifest = write_samples(pick_samples(game_sources(args.game_dir)), samples_out)
+            say(PREFIX + "_SAMPLES " + json.dumps({"files": [m["name"] for m in manifest],
+                                                     "bytes": sum(m["size"] for m in manifest)})[:4000])
+            if not args.no_cache:
+                kept.write_text(json.dumps(manifest))
+    except Exception as error:  # never disturb the game
+        say(PREFIX + "_SAMPLES " + json.dumps({"error": "%s: %s" % (type(error).__name__, error)}))
     return 0
 
 

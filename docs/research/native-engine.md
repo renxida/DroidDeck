@@ -39,28 +39,64 @@ crash at main-menu asset preload on ARM64 even with full TSO.
 | --- | --- | --- | --- |
 | Godot 4.5.1 engine, linux arm64, .NET (CoreCLR) | godotengine/godot (official linux arm64 mono templates exist) | MIT | free, buildable in CI |
 | .NET 9 runtime linux-arm64 | dotnet/runtime | MIT | free |
-| Spine runtime module (spine-godot) | EsotericSoftware/spine-runtimes | Spine Editor licence per user who integrates it | **needs Cedar's decision** (Spine Essential, personal, $69 on esotericsoftware.com/spine-purchase, Nov 2026) |
-| FMOD core/studio libs linux arm64 + fmod-gdextension | fmod.com SDK (login) + utopia-rise/fmod-gdextension (MIT) | FMOD EULA, free tier for small/personal | **needs a fmod.com account** to download |
+| Skeleton animation (Spine stand-in) | ours, clean-room, `tools/native-engine/modules/native_compat/skel` | MIT | **Cedar chose to write our own** (Nov 13). Core, JSON and atlas reading done; binary `.skel` reader waits on the inventory |
+| Audio (FMOD stand-in) | ours, clean-room event player | MIT | not started; needs the bank inventory first |
 | Steamworks | stub (ours, MIT) or Valve's libsteam_api arm64 | stub: none | stub is enough to boot (port does it) |
 | Sentry | disable | n/a | trivial |
 
-Spine and FMOD binaries cannot go into the public renxida forks; they would live only in a private
-artifact (e.g. a private release) pulled by Kestrel at install time.
+Clean-room rule: work from public format notes and the game's own data as read on Cedar's phone. Never
+copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No game files in any repo.
 
-## 3. How Kestrel would launch it (design, not built yet)
+### Clean-room progress (Nov 13)
 
-- Hook: the compat-tool launcher (`droiddeck-proton`, written by `steam-compatibility`). When the program
-  is `SlayTheSpire2.exe` and `DROIDDECK_EXP_NATIVE_ENGINE=1`, exec `droiddeck-native-godot` instead of
-  Proton. Steam keeps installing the Windows depot and tracking the session; Auto-Cloud still syncs.
-- `droiddeck-native-godot` builds a launch dir in `~/.cache/droiddeck/native/<buildid>/`: symlink the
-  `.pck`, `data_sts2_linuxbsd_arm64/` with the .NET linux-arm64 runtime + the game's managed DLLs
-  (never copied out of the device), our engine binary, the stubs, and the FMOD/Spine-enabled extension.
-- Engine patch (MIT, public): GDExtension library lookup falls back to an override map when the pck's
-  `.gdextension` has no `linux.arm64` entry (the game's FMOD extension lists only its shipped platforms).
-- Runs as a normal X11/Wayland Vulkan client under gamescope, using the same glibc Vulkan loader ->
-  libhybris -> `vulkan.powervr.so` path winevulkan uses today, minus Wine and FEX.
-- Fallback: if the native process exits within 60 s, the launcher logs it and starts the Proton path,
-  so a test run is still normal play.
+- Engine: CI builds a Godot 4.5.1 linux-arm64 mono export template from source with our module compiled
+  in (`native-engine-build.yml`, about 17 min cold). It runs a real C# export (hostfxr and GodotPlugins
+  load).
+- Skeleton core (`skel/`): setup data, world transforms for every inherit mode, region and weighted mesh
+  vertices, linear/stepped/bezier keys (3.x normalised and 4.x absolute controls), attachment, colour,
+  two-colour, deform, draw order, event and IK timelines, crossfading animation state, text atlas with
+  trimmed regions. Host tests run under ASan/UBSan.
+- `NativeSkeleton2D` node: loads JSON + atlas, plays and mixes, emits signals, draws. CI renders a test rig
+  on our template under Xvfb and checks two frames.
+- Open questions that need the game's files: binary `.skel` layout (4.2), whether the game uses physics,
+  transform or path constraints, the 90-degree atlas turn direction and mesh uv origin, the class and
+  method names the game's scenes and `sts2.dll` call (compatibility wrappers take those names), and the
+  FMOD codecs. If the banks are Vorbis, FSB5 strips the Vorbis setup header and keeps a checksum;
+  the plan is to regenerate candidate headers with libvorbis (BSD) at the matching rate, channels and
+  quality and pick the one whose checksum matches, rather than copy any table from FMOD.
+- Managed side: `sts2.dll` and its managed dependencies are portable IL and stay on the phone. The
+  native data dir pairs them with stock 4.5.1 `GodotSharp`/`GodotPlugins` (built from the same source
+  as our template) and the .NET linux-arm64 runtime. Risk: if MegaDot changed GodotSharp's API, calls
+  into it fail with missing-member errors; the community port running on stock 4.5.1 suggests it mostly
+  doesn't.
+
+## 3. How Kestrel launches it (experiment `native-engine`, off by default)
+
+- Hook: `droiddeck-game-env`. For a Godot game with one `data_*_windows_x86_64` folder and
+  `DROIDDECK_EXP_NATIVE_ENGINE=1`, it runs `droiddeck-native-godot run --fetch` before any Proton work.
+  Steam keeps installing the Windows depot and tracking the session; Auto-Cloud still syncs.
+- Fallback: an error exit within 60 s is "did not start"; the last 30 lines of `native-engine.log` go to the
+  session log and the game starts on Proton in the same launch. A later exit ends the launch with its code.
+- `droiddeck-native-godot` fetches the pinned component (a release on this repository, sha256-checked,
+  cached in `~/.cache/droiddeck/native/<tag>/`): our engine, the kit (the linux-arm64 data folder of a stock
+  4.5.1 C# export: .NET runtime, GodotSharp, GodotPlugins) and a Steamworks stub. It then builds
+  `~/.cache/droiddeck/native/launch/<appid>/` with the engine hardlinked in and
+  `data_<asm>_linuxbsd_arm64/` holding the kit, the stub and the game's managed DLLs (hardlinked; they never
+  leave the phone), and runs `engine --main-pack <game>.pck`.
+- Three things learned on the CI runner (VERIFIED, run 43374974943, the bench's Windows export):
+  - the .NET host resolves the main assembly's real path, so symlinks send it to the Windows folder;
+    hardlinks work;
+  - the Windows `deps.json` describes the win-x64 runtime, so the launch folder gets the kit's
+    `deps.json` with its app entry renamed to the game and listing the game's assemblies, and the kit's
+    `runtimeconfig.json` with the game's runtime switches on top;
+  - a Windows build stamps its IL assemblies AMD64, which arm64 CoreCLR refuses; the launch copy is
+    relabelled ARM64 (ReadyToRun x64 code, if any, is dropped so the IL is JIT-compiled).
+- The pck's `.gdextension` entries (Spine, FMOD, Sentry) have no `linux.arm64` library, so Godot logs an
+  error and skips them. Our module will register stand-in classes under the names the game's scenes use.
+- Runs as a normal X11/Wayland client under gamescope (Vulkan via the guest's glibc loader, the same driver
+  path winevulkan uses), minus Wine and FEX. INFERRED until a phone run.
+- Expected first-run gaps: no Spine drawing and no audio until the stand-ins match the game's names;
+  Steam features beyond file sync do nothing (stub); Sentry absent.
 
 ## 4. Measurements
 
