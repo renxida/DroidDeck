@@ -42,23 +42,29 @@ jobs:
           mkdir -p "$T" && unzip -q t.tpz -d tt && mv tt/templates/* "$T"/
           ls "$T" | grep -i linux
       - name: Export the bench for arm64 and x86_64
+        timeout-minutes: 30
         working-directory: tools/native-engine/bench
         run: |
           set -euo pipefail
-          "$GODOT" --headless --path . --import || true
-          "$GODOT" --headless --path . --build-solutions --quit || true
+          export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
+          echo "::group::dotnet build"; timeout 600 dotnet build NativeBench.csproj -c ExportRelease 2>&1 | tail -20; echo "::endgroup::"
+          echo "::group::import"; timeout 300 "$GODOT" --headless --verbose --path . --import 2>&1 | tail -40 || echo "import exit $?"; echo "::endgroup::"
           mkdir -p out/arm64 out/x86_64
-          "$GODOT" --headless --path . --export-release arm64 out/arm64/NativeBench.arm64
-          "$GODOT" --headless --path . --export-release x86_64 out/x86_64/NativeBench.x86_64
+          for a in arm64 x86_64; do
+            echo "::group::export $a"
+            timeout 900 "$GODOT" --headless --path . --export-release $a out/$a/NativeBench.$a 2>&1 | tail -60 || echo "export $a exit $?"
+            echo "::endgroup::"
+          done
           ls -la out/*; ls out/*/ | head -40
           file out/arm64/NativeBench.arm64 out/x86_64/NativeBench.x86_64
       - name: Install FEX (upstream PPA) and an x86-64 rootfs
+        timeout-minutes: 30
         run: |
           set -euo pipefail
           sudo add-apt-repository -y ppa:fex-emu/fex
           sudo apt-get update -q
           sudo apt-get install -y -q fex-emu-armv8.4 squashfs-tools time || sudo apt-get install -y -q fex-emu-armv8.2 squashfs-tools time
-          FEXRootFSFetcher -y -x --distro-name=ubuntu --distro-version=24.04 || FEXRootFSFetcher -y -x
+          timeout 900 FEXRootFSFetcher -y -x --distro-name=ubuntu --distro-version=24.04 </dev/null || timeout 900 FEXRootFSFetcher -y -x </dev/null
           FEXInterpreter --version || true
           FEXInterpreter /usr/bin/uname -m
       - name: Run
