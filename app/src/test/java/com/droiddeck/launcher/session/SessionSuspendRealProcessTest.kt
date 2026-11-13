@@ -144,7 +144,8 @@ class SessionSuspendRealProcessTest {
     data class Task(val pid: Int, val tid: Int, val name: String, val state: Char, val ticks: Long)
 
     private class GameTree(val process: Process, val counterFile: File, val underProot: Boolean) {
-        val rootPid = process.pid().toInt()
+        // Process.pid() is Java 9+ and absent from android.jar, which the unit tests compile against; the host JVM has it.
+        val rootPid = (Process::class.java.getMethod("pid").invoke(process) as Long).toInt()
         private val marker = counterFile.path.toByteArray()
 
         fun counters(): LongArray? {
