@@ -53,11 +53,12 @@ jobs:
           set -euo pipefail
           cid=$(docker create --platform linux/amd64 ubuntu:24.04)
           mkdir rootfs && docker export "$cid" | tar -C rootfs -x
-          curl -fsSL --retry 5 --retry-all-errors -o dotnet-install.sh https://dot.net/v1/dotnet-install.sh
-          for i in 1 2 3 4; do
-            bash dotnet-install.sh --runtime dotnet --channel 9.0 --architecture x64 --install-dir rootfs/opt/dotnet && break
-            [ "$i" = 4 ] && exit 1; sleep $((i * 10))
-          done
+          # The same runtime version as the arm64 one setup-dotnet installed, straight from Microsoft's build CDN.
+          ver=$(dotnet --list-runtimes | awk '/Microsoft.NETCore.App 9\./{v=$2} END{print v}')
+          mkdir -p rootfs/opt/dotnet
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 -o dotnet-x64.tar.gz \
+            "https://builds.dotnet.microsoft.com/dotnet/Runtime/$ver/dotnet-runtime-$ver-linux-x64.tar.gz"
+          tar -C rootfs/opt/dotnet -xzf dotnet-x64.tar.gz
           dotnet build -c Release -o bench-bin tools/fex/bench/Bench.csproj
           mkdir -p rootfs/bench && cp bench-bin/* rootfs/bench/
           ls rootfs/opt/dotnet/shared/Microsoft.NETCore.App
