@@ -917,6 +917,7 @@ std::unique_ptr<SkeletonData> load_binary(const uint8_t *data, size_t length, fl
 	ok = ok && l.skins() && l.events();
 	if (ok) {
 		int n = l.r.count();
+		ok = !l.r.bad; // a file cut off right after the events must not load as zero animations
 		sd->animations.resize(size_t(n));
 		for (int i = 0; i < n && ok; i++) {
 			ok = l.animation(sd->animations[size_t(i)]);

@@ -83,6 +83,125 @@ def spine42():
     return out
 
 
+class Bin:
+    """Writes the 4.2 binary layout piece by piece (big-endian floats, 7-bit varints, length+1 strings)."""
+
+    def __init__(self):
+        self.b = bytearray()
+
+    def u8(self, *vs):
+        self.b += bytes(vs)
+
+    def u32(self, v):
+        self.b += struct.pack(">I", v & 0xFFFFFFFF)
+
+    def f(self, *vs):
+        for v in vs:
+            self.b += struct.pack(">f", v)
+
+    def v(self, *xs):
+        for x in xs:
+            while True:
+                c, x = x & 0x7F, x >> 7
+                self.u8(c | (0x80 if x else 0))
+                if not x:
+                    break
+
+    def s(self, t):
+        if t is None:
+            self.v(0)
+        else:
+            self.v(len(t) + 1)
+            self.b += t.encode()
+
+    def bone(self, name, parent, rot, x, y, length):
+        self.s(name)
+        if parent >= 0:
+            self.v(parent)
+        self.f(rot, x, y, 1, 1, 0, 0, length)
+        self.u8(0, 0)
+
+
+def spine42_loader_sample(deform_start=2, deform_end=4, named_skin=False):
+    """The synthetic skeleton of the C++ loader's own test (skel_test.cpp, synthetic_binary): IK and transform
+    constraints, a region with a sequence, a mesh and a linked mesh, an event, and an animation with every
+    timeline kind the loader reads (deform keys hold end - start floats). [named_skin] adds a skin with a
+    weighted bounding box whose flags also carry bit 8, a point and a clipping attachment, and a deform key
+    on the bounding box."""
+    w = Bin()
+    w.u8(*range(8))
+    w.s("4.2.43")
+    w.f(0, 0, 100, 100, 100)
+    w.u8(0)
+    w.v(4)
+    for t in ("body", "skin", "mesh", "linked"):
+        w.s(t)
+    w.v(5)
+    w.bone("root", -1, 0, 0, 0, 0)
+    w.bone("upper", 0, 90, 0, 0, 10)
+    w.bone("lower", 1, 90, 10, 0, 10)
+    w.bone("target", 0, 0, -10, 10, 0)
+    w.bone("follow", 0, 0, 0, -5, 0)
+    w.v(2)
+    w.s("a"); w.v(0); w.u32(0xFFFFFFFF); w.u32(0xFFFFFFFF); w.v(1); w.v(0)
+    w.s("b"); w.v(2); w.u32(0xFF000080); w.u32(0x10203040); w.v(3); w.v(1)
+    w.v(1)
+    w.s("ik"); w.v(0, 2, 1, 2, 3); w.u8(2 | 32)
+    w.v(1)
+    w.s("tc"); w.v(1, 1, 4, 3)
+    w.u8(8 | 16 | 32); w.f(10, 1, 2)
+    w.u8(2 | 4 | 8); w.f(1, 1, 0.5)
+    w.v(0, 0)  # path, physics constraints
+    w.v(2)  # default skin
+    w.v(0, 1, 1)
+    w.u8(0 | 32 | 64 | 128); w.u32(0x00FF00FF)  # region with color, a 4-image sequence and rotation
+    w.v(4, 1, 2, 0); w.f(90)
+    w.f(1, 2, 1, 1, 20, 10)
+    w.v(1, 2)
+    w.v(3); w.u8(2); w.v(3, 3)  # mesh: hull 3, 3 vertices
+    w.f(0, 0, 10, 0, 0, 10)
+    w.f(0, 1, 1, 1, 0, 0)
+    w.v(0, 1, 2)
+    w.v(4); w.u8(3 | 128); w.v(0, 3)  # linked mesh sharing deform keys with "mesh"
+    if named_skin:
+        w.v(1)
+        w.v(2)  # named "skin"
+        w.v(1, 4)  # bones
+        w.v(1, 0, 0, 0, 0)  # ik, transform, path, physics constraint lists
+        w.v(1, 0, 3)
+        w.v(1); w.u8(1 | 8 | 16)  # weighted bounding box: one vertex on two bones
+        w.v(1, 2); w.v(0); w.f(1, 2, 0.5); w.v(1); w.f(3, 4, 0.5)
+        w.v(2); w.u8(5 | 8); w.f(45, 1, 2)  # point
+        w.v(4); w.u8(6 | 8); w.v(1, 3); w.f(0, 0, 1, 0, 0, 1)  # clipping to slot 1
+    else:
+        w.v(0)
+    w.v(1)
+    w.s("hit"); w.v(5); w.f(1.5); w.s("str"); w.s(None)
+    w.v(1)
+    w.s("anim"); w.v(0)
+    w.v(1, 1, 2)
+    w.u8(0); w.v(2); w.f(0); w.v(4); w.f(0.75); w.v(3)
+    w.u8(5); w.v(2, 0); w.f(0); w.u8(255); w.f(1); w.u8(0, 0)
+    w.v(1, 0, 2)
+    w.u8(0); w.v(2, 1); w.f(0, 0, 1, 90); w.u8(2); w.f(0.25, 0, 0.75, 90)
+    w.u8(1); w.v(2, 0); w.f(0, 0, 0, 1, 10, 20); w.u8(1)
+    w.v(1, 0, 2, 0)
+    w.u8(1 | 8 | 64); w.f(0)
+    w.u8(4 | 16); w.f(1, 0.25)
+    w.v(1, 0, 1, 0); w.f(0, 0.5, 0, 0, 0, 0, 0)
+    w.v(0, 0)  # path, physics timelines
+    w.v(2 if named_skin else 1)
+    w.v(0, 2, 1, 1, 3); w.u8(0); w.v(2, 0)  # deform on "mesh"
+    w.f(0); w.v(0)
+    w.f(1); w.v(deform_end, deform_start); w.f(*range(deform_end - deform_start)); w.u8(0)
+    w.v(0, 1, 1); w.u8(1); w.v(1); w.f(0); w.u32(0 << 4 | 1); w.f(0.1)  # sequence on "body"
+    if named_skin:
+        w.v(1, 1, 0, 1, 1); w.u8(0); w.v(1, 0); w.f(0); w.v(4, 0); w.f(1, 2, 3, 4)  # deform on the bounding box
+    w.v(1); w.f(0.25); w.v(1, 1, 0xFFFFFFFF)  # draw order: slot 1 moves back one
+    w.v(1); w.f(0.75); w.v(0, 14); w.f(2); w.u8(0)
+    return bytes(w.b)
+
+
 class NativeInventoryTest(unittest.TestCase):
     def build(self, version=3, embedded=False):
         skeleton = json.dumps({"skeleton": {"spine": "4.2.43"}, "bones": [{"name": "root"}, {"name": "a", "parent": "root", "inherit": "noScale"}],
@@ -211,6 +330,37 @@ class NativeInventoryTest(unittest.TestCase):
         self.assertEqual(1, survey["slot_timeline_0"])
         broken = INV["skel_survey"](spine42()[:-3])
         self.assertFalse(broken["ok"])
+
+    def test_spine42_survey_reads_the_loader_test_skeleton(self):
+        for named in (False, True):
+            blob = spine42_loader_sample(named_skin=named)
+            survey = INV["skel_survey"](blob)
+            self.assertTrue(survey["ok"], survey)
+            self.assertEqual(("end", len(blob)), (survey["stage"], survey["at"]))
+            self.assertEqual(2 if named else 1, survey["deform_timelines"])
+            self.assertEqual(1, survey["sequence_timelines"])
+            self.assertEqual(1, survey["sequences"])
+            self.assertEqual(1, survey["attachment_3"])
+            self.assertEqual(2, survey["stepped_segments"])  # translate, then the IK key's own flag
+            self.assertEqual(1, survey["bezier_segments"])
+            self.assertEqual(1, survey["draw_order_timelines"])
+            self.assertEqual(1, survey["event_timelines"])
+        self.assertEqual(1, survey["attachment_1"])
+        self.assertEqual(1, survey["attachment_5"])
+        self.assertEqual(1, survey["attachment_6"])
+        self.assertEqual(2, survey["skins"])
+
+    def test_spine42_survey_fails_where_the_loader_does(self):
+        blob = spine42_loader_sample()
+        self.assertFalse(INV["skel_survey"](blob[:-1])["ok"])
+        extra = INV["skel_survey"](blob + b"\0")
+        self.assertFalse(extra["ok"])
+        self.assertIn("1 bytes left", extra["error"])
+        self.assertTrue(INV["skel_survey"](spine42_loader_sample(deform_start=0, deform_end=6))["ok"])
+        # A deform key reaching past the mesh's 6 vertex floats is a misread, not a bigger mesh.
+        past = INV["skel_survey"](spine42_loader_sample(deform_start=0, deform_end=8))
+        self.assertEqual(("animations: attachment timelines", "ValueError: deform 0..8 past 6 floats"),
+                         (past["stage"], past["error"]))
 
     def test_user_strings_heap(self):
         heap = b"\0" + bytes([2 * 5 + 1]) + "event".encode("utf-16-le") + b"\0"
