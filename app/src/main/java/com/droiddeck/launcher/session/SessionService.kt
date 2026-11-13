@@ -80,6 +80,7 @@ class SessionService : Service() {
         set(value) { SessionState.steamLibraryMounts = value }
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
+    private var gameKeptAwake = false
     private var steamDownloadsInBackground = false
     private var activityVisible = true
     private var activityDisplayId = Display.DEFAULT_DISPLAY
@@ -824,6 +825,15 @@ class SessionService : Service() {
                         SessionEvents.record("session.paged_in", mapOf(
                             "processes" to processes, "swapMb" to swapKb / 1024, "swapBeforeMb" to swapBeforeKb / 1024,
                             "availableMb" to availableKb / 1024, "ms" to millis,
+                        ))
+                    }
+                },
+                stillStopped = { stuck ->
+                    Log.w(TAG, "still stopped after resume: $stuck")
+                    mainHandler.post {
+                        SessionEvents.record("session.resume_stuck", mapOf(
+                            "processes" to stuck.size, "threads" to stuck.sumOf { it.threads },
+                            "names" to stuck.joinToString(",") { "${it.name}:${it.threads}/${it.total}${it.states}" }.take(400),
                         ))
                     }
                 },
@@ -1720,14 +1730,19 @@ class SessionService : Service() {
         if (!SessionState.running) return
         val hidden = !hasVisibleSurface
         val downloadsBlockingSuspend = downloadsKeepAwake() && hidden && !suspendDownloadNow
-        if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && hidden && !downloadsBlockingSuspend) {
+        // A game stopped this way does not always run again after the resume (Nov 13: Slay the
+        // Spire 2 stayed at 0% CPU behind Steam's spinner), so leaving the app keeps a game running.
+        val gameKeepsAwake = hidden && !manualHold && !SessionState.suspended && SessionState.mode == MODE_STEAM && steamGameRunning()
+        if (gameKeepsAwake && !gameKeptAwake) SessionEvents.record("session.suspend_skipped", mapOf("reason" to "game_running"))
+        gameKeptAwake = gameKeepsAwake
+        if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && hidden && !downloadsBlockingSuspend && !gameKeepsAwake) {
             manualPauseRequested = true
         } else if (!hidden && !SessionState.suspended) {
             manualPauseRequested = false
         }
         val controller = suspendController ?: return
         if (downloadsBlockingSuspend && !manualHold) acquireLocks()
-        val steamPause = SessionState.mode == MODE_STEAM && (manualHold || !downloadsBlockingSuspend && when (suspendPolicy) {
+        val steamPause = SessionState.mode == MODE_STEAM && (manualHold || !downloadsBlockingSuspend && !gameKeepsAwake && when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE -> hidden
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
             else -> false
@@ -1740,8 +1755,8 @@ class SessionService : Service() {
         }
         val prepared = SessionState.mode != MODE_STEAM || nativeSleepReady
         val shouldSuspend = steamSleepToken != null || (manualHold && prepared) || when (suspendPolicy) {
-            SessionPrefs.SUSPEND_AUTO -> hidden && prepared && !downloadsBlockingSuspend
-            SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady && !downloadsBlockingSuspend
+            SessionPrefs.SUSPEND_AUTO -> hidden && prepared && !downloadsBlockingSuspend && !gameKeepsAwake
+            SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady && !downloadsBlockingSuspend && !gameKeepsAwake
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested && prepared && !downloadsBlockingSuspend
             else -> false
         }
