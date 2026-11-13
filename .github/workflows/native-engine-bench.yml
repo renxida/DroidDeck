@@ -63,10 +63,20 @@ jobs:
           set -euo pipefail
           sudo add-apt-repository -y ppa:fex-emu/fex
           sudo apt-get update -q
-          sudo apt-get install -y -q fex-emu-armv8.4 squashfs-tools time || sudo apt-get install -y -q fex-emu-armv8.2 squashfs-tools time
-          timeout 900 FEXRootFSFetcher -y -x --distro-name=ubuntu --distro-version=24.04 </dev/null || timeout 900 FEXRootFSFetcher -y -x </dev/null
-          FEXInterpreter --version || true
-          FEXInterpreter /usr/bin/uname -m
+          sudo apt-get install -y -q fex-emu-armv8.4 time || sudo apt-get install -y -q fex-emu-armv8.2 time
+          dpkg -L fex-emu-armv8.4 2>/dev/null | grep /bin/ || true
+          # FEX 25xx renamed FEXInterpreter to FEX; take whichever exists.
+          FEXBIN=$(command -v FEX || command -v FEXInterpreter)
+          echo "FEXBIN=$FEXBIN" >> "$GITHUB_ENV"
+          # Plain Ubuntu 24.04 amd64 base as the x86-64 rootfs (no GUI fetcher).
+          R=$HOME/rootfs-amd64; mkdir -p $R
+          base=https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release
+          f=$(curl -fsSL $base/SHA256SUMS | awk '/ubuntu-base-.*-base-amd64.tar.gz/{print $2}' | tr -d '*' | tail -1)
+          curl -fsSL "$base/$f" | sudo tar -xz -C $R
+          sudo chown -R "$(id -u):$(id -g)" $R
+          echo "FEX_ROOTFS=$R" >> "$GITHUB_ENV"
+          FEX_ROOTFS=$R "$FEXBIN" $R/usr/bin/uname -m
+          ls $R/usr/lib/x86_64-linux-gnu | grep -E "libstdc|libgcc_s|libc.so" || true
       - name: Run
         working-directory: tools/native-engine/bench
         run: |
@@ -84,8 +94,8 @@ jobs:
             done
           }
           run native  env DOTNET_TieredPGO=0 out/arm64/NativeBench.arm64
-          run fex_kestrel env $kenv FEXInterpreter out/x86_64/NativeBench.x86_64
-          run fex_notso env FEX_TSOENABLED=0 FEX_MULTIBLOCK=1 DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 FEXInterpreter out/x86_64/NativeBench.x86_64
+          run fex_kestrel env $kenv "$FEXBIN" out/x86_64/NativeBench.x86_64
+          run fex_notso env FEX_TSOENABLED=0 FEX_MULTIBLOCK=1 DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 "$FEXBIN" out/x86_64/NativeBench.x86_64
           for f in results/*.time; do printf "%s " "$f"; grep -E "Elapsed|Maximum resident|User time|System time" "$f" | tr -s ' ' | tr '\n' ' '; echo; done | tee results/time.txt
           {
             echo '## Native vs FEX (Godot 4.5.1 C# stand-in, per-frame CPU ms)'; echo '```'; cat results/bench.txt; echo; cat results/exits.txt; echo; cat results/time.txt; echo '```'
