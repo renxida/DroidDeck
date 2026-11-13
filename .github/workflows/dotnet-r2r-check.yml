@@ -43,7 +43,7 @@ jobs:
           for f in "$T"/cache/*.r2r.dll; do cmp "$f" "$T/cache2/$(basename "$f")"; done
           echo "same image with 2 threads and 1 thread: $(sha256sum "$T"/cache/*.r2r.dll)"
           DROIDDECK_R2R_CACHE="$T/cache" python3 "$TOOL" apply "$T/out/r2r" --on
-          DROIDDECK_R2R_CACHE="$T/cache" python3 "$TOOL" status "$T/out/r2r" | tee "$T/out/status.txt"
+          DROIDDECK_R2R_CACHE="$T/cache" python3 "$TOOL" status "$T/out/r2r" 2>&1 | tee "$T/out/status.txt"
           grep -q "swapped_in=1: r2r-check.dll" "$T/out/status.txt"
           ls -la "$T/out/jit/r2r-check.dll" "$T/out/r2r/r2r-check.dll"
       - uses: actions/upload-artifact@v4
