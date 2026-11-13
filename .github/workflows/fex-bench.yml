@@ -126,7 +126,8 @@ jobs:
           mkdir -p "$OUT"
           sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0 || true
           # A second FEX with the ARM disassembler, logging each block's guest RIP and host address so the profile's
-          # hottest blocks can be matched to their code. Bench-only: the game's FEX is built without it.
+          # hottest blocks can be matched to their code. Bench-only: the game's FEX is built without it. Tiering off, so
+          # methods compile on the thread that calls them and FEX's per-block log lines from different threads rarely interleave.
           sed -i 's|LogMan::Msg::IFmt("RIP: 0x{:x}", Entry);|LogMan::Msg::IFmt("RIP: 0x{:x} Host: 0x{:x}", Entry, reinterpret_cast<uintptr_t>(CodeData.BlockBegin));|' \
             fex-ec/src/FEXCore/Source/Interface/Core/JIT/JIT.cpp
           grep -q 'Host: 0x{:x}' fex-ec/src/FEXCore/Source/Interface/Core/JIT/JIT.cpp || { echo "RIP log line not found"; exit 0; }
@@ -143,6 +144,7 @@ jobs:
             FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 FEX_HALFBARRIERTSOENABLED=1 FEX_MULTIBLOCK=1 \
             FEX_DYNAMICL1CACHE=0 FEX_L1CACHEENTRIES=262144 FEX_DISKCACHE=0 FEX_BLOCKJITNAMING=1 \
             FEX_DISASSEMBLE=blocks,stats FEX_SILENTLOG=0 FEX_OUTPUTLOG="$OUT/dis.log" FEX_ROOTFS="$ROOTFS" \
+            DOTNET_TieredCompilation=0 \
             perf record -q -F 2999 -o "$OUT/dis.data" -- fex-dis/Bin/FEX /opt/dotnet/dotnet /bench/jit/Bench.dll 3000 frames > "$OUT/dis.txt" 2>&1
           echo "exit $?"; grep -E "frame_p50|checksum" "$OUT/dis.txt" || tail -20 "$OUT/dis.txt"
           ls -la "$OUT/dis.log" /tmp/perf-*.map 2>&1 | head

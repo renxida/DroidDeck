@@ -33,7 +33,7 @@ for line in open(log, errors="replace"):
         code = cur["code"]
     elif "Disassemble End" in line:
         code = None
-    elif code is not None:
+    elif code is not None and not re.match(r"(Blow-up|Guest|Host|RIP)\b", line):
         code.append(line.strip())
 
 # A multiblock region is registered once per sub-block under one name: its lowest address lies in the region.
@@ -54,6 +54,7 @@ def block_at(addr):
     return b if addr < b["host"] + 4 * max(b["host_n"], len(b["code"])) + 256 else None
 
 counts, nsamples, unmatched = collections.Counter(), 0, collections.Counter()
+ips_in = collections.defaultdict(list)
 for line in open(report, errors="replace"):
     t = line.strip()
     if not t:
@@ -66,6 +67,7 @@ for line in open(report, errors="replace"):
     b = block_at(ip)
     if b:
         counts[b["host"]] += 1
+        ips_in[b["host"]].append(ip)
     else:
         unmatched[ip >> 20] += 1
 hot = sorted(((100.0 * n / nsamples, f"JIT_0x{blocks[h]['rip']:x}_0x{h:x}", h) for h, n in counts.items()), reverse=True)
@@ -83,6 +85,8 @@ def kind(ins):
         toks.pop(0)
     ins = " ".join(toks)
     op = toks[0] if toks else ""
+    if op in ("udf", "unallocated", ".word", ".long") or "Unallocated" in ins:
+        return "data"  # literal pool or padding; samples here mean the code list and addresses are misaligned
     if "nzcv" in ins or op in ("setf8", "setf16", "rmif", "cfinv", "axflag", "xaflag"):
         return "flags"
     if op in ("dmb", "dsb", "isb") or re.match(r"(ldapr|ldar|stlr|ldapur|stlur|ldaxr|stlxr|ldxr|stxr|cas|ldadd|ldclr|ldset|ldeor|swp)", op):
@@ -131,6 +135,36 @@ if wsum:
     # Each lookup is the table load plus about 6 more instructions (mask, add, pair load, compare, branch, fallback).
     print(f"  est. inline indirect-branch lookups (8 instr each): {800 * w['branch lookup'] / wsum:5.1f}%")
     print(f"  est. 64-bit constant building (movk plus its mov): {100 * w['constants'] * 4 / 3 / wsum:5.1f}%")
+
+# Time, not instruction counts: put each sample on the instruction at its address. FEX's inline lookup for an
+# indirect branch is "ldp [x28, #160]; and; add; ldp; sub; cbz" and the return-stack check "ldp [x25], #16; sub;
+# cbz"; samples on those (and on the indirect br/blr/ret that follows) are charged to the lookup.
+def kinds_by_index(code):
+    ks = [kind(i) for i in code]
+    for i, ins in enumerate(code):
+        if "[x28, #160]" in ins or re.search(r"ldp x\d+, x\d+, \[x25\], #16", ins):
+            for j in range(i, min(i + 6, len(code))):
+                ks[j] = "branch lookup"
+        if re.match(r"(br|blr|ret)\b", ins.split(" ", 1)[0] if ins else ""):
+            ks[i] = "indirect jump"
+    return ks
+tk, tsum, outside = collections.Counter(), 0, 0
+for h, ips in ips_in.items():
+    b = blocks[h]
+    if not b["code"]:
+        continue
+    ks = kinds_by_index(b["code"])
+    for ip in ips:
+        i = (ip - h) // 4
+        if 0 <= i < len(ks):
+            tk[ks[i]] += 1
+            tsum += 1
+        else:
+            outside += 1
+if tsum:
+    print(f"time in translated code by instruction kind ({tsum} samples placed, {outside} past the logged code):")
+    for k, n in tk.most_common():
+        print(f"  time: {k:13s} {100 * n / tsum:5.1f}%")
 print()
 for pct, name, b, c, n in rows[:8]:
     mix = ", ".join(f"{k} {c[k]}" for k in KINDS if c[k])
