@@ -32,6 +32,8 @@ FAKE_PROTON = textwrap.dedent('''\
     with open(os.path.join(runs, str(n)), "w") as out:
         out.write(repr({"pid": os.getpid(), "argv": sys.argv[1:], "mode": mode,
                         "WINEDEBUG": os.environ.get("WINEDEBUG"),
+                        "wayland": [os.environ.get(k) for k in ("WAYLAND_DISPLAY", "PROTON_ENABLE_WAYLAND",
+                                                                "DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER")],
                         "stderr_fifo": stat.S_ISFIFO(os.fstat(2).st_mode)}))
     print("stdout from attempt %d" % n, flush=True)
     sys.stderr.write("err: attempt %d starts\\n" % n)
@@ -160,12 +162,19 @@ class ExplorerWatchdogTest(Launch):
         self.assertRegex(err, r"DROIDDECK_TIMELINE event=game_explorer_failed app_id=%s attempt=1 action=relaunch "
                               r"run_ms=\d+ wall_ms=\d{13}\n" % APP)
         self.assertRegex(err, r"DROIDDECK_TIMELINE event=game_relaunch app_id=%s attempt=2 reason=explorer_failed "
-                              r"ended_by=wineserver wall_ms=\d{13}\n" % APP)
+                              r"ended_by=wineserver display=same wall_ms=\d{13}\n" % APP)
         self.assertEqual(err.count("DROIDDECK_TIMELINE event=game_exit "), 1)
         self.assertRegex(err, r"DROIDDECK_TIMELINE event=game_exit app_id=%s status=0 signal=0" % APP)
         self.assertIn('L"The explorer process failed to start."\n', err)
         self.assertIn("err: attempt 2 starts\n", err)
         self.assertEqual(out, "stdout from attempt 1\nstdout from attempt 2\n")
+
+    def test_a_wayland_present_launch_whose_desktop_never_started_is_started_again_on_xwayland(self):
+        code, err, _ = self.run_launch("hang,exit0", DROIDDECK_EXP_WAYLAND_PRESENT="1", PROTON_ENABLE_WAYLAND="1",
+                                       WAYLAND_DISPLAY="gamescope-0", DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER="1")
+        self.assertEqual(code, 0, err)
+        self.assertEqual([run["wayland"] for run in self.runs()], [["gamescope-0", "1", "1"], ["", None, None]])
+        self.assertIn("reason=explorer_failed ended_by=wineserver display=x11 ", err)
 
     def test_a_wineserver_that_cannot_end_it_falls_back_to_the_process_tree(self):
         code, err, _ = self.run_launch("hang,exit3", FAKE_WINESERVER_FAIL="1")

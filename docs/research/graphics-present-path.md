@@ -41,6 +41,12 @@ own Wayland socket. The game's Xwayland, its DRI3 round trip and the X11 window 
   `PROTON_ENABLE_WAYLAND=1`. The socket is named explicitly because the session clears `WAYLAND_DISPLAY`, and an empty
   one makes libwayland fall back to wayland-0 (Kestrel's compositor). Any guard failing leaves the game on Xwayland
   and prints why on stderr.
+- Nov 13 session 16-12-52Z: gamescope's Wayland socket offers no `wl_subcompositor`, so winewayland.drv's
+  `wayland_process_init` failed, the driver unloaded and explorer.exe never started (`nodrv_CreateWindow`), on both
+  the launch and the watchdog's relaunch. The guard now reads the socket's globals over the wire first and needs
+  `wl_compositor`, `wl_subcompositor`, `xdg_wm_base` and `wl_shm`; and the explorer watchdog's relaunch takes
+  wayland-present back out (`game_relaunch ... display=x11`). The experiment is off in the remote config until
+  gamescope offers `wl_subcompositor`.
 - `tools/vulkan-wsi/build.sh` now builds the Wayland surface too (`BUILD_WSI_WAYLAND=ON`; same source revision
   40cfec09; one new dependency, libwayland-client.so.0, which both runtimes ship; same GLIBC/GLIBCXX floor). The
   X11 path is unchanged, and with the experiment off nothing calls the Wayland code.

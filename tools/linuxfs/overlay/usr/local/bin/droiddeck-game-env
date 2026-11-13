@@ -2395,11 +2395,13 @@ def run_watched(guard):
 
     relays = []
     previous = {signum: signal.signal(signum, forward) for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+    retry_env = None
     try:
         attempt = 1
         while True:
             if attempt > 1:
-                again = ExplorerGuard(guard.launch, guard.env, guard.app_id, attempt, lambda: state["signalled"])
+                again = ExplorerGuard(guard.launch, retry_env or guard.env, guard.app_id, attempt,
+                                      lambda: state["signalled"])
                 try:
                     state["process"] = again.spawn()
                 except OSError as error:
@@ -2417,8 +2419,13 @@ def run_watched(guard):
                 break
             guard.keep_log()
             attempt += 1
+            retry_env = without_wayland_present(guard.env)
             print("DROIDDECK_TIMELINE event=game_relaunch app_id=%s attempt=%d reason=explorer_failed ended_by=%s "
-                  "wall_ms=%d" % (guard.app_id, attempt, guard.how or "none", int(time.time() * 1000)), file=sys.stderr, flush=True)
+                  "display=%s wall_ms=%d" % (guard.app_id, attempt, guard.how or "none", "x11" if retry_env else "same",
+                                             int(time.time() * 1000)), file=sys.stderr, flush=True)
+            if retry_env:
+                print("droiddeck-game-env: wayland-present taken back out for the second start; Wine uses Xwayland",
+                      file=sys.stderr, flush=True)
     finally:
         for signum, handler in previous.items():
             signal.signal(signum, handler)
@@ -2595,6 +2602,62 @@ def vk_count(env, layer_dir=VKCOUNT_DIR):
     return "vk-count: counting Vulkan calls per frame"
 
 
+# winewayland.drv's wayland_process_init gives up, and the driver unloads, unless the compositor offers all of
+# these. Wine then has no display driver, and explorer.exe never starts (seen on gamescope, Nov 13: no
+# wl_subcompositor).
+WINE_WAYLAND_GLOBALS = ("wl_compositor", "wl_subcompositor", "xdg_wm_base", "wl_shm")
+WAYLAND_PROBE_S = 2.0
+
+
+def wayland_globals(socket, env, timeout=WAYLAND_PROBE_S):
+    """The interface names a Wayland server advertises, read over the wire protocol (wl_display.get_registry,
+    then wl_display.sync, collecting wl_registry.global until the sync's done), or None when it cannot be read."""
+    import socket as sockets
+    path = socket if socket.startswith("/") else \
+        os.path.join(env.get("XDG_RUNTIME_DIR") or os.environ.get("XDG_RUNTIME_DIR", ""), socket)
+    names = set()
+    try:
+        with sockets.socket(sockets.AF_UNIX, sockets.SOCK_STREAM) as conn:
+            conn.settimeout(timeout)
+            conn.connect(path)
+            conn.sendall(struct.pack("=IIIIII", 1, (12 << 16) | 1, 2, 1, (12 << 16) | 0, 3))
+            data, end = b"", time.monotonic() + timeout
+            while time.monotonic() < end:
+                chunk = conn.recv(65536)
+                if not chunk:
+                    return None
+                data += chunk
+                while len(data) >= 8:
+                    obj, word = struct.unpack_from("=II", data)
+                    size, opcode = word >> 16, word & 0xFFFF
+                    if size < 8 or len(data) < size:
+                        if size < 8:
+                            return None
+                        break
+                    body, data = data[8:size], data[size:]
+                    if obj == 3 and opcode == 0:
+                        return names
+                    if obj == 1 and opcode == 0:
+                        return None
+                    if obj == 2 and opcode == 0 and len(body) >= 8:
+                        length = struct.unpack_from("=I", body, 4)[0]
+                        names.add(body[8:8 + max(0, length - 1)].decode("ascii", "replace"))
+    except (OSError, struct.error):
+        return None
+    return None
+
+
+def without_wayland_present(env):
+    """The launch environment with wayland-present taken back out, so Wine falls back to its X11 driver on
+    Xwayland; None when wayland-present never went in."""
+    if env.get("PROTON_ENABLE_WAYLAND") != "1" or not experiment(env, "wayland-present"):
+        return None
+    env = dict(env, WAYLAND_DISPLAY="")
+    for key in ("PROTON_ENABLE_WAYLAND", "DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER"):
+        env.pop(key, None)
+    return env
+
+
 def wayland_present(directory, env):
     """Experiment wayland-present: Wine's Wayland driver hands the game's frames to gamescope's own Wayland
     socket, so the game's Xwayland and its DRI3 Present round trip drop out of every frame. The session sets
@@ -2613,6 +2676,13 @@ def wayland_present(directory, env):
         return "wayland-present: WSI layer manifest unreadable (%s); the game stays on Xwayland" % error
     if "VK_KHR_wayland_surface" not in manifest:
         return "wayland-present: this WSI layer has no Wayland surface; the game stays on Xwayland"
+    globals_seen = wayland_globals(socket, env)
+    if globals_seen is None:
+        return "wayland-present: gamescope's Wayland socket did not answer; the game stays on Xwayland"
+    missing = [name for name in WINE_WAYLAND_GLOBALS if name not in globals_seen]
+    if missing:
+        return "wayland-present: gamescope's Wayland socket lacks %s, which Wine's Wayland driver needs; the game " \
+               "stays on Xwayland" % ",".join(missing)
     env["WAYLAND_DISPLAY"] = socket
     env["PROTON_ENABLE_WAYLAND"] = "1"
     # With Steam's overlay preloaded, Proton would add GE's Wayland Steam-overlay Vulkan layer to the game's

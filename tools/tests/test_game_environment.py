@@ -566,6 +566,41 @@ class EgoCorePlanTest(unittest.TestCase):
         self.assertIn("added a copy of its 4-core plan", result.stderr)
 
 
+def fake_wayland_server(path, interfaces):
+    """A Wayland server that answers one client's get_registry and sync with these globals, then the done."""
+    import socket
+    import threading
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(str(path))
+    server.listen(4)
+
+    def message(obj, opcode, body):
+        return struct.pack("=II", obj, ((8 + len(body)) << 16) | opcode) + body
+
+    def serve():
+        while True:
+            try:
+                conn, _ = server.accept()
+            except OSError:
+                return
+            with conn:
+                data = b""
+                while len(data) < 24:
+                    chunk = conn.recv(64)
+                    if not chunk:
+                        break
+                    data += chunk
+                registry, callback = struct.unpack_from("=I", data, 8)[0], struct.unpack_from("=I", data, 20)[0]
+                out = b""
+                for number, name in enumerate(interfaces, 1):
+                    text = name.encode() + b"\0"
+                    text += b"\0" * (-len(text) % 4)
+                    out += message(registry, 0, struct.pack("=II", number, len(name) + 1) + text + struct.pack("=I", 1))
+                conn.sendall(out + message(callback, 0, struct.pack("=I", 0)))
+    threading.Thread(target=serve, daemon=True).start()
+    return path
+
+
 class SystemGraphicsLaunchTest(unittest.TestCase):
     def test_start_configures_ubisoft_with_proton_before_wrapping_the_game(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -602,16 +637,25 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             runtime, _ = self.runtime(Path(tmp))
             manifest = runtime / "wsi" / "VkLayer_window_system_integration.json"
+            full = fake_wayland_server(Path(tmp) / "gamescope-0", ("wl_compositor", "wl_subcompositor", "xdg_wm_base",
+                                                                  "wl_shm", "wl_seat"))
+            fake_wayland_server(Path(tmp) / "gamescope-1", ("wl_compositor", "xdg_wm_base", "wl_shm", "wl_seat"))
             base = {"DROIDDECK_POWERVR_RUNTIME": str(runtime), "STEAM_COMPAT_DATA_PATH": "/compatdata/42",
-                    "WAYLAND_DISPLAY": "", "GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0"}
+                    "WAYLAND_DISPLAY": "", "GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0", "XDG_RUNTIME_DIR": tmp}
             command = ["/proton", "waitforexitandrun", "game.exe"]
             on = dict(base, DROIDDECK_EXP_WAYLAND_PRESENT="1")
             cases = [
                 ("off", base, '{"name": "VK_KHR_wayland_surface"}', None),
                 ("x11-only layer", on, '{"name": "VK_KHR_xcb_surface"}', None),
                 ("no socket", dict(on, GAMESCOPE_WAYLAND_DISPLAY=""), '{"name": "VK_KHR_wayland_surface"}', None),
+                ("no wl_subcompositor", dict(on, GAMESCOPE_WAYLAND_DISPLAY="gamescope-1"),
+                 '{"name": "VK_KHR_wayland_surface"}', None),
+                ("nobody listening", dict(on, GAMESCOPE_WAYLAND_DISPLAY="gamescope-9"),
+                 '{"name": "VK_KHR_wayland_surface"}', None),
                 ("on", on, '{"name": "VK_KHR_wayland_surface"}', "gamescope-0"),
             ]
+            self.assertEqual(MODULE["wayland_globals"](str(full), {}),
+                             {"wl_compositor", "wl_subcompositor", "xdg_wm_base", "wl_shm", "wl_seat"})
             for name, env, text, socket in cases:
                 with self.subTest(name), mock.patch("sys.stderr", new=io.StringIO()):
                     manifest.write_text(text)
