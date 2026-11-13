@@ -3,11 +3,12 @@
 ENABLE_VIXL_DISASSEMBLER (FEX_DISASSEMBLE=blocks,stats, FEX_BLOCKJITNAMING=1, disk cache off):
   log      FEX's output log: per block "RIP: 0x<guest> Host: 0x<host>", guest and host instruction counts, ARM code
   perfmap  /tmp/perf-<pid>.map from the same run: host start, size, block name
-  report   `perf report --no-children --sort symbol` text for the same run
+  ips      `perf script -F ip` for the same run: one sampled host address per line (joined by address, since
+           perf report truncates and pads long JIT names)
 Prints, weighted by each block's share of samples: ARM instructions per guest instruction, and the share of ARM
 instructions that keep x86 flags, order memory (TSO), touch FEX's state block in memory (spills and context), are
 vector/NEON, ordinary loads/stores, branches and the rest. Then the hottest blocks' code, for hand reading.
-Usage: blockmix.py LOG PERFMAP REPORT [TOP]"""
+Usage: blockmix.py LOG PERFMAP IPS [TOP]"""
 import collections, re, sys
 
 log, perfmap, report = sys.argv[1:4]
@@ -16,7 +17,8 @@ top = int(sys.argv[4]) if len(sys.argv) > 4 else 40
 blocks, cur, code = {}, None, None
 for line in open(log, errors="replace"):
     # Log lines may carry a level or thread prefix such as "[I] " or "[DEBUG] "; drop any leading [..] tokens.
-    line = re.sub(r"^(\[[^\]]*\]\s*)+", "", line.rstrip("\n")).strip()
+    # FEX prefixes each log line with its level ("I ", or "[I] " in some builds); drop it.
+    line = re.sub(r"^(\[[^\]]*\]\s*|[A-Z] )", "", line.rstrip("\n")).strip()
     m = re.search(r"RIP: 0x([0-9a-fA-F]+) Host: 0x([0-9a-fA-F]+)", line)
     if m:
         cur = {"rip": int(m.group(1), 16), "host": int(m.group(2), 16), "guest_n": 0, "host_n": 0, "code": []}
@@ -51,34 +53,44 @@ def block_at(addr):
     b = blocks[starts[i]]
     return b if addr < b["host"] + 4 * max(b["host_n"], len(b["code"])) + 256 else None
 
-hot, unmatched = [], []
+counts, nsamples, unmatched = collections.Counter(), 0, collections.Counter()
 for line in open(report, errors="replace"):
-    m = re.match(r"\s*([\d.]+)%\s+\[\.\]\s+(.+?)\s*$", line)
-    if m and m.group(2) in names:
-        hot.append((float(m.group(1)), m.group(2)))
-    elif m:
-        unmatched.append((float(m.group(1)), m.group(2)))
-hot.sort(reverse=True)
+    t = line.strip()
+    if not t:
+        continue
+    try:
+        ip = int(t.split()[0], 16)
+    except ValueError:
+        continue
+    nsamples += 1
+    b = block_at(ip)
+    if b:
+        counts[b["host"]] += 1
+    else:
+        unmatched[ip >> 20] += 1
+hot = sorted(((100.0 * n / nsamples, f"JIT_0x{blocks[h]['rip']:x}_0x{h:x}", h) for h, n in counts.items()), reverse=True)
 
-if not hot or not any(blocks.get(k, {}).get("code") for k in blocks):
-    # Nothing joined: print what each input looks like, so the next run can be fixed from the CI log alone.
+if not hot:
     print(f"diagnostics: {len(blocks)} blocks parsed from the log, {sum(1 for b in blocks.values() if b['code'])} with code;"
-          f" {len(names)} names in the perf map; {len(hot)} report rows matched, {len(unmatched)} unmatched")
-    with open(log, errors="replace") as f:
-        lines = [next(f, "") for _ in range(4000)]
-    picks = [l for l in lines if re.search(r"RIP|Host|Guest|Disassemble|instructions", l)][:12]
-    print("log sample:"); [print("   " + repr(l.rstrip()[:160])) for l in (picks or lines[:12])]
-    import itertools; print("perf map sample:"); [print("   " + repr(l.rstrip()[:160])) for l in itertools.islice(open(perfmap, errors="replace"), 6)]
-    print("report top rows:"); [print(f"   {p:6.2f}% {n[:140]!r}") for p, n in sorted(unmatched, reverse=True)[:12]]
+          f" {nsamples} samples, none inside a logged block")
+    print("busiest 1 MB regions of unmatched samples:", [(hex(r << 20), n) for r, n in unmatched.most_common(8)])
+    print("first blocks:", [hex(h) for h in starts[:5]])
 
 def kind(ins):
-    op = ins.split()[0] if ins else ""
+    # Drop a leading address or raw encoding ("0x...:", "0000000000001000", "d503201f") before the mnemonic.
+    toks = [t for t in ins.replace(":", " ").split()]
+    while toks and re.fullmatch(r"(0x)?[0-9a-fA-F]{8,16}", toks[0]):
+        toks.pop(0)
+    ins = " ".join(toks)
+    op = toks[0] if toks else ""
     if "nzcv" in ins or op in ("setf8", "setf16", "rmif", "cfinv", "axflag", "xaflag"):
         return "flags"
     if op in ("dmb", "dsb", "isb") or re.match(r"(ldapr|ldar|stlr|ldapur|stlur|ldaxr|stlxr|ldxr|stxr|cas|ldadd|ldclr|ldset|ldeor|swp)", op):
         return "ordering"
     if "[x28" in ins:
         return "state"
+    if op in ("adds", "subs", "cmp", "cmn", "tst", "ands", "bics", "adcs", "sbcs", "ccmp", "ccmn", "fcmp", "fcmpe", "negs", "ngcs"):
+        return "sets flags"
     if re.search(r"\b[vqdsbh]\d+\b|\bz\d+\b", ins) and not op.startswith(("b", "cb", "tb")):
         return "vector"
     if re.match(r"(ldr|str|ldp|stp|ldur|stur)", op):
@@ -87,12 +99,12 @@ def kind(ins):
         return "branch"
     return "alu/other"
 
-KINDS = ["alu/other", "load/store", "branch", "flags", "ordering", "state", "vector"]
+KINDS = ["alu/other", "load/store", "branch", "sets flags", "flags", "ordering", "state", "vector"]
 w = collections.Counter()
 wsum = blow = blow_w = covered = 0.0
 rows = []
-for pct, name in hot[:top]:
-    b = block_at(names[name])
+for pct, name, h in hot[:top]:
+    b = blocks[h]
     if not b or not b["code"]:
         continue
     c = collections.Counter(kind(i) for i in b["code"])
@@ -104,8 +116,8 @@ for pct, name in hot[:top]:
         blow += pct * b["host_n"] / b["guest_n"]
         blow_w += pct
     rows.append((pct, name, b, c, n))
-total = sum(p for p, _ in hot)
-print(f"blocks with code: {len(rows)} of the top {min(top, len(hot))}, {wsum:.1f}% of samples (all named blocks: {total:.1f}%)")
+total = sum(p for p, _, _ in hot)
+print(f"blocks with code: {len(rows)} of the top {min(top, len(hot))}, {wsum:.1f}% of samples (all translated blocks: {total:.1f}%)")
 if blow_w:
     print(f"ARM instructions per guest instruction (sample-weighted): {blow / blow_w:.2f}")
 if wsum:

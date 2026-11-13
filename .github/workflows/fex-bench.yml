@@ -146,10 +146,10 @@ jobs:
             perf record -q -F 2999 -o "$OUT/dis.data" -- fex-dis/Bin/FEX /opt/dotnet/dotnet /bench/jit/Bench.dll 3000 frames > "$OUT/dis.txt" 2>&1
           echo "exit $?"; grep -E "frame_p50|checksum" "$OUT/dis.txt" || tail -20 "$OUT/dis.txt"
           ls -la "$OUT/dis.log" /tmp/perf-*.map 2>&1 | head
-          perf report -i "$OUT/dis.data" --no-children --sort symbol --stdio -g none 2>/dev/null > "$OUT/dis.report"
+          perf script -i "$OUT/dis.data" -F ip 2>/dev/null > "$OUT/dis.ips"; wc -l < "$OUT/dis.ips"
           map=$(ls -S /tmp/perf-*.map 2>/dev/null | head -1)
-          [ -n "$map" ] && python3 tools/fex/bench/blockmix.py "$OUT/dis.log" "$map" "$OUT/dis.report" 40 | tee "$OUT/blockmix.txt"
-          rm -f "$OUT/dis.data"; gzip -f "$OUT/dis.log"
+          [ -n "$map" ] && python3 tools/fex/bench/blockmix.py "$OUT/dis.log" "$map" "$OUT/dis.ips" 40 | tee "$OUT/blockmix.txt"
+          rm -f "$OUT/dis.data" "$OUT/dis.ips"; gzip -f "$OUT/dis.log"
           exit 0
       - uses: actions/upload-artifact@v4
         if: always()
