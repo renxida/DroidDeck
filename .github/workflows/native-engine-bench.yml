@@ -95,6 +95,9 @@ jobs:
               grep -h BENCH_JSON results/$name.$i.log | sed "s/^BENCH_JSON /$name /" | tee -a results/bench.txt
             done
           }
+          echo "--- export layout"; ls -la out/arm64 out/x86_64; ls out/arm64/data_* 2>/dev/null | head -20; file out/arm64/NativeBench.arm64
+          sudo apt-get install -y -q gdb >/dev/null 2>&1 || true
+          echo "--- native under gdb"; DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 300 gdb -q -batch -ex run -ex bt -ex 'info sharedlibrary' --args out/arm64/NativeBench.arm64 --headless --verbose 2>&1 | tail -80
           run native  env DOTNET_TieredPGO=0 out/arm64/NativeBench.arm64
           run fex_kestrel env $kenv "$FEXBIN" out/x86_64/NativeBench.x86_64
           run fex_notso env FEX_TSOENABLED=0 FEX_MULTIBLOCK=1 DOTNET_TieredPGO=0 DOTNET_EnableWriteXorExecute=0 "$FEXBIN" out/x86_64/NativeBench.x86_64
