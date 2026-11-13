@@ -116,7 +116,7 @@ class LiveStatusTest {
         assertTrue(text.contains("## events\nnone yet"))
         assertTrue(text.trimEnd().endsWith("## history (${LiveText.HISTORY_COLUMNS})"))
         assertTrue(text.contains("game: rss - MB, swap - MB, major faults -/s, swap-in - MB/s"))
-        assertEquals("+0:12:30 - - - - - - - - -", LiveText.historyLine(t0, t0 + 750_000, null))
+        assertEquals("+0:12:30 - - - - - - - - - -", LiveText.historyLine(t0, t0 + 750_000, null))
     }
 
     @Test fun aSessionWithoutAGame() {
@@ -197,7 +197,8 @@ class LiveStatusTest {
         assertTrue(text.contains("thermal: status 1, headroom 0.62, battery 38.5 C"))
         assertTrue(text.contains("game (10 s ago): rss 600 MB, swap 2200 MB, major faults 412.3/s, swap-in 18.5 MB/s"))
         assertTrue(text.contains("memory.csv: used_mb=9000 available_mb=3000 swap_used_mb=2600 droiddeck_mb=900"))
-        assertEquals("+0:13:00 10.0 100.0 0.62 40 38.5 600 2200 412.3 18.5", LiveText.historyLine(t0, now + 30_000, later))
+        assertTrue(text, text.contains("power: no power.csv yet"))
+        assertEquals("+0:13:00 10.0 100.0 0.62 40 38.5 600 2200 412.3 18.5 -", LiveText.historyLine(t0, now + 30_000, later))
     }
 
     @Test fun memoryColumnsAreReadByName() {
@@ -210,7 +211,29 @@ class LiveStatusTest {
         assertEquals("90", s.gameMajfltS)
         assertEquals("7.25", s.swapinMbS)
         assertEquals(t0 + 1000, s.memoryAtMs)
-        assertTrue(LiveText.historyLine(t0, t0 + 2000, s).endsWith(" 700 1500 90.0 7.3"))
+        assertTrue(LiveText.historyLine(t0, t0 + 2000, s).endsWith(" 700 1500 90.0 7.3 -"))
+    }
+
+    @Test fun powerCsvIsReadIncrementallyIntoTheDeviceSectionAndHistory() {
+        val dir = tmp.newFolder("2026-11-12-05-steam")
+        val power = dir.resolve(PowerRow.FILE)
+        fun row(t: Long, ua: Long, game: Int) = "$t,$ua,2500000,4000,${-ua * 4 / 1000},50,discharging,none,36.0,0,0.50,128,1,1,$game\n"
+        power.writeText(PowerRow.HEADER + "\n" + row(t0, -1_000_000, 1) + row(t0 + 5_000, -1_000_000, 1))
+        val sampler = LiveSampler(dir)
+        val first = sampler.sample(t0 + 10_000)
+        assertEquals(5_000L, first.power!!.gameMs)
+        assertEquals(4000.0, first.power!!.gameAvgMw!!, 1e-6)
+        assertEquals(4000.0, first.windowMw!!, 1e-6)
+        // the 35 s gap before the last row is a stopped app, not play
+        power.appendText(row(t0 + 10_000, -2_000_000, 1) + row(t0 + 45_000, -2_000_000, 1))
+        val second = sampler.sample(t0 + 50_000)
+        assertEquals(4, second.power!!.rows)
+        assertEquals(10_000L, second.power!!.gameMs)
+        assertEquals(5000.0, second.power!!.gameAvgMw!!, 1e-6)
+        assertEquals(8000.0, second.windowMw!!, 1e-6)
+        val text = LiveText.build(input(second))
+        assertTrue(text, text.contains("power: now 8000 mW (discharging, 50%, 4.00 V, brightness 128 auto); game 0.2 min avg 5000 mW"))
+        assertTrue(LiveText.historyLine(t0, t0 + 50_000, second).endsWith(" 8000"))
     }
 
     @Test fun fileStaysSmall() {

@@ -3,26 +3,45 @@ package com.droiddeck.launcher.session
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
+import com.droiddeck.launcher.telemetry.GamePhase
+import com.droiddeck.launcher.telemetry.HeadroomCache
+import com.droiddeck.launcher.telemetry.PowerCsv
+import com.droiddeck.launcher.telemetry.PowerMath
+import com.droiddeck.launcher.telemetry.PowerRow
 import java.io.File
 import kotlin.math.abs
 
-class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart() {
+/**
+ * The guest's battery: a fake /sys/class/power_supply/BAT1 (and the vpower files) rewritten every
+ * [PERIOD_MS] from Android's battery readings. With [powerLog] it also appends the same readings,
+ * plus thermal status, screen brightness and whether a game is in front, to the session's
+ * power.csv ([PowerRow]): the power log rides on this thread's existing tick and adds no wakeups.
+ */
+class BatteryComponent(val dir: File, private val vpowerDir: File, private val powerLog: File? = null) : SessionPart() {
     @Volatile private var running = false
     private var thread: Thread? = null
+    private var csv: PowerCsv? = null
 
     override fun start() {
         File(dir, "BAT0").deleteRecursively()
         running = true
+        val log = powerLog?.let { runCatching { PowerCsv.open(it) }.onFailure { e -> Log.w(TAG, "power log: $e") }.getOrNull() }
+        synchronized(this) { csv = log }
         write()
         thread = Thread({
+            runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) }
             while (running) {
                 try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
                 if (running) write()
             }
+            synchronized(this) { log?.close(); if (csv === log) csv = null }
         }, "battery-sysfs").apply { isDaemon = true; start() }
-        Log.i(TAG, "battery: BAT1 written to ${dir.path} every ${PERIOD_MS / 1000} s")
+        Log.i(TAG, "battery: BAT1 written to ${dir.path} every ${PERIOD_MS / 1000} s" + (powerLog?.let { ", logged to ${it.name}" } ?: ""))
     }
 
     override fun stop() {
@@ -113,9 +132,40 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
                 "secs_until_shutdown_request" to (if (timeToEmptyS > 0) timeToEmptyS else -1L).toString(),
             )
             for ((k, v) in vpower) put(File(vpowerDir, k), v + "\n")
+            if (powerLog != null) logPower(ctx, currentNowUa, chargeNowUah, sticky, pct, status, tempDeci)
         } catch (t: Throwable) {
             Log.w(TAG, "battery: could not write", t)
         }
+    }
+
+    /** One power.csv row from the readings [write] already made, plus the cheap extras it does not need. */
+    private fun logPower(ctx: android.content.Context, currentUa: Long, chargeUah: Long, sticky: Intent?, pct: Int, status: Int, tempDeci: Int) {
+        if (synchronized(this) { csv } == null) return
+        val pluggedBits = sticky?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+        val voltageMv = sticky?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0)?.takeIf { it > 0 }
+        val current = currentUa.takeIf { it != 0L }
+        val power = runCatching { ctx.getSystemService(PowerManager::class.java) }.getOrNull()
+        val resolver = ctx.contentResolver
+        val row = PowerRow(
+            tWallMs = System.currentTimeMillis(),
+            currentUa = current,
+            chargeUah = chargeUah.takeIf { it > 0 },
+            voltageMv = voltageMv,
+            powerMw = PowerMath.drawMw(current, voltageMv, pluggedBits != 0),
+            levelPct = pct.takeIf { it in 0..100 },
+            status = PowerMath.statusName(status),
+            plugged = PowerMath.pluggedName(pluggedBits),
+            tempC = sticky?.let { tempDeci / 10.0 },
+            thermalStatus = if (power != null && Build.VERSION.SDK_INT >= 29) runCatching { power.currentThermalStatus }.getOrNull() else null,
+            headroom = if (power != null && Build.VERSION.SDK_INT >= 30) HeadroomCache.shared.get { power.getThermalHeadroom(10) } else null,
+            brightness = runCatching { Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS) }.getOrNull(),
+            autoBrightness = runCatching {
+                Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE) == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+            }.getOrNull(),
+            screenOn = power?.let { runCatching { it.isInteractive }.getOrNull() },
+            game = GamePhase.inGame,
+        )
+        synchronized(this) { csv?.add(row) }
     }
 
     private fun put(target: File, text: String) {
@@ -126,9 +176,8 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
 
     companion object {
         private const val TAG = "SessionService"
-        private const val MILLIAMP_CEILING = 10_000L
 
-        internal fun toMicroamps(raw: Long): Long = if (abs(raw) < MILLIAMP_CEILING) raw * 1000L else raw
+        internal fun toMicroamps(raw: Long): Long = PowerMath.toMicroamps(raw)
         private const val PERIOD_MS = 5_000L
         private val VPOWER_FILES = listOf(
             "ac_status", "battery_percent", "battery_status",
