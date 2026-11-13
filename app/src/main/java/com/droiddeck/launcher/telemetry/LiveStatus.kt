@@ -126,11 +126,17 @@ internal class LiveSampler(private val dir: File) {
         val thermalStatus: Int?,
         val headroom: Double?,
         val batteryC: Double?,
-        val memory: String?,
+        /** The newest memory.csv row by column name, blank columns left out. */
+        val memory: Map<String, String>,
         val memoryAtMs: Long?,
         val processes: List<String>,
         val events: List<String>,
-    )
+    ) {
+        val gameRssMb: String? get() = memory["game_mb"]
+        val gameSwapMb: String? get() = memory["game_swap_mb"]
+        val gameMajfltS: String? get() = memory["game_majflt_s"]
+        val swapinMbS: String? get() = memory["swapin_mb_s"]
+    }
 
     private class Tail(val file: File) {
         var offset = 0L
@@ -195,7 +201,7 @@ internal class LiveSampler(private val dir: File) {
         val cutoff = nowMs - LiveStatus.WINDOW_MS
         while (windowTimes.isNotEmpty() && windowTimes.first() <= cutoff) { windowTimes.removeFirst(); windowFrames.removeFirst() }
         val clockLine = runCatching { lastLine(File(dir, "clocks.log"), 4096) { CLOCK_LINE.containsMatchIn(it) } }.getOrNull()
-        val (memory, memoryAt) = runCatching { memory() }.getOrNull() ?: (null to null)
+        val (memory, memoryAt) = runCatching { memory() }.getOrNull() ?: (emptyMap<String, String>() to null)
         val focus = focusEngine?.let { "${if (focusSteam == true) "Steam" else it} pid $focusPid" }
         val game = if (gameHist.frames > 0 || otherHist.frames == 0) gameHist.summary() to "game"
             else otherHist.summary() to "non-Steam"
@@ -283,14 +289,14 @@ internal class LiveSampler(private val dir: File) {
         .filter { it !in setOf("t", "event", "sessionId") }
         .joinToString(" ") { "$it=${json.opt(it).toString().replace('\n', ' ').take(80)}" }
 
-    private fun memory(): Pair<String, Long?>? {
+    private fun memory(): Pair<Map<String, String>, Long?>? {
         val file = File(dir, "memory.csv")
         val header = firstLine(file)?.split(',') ?: return null
         val row = lastLine(file, 2048) { it.isNotEmpty() && it[0].isDigit() }?.split(',') ?: return null
-        val at = row.firstOrNull()?.toLongOrNull()
-        val text = header.indices.drop(1).filter { it < row.size && row[it].isNotEmpty() }
-            .joinToString(" ") { "${header[it]}=${row[it]}" }
-        return text to at
+        val values = LinkedHashMap<String, String>()
+        header.forEachIndexed { i, name -> row.getOrNull(i)?.trim()?.takeIf { it.isNotEmpty() }?.let { values[name.trim()] = it } }
+        val at = values.remove("t_wall_ms")?.toLongOrNull()
+        return values to at
     }
 
     private fun processes(): List<String> {
@@ -368,6 +374,7 @@ internal object LiveText {
     )
 
     private const val SETTINGS_CHARS = 2500
+    private val GAME_MEMORY = setOf("game_mb", "game_swap_mb", "game_majflt_s", "swapin_mb_s")
     private const val EXTRA_CHARS = 1500
 
     fun utc(ms: Long): String = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
@@ -380,11 +387,16 @@ internal object LiveText {
 
     private fun num(value: Double?, format: String = "%.1f"): String = value?.let { String.format(Locale.US, format, it) } ?: "-"
 
-    /** One compact history line: uptime, fps and p95 of the last 30 s, thermal headroom, cap, battery temperature. */
+    const val HISTORY_COLUMNS = "uptime fps_30s p95_ms headroom cap battery_c game_rss_mb game_swap_mb game_majflt_s swapin_mb_s"
+
+    private fun rate(value: String?): String = value?.toDoubleOrNull()?.let { num(it) } ?: "-"
+
+    /** One compact history line, in [HISTORY_COLUMNS] order. */
     fun historyLine(startMs: Long, nowMs: Long, sample: LiveSampler.Sample?): String {
         val w = sample?.window
         return listOf("+" + duration(nowMs - startMs), num(w?.fps), num(w?.p95Ms), num(sample?.headroom, "%.2f"),
-            sample?.cap?.toString() ?: "-", num(sample?.batteryC)).joinToString(" ")
+            sample?.cap?.toString() ?: "-", num(sample?.batteryC), sample?.gameRssMb ?: "-", sample?.gameSwapMb ?: "-",
+            rate(sample?.gameMajfltS), rate(sample?.swapinMbS)).joinToString(" ")
     }
 
     private fun frameRow(label: String, s: FrameSummary): String =
@@ -437,11 +449,17 @@ internal object LiveText {
         }
 
         appendLine()
+        appendLine("## memory")
+        val memAge = s?.memoryAtMs?.let { " (${((input.nowMs - it) / 1000).coerceAtLeast(0)} s ago)" } ?: ""
+        appendLine("game$memAge: rss ${s?.gameRssMb ?: "-"} MB, swap ${s?.gameSwapMb ?: "-"} MB, " +
+            "major faults ${rate(s?.gameMajfltS)}/s, swap-in ${rate(s?.swapinMbS)} MB/s")
+        val rest = s?.memory?.filterKeys { it !in GAME_MEMORY }.orEmpty()
+        appendLine("memory.csv: ${if (rest.isEmpty()) "-" else rest.entries.joinToString(" ") { "${it.key}=${it.value}" }}")
+
+        appendLine()
         appendLine("## device")
         appendLine("thermal: status ${s?.thermalStatus ?: "-"}, headroom ${num(s?.headroom, "%.2f")}, battery ${s?.batteryC?.let { num(it) + " C" } ?: "-"}")
         appendLine("clocks: ${s?.clocks ?: "-"}")
-        val memAge = s?.memoryAtMs?.let { " (${((input.nowMs - it) / 1000).coerceAtLeast(0)} s ago)" } ?: ""
-        appendLine("memory$memAge: ${s?.memory ?: "-"}")
         if (!s?.processes.isNullOrEmpty()) {
             appendLine("top processes (cpu, newest processes.csv snapshot):")
             s!!.processes.forEach { appendLine("  $it") }
@@ -458,7 +476,7 @@ internal object LiveText {
         }
 
         appendLine()
-        appendLine("## history (uptime fps_30s p95_ms headroom cap battery_c)")
+        appendLine("## history ($HISTORY_COLUMNS)")
         input.history.forEach { appendLine(it) }
     }
 }

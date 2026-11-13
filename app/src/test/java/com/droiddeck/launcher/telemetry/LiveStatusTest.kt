@@ -40,8 +40,10 @@ class LiveStatusTest {
             "10:12:28 p0 1800/1800 p4 2400/2400 | gpu 600 MHz | thermal 0 headroom 0.51 | battery 37.0 C\n" +
             "10:12:30 p0 1800/1800 p4 2400/2400(of 3100) | gpu 700 MHz | thermal 1 headroom 0.62 | battery 38.5 C\n")
         resolve("memory.csv").writeText(
-            "t_wall_ms,used_mb,available_mb,swap_used_mb,game_mb,droiddeck_mb,app_mb,gpu_mb,game_swap_mb,droiddeck_swap_mb,top_process,top_mb\n" +
-                "${t0 + 740_000},9000,3000,1200,4100,900,300,800,0,10,SlayTheSpire2.,4100\n")
+            "t_wall_ms,used_mb,available_mb,swap_used_mb,game_mb,droiddeck_mb,app_mb,gpu_mb,game_swap_mb,droiddeck_swap_mb,top_process,top_mb," +
+                "game_majflt_s,droiddeck_majflt_s,swapin_mb_s,swapout_mb_s\n" +
+                "${t0 + 735_000},9000,3000,1200,4100,900,300,800,0,10,SlayTheSpire2.,4100,,,,\n" +
+                "${t0 + 740_000},9000,3000,2600,600,900,300,800,2200,10,SlayTheSpire2.,2800,412.25,3.0,18.5,0.4\n")
         resolve("processes.csv").writeText("t_wall_ms,pid,name,side,rss_mb,swap_mb,cpu_pct\n" +
             "${t0 + 600_000},42,old,game,10,0,99.0\n" +
             "${t0 + 660_000},42,SlayTheSpire2.,game,4100,0,180.5\n" +
@@ -112,8 +114,9 @@ class LiveStatusTest {
         assertTrue(text.contains("pacing: no game frame cap"))
         assertTrue(text.contains("no frame data"))
         assertTrue(text.contains("## events\nnone yet"))
-        assertTrue(text.trimEnd().endsWith("## history (uptime fps_30s p95_ms headroom cap battery_c)"))
-        assertEquals("+0:12:30 - - - - -", LiveText.historyLine(t0, t0 + 750_000, null))
+        assertTrue(text.trimEnd().endsWith("## history (${LiveText.HISTORY_COLUMNS})"))
+        assertTrue(text.contains("game: rss - MB, swap - MB, major faults -/s, swap-in - MB/s"))
+        assertEquals("+0:12:30 - - - - - - - - -", LiveText.historyLine(t0, t0 + 750_000, null))
     }
 
     @Test fun aSessionWithoutAGame() {
@@ -129,7 +132,7 @@ class LiveStatusTest {
         assertEquals(100, sample.window.frames)
         assertEquals("Steam pid 10", sample.focus)
         assertNull(sample.cap)
-        assertNull(sample.memory)
+        assertTrue(sample.memory.isEmpty())
         assertTrue(sample.processes.isEmpty())
         val text = LiveText.build(input(sample))
         assertTrue(text, text.contains("game running: no"))
@@ -153,7 +156,12 @@ class LiveStatusTest {
         assertEquals(0.62, s.headroom!!, 1e-9)
         assertEquals(38.5, s.batteryC!!, 1e-9)
         assertEquals(t0 + 740_000, s.memoryAtMs)
-        assertTrue(s.memory!!, s.memory!!.startsWith("used_mb=9000 available_mb=3000 swap_used_mb=1200"))
+        assertEquals("600", s.gameRssMb)
+        assertEquals("2200", s.gameSwapMb)
+        assertEquals("412.25", s.gameMajfltS)
+        assertEquals("18.5", s.swapinMbS)
+        assertEquals("0.4", s.memory["swapout_mb_s"])
+        assertFalse(s.memory.containsKey("t_wall_ms"))
         assertEquals(3, s.processes.size)
         assertTrue(s.processes[0], s.processes[0].contains("SlayTheSpire2. (pid 42)"))
         assertTrue(s.processes[2], s.processes[2].contains("steamwebhelper"))
@@ -187,6 +195,22 @@ class LiveStatusTest {
         assertFalse(text.contains("# settings this session"))
         assertTrue(text.contains("## input latency\np50 12 ms\n"))
         assertTrue(text.contains("thermal: status 1, headroom 0.62, battery 38.5 C"))
+        assertTrue(text.contains("game (10 s ago): rss 600 MB, swap 2200 MB, major faults 412.3/s, swap-in 18.5 MB/s"))
+        assertTrue(text.contains("memory.csv: used_mb=9000 available_mb=3000 swap_used_mb=2600 droiddeck_mb=900"))
+        assertEquals("+0:13:00 10.0 100.0 0.62 40 38.5 600 2200 412.3 18.5", LiveText.historyLine(t0, now + 30_000, later))
+    }
+
+    @Test fun memoryColumnsAreReadByName() {
+        val dir = tmp.newFolder("2026-11-12-04-steam")
+        dir.resolve("memory.csv").writeText("t_wall_ms,swapin_mb_s,game_swap_mb,extra,game_mb,game_majflt_s\n" +
+            "${t0 + 1000},7.25,1500,x,700,90\n")
+        val s = LiveSampler(dir).sample(t0 + 2000)
+        assertEquals("700", s.gameRssMb)
+        assertEquals("1500", s.gameSwapMb)
+        assertEquals("90", s.gameMajfltS)
+        assertEquals("7.25", s.swapinMbS)
+        assertEquals(t0 + 1000, s.memoryAtMs)
+        assertTrue(LiveText.historyLine(t0, t0 + 2000, s).endsWith(" 700 1500 90.0 7.3"))
     }
 
     @Test fun fileStaysSmall() {
@@ -194,7 +218,7 @@ class LiveStatusTest {
         var text = ""
         repeat(LiveStatus.HISTORY_LINES) { text = live.render("perf-live-abc1234", "Google-Pixel-10", t0 + 750_000L + it * 30_000L,
             false, "2868840", "remote config: fetched 2026-11-13T10:00:00Z, rotation row 1 of 2", emptyList()) }
-        assertTrue("${text.length} bytes", text.length < 12 * 1024)
+        assertTrue("${text.length} bytes", text.length < 14 * 1024)
         println(LiveText.build(input(LiveSampler(session("2026-11-12-03-steam")).sample(t0 + 750_000),
             history = live.history.lines().take(4), settings = live.dir.resolve(RemoteConfig.SETTINGS_FILE).readText())))
     }
