@@ -17,7 +17,8 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.*
 
 @Composable
-internal fun InputQuickSettings(host: MenuHost, onChanged: (InputRole?) -> Unit = {}, onEdit: () -> Unit = {}, track: (String) -> Modifier = { Modifier }) {
+internal fun InputQuickSettings(host: MenuHost, onChanged: (InputRole?) -> Unit = {}, onEdit: () -> Unit = {}, game: String? = null,
+    track: (String) -> Modifier = { Modifier }) {
     val context = LocalContext.current
     var library by remember { mutableStateOf(InputLibraries.read(context)) }
     var expanded by remember { mutableStateOf(false) }
@@ -36,6 +37,7 @@ internal fun InputQuickSettings(host: MenuHost, onChanged: (InputRole?) -> Unit 
     val selection = library.selection()
     val mixed = selection.parts.isNotEmpty()
     val active = library.profile(library.activeId())
+    val shown = Sts2Pad.forGame(library, game)
     val profiles = listOf(InputProfiles.AUTO to stringResource(R.string.input_quick_auto, library.profile(library.steam).name)) +
         library.profiles.map { it.id to it.name } + if (mixed) listOf("mixed" to stringResource(R.string.input_quick_mixed, active.name)) else emptyList()
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -61,7 +63,7 @@ internal fun InputQuickSettings(host: MenuHost, onChanged: (InputRole?) -> Unit 
             if (role == InputRole.PHYSICAL) binding.physical
             else !binding.physical && library.layouts.any { it.id == binding.layoutId && it.supports(role) }
         }.map { it.id to it.name }
-        ChoiceRow(host, "input-part-${role.name}", roleLabel(role), null, options, library.activePart(role).bindings,
+        ChoiceRow(host, "input-part-${role.name}", roleLabel(role), null, options, shown.activePart(role).bindings,
             chipModifier = track("input-part-${role.name}")) { id -> update(role) { it.selectPart(role, id) } }
     }
     if (mixed) SecondaryButton(stringResource(R.string.input_save_combination)) { naming = true }
