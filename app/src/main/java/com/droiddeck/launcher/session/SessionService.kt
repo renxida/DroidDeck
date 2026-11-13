@@ -846,6 +846,7 @@ class SessionService : Service() {
         SessionLogCapture.start(File(sessionDir, "app.log"))
         lastPressureAt = 0L
         MemoryLog.start(File(sessionDir, "memory.csv"))
+        ThreadLog.start(sessionDir)
         if (Experiments.on(this, Experiments.MEMORY)) {
             AppCaches.drop(this, "session_start")
             startLmkWatch()
@@ -1893,6 +1894,7 @@ class SessionService : Service() {
                     .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
                 releaseLocks()
                 MemoryLog.stop()
+                ThreadLog.stop()
                 stopLmkWatch()
                 Experiments.endSession()
                 com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
