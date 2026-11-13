@@ -42,6 +42,14 @@ void Attachment::update_region_offsets() {
 	}
 }
 
+std::string Sequence::frame_path(const std::string &base, int index) const {
+	std::string n = std::to_string(start + index);
+	while (int(n.size()) < digits) {
+		n.insert(n.begin(), '0');
+	}
+	return base + n;
+}
+
 Attachment *Skin::find(int slot, const std::string &key) const {
 	if (slot < 0 || slot >= int(slots.size())) {
 		return nullptr;
@@ -174,6 +182,15 @@ int SkeletonData::find_ik(const std::string &name) const {
 	return -1;
 }
 
+int SkeletonData::find_transform(const std::string &name) const {
+	for (size_t i = 0; i < transforms.size(); i++) {
+		if (transforms[i].name == name) {
+			return int(i);
+		}
+	}
+	return -1;
+}
+
 int SkeletonData::major_version() const {
 	return version.empty() ? 0 : std::atoi(version.c_str());
 }
@@ -188,6 +205,7 @@ void Bone::setup() {
 	scale_y = data->scale_y;
 	shear_x = data->shear_x;
 	shear_y = data->shear_y;
+	inherit = data->inherit;
 }
 
 float Bone::world_rotation_x() const { return std::atan2(c, a) / DEG; }
@@ -199,6 +217,7 @@ void Slot::setup(const Skeleton &skeleton) {
 	dark = data->dark;
 	attachment = data->attachment.empty() ? nullptr : skeleton.attachment(data->index, data->attachment);
 	deform.clear();
+	sequence_index = -1;
 }
 
 Skeleton::Skeleton(const SkeletonData *d) : data(d) {
@@ -213,7 +232,16 @@ Skeleton::Skeleton(const SkeletonData *d) : data(d) {
 	ik.resize(d->ik.size());
 	for (size_t i = 0; i < ik.size(); i++) {
 		ik[i].data = &d->ik[i];
+		constraint_order.push_back({ false, int(i) });
 	}
+	transforms.resize(d->transforms.size());
+	for (size_t i = 0; i < transforms.size(); i++) {
+		transforms[i].data = &d->transforms[i];
+		constraint_order.push_back({ true, int(i) });
+	}
+	auto order_of = [&](const std::pair<bool, int> &c) { return c.first ? d->transforms[c.second].order : d->ik[c.second].order; };
+	std::stable_sort(constraint_order.begin(), constraint_order.end(),
+			[&](const std::pair<bool, int> &a, const std::pair<bool, int> &b) { return order_of(a) < order_of(b); });
 	setup_pose();
 }
 
@@ -227,6 +255,15 @@ void Skeleton::setup_bones() {
 		k.bend_positive = k.data->bend_positive;
 		k.compress = k.data->compress;
 		k.stretch = k.data->stretch;
+	}
+	for (auto &t : transforms) {
+		const TransformData &d = *t.data;
+		t.mix_rotate = d.mix_rotate;
+		t.mix_x = d.mix_x;
+		t.mix_y = d.mix_y;
+		t.mix_scale_x = d.mix_scale_x;
+		t.mix_scale_y = d.mix_scale_y;
+		t.mix_shear_y = d.mix_shear_y;
 	}
 }
 
@@ -289,37 +326,38 @@ bool Skeleton::set_attachment(const std::string &slot_name, const std::string &k
 	}
 	if (slots[s].attachment != a) {
 		slots[s].deform.clear();
+		slots[s].sequence_index = -1;
 	}
 	slots[s].attachment = a;
 	return true;
 }
 
-void Skeleton::update_bone(Bone &bone) {
+namespace {
+
+// The matrix a bone's local transform is multiplied by: the skeleton scale for a root, otherwise the
+// parent's world matrix reduced by the bone's inherit mode.
+void parent_basis(const Skeleton &s, const Bone &bone, float &pa, float &pb, float &pc, float &pd) {
 	const BoneData &bd = *bone.data;
-	float rx = (bone.rotation + bone.shear_x) * DEG;
-	float ry = (bone.rotation + 90 + bone.shear_y) * DEG;
-	float la = std::cos(rx) * bone.scale_x, lb = std::cos(ry) * bone.scale_y;
-	float lc = std::sin(rx) * bone.scale_x, ld = std::sin(ry) * bone.scale_y;
 	if (bd.parent < 0) {
-		bone.a = la * scale_x;
-		bone.b = lb * scale_x;
-		bone.c = lc * scale_y;
-		bone.d = ld * scale_y;
-		bone.world_x = bone.x * scale_x + x;
-		bone.world_y = bone.y * scale_y + y;
+		pa = s.scale_x;
+		pb = 0;
+		pc = 0;
+		pd = s.scale_y;
 		return;
 	}
-	const Bone &p = bones[bd.parent];
-	p.local_to_world(bone.x, bone.y, bone.world_x, bone.world_y);
-	float pa = p.a, pb = p.b, pc = p.c, pd = p.d;
-	switch (bd.inherit) {
+	const Bone &p = s.bones[bd.parent];
+	pa = p.a;
+	pb = p.b;
+	pc = p.c;
+	pd = p.d;
+	switch (bone.inherit) {
 		case Inherit::Normal:
 			break;
 		case Inherit::OnlyTranslation:
-			pa = scale_x;
+			pa = s.scale_x;
 			pb = 0;
 			pc = 0;
-			pd = scale_y;
+			pd = s.scale_y;
 			break;
 		case Inherit::NoRotationOrReflection: {
 			// Strip the parent's rotation (and any reflection), keep its scale and shear.
@@ -347,6 +385,24 @@ void Skeleton::update_bone(Bone &bone) {
 			break;
 		}
 	}
+}
+
+} // namespace
+
+void Skeleton::update_bone(Bone &bone) {
+	const BoneData &bd = *bone.data;
+	float rx = (bone.rotation + bone.shear_x) * DEG;
+	float ry = (bone.rotation + 90 + bone.shear_y) * DEG;
+	float la = std::cos(rx) * bone.scale_x, lb = std::cos(ry) * bone.scale_y;
+	float lc = std::sin(rx) * bone.scale_x, ld = std::sin(ry) * bone.scale_y;
+	if (bd.parent < 0) {
+		bone.world_x = bone.x * scale_x + x;
+		bone.world_y = bone.y * scale_y + y;
+	} else {
+		bones[bd.parent].local_to_world(bone.x, bone.y, bone.world_x, bone.world_y);
+	}
+	float pa, pb, pc, pd;
+	parent_basis(*this, bone, pa, pb, pc, pd);
 	bone.a = pa * la + pb * lc;
 	bone.b = pa * lb + pb * ld;
 	bone.c = pc * la + pd * lc;
@@ -413,8 +469,10 @@ void Skeleton::apply_ik(IkConstraint &k) {
 		float cosine = (la * la + dist * dist - lb * lb) / (2 * la * dist);
 		cosine = std::max(-1.0f, std::min(1.0f, cosine));
 		float bend = std::acos(cosine) / DEG;
-		// The joint sits on the counter-clockwise side of the reach line when bending positive (y up).
-		r1 += k.bend_positive ? bend : -bend;
+		// Bending positive turns the second bone counter-clockwise from the first (y up), which puts the
+		// joint on the clockwise side of the reach line. Checked against setup poses of game skeletons,
+		// where the solved chain must reproduce the authored pose.
+		r1 += k.bend_positive ? -bend : bend;
 		// Account for the joint not lying on the first bone's x axis.
 		float jlx = b2.x, jly = b2.y;
 		r1 -= std::atan2(jly * b1.scale_y, jlx * b1.scale_x) / DEG;
@@ -426,23 +484,177 @@ void Skeleton::apply_ik(IkConstraint &k) {
 	b2.rotation += wrap180(r2 - b2.rotation) * k.mix;
 }
 
+void Skeleton::set_world(Bone &bone, float a, float b, float c, float d, float wx, float wy) {
+	// Store the world transform as local values, so recomputing the bone (and its children) keeps it.
+	if (bone.data->parent < 0) {
+		bone.x = scale_x ? (wx - x) / scale_x : 0;
+		bone.y = scale_y ? (wy - y) / scale_y : 0;
+	} else {
+		const Bone &p = bones[bone.data->parent];
+		float det = p.a * p.d - p.b * p.c;
+		if (std::fabs(det) > 1e-12f) {
+			float dx = wx - p.world_x, dy = wy - p.world_y;
+			bone.x = (dx * p.d - dy * p.b) / det;
+			bone.y = (dy * p.a - dx * p.c) / det;
+		}
+	}
+	float pa, pb, pc, pd;
+	parent_basis(*this, bone, pa, pb, pc, pd);
+	float det = pa * pd - pb * pc;
+	if (std::fabs(det) > 1e-12f) {
+		float la = (pd * a - pb * c) / det, lb = (pd * b - pb * d) / det;
+		float lc = (pa * c - pc * a) / det, ld = (pa * d - pc * b) / det;
+		float rx = std::atan2(lc, la) / DEG;
+		bone.rotation = rx - bone.shear_x;
+		bone.scale_x = std::hypot(la, lc);
+		bone.scale_y = std::hypot(lb, ld);
+		bone.shear_y = wrap180(std::atan2(ld, lb) / DEG - bone.rotation - 90);
+	}
+	bone.a = a;
+	bone.b = b;
+	bone.c = c;
+	bone.d = d;
+	bone.world_x = wx;
+	bone.world_y = wy;
+}
+
+void Skeleton::apply_transform(TransformConstraint &t) {
+	const TransformData &d = *t.data;
+	const Bone &target = bones[d.target];
+	if (d.local) {
+		for (int i : d.bones) {
+			Bone &b = bones[i];
+			if (!b.active) {
+				continue;
+			}
+			if (d.relative) {
+				b.rotation += (target.rotation + d.offset_rotation) * t.mix_rotate;
+				b.x += (target.x + d.offset_x) * t.mix_x;
+				b.y += (target.y + d.offset_y) * t.mix_y;
+				b.scale_x *= ((target.scale_x - 1 + d.offset_scale_x) * t.mix_scale_x) + 1;
+				b.scale_y *= ((target.scale_y - 1 + d.offset_scale_y) * t.mix_scale_y) + 1;
+				b.shear_y += (target.shear_y + d.offset_shear_y) * t.mix_shear_y;
+			} else {
+				b.rotation += wrap180(target.rotation + d.offset_rotation - b.rotation) * t.mix_rotate;
+				b.x += (target.x + d.offset_x - b.x) * t.mix_x;
+				b.y += (target.y + d.offset_y - b.y) * t.mix_y;
+				b.scale_x += (target.scale_x + d.offset_scale_x - b.scale_x) * t.mix_scale_x;
+				b.scale_y += (target.scale_y + d.offset_scale_y - b.scale_y) * t.mix_scale_y;
+				b.shear_y += wrap180(target.shear_y + d.offset_shear_y - b.shear_y) * t.mix_shear_y;
+			}
+		}
+		return;
+	}
+	float ta = target.a, tb = target.b, tc = target.c, td = target.d;
+	// A reflected target turns its offsets the other way.
+	float sign = ta * td - tb * tc < 0 ? -1.0f : 1.0f;
+	float off_rotation = d.offset_rotation * DEG * sign, off_shear = d.offset_shear_y * DEG * sign;
+	float target_rotation = std::atan2(tc, ta);
+	for (int i : d.bones) {
+		Bone &b = bones[i];
+		if (!b.active) {
+			continue;
+		}
+		float a = b.a, bb = b.b, c = b.c, dd = b.d, wx = b.world_x, wy = b.world_y;
+		if (t.mix_rotate != 0) {
+			float r = d.relative ? target_rotation + off_rotation : target_rotation - std::atan2(c, a) + off_rotation;
+			r = wrap180(r / DEG) * DEG * t.mix_rotate;
+			float cs = std::cos(r), sn = std::sin(r);
+			float na = cs * a - sn * c, nb = cs * bb - sn * dd, nc = sn * a + cs * c, nd = sn * bb + cs * dd;
+			a = na;
+			bb = nb;
+			c = nc;
+			dd = nd;
+		}
+		if (t.mix_x != 0 || t.mix_y != 0) {
+			float tx, ty;
+			target.local_to_world(d.offset_x, d.offset_y, tx, ty);
+			if (d.relative) {
+				wx += (tx - target.world_x) * t.mix_x;
+				wy += (ty - target.world_y) * t.mix_y;
+			} else {
+				wx += (tx - wx) * t.mix_x;
+				wy += (ty - wy) * t.mix_y;
+			}
+		}
+		if (t.mix_scale_x != 0) {
+			float s = std::hypot(a, c);
+			if (s > 1e-5f) {
+				float ts = std::hypot(ta, tc);
+				float k = d.relative ? ((ts - 1 + d.offset_scale_x) * t.mix_scale_x + 1) : (s + (ts - s + d.offset_scale_x) * t.mix_scale_x) / s;
+				a *= k;
+				c *= k;
+			}
+		}
+		if (t.mix_scale_y != 0) {
+			float s = std::hypot(bb, dd);
+			if (s > 1e-5f) {
+				float ts = std::hypot(tb, td);
+				float k = d.relative ? ((ts - 1 + d.offset_scale_y) * t.mix_scale_y + 1) : (s + (ts - s + d.offset_scale_y) * t.mix_scale_y) / s;
+				bb *= k;
+				dd *= k;
+			}
+		}
+		if (t.mix_shear_y != 0) {
+			// Angle between the y and x axes, matched to the target's.
+			float by = std::atan2(dd, bb), bx = std::atan2(c, a);
+			float tshear = std::atan2(td, tb) - target_rotation;
+			float r = d.relative ? tshear - 0.5f * 3.14159265f + off_shear : tshear - (by - bx) + off_shear;
+			r = wrap180(r / DEG) * DEG * t.mix_shear_y;
+			float len = std::hypot(bb, dd), ang = by + r;
+			bb = std::cos(ang) * len;
+			dd = std::sin(ang) * len;
+		}
+		set_world(b, a, bb, c, dd, wx, wy);
+	}
+}
+
+void Skeleton::update_after(const std::vector<int> &constrained) {
+	if (constrained.empty()) {
+		return;
+	}
+	// Constrained bones changed: recompute them and everything after the first one (children follow parents).
+	int first = *std::min_element(constrained.begin(), constrained.end());
+	for (size_t i = first; i < bones.size(); i++) {
+		update_bone(bones[i]);
+	}
+}
+
 void Skeleton::update_world_transform() {
 	for (auto &b : bones) {
 		update_bone(b);
 	}
-	for (auto &k : ik) {
-		apply_ik(k);
-		// Constrained bones changed: recompute them and everything after the first one (children follow parents).
-		int first = *std::min_element(k.data->bones.begin(), k.data->bones.end());
-		for (size_t i = first; i < bones.size(); i++) {
-			update_bone(bones[i]);
+	if (constraint_order.empty()) {
+		return;
+	}
+	// Constraints solve by changing local values. Keep the animated pose and put it back afterwards,
+	// so the next frame's keys mix from the pose and not from the constraint output.
+	pose_ = bones;
+	for (const auto &c : constraint_order) {
+		if (c.first) {
+			apply_transform(transforms[c.second]);
+			update_after(transforms[c.second].data->bones);
+		} else {
+			apply_ik(ik[c.second]);
+			update_after(ik[c.second].data->bones);
 		}
+	}
+	for (size_t i = 0; i < bones.size(); i++) {
+		Bone &b = bones[i];
+		const Bone &p = pose_[i];
+		b.x = p.x;
+		b.y = p.y;
+		b.rotation = p.rotation;
+		b.scale_x = p.scale_x;
+		b.scale_y = p.scale_y;
+		b.shear_x = p.shear_x;
+		b.shear_y = p.shear_y;
 	}
 }
 
 int Skeleton::world_vertices(int slot_index, std::vector<float> &out) const {
 	const Slot &slot = slots[slot_index];
-	const Attachment *a = slot.attachment;
+	const Attachment *a = slot.drawn();
 	out.clear();
 	if (!a) {
 		return 0;
@@ -637,6 +849,7 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 				const Attachment *a = sk.attachment(tl.target, tl.names[cv.search(time)]);
 				if (a != s.attachment) {
 					s.deform.clear();
+					s.sequence_index = -1;
 				}
 				s.attachment = a;
 				break;
@@ -697,6 +910,67 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 					k.bend_positive = fl & 1;
 					k.compress = fl & 2;
 					k.stretch = fl & 4;
+				}
+				break;
+			}
+			case TimelineType::Transform: {
+				TransformConstraint &k = sk.transforms[tl.target];
+				const TransformData &d = *k.data;
+				mix_value(k.mix_rotate, d.mix_rotate, cv.evaluate(time, 0), alpha, blend);
+				mix_value(k.mix_x, d.mix_x, cv.evaluate(time, 1), alpha, blend);
+				mix_value(k.mix_y, d.mix_y, cv.evaluate(time, 2), alpha, blend);
+				mix_value(k.mix_scale_x, d.mix_scale_x, cv.evaluate(time, 3), alpha, blend);
+				mix_value(k.mix_scale_y, d.mix_scale_y, cv.evaluate(time, 4), alpha, blend);
+				mix_value(k.mix_shear_y, d.mix_shear_y, cv.evaluate(time, 5), alpha, blend);
+				break;
+			}
+			case TimelineType::Sequence: {
+				Slot &s = sk.slots[tl.target];
+				if (!s.attachment || s.attachment->timeline_attachment != tl.attachment || !s.attachment->has_sequence) {
+					break;
+				}
+				int i = cv.search(time);
+				int key = tl.sequence_keys[i];
+				int mode = key & 15, index = key >> 4;
+				int count = s.attachment->sequence.count;
+				if (count <= 0) {
+					break;
+				}
+				float delay = tl.sequence_delays[i];
+				if (mode != int(SequenceMode::Hold) && delay > 0) {
+					index += int((time - cv.time(i)) / delay + 1e-4f);
+				}
+				int bounce = 2 * count - 2;
+				switch (SequenceMode(mode)) {
+					case SequenceMode::Hold:
+						break;
+					case SequenceMode::Once:
+						index = std::min(index, count - 1);
+						break;
+					case SequenceMode::Loop:
+						index %= count;
+						break;
+					case SequenceMode::PingPong:
+						index = bounce ? index % bounce : 0;
+						if (index >= count) index = bounce - index;
+						break;
+					case SequenceMode::OnceReverse:
+						index = std::max(count - 1 - index, 0);
+						break;
+					case SequenceMode::LoopReverse:
+						index = count - 1 - index % count;
+						break;
+					case SequenceMode::PingPongReverse:
+						index = bounce ? (index + count - 1) % bounce : 0;
+						if (index >= count) index = bounce - index;
+						break;
+				}
+				s.sequence_index = std::max(0, std::min(index, count - 1));
+				break;
+			}
+			case TimelineType::Inherit: {
+				if (discrete) {
+					sk.bones[tl.target].inherit = Inherit(tl.flags[cv.search(time)]);
 				}
 				break;
 			}

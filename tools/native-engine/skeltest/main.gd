@@ -22,7 +22,18 @@ func _ready() -> void:
 	await shot("a")
 	sk.advance(0.5)
 	await shot("b")
-	get_tree().quit(0 if err == OK else 1)
+	# The same rig in the binary layout (rig.skel, made by make_binary_rig.py) must pose identically.
+	var sb = ClassDB.instantiate("NativeSkeleton2D")
+	sb.playing = false
+	sb.visible = false
+	add_child(sb)
+	var berr = sb.load_files("res://rig/rig.skel", "res://rig/rig.atlas")
+	sb.play(0, "wave", true)
+	sb.advance(0.0)
+	sb.advance(0.5)
+	var same = berr == OK and sb.get_bone_position("tip").distance_to(sk.get_bone_position("tip")) < 0.01
+	print("SKELTEST binary load ", berr, " '", sb.get_load_error(), "' tip=", sb.get_bone_position("tip"), " same=", same)
+	get_tree().quit(0 if err == OK and same else 1)
 
 func shot(tag: String) -> void:
 	await RenderingServer.frame_post_draw

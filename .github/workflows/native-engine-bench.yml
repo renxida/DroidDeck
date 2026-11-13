@@ -70,8 +70,13 @@ jobs:
           INV=tools/linuxfs/overlay/usr/local/bin/droiddeck-native-inventory
           python3 $INV --game-dir tools/native-engine/bench/out/x86_64 --no-cache --json /tmp/inv.json
           python3 - <<'PY'
-          import json
-          r = json.load(open("/tmp/inv.json"))
+          import importlib.machinery, importlib.util, json
+          path = "tools/linuxfs/overlay/usr/local/bin/droiddeck-native-inventory"
+          loader = importlib.machinery.SourceFileLoader("inv", path)
+          inv = importlib.util.module_from_spec(importlib.util.spec_from_loader("inv", loader))
+          loader.exec_module(inv)
+          # The report is line-per-record (format lines-1); read_report puts it back together.
+          r = inv.read_report(open("/tmp/inv.json").read())
           print(json.dumps({k: r.get(k) for k in ("pack", "extensions", "importers", "gdextensions")}, indent=1))
           print(json.dumps({k: {kk: (vv if not isinstance(vv, list) else len(vv)) for kk, vv in v.items()} for k, v in r["managed"].items()}, indent=1))
           assert r["pack"].get("godot") == "4.5.1" and "error" not in r["pack"], r["pack"]

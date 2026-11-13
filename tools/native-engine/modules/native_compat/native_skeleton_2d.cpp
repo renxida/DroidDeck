@@ -32,14 +32,23 @@ Error NativeSkeleton2D::load_files(const String &p_skeleton, const String &p_atl
 	pages.clear();
 
 	Error err = OK;
-	String json = FileAccess::get_file_as_string(p_skeleton, &err);
+	Vector<uint8_t> raw = FileAccess::get_file_as_bytes(p_skeleton, &err);
 	if (err != OK) {
 		load_error = "cannot read " + p_skeleton;
 		return err;
 	}
-	CharString raw = json.utf8();
+	// JSON starts with '{' (after any whitespace or a UTF-8 byte order mark); anything else is the binary format.
+	int first = 0;
+	while (first < raw.size() && (raw[first] == ' ' || raw[first] == '\t' || raw[first] == '\r' || raw[first] == '\n' ||
+										 raw[first] == 0xef || raw[first] == 0xbb || raw[first] == 0xbf)) {
+		first++;
+	}
 	std::string error;
-	data = skel::load_json(raw.get_data(), raw.length(), skeleton_scale, error);
+	if (first < raw.size() && raw[first] == '{') {
+		data = skel::load_json(reinterpret_cast<const char *>(raw.ptr()), size_t(raw.size()), skeleton_scale, error);
+	} else {
+		data = skel::load_binary(raw.ptr(), size_t(raw.size()), skeleton_scale, error);
+	}
 	if (!data) {
 		load_error = p_skeleton + ": " + to_godot(error);
 		return ERR_PARSE_ERROR;
@@ -139,7 +148,7 @@ void NativeSkeleton2D::_draw_skeleton() {
 	Vector<Color> colors;
 	for (int slot_index : skeleton->draw_order) {
 		const skel::Slot &slot = skeleton->slots[slot_index];
-		const skel::Attachment *a = slot.attachment;
+		const skel::Attachment *a = slot.drawn();
 		if (!a || !skeleton->bones[slot.data->bone].active) {
 			continue;
 		}

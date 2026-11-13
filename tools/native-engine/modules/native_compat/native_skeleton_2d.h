@@ -1,5 +1,5 @@
 // Clean-room code for DroidDeck/Kestrel: written from scratch; no third-party runtime source consulted.
-// A Node2D that loads a skeleton (JSON + text atlas), plays animations and draws itself.
+// A Node2D that loads a skeleton (JSON or 4.2 binary, plus a text atlas), plays animations and draws itself.
 // Class and method names here are our own; compatibility names the game expects get thin
 // wrappers once the on-device inventory says what they are.
 #pragma once
