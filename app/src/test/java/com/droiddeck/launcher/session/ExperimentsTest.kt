@@ -69,7 +69,7 @@ class ExperimentsTest {
         assertEquals(everything, Experiments.defaults)
         assertEquals(everything, Experiments.enabled(context))
         assertEquals(1, Experiments.presentMode(Experiments.enabled(context)))
-        assertEquals("godot-render,warmup,all,compat-quiet,memory,adpf-all,two-frames,one-limiter,native-hz,quick-tap,fex-codegen,fex-fast",
+        assertEquals("godot-render,warmup,all,compat-quiet,memory,adpf-all,two-frames,one-limiter,native-hz,quick-tap,fex-codegen,fex-fast,fex-stats",
             Experiments.line(Experiments.enabled(context)))
         GameEnvironmentStore.publish(context)
         assertEquals(everything.map { Experiments.envName(it) }.toSet(),
