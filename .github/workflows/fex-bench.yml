@@ -83,6 +83,7 @@ jobs:
           ROOTFS: ${{ github.workspace }}/rootfs
           OUT: ${{ github.workspace }}/bench-out
         run: |
+          sudo apt-get install -y -qq binutils-x86-64-linux-gnu >/dev/null 2>&1 || true
           sudo apt-get install -y -qq "linux-tools-$(uname -r)" linux-tools-common >/dev/null 2>&1 \
             || sudo apt-get install -y -qq linux-tools-azure linux-tools-generic >/dev/null 2>&1 || true
           sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0 || true

@@ -51,5 +51,9 @@ for key, pct in groups.most_common(25):
 for pct, sym in sorted(top, reverse=True)[:25]:
     print("  hot: %6.2f%% %s" % (pct, sym[-90:]))
 ' >&2
+  case "$EXTRA" in *BLOCKJITNAMING=1*)
+    perf report -i "$OUT/perf.data" --no-children --sort symbol --stdio -g none 2>/dev/null | grep '%' \
+      | python3 "$HERE/hotblocks.py" 8 >&2 ;;
+  esac
 fi
 exit 0
