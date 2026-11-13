@@ -59,6 +59,11 @@ def escapedBuildLabel = buildLabel.replace('\\', '\\\\').replace('"', '\\"')
 
 def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getOrNull()
     ?: providers.environmentVariable('GITHUB_SHA').getOrNull() ?: gitValue(['rev-parse', 'HEAD']) ?: ''
+// A fork's CI publishes the add-on packs it builds to its own releases (build.yml, fork-packs); upstream's go to
+// DroidDeck-Components. Empty for upstream and for local builds.
+def packForkRepo = (providers.environmentVariable('GITHUB_REPOSITORY').getOrNull() ?: '').with {
+    it ==~ /[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+/ && !it.equalsIgnoreCase('Droid-Deck/DroidDeck') ? it : ''
+}
 def prNumber = (providers.environmentVariable('DROIDDECK_PR_NUMBER').getOrNull() ?: '0').with { it.isInteger() ? it : '0' }
 def prTitle = providers.environmentVariable('DROIDDECK_PR_TITLE').getOrNull() ?: ''
 def buildBranch = providers.environmentVariable('GITHUB_HEAD_REF').getOrNull()?.trim()
@@ -101,6 +106,7 @@ android {
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
+        buildConfigField "String", "PACK_FORK_REPO", "\"${escapeJava(packForkRepo)}\""
         buildConfigField "String", "PR_TITLE", "\"${escapeJava(prTitle)}\""
         buildConfigField "String", "BUILD_BRANCH", "\"${escapeJava(buildBranch)}\""
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"

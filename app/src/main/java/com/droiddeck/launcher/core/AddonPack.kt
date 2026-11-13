@@ -31,10 +31,7 @@ internal class AddonPack(
 
     val available: Boolean get() = sha256.isNotEmpty()
     private val tag get() = "pack-$name-${sha256.take(16)}"
-    private val urls get() = listOfNotNull(
-        "https://github.com/$REPO/releases/download/$tag/$name.tar.zst",
-        BuildConfig.PR_NUMBER.takeIf { it > 0 }?.let { "https://github.com/$PR_REPO/releases/download/pr-$it/$tag.tar.zst" },
-    )
+    private val urls get() = urls(tag, name, BuildConfig.PACK_FORK_REPO, BuildConfig.PR_NUMBER)
 
     private fun root(context: Context) = File(context.filesDir, "addons/$name")
     fun dir(context: Context) = File(root(context), version(context))
@@ -97,10 +94,7 @@ internal class AddonPack(
         com.droiddeck.launcher.telemetry.Timeline.mark("setup.addon.start", mapOf("pack" to name))
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
-        val downloaded = bundled(context, archive) || urls.any { url ->
-            Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
-                .also { if (!it) archive.delete() }
-        }
+        val downloaded = bundled(context, archive) || download(archive)
         if (!downloaded) return false
         val staging = File(root, "$sha256.partial")
         staging.deleteRecursively()
@@ -119,6 +113,26 @@ internal class AddonPack(
         return true
     }
 
+    /**
+     * Each source in turn, then again after a pause, [RETRY_DELAYS_MS] apart, so a dropped connection does not end the
+     * session. A partial file is kept between tries of the same source, which resume it; it goes when the source changes.
+     */
+    private fun download(archive: File): Boolean {
+        for ((round, delay) in (listOf(0L) + RETRY_DELAYS_MS).withIndex()) {
+            if (delay > 0) try { Thread.sleep(delay) } catch (e: InterruptedException) { return false }
+            for (url in urls) {
+                if (lastSource != null && lastSource != url) archive.delete()
+                lastSource = url
+                if (Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }) return true
+                Log.w(TAG, "$name: download round ${round + 1} failed from $url")
+            }
+        }
+        archive.delete()
+        return false
+    }
+
+    private var lastSource: String? = null
+
     internal fun bundled(context: Context, archive: File): Boolean {
         val copied = runCatching {
             bundle(context).use { input -> archive.outputStream().use { input.copyTo(it) } }
@@ -133,6 +147,17 @@ internal class AddonPack(
         private const val TAG = "AddonPack"
         private const val REPO = "Droid-Deck/DroidDeck-Components"
         private const val PR_REPO = "Droid-Deck/DroidDeck-CI"
+        internal val RETRY_DELAYS_MS = listOf(2_000L, 5_000L, 15_000L)
+
+        /**
+         * Upstream's components release first; then, for a fork's build, the fork's own release of the same pack, which
+         * the fork's CI publishes, so a pack the fork changed is found too; then a PR's pack.
+         */
+        internal fun urls(tag: String, name: String, forkRepo: String, pr: Int): List<String> = listOfNotNull(
+            "https://github.com/$REPO/releases/download/$tag/$name.tar.zst",
+            forkRepo.takeIf { it.isNotEmpty() && it != REPO }?.let { "https://github.com/$it/releases/download/$tag/$name.tar.zst" },
+            pr.takeIf { it > 0 }?.let { "https://github.com/$PR_REPO/releases/download/pr-$it/$tag.tar.zst" },
+        )
         const val COMPLETE = ".complete"
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
