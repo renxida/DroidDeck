@@ -64,4 +64,30 @@ artifact (e.g. a private release) pulled by Kestrel at install time.
 
 ## 4. Measurements
 
-See section 5 (filled from `.github/workflows/native-engine-bench.yml`).
+Run 2026-11-13 on a GitHub `ubuntu-24.04-arm` runner (job 131679200006, commit d6a02c44),
+workflow `.github/workflows/native-engine-bench.yml`. The same Godot 4.5.1 C# stand-in
+(`tools/native-engine/bench`, 1200 measured frames after 240 warmup, headless) exported
+twice: linux-arm64 run natively, and linux-x86_64 run under FEX 2611 (Linux mode, Ubuntu 24.04
+amd64 rootfs). Three runs each.
+
+| Variant | Frame mean | p50 | p95 | p99 | First frame | User CPU (whole run) | Max RSS |
+|---|---|---|---|---|---|---|---|
+| native arm64 | 0.80–0.82 ms | 0.76–0.77 | 0.83–0.84 | 0.95–0.96 | 0.21–0.29 s | 2.07 s | 214 MB |
+| FEX, Kestrel's env (TSO on) | 1.15–1.19 ms | 1.05–1.08 | 1.18–1.56 | 1.67–1.91 | 7.3 s | 10.3 s | 520–528 MB |
+| FEX, TSO off | 1.06–1.11 ms | 0.96–1.01 | 1.06–1.16 | 1.58–1.65 | 7.3 s | 10.0 s | 517–525 MB |
+
+Frame time is the C# `_Process` work measured with a Stopwatch, not engine or GPU time.
+
+Reading it:
+
+- Steady-state managed work is about **1.45x faster native** (mean), **1.8–2x** at p99, so
+  hitches shrink more than the average.
+- Startup to first frame is **about 30x faster** (0.25 s vs 7.3 s): FEX translates CoreCLR and
+  its JIT output cold every launch.
+- Memory is **about 310 MB lower** (214 vs 525 MB RSS) for the same scene.
+- TSO off crashed once in three runs (exit 134), so it stays off the table for CoreCLR.
+
+What this underestimates on the phone: the phone stack also runs Wine, ARM64EC thunks and
+proot, which the native path drops entirely, and Spine and FMOD are C++ that FEX translates
+too. What it overestimates: cloud Neoverse cores are not the Pixel 10's, and the stand-in is
+not the game. GPU and present cost are unchanged by this path (headless here).
