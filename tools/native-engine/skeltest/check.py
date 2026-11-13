@@ -69,8 +69,9 @@ def main(out):
     if not ra or not rb or not ba or not bb:
         print("FAIL: arm or head not drawn")
         return 1
-    # Frame a: arm straight up from (128, 220), 100 long: centroid near x=128, y=170; head near y=120.
-    ok &= abs(ra[1] - 128) < 4 and abs(ra[2] - 170) < 6
+    # Frame a: arm straight up from (128, 220), 100 long; the head (drawn on top, 32 px) covers its top
+    # 16 px, so the visible red runs y=136..220: centroid near x=128, y=178. Head near y=120.
+    ok &= abs(ra[1] - 128) < 4 and abs(ra[2] - 178) < 4
     ok &= abs(ba[1] - 128) < 4 and abs(ba[2] - 120) < 6
     # Frame b: rotated 60 degrees clockwise on screen: head near (128 + 100 sin60, 220 - 100 cos60) = (214.6, 170).
     ok &= abs(bb[1] - 214.6) < 6 and abs(bb[2] - 170) < 6
