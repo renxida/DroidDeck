@@ -42,6 +42,8 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq clang lld llvm ninja-build cmake bc >/dev/null
           WORK="$PWD/fex-ec" tools/fex/arm64ec/build.sh fetch
+          # Keep FEX's symbol table so the profile can name functions (Release links with --strip-all).
+          sed -i '/--strip-all"/d' fex-ec/src/Data/CMake/LinkerGC.cmake
           cmake -S fex-ec/src -B fex-linux -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LINKER=lld \
             -DTUNE_CPU=none -DTUNE_ARCH=armv8-a -DBUILD_TESTING=OFF -DBUILD_FEXCONFIG=OFF -DBUILD_THUNKS=OFF \
