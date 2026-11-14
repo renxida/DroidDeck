@@ -435,3 +435,36 @@ exact. MB resident at FEX's peak (run 43568284554):
 - `fex_game_ldapr` (`FEX_HOSTFEATURES=disablelrcpc2`) segfaults on Linux FEX at this commit before the program
   starts. It's a host-feature override, not something the game uses; recorded, not chased.
 - The bench's artifacts can't be downloaded from here, so `run.sh` echoes every run into the job log.
+
+## Idle threads hold old code and lookup memory (round 14)
+
+The first phone smaps pass (stock FEX-2611-45-gab135df, Slay the Spire 2) put FEX's own memory at about 465 of the
+game's 2,369 MB (resident + swap): code buffers 30 + 201 MB, per-thread L1 16 + 111, FEX malloc 16 + 66, block links
+2 + 20. The rest (1,861 MB) is unlabeled anon until patch 0008 runs.
+
+Why so much, when the off-device bench showed 48-68 MB:
+
+- Code: 231 MB is more than the 128 MB maximum buffer, so older buffers are still alive. Buffers grow 16, 32, 64, 128 MB;
+  a thread switches to the newest only when it next compiles (`AllocateCodeBufferInSharedCache`). Threads parked in waits
+  never compile again and keep their buffer, so the 112 MB of old buffers stay, cold and in swap. The bench shows the
+  same thing at small scale: stock frames held the first 16 MB buffer after moving to 32 (30.9 MB vs 19.5 with a 64 MB start).
+- L1: a dynamic L1 only shrinks in `UpdateDynamicL1Stats`, which runs on the thread's own lookups. A thread that grew
+  to 16 MB and then went idle keeps it. 111 of 127 MB in swap means most of it belongs to idle threads.
+
+Patch 0009 (`TrimIdleThreads`, experiment fex-trim at 30 s): a FEX thread checks every 30 s for threads whose CPU time
+did not change since the last check. Each is suspended the way upstream's `ThreadTerm` does it (NtSuspendThread then
+NtGetContextThread: the thread is outside the JIT and holds no JIT locks), checked for `InSimulation == 0`, and with the
+code invalidation mutex and its lookup map's write lock taken without waiting, its L1, L2, page map and call-return
+stack are decommitted and it is pointed at the newest code buffer. Nothing is allocated or freed while it is suspended;
+old buffers are dropped after it resumes, and the emptied ranges are renamed so smaps still files them under FEX.
+
+Expected on the phone: up to 112 MB of old code buffers, most of the 111 MB of swapped L1, and the old buffers' block
+links and block maps, about 240 MB, almost all of it swap. Cost: a woken thread refills its L1 from the shared block
+map, and a thread that was moved retranslates what it runs (it would have on its next compile anyway). A pass suspends
+only threads newly idle, one at a time; each is trimmed once until it runs again.
+
+Not testable off-device: the bench runs FEX on Linux, where a guest syscall returns into JIT code, so a thread blocked
+in one cannot be moved. Under ARM64EC, syscalls and calls to native code leave the JIT without a host return address
+(`JumpSetStack`, `ExitFunctionEC`), which is what makes this safe there. Check on the phone: the log line
+`TrimIdleThreads: N threads, M newly idle, T trimmed, S skipped, K moved, B old code buffers freed`, and smaps.csv
+fex-code and fex-lookup-l1 falling after the first minute.
