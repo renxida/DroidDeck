@@ -157,7 +157,7 @@ jobs:
             echo '```json'; cat out/verdict.json 2>/dev/null || echo '{"ok": false, "stage_reached": null}'; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           # Printed in full, because the job log is readable where artifacts are not.
-          for f in events.jsonl session.log crash.log graphics-report.txt; do
+          for f in events.jsonl session.log crash.log graphics-report.txt frames.csv; do
             [ -f "out/rig-session/$f" ] || continue
             echo "::group::session $f"; tail -c 30000 "out/rig-session/$f"; echo; echo "::endgroup::"
           done

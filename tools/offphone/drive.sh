@@ -145,10 +145,22 @@ rm -rf "$out/rig-session"
 [ -n "$dir" ] && adb pull "${dir%/}" "$out/rig-session" >/dev/null 2>&1 && echo "rig: session folder $(basename "$dir")"
 # The app keeps per-game logs (Proton's own log, DXVK, Mesa) under games/ on a GPU that is
 # not an Adreno, which CI Android is not.
+# FEX's own "D <tid>" lines (handled exceptions) are dropped; they drown the Wine and game lines.
 for f in $(find "$out/rig-session/games" -type f 2>/dev/null | sort); do
-  echo "::group::game log ${f#$out/rig-session/} (last 300 lines)"; tail -n 300 "$f" | cut -c1-300; echo; echo "::endgroup::"
+  n=$(grep -cv '^D [0-9]' "$f")
+  echo "::group::game log ${f#$out/rig-session/} ($n lines without FEX's D lines; first 150 and last 250)"
+  if [ "$n" -gt 400 ]; then grep -v '^D [0-9]' "$f" | head -150; echo "..."; grep -v '^D [0-9]' "$f" | tail -250
+  else grep -v '^D [0-9]' "$f"; fi | cut -c1-300
+  echo; echo "::endgroup::"
 done
+if [ "$scenario" = stand-in-game ]; then
+  echo "rig: stand-in folder: $(ls "$standin" | tr '\n' ' ')"
+  # Godot's own log, in the game's prefix.
+  adb pull "$fs/root/.local/share/Steam/steamapps/compatdata/4055603035/pfx/drive_c/users/steamuser/AppData/Roaming/Godot/app_userdata/StandIn/logs" "$out/godot-logs" >/dev/null 2>&1 || true
+  for f in "$out"/godot-logs/*.log; do [ -f "$f" ] && { echo "::group::Godot $(basename "$f")"; tail -n 200 "$f" | cut -c1-300; echo "::endgroup::"; }; done
+  echo "rig: stand-in markers anywhere: $(grep -rhoE '^(STANDIN_DEPS|FIRST_FRAME|MAINLOOP_OK)[^\r]*' "$out/rig-session" "$out/godot-logs" 2>/dev/null | cut -c1-120 | tr '\n' '|')"
+fi
 echo "::group::all app processes at the end"; cat "$out/ps-end.txt" 2>/dev/null | cut -c1-240; echo "::endgroup::"
 echo "rig: session folder files:"; ls -la "$out/rig-session" 2>/dev/null
-python3 "$here/verdict.py" --session-dir "$out/rig-session" --scenario "$scenario" \
+python3 "$here/verdict.py" --session-dir "$out/rig-session" --extra-logs "$out/godot-logs" --scenario "$scenario" \
   --rig-events "$out/rig-events.jsonl" --out "$out/verdict.json"

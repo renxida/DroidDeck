@@ -51,6 +51,7 @@ def main():
     ap.add_argument("--session-dir", required=True)
     ap.add_argument("--scenario", choices=sorted(SCENARIOS), required=True)
     ap.add_argument("--rig-events")
+    ap.add_argument("--extra-logs", help="more folders whose logs may hold the stand-in's markers")
     ap.add_argument("--out", default="verdict.json")
     a = ap.parse_args()
 
@@ -71,8 +72,15 @@ def main():
             seen[name] = e["t"]
 
     # The stand-in prints its own markers; the session log carries the guest's stdout.
-    log = os.path.join(a.session_dir, "session.log")
-    if os.path.isfile(log):
+    # Under Proton the game's stdout can land in Proton's own log (games/*/steam-*.log) instead.
+    logs = [os.path.join(a.session_dir, "session.log")]
+    for folder in (os.path.join(a.session_dir, "games"), a.extra_logs):
+        if folder and os.path.isdir(folder):
+            for root, _, files in os.walk(folder):
+                logs += [os.path.join(root, f) for f in files if f.endswith((".log", ".txt"))]
+    for log in logs:
+        if not os.path.isfile(log):
+            continue
         text = open(log, encoding="utf-8", errors="replace").read()
         for stage, pattern in (("standin_first_frame", r"^FIRST_FRAME"), ("standin_mainloop_ok", r"^MAINLOOP_OK")):
             if stage not in seen and re.search(pattern, text, re.M):
