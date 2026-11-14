@@ -88,9 +88,11 @@ case $status in
 esac
 echo "$label: $verdict after $((end - start)) s ($(cat "$out/$label.maps" 2>/dev/null | head -1))"
 echo "$label: last heartbeat: $(grep -aE "$hb_re" "$log" | tail -1)"
-# One machine-readable line for the gate: verdict, seconds, last ops count, seconds that made no progress.
+# One machine-readable line for the gate: verdict, wall seconds, last ops count, seconds that made no progress, and
+# the seconds the last heartbeat reports (t=, the time the ops took; wall seconds when the program has no t=).
 ops=$(grep -aE "$hb_re" "$log" | tail -1 | grep -oE "$ops_key=[0-9]+" | cut -d= -f2)
-echo "VERDICT $label $verdict $((end - start)) ${ops:-0} $(grep -ac 'STALLED' "$log")"
+busy=$(grep -aE "$hb_re" "$log" | tail -1 | grep -oE "(^| )t=[0-9]+" | cut -d= -f2)
+echo "VERDICT $label $verdict $((end - start)) ${ops:-0} $(grep -ac 'STALLED' "$log") ${busy:-$((end - start))}"
 grep -a -i "fex\|Sampler\|NameWindowsMemory\|TrimIdleThreads" "$err" | tail -10 || true
 for csv in "$out"/fex-*-samples.csv; do
   [ -f "$csv" ] || continue
