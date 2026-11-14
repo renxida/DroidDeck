@@ -2152,6 +2152,7 @@
     <string name="exp_pe_align">Memory: run games from a copy of the .exe that Wine maps instead of copying (uses disk space)</string>
     <string name="exp_fex_cache_keep">Startup: keep FEX\'s translated code when switching FEX builds</string>
     <string name="exp_fex_trim">Memory: idle game threads give back FEX\'s cached code and lookups</string>
+    <string name="exp_native_r2r">Godot C# games on Lanner\'s engine: after the first frame, compile the game\'s code ahead of time for ARM and use it from the next launch (needs the native engine)</string>
     <string name="exp_vk_blocks_64">Graphics memory: the game\'s Vulkan memory grows in 64 MB blocks, not 256 MB</string>
     <string name="exp_fex_smaps">Memory: map where the game\'s memory goes, by owner, once a minute</string>
     <string name="exp_fex_sample">FEX: sample where game threads spend their time (Kestrel\'s FEX)</string>

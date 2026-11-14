@@ -76,6 +76,7 @@ class ExperimentsTest {
             "fex-cache-keep" to "DROIDDECK_EXP_FEX_CACHE_KEEP",
             "pe-align" to "DROIDDECK_EXP_PE_ALIGN",
             "vk-blocks-64" to "DROIDDECK_EXP_VK_BLOCKS_64",
+            "native-r2r" to "DROIDDECK_EXP_NATIVE_R2R",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

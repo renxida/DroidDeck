@@ -20,7 +20,8 @@ mkdir -p "$DIR"
 python3 -I - "$TMP/p.nupkg" "$DIR" "$HOST" "$MACHINE" <<'PY'
 import os, sys, zipfile
 package, folder, host, machine = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
-wanted = ("tools/crossgen2", "tools/libclrjit_win_x64_%s.so" % host, "tools/libjitinterface_%s.so" % host, "LICENSE.TXT")
+wanted = ("tools/crossgen2", "tools/libclrjit_win_x64_%s.so" % host, "tools/libjitinterface_%s.so" % host, "LICENSE.TXT",
+          "tools/libclrjit_universal_arm64_%s.so" % host)
 with zipfile.ZipFile(package) as z:
     for name in wanted:
         target = os.path.join(folder, name.split("/")[-1])
