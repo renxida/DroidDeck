@@ -3471,7 +3471,43 @@ NATIVE_START_S = 60
 NATIVE_NO_FIRST_FRAME = 86
 
 
-def native_engine(command, env, run=subprocess.run, clock=time.monotonic):
+# Waits for this launch (the game-env process, which becomes Proton's) to end, then runs the native check at low
+# priority, logs it beside its result and removes its scratch launch folder: off the launch path.
+NATIVE_CHECK_LATER = ('while kill -0 "$1" 2>/dev/null; do sleep 15; done; scratch=$2; shift 2; '
+                      '"$@" > "$scratch.log" 2>&1; rm -rf "$scratch"')
+
+
+def native_check(folder, exe, name, env, popen=subprocess.Popen, ng=None):
+    """(note to skip the native path with, or None; notes). Consults droiddeck-native-godot's last `check` of these
+    game files with this component and converter: a failure skips native up front. With no such result, a check
+    is scheduled for after this session (detached, nice 19) so the next launch knows."""
+    if ng is None:
+        try:
+            ng = runpy.run_path(NATIVE_GODOT)
+        except Exception:  # not installed, or broken: the run itself still guards the launch
+            return None, []
+    try:
+        result = ng["fresh_check"](folder, name=name)
+    except Exception:
+        result = None
+    if result is not None:
+        if result.get("result") == "fail":
+            why = "; ".join(result.get("reasons") or [])[:300]
+            return "native-engine: skipped, the last check of these game files failed (%s); Proton" % why, []
+        return None, ["native-engine: the last check of these game files passed"]
+    scratch = os.path.join(ng["CHECK_DIR"], name + ".launch")
+    check = ["nice", "-n", "19", sys.executable, NATIVE_GODOT, "check", "--fetch", "--game-dir", folder,
+             "--exe", exe, "--out", scratch, "--name", name]
+    try:
+        popen(["sh", "-c", NATIVE_CHECK_LATER, "sh", str(os.getpid()), scratch] + check,
+              env={k: v for k, v in env.items() if k != "LD_PRELOAD"}, stdin=subprocess.DEVNULL,
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError as error:
+        return None, ["native-engine: check not scheduled (%s)" % error]
+    return None, ["native-engine: no check of these game files yet; one runs after this session"]
+
+
+def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=subprocess.Popen, ng=None):
     """Under native-engine, a Godot C# game (a data_*_windows_x86_64 folder next to the exe) runs on Kestrel's
     own linux-arm64 engine. Returns the exit code to end with, or None to go on to Proton."""
     if not experiment(env, "native-engine") or len(command) < 3:
@@ -3484,6 +3520,9 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic):
         managed = []
     if len(managed) != 1:
         return None, ["native-engine: not a Godot C# game; Proton"]
+    skip, checked = native_check(folder, os.path.basename(exe), game_id(env) or "game", env, popen=popen, ng=ng)
+    if skip:
+        return None, checked + [skip]
     out = os.path.join(os.path.expanduser("~"), ".cache", "droiddeck", "native", "launch", game_id(env) or "game")
     args = [sys.executable, NATIVE_GODOT, "run", "--fetch", "--game-dir", folder, "--exe", os.path.basename(exe),
             "--out", out, "--"] + list(command[3:])
@@ -3500,16 +3539,16 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic):
     try:
         rc = run(args, env=env, stdin=subprocess.DEVNULL, stdout=log or None, stderr=subprocess.STDOUT if log else None).returncode
     except OSError as error:
-        return None, vulkan_notes + ["native-engine: could not start (%s); Proton" % error]
+        return None, checked + vulkan_notes + ["native-engine: could not start (%s); Proton" % error]
     finally:
         if log:
             log.close()
     took = clock() - began
-    notes = list(vulkan_notes)
+    notes = checked + vulkan_notes
     if rc != 0 and path:
         try:
             with open(path, encoding="utf-8", errors="replace") as f:
-                notes = ["native-engine log: " + line.rstrip() for line in f.readlines()[-30:]]
+                notes += ["native-engine log: " + line.rstrip() for line in f.readlines()[-30:]]
         except OSError:
             pass
     if rc == NATIVE_NO_FIRST_FRAME:

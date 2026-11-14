@@ -1,0 +1,317 @@
+name: Native engine ReadyToRun for linux-arm64 (experiment native-r2r)
+
+# droiddeck-native-godot's native-r2r experiment end to end on arm64, with public code only (no game files):
+# a small net9 library and host are published for win-x64 with ReadyToRun (the real flags a Windows game ships
+# with), composed as a "game" by the wrapper, which strips their x64 code; after the first frame of a stand-in
+# engine the wrapper's background job compiles them with the phone's crossgen2 (linux-arm64 build, pinned) to
+# linux-arm64 ReadyToRun; the next compose puts those images in place. Then arm64 .NET runs the host three ways
+# (stripped IL, our ReadyToRun images, our images with DOTNET_ReadyToRun=0) and counts what it JITs.
+# The bench job measures the real engine (the pinned published component) on the bench's Windows export, with
+# and without the experiment.
+
+on:
+  push:
+    branches: [native/arm64-r2r]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CROSSGEN2_VERSION: 9.0.23
+  CROSSGEN2_SHA256: d8193474cde586e1d419e95ea6ffe300adcf2c752f58461c4c14b23bf7becc4c
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  r2r:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Unit tests
+        run: python3 tools/tests/test_native_godot.py
+      - name: Fetch crossgen2 (linux-arm64 nuget package, sha256 pinned) in the phone's layout plus the arm64 JIT
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          mkdir -p "$T/dl" "$T/crossgen2"
+          p=microsoft.netcore.app.crossgen2.linux-arm64
+          curl -fsSL --retry 5 --retry-all-errors -o "$T/dl/cg.nupkg" \
+            "https://api.nuget.org/v3-flatcontainer/$p/$CROSSGEN2_VERSION/$p.$CROSSGEN2_VERSION.nupkg"
+          echo "$CROSSGEN2_SHA256  $T/dl/cg.nupkg" | sha256sum -c -
+          # What the phone has today (fetch-crossgen2.sh) plus the code generator a linux-arm64 target needs.
+          unzip -j -o -q "$T/dl/cg.nupkg" tools/crossgen2 tools/libjitinterface_arm64.so tools/libclrjit_win_x64_arm64.so \
+            tools/libclrjit_universal_arm64_arm64.so LICENSE.TXT -d "$T/crossgen2"
+          chmod +x "$T/crossgen2/crossgen2"
+          "$T/crossgen2/crossgen2" --version
+          ls -la "$T/crossgen2"
+      - name: Publish the library and host for win-x64 with ReadyToRun
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          dotnet publish tools/native-engine/r2r-arm64/Host -c Release -r win-x64 --self-contained false \
+            -p:PublishReadyToRun=true -o "$T/win" 2>&1 | tail -3
+          ls -la "$T/win"
+          # The same code without ReadyToRun: the JIT baseline on arm64.
+          dotnet publish tools/native-engine/r2r-arm64/Host -c Release -r win-x64 --self-contained false \
+            -p:PublishReadyToRun=false -o "$T/win-il" 2>&1 | tail -1
+          python3 - "$T/win" <<'PY'
+          import runpy, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          for name in ("KestrelLib.dll", "KestrelHost.dll"):
+              info = ng["pe_info"](open(f"{sys.argv[1]}/{name}", "rb").read())
+              print(f"{name}: machine {info['machine']:#x} corflags {info['flags']:#x} ready_to_run {info['ready_to_run']}")
+              assert info["machine"] == 0x8664 and info["ready_to_run"], "expected a win-x64 ReadyToRun image"
+          PY
+      - name: Lay out a game folder, a kit (this runner's linux-arm64 framework) and a stand-in engine
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          line=$(dotnet --list-runtimes | awk '$1 == "Microsoft.NETCore.App" && $2 ~ /^9\./' | tail -1)
+          FXVER=$(echo "$line" | awk '{print $2}')
+          FXDIR=$(echo "$line" | sed -E 's/.*\[(.*)\]/\1/')/$FXVER
+          echo "framework $FXVER at $FXDIR"
+          echo "FXVER=$FXVER" >> "$GITHUB_ENV"
+          mkdir -p "$T/game/data_KestrelHost_windows_x86_64" "$T/kit"
+          cp -a "$T/win/." "$T/game/data_KestrelHost_windows_x86_64/"
+          echo GDPC > "$T/game/KestrelHost.pck"
+          cp -a "$FXDIR/." "$T/kit/"
+          printf '{"runtimeOptions": {"tfm": "net9.0", "includedFrameworks": [{"name": "Microsoft.NETCore.App", "version": "%s"}]}}\n' "$FXVER" > "$T/kit/Kit.runtimeconfig.json"
+          echo '{"app": ["Kit.runtimeconfig.json"], "runtimeconfig": "Kit.runtimeconfig.json"}' > "$T/kit/kit.json"
+          # Stands in for the Godot engine: its first frame-rate line is what the wrapper's watchdog waits for.
+          printf '#!/bin/sh\necho "Project FPS: 60 (16.67 mspf)"\nsleep 2\n' > "$T/engine"
+          chmod +x "$T/engine"
+      - name: Without the arm64 code generator (the phone's crossgen2 today) nothing is compiled
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          mkdir -p "$T/cg-today"
+          cp "$T/crossgen2/crossgen2" "$T/crossgen2/libjitinterface_arm64.so" "$T/crossgen2/libclrjit_win_x64_arm64.so" "$T/cg-today/"
+          DROIDDECK_EXP_NATIVE_R2R=1 DROIDDECK_CROSSGEN2="$T/cg-today" DROIDDECK_NATIVE_R2R_CACHE="$T/r2r-today" \
+            python3 tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot compose --game-dir "$T/game" --kit "$T/kit" \
+            --engine "$T/engine" --out "$T/launch-today" --exe KestrelHost.exe 2>&1 >/dev/null | tee today.log
+          grep -q "lacks libclrjit_universal_arm64_arm64.so" today.log
+          # What crossgen2 takes: the launch copy (relabelled, R2R header kept) or a scratch copy with the header
+          # cleared and IL-only set (crossgen2_input); and the phone's crossgen2 today without the arm64 JIT.
+          python3 - "$T/win/KestrelLib.dll" "$T/KestrelLib.input.dll" <<'PY'
+          import runpy, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          open(sys.argv[2], "wb").write(ng["crossgen2_input"](open(sys.argv[1], "rb").read()))
+          PY
+          set +e
+          for input in "$T/launch-today/data_KestrelHost_linuxbsd_arm64/KestrelLib.dll" "$T/KestrelLib.input.dll"; do
+            for cg in crossgen2 cg-today; do
+              rm -f "$T/probe.dll"
+              "$T/$cg/crossgen2" "$input" -o "$T/probe.dll" --targetos linux --targetarch arm64 -O --parallelism 2 \
+                -r "$T/kit/*.dll" > probe.txt 2>&1
+              rc=$?
+              out=$(python3 -c 'import runpy,sys; ng=runpy.run_path(sys.argv[1]); d=open(sys.argv[2],"rb").read(); i=ng["pe_info"](d); print("machine %#x r2r %s linux_arm64_r2r %s" % (i["machine"], i["ready_to_run"], ng["is_linux_arm64_r2r"](d)))' \
+                tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot "$T/probe.dll" 2>/dev/null || echo "no output")
+              echo "$(basename "$input") with $cg: exit $rc, $out; $(grep -m1 -iE 'error|already' probe.txt)" | tee -a cg-today.txt
+            done
+          done
+          set -e
+      - name: Launch twice through the wrapper; the first launch compiles in the background after its first frame
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          W=tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot
+          export DROIDDECK_EXP_NATIVE_R2R=1 DROIDDECK_CROSSGEN2="$T/crossgen2" DROIDDECK_NATIVE_R2R_CACHE="$T/r2r-cache"
+          python3 "$W" run --game-dir "$T/game" --kit "$T/kit" --engine "$T/engine" --out "$T/launch" --exe KestrelHost.exe 2>&1 | tee run1.log
+          grep -q "native-r2r: 0 of 2 game assemblies" run1.log
+          grep -q "compiling 2 assemblies in the background" run1.log
+          for i in $(seq 1 300); do
+            grep -q "native-r2r .*: compiled" "$T/r2r-cache/compile.log" 2>/dev/null && break
+            sleep 1
+          done
+          cat "$T/r2r-cache/compile.log"
+          grep -q "compiled 2 of 2" "$T/r2r-cache/compile.log"
+          ls -laR "$T/r2r-cache"
+          python3 "$W" compose --game-dir "$T/game" --kit "$T/kit" --engine "$T/engine" --out "$T/launch" --exe KestrelHost.exe 2>&1 >/dev/null | tee run2.log
+          grep -q "native-r2r: 2 of 2 game assemblies from the linux-arm64 ReadyToRun cache" run2.log
+          python3 - "$T/launch/data_KestrelHost_linuxbsd_arm64" <<'PY'
+          import runpy, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          for name in ("KestrelLib.dll", "KestrelHost.dll"):
+              data = open(f"{sys.argv[1]}/{name}", "rb").read()
+              info = ng["pe_info"](data)
+              print(f"{name}: machine {info['machine']:#x} corflags {info['flags']:#x} ready_to_run {info['ready_to_run']} size {len(data)}")
+              assert ng["is_linux_arm64_r2r"](data)
+          PY
+      - name: Run on arm64 .NET and count JIT compiles (IL / our ReadyToRun / ours with ReadyToRun off)
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          mkdir -p "$T/run-il" "$T/run-r2r" "$T/run-relabel" "$T/run-relabel-lib"
+          # The JIT baseline: the same code published without ReadyToRun (IL, relabelled if it says x64).
+          # Diagnostics: the win-x64 ReadyToRun images only relabelled (what compose puts in the launch folder
+          # without this experiment), both of them, and the library alone beside an IL host.
+          python3 - "$T" <<'PY'
+          import runpy, shutil, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          T = sys.argv[1]
+          def put(src, dst):
+              data = open(src, "rb").read()
+              img, note = ng["portable_image"](data)
+              open(dst, "wb").write(img or data)
+              print(dst, note or "as it is")
+          for name in ("KestrelLib.dll", "KestrelHost.dll"):
+              put(f"{T}/win-il/{name}", f"{T}/run-il/{name}")
+              put(f"{T}/win/{name}", f"{T}/run-relabel/{name}")
+          put(f"{T}/win-il/KestrelHost.dll", f"{T}/run-relabel-lib/KestrelHost.dll")
+          put(f"{T}/win/KestrelLib.dll", f"{T}/run-relabel-lib/KestrelLib.dll")
+          PY
+          cp "$T/launch/data_KestrelHost_linuxbsd_arm64/KestrelLib.dll" "$T/launch/data_KestrelHost_linuxbsd_arm64/KestrelHost.dll" "$T/run-r2r/"
+          for d in run-il run-r2r run-relabel run-relabel-lib; do cp "$T/win/KestrelHost.runtimeconfig.json" "$T/$d/"; done
+          for d in run-relabel run-relabel-lib; do
+            set +e
+            dotnet "$T/$d/KestrelHost.dll" 50 > "$d.out" 2> "$d.err"
+            echo "diagnostic $d: exit $? $(head -c 300 "$d.out") $(grep -m1 -E 'Exception' "$d.err")" | tee -a diagnostics.txt
+            set -e
+          done
+          echo "label,own_first,own_tier1,all_first,all" > counts.csv
+          run() {  # label dir [env...]
+            label=$1 dir=$2; shift 2
+            set +e
+            env "$@" dotnet "$T/$dir/KestrelHost.dll" 300 > "$label.plain.out" 2> "$label.plain.err"
+            echo "$label without JIT logging: exit $?"; tail -c 3000 "$label.plain.err"
+            env "$@" DOTNET_TieredPGO=0 DOTNET_JitDisasmSummary=1 DOTNET_JitStdOutFile="$PWD/$label.jit.txt" \
+              dotnet "$T/$dir/KestrelHost.dll" 300 > "$label.out" 2> "$label.err"
+            rc=$?
+            set -e
+            echo "$label with JIT logging: exit $rc"
+            if [ $rc -ne 0 ]; then tail -c 3000 "$label.err"; tail -5 "$label.jit.txt" || true; return 1; fi
+            python3 tools/native-engine/r2r-arm64/jit-count.py "$label" "$label.jit.txt" Kestrel >> counts.csv
+            ms=()
+            for i in 1 2 3 4 5 6 7; do
+              s=$(date +%s%N); env "$@" dotnet "$T/$dir/KestrelHost.dll" 300 > /dev/null; e=$(date +%s%N)
+              ms+=($(( (e - s) / 1000000 )))
+            done
+            echo "$label wall_ms (7 runs, sorted): $(printf '%s\n' "${ms[@]}" | sort -n | tr '\n' ' ')" | tee -a times.txt
+          }
+          fail=0
+          run il run-il || fail=1
+          run r2r run-r2r || fail=1
+          run r2r-off run-r2r DOTNET_ReadyToRun=0 || fail=1
+          cat counts.csv
+          [ $fail = 0 ]
+          cat il.err
+          head -1 il.out
+          cmp il.out r2r.out && cmp il.out r2r-off.out
+          python3 - <<'PY'
+          import csv
+          rows = {r["label"]: {k: int(v) for k, v in r.items() if k != "label"} for r in csv.DictReader(open("counts.csv"))}
+          il, r2r, off = rows["il"]["own_first"], rows["r2r"]["own_first"], rows["r2r-off"]["own_first"]
+          print(f"own methods JIT'd at first call: IL {il}, our linux-arm64 ReadyToRun {r2r}, same with DOTNET_ReadyToRun=0 {off}")
+          assert il >= 50, "too few methods to tell"
+          assert r2r * 4 <= il, "the ReadyToRun code was not used"
+          assert off * 10 >= il * 9, "with ReadyToRun off the JIT should compile them all again"
+          PY
+          { echo '### Our linux-arm64 ReadyToRun images on arm64 .NET'; echo '```'; cat counts.csv times.txt diagnostics.txt cg-today.txt "$T/r2r-cache/compile.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-r2r
+          path: |
+            *.log
+            *.jit.txt
+            *.out
+            *.err
+            counts.csv
+            times.txt
+            cg-today.txt
+          if-no-files-found: warn
+
+  bench:
+    # Optional: the real engine (pinned published component) on the bench's Windows export, first frame and JIT
+    # counts with and without the experiment.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    continue-on-error: true
+    env:
+      GODOT_VER: 4.5.1-stable
+      GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.5.1-stable
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Fetch crossgen2 (pinned)
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          mkdir -p "$T/crossgen2"
+          p=microsoft.netcore.app.crossgen2.linux-arm64
+          curl -fsSL --retry 5 --retry-all-errors -o "$T/cg.nupkg" \
+            "https://api.nuget.org/v3-flatcontainer/$p/$CROSSGEN2_VERSION/$p.$CROSSGEN2_VERSION.nupkg"
+          echo "$CROSSGEN2_SHA256  $T/cg.nupkg" | sha256sum -c -
+          unzip -j -o -q "$T/cg.nupkg" tools/crossgen2 tools/libjitinterface_arm64.so tools/libclrjit_universal_arm64_arm64.so -d "$T/crossgen2"
+          chmod +x "$T/crossgen2/crossgen2"
+      - name: Fetch the official editor + templates and export the bench for Windows
+        working-directory: tools/native-engine/bench
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot && (cd ~/godot && curl -fsSL -o ed.zip "$GODOT_URL/Godot_v${GODOT_VER}_mono_linux_arm64.zip" && unzip -q ed.zip)
+          GODOT=$(find ~/godot -name 'Godot_v*_mono_linux.arm64' -type f | head -1)
+          chmod +x "$GODOT"
+          (cd ~/godot && curl -fsSL -o t.tpz "$GODOT_URL/Godot_v${GODOT_VER}_mono_export_templates.tpz")
+          TPL=~/.local/share/godot/export_templates/4.5.1.stable.mono
+          mkdir -p "$TPL" && unzip -q ~/godot/t.tpz -d ~/godot/tt && mv ~/godot/tt/templates/* "$TPL"/
+          timeout 600 dotnet build NativeBench.csproj -c ExportRelease 2>&1 | tail -3
+          timeout 300 "$GODOT" --headless --path . --import > /dev/null 2>&1 || true
+          mkdir -p out/windows
+          timeout 900 "$GODOT" --headless --path . --export-release windows out/windows/NativeBench.exe > export-win.log 2>&1 || echo "export exit $?"
+          test -d out/windows/data_NativeBench_windows_x86_64 || { tail -40 export-win.log; exit 1; }
+          echo "$(ls out/windows/data_NativeBench_windows_x86_64 | wc -l) files in the Windows data folder"
+      - name: First frame and JIT counts, JIT only vs our linux-arm64 ReadyToRun
+        working-directory: tools/native-engine/bench
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          W=$GITHUB_WORKSPACE/tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot
+          export DROIDDECK_CROSSGEN2="$T/crossgen2" DROIDDECK_NATIVE_R2R_CACHE="$T/r2r-cache" DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+          launch() {  # label [env...]
+            label=$1; shift
+            env "$@" timeout 300 python3 "$W" run --fetch --game-dir out/windows --out "$T/launch" --exe NativeBench.exe \
+              -- --headless > "$label.log" 2>&1 || echo "$label exit $?"
+            ff=$(sed -nE 's/.*FIRST_FRAME_MS ([0-9]+).*/\1/p' "$label.log" | head -1)
+            wd=$(sed -nE 's/.*first frame after ([0-9.]+) s.*/\1/p' "$label.log" | head -1)
+            echo "$label first_frame_ms=$ff watchdog_first_frame_s=$wd $(grep -o 'BENCH_JSON.*' "$label.log" | head -1)" | tee -a bench.txt
+          }
+          # Warm the component and Steam library downloads first.
+          launch warmup
+          for i in 1 2 3 4 5; do launch "jit-$i"; done
+          launch compile DROIDDECK_EXP_NATIVE_R2R=1
+          grep -E "native-r2r" compile.log || true
+          for i in $(seq 1 600); do
+            grep -q "native-r2r .*: compiled" "$T/r2r-cache/compile.log" 2>/dev/null && break
+            sleep 1
+          done
+          cat "$T/r2r-cache/compile.log"
+          for i in 1 2 3 4 5; do launch "r2r-$i" DROIDDECK_EXP_NATIVE_R2R=1; done
+          grep -E "native-r2r" r2r-1.log
+          launch jit-count DOTNET_JitDisasmSummary=1 DOTNET_JitStdOutFile="$PWD/jit.jit.txt"
+          launch r2r-count DROIDDECK_EXP_NATIVE_R2R=1 DOTNET_JitDisasmSummary=1 DOTNET_JitStdOutFile="$PWD/r2r.jit.txt"
+          echo "label,own_first,own_tier1,all_first,all" > counts.csv
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/r2r-arm64/jit-count.py" jit jit.jit.txt Main >> counts.csv
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/r2r-arm64/jit-count.py" r2r r2r.jit.txt Main >> counts.csv
+          cat counts.csv
+          { echo '### Bench (Windows export) on the pinned engine, JIT vs native-r2r'; echo '```'; cat bench.txt counts.csv "$T/r2r-cache/compile.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-r2r-bench
+          path: |
+            tools/native-engine/bench/*.log
+            tools/native-engine/bench/*.jit.txt
+            tools/native-engine/bench/bench.txt
+            tools/native-engine/bench/counts.csv
+          if-no-files-found: warn

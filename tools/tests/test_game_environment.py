@@ -3515,3 +3515,87 @@ class ForceSsbsTest(unittest.TestCase):
                 self.assertEqual(MODULE["force_ssbs"]([str(x86 / "proton")], on), on)
             finally:
                 g["SSBS_LIB"] = old
+
+
+class NativeEngineCheckTest(unittest.TestCase):
+    """native-engine consults droiddeck-native-godot's `check` result and schedules a new one off the launch path."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.game = self.root / "Game"
+        (self.game / "data_game_windows_x86_64").mkdir(parents=True)
+        self.cmd = ["/proton", "waitforexitandrun", str(self.game / "Game.exe")]
+        self.env = {"DROIDDECK_EXP_NATIVE_ENGINE": "1", "STEAM_COMPAT_DATA_PATH": "/compat/42",
+                    "LD_PRELOAD": "/x/gameoverlayrenderer.so"}
+        self.runs, self.spawned, self.asked = [], [], []
+
+    def hook(self, result, ng=True):
+        def fresh_check(folder, name=None):
+            self.asked.append((folder, name))
+            return result
+
+        class Done:
+            returncode = 0
+
+        ng = {"fresh_check": fresh_check, "CHECK_DIR": str(self.root / "check")} if ng else None
+        times = iter([10.0, 910.0])
+        return MODULE["native_engine"](self.cmd, self.env, run=lambda args, **kw: self.runs.append(args) or Done(),
+                                       clock=lambda: next(times),
+                                       popen=lambda args, **kw: self.spawned.append((args, kw)), ng=ng)
+
+    def test_a_failed_check_skips_native_up_front(self):
+        rc, notes = self.hook({"result": "fail", "reasons": ["compose stopped: game.dll: mixed-mode"]})
+        self.assertIsNone(rc)
+        self.assertEqual([], self.runs)
+        self.assertEqual([], self.spawned)
+        self.assertIn("last check of these game files failed (compose stopped: game.dll: mixed-mode)", notes[-1])
+        self.assertTrue(notes[-1].endswith("Proton"))
+        self.assertEqual([(str(self.game), "42")], self.asked)
+
+    def test_a_passed_check_runs_native_without_a_new_check(self):
+        rc, notes = self.hook({"result": "pass"})
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(self.runs))
+        self.assertEqual([], self.spawned)
+        self.assertIn("native-engine: the last check of these game files passed", notes)
+
+    def test_no_result_runs_native_and_schedules_a_check_after_the_session(self):
+        rc, notes = self.hook(None)
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(self.runs))
+        (args, kw), = self.spawned
+        self.assertEqual(["sh", "-c", MODULE["NATIVE_CHECK_LATER"], "sh", str(os.getpid())], args[:5])
+        scratch = str(self.root / "check" / "42.launch")
+        self.assertEqual(scratch, args[5])
+        self.assertEqual(["nice", "-n", "19"], args[6:9])
+        self.assertEqual(["check", "--fetch", "--game-dir", str(self.game), "--exe", "Game.exe", "--out", scratch,
+                          "--name", "42"], args[11:])
+        self.assertTrue(kw["start_new_session"])
+        self.assertNotIn("LD_PRELOAD", kw["env"])
+        self.assertTrue(any("one runs after this session" in n for n in notes))
+
+    def test_the_later_check_waits_for_the_launch_then_cleans_up(self):
+        gone = subprocess.Popen(["true"])
+        gone.wait()
+        scratch = self.root / "check" / "42.launch"
+        scratch.mkdir(parents=True)
+        marker = self.root / "ran"
+        subprocess.run(["sh", "-c", MODULE["NATIVE_CHECK_LATER"], "sh", str(gone.pid), str(scratch),
+                        "sh", "-c", 'echo checked; touch "$0"', str(marker)], check=True, timeout=30)
+        self.assertTrue(marker.exists())
+        self.assertFalse(scratch.exists())
+        self.assertEqual("checked\n", (self.root / "check" / "42.launch.log").read_text())
+
+    def test_without_the_check_tool_native_runs_as_before(self):
+        g = MODULE["native_engine"].__globals__
+        old = g["NATIVE_GODOT"]
+        g["NATIVE_GODOT"] = str(self.root / "missing")
+        try:
+            rc, _ = self.hook(None, ng=False)
+        finally:
+            g["NATIVE_GODOT"] = old
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(self.runs))
+        self.assertEqual([], self.spawned)

@@ -130,6 +130,38 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
 - Expected first-run gaps: no Spine drawing and no audio until the stand-ins match the game's names;
   Steam goes through Valve's own linux-arm64 libsteam_api.so to the real arm64 client in the session; Sentry absent.
 
+### Startup gate (CI) and phone dry run
+
+- `.github/workflows/native-startup-gate.yml` (also `workflow_call`; input `component`: `pinned` or a
+  `native-engine-N` tag; `soak`): a stand-in Godot 4.5.1 C# game, `tools/native-engine/standin` (our code plus
+  public NuGet packages: Sentry, 0Harmony, MonoMod.Backports/ILHelpers, SmartFormat+ZString, Steamworks.NET
+  (a managed value type only, no SteamAPI_Init), Vortice.Mathematics/DXGI+SharpGen.Runtime,
+  JetBrains.Annotations, System.IO.Hashing; a Windows-only `.gdextension`), exported for Windows x86_64 with
+  ReadyToRun on/off x deps on/off x extension present/missing, then run on `ubuntu-24.04-arm` through the
+  wrapper from the checkout on the published component, 3x per row, plus Xvfb rows (opengl3, Vulkan on
+  lavapipe). Self-test rows run older converters and must fail: 7754c57b (same file as 0aa91a7) at compose
+  ("mixed-mode"), d68b35ad and f86b8550 at load (Godot: "Failed to get GodotPlugins initialization function
+  pointer"). VERIFIED (run 43632103981): every R2R row starts on da7d6114 and none did on f86b8550.
+- Stand-in contract: `StandIn.exe`, `StandIn.pck`, `data_StandIn_windows_x86_64/`; stdout (unbuffered, .NET
+  Console) `STANDIN_DEPS loaded=N ...`, `FIRST_FRAME` on the first `_Process`, `MAINLOOP_OK frames=N` then exit
+  0, with N from `--quit-after-frames N` (engine or user args) or `STANDIN_QUIT_AFTER_FRAMES`.
+- `--print-fps` works in the release template, headless or not, but the first `Project FPS:` line comes about
+  4 s into the main loop (Godot hides the first three). Headless runs uncapped (~145 fps here), so 300 frames
+  end in ~2 s, before any FPS line: the wrapper then says 86. The gate passes `--max-fps 30` (300 frames, 10 s).
+- MEASURED: Godot's stdout is block-buffered in the release template (`application/run/flush_stdout_on_print`
+  is false outside debug builds), so through the wrapper's pipe the first FPS line arrives only at exit: a 30 s
+  run delivered it at 30.4 s; under `stdbuf -oL` at 4.1 s (probe job, run 43632484157). On the phone a game
+  that prints under ~4 KB of stdout in 90 s would be killed by the watchdog as "did not start". Fixed in
+  541fc101 (the wrapper runs the engine under `stdbuf -oL -eL` when present); the gate now fails any row whose
+  first FPS line does not reach the wrapper at least 0.5 s before `MAINLOOP_OK`.
+- `droiddeck-native-godot check` (same args as compose, plus `--name`): composes into `--out`, checks the launch
+  folder is startable (game assembly there, every game assembly loadable-shaped, deps.json and
+  runtimeconfig.json written, engine in place) and writes pass/fail, rejected files, component tag, converter
+  hash and a fingerprint of the game's data folder (names, sizes, mtimes) to
+  `~/.cache/droiddeck/native/check/<name>.json`; exit 0/1. `droiddeck-game-env` skips native up front while a
+  fresh result (same fingerprint, component, converter) says fail; with no fresh result it schedules a check
+  for after the session (waits for the launch's pid to exit, nice 19, detached, scratch folder removed after).
+
 ## 4. Measurements
 
 Run 2026-11-13 on a GitHub `ubuntu-24.04-arm` runner (job 131679200006, commit d6a02c44),
@@ -159,3 +191,65 @@ What this underestimates on the phone: the phone stack also runs Wine, ARM64EC t
 proot, which the native path drops entirely, and Spine and FMOD are C++ that FEX translates
 too. What it overestimates: cloud Neoverse cores are not the Pixel 10's, and the stand-in is
 not the game. GPU and present cost are unchanged by this path (headless here).
+
+## 5. Experiment `native-r2r` (off by default): linux-arm64 ReadyToRun for the game's assemblies
+
+A Windows build's precompiled code is for Windows x64, so on the native path arm64 CoreCLR JITs every
+game method: startup time and early-session hitches. With `DROIDDECK_EXP_NATIVE_R2R=1`,
+`droiddeck-native-godot` regenerates ReadyToRun code for linux-arm64 with crossgen2, on the phone, in the
+background, and uses it from the next launch on.
+
+- **Compose**: for each composed game DLL, the IL crossgen2 would compile is worked out (pristine IL from
+  droiddeck-dotnet-r2r's `~/.cache/droiddeck-r2r/manifest.json` when that tool swapped its own win-x64 image
+  in, else the game's file) and hashed. If `~/.cache/droiddeck/native/r2r/<tag>/<sha256>.dll` is there with its
+  `.json` record (size matches, RTR header, machine 0xD11D = ARM64 XOR the Linux value 0x7B79), it is hardlinked
+  into the launch folder instead of the relabelled copy. Log: `native-r2r: N of M game assemblies from the
+  linux-arm64 ReadyToRun cache (<tag>); K to compile after the first frame`.
+- **Background compile**: at the watchdog's "first frame", one detached job (own session, `nice` 10, flock on
+  `compile.lock`, 2 crossgen2 threads) compiles the missing ones: `crossgen2 IN -o OUT --targetos linux
+  --targetarch arm64 -O --parallelism 2 -r <every other managed DLL of the launch folder>` (the kit's framework,
+  GodotSharp, the game's other assemblies; hardlinked into the job's scratch folder first so a new launch can
+  rebuild the launch folder meanwhile). Output is cached only after exit 0, an RTR header and machine 0xD11D.
+  One line per job in `compile.log`: `native-r2r <tag>: compiled X of Y (A MB IL -> B MB) in S s; failed: name
+  (exit N: Error ...)`. Old tags are deleted after a successful compile. Any failure: the game stays on the JIT.
+- **Input**: crossgen2's input is a scratch copy with the R2R header cleared and IL-only set
+  (`crossgen2_input`); the launch folder never holds it, as the runtime refuses that layout.
+- **Tag**: `linux-arm64-single__fx<kit's Microsoft.NETCore.App version>[-<component VERSION>]__cg<crossgen2
+  --version>`. The kit and crossgen2 majors must both be 9.
+
+MEASURED on `ubuntu-24.04-arm` (workflow `native-r2r.yml`, runs 43630745903 and 43631010173, .NET 9.0.23, crossgen2 9.0.23
+linux-arm64): a public net9 library + host published win-x64 with ReadyToRun, composed by the wrapper, compiled
+by its background job after a stand-in engine's first frame, swapped in by the next compose, run on arm64 .NET
+(300 dungeons, same output every way):
+
+| Build | own methods JIT'd at first call | own Tier1 rejits | all first-time JITs | wall ms (median of 7) |
+|---|---|---|---|---|
+| IL (same code, published without ReadyToRun) | 119 | 97 | 286 | 476-496 |
+| our linux-arm64 ReadyToRun | **0** | 48 | 162 | 439-445 |
+| same, `DOTNET_ReadyToRun=0` | 119 | 109 | 1195 | 530-535 |
+
+The bench's Windows export on the pinned engine (native-engine-38 via `--fetch`, run 43631010173): its one
+game assembly (`NativeBench.dll`, IL, 16 KB) was compiled in under a second; methods of `Main` JIT'd at
+first call 46 -> 13; first frame unchanged (215-227 ms either way, FIRST_FRAME_MS), as the stand-in's own
+code is too small to matter next to engine start. The game's 17 modules are where it should show.
+
+Also seen there: crossgen2 accepted both the relabelled win-x64 R2R image and the scratch copy as input (both
+gave a 0xD11D image); without `libclrjit_universal_arm64_arm64.so` beside it, crossgen2 fails ("Unable to load
+shared library 'clrjit_universal_arm64_arm64'"). A win-x64 ReadyToRun image that is only relabelled ARM64 was
+refused when loaded the normal way (listed for the default load context, as the game's are via deps.json):
+`BadImageFormatException` both as the main assembly and as a dependency of an IL host.
+
+### What the phone needs outside this branch
+
+1. `tools/dotnet-r2r/fetch-crossgen2.sh` (perf/emu-dotnet-generics, then main): add
+   `"tools/libclrjit_universal_arm64_%s.so" % host` to `wanted` (2.9 MB, same package and pinned sha).
+2. `SessionFiles.kt`: ship it beside the others:
+   `"usr/local/lib/droiddeck-crossgen2/libclrjit_universal_arm64_arm64.so" to "usr/local/lib/droiddeck-crossgen2/libclrjit_universal_arm64_arm64.so"`.
+   Until then the wrapper logs `cannot compile the other K: crossgen2 lacks libclrjit_universal_arm64_arm64.so`
+   and runs on the JIT.
+3. `droiddeck-game-env`: add `"native-r2r"` to `EXPERIMENTS` (game-level; `native_engine()` already passes the
+   environment, so `DROIDDECK_EXP_NATIVE_R2R` reaches the wrapper). `Experiments.kt`: `const val NATIVE_R2R =
+   "native-r2r"`, a `Switch(NATIVE_R2R, R.string.exp_native_r2r)` next to `NATIVE_ENGINE`, and the string.
+   It only does anything with `native-engine` on.
+4. Optional: `DROIDDECK_CROSSGEN2` defaults to `/usr/local/lib/droiddeck-crossgen2` (folder or binary), which is
+   where build.yml puts it.
