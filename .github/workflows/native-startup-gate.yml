@@ -245,6 +245,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true  # the verdict is gate.py's; a flaky log upload must not fail a gated publish
         with:
           name: gate-logs-${{ matrix.row }}
           path: |
@@ -289,6 +290,7 @@ jobs:
             -- --rendering-driver opengl3 --max-fps 60
       - uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: soak-samples
           path: |
