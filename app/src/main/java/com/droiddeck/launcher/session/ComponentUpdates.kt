@@ -157,6 +157,15 @@ object ComponentUpdates {
     fun keep(current: String, previous: String, selected: Set<String>): Set<String> =
         (setOf(current, previous) + selected) - ORIGINAL
 
+    /**
+     * A file another of Auto's lines put in place (Kestrel's FEX while the stock line is wanted, or the other way
+     * round) is never a hand choice: switching the fex-kestrel experiment off must take Kestrel's build out even
+     * though the stock line still remembers what it applied before (a Kestrel build that hung Steam stayed in,
+     * Nov 14).
+     */
+    fun fromOtherLine(file: String?, mine: Set<String>, others: Set<String>): Boolean =
+        file != null && !file.startsWith("original ") && file !in mine && file in others
+
     fun manual(choice: ComponentsManager.Choice?, applied: String?, auto: Set<String>, current: String? = null): Boolean =
         choice != null && !choice.auto && !choice.file.startsWith("original ") && choice.file != current &&
             (if (applied.isNullOrEmpty()) choice.file !in auto else choice.file != applied)

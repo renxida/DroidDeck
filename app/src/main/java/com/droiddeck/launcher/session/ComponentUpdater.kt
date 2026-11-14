@@ -258,13 +258,21 @@ object ComponentUpdater {
         val choices = ComponentsManager.activeChoices(context)
         val targets = wanted.flatMap { comp ->
             protons.mapNotNull { p -> lineOf(context, state, p, comp)?.let { line -> lines.optJSONObject(line.key)?.let { Target(comp, p, line, it) } } }
-        }.filterNot { t -> ComponentUpdates.manual(choices.choiceOf(t.p, t.comp), t.ls.optJSONObject("applied")?.optString(t.p.id), auto, t.ls.optString("current")) }
+        }.filterNot { t ->
+            ComponentUpdates.manual(choices.choiceOf(t.p, t.comp), t.ls.optJSONObject("applied")?.optString(t.p.id), auto, t.ls.optString("current")) &&
+                !otherLine(lines, t, choices.fileOf(t.p, t.comp))
+        }
         for (t in targets) {
             val from = t.ls.optJSONObject("restore")?.optString(t.p.id).orEmpty()
             val current = t.ls.optString("current")
             if (from.isNotEmpty()) {
                 if (choices.fileOf(t.p, t.comp) == from) runCatching { ComponentsManager.restore(context, t.p.id, t.comp, ComponentsManager.safeName(t.p.version)) }
                     .onFailure { Log.w(TAG, "restore ${t.p.name} ${t.key}", it) }
+            } else if (current.isEmpty() && otherLine(lines, t, choices.fileOf(t.p, t.comp))) {
+                // This line has nothing of its own yet: the Proton's original goes back rather than another line's build staying.
+                runCatching { ComponentsManager.restore(context, t.p.id, t.comp, ComponentsManager.safeName(t.p.version)) }
+                    .onSuccess { notes += "${t.comp} back to the original (left ${t.key})" }
+                    .onFailure { Log.w(TAG, "restore ${t.p.name} ${t.key} from another line", it) }
             } else if (current.isNotEmpty() && choices.fileOf(t.p, t.comp) != current) {
                 if (ComponentUpdates.needsArm64x(t.line, listOf(ComponentsManager.arm64x(context, t.p, t.comp))) &&
                     !ComponentsManager.packageArm64x(context, current, t.comp)) continue
@@ -286,7 +294,7 @@ object ComponentUpdater {
                 }
             } else if (current.isNotEmpty()) {
                 if (after.fileOf(t.p, t.comp) == current) t.ls.obj("applied").put(t.p.id, current) else unfinished += t.key
-            }
+            } else if (otherLine(lines, t, after.fileOf(t.p, t.comp))) unfinished += t.key
         }
         for (key in lines.keys().asSequence().toList()) {
             val ls = lines.optJSONObject(key) ?: continue
@@ -296,6 +304,19 @@ object ComponentUpdater {
             ls.put("note", pending)
             notes += pending
         }
+    }
+
+    /** Files each of Auto's lines has put in place, kept or remembered for [protonId]. */
+    private fun filesOf(ls: JSONObject, protonId: String): Set<String> =
+        (ls.strings("owned") + ls.optString("current") + ls.optString("previous") +
+            ls.optJSONObject("applied")?.optString(protonId).orEmpty()).filter { it.isNotEmpty() }.toSet()
+
+    /** [file] is another line's build, not this target line's own and not a hand choice (see [ComponentUpdates.fromOtherLine]). */
+    private fun otherLine(lines: JSONObject, t: Target, file: String?): Boolean {
+        val others = lines.keys().asSequence().filter { it != t.line.key }
+            .flatMap { k -> lines.optJSONObject(k)?.let { filesOf(it, t.p.id) }.orEmpty().asSequence() }.toSet()
+        val kestrel = t.line.key != ComponentUpdates.KESTREL_FEX.key && file?.startsWith(ComponentsManager.KESTREL_FEX_PREFIX) == true
+        return ComponentUpdates.fromOtherLine(file, filesOf(t.ls, t.p.id), if (kestrel) others + file!! else others)
     }
 
     private fun own(state: JSONObject, ls: JSONObject, file: String) {

@@ -531,4 +531,16 @@ class ComponentUpdatesTest {
         assertFalse(ComponentsManager.packageArm64x(context, "hybrid.wcp", "vkd3d"))
         assertFalse(ComponentsManager.packageArm64x(context, "missing.wcp", "dxvk"))
     }
+
+    @Test
+    fun anotherAutoLinesBuildIsNeverAHandChoiceSoTurningKestrelOffPutsStockBack() {
+        val stock = setOf("DD-FEXCore-2508.wcp")
+        val kestrel = setOf("Kestrel-FEXCore-0.22.wcp")
+        assertTrue(ComponentUpdates.fromOtherLine("Kestrel-FEXCore-0.22.wcp", stock, kestrel))
+        assertTrue(ComponentUpdates.fromOtherLine("DD-FEXCore-2508.wcp", kestrel, stock))
+        assertFalse(ComponentUpdates.fromOtherLine("DD-FEXCore-2508.wcp", stock, kestrel))
+        assertFalse(ComponentUpdates.fromOtherLine("my-own-fex.wcp", stock, kestrel))
+        assertFalse(ComponentUpdates.fromOtherLine("original 10.0", stock, kestrel + "original 10.0"))
+        assertFalse(ComponentUpdates.fromOtherLine(null, stock, kestrel))
+    }
 }
