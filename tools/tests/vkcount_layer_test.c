@@ -1,7 +1,7 @@
 /* Drives VK_LAYER_DROIDDECK_vkcount on lavapipe: 60 frames on a headless swapchain, each with one
  * submit of one command buffer holding five buffer copies and a barrier. It holds 8 MiB of device memory
  * after freeing a 4 MiB allocation, and one 1024x1024 BC3 image (1 MiB compressed, 4 MiB decoded) after
- * destroying a BC1 one. See test_vkcount_layer.py. */
+ * destroying a BC1 one, and a 1 MiB RGBA image bound into that memory. See test_vkcount_layer.py. */
 #include <vulkan/vulkan.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,6 +44,9 @@ int main(void) {
     vkDestroyImage(dev, bc1, NULL);
     ii.format = VK_FORMAT_BC3_UNORM_BLOCK; ii.extent = (VkExtent3D){1024, 1024, 1}; ii.mipLevels = 1;
     VkImage bc3; CK(vkCreateImage(dev, &ii, NULL, &bc3));
+    ii.format = VK_FORMAT_R8G8B8A8_UNORM; ii.extent = (VkExtent3D){512, 512, 1};
+    VkImage rgba; CK(vkCreateImage(dev, &ii, NULL, &rgba));
+    CK(vkBindImageMemory(dev, rgba, mem, 1 << 20));
     vkBindBufferMemory(dev, b1, mem, 0); vkBindBufferMemory(dev, b2, mem, 4096);
     VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO}; VkFence fence, af; vkCreateFence(dev, &fci, NULL, &fence); vkCreateFence(dev, &fci, NULL, &af);
     for (int f = 0; f < 60; f++) {
@@ -61,7 +64,7 @@ int main(void) {
         CK(vkQueuePresentKHR(queue, &pi));
     }
     vkDeviceWaitIdle(dev);
-    (void)bc3; /* left alive, like mem, so the final line at vkDestroyDevice still counts it */
+    (void)bc3; (void)rgba; /* left alive, like mem, so the final line at vkDestroyDevice still counts it */
     vkDestroySwapchainKHR(dev, sc, NULL); vkDestroyDevice(dev, NULL); vkDestroyInstance(inst, NULL);
     puts("ok");
 }
