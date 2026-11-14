@@ -34,6 +34,8 @@ now_ms() { date +%s%3N; }
 rig_event() { printf '{"stage":"%s","t":%s}\n' "$1" "$(now_ms)" >> "$out/rig-events.jsonl"; echo "rig: $1"; }
 phase() { "$ctl" state 2>/dev/null | jq -r '.session.phase // "?"'; }
 latest_dir() { adb shell "ls -1d /data/user/0/$pkg/files/logs/*/ 2>/dev/null | tail -1" | tr -d '\r'; }
+# Session folders made since the rig's own start (names sort by time).
+new_dirs() { adb shell "ls -1d /data/user/0/$pkg/files/logs/*/ 2>/dev/null" | tr -d '\r' | awk -v b="$before" '"" $0 > "" b'; }
 
 # Debugging tools (Setup > Diagnostics) and Android's phantom-process limit, as on a test phone.
 "$here/enable-debug-tools.sh" "$pkg" >/dev/null
@@ -145,7 +147,7 @@ perturb() { # once, while the start is under way
 }
 
 before=$(latest_dir)
-t0=$(date +%s)
+t0=$(date +%s); rig_event start_sent
 case $base in
   steam-ui) "$ctl" start steam ;;
   stand-in-game)
@@ -184,6 +186,11 @@ while [ $(( $(date +%s) - t0 )) -lt "$limit" ]; do
       echo "$t" > "$out/cdp-targets.json"; rig_event login_screen; login=1; break
     fi
   fi
+  # The start the rig asked for must finish by itself; another session means the app gave up
+  # on it (or the person would have had to start again).
+  if [ -z "${restarted:-}" ] && [ "$(new_dirs | wc -l)" -gt 1 ]; then
+    restarted=1; rig_event session_restarted; echo "rig: a second session started: $(new_dirs | tr '\n' ' ')"
+  fi
   if [ "$base" = stand-in-game ]; then
     # The stand-in prints its markers to stdout, which lands in the session log.
     d=$(latest_dir)
@@ -200,11 +207,16 @@ sample_ps end
 [ "$base" = steam-ui ] && [ -z "$login" ] && { "$ctl" cdp targets > "$out/cdp-targets.json" 2>&1 || true; }
 echo "rig: DevTools targets:"; jq -c '[.. | objects | select(.title? or .url?) | {title, url}]' "$out/cdp-targets.json" 2>/dev/null | head -c 3000; echo
 
-# The app's own session folder, whole.
-dir=$(latest_dir)
-[ "$dir" = "$before" ] && echo "rig: no new session folder (the session never started)"
-rm -rf "$out/rig-session"
+# The app's own session folder, whole: the one the rig started, and any after it.
+dirs=$(new_dirs); dir=$(head -1 <<<"$dirs")
+[ -z "$dir" ] && echo "rig: no new session folder (the session never started)"
+rm -rf "$out/rig-session" "$out"/rig-session-later-*
 [ -n "$dir" ] && adb pull "${dir%/}" "$out/rig-session" >/dev/null 2>&1 && echo "rig: session folder $(basename "$dir")"
+i=0; for d in $(tail -n +2 <<<"$dirs"); do
+  i=$((i + 1)); adb pull "${d%/}" "$out/rig-session-later-$i" >/dev/null 2>&1
+  echo "::group::later session $(basename "$d") events"; cut -c1-300 "$out/rig-session-later-$i/events.jsonl" 2>/dev/null; echo "::endgroup::"
+done
+echo "::group::first session's last events"; tail -n 25 "$out/rig-session/events.jsonl" 2>/dev/null | cut -c1-300; echo "::endgroup::"
 # The app keeps per-game logs (Proton's own log, DXVK, Mesa) under games/ on a GPU that is
 # not an Adreno, which CI Android is not.
 # FEX's own "D <tid>" lines (handled exceptions) are dropped; they drown the Wine and game lines.

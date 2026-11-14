@@ -142,12 +142,21 @@ def main():
         if "standin_frames" in seen and done and done.get("status") == 0 and last and last[-1].get("class") == "clean":
             seen["standin_exit_clean"] = done["t"]
 
+    # Deadlines count from the rig's own start command, so a session the app restarted later
+    # cannot look fast.
+    sent = next((e["t"] for e in rig if e.get("stage") == "start_sent"), start)
     late = {}
     for stage, limit in DEADLINES.get(a.scenario, {}).items():
         t = seen.get(stage)
-        if t is not None and start is not None and (t - start) / 1000.0 > limit:
-            late[stage] = {"seconds": round((t - start) / 1000.0, 1), "limit": limit}
+        if t is not None and sent is not None and (t - sent) / 1000.0 > limit:
+            late[stage] = {"seconds": round((t - sent) / 1000.0, 1), "limit": limit}
             del seen[stage]
+    # Stages after a restart belong to another session than the one the rig started.
+    restarted = next((e["t"] for e in rig if e.get("stage") == "session_restarted"), None)
+    if restarted is not None:
+        for stage in [s for s, t in seen.items() if t is not None and t >= restarted]:
+            del seen[stage]
+    seen.pop("start_sent", None)
 
     order = SCENARIOS[a.scenario]
     reached = None
@@ -173,6 +182,7 @@ def main():
         "next_missing_stage": next((s for s in order if s not in seen), None),
         "game_vulkan_frames": frames,
         "too_late": late or None,
+        "session_restarted": restarted is not None,
     }
     with open(a.out, "w") as f:
         json.dump(verdict, f, indent=2)
