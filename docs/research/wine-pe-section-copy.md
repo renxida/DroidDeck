@@ -28,9 +28,13 @@ runner, x86-64 (through FEX) and arm64 alike. No game files.
 Realigned, the section is page cache: nothing is copied, untouched pages cost nothing, and touched ones can be
 dropped and read back instead of going to swap.
 
-Still to confirm on the real .exe: `objdump -h` (or `llvm-readobj --sections`) of the game's .exe should show the
-pack section with a file offset that is not a multiple of 0x1000. Run that only where the game files are; never
-copy them into a public run.
+Still to confirm on the real .exe. Game files never leave the phone, so every launch of an .exe of 64 MB or more
+logs its section table from the headers alone (no bytes), with or without the experiment:
+
+    droiddeck-game-env: warmup: SlayTheSpire2.exe: 895 MB, N sections, FileAlignment 0x200
+    droiddeck-game-env: warmup: SlayTheSpire2.exe section pck: offset 0x... size ... offset%4096 ... last
+
+The pack section should show a nonzero `offset%4096`.
 
 ## Fix (experiment `pe-align`, off by default)
 

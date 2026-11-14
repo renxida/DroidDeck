@@ -296,6 +296,36 @@ def pe_needs_align(path, min_bytes=PE_ALIGN_MIN_BYTES):
     return False
 
 
+def pe_section_lines(path, min_bytes=PE_ALIGN_MIN_BYTES):
+    """One log line per section of a large .exe, from its headers only: name, file offset, size, offset modulo
+    4096 and whether it is the last section in the file. Empty for files under min_bytes or not PE."""
+    import struct
+    try:
+        size = os.path.getsize(path)
+        if size < min_bytes:
+            return []
+        layout = pe_layout(path)
+    except OSError:
+        return []
+    if layout is None:
+        return []
+    head, pe, opt, opt_size, count = layout
+    rows = []
+    for i in range(count):
+        at = opt + opt_size + 40 * i
+        name = head[at:at + 8].rstrip(b"\0").decode("ascii", "replace")
+        raw_size, raw_ptr = struct.unpack_from("<II", head, at + 16)
+        rows.append((raw_ptr, raw_size, name))
+    last = max((r for r in rows if r[0] and r[1]), default=None)
+    file_align = struct.unpack_from("<I", head, opt + 36)[0]
+    lines = ["%s: %.0f MB, %d sections, FileAlignment %#x" % (os.path.basename(path), size / 1048576, count, file_align)]
+    for raw_ptr, raw_size, name in rows:
+        lines.append("%s section %s: offset %#x size %d (%.1f MB) offset%%4096 %d%s" % (
+            os.path.basename(path), name or "?", raw_ptr, raw_size, raw_size / 1048576, raw_ptr % PE_PAGE,
+            " last" if (raw_ptr, raw_size, name) == last else ""))
+    return lines
+
+
 def pe_align_copy(src, dst):
     """Writes a copy of the PE file src to dst with every section at a 4096-byte file offset, reading the file
     in pieces. Section sizes stay; the gaps before sections grow. The last section and whatever follows it

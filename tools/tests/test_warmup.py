@@ -331,6 +331,16 @@ class PeAlignTest(unittest.TestCase):
             self.assertEqual(0, raw % 4096)
             self.assertEqual(pck + b"GDPC", data[raw:])
 
+    def test_section_lines_name_offsets_and_the_last_section(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "Game.exe")
+            fake_pe(src, os.urandom(3 << 20))
+            lines = WARMUP["pe_section_lines"](src, 0)
+            self.assertEqual("Game.exe: 3 MB, 2 sections, FileAlignment 0x200", lines[0])
+            self.assertEqual("Game.exe section .text: offset 0x400 size 512 (0.0 MB) offset%4096 1024", lines[1])
+            self.assertEqual("Game.exe section .pck: offset 0x600 size 3145728 (3.0 MB) offset%4096 1536 last", lines[2])
+            self.assertEqual([], WARMUP["pe_section_lines"](src))
+
     def test_small_or_aligned_files_stay(self):
         with tempfile.TemporaryDirectory() as tmp:
             src = os.path.join(tmp, "Game.exe")
