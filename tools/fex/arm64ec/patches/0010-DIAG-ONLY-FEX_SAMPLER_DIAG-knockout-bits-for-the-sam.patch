@@ -1,0 +1,132 @@
+From db16789cf96701535266cc017e4d4b1be32aecad Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 14 Nov 2026 17:13:12 +0000
+Subject: [PATCH] DIAG ONLY: FEX_SAMPLER_DIAG knockout bits for the sampler
+ (never ship)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Source/Windows/ARM64EC/Sampler.cpp  | 11 +++++++++--
+ Source/Windows/UnixLib/FEXUnixLib.h |  4 +++-
+ Source/Windows/UnixLib/Sampler.h    | 16 +++++++++++++---
+ 3 files changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/Source/Windows/ARM64EC/Sampler.cpp b/Source/Windows/ARM64EC/Sampler.cpp
+index 4a948d6..50ef60d 100644
+--- a/Source/Windows/ARM64EC/Sampler.cpp
++++ b/Source/Windows/ARM64EC/Sampler.cpp
+@@ -37,6 +37,7 @@ namespace {
+   constexpr uint32_t FlagFloatFallback = 1;
+ 
+   uint32_t Hz {};
++  uint32_t Diag {};
+   FEXSampleRecord* Ring {};
+   uint64_t* Head {};
+   uint64_t* HandlerTicks {};
+@@ -461,7 +462,13 @@ void ProcessInit() {
+   HandlerTicks = Args.HandlerTicks;
+   Capacity = Args.Capacity;
+   PID = UnixLib::GetPID();
+-  FEXCore::SHMStats::FloatFallbackHook = FloatFallback;
++  Diag = Args.Diag;
++  if (!(Diag & 4)) {
++    FEXCore::SHMStats::FloatFallbackHook = FloatFallback;
++  }
++  if (Diag) {
++    LogMan::Msg::IFmt("Sampler: diagnostic knockouts 0x{:x}", Diag);
++  }
+ }
+ 
+ void ThreadInit(FEXCore::Core::InternalThreadState* Thread) {
+@@ -473,7 +480,7 @@ void ThreadInit(FEXCore::Core::InternalThreadState* Thread) {
+     std::scoped_lock Lock(HandlesMutex);
+     Handles[Thread] = Args.Handle;
+   }
+-  if (!AggregatorStarted.exchange(true)) {
++  if (!(Diag & 8) && !AggregatorStarted.exchange(true)) {
+     Aggregator = FEXCore::Threads::Thread::Create(AggregatorMain, nullptr, {.LowPriority = false, .Internal = true}, "FEX sampler");
+   }
+ }
+diff --git a/Source/Windows/UnixLib/FEXUnixLib.h b/Source/Windows/UnixLib/FEXUnixLib.h
+index d1c8212..38179ef 100644
+--- a/Source/Windows/UnixLib/FEXUnixLib.h
++++ b/Source/Windows/UnixLib/FEXUnixLib.h
+@@ -97,8 +97,10 @@ struct FEXUnixLib_SamplerStart {
+   FEXSampleRecord* Ring; // Out.
+   uint64_t* Head;        // Out: records written so far.
+   uint64_t* HandlerTicks; // Out: generic-timer ticks spent in the signal handler.
++  uint32_t Diag;          // Out: FEX_SAMPLER_DIAG bits (diagnostic knockouts; 0 in normal use).
++  uint32_t Pad;
+ };
+-static_assert(sizeof(FEXUnixLib_SamplerStart) == 40);
++static_assert(sizeof(FEXUnixLib_SamplerStart) == 48);
+ 
+ struct FEXUnixLib_SamplerThread {
+   void* Frame;  // SamplerThreadStart: the calling thread's CpuStateFrame.
+diff --git a/Source/Windows/UnixLib/Sampler.h b/Source/Windows/UnixLib/Sampler.h
+index 22e3ca0..872ff3c 100644
+--- a/Source/Windows/UnixLib/Sampler.h
++++ b/Source/Windows/UnixLib/Sampler.h
+@@ -8,6 +8,7 @@
+ #include <csignal>
+ #include <cstdint>
+ #include <cstring>
++#include <cstdlib>
+ #include <ctime>
+ #include <fcntl.h>
+ #include <string>
+@@ -35,6 +36,9 @@ static std::atomic<uint64_t> Head;
+ static std::atomic<uint64_t> HandlerTicks;
+ static uint32_t OffHeader, OffRIP;
+ static long IntervalNs;
++// FEX_SAMPLER_DIAG bits, for finding what slows threads: 1 = create timers but never arm them, 2 = no timers or
++// handler at all, 4 = no x87 fallback hook, 8 = no drain thread.
++static uint32_t Diag;
+ static struct sigaction Previous;
+ 
+ static inline uint64_t Ticks() {
+@@ -101,16 +105,20 @@ static inline bool Start(FEXUnixLib_SamplerStart* Args) {
+     OffRIP = Args->FrameOffsetRIP;
+     IntervalNs = 1000000000L / Args->Hz;
+     Mask = (1ull << RingLog2) - 1;
++    if (const char* D = getenv("FEX_SAMPLER_DIAG")) {
++      Diag = uint32_t(strtoul(D, nullptr, 0));
++    }
+     struct sigaction Action {};
+     Action.sa_sigaction = OnSignal;
+     Action.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+     sigemptyset(&Action.sa_mask);
+-    if (sigaction(SIGPROF, &Action, &Previous) != 0) {
++    if (!(Diag & 2) && sigaction(SIGPROF, &Action, &Previous) != 0) {
+       munmap(Mem, Bytes);
+       return false;
+     }
+     Ring = reinterpret_cast<FEXSampleRecord*>(Mem);
+   }
++  Args->Diag = Diag;
+   Args->Capacity = uint32_t(Mask + 1);
+   Args->Ring = Ring;
+   Args->Head = reinterpret_cast<uint64_t*>(&Head);
+@@ -120,7 +128,7 @@ static inline bool Start(FEXUnixLib_SamplerStart* Args) {
+ 
+ // Runs on the thread to sample: its timer counts that thread's CPU time only.
+ static inline ThreadSlot* StartThread(const void* Frame) {
+-  if (!Ring) {
++  if (!Ring || (Diag & 2)) {
+     return nullptr;
+   }
+   for (auto& Slot : Slots) {
+@@ -149,7 +157,9 @@ static inline ThreadSlot* StartThread(const void* Frame) {
+     Spec.it_interval.tv_nsec = IntervalNs % 1000000000L;
+     Spec.it_interval.tv_sec = IntervalNs / 1000000000L;
+     Spec.it_value.tv_nsec = 1 + (Slot.TID * 7919L) % IntervalNs;
+-    timer_settime(Slot.Timer, 0, &Spec, nullptr);
++    if (!(Diag & 1)) {
++      timer_settime(Slot.Timer, 0, &Spec, nullptr);
++    }
+     return &Slot;
+   }
+   return nullptr;
+-- 
+2.43.0
+
