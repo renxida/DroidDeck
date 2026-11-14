@@ -26,6 +26,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-game-gpu" to "usr/local/bin/droiddeck-game-gpu",
             "usr/local/bin/droiddeck-diagnostic-inventory" to "usr/local/bin/droiddeck-diagnostic-inventory",
             "usr/local/bin/droiddeck-native-inventory" to "usr/local/bin/droiddeck-native-inventory",
+            "usr/local/bin/droiddeck-texpack" to "usr/local/bin/droiddeck-texpack",
             "usr/local/bin/droiddeck-native-godot" to "usr/local/bin/droiddeck-native-godot",
             "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
             "usr/local/bin/droiddeck-wine-pe" to "usr/local/bin/droiddeck-wine-pe",
@@ -137,6 +138,7 @@ object SessionFiles {
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/bin/droiddeck-glprobe" to "usr/local/bin/droiddeck-glprobe",
+            "usr/local/bin/droiddeck-ctex-astc" to "usr/local/bin/droiddeck-ctex-astc",
             "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so" to "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so",
             "usr/local/lib/vkbridge/libvulkan_droidbridge.so" to "usr/local/lib/vkbridge/libvulkan_droidbridge.so",
             "usr/local/share/vkbridge/droidbridge_icd.json" to "usr/local/share/vkbridge/droidbridge_icd.json",
