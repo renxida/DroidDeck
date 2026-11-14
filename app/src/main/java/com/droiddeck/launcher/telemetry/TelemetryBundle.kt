@@ -27,7 +27,7 @@ object TelemetryBundle {
     private const val X64_LOG_UNKNOWN_START = 2L shl 20
     private const val STEAM_LOG_BYTES = 256L shl 10
     internal const val POWER_SUMMARY = "power-summary.txt"
-    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log", PowerRow.FILE, "memory.csv", "processes.csv", com.droiddeck.launcher.session.ThreadLog.FILE, com.droiddeck.launcher.session.FexStatsLog.FILE,
+    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log", PowerRow.FILE, "memory.csv", "processes.csv", com.droiddeck.launcher.session.ThreadLog.FILE, com.droiddeck.launcher.session.FexStatsLog.FILE, com.droiddeck.launcher.session.FexStatsLog.SAMPLES_FILE,
         RemoteConfig.SETTINGS_FILE, com.droiddeck.launcher.session.SessionScreenshot.FILE)
     /** The Steam client's own logs that time shader pre-caching, downloads and compatibility-tool picks. */
     internal val STEAM_LOGS = listOf("shader_log.txt", "content_log.txt", "compat_log.txt", "bootstrap_log.txt", "console_log.txt")

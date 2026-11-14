@@ -860,7 +860,8 @@ class SessionService : Service() {
         lastPressureAt = 0L
         MemoryLog.start(File(sessionDir, "memory.csv"))
         ThreadLog.start(sessionDir)
-        if (Experiments.on(this, Experiments.FEX_STATS)) FexStatsLog.start(sessionDir, File(LinuxRuntime.liveDir(this), "shm"))
+        FexStatsLog.start(sessionDir, File(LinuxRuntime.liveDir(this), "shm"),
+            stats = Experiments.on(this, Experiments.FEX_STATS), samples = Experiments.on(this, Experiments.FEX_SAMPLE))
         if (Experiments.on(this, Experiments.MEMORY)) {
             AppCaches.drop(this, "session_start")
             startLmkWatch()
