@@ -62,6 +62,11 @@ def log(msg):
 
 AMD64, ARM64 = 0x8664, 0xAA64
 ILONLY, IL_LIBRARY = 0x1, 0x4
+READY_TO_RUN = b"RTR\0"  # signature at the start of a ReadyToRun header
+
+
+class MixedMode(ValueError):
+    """An assembly with native x64 code beside its IL (C++/CLI), which no arm64 runtime can load."""
 
 
 def pe_info(data):
@@ -94,9 +99,19 @@ def pe_info(data):
     if cli is None or len(data) < cli + 72:
         return None
     flags = struct.unpack_from("<I", data, cli + 16)[0]
+    vtable_fixups = struct.unpack_from("<II", data, cli + 56)
     native = struct.unpack_from("<II", data, cli + 64)
+    r2r = False
+    if native[0]:
+        for i in range(nsec):
+            sec = opt + opt_size + 40 * i
+            vsize, va, raw_size, raw = struct.unpack_from("<IIII", data, sec + 8)
+            if va <= native[0] < va + max(vsize, raw_size):
+                at = native[0] - va + raw
+                r2r = data[at:at + 4] == READY_TO_RUN
     return {"machine": machine, "machine_at": pe + 4, "flags": flags, "flags_at": cli + 16,
-            "native_header": native, "native_header_at": cli + 64}
+            "vtable_fixups": vtable_fixups, "native_header": native, "native_header_at": cli + 64,
+            "ready_to_run": r2r}
 
 
 def is_managed(path):
@@ -114,20 +129,42 @@ def portable_image(data):
 
     CoreCLR refuses an assembly whose PE machine is AMD64 on arm64. When the code inside is plain IL the
     machine field is only a label, so it is relabelled ARM64. A ReadyToRun image also carries precompiled x64
-    code; its pointer to that code is cleared so the runtime JITs the IL instead, which is always present."""
+    code; its pointer to that code is cleared so the runtime JITs the IL instead, which is always present.
+    Some ReadyToRun images are not marked IL-only; with the x64 code dropped they are, so they get the mark.
+    Anything else without the mark (C++/CLI, which has vtable fixups and no ReadyToRun header) raises
+    MixedMode."""
     info = pe_info(data)
     if info is None or info["machine"] != AMD64:
         return None, None
-    if not info["flags"] & ILONLY:
-        raise ValueError("mixed-mode (native C++) assembly; it cannot run on arm64")
+    flags = info["flags"]
+    if not flags & ILONLY and not (info["ready_to_run"] and info["vtable_fixups"] == (0, 0)):
+        raise MixedMode("mixed-mode (native C++) assembly; it cannot run on arm64")
     out = bytearray(data)
     struct.pack_into("<H", out, info["machine_at"], ARM64)
     note = "relabelled x64 -> arm64"
     if info["native_header"] != (0, 0):
         struct.pack_into("<II", out, info["native_header_at"], 0, 0)
-        struct.pack_into("<I", out, info["flags_at"], info["flags"] & ~IL_LIBRARY)
+        flags &= ~IL_LIBRARY
         note += ", dropped ReadyToRun x64 code"
+    if not flags & ILONLY:
+        flags |= ILONLY
+        note += ", marked IL-only"
+    struct.pack_into("<I", out, info["flags_at"], flags)
     return bytes(out), note
+
+
+def referenced_by(name, paths):
+    """Which of these assemblies name `name` (an assembly's simple name) in their metadata strings."""
+    needle = b"\0" + name.encode() + b"\0"
+    found = []
+    for path in paths:
+        try:
+            with open(path, "rb") as f:
+                if needle in f.read():
+                    found.append(os.path.basename(path))
+        except OSError:
+            pass
+    return found
 
 
 def windows_data_dir(game_dir):
@@ -251,7 +288,7 @@ def compose(game_dir, kit, engine, out, exe=None, stubs=None):
     kit_lower = {n.lower() for n in kit_map}
     for name, path in kit_map.items():
         place(os.path.abspath(path), os.path.join(data, name))
-    taken, skipped, patched, game_cfg = [], [], {}, None
+    taken, skipped, patched, mixed, game_cfg = [], [], {}, [], None
     for name in sorted(os.listdir(win)):
         src = os.path.join(win, name)
         low = name.lower()
@@ -267,7 +304,14 @@ def compose(game_dir, kit, engine, out, exe=None, stubs=None):
             skipped.append(name)
         elif is_managed(src):
             with open(src, "rb") as f:
-                fixed, note = portable_image(f.read())
+                try:
+                    fixed, note = portable_image(f.read())
+                except MixedMode as error:
+                    if low == f"{asm.lower()}.dll":
+                        raise SystemExit(f"{name}: {error}")
+                    mixed.append(name)
+                    skipped.append(name)
+                    continue
             if fixed is None:
                 place(os.path.abspath(src), os.path.join(data, name))
             else:
@@ -277,6 +321,14 @@ def compose(game_dir, kit, engine, out, exe=None, stubs=None):
             taken.append(name)
         else:
             skipped.append(name)  # native Windows libraries and data the runtime doesn't need
+    # The game itself is IL; a mixed-mode file beside it (a Windows-only helper, say) is left out. If the game
+    # does reach for it, .NET fails that one load, which the first-frame watchdog catches.
+    mixed_refs = {}
+    for name in mixed:
+        users = referenced_by(os.path.splitext(name)[0], [os.path.join(data, n) for n in taken])
+        mixed_refs[name] = users
+        log(f"left out {name}: mixed-mode (native x64) assembly; "
+            + (f"named by {', '.join(users)}" if users else "no game assembly names it"))
     if stubs and os.path.isdir(stubs):
         for name in sorted(os.listdir(stubs)):
             place(os.path.join(stubs, name), os.path.join(data, name))
@@ -306,15 +358,28 @@ def compose(game_dir, kit, engine, out, exe=None, stubs=None):
             shutil.copy2(engine, target)
         os.chmod(target, 0o755)
     report = {"assembly": asm, "pack": find_pack(game_dir, exe), "engine": target, "data": data,
-              "game_assemblies": taken, "patched": patched, "skipped": skipped, "kit_files": len(kit_map)}
+              "game_assemblies": taken, "patched": patched, "mixed_mode": mixed_refs, "skipped": skipped, "kit_files": len(kit_map)}
     with open(os.path.join(out, "native-launch.json"), "w") as f:
         json.dump(report, f, indent=1)
     return report
 
 
+def without_x86_preloads(env):
+    """Steam's LD_PRELOAD names its x86 overlay (gameoverlayrenderer.so), which no arm64 process can load; every
+    child would print an ld.so error for it. Returns the environment with those entries dropped."""
+    env = dict(env)
+    if "LD_PRELOAD" in env:
+        keep = [p for p in env["LD_PRELOAD"].replace(":", " ").split() if "gameoverlayrenderer" not in p]
+        if keep:
+            env["LD_PRELOAD"] = " ".join(keep)
+        else:
+            del env["LD_PRELOAD"]
+    return env
+
+
 def engine_env(env):
     """.NET needs ICU unless told to run culture-invariant; the guest may not have it."""
-    env = dict(env)
+    env = without_x86_preloads(env)
     if "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" not in env and not ctypes.util.find_library("icuuc"):
         env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1"
     return env
@@ -391,6 +456,11 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     rest = argv[argv.index("--") + 1:] if "--" in argv else []
     a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
+    clean = without_x86_preloads(os.environ)
+    if "LD_PRELOAD" in clean:
+        os.environ["LD_PRELOAD"] = clean["LD_PRELOAD"]
+    else:
+        os.environ.pop("LD_PRELOAD", None)
     component = fetch() if a.fetch else a.component
     if component:
         kit, engine, stubs = (os.path.join(component, n) for n in ("kit", "godot", "stubs"))
@@ -401,7 +471,8 @@ def main(argv=None):
     os.makedirs(a.out, exist_ok=True)
     r = compose(a.game_dir, kit, engine, a.out, a.exe, stubs)
     log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
-        f"{r['kit_files']} kit files, skipped {len(r['skipped'])}")
+        f"{r['kit_files']} kit files, skipped {len(r['skipped'])}"
+        + (f" (left out {len(r['mixed_mode'])} mixed-mode: {', '.join(r['mixed_mode'])})" if r["mixed_mode"] else ""))
     if a.command == "compose":
         print(json.dumps(r))
         return 0

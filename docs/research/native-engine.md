@@ -108,7 +108,11 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
     `deps.json` with its app entry renamed to the game and listing the game's assemblies, and the kit's
     `runtimeconfig.json` with the game's runtime switches on top;
   - a Windows build stamps its IL assemblies AMD64, which arm64 CoreCLR refuses; the launch copy is
-    relabelled ARM64 (ReadyToRun x64 code, if any, is dropped so the IL is JIT-compiled).
+    relabelled ARM64 (ReadyToRun x64 code, if any, is dropped so the IL is JIT-compiled). A ReadyToRun
+    image without the IL-only mark gets the mark once its x64 code is gone. A true mixed-mode assembly
+    (C++/CLI: vtable fixups, no ReadyToRun header) can't run on arm64, so it is left out and logged with
+    the game assemblies that name it; only the game's own assembly being mixed-mode stops the launch.
+    MEASURED: the first phone launch (0aa91a7) stopped at compose on one such file, unnamed.
 - The pck's `.gdextension` entries (Spine, FMOD, Sentry) have no `linux.arm64` library, so Godot logs an
   error and skips them. Our module will register stand-in classes under the names the game's scenes use.
 - Runs as a normal X11/Wayland client under gamescope (Vulkan via the guest's glibc loader, the same driver

@@ -10,12 +10,13 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 NG = runpy.run_path(str(BIN / "droiddeck-native-godot"))
 
 
-def pe(managed, machine=0xAA64, r2r=False, ilonly=True):
+def pe(managed, machine=0xAA64, r2r=False, ilonly=True, fixups=False, signature=True):
     """A minimal PE32+ image with one section; managed ones carry a CLI header in it."""
     opt = bytearray(240)
     struct.pack_into("<H", opt, 0, 0x20B)
@@ -34,6 +35,10 @@ def pe(managed, machine=0xAA64, r2r=False, ilonly=True):
     struct.pack_into("<I", cor, 16, (1 if ilonly else 0) | (4 if r2r else 0))
     if r2r:
         struct.pack_into("<II", cor, 64, 0x2100, 0x40)
+        if signature:
+            body[0x100:0x104] = b"RTR\0"
+    if fixups:
+        struct.pack_into("<II", cor, 56, 0x2180, 0x8)
     body[8:8 + 0x48] = cor
     image = bytes(head) + b"PE\0\0" + coff + bytes(opt) + section
     return image + b"\0" * (raw - len(image)) + bytes(body)
@@ -99,6 +104,54 @@ class NativeGodotTest(unittest.TestCase):
         self.assertEqual((None, None), NG["portable_image"](pe(True, machine=0x14C)))
         with self.assertRaises(ValueError):
             NG["portable_image"](pe(True, machine=0x8664, ilonly=False))
+        with self.assertRaises(NG["MixedMode"]):
+            NG["portable_image"](pe(True, machine=0x8664, ilonly=False, fixups=True))
+        with self.assertRaises(NG["MixedMode"]):  # a native header that isn't ReadyToRun
+            NG["portable_image"](pe(True, machine=0x8664, ilonly=False, r2r=True, signature=False))
+        with self.assertRaises(NG["MixedMode"]):  # ReadyToRun beside C++/CLI fixups
+            NG["portable_image"](pe(True, machine=0x8664, ilonly=False, r2r=True, fixups=True))
+
+    def test_ready_to_run_without_il_only_mark_is_made_portable(self):
+        img, note = NG["portable_image"](pe(True, machine=0x8664, ilonly=False, r2r=True))
+        info = NG["pe_info"](img)
+        self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
+        self.assertIn("marked IL-only", note)
+
+    def test_compose_leaves_out_mixed_mode_assemblies(self):
+        win = self.game / "data_sts2_windows_x86_64"
+        (win / "Vortice.Native.dll").write_bytes(pe(True, machine=0x8664, ilonly=False, fixups=True))
+        (win / "sts2.dll").write_bytes(pe(True) + b"\0Vortice.Native\0")
+        (win / "Odd.dll").write_bytes(pe(True, machine=0x8664, ilonly=False, r2r=True))
+        out = self.root / "launch"
+        out.mkdir()
+        err = io.StringIO()
+        with unittest.mock.patch("sys.stderr", err):
+            r = NG["compose"](str(self.game), str(self.kit), str(self.engine), str(out), "SlayTheSpire2.exe")
+        data = out / "data_sts2_linuxbsd_arm64"
+        self.assertFalse((data / "Vortice.Native.dll").exists())
+        self.assertIn("Vortice.Native.dll", r["skipped"])
+        self.assertEqual({"Vortice.Native.dll": ["sts2.dll"]}, r["mixed_mode"])
+        self.assertIn("left out Vortice.Native.dll", err.getvalue())
+        self.assertIn("named by sts2.dll", err.getvalue())
+        self.assertIn("Odd.dll", r["game_assemblies"])
+        self.assertIn("marked IL-only", r["patched"]["Odd.dll"])
+        deps = json.loads((data / "sts2.deps.json").read_text())
+        self.assertNotIn("Vortice.Native.dll", json.dumps(deps))
+
+    def test_compose_stops_when_the_game_itself_is_mixed_mode(self):
+        (self.game / "data_sts2_windows_x86_64" / "sts2.dll").write_bytes(
+            pe(True, machine=0x8664, ilonly=False, fixups=True))
+        out = self.root / "launch"
+        out.mkdir()
+        with self.assertRaises(SystemExit) as stop:
+            NG["compose"](str(self.game), str(self.kit), str(self.engine), str(out), "SlayTheSpire2.exe")
+        self.assertIn("sts2.dll", str(stop.exception))
+
+    def test_steam_x86_overlay_preload_is_dropped(self):
+        env = NG["engine_env"]({"LD_PRELOAD": "/root/.steam/bin32/gameoverlayrenderer.so:/root/.steam/bin64/gameoverlayrenderer.so"})
+        self.assertNotIn("LD_PRELOAD", env)
+        env = NG["engine_env"]({"LD_PRELOAD": "/a/libkeep.so /root/.steam/bin32/gameoverlayrenderer.so"})
+        self.assertEqual("/a/libkeep.so", env["LD_PRELOAD"])
 
     def test_compose(self):
         out = self.root / "launch"
