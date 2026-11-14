@@ -113,7 +113,10 @@ jobs:
               uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
               adb shell "mkdir -p $fs/usr/local/share/offphone && printf '%s' '{\"file_format_version\":\"1.0.1\",\"ICD\":{\"library_path\":\"/$lib\",\"api_version\":\"1.4.0\"}}' > $fs/usr/local/share/offphone/lvp_icd.json && chown -R $uid:$uid $fs/usr/local/share/offphone && restorecon -R $fs/usr/local/share/offphone"
               adb shell "cat $fs/usr/local/share/offphone/lvp_icd.json"; echo
-              [ -n "$lib" ] && tools/droiddeckctl env set "BL_VK_DRIVER=/usr/local/share/offphone/lvp_icd.json" --persistent
+              # Zink will not take a CPU device; GL goes to llvmpipe directly, as the session's own
+              # fallback does on Venus devices without nullDescriptor.
+              [ -n "$lib" ] && tools/droiddeckctl env set "BL_VK_DRIVER=/usr/local/share/offphone/lvp_icd.json" \
+                GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1 --persistent
               # gamescope also needs sync-file semaphores, which lavapipe lacks: the rig's own layer
               # (tools/offphone/cpusync) adds them with CPU waits. Never part of the APK.
               # udmabuf (see redroid-up.sh): the app reaches it like the dma-buf heaps apps may open.
