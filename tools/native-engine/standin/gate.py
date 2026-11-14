@@ -47,10 +47,10 @@ sys.exit(ng["main"](sys.argv[3:]))
 """
 
 
-def run_once(cmd, log_path, timeout):
+def run_once(cmd, log_path, timeout, env=None):
     began = time.monotonic()
     lines = []
-    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
 
     def stop():
         if proc.poll() is None:
@@ -166,6 +166,19 @@ def main(argv=None):
         if not passed:
             for t, line in lines[-60:]:
                 print(f"    [{t:8.3f}] {line}")
+    if not ok and not a.expect_fail:
+        # One more run with the .NET host's trace on, to say why it did not start.
+        trace = os.path.join(a.work, f"{a.name}-hosttrace.log")
+        env = dict(os.environ, COREHOST_TRACE="1", COREHOST_TRACE_VERBOSITY="4", COREHOST_TRACEFILE=trace)
+        run_once(cmd, os.path.join(a.work, f"{a.name}-traced.log"), a.timeout, env)
+        try:
+            with open(trace, errors="replace") as f:
+                hits = [l.rstrip() for l in f if re.search(r"error|fail|exception|could not|not found|invalid|0x8", l, re.I)]
+            print(f"{a.name}: .NET host trace ({trace}), {len(hits)} notable lines, last 40:")
+            for line in hits[-40:]:
+                print("    " + line[:300])
+        except OSError:
+            print(f"{a.name}: the .NET host wrote no trace")
     summary = {"name": a.name, "passed": ok, "expect_fail": a.expect_fail, "engine_args": engine_args,
                "prefix": a.prefix, "old_converter": bool(a.old_converter), "runs": runs}
     with open(os.path.join(a.work, f"{a.name}.json"), "w") as f:

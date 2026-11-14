@@ -141,13 +141,13 @@ jobs:
         run: |
           set -euo pipefail
           row=${{ matrix.row }}
-          variant=$row prefix= args="--headless --quit-after-frames 300" extra= deps=
+          variant=$row prefix= args="--headless --max-fps 30 --quit-after-frames 300" extra= deps=
           case $row in
-            xvfb-opengl3) variant=r2r-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver opengl3 --quit-after-frames 300" ;;
-            xvfb-vulkan) variant=r2r-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver vulkan --quit-after-frames 300" ;;
+            xvfb-opengl3) variant=il-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver opengl3 --max-fps 30 --quit-after-frames 300" ;;
+            xvfb-vulkan) variant=il-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver vulkan --max-fps 30 --quit-after-frames 300" ;;
             selftest-7754c57b) variant=r2r-deps-gdext extra="--expect-fail compose --timeout 120 --old-converter $RUNNER_TEMP/old-converter" ;;
             selftest-d68b35ad) variant=r2r-deps-gdext extra="--expect-fail load --timeout 120 --old-converter $RUNNER_TEMP/old-converter" ;;
-            probe) variant=r2r-deps-gdext ;;
+            probe) variant=il-deps-gdext ;;
           esac
           case $variant in *-nodeps-*) deps=off ;; *) deps=on ;; esac
           { echo "variant=$variant"; echo "prefix=$prefix"; echo "args=$args"; echo "extra=$extra"; echo "deps=$deps"; } >> "$GITHUB_OUTPUT"
@@ -238,7 +238,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          name: standin-win-x64-r2r-deps-gdext
+          name: standin-win-x64-il-deps-gdext
           path: ${{ runner.temp }}/standin
       - name: Runner packages (Xvfb, Mesa, xdotool)
         run: |
