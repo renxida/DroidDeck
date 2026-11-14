@@ -148,14 +148,19 @@ object ComponentUpdater {
         val state = load(context)
         val notes = ArrayList<String>()
         val wanted = listOf("fex")
+        var skipped: String? = null
         try {
             dropRemoved(state, protons)
             val now = System.currentTimeMillis()
-            val due = now - state.optLong(SESSION_CHECKED) >= SESSION_CHECK_EVERY_MS && !OfflineMode.enabled(context)
+            // Steam's offline login says nothing about the phone's network: the check gates on the connection
+            // itself (a session with Steam offline never updated FEX, Nov 14).
+            val sinceMs = now - state.optLong(SESSION_CHECKED)
+            val due = sinceMs >= SESSION_CHECK_EVERY_MS
             if (due && check(context, state, protons, wanted, false, notes)) {
                 state.put(SESSION_CHECKED, now)
                 state.put("checkedAt", now)
             }
+            if (!due) skipped = "not checked: last check ${sinceMs / 60_000} min ago"
             apply(context, state, protons, wanted, notes)
         } finally {
             save(context, state)
@@ -168,7 +173,7 @@ object ComponentUpdater {
             "${p.name} ${line?.key ?: "-"} wants ${current.ifEmpty { "original" }}, has ${choices.fileOf(p, "fex") ?: "original"}"
         }
         return "fex: $placed" + (if (notes.isEmpty()) "" else " (${notes.joinToString(", ")})") +
-            (state.optString("note").takeIf { it.isNotEmpty() }?.let { " [$it]" } ?: "")
+            ((skipped ?: state.optString("note")).takeIf { it.isNotEmpty() }?.let { " [$it]" } ?: "")
     }
 
     private fun check(
@@ -184,7 +189,8 @@ object ComponentUpdater {
             state.put("note", context.getString(R.string.comp_auto_check_failed))
             return false
         }
-        val holdBack = !force && AutoComponents.constrained(context)
+        val heldBy = if (force) null else AutoComponents.constraint(context)
+        val holdBack = heldBy != null
         val lines = state.obj("lines")
         var complete = true
         state.remove("note")
@@ -200,7 +206,7 @@ object ComponentUpdater {
             val relisted = if (missing) catalog.firstOrNull { it.file == current } else null
             if (relisted != null) {
                 if (holdBack) {
-                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered))
+                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered) + " ($heldBy)")
                     complete = false
                     continue
                 }
@@ -218,7 +224,7 @@ object ComponentUpdater {
             val stored = ComponentsManager.isStored(context, target.file)
             if (!stored) {
                 if (holdBack) {
-                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered))
+                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered) + " ($heldBy)")
                     complete = false
                     continue
                 }
