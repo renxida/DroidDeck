@@ -40,7 +40,7 @@ if int(jit[0].split("=")[1].split()[0]) < 20:
 print("\n".join(jit[:4]), file=sys.stderr)
 memory = (d / "dotnet-summary.txt").read_text().splitlines()[-1]
 fields = dict(part.split("=") for part in memory.split()[1:])
-if not memory.startswith("clr_memory: ") or float(fields["jit_code_mb"]) <= 0 or int(fields["modules_sized"]) < 3 \\
+if not memory.startswith("clr_memory: ") or float(fields["jit_code_mb"]) <= 0 or int(fields["modules_sized"]) < 3 \
         or int(fields["r2r_methods_used"]) < 20:
     sys.exit(f"{name}: {memory}")
 print(memory, file=sys.stderr)
