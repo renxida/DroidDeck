@@ -28,9 +28,15 @@ import java.net.URL
  * Remote control through the person's own telemetry repository: the agent bridge (the same calls
  * tools/droiddeckctl makes over adb) driven from files instead of a cable.
  *
- *     remote/inbox/<id>.json    {"method": "...", "arg": null, "request": {...}}   written by the operator
+ *     remote/inbox/<id>.json    {"payload": base64 JSON, "sig": base64 ECDSA P-256 / SHA-256 over the payload bytes}
+ *                               payload: {"id": "<id>", "expires": <ms>, "method": "...", "arg": null, "request": {...}}
  *     remote/outbox/<id>.json   {"id", "method", "at", "result": {...}}           written here
  *     remote/outbox/<id>.jpg    for "screenshot"
+ *
+ * A command runs only when its signature checks out against [PUBLIC_KEY], the operator's key compiled
+ * into the app (the private half never leaves the operator's side), its id matches its file name, it
+ * has not expired and it has not run before. Write access to the repository alone can't run anything.
+ * Shell commands are announced in the notification.
  *
  * Off unless the person turns on Setup > Diagnostics > Remote control. While on, a foreground service
  * with a notification polls the inbox (a conditional request; unchanged listings cost no rate limit),
@@ -51,6 +57,29 @@ object AgentRemote {
     private const val ACTIVE_FOR_MS = 10 * 60_000L
     private const val MAX_DONE = 400
     private val ID = Regex("[A-Za-z0-9_-]{1,64}")
+    private val SHELL = setOf("guest", "native", "cdp", "override")
+    const val PUBLIC_KEY = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEC+g8jJWsIWr01pqQffb0eJwcL6gcF5/LcWdbiUpO7Yv/MSwngzSiVT6lKqZPr+lGMHVLr97V41rVbm2X/GbhpQ=="
+
+    /** Notification text updater, set by the running service. */
+    @Volatile internal var announce: ((String) -> Unit)? = null
+
+    /** The command inside a signed file, or why it was refused. */
+    internal fun unseal(file: JSONObject, id: String, nowMs: Long, key: String = PUBLIC_KEY): Pair<JSONObject?, String?> {
+        val payload = runCatching { Base64.decode(file.optString("payload"), Base64.DEFAULT) }.getOrNull()?.takeIf { it.isNotEmpty() }
+            ?: return null to "no payload"
+        val sig = runCatching { Base64.decode(file.optString("sig"), Base64.DEFAULT) }.getOrNull()?.takeIf { it.isNotEmpty() }
+            ?: return null to "no signature"
+        val ok = runCatching {
+            val pub = java.security.KeyFactory.getInstance("EC")
+                .generatePublic(java.security.spec.X509EncodedKeySpec(Base64.decode(key, Base64.DEFAULT)))
+            java.security.Signature.getInstance("SHA256withECDSA").run { initVerify(pub); update(payload); verify(sig) }
+        }.getOrDefault(false)
+        if (!ok) return null to "bad signature"
+        val command = runCatching { JSONObject(String(payload, Charsets.UTF_8)) }.getOrNull() ?: return null to "payload is not JSON"
+        if (command.optString("id") != id) return null to "id does not match the file name"
+        if (command.optLong("expires", 0L) < nowMs) return null to "expired"
+        return command to null
+    }
 
     /** Set by the session screen while it shows, so "screenshot" can copy its pixels. */
     @Volatile var capture: ((File, (Boolean) -> Unit) -> Unit)? = null
@@ -108,9 +137,10 @@ object AgentRemote {
         val done = doneSet(context)
         var ran = false
         for ((id, sha) in pending(listing, done)) {
-            val command = runCatching { JSONObject(raw(repo, token, "$INBOX/$id.json") ?: return@runCatching null) }.getOrNull()
+            val file = runCatching { JSONObject(raw(repo, token, "$INBOX/$id.json") ?: return@runCatching null) }.getOrNull()
             markDone(context, id)
-            val result = if (command == null) err("BAD_COMMAND", "not JSON") else run(context, repo, token, id, command)
+            val (command, refused) = if (file == null) null to "not JSON" else unseal(file, id, System.currentTimeMillis())
+            val result = if (command == null) err("REFUSED", refused ?: "refused") else run(context, repo, token, id, command)
             val out = JSONObject().put("id", id).put("method", command?.optString("method"))
                 .put("at", System.currentTimeMillis()).put("result", result)
             put(repo, token, "$OUTBOX/$id.json", out.toString(2).toByteArray(Charsets.UTF_8), "lanner remote: result $id")
@@ -124,6 +154,8 @@ object AgentRemote {
     private fun run(context: Context, repo: String, token: String, id: String, command: JSONObject): JSONObject {
         val method = command.optString("method")
         val request = command.optJSONObject("request") ?: JSONObject()
+        if (method in SHELL) announce?.invoke(context.getString(R.string.remote_notification_shell,
+            java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())))
         return try {
             when (method) {
                 "ping" -> JSONObject().put("ok", true).put("version", com.droiddeck.launcher.BuildConfig.VERSION_NAME)
@@ -258,10 +290,13 @@ class AgentRemoteService : Service() {
         val open = PendingIntent.getActivity(this, 0,
             Intent(this, com.droiddeck.launcher.FrontEndActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE)
-        startForeground(NOTIFICATION, Notification.Builder(this, CHANNEL)
+        fun note(text: String?) = Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_session)
             .setContentTitle(getString(R.string.remote_notification))
-            .setContentIntent(open).setOngoing(true).build())
+            .apply { if (text != null) setContentText(text) }
+            .setContentIntent(open).setOngoing(true).build()
+        startForeground(NOTIFICATION, note(null))
+        AgentRemote.announce = { text -> runCatching { manager?.notify(NOTIFICATION, note(text)) } }
         if (!AgentRemote.enabled(this) || !TelemetryUploadSettings.active(this)) { stopSelf(); return START_NOT_STICKY }
         if (worker?.isAlive != true) {
             running = true
@@ -272,6 +307,7 @@ class AgentRemoteService : Service() {
 
     override fun onDestroy() {
         running = false
+        AgentRemote.announce = null
         worker?.interrupt()
         super.onDestroy()
     }

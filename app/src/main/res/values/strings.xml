@@ -2235,6 +2235,7 @@
     <string name="autotest_channel">Test runs</string>
     <string name="remote_channel">Remote control</string>
     <string name="remote_notification">Lanner remote control is on</string>
+    <string name="remote_notification_shell">Ran a shell command at %1$s</string>
     <string name="remote_control">Remote control</string>
     <string name="remote_control_hint">Takes commands from the remote folder of your telemetry repository: start a game, send input, take a screenshot, read logs. Shell commands also need Debugging tools.</string>
     <string name="autotest_run_now">Queued test run</string>

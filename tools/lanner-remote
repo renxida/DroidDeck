@@ -3,12 +3,21 @@
 
   lanner-remote [--repo OWNER/NAME] METHOD [JSON_REQUEST] [--arg ARG] [--wait SECONDS]
 
-Writes remote/inbox/<id>.json with gh, then waits for remote/outbox/<id>.json and prints it; a
+Signs the command with the operator key (LANNER_REMOTE_KEY, ECDSA P-256; the app holds only the
+public half), writes remote/inbox/<id>.json with gh, then waits for remote/outbox/<id>.json and prints it; a
 "screenshot" answer also saves remote/outbox/<id>.jpg next to the current directory. Methods are the
 agent bridge's (state, stop, launch, input, ui, guest, logs, prefs, env, ...) plus start, screenshot,
 autotest and ping. The phone polls every 30 s, and every 5 s for ten minutes after a command.
 """
-import argparse, base64, json, subprocess, sys, time
+import argparse, base64, json, os, subprocess, sys, time
+
+KEY = os.environ.get("LANNER_REMOTE_KEY", "/mnt/project-files/.lanner-remote/key.pem")
+
+def sign(payload: bytes) -> bytes:
+    r = subprocess.run(["openssl", "dgst", "-sha256", "-sign", KEY], input=payload, capture_output=True)
+    if r.returncode:
+        sys.exit("could not sign: " + r.stderr.decode().strip())
+    return r.stdout
 
 def gh(*args, input=None):
     r = subprocess.run(["gh", "api", *args], input=input, capture_output=True, text=True)
@@ -24,7 +33,9 @@ def main():
     a = p.parse_args()
     request = json.loads(a.request)
     cid = time.strftime("%Y%m%d-%H%M%S", time.gmtime()) + "-" + a.method.replace("_", "-")[:20]
-    body = {"method": a.method, "arg": a.arg, "request": request}
+    payload = json.dumps({"id": cid, "expires": int((time.time() + a.wait) * 1000),
+                          "method": a.method, "arg": a.arg, "request": request}).encode()
+    body = {"payload": base64.b64encode(payload).decode(), "sig": base64.b64encode(sign(payload)).decode()}
     payload = json.dumps({"message": f"lanner remote: {cid}",
                           "content": base64.b64encode(json.dumps(body).encode()).decode()})
     code, out, err = gh("-X", "PUT", f"repos/{a.repo}/contents/remote/inbox/{cid}.json", "--input", "-", input=payload)
