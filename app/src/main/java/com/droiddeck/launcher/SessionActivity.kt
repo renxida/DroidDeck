@@ -827,6 +827,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onRepair = if (repairOffered) ({ repairRuntime() }) else null,
                     onShareLogs = { shareCurrentSessionLogs() },
                     onClose = { finish() },
+                    info = launchLines(loading.step),
+                    flavor = launchFlavor,
+                )
+                if (!loading.visible) com.droiddeck.launcher.ui.LaunchStrip(
+                    lines = { com.droiddeck.launcher.session.LaunchInfo.lines(this@SessionActivity) },
+                    flavor = launchFlavor,
+                    visible = {
+                        com.droiddeck.launcher.session.LaunchInfo.cornerVisible(System.currentTimeMillis(),
+                            com.droiddeck.launcher.session.GamePacing.plan != null)
+                    },
                 )
                 LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty()) {
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -4321,6 +4331,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    /** One flavour line per activity, so it holds still through the launch. */
+    private val launchFlavor: String by lazy { com.droiddeck.launcher.session.LaunchInfo.flavor(System.nanoTime() / 1000) }
+
+    /** The launch lines, read again as the loading step changes so the FEX line and rotation row show once known. */
+    @androidx.compose.runtime.Composable
+    private fun launchLines(step: String): List<String> =
+        androidx.compose.runtime.remember(step) { runCatching { com.droiddeck.launcher.session.LaunchInfo.lines(this) }.getOrDefault(emptyList()) }
+
     private val endListener: (Int) -> Unit = { status -> onSessionEnded(status) }
     private val firstFrameListener = Runnable {
         SessionEvents.firstFrame()
@@ -4328,6 +4346,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         runOnUiThread {
             if (isFinishing || isDestroyed) return@runOnUiThread
             loading.visible = false
+            com.droiddeck.launcher.session.LaunchInfo.firstFrame(System.currentTimeMillis())
             hud.start()
             memoryHud.start()
             if (started) {

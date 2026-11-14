@@ -149,7 +149,8 @@ object AgentRemote {
                 .put("at", System.currentTimeMillis()).put("result", result)
             put(repo, token, "$OUTBOX/$id.json", out.toString(2).toByteArray(Charsets.UTF_8), "lanner remote: result $id")
             delete(repo, token, "$INBOX/$id.json", sha, "lanner remote: ran $id")
-            prefs(context).edit().putString("last", "$id ${command?.optString("method")} ok=${result.optBoolean("ok")}").apply()
+            prefs(context).edit().putString("last", "$id ${command?.optString("method")} ok=${result.optBoolean("ok")}")
+                .putLong("last_at", System.currentTimeMillis()).apply()
             ran = true
         }
         return ran

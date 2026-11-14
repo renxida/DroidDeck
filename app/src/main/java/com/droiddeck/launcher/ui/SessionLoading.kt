@@ -153,6 +153,8 @@ fun LoadingOverlay(
     onRepair: (() -> Unit)? = null,
     onShareLogs: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
+    info: List<String> = emptyList(),
+    flavor: String = "",
 ) {
     val colors = MaterialTheme.colorScheme
     val stages = remember(steam) { loadStages(steam) }
@@ -183,6 +185,12 @@ fun LoadingOverlay(
                 modifier = Modifier.padding(top = 6.dp).widthIn(max = 520.dp),
             )
             if (!ended) LoadSegments(stages.size, active, percent, Modifier.padding(top = 18.dp))
+            if (!ended && flavor.isNotEmpty()) Text(
+                flavor, fontSize = 13.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                color = LocalPalette.current.signal.copy(alpha = 0.85f), textAlign = TextAlign.Center, maxLines = 2,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.dp).widthIn(max = 520.dp),
+            )
+            if (info.isNotEmpty()) LaunchInfoBlock(info, Modifier.padding(top = 12.dp))
             if (ended && endedDetail != null) Text(
                 endedDetail, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis,
@@ -252,5 +260,46 @@ private fun CancelHint(onCancel: () -> Unit, modifier: Modifier = Modifier) {
             ))
         }
         Text(stringResource(R.string.common_cancel), fontSize = 13.sp, color = colors.onSurfaceVariant)
+    }
+}
+
+/** This launch's mode, build and remote settings, in small monospace lines (see [com.droiddeck.launcher.session.LaunchInfo]). */
+@Composable
+fun LaunchInfoBlock(lines: List<String>, modifier: Modifier = Modifier) {
+    Text(
+        lines.joinToString("\n"), fontSize = 11.sp, lineHeight = 14.sp, fontFamily = FontFamily.Monospace,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f), maxLines = 12, overflow = TextOverflow.Ellipsis,
+        modifier = modifier.widthIn(max = 600.dp),
+    )
+}
+
+/**
+ * The same lines as a small card over the game, top left, while it starts after the loading screen is gone. Touches
+ * pass through it. [lines] is read again each second so the FEX line and rotation row show once they are known.
+ */
+@Composable
+fun LaunchStrip(lines: () -> List<String>, flavor: String, visible: () -> Boolean) {
+    val shown by produceState(initialValue = false to emptyList<String>()) {
+        while (true) {
+            value = visible() to (if (visible()) lines() else emptyList())
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    if (!shown.first || shown.second.isEmpty()) return
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
+        Column(
+            modifier = Modifier.padding(10.dp).widthIn(max = 420.dp)
+                .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+        ) {
+            if (flavor.isNotEmpty()) Text(
+                flavor, fontSize = 11.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                color = Color(0xFF3DDC84).copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                shown.second.joinToString("\n"), fontSize = 10.sp, lineHeight = 13.sp, fontFamily = FontFamily.Monospace,
+                color = Color.White.copy(alpha = 0.8f), maxLines = 10, overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
