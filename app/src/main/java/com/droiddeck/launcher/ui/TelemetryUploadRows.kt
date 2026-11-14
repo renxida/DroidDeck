@@ -81,4 +81,10 @@ internal fun TelemetryUploadRows(host: MenuHost) {
         com.droiddeck.launcher.agent.AgentRemote.setEnabled(ctx, it)
         remote = it
     }
+    var kadbInstall by remember { mutableStateOf(com.droiddeck.launcher.update.KadbInstaller.enabled(ctx)) }
+    ToggleRow(host, "kadb-install", stringResource(R.string.kadb_install),
+        com.droiddeck.launcher.update.KadbInstaller.lastResult(ctx) ?: stringResource(R.string.kadb_install_hint), kadbInstall) {
+        com.droiddeck.launcher.update.KadbInstaller.setEnabled(ctx, it)
+        kadbInstall = it
+    }
 }

@@ -24,6 +24,8 @@ class DeviceStatusTest {
         assertTrue(status.has("kadb_paired"))
         assertTrue(status.has("wireless_debugging"))
         assertTrue(status.has("device_idle"))
+        assertFalse(status.getBoolean("kadb_install"))
+        assertEquals("unknown", status.getString("kadb_reachable"))
         assertFalse(com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(context))
         assertFalse(com.droiddeck.launcher.agent.AgentRemote.enabled(context))
     }

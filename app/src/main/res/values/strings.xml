@@ -2248,6 +2248,8 @@
     <string name="self_update_settings">Settings</string>
     <string name="remote_control">Remote control</string>
     <string name="remote_control_hint">Takes commands from the remote folder of your telemetry repository: start a game, send input, take a screenshot, read logs. Shell commands also need Debugging tools.</string>
+    <string name="kadb_install">Install updates over Wireless debugging</string>
+    <string name="kadb_install_hint">When the phone is idle on the charger, installs new builds without a prompt, using the Wireless debugging pairing. Needs Wireless debugging on.</string>
     <string name="autotest_run_now">Queued test run</string>
     <string name="autotest_run_now_hint">Starts the test run from your telemetry config now, instead of waiting for the phone to charge while idle.</string>
     <string name="autotest_run_now_button">Run now</string>

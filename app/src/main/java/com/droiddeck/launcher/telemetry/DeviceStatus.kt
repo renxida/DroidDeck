@@ -12,7 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Read-only state for the remote "ping" answer and the live status file: the installed build, the Remote control and
- * Debugging tools switches, wireless debugging and the saved Kadb pairing, power and thermals. Nothing here changes
+ * Debugging tools switches, wireless debugging and the saved Kadb pairing, the Install updates over Wireless debugging
+ * switch and whether Wireless debugging answered at its last try, power and thermals. Nothing here changes
  * a setting, and nothing carries a token, address or key.
  */
 object DeviceStatus {
@@ -31,6 +32,8 @@ object DeviceStatus {
             .put("debugging_tools", com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(app))
             .put("wireless_debugging", flag { com.droiddeck.launcher.core.GlobalSettings.wirelessDebuggingOn(app) })
             .put("kadb_paired", flag { com.droiddeck.launcher.core.WirelessAdbFix.hasSavedPairing(app) })
+            .put("kadb_install", flag { com.droiddeck.launcher.update.KadbInstaller.enabled(app) })
+            .put("kadb_reachable", runCatching { com.droiddeck.launcher.update.KadbInstaller.reachable(app) }.getOrNull() ?: "unknown")
         val sticky = runCatching { app.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) }.getOrNull()
         if (sticky != null) {
             out.put("charging", sticky.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0)
@@ -48,6 +51,10 @@ object DeviceStatus {
             out.put("thermal_status", thermalName(it))
         }
         out.put("self_update", runCatching { com.droiddeck.launcher.update.SelfUpdate.status(app) }.getOrDefault("unknown"))
+        runCatching { com.droiddeck.launcher.update.KadbInstaller.checkedAt(app) }.getOrNull()?.takeIf { it > 0 }?.let {
+            out.put("kadb_checked_at", it)
+        }
+        runCatching { com.droiddeck.launcher.update.KadbInstaller.lastResult(app) }.getOrNull()?.let { out.put("kadb_install_last", it) }
         return out
     }
 

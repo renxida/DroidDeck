@@ -26,6 +26,12 @@ interface UpdateInstaller {
 
     val name: String
 
+    /**
+     * True when this backend is switched on to install with nobody at the phone and no prompt;
+     * [SelfUpdate.installUnattended] hands an update only to such backends.
+     */
+    fun unattended(context: Context): Boolean = false
+
     fun install(context: Context, verifiedApk: File, onResult: (Result) -> Unit): Boolean
 }
 
