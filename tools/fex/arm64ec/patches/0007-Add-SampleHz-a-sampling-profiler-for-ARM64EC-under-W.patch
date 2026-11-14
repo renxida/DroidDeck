@@ -1,7 +1,7 @@
-From baaf0bc36739292f79774b75828dc66e5578cbb6 Mon Sep 17 00:00:00 2001
+From 8ef2efdac721dc71c27631f9f629a73f11c56669 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 14 Nov 2026 00:52:31 +0000
-Subject: [PATCH] Add SampleHz, a sampling profiler for ARM64EC under Wine
+Subject: [PATCH 7/8] Add SampleHz, a sampling profiler for ARM64EC under Wine
  (default off)
 
 Each emulated thread gets a timer on its own CPU time that sends it SIGPROF.
@@ -16,16 +16,19 @@ thread's top 200 and the other threads' top 50 to
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  .../Source/Interface/Config/Config.json.in    |   9 +
- FEXCore/Source/Interface/Core/Core.cpp        |  41 ++
+ FEXCore/Source/Interface/Core/Core.cpp        |  49 ++
+ .../Core/Interpreter/Fallbacks/F80Fallbacks.h | 100 ++--
  FEXCore/include/FEXCore/Core/Context.h        |   7 +
+ .../include/FEXCore/Utils/FloatFallbackHook.h |  15 +
  Source/Windows/ARM64EC/CMakeLists.txt         |   1 +
  Source/Windows/ARM64EC/Module.cpp             |  12 +-
- Source/Windows/ARM64EC/Sampler.cpp            | 447 ++++++++++++++++++
+ Source/Windows/ARM64EC/Sampler.cpp            | 510 ++++++++++++++++++
  Source/Windows/ARM64EC/Sampler.h              |  16 +
  Source/Windows/UnixLib/FEXUnixLib.cpp         |  31 ++
  Source/Windows/UnixLib/FEXUnixLib.h           |  48 ++
- Source/Windows/UnixLib/Sampler.h              | 219 +++++++++
- 10 files changed, 830 insertions(+), 1 deletion(-)
+ Source/Windows/UnixLib/Sampler.h              | 219 ++++++++
+ 12 files changed, 971 insertions(+), 46 deletions(-)
+ create mode 100644 FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
  create mode 100644 Source/Windows/ARM64EC/Sampler.cpp
  create mode 100644 Source/Windows/ARM64EC/Sampler.h
  create mode 100644 Source/Windows/UnixLib/Sampler.h
@@ -51,13 +54,28 @@ index 0e03b44..b4ca487 100644
          "Type": "bool",
          "Default": "false",
 diff --git a/FEXCore/Source/Interface/Core/Core.cpp b/FEXCore/Source/Interface/Core/Core.cpp
-index dbc7f7c..93ff056 100644
+index dbc7f7c..8ef180b 100644
 --- a/FEXCore/Source/Interface/Core/Core.cpp
 +++ b/FEXCore/Source/Interface/Core/Core.cpp
-@@ -185,6 +185,47 @@ uint64_t ContextImpl::RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* T
+@@ -46,6 +46,7 @@ $end_info$
+ #include <FEXCore/Utils/Allocator.h>
+ #include <FEXCore/Utils/Event.h>
+ #include <FEXCore/Utils/File.h>
++#include <FEXCore/Utils/FloatFallbackHook.h>
+ #include <FEXCore/Utils/LogManager.h>
+ #include "FEXCore/Utils/SignalScopeGuards.h"
+ #include <FEXCore/Utils/Threads.h>
+@@ -185,6 +186,54 @@ uint64_t ContextImpl::RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* T
    return Frame->State.rip;
  }
  
++} // namespace FEXCore::Context
++
++namespace FEXCore::SHMStats {
++FloatFallbackHookFn FloatFallbackHook {};
++} // namespace FEXCore::SHMStats
++
++namespace FEXCore::Context {
 +bool Context::DecodeSampledRIP(uint64_t BlockHeader, uint64_t HostPC, SampleReadFn Read, uint64_t* GuestRIP, bool* InBlock) {
 +  *InBlock = false;
 +  CPU::CPUBackend::JITCodeHeader Header {};
@@ -102,6 +120,419 @@ index dbc7f7c..93ff056 100644
  uint32_t ContextImpl::ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs,
                                                   uint64_t PSTATE) {
    const auto Frame = Thread->CurrentFrame;
+diff --git a/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h b/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
+index 5c0e656..8d29e7d 100644
+--- a/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
++++ b/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
+@@ -6,8 +6,18 @@
+ #include "Interface/IR/IR.h"
+ 
+ #include <FEXCore/Debug/InternalThreadState.h>
++#include <FEXCore/Utils/FloatFallbackHook.h>
+ #include <FEXCore/Utils/SHMStats.h>
+ 
++// Counts a softfloat fallback, and tells a profiler which translated code called it.
++#define FEXCORE_FLOAT_FALLBACK(Frame)                                                                         \
++  do {                                                                                                        \
++    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);                       \
++    if (auto Hook = FEXCore::SHMStats::FloatFallbackHook) [[unlikely]] {                                      \
++      Hook(Frame, reinterpret_cast<uint64_t>(__builtin_extract_return_addr(__builtin_return_address(0))));    \
++    }                                                                                                         \
++  } while (0)
++
+ namespace FEXCore::CPU {
+ FEXCORE_PRESERVE_ALL_ATTR static softfloat_state SoftFloatStateFromFCW(uint16_t FCW, bool Force80BitPrecision = false) {
+   softfloat_state State {};
+@@ -69,13 +79,13 @@ private:
+ template<>
+ struct OpHandlers<IR::OP_F80CVTTO> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle4(uint16_t FCW, float src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(&State.State, src);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle8(uint16_t FCW, double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(&State.State, src);
+   }
+@@ -84,7 +94,7 @@ struct OpHandlers<IR::OP_F80CVTTO> {
+ template<>
+ struct OpHandlers<IR::OP_F80CMP> {
+   FEXCORE_PRESERVE_ALL_ATTR static uint64_t handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+ 
+     bool eq, lt, nan;
+@@ -107,13 +117,13 @@ struct OpHandlers<IR::OP_F80CMP> {
+ template<>
+ struct OpHandlers<IR::OP_F80CVT> {
+   FEXCORE_PRESERVE_ALL_ATTR static float handle4(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToF32(&State.State);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static double handle8(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToF64(&State.State);
+   }
+@@ -122,25 +132,25 @@ struct OpHandlers<IR::OP_F80CVT> {
+ template<>
+ struct OpHandlers<IR::OP_F80CVTINT> {
+   FEXCORE_PRESERVE_ALL_ATTR static int16_t handle2(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToI16(&State.State);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int32_t handle4(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToI32(&State.State);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int64_t handle8(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToI64(&State.State);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int16_t handle2t(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     auto rv = extF80_to_i32(&State.State, X80SoftFloat(src), softfloat_round_minMag, false);
+ 
+@@ -153,13 +163,13 @@ struct OpHandlers<IR::OP_F80CVTINT> {
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int32_t handle4t(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return extF80_to_i32(&State.State, X80SoftFloat(src), softfloat_round_minMag, false);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int64_t handle8t(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return extF80_to_i64(&State.State, X80SoftFloat(src), softfloat_round_minMag, false);
+   }
+@@ -168,12 +178,12 @@ struct OpHandlers<IR::OP_F80CVTINT> {
+ template<>
+ struct OpHandlers<IR::OP_F80CVTTOINT> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle2(uint16_t FCW, int16_t src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return X80SoftFloat(src);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle4(uint16_t FCW, int32_t src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return X80SoftFloat(src);
+   }
+ };
+@@ -181,7 +191,7 @@ struct OpHandlers<IR::OP_F80CVTTOINT> {
+ template<>
+ struct OpHandlers<IR::OP_F80ROUND> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FRNDINT(&State.State, Src1);
+   }
+@@ -190,7 +200,7 @@ struct OpHandlers<IR::OP_F80ROUND> {
+ template<>
+ struct OpHandlers<IR::OP_F80F2XM1> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::F2XM1(&State.State, Src1);
+   }
+@@ -199,7 +209,7 @@ struct OpHandlers<IR::OP_F80F2XM1> {
+ template<>
+ struct OpHandlers<IR::OP_F80TAN> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FTAN(&State.State, Src1);
+   }
+@@ -208,7 +218,7 @@ struct OpHandlers<IR::OP_F80TAN> {
+ template<>
+ struct OpHandlers<IR::OP_F80SQRT> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FSQRT(&State.State, Src1);
+   }
+@@ -217,7 +227,7 @@ struct OpHandlers<IR::OP_F80SQRT> {
+ template<>
+ struct OpHandlers<IR::OP_F80SIN> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FSIN(&State.State, Src1);
+   }
+@@ -226,7 +236,7 @@ struct OpHandlers<IR::OP_F80SIN> {
+ template<>
+ struct OpHandlers<IR::OP_F80COS> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FCOS(&State.State, Src1);
+   }
+@@ -235,7 +245,7 @@ struct OpHandlers<IR::OP_F80COS> {
+ template<>
+ struct OpHandlers<IR::OP_F80SINCOS> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegPairType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return FEXCore::MakeVectorRegPair(X80SoftFloat::FSIN(&State.State, Src1), X80SoftFloat::FCOS(&State.State, Src1));
+   }
+@@ -244,7 +254,7 @@ struct OpHandlers<IR::OP_F80SINCOS> {
+ template<>
+ struct OpHandlers<IR::OP_F80XTRACT_EXP> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return X80SoftFloat::FXTRACT_EXP(Src1);
+   }
+ };
+@@ -252,7 +262,7 @@ struct OpHandlers<IR::OP_F80XTRACT_EXP> {
+ template<>
+ struct OpHandlers<IR::OP_F80XTRACT_SIG> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return X80SoftFloat::FXTRACT_SIG(Src1);
+   }
+ };
+@@ -260,7 +270,7 @@ struct OpHandlers<IR::OP_F80XTRACT_SIG> {
+ template<>
+ struct OpHandlers<IR::OP_F80ADD> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FADD(&State.State, Src1, Src2);
+   }
+@@ -269,7 +279,7 @@ struct OpHandlers<IR::OP_F80ADD> {
+ template<>
+ struct OpHandlers<IR::OP_F80SUB> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FSUB(&State.State, Src1, Src2);
+   }
+@@ -278,7 +288,7 @@ struct OpHandlers<IR::OP_F80SUB> {
+ template<>
+ struct OpHandlers<IR::OP_F80MUL> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FMUL(&State.State, Src1, Src2);
+   }
+@@ -287,7 +297,7 @@ struct OpHandlers<IR::OP_F80MUL> {
+ template<>
+ struct OpHandlers<IR::OP_F80DIV> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FDIV(&State.State, Src1, Src2);
+   }
+@@ -296,7 +306,7 @@ struct OpHandlers<IR::OP_F80DIV> {
+ template<>
+ struct OpHandlers<IR::OP_F80FYL2X> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FYL2X(&State.State, Src1, Src2);
+   }
+@@ -305,7 +315,7 @@ struct OpHandlers<IR::OP_F80FYL2X> {
+ template<>
+ struct OpHandlers<IR::OP_F80FYL2XP1> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     const X80SoftFloat One {&State.State, 1.0};
+     return X80SoftFloat::FYL2X(&State.State, X80SoftFloat::FADD(&State.State, Src1, One), Src2);
+@@ -315,7 +325,7 @@ struct OpHandlers<IR::OP_F80FYL2XP1> {
+ template<>
+ struct OpHandlers<IR::OP_F80ATAN> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FATAN(&State.State, Src1, Src2);
+   }
+@@ -324,7 +334,7 @@ struct OpHandlers<IR::OP_F80ATAN> {
+ template<>
+ struct OpHandlers<IR::OP_F80FPREM1> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FREM1(&State.State, Src1, Src2);
+   }
+@@ -333,7 +343,7 @@ struct OpHandlers<IR::OP_F80FPREM1> {
+ template<>
+ struct OpHandlers<IR::OP_F80FPREM> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FREM(&State.State, Src1, Src2);
+   }
+@@ -342,7 +352,7 @@ struct OpHandlers<IR::OP_F80FPREM> {
+ template<>
+ struct OpHandlers<IR::OP_F80SCALE> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FSCALE(&State.State, Src1, Src2);
+   }
+@@ -351,7 +361,7 @@ struct OpHandlers<IR::OP_F80SCALE> {
+ template<>
+ struct OpHandlers<IR::OP_F64SIN> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return sin(src);
+   }
+ };
+@@ -359,7 +369,7 @@ struct OpHandlers<IR::OP_F64SIN> {
+ template<>
+ struct OpHandlers<IR::OP_F64COS> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return cos(src);
+   }
+ };
+@@ -367,7 +377,7 @@ struct OpHandlers<IR::OP_F64COS> {
+ template<>
+ struct OpHandlers<IR::OP_F64SINCOS> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorScalarF64Pair handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     double sin, cos;
+ #ifdef _WIN32
+     sin = ::sin(src);
+@@ -382,7 +392,7 @@ struct OpHandlers<IR::OP_F64SINCOS> {
+ template<>
+ struct OpHandlers<IR::OP_F64TAN> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return tan(src);
+   }
+ };
+@@ -390,7 +400,7 @@ struct OpHandlers<IR::OP_F64TAN> {
+ template<>
+ struct OpHandlers<IR::OP_F64F2XM1> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return exp2(src) - 1.0;
+   }
+ };
+@@ -398,7 +408,7 @@ struct OpHandlers<IR::OP_F64F2XM1> {
+ template<>
+ struct OpHandlers<IR::OP_F64ATAN> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return atan2(src1, src2);
+   }
+ };
+@@ -406,7 +416,7 @@ struct OpHandlers<IR::OP_F64ATAN> {
+ template<>
+ struct OpHandlers<IR::OP_F64FPREM> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return fmod(src1, src2);
+   }
+ };
+@@ -414,7 +424,7 @@ struct OpHandlers<IR::OP_F64FPREM> {
+ template<>
+ struct OpHandlers<IR::OP_F64FPREM1> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return remainder(src1, src2);
+   }
+ };
+@@ -422,7 +432,7 @@ struct OpHandlers<IR::OP_F64FPREM1> {
+ template<>
+ struct OpHandlers<IR::OP_F64FYL2X> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return src2 * log2(src1);
+   }
+ };
+@@ -430,7 +440,7 @@ struct OpHandlers<IR::OP_F64FYL2X> {
+ template<>
+ struct OpHandlers<IR::OP_F64FYL2XP1> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return src2 * log2(1.0 + src1);
+   }
+ };
+@@ -438,7 +448,7 @@ struct OpHandlers<IR::OP_F64FYL2XP1> {
+ template<>
+ struct OpHandlers<IR::OP_F64SCALE> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     if (src1 == 0.0) { // src1 might be +/- zero
+       return src1;     // this will return negative or positive zero if when appropriate
+     }
+@@ -450,7 +460,7 @@ struct OpHandlers<IR::OP_F64SCALE> {
+ template<>
+ struct OpHandlers<IR::OP_F80BCDSTORE> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1q, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     X80SoftFloat Src1 = Src1q;
+     ScopedSoftFloatState State {FCW, Frame};
+     bool Negative = Src1.Top.Sign;
+@@ -492,7 +502,7 @@ struct OpHandlers<IR::OP_F80BCDSTORE> {
+ template<>
+ struct OpHandlers<IR::OP_F80BCDLOAD> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     uint8_t* Src1 = reinterpret_cast<uint8_t*>(&Src);
+     uint64_t BCD {};
+     // We walk through each uint8_t and pull out the BCD encoding
 diff --git a/FEXCore/include/FEXCore/Core/Context.h b/FEXCore/include/FEXCore/Core/Context.h
 index 8aa448e..0f66f21 100644
 --- a/FEXCore/include/FEXCore/Core/Context.h
@@ -120,6 +551,27 @@ index 8aa448e..0f66f21 100644
    /**
     * @brief Reconstructs a compacted EFLAGS from FEX's internal EFLAG representation.
     *
+diff --git a/FEXCore/include/FEXCore/Utils/FloatFallbackHook.h b/FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
+new file mode 100644
+index 0000000..e4cdcf9
+--- /dev/null
++++ b/FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
+@@ -0,0 +1,15 @@
++// SPDX-License-Identifier: MIT
++#pragma once
++#include <FEXCore/Utils/CompilerDefs.h>
++#include <cstdint>
++
++namespace FEXCore::Core {
++struct CpuStateFrame;
++}
++
++namespace FEXCore::SHMStats {
++// Set by a frontend's profiler (ARM64EC SampleHz). Called on every x87 softfloat fallback with the thread's frame
++// and the host PC in translated code that called the fallback, so the profiler can name the guest instruction.
++using FloatFallbackHookFn = void (*)(FEXCore::Core::CpuStateFrame* Frame, uint64_t HostPC);
++FEX_DEFAULT_VISIBILITY extern FloatFallbackHookFn FloatFallbackHook;
++} // namespace FEXCore::SHMStats
 diff --git a/Source/Windows/ARM64EC/CMakeLists.txt b/Source/Windows/ARM64EC/CMakeLists.txt
 index 0c9a57a..c92282a 100644
 --- a/Source/Windows/ARM64EC/CMakeLists.txt
@@ -185,10 +637,10 @@ index c9f0d74..d6c9d03 100644
  
 diff --git a/Source/Windows/ARM64EC/Sampler.cpp b/Source/Windows/ARM64EC/Sampler.cpp
 new file mode 100644
-index 0000000..5c6a26f
+index 0000000..4a948d6
 --- /dev/null
 +++ b/Source/Windows/ARM64EC/Sampler.cpp
-@@ -0,0 +1,447 @@
+@@ -0,0 +1,510 @@
 +// SPDX-License-Identifier: MIT
 +#include "ARM64EC/Sampler.h"
 +#include "Windows/Common/FEXUnixLib.h"
@@ -198,6 +650,7 @@ index 0000000..5c6a26f
 +#include <FEXCore/Core/Context.h>
 +#include <FEXCore/Core/CoreState.h>
 +#include <FEXCore/Debug/InternalThreadState.h>
++#include <FEXCore/Utils/FloatFallbackHook.h>
 +#include <FEXCore/Utils/LogManager.h>
 +#include <FEXCore/Utils/Threads.h>
 +#include <FEXCore/fextl/fmt.h>
@@ -221,6 +674,10 @@ index 0000000..5c6a26f
 +  constexpr uint32_t RestRows = 50;
 +  constexpr uint32_t ThreadRows = 8;
 +  constexpr uint64_t FlushIntervalMs = 60000;
++  constexpr uint32_t FallbackRows = 50;
++  constexpr uint32_t FallbackModuleRows = 20;
++  // Ring records written by FloatFallback (on every x87 softfloat fallback) rather than by the timer.
++  constexpr uint32_t FlagFloatFallback = 1;
 +
 +  uint32_t Hz {};
 +  FEXSampleRecord* Ring {};
@@ -306,6 +763,7 @@ index 0000000..5c6a26f
 +  uint64_t LastOwnUs {};
 +  bool WroteHeader {};
 +  fextl::unordered_map<Key, uint32_t, KeyHash> Counts;
++  fextl::unordered_map<uint64_t, uint32_t> FallbackCounts; // Guest RIP of the x87 instruction.
 +  fextl::unordered_map<DecodeKey, Decoded, DecodeKeyHash> DecodeCache;
 +  fextl::unordered_map<uint64_t, fextl::unique_ptr<Module>> Modules;
 +  Module NotAnImage;
@@ -408,12 +866,26 @@ index 0000000..5c6a26f
 +      return "jit";
 +    }
 +    if (!HostModule->Name.empty()) {
-+      return HostModule->Name == "libarm64ecfex.dll" ? "fex" : "native";
++      return (HostModule->Name == "libarm64ecfex.dll" || HostModule->Name == "libFEXCore.dll") ? "fex" : "native";
 +    }
 +    return HostModule == &NotAnImageExec ? "jit-other" : "host";
 +  }
 +
 +  void Account(const FEXSampleRecord& R) {
++    if (R.Flags & FlagFloatFallback) {
++      uint64_t Guest = R.RIP;
++      bool InBlock {};
++      if (R.BlockHeader) {
++        DecodeKey DK {R.BlockHeader, R.PC};
++        if (auto it = DecodeCache.find(DK); it != DecodeCache.end()) {
++          Guest = it->second.Guest;
++        } else if (FEXCore::Context::Context::DecodeSampledRIP(R.BlockHeader, R.PC, SafeRead, &Guest, &InBlock) && DecodeCache.size() < 500000) {
++          DecodeCache.emplace(DK, Decoded {Guest, InBlock ? Kind::JIT : Kind::Out});
++        }
++      }
++      ++FallbackCounts[Guest];
++      return;
++    }
 +    Decoded D {R.RIP, Kind::None};
 +    if (R.BlockHeader) {
 +      DecodeKey DK {R.BlockHeader, R.PC};
@@ -525,6 +997,33 @@ index 0000000..5c6a26f
 +      TopRows(Out, Counts, true, Busiest, MainRows, MinuteIndex, Now);
 +      TopRows(Out, Counts, false, Busiest, RestRows, MinuteIndex, Now);
 +    }
++    // Every x87 softfloat fallback, by the guest instruction that needed it and by guest module (not sampled: counted).
++    uint64_t Fallbacks = 0;
++    if (!FallbackCounts.empty()) {
++      fextl::vector<std::pair<uint64_t, uint32_t>> Sites(FallbackCounts.begin(), FallbackCounts.end());
++      fextl::unordered_map<const Module*, uint64_t> PerModule;
++      for (const auto& [Guest, n] : Sites) {
++        Fallbacks += n;
++        PerModule[FindModule(Guest)] += n;
++      }
++      const size_t Keep = std::min<size_t>(FallbackRows, Sites.size());
++      std::partial_sort(Sites.begin(), Sites.begin() + Keep, Sites.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
++      for (size_t i = 0; i < Keep; ++i) {
++        Out += fextl::fmt::format("{},{},{},x87,0,{},{},{:.4f},x87", MinuteIndex, Now, PID, i + 1, Sites[i].second,
++                                  double(Sites[i].second) / double(Fallbacks));
++        Describe(Out, Sites[i].first, FindModule(Sites[i].first));
++        Out += ",,,\n";
++      }
++      fextl::vector<std::pair<const Module*, uint64_t>> Mods(PerModule.begin(), PerModule.end());
++      std::sort(Mods.begin(), Mods.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
++      for (size_t i = 0; i < Mods.size() && i < FallbackModuleRows; ++i) {
++        const auto* M = Mods[i].first;
++        const char* Name = M->Name.empty() ? (M == &NotAnImageExec ? "anon-exec" : "anon") : M->Name.c_str();
++        Out += fextl::fmt::format("{},{},{},x87-module,0,{},{},{:.4f},x87,{},,,,,\n", MinuteIndex, Now, PID, i + 1, Mods[i].second,
++                                  double(Mods[i].second) / double(Fallbacks), Name);
++      }
++      FallbackCounts.clear();
++    }
 +    // Meta rows: kind names a counter, samples holds its value.
 +    const uint64_t Ticks = __atomic_load_n(HandlerTicks, __ATOMIC_RELAXED);
 +    const uint64_t HandlerUs = (Ticks - LastHandlerTicks) * 1000000 / TimerFrequency();
@@ -536,6 +1035,7 @@ index 0000000..5c6a26f
 +    Meta("hz", Hz);
 +    Meta("samples", Total);
 +    Meta("lost", Lost);
++    Meta("x87_fallbacks", Fallbacks);
 +    Meta("handler_us", HandlerUs);
 +    Meta("aggregator_us", OwnUs - LastOwnUs);
 +    LastOwnUs = OwnUs;
@@ -549,6 +1049,20 @@ index 0000000..5c6a26f
 +      Modules.clear();
 +    }
 +    ++MinuteIndex;
++  }
++
++  // Runs on the emulated thread, inside the fallback: no system call, just a slot in the same ring the timer uses.
++  void FloatFallback(FEXCore::Core::CpuStateFrame* Frame, uint64_t HostPC) {
++    const uint64_t Index = __atomic_fetch_add(Head, 1, __ATOMIC_RELAXED);
++    auto& R = Ring[Index & (Capacity - 1)];
++    __atomic_store_n(&R.Seq, 0, __ATOMIC_RELAXED);
++    __atomic_thread_fence(__ATOMIC_RELEASE);
++    R.PC = HostPC;
++    R.BlockHeader = Frame->State.InlineJITBlockHeader;
++    R.RIP = Frame->State.rip;
++    R.TID = 0;
++    R.Flags = FlagFloatFallback;
++    __atomic_store_n(&R.Seq, Index + 1, __ATOMIC_RELEASE);
 +  }
 +
 +  void* AggregatorMain(void*) {
@@ -590,6 +1104,7 @@ index 0000000..5c6a26f
 +  HandlerTicks = Args.HandlerTicks;
 +  Capacity = Args.Capacity;
 +  PID = UnixLib::GetPID();
++  FEXCore::SHMStats::FloatFallbackHook = FloatFallback;
 +}
 +
 +void ThreadInit(FEXCore::Core::InternalThreadState* Thread) {

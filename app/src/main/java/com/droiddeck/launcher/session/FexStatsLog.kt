@@ -20,8 +20,9 @@ object FexStatsLog {
     /** Experiment fex-sample: what Kestrel's FEX writes once a minute to /dev/shm/fex-<pid>-samples.csv (patch 0007),
      *  every process's rows in one file. Columns: minute,t_unix_ms,pid,scope,tid,rank,samples,share,kind,guest_module,
      *  guest_offset,guest_symbol,host_module,host_offset,host_symbol. scope is thread (the 8 busiest threads), main (the
-     *  busiest thread's top 200 places), rest (the other threads' top 50) or meta (kind names a counter, samples holds
-     *  it: hz, samples, lost, handler_us, aggregator_us). */
+     *  busiest thread's top 200 places), rest (the other threads' top 50), x87 (every x87 softfloat fallback, counted not
+     *  sampled: the top 50 guest instructions), x87-module (fallbacks per guest module, in guest_module) or meta (kind
+     *  names a counter, samples holds it: hz, samples, lost, x87_fallbacks, handler_us, aggregator_us). */
     const val SAMPLES_FILE = "fex-samples.csv"
     private const val SAMPLES_HEADER = "minute,"
     private const val SAMPLES_MAX_READ = 4L shl 20
