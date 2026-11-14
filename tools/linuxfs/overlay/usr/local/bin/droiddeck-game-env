@@ -350,7 +350,10 @@ def dotnet_memory_ordering(game):
 # docs/research/dotnet-runtime.md. Workstation GC sizes gen0 from the largest CPU cache Windows reports
 # (GetLogicalProcessorInformation, which Wine fills from sysfs) and caps it at 6 MB while background GC is on,
 # so a game may collect every few MB; each collection suspends every managed thread through Wine.
-DOTNET_GEN0_BYTES = 64 << 20
+# 64 MB cut the phone's ~50 gen1 collections a minute to one every minute or two, but each then compacted
+# 20-34 MB of survivors in one 120-170 ms pause (a7526bd, Nov 14); at about 5-10 ms per surviving MB, 8 MB
+# should keep each pause near the old p99 (~30 ms) while dropping most of the per-collection overhead.
+DOTNET_GEN0_BYTES = 8 << 20
 
 
 @fix

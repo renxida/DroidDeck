@@ -15,7 +15,7 @@ declare -A configs=(
   [shipped]="DOTNET_gcConcurrent=0 DOTNET_GCConserveMemory=5 DOTNET_TieredPGO=0"
   # The phone's gen-0-size counter peaks near 3 MB under Wine; this pins the shipped config to that budget.
   [phone-gen0]="DOTNET_gcConcurrent=0 DOTNET_GCConserveMemory=5 DOTNET_TieredPGO=0 DOTNET_GCgen0size=300000"
-  [dotnet-gen0]="DOTNET_gcConcurrent=0 DOTNET_GCConserveMemory=5 DOTNET_TieredPGO=0 DOTNET_GCgen0size=4000000"
+  [dotnet-gen0]="DOTNET_gcConcurrent=0 DOTNET_GCConserveMemory=5 DOTNET_TieredPGO=0 DOTNET_GCgen0size=800000"
   [dotnet-gc-stock]="DOTNET_gcConcurrent=1 DOTNET_GCConserveMemory=0 DOTNET_TieredPGO=0"
 )
 printf '| config | fps | p95 ms | p99 ms | max ms | GCs | gen1 | gen2 | paused ms | heap MB |\n|---|---|---|---|---|---|---|---|---|---|\n' > "$out/summary.md"

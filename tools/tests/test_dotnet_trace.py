@@ -207,9 +207,9 @@ class GameEnvTest(unittest.TestCase):
         self.assertIsNone(fix(self.game(["dotnet-gen0"], files=("unityplayer.dll",))))
         self.assertIsNone(fix(self.game([])))
         values, args, note = fix(self.game(["dotnet-gen0"]))
-        self.assertEqual({"DOTNET_GCgen0size": "4000000"}, values)
+        self.assertEqual({"DOTNET_GCgen0size": "800000"}, values)
         values, args, note = fix(self.game(["dotnet-gc-stock", "dotnet-gen0"]))
-        self.assertEqual({"DOTNET_GCgen0size": "4000000", "DOTNET_gcConcurrent": "1", "DOTNET_GCConserveMemory": "0"}, values)
+        self.assertEqual({"DOTNET_GCgen0size": "800000", "DOTNET_gcConcurrent": "1", "DOTNET_GCConserveMemory": "0"}, values)
 
     def test_stock_gc_wins_over_fex_fast(self):
         env, extra, notes = None, None, None
