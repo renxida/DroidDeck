@@ -69,4 +69,10 @@ internal fun TelemetryUploadRows(host: MenuHost) {
         }
         message?.let { Text(it, fontSize = 12.sp, color = colors.onSurfaceVariant) }
     }
+    var testMessage by remember { mutableStateOf<String?>(null) }
+    ActionRow(stringResource(R.string.autotest_run_now), testMessage ?: stringResource(R.string.autotest_run_now_hint),
+        stringResource(R.string.autotest_run_now_button), onClick = {
+            testMessage = ctx.getString(R.string.autotest_checking)
+            com.droiddeck.launcher.session.AutoTest.runNow(ctx) { testMessage = it }
+        })
 }

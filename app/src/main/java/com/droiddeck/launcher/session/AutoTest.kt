@@ -103,6 +103,7 @@ object AutoTestPlan {
 object AutoTest {
     private const val TAG = "AutoTest"
     const val EXTRA_ID = "autoTestId"
+    const val EXTRA_MANUAL = "autoTestManual"
     private const val JOB_ID = 0x4b7e57
     private const val CHANNEL = "autotest"
     private const val NOTIFICATION = 0x4b7e58
@@ -176,7 +177,33 @@ object AutoTest {
         return "launched ${request.id}"
     }
 
-    private fun launch(context: Context, request: AutoTestPlan.Request) {
+    /**
+     * The queued test, started by hand from Setup > Diagnostics: no charging, idle or screen checks, and
+     * unplugging doesn't stop it. Calls back on the main thread with what happened.
+     */
+    fun runNow(context: Context, done: (String) -> Unit) {
+        val app = context.applicationContext
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread({
+            val result = runCatching {
+                val request = AutoTestPlan.parse(RemoteConfig.fetchNow(app))
+                when {
+                    request == null -> app.getString(R.string.autotest_none_queued)
+                    SessionState.running || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ->
+                        app.getString(R.string.autotest_session_busy)
+                    else -> {
+                        val now = System.currentTimeMillis()
+                        save(app, AutoTestPlan.nextRecord(request, record(app), now), "launching by hand")
+                        main.post { launch(app, request, manual = true) }
+                        app.getString(R.string.autotest_starting, request.id)
+                    }
+                }
+            }.getOrElse { "${it.javaClass.simpleName}: ${it.message}" }
+            main.post { done(result) }
+        }, "autotest-now").start()
+    }
+
+    private fun launch(context: Context, request: AutoTestPlan.Request, manual: Boolean = false) {
         SteamBranch.request(context, request.appId, request.branch)
         runningId = request.id
         val intent = Intent(context, SessionActivity::class.java)
@@ -185,11 +212,12 @@ object AutoTest {
             .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
             .putExtra(SessionService.EXTRA_STEAM_URL, "steam://rungameid/${request.appId}")
             .putExtra(EXTRA_ID, request.id)
+            .putExtra(EXTRA_MANUAL, manual)
         context.startActivity(intent)
-        Thread({ watch(context, request) }, "autotest-watch").start()
+        Thread({ watch(context, request, manual) }, "autotest-watch").start()
     }
 
-    private fun watch(context: Context, request: AutoTestPlan.Request) {
+    private fun watch(context: Context, request: AutoTestPlan.Request, manual: Boolean) {
         val start = SystemClock.elapsedRealtime()
         var gameSince = 0L
         var stopped: String? = null
@@ -211,7 +239,7 @@ object AutoTest {
                 }
                 if (stopped == null) {
                     val gameMs = if (gameSince == 0L) 0L else now - gameSince
-                    stopped = AutoTestPlan.stopReason(now - start, gameMs, request.menuSeconds, battery(context).first)
+                    stopped = AutoTestPlan.stopReason(now - start, gameMs, request.menuSeconds, manual || battery(context).first)
                     if (stopped != null) {
                         SessionEvents.record("autotest.stop", mapOf("id" to request.id, "reason" to stopped,
                             "game_ms" to gameMs, "elapsed_ms" to now - start))

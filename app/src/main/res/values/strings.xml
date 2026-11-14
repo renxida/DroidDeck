@@ -2233,6 +2233,13 @@
     <string name="theme_white_red">Scarlet Snow</string>
     <string name="theme_white_red_detail">White surfaces with red accents.</string>
     <string name="autotest_channel">Test runs</string>
+    <string name="autotest_run_now">Queued test run</string>
+    <string name="autotest_run_now_hint">Starts the test run from your telemetry config now, instead of waiting for the phone to charge while idle.</string>
+    <string name="autotest_run_now_button">Run now</string>
+    <string name="autotest_checking">Checking for a queued test…</string>
+    <string name="autotest_none_queued">No test is queued in the config.</string>
+    <string name="autotest_session_busy">A session is running; stop it first.</string>
+    <string name="autotest_starting">Starting test %1$s.</string>
     <string name="autotest_permission_title">Allow unattended test runs</string>
     <string name="autotest_permission_text">Tap, then turn on Display over other apps. Lanner can then run a short test of your game while the phone charges and you\'re not using it.</string>
 </resources>

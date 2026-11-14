@@ -612,7 +612,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         intent.getStringExtra(com.droiddeck.launcher.session.AutoTest.EXTRA_ID)?.let { id ->
             // Unattended test run: the phone is charging with the screen off, so wake it, show over the
             // lock screen, and keep it as dim as it goes.
-            SessionEvents.record("autotest.start", mapOf("id" to id))
+            val manual = intent.getBooleanExtra(com.droiddeck.launcher.session.AutoTest.EXTRA_MANUAL, false)
+            SessionEvents.record("autotest.start", mapOf("id" to id, "manual" to manual))
+            if (manual) return@let
             if (android.os.Build.VERSION.SDK_INT >= 27) {
                 setShowWhenLocked(true)
                 setTurnScreenOn(true)
