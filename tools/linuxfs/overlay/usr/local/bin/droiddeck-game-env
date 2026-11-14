@@ -2926,7 +2926,8 @@ def run_watched(guard):
     return raw_code, guard.started, drain
 
 
-def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False, cores=None):
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False, cores=None,
+          native_skipped=None):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     proton = launch[0] if len(launch) > 1 and launch[1] in ("waitforexitandrun", "run") else None
@@ -2935,7 +2936,11 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
     explorer = bool(waited and timeline_app_id and explorer_watch_wanted(launch, launch_env))
     if explorer:
         launch_env = with_winediag(launch_env)
-    record_final_env(launch, launch_env, proton)
+    fex = record_final_env(launch, launch_env, proton)
+    if timeline_app_id and proton:
+        if fex is None:
+            fex = fex_build(proton)
+        print(engine_line("proton", fex_name(fex), native_skipped), file=sys.stderr, flush=True)
     started = time.monotonic()
     if waited:
         if explorer:
@@ -3477,15 +3482,60 @@ NATIVE_CHECK_LATER = ('while kill -0 "$1" 2>/dev/null; do sleep 15; done; scratc
                       '"$@" > "$scratch.log" 2>&1; rm -rf "$scratch"')
 
 
+def load_native_godot():
+    """droiddeck-native-godot's module globals, or {} when it is missing or broken."""
+    try:
+        return runpy.run_path(NATIVE_GODOT)
+    except Exception:
+        return {}
+
+
+# The app reads this line from session.log and shows which engine and build this launch boots, on the loading
+# screen and the corner card, and records it in the session's events (session/BootLine.kt parses it; keep them in
+# step, tools/tests/test_boot_line.py checks both). One line when the native engine starts, one when Proton starts.
+ENGINE_LINE = "droiddeck-game-env: engine: "
+# What droiddeck-native-godot logs when it will not start a game whose Steamworks.NET calls accessors Valve's
+# linux-arm64 library lacks.
+NATIVE_STEAM_GAP = "not starting: Steam cannot initialise"
+
+
+def engine_line(path, build, skipped=None):
+    """'native <component tag>' or 'proton <FEX version name>', and why the native engine was skipped, if it was."""
+    build = re.sub(r"\s+", "-", (build or "").strip()) or "unknown"
+    return ENGINE_LINE + path + " " + build + ("; native skipped: " + skipped if skipped else "")
+
+
+def fex_name(fex):
+    """The FEX version name in a fex_build() line ("fex: FEX-Kestrel-... N bytes sha256 ..."), or None."""
+    match = re.match(r"fex: (FEX-\S+) ", fex or "")
+    return match.group(1) if match else None
+
+
+def native_skip_reason(notes):
+    """A few words on why native_engine() went on to Proton, from its notes, or None if it never tried."""
+    last = notes[-1] if notes else ""
+    if not last.startswith("native-engine: "):
+        return None
+    if "last check of these game files failed" in last:
+        return "last check failed"
+    if "not a Godot C# game" in last:
+        return "not a Godot C# game"
+    if "could not start" in last:
+        return "could not start"
+    if "no first frame" in last:
+        return "Steam library gap" if any(NATIVE_STEAM_GAP in note for note in notes) else "no first frame"
+    match = re.search(r"exited with (-?\d+)", last)
+    return "exited with %s" % match.group(1) if match else None
+
+
 def native_check(folder, exe, name, env, popen=subprocess.Popen, ng=None):
     """(note to skip the native path with, or None; notes). Consults droiddeck-native-godot's last `check` of these
     game files with this component and converter: a failure skips native up front. With no such result, a check
     is scheduled for after this session (detached, nice 19) so the next launch knows."""
     if ng is None:
-        try:
-            ng = runpy.run_path(NATIVE_GODOT)
-        except Exception:  # not installed, or broken: the run itself still guards the launch
-            return None, []
+        ng = load_native_godot()
+    if not ng:  # not installed, or broken: the run itself still guards the launch
+        return None, []
     try:
         result = ng["fresh_check"](folder, name=name)
     except Exception:
@@ -3520,6 +3570,8 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
         managed = []
     if len(managed) != 1:
         return None, ["native-engine: not a Godot C# game; Proton"]
+    if ng is None:
+        ng = load_native_godot()
     skip, checked = native_check(folder, os.path.basename(exe), game_id(env) or "game", env, popen=popen, ng=ng)
     if skip:
         return None, checked + [skip]
@@ -3535,6 +3587,7 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
         except OSError:
             log, path = None, None
     env, vulkan_notes = native_vulkan_env(env)
+    print(engine_line("native", (ng.get("COMPONENT") or {}).get("tag") if ng else None), file=sys.stderr, flush=True)
     began = clock()
     try:
         rc = run(args, env=env, stdin=subprocess.DEVNULL, stdout=log or None, stderr=subprocess.STDOUT if log else None).returncode
@@ -3623,10 +3676,11 @@ def fex_build(proton):
 
 def record_final_env(launch, env, proton=None):
     """Appends what the game is really started with to launch.txt: the launch above is written
-    before later steps change the Vulkan layers, WINEDEBUG and the .NET settings."""
+    before later steps change the Vulkan layers, WINEDEBUG and the .NET settings. Returns the fex_build() line it
+    wrote, or None when there is no log folder."""
     folder = env.get("DROIDDECK_GAME_LOG_DIR")
     if not folder:
-        return
+        return None
     lines = ["== final environment (%s)" % " ".join(launch[:2])]
     fex = fex_build(proton)
     if fex:
@@ -3637,6 +3691,7 @@ def record_final_env(launch, env, proton=None):
             out.write("\n".join(lines) + "\n")
     except OSError:
         pass
+    return fex
 
 
 def exec_proton(command, env):
@@ -3713,6 +3768,7 @@ def main():
         digest = None
     diagnostic_app_id = app_id if waiting and os.environ.get("DROIDDECK_ENHANCED_DIAGNOSTICS") == "1" else None
     dirt_prefix = None
+    native_skipped = None
     if app_id:
         gl_default = gl_vsync(env)
         if waiting:
@@ -3740,6 +3796,7 @@ def main():
                         print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
                     if native_rc is not None:
                         return native_rc
+                    native_skipped = native_skip_reason(native_notes)
             if not gl_default:
                 fixes.pop("vblank_mode", None)
             for note in notes:
@@ -3896,13 +3953,15 @@ def main():
     core_plan = core_plan if waiting and app_id else None
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan)
+            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan,
+                         native_skipped)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan)
+        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan,
+                     native_skipped)
     except OSError:
         if after:
             try:
