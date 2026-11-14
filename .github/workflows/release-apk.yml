@@ -6,6 +6,10 @@ on:
       run_id:
         description: Actions run ID to pull the droiddeck-apk artifact from
         required: true
+      skip_rig:
+        description: Publish without the off-phone launch rig (only when the rig itself is broken)
+        type: boolean
+        default: false
   workflow_run:
     workflows: [Build APK]
     branches: [perf/switchboard]
@@ -16,12 +20,25 @@ permissions:
   actions: read
 
 jobs:
-  release:
+  # The APK must start Steam to its sign-in screen and run the stand-in game through Proton and
+  # FEX on CI Android before it becomes kestrel.apk (tools/offphone/README.md).
+  rig:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && !inputs.skip_rig) ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
+    uses: ./.github/workflows/offphone-rig.yml
+    with:
+      apk_run_id: ${{ inputs.run_id || format('{0}', github.event.workflow_run.id) }}
+      scenario: all
+
+  release:
+    needs: rig
+    if: >-
+      always() &&
+      (needs.rig.result == 'success' ||
+       (needs.rig.result == 'skipped' && github.event_name == 'workflow_dispatch' && inputs.skip_rig))
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
