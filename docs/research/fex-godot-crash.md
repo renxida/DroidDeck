@@ -35,6 +35,13 @@ relies on is not preserved across one of those calls (not confirmed). Older tool
 already set) and fails the build if `FEX_HAS_PRESERVE_ALL_ATTR=0` is not in the generated build. The gate's Godot
 row (`fex-wine-gate.yml`) now fails any candidate on which the stand-in crashes or hangs; its speed is report-only.
 
+## Gate throughput (470401f)
+
+d13ed5b's gate failed `clr` at 0.72x stock: Godot passed (16 s against stock's 19 s), but one `clr.exe` run spent
+30 s waiting for its async loops at exit. Stock FEX does the same 1 run in 8 (run 43640000754), so it is the
+harness, not FEX. Throughput is now ops over the run's own seconds (the last heartbeat's `t=`), and start-up plus
+shutdown fail only when 60 s longer than stock's. On d13ed5b's numbers that gives clr 0.91x, a pass with a note.
+
 ## The phone's stock FEX
 
 The phone's games FEX is `DD-FEXCore-2611+47-nightly.wcp` (FEX-2611-47-gea43314, from DroidDeck-Components'
