@@ -1,0 +1,157 @@
+name: FEX upstream Godot crash bisect (Wine ARM64EC, off-device)
+
+# Upstream FEX at ab135df (Kestrel's base) with no Kestrel patches crashes the Godot 4.5.1 mono stand-in at ~10 s
+# with a page fault inside StandIn.exe, while Hangover 11.16's FEX (FEX-2608, e869aa6, plus two Wine-side
+# commits) runs it (run 43634738239, run-0000). This builds 16 upstream commits evenly spaced (first parent)
+# from FEX-2608 to ab135df, no patches, and runs the stand-in GODOT_RUNS times under each with the game's FEX
+# settings, plus the tip and stock with no FEX settings and the tip with TSO alone. Nothing is published.
+
+on:
+  push:
+    branches: ['emu/winetest-bisect*']
+    paths:
+      - '.github/workflows/fex-upstream-bisect.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  HANGOVER_TAG: hangover-11.16
+  LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
+  GODOT_RUNS: '5'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: ['e869aa644', '73ab3bc56', '44f69f4dd', 'd04ad79ea', '8cf2bf7ad', 'cf6da6ac2', '50e6eee95', 'f18599d09', 'eb41dac33', '4e5c18113', 'd58a4e0da', 'd7b8e1497', '710195aed', 'a6ba3e2fb', 'e67bbd3ec', 'ab135df09']
+    name: build-${{ matrix.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build zstd >/dev/null
+          curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
+          echo "$RUNNER_TEMP/$LLVM_MINGW/bin" >> "$GITHUB_PATH"
+      - name: Recipe at ${{ matrix.ref }}, no patches
+        run: |
+          set -euo pipefail
+          full() {
+            case $1 in
+            e869aa644) echo e869aa644a16e4332cdc15c1ea0b4d13d482385d ;;
+            73ab3bc56) echo 73ab3bc56db3180485c186ef5b4d37fe3215ccf9 ;;
+            44f69f4dd) echo 44f69f4dd74e89671e903f26022bcd4e9055012d ;;
+            d04ad79ea) echo d04ad79eaf18287af5cd7607f5dc4ba1671dbeb9 ;;
+            8cf2bf7ad) echo 8cf2bf7ad8a7fcb3d4329388f1ddd26e11c63015 ;;
+            cf6da6ac2) echo cf6da6ac26dfaba9358225ee7b7de26a5a47cb21 ;;
+            50e6eee95) echo 50e6eee95ae95d3257672727a9302a30b4a60a9a ;;
+            f18599d09) echo f18599d097829e972e038bfecf706affce4a7e55 ;;
+            eb41dac33) echo eb41dac33fb7e5c4f66827cc2ed5ce6caa5ce40e ;;
+            4e5c18113) echo 4e5c18113a1044937a24f211f6aff21a4f6bf40f ;;
+            d58a4e0da) echo d58a4e0da26bde9b7bc3f2cb41ec588f4a6d6cb0 ;;
+            d7b8e1497) echo d7b8e1497a646fa7cdf63c38215c1f7c3a52852f ;;
+            710195aed) echo 710195aed5e1e03862d4d67b5f2783bfd6a7b49f ;;
+            a6ba3e2fb) echo a6ba3e2fbdea3b77080d24a979e8955f4841933b ;;
+            e67bbd3ec) echo e67bbd3ecf4cf4faf075af4d2293eec2fe324681 ;;
+            ab135df09) echo ab135df091d005cc98dfddc56c3dc9c9e4bd501d ;;
+            esac
+          }
+          r=recipe/tools/fex/arm64ec
+          mkdir -p "$r/patches"
+          cp tools/fex/arm64ec/build.sh "$r/"
+          full "${{ matrix.ref }}" > "$r/FEX_REF"
+          cat "$r/FEX_REF"
+          sed -i 's|for p in "$HERE"/patches/\*.patch; do|for p in $(ls "$HERE"/patches/*.patch 2>/dev/null); do|; s|cat "$HERE"/patches/\*.patch|cat /dev/null|g' "$r/build.sh"
+      - name: Build the DLLs
+        run: WORK="$PWD/fex-ec" recipe/tools/fex/arm64ec/build.sh dlls
+      - name: Build the unixlibs (Debian 12)
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/work" -w /work debian:bookworm bash -c '
+            apt-get update -qq && apt-get install -y -qq g++ cmake ninja-build git binutils >/dev/null
+            git config --global --add safe.directory "*"
+            WORK=/work/fex-ec recipe/tools/fex/arm64ec/build.sh unixlib'
+          sudo chown -R "$(id -u):$(id -g)" fex-ec
+          mkdir -p out && cp fex-ec/install/usr/lib/wine/aarch64-windows/libarm64ecfex.dll fex-ec/install/usr/lib/wine/aarch64-unix/libarm64ecfex.so out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: up-fex-${{ matrix.ref }}
+          path: out
+
+  programs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Godot stand-in
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/fex/winetest/get-standin.sh bin/standin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: up-programs
+          path: bin
+
+  run:
+    needs: [build, programs]
+    if: always() && needs.programs.result == 'success'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: [{fex: stock, env: game}, {fex: 'e869aa644', env: game}, {fex: '73ab3bc56', env: game}, {fex: '44f69f4dd', env: game}, {fex: 'd04ad79ea', env: game}, {fex: '8cf2bf7ad', env: game}, {fex: 'cf6da6ac2', env: game}, {fex: '50e6eee95', env: game}, {fex: 'f18599d09', env: game}, {fex: 'eb41dac33', env: game}, {fex: '4e5c18113', env: game}, {fex: 'd58a4e0da', env: game}, {fex: 'd7b8e1497', env: game}, {fex: '710195aed', env: game}, {fex: 'a6ba3e2fb', env: game}, {fex: 'e67bbd3ec', env: game}, {fex: 'ab135df09', env: game}, {fex: 'ab135df09', env: none}, {fex: 'ab135df09', env: tso}, {fex: stock, env: none}]
+    name: run-${{ matrix.fex }}-${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: up-programs
+          path: ${{ runner.temp }}/bin
+      - uses: actions/download-artifact@v4
+        if: matrix.fex != 'stock'
+        with:
+          name: up-fex-${{ matrix.fex }}
+          path: ${{ runner.temp }}/fex
+      - name: Wine (Hangover ARM64EC)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
+      - name: This row's FEX
+        if: matrix.fex != 'stock'
+        run: tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/fex"
+      - name: Run
+        shell: bash
+        run: |
+          set -u
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
+          case "${{ matrix.env }}" in
+            game) export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0 ;;
+            tso) export FEX_TSOENABLED=1 ;;
+          esac
+          env | grep '^FEX_' | sort
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"; : > "$out/verdicts.txt"
+          for i in $(seq 1 "$GODOT_RUNS"); do
+            HB_RE='^(STANDIN_DEPS|FIRST_FRAME|MAINLOOP_OK)' DONE_RE='^MAINLOOP_OK' OPS_KEY=frames STALL_S=120 \
+              PROG_ARGS="--headless -- --quit-after-frames 600" \
+              tools/fex/winetest/run.sh "godot$i" "$out" 60 "$RUNNER_TEMP/bin/standin/StandIn.exe" > "$out/godot$i.verdict" 2>&1
+            grep '^VERDICT ' "$out/godot$i.verdict" >> "$out/verdicts.txt" || echo "VERDICT godot$i no-verdict 0 0 0" >> "$out/verdicts.txt"
+            grep -a 'page fault\|Unhandled\|Fatal' "$out/godot$i.err" | head -2 | sed "s/^/godot$i: /"
+            wineserver -k; sleep 1
+          done
+          cat "$out/verdicts.txt"
+          g=$(grep -c 'VERDICT godot[0-9]* done' "$out/verdicts.txt")
+          echo "SUMMARY ${{ matrix.fex }} ${{ matrix.env }} godot $g/$GODOT_RUNS" | tee -a "$GITHUB_STEP_SUMMARY"
