@@ -1530,6 +1530,9 @@ class FrontEndActivity : ComponentActivity() {
     override fun onDestroy() {
         gameLaunchRequest.incrementAndGet()
         cancelCompatLaunch()
+        // Pollers and delayed work (session switch, component restore, link panel) must not run against a gone screen.
+        switchPoll = null
+        ui.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
 

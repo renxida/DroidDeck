@@ -2,14 +2,21 @@ package com.droiddeck.launcher
 
 import android.content.Intent
 import android.os.Looper
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.ObserverHandle
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.lifecycle.Lifecycle
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.ContinuationInterceptor
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,6 +32,8 @@ class AppStartSmokeTest {
     private val uncaught = CopyOnWriteArrayList<Throwable>()
     private var previousHandler: Thread.UncaughtExceptionHandler? = null
     private var threadsBefore: Set<Thread> = emptySet()
+    private val backgroundWrites = ConcurrentHashMap<String, String>()
+    private var writeObserver: ObserverHandle? = null
 
     @Before fun setUp() {
         SessionState.running = false
@@ -35,9 +44,21 @@ class AppStartSmokeTest {
             uncaught.add(AssertionError("uncaught exception on thread \"${thread.name}\"", error))
         }
         threadsBefore = Thread.getAllStackTraces().keys.toSet()
+        // A snapshot write off the main thread schedules Compose's global apply on the main looper; one that lands after a
+        // test's last drain can be dropped when Robolectric resets the looper, which leaves Compose in this sandbox unable
+        // to apply again. Record such writes so a failure names the writer.
+        val main = Looper.getMainLooper().thread
+        writeObserver = Snapshot.registerGlobalWriteObserver { state ->
+            val writer = Thread.currentThread()
+            if (writer === main) return@registerGlobalWriteObserver
+            val frames = writer.stackTrace.filter { it.className.startsWith("com.droiddeck") }.take(8)
+            backgroundWrites.putIfAbsent("${writer.name}|${frames.joinToString()}",
+                "thread \"${writer.name}\" wrote ${state.javaClass.simpleName}\n" + frames.joinToString("\n") { "      at $it" })
+        }
     }
 
     @After fun tearDown() {
+        writeObserver?.dispose()
         Thread.setDefaultUncaughtExceptionHandler(previousHandler)
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
@@ -59,6 +80,7 @@ class AppStartSmokeTest {
             runCatching { shadowOf(Looper.getMainLooper()).idle() }
         }
         assertNoUncaughtExceptions()
+        assertLauncherLeavesComposeWorking()
     }
 
     private fun startResumePause(controller: org.robolectric.android.controller.ActivityController<FrontEndActivity>, activity: FrontEndActivity) {
@@ -95,7 +117,75 @@ class AppStartSmokeTest {
         }
     }
 
+    /**
+     * After the launcher is destroyed, nothing it started may keep Compose busy for the tests that share this JVM: its
+     * threads settle, the main looper drains, and a snapshot write is still applied (Compose's global apply runs on the
+     * main looper; when that is wedged every later Compose test fails with "Compose did not get idle").
+     */
+    private fun assertLauncherLeavesComposeWorking() {
+        awaitStartupWork()
+        shadowOf(Looper.getMainLooper()).idle()
+        val problems = mutableListOf<String>()
+        composeApplyProblem()?.let { problems += "right after destroy: $it" }
+        // Anything still running a moment later must not write Compose state from its own thread either.
+        Thread.sleep(SETTLE_MS)
+        shadowOf(Looper.getMainLooper()).idle()
+        composeApplyProblem()?.let { problems += "${SETTLE_MS}ms after destroy: $it" }
+        val leftovers = launcherThreads()
+        val report = buildString {
+            if (backgroundWrites.isNotEmpty()) appendLine("Compose state written off the main thread:\n" + backgroundWrites.values.joinToString("\n"))
+            if (leftovers.isNotEmpty()) appendLine("launcher threads alive after destroy:\n" + leftovers.joinToString("\n") { describe(it) })
+            pendingMainMessages().takeIf { it.isNotEmpty() }?.let { appendLine("main looper still holds:\n" + it.joinToString("\n") { "    $it" }) }
+        }
+        if (report.isNotEmpty()) System.err.println("AppStartSmokeTest diagnostics:\n$report")
+        // Later tests must not inherit the launcher's work: stop what of it is still running.
+        val ours = leftovers.filter { t -> t.stackTrace.any { it.className.startsWith("com.droiddeck") } }
+        ours.forEach { it.interrupt() }
+        ours.forEach { it.join(1_000) }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertNoUncaughtExceptions()
+        if (problems.isNotEmpty()) fail(problems.joinToString("\n") + "\n" + uiDispatcherState() + "\n" + report)
+    }
+
+    private fun composeApplyProblem(): String? {
+        val probe = mutableStateOf(0)
+        probe.value = 1
+        shadowOf(Looper.getMainLooper()).idle()
+        return if (Snapshot.current.hasPendingChanges()) "a main-thread snapshot write was never applied" else null
+    }
+
+    private fun launcherThreads(): List<Thread> = Thread.getAllStackTraces().keys.filter {
+        it !in threadsBefore && it !== Thread.currentThread() && it.isAlive
+    }
+
+    private fun describe(thread: Thread): String =
+        "  \"${thread.name}\" ${thread.state}${if (thread.isDaemon) " daemon" else ""}\n" +
+            thread.stackTrace.take(12).joinToString("\n") { "      at $it" }
+
+    private fun pendingMainMessages(): List<String> = runCatching {
+        val queue = Looper.getMainLooper().queue
+        var message = android.os.MessageQueue::class.java.getDeclaredField("mMessages").apply { isAccessible = true }.get(queue)
+        val out = mutableListOf<String>()
+        while (message != null && out.size < 50) {
+            val m = message as android.os.Message
+            out += "when=${m.`when`} what=${m.what} target=${m.target} callback=${m.callback}"
+            message = android.os.Message::class.java.getDeclaredField("next").apply { isAccessible = true }.get(m)
+        }
+        out
+    }.getOrElse { listOf("(could not read the queue: $it)") }
+
+    private fun uiDispatcherState(): String = runCatching {
+        val dispatcher = AndroidUiDispatcher.Main[ContinuationInterceptor]!!
+        fun field(owner: Any, name: String) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)
+        val manager = Class.forName("androidx.compose.ui.platform.GlobalSnapshotManager")
+        val sent = manager.getDeclaredField("sent").apply { isAccessible = true }.get(null)
+        "AndroidUiDispatcher.Main: scheduledTrampolineDispatch=${field(dispatcher, "scheduledTrampolineDispatch")} " +
+            "scheduledFrameDispatch=${field(dispatcher, "scheduledFrameDispatch")} queued=${(field(dispatcher, "toRunTrampolined") as Collection<*>).size}; " +
+            "GlobalSnapshotManager.sent=$sent"
+    }.getOrElse { "(Compose dispatcher state unreadable: $it)" }
+
     private companion object {
         const val STARTUP_WORK_SECONDS = 20L
+        const val SETTLE_MS = 2_000L
     }
 }
