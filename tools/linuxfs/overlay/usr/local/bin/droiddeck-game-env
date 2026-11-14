@@ -1915,8 +1915,9 @@ def timeline_game_exit(app_id, raw_code, started):
 def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
+    proton = launch[0] if len(launch) > 1 and launch[1] in ("waitforexitandrun", "run") else None
     launch, launch_env = system_graphics_launch(launch, launch_env)
-    record_final_env(launch, launch_env)
+    record_final_env(launch, launch_env, proton)
     started = time.monotonic()
     if after or diagnostic_app_id is not None or watch:
         process = subprocess.Popen(launch, env=launch_env)
@@ -2172,13 +2173,35 @@ def warmup_launch(command, env, app_id, phases):
     return env
 
 
-def record_final_env(launch, env):
+FEX_DLL = "files/lib/wine/aarch64-windows/libarm64ecfex.dll"
+FEX_NAME = re.compile(rb"FEX-[0-9A-Za-z][0-9A-Za-z._-]{3,60}")
+
+
+def fex_build(proton):
+    """Which FEX the game gets: the version name in this Proton's ARM64EC FEX DLL (Kestrel builds say
+    FEX-Kestrel-<upstream>-<patch set>), its size and the start of its SHA-256."""
+    if not proton:
+        return None
+    path = Path(proton).resolve().parent / FEX_DLL
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return "fex: no %s" % FEX_DLL
+    names = sorted(set(m.group().decode() for m in FEX_NAME.finditer(data)), key=len)
+    return "fex: %s %d bytes sha256 %s" % (names[-1] if names else "(no version name)", len(data),
+                                           hashlib.sha256(data).hexdigest()[:12])
+
+
+def record_final_env(launch, env, proton=None):
     """Appends what the game is really started with to launch.txt: the launch above is written
     before later steps change the Vulkan layers, WINEDEBUG and the .NET settings."""
     folder = env.get("DROIDDECK_GAME_LOG_DIR")
     if not folder:
         return
     lines = ["== final environment (%s)" % " ".join(launch[:2])]
+    fex = fex_build(proton)
+    if fex:
+        lines.append(fex)
     lines += ["%s=%s" % (key, env[key]) for key in sorted(env) if key.startswith(FINAL_ENV_PREFIXES)]
     try:
         with open(os.path.join(folder, "launch.txt"), "a", encoding="utf-8") as out:
