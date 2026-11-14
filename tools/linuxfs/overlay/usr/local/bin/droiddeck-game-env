@@ -3215,7 +3215,8 @@ def godot_logs(env):
 
 def texture_pack(exe, env, run=subprocess.run):
     """Under tex-astc (or tex-half), the Godot game's textures are re-encoded to ASTC inside its own pack
-    (droiddeck-texpack: appended, switched on at a launch, undone with the experiment off). Synchronous only for the
+    (droiddeck-texpack: appended, switched on at a launch, parked with the experiment off: original textures, the
+    build kept for when the experiment is back). Synchronous only for the
     header switch; the conversion itself runs in the background and is used from the next launch."""
     want = experiment(env, "tex-astc") or experiment(env, "tex-half")
     if not want:
@@ -3225,7 +3226,7 @@ def texture_pack(exe, env, run=subprocess.run):
         except OSError:
             return []
     folder = os.path.dirname(os.path.abspath(exe))
-    cmd = [sys.executable, TEXPACK, "prepare" if want else "revert", "--game-dir", folder]
+    cmd = [sys.executable, TEXPACK, "prepare" if want else "park", "--game-dir", folder]
     if want:
         if experiment(env, "tex-half"):
             cmd += ["--half-above", str(TEX_HALF_ABOVE)]
