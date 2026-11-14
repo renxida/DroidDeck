@@ -999,9 +999,9 @@ class DroidDeckHudView(context: Context) : View(context) {
         val baseline = mid + capHeight(fpsPx) / 2f
 
         val markH = sp(13f)
-        val markLeft = padX - DroidDeckMark.inkLeftFor(markH)
-        headerMark = RectF(markLeft, mid - markH / 2f, markLeft + DroidDeckMark.widthFor(markH), mid + markH / 2f)
-        var x = markLeft + DroidDeckMark.inkRightFor(markH) + sp(8f)
+        val markLeft = padX - BrandMark.inkLeftFor(markH)
+        headerMark = RectF(markLeft, mid - markH / 2f, markLeft + BrandMark.widthFor(markH), mid + markH / 2f)
+        var x = markLeft + BrandMark.inkRightFor(markH) + sp(8f)
 
         var right = w - padX
         if (showClockTime) {
@@ -1318,7 +1318,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         }
         headerMark?.let {
             if (stripRect != null && layerType != LAYER_TYPE_SOFTWARE) drawCachedMark(canvas, it)
-            else DroidDeckMark.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent)
+            else BrandMark.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent)
         }
         headerWordmark?.let { WordmarkArt.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent) }
 
@@ -1377,7 +1377,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         var bitmap = cachedMarkBitmap
         if (bitmap == null || key != cachedMarkKey) {
             bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            DroidDeckMark.draw(Canvas(bitmap), 0f, 0f, h.toFloat(), blend(colValue), accent)
+            BrandMark.draw(Canvas(bitmap), 0f, 0f, h.toFloat(), blend(colValue), accent)
             cachedMarkBitmap = bitmap
             cachedMarkKey = key
         }
@@ -1502,8 +1502,8 @@ class DroidDeckHudView(context: Context) : View(context) {
         val h = strokePaint.strokeWidth / 2f
         canvas.drawRoundRect(rect.left + h, rect.top + h, rect.right - h, rect.bottom - h, r, r, strokePaint)
         val markH = rect.height() * 0.6f
-        val markW = DroidDeckMark.widthFor(markH)
-        DroidDeckMark.draw(canvas, rect.centerX() - markW / 2f, rect.centerY() - markH / 2f, markH, blend(colValue), accent)
+        val markW = BrandMark.widthFor(markH)
+        BrandMark.draw(canvas, rect.centerX() - markW / 2f, rect.centerY() - markH / 2f, markH, blend(colValue), accent)
     }
 
     internal var passesTouchAt: ((rawX: Float, rawY: Float) -> Boolean)? = null

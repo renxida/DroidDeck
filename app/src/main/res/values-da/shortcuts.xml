@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Genveje til fysiske knapper</string>
-    <string name="shortcuts_dd_menu">Kestrel-menu</string>
+    <string name="shortcuts_dd_menu">Lanner-menu</string>
     <string name="shortcuts_capture">Tildel: %1$s</string>
     <string name="shortcuts_press">Tryk på en knap, og slip den. Tildelingen gemmes automatisk.</string>
     <string name="shortcuts_release">Slip knappen for at fortsætte.</string>

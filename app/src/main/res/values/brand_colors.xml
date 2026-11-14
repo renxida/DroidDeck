@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lanner palette: slate ground, bone ink, rust accent, ash for secondary text. -->
+<resources>
+    <color name="brand_slate">#FF1F2A30</color>
+    <color name="brand_bone">#FFF1EBDD</color>
+    <color name="brand_rust">#FFE0703A</color>
+    <color name="brand_ash">#FF8A979E</color>
+    <color name="ic_launcher_background">#FF1F2A30</color>
+</resources>

@@ -23,22 +23,15 @@ import com.droiddeck.launcher.hud.WordmarkArt
 internal fun Wordmark(height: Dp, modifier: Modifier = Modifier, ink: Color = MaterialTheme.colorScheme.onBackground, ball: Color = LocalPalette.current.signal) {
     val name = stringResource(R.string.app_name)
     val letters = remember { PathParser().parsePathString(WordmarkArt.LETTERS).toPath() }
-    val leftHalf = remember { PathParser().parsePathString(WordmarkArt.LEFT_HALF).toPath() }
-    val rightHalf = remember { PathParser().parsePathString(WordmarkArt.RIGHT_HALF).toPath() }
+    val body = remember { PathParser().parsePathString(WordmarkArt.MARK_BODY).toPath() }
+    val head = remember { PathParser().parsePathString(WordmarkArt.MARK_HEAD).toPath() }
     Canvas(modifier.height(height).width(height * (WordmarkArt.BOX_W / WordmarkArt.BOX_H)).semantics { contentDescription = name }) {
         val k = size.height / WordmarkArt.BOX_H
         scale(k, k, Offset.Zero) {
             translate(-WordmarkArt.BOX_X, -WordmarkArt.BOX_Y) {
                 drawPath(letters, ink)
-                translate(239.135f, 123.36f) {
-                    scale(WordmarkArt.MARK_SCALE, WordmarkArt.MARK_SCALE, Offset.Zero) {
-                        translate(31.98f, 0f) {
-                            drawPath(leftHalf, ink)
-                            drawPath(rightHalf, ink)
-                            drawCircle(ball, 55.98f, Offset(63.98f, 111.86f))
-                        }
-                    }
-                }
+                drawPath(body, ink)
+                drawPath(head, ball)
             }
         }
     }

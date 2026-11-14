@@ -282,7 +282,7 @@ class SteamTouchControls(
         val pressed = !editing && e.type in pressedTypes()
         val alpha = (255 * alphaScale * if (faded) FADED else 1f).toInt().coerceIn(30, 255)
         val ink = Color.argb(alpha, Color.red(tint), Color.green(tint), Color.blue(tint))
-        stroke.color = if (isSelected) Color.rgb(26, 159, 255) else ink
+        stroke.color = if (isSelected) Color.rgb(224, 112, 58) else ink
         stroke.strokeWidth = if (isSelected) lineWidth() * 2f else lineWidth()
         fill.color = Color.argb((alpha * 0.85f).toInt(), 230, 233, 236)
         text.color = ink
@@ -338,16 +338,8 @@ class SteamTouchControls(
         SteamTouchConfig.PASTE, SteamTouchConfig.MACRO_1_FINGER, SteamTouchConfig.MACRO_2_FINGER) ||
         type in SteamTouchConfig.MACRO_0..SteamTouchConfig.MACRO_0 + 7
 
-    private val markD by lazy { androidx.core.graphics.PathParser.createPathFromPathData(MARK_D) }
-
     private fun drawMark(canvas: Canvas, x: Float, y: Float, r: Float, ink: Int = onSurface, alpha: Int = 255) {
-        val k = r / 111.86f
-        canvas.save()
-        canvas.translate(x - 71.98f * k, y - 111.86f * k)
-        canvas.scale(k, k)
-        canvas.drawPath(markD, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink })
-        canvas.drawCircle(63.98f, 111.86f, 55.98f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent; this.alpha = alpha })
-        canvas.restore()
+        com.droiddeck.launcher.hud.BrandMark.drawCentered(canvas, x, y, r * 2f, ink, accent, alpha)
     }
 
     private fun drawFace(canvas: Canvas, type: Int, binding: SteamTouchBindings.Binding?, x: Float, y: Float, r: Float,
@@ -495,7 +487,7 @@ class SteamTouchControls(
                     alpha = (255 * alphaScale).toInt().coerceIn(60, 255)
                 })
             } else if (down) canvas.drawPath(path, fill)
-            stroke.color = if (isSelected && armIndex == selectedArm) Color.rgb(26, 159, 255) else oldStroke
+            stroke.color = if (isSelected && armIndex == selectedArm) Color.rgb(224, 112, 58) else oldStroke
             canvas.drawPath(path, stroke)
             canvas.restore()
             if (icon != null) {
@@ -911,7 +903,7 @@ class SteamTouchControls(
     private val line2 = Color.rgb(52, 58, 67)
     private val onSurface = Color.rgb(242, 244, 247)
     private val muted = Color.rgb(154, 163, 175)
-    private val accent = Color.rgb(26, 159, 255)
+    private val accent = Color.rgb(224, 112, 58)
     private val onAccent = Color.rgb(3, 17, 31)
 
     private fun panelFrame(): Pair<RectF, Float> {
@@ -959,10 +951,10 @@ class SteamTouchControls(
     private fun iconButton(canvas: Canvas, r: RectF, active: Boolean, onTap: () -> Unit, glyph: (Canvas, RectF, Int) -> Unit) {
         val radius = 10f * (r.height() / 40f)
         canvas.drawRoundRect(r, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (active) Color.argb(46, 26, 159, 255) else surfaceVariant
+            color = if (active) Color.argb(46, 224, 112, 58) else surfaceVariant
         })
         canvas.drawRoundRect(r, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (active) Color.argb(160, 26, 159, 255) else line; style = Paint.Style.STROKE; strokeWidth = 1.2f
+            color = if (active) Color.argb(160, 224, 112, 58) else line; style = Paint.Style.STROKE; strokeWidth = 1.2f
         })
         glyph(canvas, r, if (active) accent else muted)
         hots += Hot(r, onTap)
@@ -1483,8 +1475,6 @@ class SteamTouchControls(
         private const val MOVE_REDRAW_MS = 33L
         const val BIG_PICTURE = 769
         private const val ICON_PX = 128
-        private const val MARK_D = "M-31.98 0H56.055V40.489A71.81 71.81 0 0 0 56.055 183.231V223.72H-31.98Z" +
-            "M71.885 0.28A111.86 111.86 0 0 1 71.885 223.44V183.234A71.81 71.81 0 0 0 71.885 40.486Z"
         private const val FADE_AFTER_MS = 5000L
         private const val FADED = 0.3f
         private const val SHAKE_G = 2.3f

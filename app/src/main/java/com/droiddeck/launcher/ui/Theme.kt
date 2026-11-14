@@ -42,6 +42,7 @@ class Palette(
 )
 
 object Themes {
+    const val LANNER = "lanner"
     const val GRAPHITE = "graphite"
     const val PAPER = "paper"
     const val ICON_BLUE = "blue"
@@ -86,6 +87,13 @@ object Themes {
     }
 
     val all: List<Palette> = listOf(
+        Palette(
+            LANNER, R.string.theme_lanner, R.string.theme_lanner_detail,
+            background = Color(0xFF111619), surface = Color(0xFF182024), surfaceVariant = Color(0xFF1F2A30), line = Color(0xFF2A363D), line2 = Color(0xFF37454D),
+            onBackground = Color(0xFFF1EBDD), onSurfaceVariant = Color(0xFF8A979E),
+            primary = Color(0xFFE0703A), primary2 = Color(0xFFC65B28), onPrimary = Color(0xFF1A0C05), signal = Color(0xFFE0703A),
+            good = Color(0xFF4CD37F),
+        ),
         Palette(
             GRAPHITE, R.string.theme_graphite, R.string.theme_graphite_detail,
             background = Color(0xFF0A0B0D), surface = Color(0xFF121417), surfaceVariant = Color(0xFF1A1D22), line = Color(0xFF262A31), line2 = Color(0xFF343A43),
@@ -132,7 +140,7 @@ object Themes {
     }
 }
 
-val LocalPalette = staticCompositionLocalOf { Themes.byId(Themes.GRAPHITE) }
+val LocalPalette = staticCompositionLocalOf { Themes.byId(Themes.LANNER) }
 
 val Palette.onSignal: Color get() = if (signal.luminance() > 0.18f) Color(0xFF03111F) else Color.White
 

@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.hud.DroidDeckMark
+import com.droiddeck.launcher.hud.BrandMark
 import com.droiddeck.launcher.hud.FrameStats
 import com.droiddeck.launcher.hud.HudMetrics
 import com.droiddeck.launcher.session.StatsStrip
@@ -88,14 +88,14 @@ internal class History(private val capacity: Int) {
     }
 }
 
-private val MARK_RATIO = DroidDeckMark.widthFor(1f)
+private val MARK_RATIO = BrandMark.widthFor(1f)
 
 @Composable
-internal fun DroidDeckLogo(height: Dp, modifier: Modifier = Modifier, body: Color = Color.White, orb: Color = LocalPalette.current.primary) {
+internal fun BrandLogo(height: Dp, modifier: Modifier = Modifier, body: Color = Color.White, accent: Color = LocalPalette.current.primary) {
     Canvas(modifier.size(height * MARK_RATIO, height)) {
         val b = body.toArgb()
-        val o = orb.toArgb()
-        drawIntoCanvas { DroidDeckMark.draw(it.nativeCanvas, 0f, 0f, size.height, b, o) }
+        val o = accent.toArgb()
+        drawIntoCanvas { BrandMark.draw(it.nativeCanvas, 0f, 0f, size.height, b, o) }
     }
 }
 
@@ -103,7 +103,7 @@ internal fun DroidDeckLogo(height: Dp, modifier: Modifier = Modifier, body: Colo
 private fun LogoBadge(size: Dp) {
     val shape = RoundedCornerShape(size * 0.22f)
     Box(Modifier.size(size).clip(shape).background(StatsColors.badge).border(2.dp, LocalPalette.current.primary, shape), contentAlignment = Alignment.Center) {
-        DroidDeckLogo(size * 0.62f)
+        BrandLogo(size * 0.62f)
     }
 }
 
@@ -141,7 +141,7 @@ internal fun StatsCard(title: String?, modifier: Modifier = Modifier, content: @
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (title != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            DroidDeckLogo(12.dp, body = MaterialTheme.colorScheme.onSurfaceVariant)
+            BrandLogo(12.dp, body = MaterialTheme.colorScheme.onSurfaceVariant)
             if (title.isNotEmpty()) Text(title.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = pal.primary, letterSpacing = 0.6.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -201,7 +201,7 @@ internal fun LineStrip(d: StripData, modifier: Modifier = Modifier) {
     val m = d.metrics
     val s = d.device
     val items = ArrayList<LineItem>()
-    items += LineItem(0) { DroidDeckLogo(16.dp) }
+    items += LineItem(0) { BrandLogo(16.dp) }
     if (StripMetric.ENGINE in m && d.engine.isNotEmpty()) items += LineItem(70) { LineText(d.engine, LineInk.dim, 12.sp) }
     items += LineItem(0) {
         Row(verticalAlignment = Alignment.Bottom) {

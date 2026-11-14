@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lanner launcher mark: a falcon in a stoop. Source: artwork/lanner-mark.svg (108 dp adaptive canvas, inside the 66 dp safe zone). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="@color/brand_bone" android:pathData="M64.9,77.3 L65.4,64.6 L78.2,32.7 L61.2,49.1 L55.4,32.5 L46.3,35.5 L51.3,52.3 L27.9,49.0 L57.0,67.3 Z"/>
+    <path android:fillColor="@color/brand_rust" android:pathData="M64.9,77.3 L65.4,64.6 L57.0,67.3 Z"/>
+</vector>

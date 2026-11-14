@@ -237,7 +237,7 @@ class SteamTouchIconPicker(
                     setTextColor(if (primary) Color.rgb(3, 17, 31) else Color.rgb(242, 244, 247))
                     background = GradientDrawable().apply {
                         cornerRadius = dp(12).toFloat()
-                        if (primary) setColor(Color.rgb(26, 159, 255)) else { setColor(Color.rgb(26, 29, 34)); setStroke(dp(1), Color.rgb(52, 58, 67)) }
+                        if (primary) setColor(Color.rgb(224, 112, 58)) else { setColor(Color.rgb(26, 29, 34)); setStroke(dp(1), Color.rgb(52, 58, 67)) }
                     }
                     setPadding(dp(20), dp(10), dp(20), dp(10))
                     setOnClickListener { close(); action() }
