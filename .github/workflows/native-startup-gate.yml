@@ -164,6 +164,20 @@ jobs:
           assert blockers == ["SteamAPI_ISteamClient_GetISteamGameSearch"], blockers
           print("accessors match; a missing accessor stops the native launch")
           PY
+      - name: The Steam probe runs Valve's arm64 library and answers without a Steam client
+        run: |
+          set -euo pipefail
+          python3 - "$WRAPPER" "$RUNNER_TEMP" <<'PY'
+          import os, runpy, struct, sys
+          ng = runpy.run_path(sys.argv[1])
+          fake = os.path.join(sys.argv[2], "steamclient.so")  # only the cache key; Valve's library finds no client here
+          open(fake, "wb").write(b"\x7fELF" + b"\0" * 14 + struct.pack("<H", 183))
+          env = {k: v for k, v in os.environ.items() if not k.startswith("Steam")}
+          r = ng["steam_probe"](ng["steam_api"](), sys.argv[2], env, os.path.join(sys.argv[2], "cache"), [fake])
+          print(ng["steam_probe_line"](r))
+          assert "unknown" not in r and r["init"] != 0 and r["versions"] == {}, r
+          assert not os.path.exists(os.path.join(sys.argv[2], "cache", "steam-probe")), "a failed init was cached"
+          PY
 
   app-local-icu:
     # .NET needs a real ICU, or the game's `new CultureInfo(name)` throws. The wrapper prefers the guest's own ICU
