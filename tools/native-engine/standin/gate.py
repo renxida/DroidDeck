@@ -2,11 +2,13 @@
 """Run the stand-in game through droiddeck-native-godot and judge whether it started.
 
     gate.py --wrapper PATH --game-dir DIR --work DIR [--component pinned|DIR] [--deps on|off]
-            [--repeat N] [--prefix CMD] [--old-converter FILE] [--expect-fail compose|load] [--require-live-fps]
+            [--repeat N] [--prefix CMD] [--old-converter FILE] [--expect-fail compose|load] [--allow-buffered-fps]
             [--name NAME] -- ENGINE ARGS...
 
 A run passes when: the wrapper exits 0, it logged "first frame", stdout has FIRST_FRAME and MAINLOOP_OK, the
-deps line matches --deps, and nothing shows a compose rejection, a missing or malformed assembly or a .NET
+deps line matches --deps, Godot's first "Project FPS" line (the wrapper's watchdog signal) reaches the
+wrapper while the engine still runs (at least 0.5 s before MAINLOOP_OK, so a block-buffered stdout fails the
+gate; --allow-buffered-fps turns that check off), and nothing shows a compose rejection, a missing or malformed assembly or a .NET
 host error. Every run must pass. With --expect-fail every run must instead fail before its first frame:
 "compose" at compose on a mixed-mode rejection (the converter from before ReadyToRun support, 7754c57b),
 "load" when .NET loads the game (hostfxr cannot get GodotPlugins' entry point from it, or "Bad IL format":
@@ -127,8 +129,8 @@ def main(argv=None):
     ap.add_argument("--old-converter")
     ap.add_argument("--expect-fail", choices=("compose", "load"))
     ap.add_argument("--timeout", type=float, default=300)
-    ap.add_argument("--require-live-fps", action="store_true",
-                    help="also fail when Godot's first FPS line reaches the wrapper only as the engine exits "
+    ap.add_argument("--allow-buffered-fps", action="store_true",
+                    help="do not fail when Godot's first FPS line reaches the wrapper only as the engine exits "
                          "(stdout buffered: on the phone the 90 s watchdog would then kill a long-running game)")
     ap.add_argument("--name", default="gate")
     a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
@@ -160,7 +162,7 @@ def main(argv=None):
         fps_live = (timing["fps_first"] is not None and timing["MAINLOOP_OK"] is not None
                     and timing["fps_first"] < timing["MAINLOOP_OK"] - 0.5)
         if not a.expect_fail:
-            if a.require_live_fps and not fps_live:
+            if not a.allow_buffered_fps and not fps_live:
                 reasons.append("Godot's FPS line reached the wrapper only at exit (stdout buffered)")
             passed = not reasons
             verdict = "pass" if passed else "FAIL: " + "; ".join(reasons)

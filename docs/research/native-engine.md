@@ -151,8 +151,9 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
 - MEASURED: Godot's stdout is block-buffered in the release template (`application/run/flush_stdout_on_print`
   is false outside debug builds), so through the wrapper's pipe the first FPS line arrives only at exit: a 30 s
   run delivered it at 30.4 s; under `stdbuf -oL` at 4.1 s (probe job, run 43632484157). On the phone a game
-  that prints under ~4 KB of stdout in 90 s would be killed by the watchdog as "did not start". `gate.py
-  --require-live-fps` turns this into a failure once the wrapper runs the engine line-buffered.
+  that prints under ~4 KB of stdout in 90 s would be killed by the watchdog as "did not start". Fixed in
+  541fc101 (the wrapper runs the engine under `stdbuf -oL -eL` when present); the gate now fails any row whose
+  first FPS line does not reach the wrapper at least 0.5 s before `MAINLOOP_OK`.
 - `droiddeck-native-godot check` (same args as compose, plus `--name`): composes into `--out`, checks the launch
   folder is startable (game assembly there, every game assembly loadable-shaped, deps.json and
   runtimeconfig.json written, engine in place) and writes pass/fail, rejected files, component tag, converter
