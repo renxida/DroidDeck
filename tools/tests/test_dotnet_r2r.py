@@ -276,6 +276,9 @@ class GameEnvTest(unittest.TestCase):
         self.assertIn("--on", run.call_args[0][0])
         for command in (run.call_args[0][0], popen.call_args[0][0]):
             self.assertEqual(command[command.index("--mode") + 1], "generics")
+        _, run, popen = self.call(["dotnet-r2r-generics", "dotnet-r2r-bubble"])
+        for command in (run.call_args[0][0], popen.call_args[0][0]):
+            self.assertEqual(command[command.index("--mode") + 1], "bubble")
         self.assertIn("compile", popen.call_args[0][0])
 
 

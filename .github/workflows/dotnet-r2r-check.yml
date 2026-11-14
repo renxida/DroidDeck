@@ -108,6 +108,8 @@ jobs:
                   label, rows[label]["other_first_jit"], rows[label]["json_first_jit"]))
           for mode in ("generics", "bubble"):
               assert int(rows[mode + "-tc1"]["own_first_jit"]) <= r2r, mode + " covers less of the program"
+              assert int(rows[mode + "-tc1"]["other_first_jit"]) * 2 <= int(rows["r2r-tc1"]["other_first_jit"]), \
+                  mode + " did not precompile the framework's generics over the program's types"
           PY
           { echo '### ReadyToRun from the arm64 crossgen2 on Windows x64'; echo '```'; cat counts.csv times.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
