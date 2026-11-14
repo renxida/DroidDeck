@@ -465,6 +465,49 @@ class GameEnvHookTest(unittest.TestCase):
         result = self.env_mod["native_engine"](self.cmd, env, run=run, clock=lambda: next(times))
         return result, calls
 
+    def run_env(self, env):
+        seen = []
+
+        class Done:
+            returncode = 0
+
+        def run(args, **kw):
+            seen.append(kw["env"])
+            return Done()
+        times = iter([100.0, 1000.0])
+        _, notes = self.env_mod["native_engine"](self.cmd, env, run=run, clock=lambda: next(times))
+        return seen[0], notes
+
+    def test_engine_gets_the_powervr_vulkan_layers_proton_gets(self):
+        # Phone run 18:49:56Z Nov 14: without the WSI layer Godot found no queue that can present and exited.
+        runtime = self.root / "powervr"
+        for name in self.env_mod["POWERVR_VULKAN_FILES"]:
+            (runtime / name).parent.mkdir(parents=True, exist_ok=True)
+            (runtime / name).write_bytes(b"x")
+        env = dict(self.on, DROIDDECK_POWERVR_RUNTIME=str(runtime), ENABLE_GAMESCOPE_WSI="1", DISABLE_WSI_LAYER="1",
+                   VK_ICD_FILENAMES="/icd.json", DISPLAY=":1")
+        got, notes = self.run_env(env)
+        proton = self.env_mod["powervr_vulkan_env"](runtime, env)
+        for key in ("VK_LAYER_PATH", "VK_INSTANCE_LAYERS", "ENABLE_GAMESCOPE_WSI", "VK_LOADER_LAYERS_DISABLE",
+                    "HYBRIS_BC_TEXTURES", "DISABLE_VK_LAYER_VALVE_steam_fossilize_1"):
+            self.assertEqual(proton[key], got[key], key)
+        self.assertTrue(got["VK_INSTANCE_LAYERS"].startswith("VK_LAYER_window_system_integration:"))
+        self.assertIn(str(runtime / "wsi"), got["VK_LAYER_PATH"].split(":"))
+        self.assertEqual("0", got["ENABLE_GAMESCOPE_WSI"])
+        self.assertNotIn("DISABLE_WSI_LAYER", got)
+        self.assertEqual(("/icd.json", ":1"), (got["VK_ICD_FILENAMES"], got["DISPLAY"]))  # the session's, untouched
+        self.assertNotIn("PROTON_ENABLE_WAYLAND", got)
+        self.assertIn("native-engine: Vulkan through the PowerVR runtime's WSI and hybris compat layers", notes)
+        self.assertNotIn("VK_INSTANCE_LAYERS", env)  # the caller's env is not changed
+
+    def test_engine_env_is_left_alone_without_a_powervr_runtime_or_its_layers(self):
+        got, notes = self.run_env(dict(self.on, VK_ICD_FILENAMES="/icd.json"))
+        self.assertNotIn("VK_INSTANCE_LAYERS", got)
+        self.assertFalse(any("PowerVR" in n for n in notes))
+        got, notes = self.run_env(dict(self.on, DROIDDECK_POWERVR_RUNTIME=str(self.root / "none")))
+        self.assertNotIn("VK_INSTANCE_LAYERS", got)
+        self.assertTrue(any("PowerVR Vulkan layers unavailable" in n for n in notes))
+
     def test_off_without_the_experiment(self):
         (rc, notes), calls = self.hook({})
         self.assertEqual((None, [], []), (rc, notes, calls))
