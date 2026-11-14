@@ -15,10 +15,14 @@ on:
     paths:
       - 'tools/fex/arm64ec/**'
       - '.github/workflows/build-fex-arm64ec.yml'
+      # The gate is part of the build: a change to how it judges must re-judge the candidate.
+      - 'tools/fex/winetest/**'
+      - '.github/workflows/fex-wine-gate.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: read # the gate fetches the Godot stand-in from another workflow's run
 
 concurrency:
   group: fex-arm64ec-${{ github.ref }}

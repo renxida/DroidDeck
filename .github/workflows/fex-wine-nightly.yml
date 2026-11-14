@@ -29,10 +29,12 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   HANGOVER_TAG: hangover-11.16
   LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
+  GODOT_FRAMES: '600'
 
 jobs:
   plan:
@@ -75,6 +77,10 @@ jobs:
           mkdir -p bin
           "$RUNNER_TEMP/$LLVM_MINGW/bin/x86_64-w64-mingw32-clang" -O2 -Wall -static -o bin/stress.exe tools/fex/winetest/stress.c
           dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o bin/clr -v q
+      - name: Godot stand-in
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/fex/winetest/get-standin.sh bin/standin
       - uses: actions/upload-artifact@v4
         with:
           name: nightly-programs
@@ -121,8 +127,17 @@ jobs:
           mkdir -p "$out"
           : > "$out/verdicts.txt"
           for label in ${{ matrix.programs }}; do
-            case $label in clr*) exe=clr/clr.exe ;; *) exe=stress.exe ;; esac
-            tools/fex/winetest/run.sh "$label" "$out" "${{ matrix.seconds }}" "$RUNNER_TEMP/bin/$exe" | tee "$out/$label.verdict" || true
+            case $label in clr*) exe=clr/clr.exe ;; godot*) exe=standin/StandIn.exe ;; *) exe=stress.exe ;; esac
+            [ -f "$RUNNER_TEMP/bin/$exe" ] || { echo "$label: no $exe, skipped"; continue; }
+            case $label in
+              godot*)
+                # A soak row runs the game for its whole time (about 30 frames a second headless is a guess, so
+                # the frame count is generous and the row's time limit ends it); other rows quit after GODOT_FRAMES.
+                frames=$GODOT_FRAMES; [ "${{ matrix.seconds }}" -gt 600 ] && frames=$(( ${{ matrix.seconds }} * 30 ))
+                env HB_RE='^(STANDIN_DEPS|FIRST_FRAME|MAINLOOP_OK)' DONE_RE='^MAINLOOP_OK' OPS_KEY=frames STALL_S=300 PROG_ARGS="--headless -- --quit-after-frames $frames" \
+                  tools/fex/winetest/run.sh "$label" "$out" "${{ matrix.seconds }}" "$RUNNER_TEMP/bin/$exe" | tee "$out/$label.verdict" || true ;;
+              *) tools/fex/winetest/run.sh "$label" "$out" "${{ matrix.seconds }}" "$RUNNER_TEMP/bin/$exe" | tee "$out/$label.verdict" || true ;;
+            esac
             grep '^VERDICT ' "$out/$label.verdict" >> "$out/verdicts.txt" || echo "VERDICT $label no-verdict 0 0 0" >> "$out/verdicts.txt"
             wineserver -k || true
             sleep 2

@@ -3,12 +3,20 @@
 
     gate-verdict.py <stock verdicts> <candidate verdicts> <min throughput ratio> <stall slack seconds>
 
-Each line: VERDICT <program> <done|HANG|exited-without-done|no-verdict> <seconds> <ops> <stalled seconds>.
+Each line: VERDICT <program> <done|HANG|exited-without-done|no-verdict> <seconds> <ops> <stalled seconds> [<busy>],
+busy being the seconds the program's last heartbeat reports (its run time without start-up and shutdown).
 Programs whose label ends in a digit (stress2) are repeats and pool with their base (stress) for throughput.
 Prints a Markdown table and exits 1 if the candidate fails.
 """
+import os
 import re
 import sys
+
+# A shutdown this many seconds longer than stock's fails. clr.exe waits up to 30 s for a thread or task at exit, and
+# stock FEX hit that 1 run in 8 (run 43640000754), so a single 30 s wait is noise.
+EXIT_SLACK = int(os.environ.get("GATE_EXIT_SLACK", "60"))
+# Programs whose speed is reported but not failed on yet (a new row, until its noise is known).
+REPORT_ONLY = set(os.environ.get("GATE_REPORT_ONLY", "godot").split())
 
 
 def load(path):
@@ -18,7 +26,9 @@ def load(path):
             for line in f:
                 p = line.split()
                 if len(p) >= 6 and p[0] == "VERDICT":
-                    rows[p[1]] = {"verdict": p[2], "seconds": int(p[3]), "ops": int(p[4]), "stalls": int(p[5])}
+                    seconds = int(p[3])
+                    busy = int(p[6]) if len(p) >= 7 else seconds
+                    rows[p[1]] = {"verdict": p[2], "seconds": seconds, "ops": int(p[4]), "stalls": int(p[5]), "busy": busy}
     except FileNotFoundError:
         pass
     return rows
@@ -48,21 +58,33 @@ def main():
                 notes.append(f"{name}: {c['verdict']} under stock FEX too, so not counted against the candidate")
         if s is not None and c["verdict"] == "done" and s["verdict"] == "done" and c["stalls"] > s["stalls"] + slack:
             failures.append(f"{name}: {c['stalls']} stalled seconds against stock's {s['stalls']}")
-    # Throughput, pooled over repeats (stress + stress2), only where both finished.
+        if s is not None and c["verdict"] == "done" and s["verdict"] == "done":
+            c_exit, s_exit = c["seconds"] - c["busy"], s["seconds"] - s["busy"]
+            if c_exit > s_exit + EXIT_SLACK:
+                failures.append(f"{name}: took {c_exit} s to start and stop against stock's {s_exit} s")
+            elif c_exit > s_exit + 10:
+                notes.append(f"{name}: took {c_exit} s to start and stop against stock's {s_exit} s")
+    # Throughput: work per second of run time (the heartbeat's t=; wall time for programs without one, start-up
+    # included), pooled over repeats (stress + stress2), only where both finished. Start-up and shutdown are judged
+    # above. The Godot stand-in does a fixed number of frames, so for it only the time moves.
     pools = {}
     for name in set(stock) & set(cand):
         s, c = stock[name], cand[name]
         if s["verdict"] != "done" or c["verdict"] != "done":
             continue
         base = re.sub(r"\d+$", "", name)
-        a = pools.setdefault(base, [0, 0])
+        a = pools.setdefault(base, [0, 0, 0, 0])
         a[0] += s["ops"]
         a[1] += c["ops"]
+        a[2] += max(s["busy"], 1)
+        a[3] += max(c["busy"], 1)
     print()
-    for base, (s_ops, c_ops) in sorted(pools.items()):
-        r = c_ops / s_ops if s_ops else 0.0
+    for base, (s_ops, c_ops, s_secs, c_secs) in sorted(pools.items()):
+        r = (c_ops / c_secs) / (s_ops / s_secs) if s_ops else 0.0
         print(f"- {base}: candidate does {r:.2f}x stock's work (minimum {ratio:.2f})")
-        if r < ratio:
+        if r < ratio and base in REPORT_ONLY:
+            notes.append(f"{base}: {r:.2f}x stock, below {ratio:.2f} (reported only)")
+        elif r < ratio:
             failures.append(f"{base}: throughput {r:.2f}x stock, below {ratio:.2f}")
     print()
     for n in notes:
