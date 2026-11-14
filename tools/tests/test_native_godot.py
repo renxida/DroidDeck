@@ -1,5 +1,6 @@
 import io
 import json
+import re
 import os
 from pathlib import Path
 import runpy
@@ -210,6 +211,8 @@ class NativeGodotTest(unittest.TestCase):
             NG["main"].__globals__["watch"] = real
             os.chdir(Path(__file__).resolve().parent)
         self.assertEqual(7, rc)
+        if seen[0][1:3] == ["-oL", "-eL"]:  # line_buffered: stdbuf in front when the host has it
+            seen[0] = seen[0][3:]
         self.assertEqual([str(out / "sts2"), "--main-pack", str(self.game / "SlayTheSpire2.pck"), "--print-fps",
                           "--headless", "--verbose"], seen[0])
 
@@ -224,6 +227,27 @@ class NativeGodotTest(unittest.TestCase):
         began = time.monotonic()
         rc = NG["watch"](self.fake_engine(body), dict(os.environ), first_frame_s=first_frame_s, out=out)
         return rc, out.getvalue(), time.monotonic() - began
+
+    def test_line_buffered_puts_stdbuf_in_front_when_present(self):
+        self.assertEqual(["/usr/bin/stdbuf", "-oL", "-eL", "/e", "-x"],
+                         NG["line_buffered"](["/e", "-x"], which=lambda n: "/usr/bin/" + n))
+        self.assertEqual(["/e", "-x"], NG["line_buffered"](["/e", "-x"], which=lambda n: None))
+
+    @unittest.skipUnless(shutil.which("cc") and shutil.which("stdbuf"), "needs a C compiler and coreutils stdbuf")
+    def test_a_stdio_engine_first_frame_is_seen_while_it_runs(self):
+        # Like a release Godot: printf through a pipe is block-buffered, so without stdbuf the FPS line would
+        # arrive only at exit, 3 s later.
+        src = self.root / "engine.c"
+        src.write_text('#include <stdio.h>\n#include <unistd.h>\nint main(void){printf("Project FPS: 30 (33.33 mspf)\\n");'
+                       'sleep(3);return 0;}\n')
+        exe = self.root / "engine"
+        subprocess.run(["cc", "-o", str(exe), str(src)], check=True)
+        err = io.StringIO()
+        with unittest.mock.patch("sys.stderr", err):
+            rc = NG["watch"](NG["line_buffered"]([str(exe)]), dict(os.environ), first_frame_s=10, out=io.StringIO())
+        self.assertEqual(0, rc)
+        took = float(re.search(r"first frame after ([0-9.]+) s", err.getvalue()).group(1))
+        self.assertLess(took, 2.0)
 
     def test_watch_passes_the_exit_code_after_a_first_frame(self):
         rc, out, _ = self.run_watch("print('booting')\nprint('Project FPS: 60 (16.67 mspf)', flush=True)\n"
