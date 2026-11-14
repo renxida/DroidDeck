@@ -10,6 +10,11 @@ the Microsoft.NETCore.App.Crossgen2.linux-arm64 package), which runs natively he
   compile GAME_DIR                compile what is missing into the cache (slow; run in the background)
   apply   GAME_DIR --on|--off     swap cached images in, or put every original back
 
+--bubble (compile, apply) compiles the game's own assemblies together, in one version bubble with every
+other managed file in the folder (the framework copy a self-contained game ships). Code for the framework's
+generics over the game's types (System.Text.Json metadata, async builders, LINQ) can then be precompiled
+too; per assembly, crossgen2 has to leave those to the JIT. The framework files themselves are not changed.
+
 GAME_DIR is the folder that holds coreclr.dll. Originals are kept in the cache and every swap is undone by
 --off, which only touches files whose content is exactly an image this tool wrote."""
 import argparse
@@ -153,8 +158,8 @@ class Cache:
         temp.write_text(json.dumps(manifest, indent=1, sort_keys=True))
         os.replace(temp, self.manifest_path)
 
-    def image(self, il_sha):
-        return self.root / (il_sha + ".r2r.dll")
+    def image(self, il_sha, tag=""):
+        return self.root / (il_sha + ("." + tag if tag else "") + ".r2r.dll")
 
     def original(self, il_sha):
         return self.root / (il_sha + ".il.dll")
@@ -168,7 +173,23 @@ def candidates(game_dir, found=None):
     return [name for name, info in found.items() if info["ilonly"] and not info["r2r"] and name not in framework]
 
 
-def compile_missing(game_dir, cache=None, run=subprocess.run, crossgen=CROSSGEN, log=print):
+def bubble_tag(game_dir, names, found=None):
+    """Names the bubble a set of the game's own assemblies is compiled in: their content plus every other
+    managed file it was compiled against (by size and time, so a game update means a new bubble)."""
+    game_dir = Path(game_dir)
+    found = assemblies(game_dir) if found is None else found
+    digest = hashlib.sha256()
+    for name in sorted(found):
+        path = game_dir / name
+        if name in names:
+            digest.update(("%s=%s\n" % (name, sha256(path))).encode())
+        else:
+            st = path.stat()
+            digest.update(("%s:%d:%d\n" % (name, st.st_size, st.st_mtime_ns)).encode())
+    return "bubble-" + digest.hexdigest()[:16]
+
+
+def compile_missing(game_dir, cache=None, run=subprocess.run, crossgen=CROSSGEN, log=print, bubble=False):
     """Compiles every candidate whose image is not cached yet. Returns (compiled, failed) names."""
     cache = cache or Cache()
     game_dir = Path(game_dir).resolve()
@@ -188,9 +209,47 @@ def compile_missing(game_dir, cache=None, run=subprocess.run, crossgen=CROSSGEN,
         log("r2r: another compile is running; nothing compiled")
         return [], []
     with lock:
-        for name in candidates(game_dir, found):
-            _compile_one(game_dir, name, references, cache, run, crossgen, log, compiled, failed)
+        if bubble:
+            _compile_bubble(game_dir, candidates(game_dir, found), found, cache, run, crossgen, log, compiled, failed)
+        else:
+            for name in candidates(game_dir, found):
+                _compile_one(game_dir, name, references, cache, run, crossgen, log, compiled, failed)
     return compiled, failed
+
+
+def _compile_bubble(game_dir, names, found, cache, run, crossgen, log, compiled, failed):
+    if not names:
+        return
+    tag = bubble_tag(game_dir, names, found)
+    shas = {name: sha256(game_dir / name) for name in names}
+    if all(cache.image(shas[name], tag).exists() for name in names):
+        return
+    temp = cache.root / (tag + ".tmp")
+    shutil.rmtree(temp, ignore_errors=True)
+    temp.mkdir(parents=True)
+    others = [str(game_dir / name) for name in found if name not in names]
+    start = time.monotonic()
+    command = ([crossgen] + [str(game_dir / name) for name in names] +
+               ["-o", str(temp), "--targetos", "windows", "--targetarch", "x64", "-O", "--parallelism", PARALLELISM,
+                "--inputbubble"] + [arg for ref in others for arg in ("--inputbubbleref", ref, "-r", ref)])
+    try:
+        result = run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=COMPILE_TIMEOUT_S * 2)
+        code, output = result.returncode, (result.stdout or b"").decode(errors="replace").strip().splitlines()
+    except (OSError, subprocess.TimeoutExpired) as error:
+        code, output = None, [str(error)]
+    took = time.monotonic() - start
+    infos = {name: pe_info(temp / name) for name in names}
+    if code == 0 and all(info and info["r2r"] for info in infos.values()):
+        for name in names:
+            os.replace(temp / name, cache.image(shas[name], tag))
+        compiled.extend(names)
+        log("r2r: compiled %d in one bubble with %d others (%.1f MB -> %.1f MB) in %.0f s" % (
+            len(names), len(others), sum((game_dir / n).stat().st_size for n in names) / 2**20,
+            sum(cache.image(shas[n], tag).stat().st_size for n in names) / 2**20, took))
+    else:
+        failed.extend(names)
+        log("r2r: bubble of %d failed (exit %s) after %.0f s: %s" % (len(names), code, took, output[-1] if output else ""))
+    shutil.rmtree(temp, ignore_errors=True)
 
 
 def _compile_one(game_dir, name, references, cache, run, crossgen, log, compiled, failed):
@@ -221,19 +280,26 @@ def _compile_one(game_dir, name, references, cache, run, crossgen, log, compiled
         log("r2r: %s failed (exit %s) after %.0f s: %s" % (name, code, took, output[-1] if output else ""))
 
 
-def apply(game_dir, on, cache=None):
-    """Swaps cached images in (on) or originals back (off). Returns (swapped, missing) names."""
+def apply(game_dir, on, cache=None, bubble=False):
+    """Swaps cached images in (on) or originals back (off). Returns (swapped, missing) names. Images of the
+    other kind (per assembly or bubble) are put back first; a bubble is swapped in whole or not at all."""
     cache = cache or Cache()
     game_dir = Path(game_dir).resolve()
+    mode = "bubble" if bubble else "single"
+    if on and any(Path(k).parent == game_dir and v.get("mode", "single") != mode for k, v in cache.manifest().items()):
+        _restore(game_dir, cache, lambda entry: entry.get("mode", "single") != mode)
     manifest = cache.manifest()
     swapped, missing = [], []
     if on:
-        for name in candidates(game_dir):
+        names = candidates(game_dir)
+        tag = bubble_tag(game_dir, names) if bubble and names else ""
+        shas = {name: sha256(game_dir / name) for name in names}
+        missing = [name for name in names if not cache.image(shas[name], tag).exists()]
+        for name in names:
             path = game_dir / name
-            il_sha = sha256(path)
-            image = cache.image(il_sha)
-            if not image.exists():
-                missing.append(name)
+            il_sha = shas[name]
+            image = cache.image(il_sha, tag)
+            if not image.exists() or (bubble and missing):
                 continue
             original = cache.original(il_sha)
             if not original.exists():
@@ -243,24 +309,32 @@ def apply(game_dir, on, cache=None):
             shutil.copyfile(image, temp)
             shutil.copystat(path, temp)
             os.replace(temp, path)
-            manifest[str(path)] = {"il": il_sha, "r2r": sha256(image)}
+            manifest[str(path)] = {"il": il_sha, "r2r": sha256(image), "mode": mode}
             swapped.append(name)
-    else:
-        for key, entry in list(manifest.items()):
-            path = Path(key)
-            if game_dir != path.parent:
-                continue
-            original = cache.original(entry["il"])
-            if path.exists() and original.exists() and sha256(path) == entry["r2r"]:
-                temp = path.with_name(path.name + ".droiddeck-r2r")
-                shutil.copyfile(original, temp)
-                shutil.copystat(path, temp)
-                os.replace(temp, path)
-                swapped.append(path.name)
-            del manifest[key]
-    if on or manifest != cache.manifest():
+        if on or manifest != cache.manifest():
+            cache.save(manifest)
+        return swapped, missing
+    return _restore(game_dir, cache, lambda entry: True), []
+
+
+def _restore(game_dir, cache, which):
+    manifest = cache.manifest()
+    restored = []
+    for key, entry in list(manifest.items()):
+        path = Path(key)
+        if game_dir != path.parent or not which(entry):
+            continue
+        original = cache.original(entry["il"])
+        if path.exists() and original.exists() and sha256(path) == entry["r2r"]:
+            temp = path.with_name(path.name + ".droiddeck-r2r")
+            shutil.copyfile(original, temp)
+            shutil.copystat(path, temp)
+            os.replace(temp, path)
+            restored.append(path.name)
+        del manifest[key]
+    if manifest != cache.manifest():
         cache.save(manifest)
-    return swapped, missing
+    return restored
 
 
 def status(game_dir, cache=None):
@@ -279,10 +353,11 @@ def status(game_dir, cache=None):
     def size(names):
         return sum((Path(game_dir) / n).stat().st_size for n in names) / 2**20
 
+    modes = sorted({v.get("mode", "single") for k, v in manifest.items() if Path(k).parent == game_dir})
     lines = ["runtime_major=%s compiler_major=%d managed=%d framework=%d" % (major, CROSSGEN_MAJOR, len(found), len(framework)),
              "precompiled=%d (%.1f MB); the game's own: %s" % (len(shipped_r2r), size(shipped_r2r), " ".join(own_r2r) or "none"),
              "game_il_only=%d (%.1f MB): %s" % (len(il_only), size(il_only), " ".join(il_only)),
-             "swapped_in=%d: %s" % (len(ours), " ".join(sorted(ours)))]
+             "swapped_in=%d: %s%s" % (len(ours), " ".join(sorted(ours)), " (%s)" % ",".join(modes) if modes else "")]
     if mixed:
         lines.append("mixed_mode=%d: %s" % (len(mixed), " ".join(mixed)))
     return "\n".join(lines) + "\n"
@@ -295,6 +370,7 @@ def main(argv=None):
     switch = parser.add_mutually_exclusive_group()
     switch.add_argument("--on", action="store_true")
     switch.add_argument("--off", action="store_true")
+    parser.add_argument("--bubble", action="store_true", help="one version bubble with the framework copy")
     parser.add_argument("--log", help="append messages to this file as well")
     args = parser.parse_args(argv)
 
@@ -307,13 +383,13 @@ def main(argv=None):
     if args.action == "status":
         log(status(args.game_dir).rstrip())
     elif args.action == "compile":
-        compiled, failed = compile_missing(args.game_dir, log=log)
+        compiled, failed = compile_missing(args.game_dir, log=log, bubble=args.bubble)
         log("r2r: compile done, %d compiled, %d failed" % (len(compiled), len(failed)))
         return 1 if failed else 0
     else:
         if not (args.on or args.off):
             parser.error("apply needs --on or --off")
-        swapped, missing = apply(args.game_dir, args.on)
+        swapped, missing = apply(args.game_dir, args.on, bubble=args.bubble)
         log("r2r: %s %d (%s)%s" % ("swapped in" if args.on else "restored", len(swapped), " ".join(swapped),
                                   "; not compiled yet: " + " ".join(missing) if missing else ""))
     return 0

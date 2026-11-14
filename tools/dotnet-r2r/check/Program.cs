@@ -4,6 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 
 namespace R2RCheck
 {
@@ -132,6 +135,74 @@ namespace R2RCheck
         }
     }
 
+    // Game-shaped serialization: source-generated System.Text.Json metadata over the game's own types, a
+    // generic packet writer and an async load, the framework generics over game types that per-assembly
+    // ReadyToRun leaves to the JIT on the phone.
+    enum MapPointType { Monster, Elite, Shop, Rest }
+    record struct MapCoord(int X, int Y);
+
+    sealed class RunSave
+    {
+        public string Seed { get; set; }
+        public int Floor { get; set; }
+        public long Gold { get; set; }
+        public bool Ascended { get; set; }
+        public float Volume { get; set; }
+        public double Score { get; set; }
+        public decimal Spent { get; set; }
+        public DateTime Started { get; set; }
+        public DateTimeOffset? Ended { get; set; }
+        public int? Best { get; set; }
+        public ulong Id { get; set; }
+        public Kind Favorite { get; set; }
+        public MapPointType Next { get; set; }
+        public MapCoord Pos { get; set; }
+        public List<Card> Deck { get; set; }
+        public Dictionary<string, int> Relics { get; set; }
+        public MapCoord[] Path { get; set; }
+    }
+
+    [JsonSerializable(typeof(RunSave))]
+    partial class SaveContext : JsonSerializerContext { }
+
+    static class Packet
+    {
+        public static void Write<T>(StringBuilder buffer, T value) => buffer.Append(typeof(T).Name).Append('=').Append(value).Append(';');
+        public static T Read<T>(Dictionary<string, object> fields, string name) => (T)fields[name];
+    }
+
+    static class Saves
+    {
+        public static string Save(string best, int wins, IEnumerable<Card> deck)
+        {
+            var save = new RunSave
+            {
+                Seed = best, Floor = wins % 50, Gold = wins * 7L, Ascended = wins % 2 == 0, Volume = 0.75f, Score = wins / 3.0,
+                Spent = wins * 1.25m, Started = new DateTime(2026, 11, 14, 5, 0, 0, DateTimeKind.Utc),
+                Ended = new DateTimeOffset(2026, 11, 14, 6, 0, 0, TimeSpan.Zero), Best = wins, Id = (ulong)wins * 31,
+                Favorite = Kind.Skill, Next = MapPointType.Elite, Pos = new MapCoord(3, wins % 15), Deck = deck.ToList(),
+                Relics = new Dictionary<string, int> { ["Anchor"] = 1, ["Lantern"] = wins % 3 },
+                Path = Enumerable.Range(0, 5).Select(i => new MapCoord(i, i * 2)).ToArray(),
+            };
+            return JsonSerializer.Serialize(save, SaveContext.Default.RunSave);
+        }
+
+        public static async Task<int> LoadAsync(string json)
+        {
+            await Task.Yield();
+            var save = JsonSerializer.Deserialize(json, SaveContext.Default.RunSave);
+            var packet = new StringBuilder();
+            Packet.Write(packet, save.Floor);
+            Packet.Write(packet, save.Pos);
+            Packet.Write(packet, save.Next);
+            Packet.Write(packet, save.Deck[0]);
+            Packet.Write(packet, save.Gold);
+            var fields = new Dictionary<string, object> { ["floor"] = save.Floor, ["pos"] = save.Pos, ["next"] = save.Next };
+            return packet.Length + Packet.Read<int>(fields, "floor") + Packet.Read<MapCoord>(fields, "pos").Y
+                + (int)Packet.Read<MapPointType>(fields, "next") + save.Deck.Count + save.Path.Length;
+        }
+    }
+
     static class Program
     {
         static int Main(string[] args)
@@ -152,7 +223,9 @@ namespace R2RCheck
                 checksum = (checksum ^ (ulong)(turns * 131 + hp + (won ? 7 : 0))) * 1099511628211UL;
             }
             var best = stats.OrderByDescending(kv => kv.Value.wins).ThenBy(kv => kv.Key, StringComparer.Ordinal).First();
-            var text = new StringBuilder().Append("decks=").Append(stats.Count).Append(" best=").Append(best.Key)
+            string json = Saves.Save(best.Key, best.Value.wins, Cards.Starter());
+            int loaded = Saves.LoadAsync(json).GetAwaiter().GetResult();
+            var text = new StringBuilder().Append("save=").Append(json.Length).Append('/').Append(loaded).Append(' ').Append("decks=").Append(stats.Count).Append(" best=").Append(best.Key)
                 .Append(" wins=").Append(best.Value.wins).Append(" checksum=").Append(checksum.ToString("x16"));
             Console.WriteLine(text.ToString());
             return 0;
