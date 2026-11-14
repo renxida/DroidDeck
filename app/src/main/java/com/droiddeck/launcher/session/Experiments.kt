@@ -63,7 +63,7 @@ object Experiments {
     const val DOTNET_R2R_BUBBLE = "dotnet-r2r-bubble"
     /** Slay the Spire 2 capped at 30 fps instead of 60: steady frames over peak frame rate. */
     const val FPS_30 = "fps-30"
-    /** While a game runs, ask steamwebhelper over DevTools to free memory every few minutes; logs before/after. */
+    /** While a game runs, ask steamwebhelper over DevTools to free memory twice, then end it once so Steam starts a fresh one; logs before/after. */
     const val WEBHELPER_TRIM = "webhelper-trim"
     const val FEX_SMAPS = "fex-smaps"
     /** Godot games log every resource they load (--verbose); the upload lists them. */

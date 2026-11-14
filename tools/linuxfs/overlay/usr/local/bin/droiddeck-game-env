@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import collections
 import errno
 import hashlib
 import json
@@ -1710,12 +1711,13 @@ class WebhelperTrim:
     """Experiment webhelper-trim: while the game runs, asks Steam's CEF over DevTools to give memory back (a
     critical memory-pressure notification and a full V8 GC on every page and worker), WEBHELPER_TRIM_FIRST_S after
     the start and then every WEBHELPER_TRIM_EVERY_S for WEBHELPER_TRIM_ROUNDS rounds, and prints the steamwebhelper processes' resident and swapped
-    memory before and WEBHELPER_TRIM_SETTLE_S after each round. The client and its web helper keep running: nothing
-    is killed or stopped. When the port is unknown or DevTools does not answer it says why once and stops."""
+    memory before and WEBHELPER_TRIM_SETTLE_S after each round. When the port is unknown or DevTools does not answer
+    it says why once and stops trimming. Then, when a stopper (WebhelperStop) was given and the game still runs, the
+    stopper asks the web helper to exit so the client starts a fresh one. The game is never touched."""
 
     def __init__(self, app_id="", port=None, devtools=None, usage=None, first=WEBHELPER_TRIM_FIRST_S,
                  every=WEBHELPER_TRIM_EVERY_S, settle=WEBHELPER_TRIM_SETTLE_S, clock=time.monotonic, wall=time.time,
-                 rounds=WEBHELPER_TRIM_ROUNDS):
+                 rounds=WEBHELPER_TRIM_ROUNDS, stopper=None):
         self.app_id = app_id or "-"
         self.port = port
         self.devtools = devtools or SteamDevTools
@@ -1724,6 +1726,7 @@ class WebhelperTrim:
         self.clock, self.wall = clock, wall
         self.rounds = 0
         self.max_rounds = rounds
+        self.stopper = stopper
         self.done = threading.Event()
         self.thread = None
         self.client = None
@@ -1735,25 +1738,35 @@ class WebhelperTrim:
 
     def stop(self):
         self.done.set()
+        if self.stopper is not None:
+            try:
+                self.stopper.finish()
+            except Exception:
+                pass
 
     def run(self):
         try:
             if self.done.wait(self.first):
                 return
-            port = self.port if self.port is not None else webhelper_cdp_port()
-            if not port:
-                return self.off("no_port", "no BL_LAUNCH_DIR/agent/cdp-port or BL_CDP_PORT")
-            try:
-                self.client = self.devtools(port)
-            except Exception as error:
-                return self.off("no_client", error)
-            while not self.done.is_set():
-                if not self.trim() or self.rounds >= self.max_rounds:
-                    return
-                if self.done.wait(self.every):
-                    return
+            self.trim_rounds()
         except Exception as error:  # the watch must never take the launch down
             self.off("error", error)
+        if self.stopper is not None and not self.done.is_set():
+            self.stopper.run(self.done)
+
+    def trim_rounds(self):
+        port = self.port if self.port is not None else webhelper_cdp_port()
+        if not port:
+            return self.off("no_port", "no BL_LAUNCH_DIR/agent/cdp-port or BL_CDP_PORT")
+        try:
+            self.client = self.devtools(port)
+        except Exception as error:
+            return self.off("no_client", error)
+        while not self.done.is_set():
+            if not self.trim() or self.rounds >= self.max_rounds:
+                return
+            if self.done.wait(self.every):
+                return
 
     def off(self, reason, error):
         detail = re.sub(r"[^A-Za-z0-9_.:/-]+", "_", str(error) or type(error).__name__).strip("_")[:120] or "-"
@@ -1799,6 +1812,169 @@ class WebhelperTrim:
                   swap // 1024, rss_after // 1024, swap_after // 1024, int(took * 1000), self.every,
                   int(self.wall() * 1000)), file=sys.stderr, flush=True)
         return True
+
+
+# After both trim rounds Slay the Spire 2 still saw steamwebhelper at ~616 MB resident with zram full and frames
+# stalling for seconds; trimming cannot give back what the live UI holds, ending the helper does.
+WEBHELPER_STOP_AFTER_S = 30
+WEBHELPER_STOP_MIN_MB = 256
+WEBHELPER_STOP_GRACE_S = 15
+WEBHELPER_STOP_POLL_S = 5
+WEBHELPER_STOP_SETTLE_S = 30
+WEBHELPER_LAUNCHERS = frozenset({b"FEX", b"FEXInterpreter"})
+
+
+# pid and start time (clock ticks since boot, to tell a reused pid), whether it is CEF's browser process (no --type=),
+# resident and swapped kB.
+WebProc = collections.namedtuple("WebProc", "pid start browser rss swap")
+
+
+def web_key(process):
+    return process.pid, process.start
+
+
+def webhelper_processes(proc="/proc"):
+    """The live processes whose program is steamwebhelper (argv[0], or argv[1] under FEX); not steamwebhelper.sh,
+    the client, the game or anything that only mentions the name in its arguments."""
+    found = []
+    try:
+        entries = os.listdir(proc)
+    except OSError:
+        return found
+    for entry in entries:
+        if not entry.isdigit() or int(entry) <= 1 or int(entry) == os.getpid():
+            continue
+        try:
+            with open("%s/%s/cmdline" % (proc, entry), "rb") as f:
+                args = f.read(16384).split(b"\0")
+            program = args[0]
+            if os.path.basename(program) in WEBHELPER_LAUNCHERS and len(args) > 1:
+                program = args[1]
+            if os.path.basename(program) != b"steamwebhelper":
+                continue
+            with open("%s/%s/stat" % (proc, entry), "rb") as f:
+                fields = f.read().rsplit(b")", 1)[1].split()
+            if fields[0] in (b"Z", b"X") or len(fields) < 20:
+                continue
+            with open("%s/%s/status" % (proc, entry), "rb") as f:
+                status = f.read().decode("ascii", "replace")
+        except (OSError, IndexError):
+            continue
+        resident = re.search(r"^VmRSS:\s+(\d+)", status, re.M)
+        swapped = re.search(r"^VmSwap:\s+(\d+)", status, re.M)
+        browser = not any(a.startswith(b"--type=") for a in args[1:])
+        found.append(WebProc(int(entry), int(fields[19]), browser, int(resident.group(1)) if resident else 0,
+                             int(swapped.group(1)) if swapped else 0))
+    return found
+
+
+class WebhelperStop:
+    """webhelper-trim's last step, once per launch: WEBHELPER_STOP_AFTER_S after the trim rounds, if the game still
+    runs and the web helper holds at least WEBHELPER_STOP_MIN_MB (resident plus swapped), CEF's browser process gets
+    SIGTERM and shuts its children down; the Steam client starts the helper again on its own. A child left behind by
+    a browser that is gone after WEBHELPER_STOP_GRACE_S gets SIGKILL; a browser that is still running is left alone.
+    Only processes whose program is steamwebhelper are signalled, each checked by pid and start time. It prints one
+    game_webhelper_stop line (or game_webhelper_stop_skipped), then one game_webhelper_back line when a new helper
+    has run WEBHELPER_STOP_SETTLE_S, or at the game's exit with how many are back by then."""
+
+    def __init__(self, app_id="", procs=None, kill=None, clock=time.monotonic, wall=time.time,
+                 after=WEBHELPER_STOP_AFTER_S, min_mb=WEBHELPER_STOP_MIN_MB, grace=WEBHELPER_STOP_GRACE_S,
+                 poll=WEBHELPER_STOP_POLL_S, settle=WEBHELPER_STOP_SETTLE_S):
+        self.app_id = app_id or "-"
+        self.procs = procs or webhelper_processes
+        self.kill = kill or os.kill
+        self.clock, self.wall = clock, wall
+        self.after, self.min_mb, self.grace, self.poll, self.settle = after, min_mb, grace, poll, settle
+        self.stopped = None
+        self.stopped_at = None
+        self.reported = False
+        self.lock = threading.Lock()
+
+    def say(self, event, fields):
+        print("DROIDDECK_TIMELINE event=%s app_id=%s %s wall_ms=%d" % (event, self.app_id, fields, int(self.wall() * 1000)),
+              file=sys.stderr, flush=True)
+
+    def signal(self, target, signum, current):
+        """Signals target only while a process with its pid and start time is still listed in current."""
+        if target.pid <= 1 or target.pid == os.getpid() or web_key(target) not in {web_key(p) for p in current}:
+            return False
+        try:
+            self.kill(target.pid, signum)
+            return True
+        except OSError:
+            return False
+
+    def run(self, done):
+        try:
+            self.stop_once(done)
+        except Exception as error:  # the watch must never take the launch down
+            detail = re.sub(r"[^A-Za-z0-9_.:/-]+", "_", str(error) or type(error).__name__).strip("_")[:120] or "-"
+            self.say("game_webhelper_stop_skipped", "reason=error detail=%s" % detail)
+
+    def stop_once(self, done):
+        if done.wait(self.after):
+            return
+        before = self.procs()
+        rss, swap = sum(p.rss for p in before), sum(p.swap for p in before)
+        browsers = [p for p in before if p.browser]
+        reason = ("no_helper" if not before else "no_browser" if not browsers
+                  else "small" if rss + swap < self.min_mb * 1024 else None)
+        if reason or done.is_set():
+            self.say("game_webhelper_stop_skipped", "reason=%s procs=%d rss_mb=%d swap_mb=%d" % (
+                reason or "game_exited", len(before), rss // 1024, swap // 1024))
+            return
+        began = self.clock()
+        with self.lock:
+            if done.is_set():
+                return
+            self.stopped = {web_key(p) for p in before}
+            self.stopped_at = began
+            termed = sum(self.signal(b, signal.SIGTERM, before) for b in browsers)
+        browser_keys = {web_key(b) for b in browsers}
+        while self.clock() - began < self.grace and not done.is_set():
+            if not any(web_key(p) in browser_keys for p in self.procs()):
+                break
+            done.wait(0.25)
+        now = self.procs()
+        left = [p for p in now if web_key(p) in self.stopped]
+        killed = 0
+        if left and not any(web_key(p) in browser_keys for p in left) and not done.is_set():
+            killed = sum(self.signal(p, signal.SIGKILL, now) for p in left)
+            now = self.procs()
+            left = [p for p in now if web_key(p) in self.stopped]
+        browser_left = sum(1 for p in left if web_key(p) in browser_keys)
+        self.say("game_webhelper_stop", "procs=%d browsers=%d termed=%d left=%d browser_left=%d killed=%d "
+                 "rss_mb_before=%d swap_mb_before=%d rss_mb_after=%d swap_mb_after=%d took_ms=%d" % (
+                     len(before), len(browsers), termed, len(left), browser_left, killed, rss // 1024, swap // 1024,
+                     sum(p.rss for p in now) // 1024, sum(p.swap for p in now) // 1024,
+                     int((self.clock() - began) * 1000)))
+        if browser_left:
+            with self.lock:
+                self.reported = True
+            return
+        while not done.is_set():
+            if self.new_helpers():
+                done.wait(self.settle)
+                self.back(game_running=not done.is_set())
+                return
+            done.wait(self.poll)
+
+    def new_helpers(self):
+        return [p for p in self.procs() if web_key(p) not in (self.stopped or ())]
+
+    def back(self, game_running):
+        with self.lock:
+            if self.stopped_at is None or self.reported:
+                return
+            self.reported = True
+            fresh = self.new_helpers()
+            self.say("game_webhelper_back", "procs=%d rss_mb=%d swap_mb=%d after_s=%d game_running=%d" % (
+                len(fresh), sum(p.rss for p in fresh) // 1024, sum(p.swap for p in fresh) // 1024,
+                int(self.clock() - self.stopped_at), 1 if game_running else 0))
+
+    def finish(self):
+        """At the game's exit: says how many web helper processes are back if it stopped them and has not said so."""
+        self.back(game_running=False)
 
 
 def gl_vsync(env):
@@ -2768,7 +2944,8 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
             diagnostic_game_event("game_start", diagnostic_app_id)
         drain = None
         core_watch = CoreWatch(cores, timeline_app_id).start() if cores else None
-        trim = WebhelperTrim(timeline_app_id).start() if timeline_app_id and experiment(launch_env, WEBHELPER_TRIM) else None
+        trim = (WebhelperTrim(timeline_app_id, stopper=WebhelperStop(timeline_app_id)).start()
+                if timeline_app_id and experiment(launch_env, WEBHELPER_TRIM) else None)
         try:
             if explorer:
                 raw_code, started, drain = run_watched(guard)
