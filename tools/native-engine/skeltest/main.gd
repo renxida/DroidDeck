@@ -144,8 +144,9 @@ func sound_test() -> bool:
 	var rms = Vector2(sqrt(sum.x / frames.size()), sqrt(sum.y / frames.size()))
 	var hz = crossings / (2.0 * seconds)
 	var ok = absf(stream.get_length() - 0.5) < 0.01 and absf(rms.x - 0.354) < 0.05 and absf(rms.y - 0.354) < 0.05 \
-		and absf(hz.x - 440) < 10 and absf(hz.y - 660) < 10
-	print("SKELTEST sound length=", stream.get_length(), " rms=", rms, " hz=", hz, " ok=", ok)
+		and absf(hz.x - 440) < 10 and absf(hz.y - 660) < 10 and bank.is_streaming_from_file()
+	print("SKELTEST sound length=", stream.get_length(), " rms=", rms, " hz=", hz,
+		" from_file=", bank.is_streaming_from_file(), " ok=", ok)
 	return ok
 
 # Reads sound/paths.strings.bank (synthetic, written by fsb/tests/path_table_test --write) through

@@ -2988,6 +2988,50 @@ class SystemGraphicsError(ValueError):
     pass
 
 
+POWERVR_VULKAN_FILES = ("wsi/libVkLayer_window_system_integration.so", "wsi/VkLayer_window_system_integration.json",
+                        "lib/libVkLayer_hybris_compat.so")
+
+
+def powervr_vulkan_env(directory, env):
+    """The game's Vulkan setup on the APK's PowerVR runtime: the window-system-integration layer (the libhybris
+    ICD has no X11 or Wayland surfaces of its own, so without it no queue family can present) and the hybris
+    compat layer (BC textures and the rest, in the DXVK profile the phone's games run with), gamescope's own WSI
+    layer and Steam's fossilize layer kept out."""
+    result = dict(env)
+    layers = "VK_LAYER_window_system_integration:" + env.get("DROIDDECK_HYBRIS_LAYERS", "VK_LAYER_HYBRIS_compat")
+    result.update({
+        "HYBRIS_BC_TEXTURES": "dxvk",
+        "VK_LAYER_PATH": ":".join(filter(None, (str(directory / "wsi"), str(directory / "lib"),
+                                                env.get("DROIDDECK_HYBRIS_LAYER_PATH")))),
+        "VK_INSTANCE_LAYERS": layers,
+        "ENABLE_GAMESCOPE_WSI": "0",
+        "VK_LOADER_LAYERS_DISABLE": "*gamescope*",
+        "DISABLE_VK_LAYER_VALVE_steam_fossilize_1": "1",
+    })
+    for name in ("DISABLE_WSI_LAYER", "PROTON_USE_WINED3D", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
+        result.pop(name, None)
+    return result
+
+
+def native_vulkan_env(env):
+    """(env, notes) for Kestrel's native engine: the same PowerVR Vulkan layers a Proton launch gets from
+    system_graphics_launch (the native engine runs before it, on the session's environment, and without them
+    Godot found no device whose queues can present: "None of the devices supports both graphics and present
+    queues", phone run 18:49:56Z Nov 14), plus hybris-index and vk-count when on. Wine-only parts (DXVK payload,
+    run-proton.py, Wine's Wayland driver) stay with Proton. Without a PowerVR runtime the env is left alone."""
+    runtime = env.get("DROIDDECK_POWERVR_RUNTIME")
+    if not runtime:
+        return env, []
+    directory = Path(runtime)
+    missing = [name for name in POWERVR_VULKAN_FILES if not (directory / name).is_file()]
+    if not directory.is_absolute() or missing:
+        return env, ["native-engine: PowerVR Vulkan layers unavailable (%s); session Vulkan as it is"
+                     % (", ".join(missing) or "runtime path is not absolute")]
+    result = powervr_vulkan_env(directory, env)
+    notes = [note for note in (hybris_index(result), vk_count(result)) if note]
+    return result, ["native-engine: Vulkan through the PowerVR runtime's WSI and hybris compat layers"] + notes
+
+
 def system_graphics_launch(command, env):
     """Use the APK's PowerVR compatibility files only for actual Proton game launches."""
     runtime = env.get("DROIDDECK_POWERVR_RUNTIME")
@@ -3016,19 +3060,7 @@ def system_graphics_launch(command, env):
             raise SystemGraphicsError("system Vulkan Proton wrapper is not executable")
     except OSError as error:
         raise SystemGraphicsError("system Vulkan component is unreadable: %s" % error) from error
-    result = dict(env)
-    layers = "VK_LAYER_window_system_integration:" + env.get("DROIDDECK_HYBRIS_LAYERS", "VK_LAYER_HYBRIS_compat")
-    result.update({
-        "HYBRIS_BC_TEXTURES": "dxvk",
-        "VK_LAYER_PATH": ":".join(filter(None, (str(directory / "wsi"), str(directory / "lib"),
-                                                env.get("DROIDDECK_HYBRIS_LAYER_PATH")))),
-        "VK_INSTANCE_LAYERS": layers,
-        "ENABLE_GAMESCOPE_WSI": "0",
-        "VK_LOADER_LAYERS_DISABLE": "*gamescope*",
-        "DISABLE_VK_LAYER_VALVE_steam_fossilize_1": "1",
-    })
-    for name in ("DISABLE_WSI_LAYER", "PROTON_USE_WINED3D", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
-        result.pop(name, None)
+    result = powervr_vulkan_env(directory, env)
     for note in (wayland_present(directory, result), hybris_index(result), vk_count(result),
                  dxvk_arm64ec(directory, result)):
         if note:
@@ -3438,16 +3470,17 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic):
             log = open(path, "a", encoding="utf-8")
         except OSError:
             log, path = None, None
+    env, vulkan_notes = native_vulkan_env(env)
     began = clock()
     try:
         rc = run(args, env=env, stdin=subprocess.DEVNULL, stdout=log or None, stderr=subprocess.STDOUT if log else None).returncode
     except OSError as error:
-        return None, ["native-engine: could not start (%s); Proton" % error]
+        return None, vulkan_notes + ["native-engine: could not start (%s); Proton" % error]
     finally:
         if log:
             log.close()
     took = clock() - began
-    notes = []
+    notes = list(vulkan_notes)
     if rc != 0 and path:
         try:
             with open(path, encoding="utf-8", errors="replace") as f:

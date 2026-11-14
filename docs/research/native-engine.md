@@ -18,7 +18,7 @@ Feasible. A community Android port already runs the game's own files natively on
 - The engine is stock Godot 4.5.1 (`scripts/build-godot.sh`, `scons platform=android arch=arm64
   target=template_release module_mono_enabled=yes`) plus the **Spine** runtime module and an **FMOD**
   GDExtension built for arm64, plus two render patches (pipeline-cache save, canvas ubershaders).
-- Steamworks and Sentry are replaced by no-op C stubs (`src/stubs/steam_stub*.c`, `sentry_stub.c`);
+- (Community port) Steamworks and Sentry are replaced by no-op C stubs (`src/stubs/steam_stub*.c`, `sentry_stub.c`); we don't do this for Steam, see below;
   the Sentry GDExtension has no arm64 build and is disabled by a Harmony patch.
 - So MegaDot's own changes are not required to load and play the game. Known rough edges in that port
   after newer game updates: scrambled card/relic images (issue #64), locale/font black screens
@@ -41,7 +41,7 @@ crash at main-menu asset preload on ARM64 even with full TSO.
 | .NET 9 runtime linux-arm64 | dotnet/runtime | MIT | free |
 | Skeleton animation (Spine stand-in) | ours, clean-room, `tools/native-engine/modules/native_compat/skel` | MIT | **Cedar chose to write our own** (Nov 13). JSON, binary 4.2 `.skel` (all five sampled game skeletons load and play), atlas, path constraints and physics springs |
 | Audio (FMOD stand-in) | ours, clean-room event player, `native_compat/fsb` and `fmod_compat` | MIT | Vorbis sounds, path table and event metadata read; starting an event plays its sounds (598 of 600 sfx events resolve), timeline loop regions loop and timeline places delay. Parameters, buses and 3D not applied yet |
-| Steamworks | stub (ours, MIT) or Valve's libsteam_api arm64 | stub: none | stub is enough to boot (port does it) |
+| Steamworks | Valve's libsteam_api linux-arm64 (SDK 1.63+, fetched on device from the Steamworks.NET NuGet package) | none | no stub: faking Steam bypasses Valve's and the publisher's launch and ownership check |
 | Sentry | disable | n/a | trivial |
 
 Clean-room rule: work from public format notes and the game's own data as read on Cedar's phone. Never
@@ -55,6 +55,10 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
   entries; a waveform names its sound's index in the FSB5 block; instrument volume is a dB float.
   `FmodEvent.start` and `play_one_shot` play the picked sounds through Godot audio players. The engine test
   hears its synthetic event at the expected level on the Master bus.
+- Memory: a bank loaded from a file keeps only its metadata and FSB5 headers; each sound's bytes are read
+  from the file when it is wanted, and sounds over 256 KB (music) are not cached. MEASURED with synthetic
+  banks of the game's 12 audio banks' real sizes and sample counts (361 MB in all), headless: loading all of
+  them cost +347 MB resident before, +0 MB after (the four boot-time banks: +64 MB before, +0 after).
 
 ### Clean-room progress (Nov 13)
 
@@ -88,9 +92,10 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
   session log and the game starts on Proton in the same launch. A later exit ends the launch with its code.
 - `droiddeck-native-godot` fetches the pinned component (a release on this repository, sha256-checked,
   cached in `~/.cache/droiddeck/native/<tag>/`): our engine, the kit (the linux-arm64 data folder of a stock
-  4.5.1 C# export: .NET runtime, GodotSharp, GodotPlugins) and a Steamworks stub. It then builds
-  `~/.cache/droiddeck/native/launch/<appid>/` with the engine hardlinked in and
-  `data_<asm>_linuxbsd_arm64/` holding the kit, the stub and the game's managed DLLs (hardlinked; they never
+  4.5.1 C# export: .NET runtime, GodotSharp, GodotPlugins), and Valve's linux-arm64 libsteam_api.so from the
+  Steamworks.NET NuGet package (sha256-pinned; components up to -38 also carry a no-op Steam stub, which is
+  ignored). It then builds `~/.cache/droiddeck/native/launch/<appid>/` with the engine hardlinked in and
+  `data_<asm>_linuxbsd_arm64/` holding the kit, Valve's library (as libsteam_api64.so) and the game's managed DLLs (hardlinked; they never
   leave the phone), and runs `engine --main-pack <game>.pck --print-fps` under a first-frame watchdog: Godot's
   first "Project FPS" line (about 4 s into the main loop) is logged as "first frame"; none within 90 s of the
   engine's start (after the fetch), or an engine exit before one, kills the engine's process group and exits
@@ -103,14 +108,27 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
   - the Windows `deps.json` describes the win-x64 runtime, so the launch folder gets the kit's
     `deps.json` with its app entry renamed to the game and listing the game's assemblies, and the kit's
     `runtimeconfig.json` with the game's runtime switches on top;
-  - a Windows build stamps its IL assemblies AMD64, which arm64 CoreCLR refuses; the launch copy is
-    relabelled ARM64 (ReadyToRun x64 code, if any, is dropped so the IL is JIT-compiled).
+  - a Windows build stamps its IL assemblies AMD64, which arm64 CoreCLR refuses; an IL-only launch copy is
+    relabelled ARM64 and nothing else. A ReadyToRun image (crossgen2 output: IL-only clear, IL_LIBRARY set, an
+    RTR header, an x64 exception table and base relocations, like the game's published DLLs) is turned back into
+    plain IL: relabelled, R2R header cleared, IL-only set, IL_LIBRARY cleared, exception and relocation
+    directories emptied. MEASURED: .NET on Linux refuses a Windows R2R image, relabelled or not, through the
+    default load context and through hostfxr `load_assembly_and_get_function_pointer`, which is how Godot's
+    exported builds load the game assembly (startup gate run 43630311459: "Failed to get GodotPlugins
+    initialization function pointer", SIGSEGV; arm64-r2r runs 43630745903/43631010173: BadImageFormatException).
+    Each conversion step alone still gets "Bad IL format"; all of them together load and run on both paths
+    (local .NET 8 linux-x64, CI arm64 .NET 9 fxrhost check). Only `AssemblyLoadContext.LoadFromAssemblyPath`
+    took the relabel-only image, which is why the first r2r-probe looked good. An untouched AMD64 image gets
+    "not compatible with the current process architecture". A true mixed-mode assembly (C++/CLI: vtable
+    fixups, no RTR header) can't run on arm64, so it is left out and logged with the game assemblies that name
+    it; only the game's own assembly being mixed-mode stops the launch. The first phone launch (0aa91a7)
+    stopped at compose because the old check took R2R's missing IL-only mark for mixed mode.
 - The pck's `.gdextension` entries (Spine, FMOD, Sentry) have no `linux.arm64` library, so Godot logs an
   error and skips them. Our module will register stand-in classes under the names the game's scenes use.
 - Runs as a normal X11/Wayland client under gamescope (Vulkan via the guest's glibc loader, the same driver
   path winevulkan uses), minus Wine and FEX. INFERRED until a phone run.
 - Expected first-run gaps: no Spine drawing and no audio until the stand-ins match the game's names;
-  Steam features beyond file sync do nothing (stub); Sentry absent.
+  Steam goes through Valve's own linux-arm64 libsteam_api.so to the real arm64 client in the session; Sentry absent.
 
 ## 4. Measurements
 

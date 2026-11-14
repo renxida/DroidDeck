@@ -19,7 +19,7 @@ on:
       - 'tools/native-engine/modules/**'
       - 'tools/native-engine/skeltest/**'
       - 'tools/native-engine/bench/**'
-      - 'tools/native-engine/stubs/**'
+      - 'tools/native-engine/r2r-check/**'
       - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
       - 'tools/tests/test_native_godot.py'
       - '.github/workflows/native-engine-build.yml'
@@ -46,6 +46,65 @@ jobs:
         run: sh tools/native-engine/modules/native_compat/skel/tests/run_tests.sh
       - name: Host tests for the clean-room FSB5 sound reader
         run: sh tools/native-engine/modules/native_compat/fsb/tests/run_tests.sh
+      - name: Windows x64 assemblies (IL-only and ReadyToRun), made portable, run on arm64 .NET
+        # A small public library published win-x64 with and without ReadyToRun (R2R: IL-only clear, like the
+        # game's DLLs), and Microsoft's own R2R System.Linq.dll from the public win-x64 runtime pack. Each
+        # patched copy must load and run here; the untouched x64 library must be refused. No game files.
+        run: |
+          set -euo pipefail
+          W=$RUNNER_TEMP/r2r && mkdir -p "$W/patched"
+          curl -fsSL -o "$W/rt.nupkg" https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.win-x64/9.0.7/microsoft.netcore.app.runtime.win-x64.9.0.7.nupkg
+          unzip -oq "$W/rt.nupkg" runtimes/win-x64/lib/net9.0/System.Linq.dll -d "$W"
+          dotnet publish tools/native-engine/r2r-check/lib -c Release -r win-x64 --self-contained false -o "$W/il" -p:PublishReadyToRun=false > /dev/null
+          dotnet publish tools/native-engine/r2r-check/lib -c Release -r win-x64 --self-contained false -o "$W/r2r" -p:PublishReadyToRun=true > /dev/null
+          python3 - "$W" <<'PY'
+          import os, runpy, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          w = sys.argv[1]
+          for tag, src in (("il", "il/ProbeLib.dll"), ("r2r", "r2r/ProbeLib.dll"), ("linq", "runtimes/win-x64/lib/net9.0/System.Linq.dll")):
+              data = open(os.path.join(w, src), "rb").read()
+              info = ng["pe_info"](data)
+              img, note = ng["portable_image"](data)
+              print("%s: machine %#x flags %#x ready_to_run %s -> %s" % (src, info["machine"], info["flags"], info["ready_to_run"], note))
+              os.makedirs(os.path.join(w, "patched", tag), exist_ok=True)
+              open(os.path.join(w, "patched", tag, os.path.basename(src)), "wb").write(img)
+          PY
+          dotnet run -c Release --project tools/native-engine/r2r-check/host -- \
+            "ok:$W/patched/il/ProbeLib.dll" "ok:$W/patched/r2r/ProbeLib.dll" "ok:$W/patched/linq/System.Linq.dll" \
+            "refused:$W/r2r/ProbeLib.dll" "refused:$W/il/ProbeLib.dll"
+          # Godot's own load path for the game assembly: hostfxr load_assembly_and_get_function_pointer. The
+          # patched R2R image must load and answer; a relabel-only copy (the old converter) must be refused,
+          # which is what the startup gate saw as "Failed to get GodotPlugins initialization function pointer".
+          python3 - "$W" <<'PY'
+          import os, runpy, struct, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          w = sys.argv[1]
+          data = bytearray(open(w + "/r2r/ProbeLib.dll", "rb").read())
+          struct.pack_into("<H", data, ng["pe_info"](bytes(data))["machine_at"], 0xAA64)
+          os.makedirs(w + "/relabel-only", exist_ok=True)
+          open(w + "/relabel-only/ProbeLib.dll", "wb").write(data)
+          PY
+          FXR=$(ls -d "$DOTNET_ROOT"/host/fxr/9.* | sort -V | tail -1)/libhostfxr.so
+          printf '{"runtimeOptions":{"tfm":"net9.0","framework":{"name":"Microsoft.NETCore.App","version":"9.0.0"}}}' > "$W/probe.runtimeconfig.json"
+          bad=0
+          for want in ok:patched/r2r/ProbeLib.dll ok:patched/il/ProbeLib.dll refused:relabel-only/ProbeLib.dll; do
+            got=$(python3 tools/native-engine/r2r-check/fxrhost.py "$W/${want#*:}" "$W/probe.runtimeconfig.json" "$FXR" 2>&1 | tail -1)
+            echo "$got"
+            case "$got" in "FXR_CHECK ${want%%:*} "*) ;; *) echo "FXR_CHECK FAIL: expected ${want%%:*} for ${want#*:}"; bad=1 ;; esac
+          done
+          exit $bad
+      - name: Valve's linux-arm64 libsteam_api.so (what the wrapper fetches) loads and answers on arm64
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ctypes, runpy, tempfile
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          path = ng["steam_api"](cache=tempfile.mkdtemp())
+          lib = ctypes.CDLL(path)
+          for name in ("SteamAPI_InitFlat", "SteamAPI_RestartAppIfNecessary", "SteamAPI_RunCallbacks", "SteamAPI_Shutdown"):
+              getattr(lib, name)
+          print(path, "loads; SteamAPI_IsSteamRunning() =", lib.SteamAPI_IsSteamRunning(), "(no Steam client on the runner)")
+          PY
       - name: Build deps
         run: |
           sudo apt-get update -qq
@@ -116,13 +175,13 @@ jobs:
           timeout 900 "$GODOT" --headless --path . --export-release windows out/windows/NativeBench.exe > export-win.log 2>&1 || echo "export exit $?"
           ls -la out/windows || true
           test -d out/windows/data_NativeBench_windows_x86_64 || { tail -40 export-win.log; exit 1; }
-          # The component: our engine, the kit (the arm64 export's data dir, minus its own app files) and the stubs.
+          # The component: our engine and the kit (the arm64 export's data dir, minus its own app files). No Steam
+          # stand-in: on the device the wrapper fetches Valve's own linux-arm64 libsteam_api.so.
           C=$GITHUB_WORKSPACE/out/component
           rm -rf "$C" && mkdir -p "$C"
           cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono "$C/godot"
           cp -a out/arm64/data_NativeBench_linuxbsd_arm64 "$C/kit"
           python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")], "deps": "NativeBench.deps.json", "runtimeconfig": "NativeBench.runtimeconfig.json"}, open(os.path.join(k,"kit.json"),"w"))' "$C/kit"
-          sh "$GITHUB_WORKSPACE/tools/native-engine/stubs/build.sh" "$C/stubs"
           echo "${GITHUB_SHA}" > "$C/VERSION"
           KIT=$C/kit
           set +e
@@ -203,7 +262,7 @@ jobs:
           set -euo pipefail
           tag="native-engine-${GITHUB_RUN_NUMBER}"
           sha=$(sha256sum out/native-engine.tar.zst | cut -d' ' -f1)
-          printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, Steam stub.\nCommit %s. sha256 %s\nNo game files.\n' \
+          printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, no Steam stand-in.\nCommit %s. sha256 %s\nNo game files.\n' \
             "$(cat out/component/kit/*.runtimeconfig.json | python3 -c 'import json,sys; print([f.get("version") for f in json.load(sys.stdin)["runtimeOptions"].get("includedFrameworks",[])])')" \
             "$GITHUB_SHA" "$sha" > notes.txt
           gh release create "$tag" out/native-engine.tar.zst -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \

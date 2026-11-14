@@ -10,17 +10,21 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 NG = runpy.run_path(str(BIN / "droiddeck-native-godot"))
 
 
-def pe(managed, machine=0xAA64, r2r=False, ilonly=True):
+def pe(managed, machine=0xAA64, r2r=False, ilonly=True, fixups=False, signature=True):
     """A minimal PE32+ image with one section; managed ones carry a CLI header in it."""
     opt = bytearray(240)
     struct.pack_into("<H", opt, 0, 0x20B)
     if managed:
         struct.pack_into("<II", opt, 112 + 14 * 8, 0x2008, 0x48)
+    if r2r:  # crossgen2 output also has an x64 exception table and base relocations
+        struct.pack_into("<II", opt, 112 + 3 * 8, 0x21C0, 0x18)
+        struct.pack_into("<II", opt, 112 + 5 * 8, 0x21E0, 0x10)
     coff = struct.pack("<HHIIIHH", machine, 1, 0, 0, 0, len(opt), 0x22)
     head = bytearray(0x80)
     head[:2] = b"MZ"
@@ -34,6 +38,10 @@ def pe(managed, machine=0xAA64, r2r=False, ilonly=True):
     struct.pack_into("<I", cor, 16, (1 if ilonly else 0) | (4 if r2r else 0))
     if r2r:
         struct.pack_into("<II", cor, 64, 0x2100, 0x40)
+        if signature:
+            body[0x100:0x104] = b"RTR\0"
+    if fixups:
+        struct.pack_into("<II", cor, 56, 0x2180, 0x8)
     body[8:8 + 0x48] = cor
     image = bytes(head) + b"PE\0\0" + coff + bytes(opt) + section
     return image + b"\0" * (raw - len(image)) + bytes(body)
@@ -92,13 +100,70 @@ class NativeGodotTest(unittest.TestCase):
         info = NG["pe_info"](img)
         self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
         self.assertEqual("relabelled x64 -> arm64", note)
-        img, note = NG["portable_image"](pe(True, machine=0x8664, r2r=True))
-        info = NG["pe_info"](img)
-        self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
-        self.assertIn("ReadyToRun", note)
         self.assertEqual((None, None), NG["portable_image"](pe(True, machine=0x14C)))
         with self.assertRaises(ValueError):
             NG["portable_image"](pe(True, machine=0x8664, ilonly=False))
+        with self.assertRaises(NG["MixedMode"]):
+            NG["portable_image"](pe(True, machine=0x8664, ilonly=False, fixups=True))
+        with self.assertRaises(NG["MixedMode"]):  # a native header that isn't ReadyToRun
+            NG["portable_image"](pe(True, machine=0x8664, ilonly=False, r2r=True, signature=False))
+        with self.assertRaises(NG["MixedMode"]):  # ReadyToRun beside C++/CLI fixups
+            NG["portable_image"](pe(True, machine=0x8664, ilonly=False, r2r=True, fixups=True))
+
+    def test_ready_to_run_images_become_plain_il(self):
+        # .NET on Linux refuses a Windows R2R image on Godot's load path, relabelled or not; with the R2R header
+        # cleared, IL-only set, IL_LIBRARY cleared and the exception and relocation directories emptied it is the
+        # plain IL image it was compiled from (measured: default context and hostfxr component load).
+        for ilonly in (False, True):
+            src = pe(True, machine=0x8664, ilonly=ilonly, r2r=True)
+            img, note = NG["portable_image"](src)
+            after = NG["pe_info"](img)
+            self.assertEqual((0xAA64, 0x1, (0, 0), False), (after["machine"], after["flags"], after["native_header"],
+                                                           after["ready_to_run"]))
+            dirs = after["directories_at"]
+            for entry in (3, 5):
+                self.assertEqual((0, 0), struct.unpack_from("<II", img, dirs + 8 * entry), entry)
+            self.assertEqual((0x2008, 0x48), struct.unpack_from("<II", img, dirs + 8 * 14))  # CLI header kept
+            self.assertEqual(len(src), len(img))
+            self.assertEqual(src[0x200 + 0x100:], img[0x200 + 0x100:])  # IL, metadata and the rest untouched
+            self.assertIn("ReadyToRun x64 code dropped", note)
+            self.assertEqual((None, None), NG["portable_image"](img))  # already portable
+
+    def test_compose_leaves_out_mixed_mode_assemblies(self):
+        win = self.game / "data_sts2_windows_x86_64"
+        (win / "Vortice.Native.dll").write_bytes(pe(True, machine=0x8664, ilonly=False, fixups=True))
+        (win / "sts2.dll").write_bytes(pe(True) + b"\0Vortice.Native\0")
+        (win / "Odd.dll").write_bytes(pe(True, machine=0x8664, ilonly=False, r2r=True))
+        out = self.root / "launch"
+        out.mkdir()
+        err = io.StringIO()
+        with unittest.mock.patch("sys.stderr", err):
+            r = NG["compose"](str(self.game), str(self.kit), str(self.engine), str(out), "SlayTheSpire2.exe")
+        data = out / "data_sts2_linuxbsd_arm64"
+        self.assertFalse((data / "Vortice.Native.dll").exists())
+        self.assertIn("Vortice.Native.dll", r["skipped"])
+        self.assertEqual({"Vortice.Native.dll": ["sts2.dll"]}, r["mixed_mode"])
+        self.assertIn("left out Vortice.Native.dll", err.getvalue())
+        self.assertIn("named by sts2.dll", err.getvalue())
+        self.assertIn("Odd.dll", r["game_assemblies"])
+        self.assertIn("ReadyToRun x64 code dropped", r["patched"]["Odd.dll"])
+        deps = json.loads((data / "sts2.deps.json").read_text())
+        self.assertNotIn("Vortice.Native.dll", json.dumps(deps))
+
+    def test_compose_stops_when_the_game_itself_is_mixed_mode(self):
+        (self.game / "data_sts2_windows_x86_64" / "sts2.dll").write_bytes(
+            pe(True, machine=0x8664, ilonly=False, fixups=True))
+        out = self.root / "launch"
+        out.mkdir()
+        with self.assertRaises(SystemExit) as stop:
+            NG["compose"](str(self.game), str(self.kit), str(self.engine), str(out), "SlayTheSpire2.exe")
+        self.assertIn("sts2.dll", str(stop.exception))
+
+    def test_steam_x86_overlay_preload_is_dropped(self):
+        env = NG["engine_env"]({"LD_PRELOAD": "/root/.steam/bin32/gameoverlayrenderer.so:/root/.steam/bin64/gameoverlayrenderer.so"})
+        self.assertNotIn("LD_PRELOAD", env)
+        env = NG["engine_env"]({"LD_PRELOAD": "/a/libkeep.so /root/.steam/bin32/gameoverlayrenderer.so"})
+        self.assertEqual("/a/libkeep.so", env["LD_PRELOAD"])
 
     def test_compose(self):
         out = self.root / "launch"
@@ -228,16 +293,120 @@ class NativeGodotTest(unittest.TestCase):
             os.chdir(old)
         self.assertTrue(os.path.isabs(r["pack"]) and os.path.isabs(r["engine"]))
 
-    def test_component_layout_and_stubs(self):
+    def test_component_with_a_steam_stub_is_refused(self):
+        # Components up to native-engine-38 carry stubs/libsteam_api64.so (a no-op Steam stand-in). They never run.
         comp = self.root / "component"
         (comp / "stubs").mkdir(parents=True)
         (comp / "stubs" / "libsteam_api64.so").write_bytes(b"stub")
         os.rename(self.kit, comp / "kit")
         os.rename(self.engine, comp / "godot")
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF\0SteamAPI_Init\0")
+        out = self.root / "launch"
+        seen = []
+        real = NG["main"].__globals__["watch"]
+        NG["main"].__globals__["watch"] = lambda cmd, env, **kw: seen.append(cmd) or 0
+        err = io.StringIO()
+        try:
+            with unittest.mock.patch("sys.stderr", err):
+                for command in ("compose", "run"):
+                    rc = NG["main"]([command, "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                     "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
+                    self.assertEqual(NG["DID_NOT_START"], rc, command)
+        finally:
+            NG["main"].__globals__["watch"] = real
+            os.chdir(Path(__file__).resolve().parent)
+        self.assertEqual([], seen)
+        self.assertFalse(out.exists())
+        self.assertIn("carries a Steam stand-in (stubs/)", err.getvalue())
+
+    def test_valve_library_is_placed_and_missing_names_are_reported(self):
+        comp = self.root / "component"
+        comp.mkdir()
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        win = self.game / "data_sts2_windows_x86_64"
+        (win / "Steamworks.NET.dll").write_bytes(pe(True) + b"\0SteamAPI_Init\0SteamAPI_ISteamUser_GetSteamID\0SteamAPI_Gone\0")
         out = self.root / "launch"
         self.assertEqual(0, NG["main"](["compose", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
                                         "--exe", "SlayTheSpire2.exe"]))
-        self.assertTrue((out / "data_sts2_linuxbsd_arm64" / "libsteam_api64.so").is_file())
+        self.assertFalse((out / "data_sts2_linuxbsd_arm64" / "libsteam_api64.so").exists())  # none given, none placed
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF\0SteamAPI_Init\0SteamAPI_ISteamUser_GetSteamID\0")
+        err = io.StringIO()
+        with unittest.mock.patch("sys.stderr", err):
+            self.assertEqual(0, NG["main"](["compose", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                            "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)]))
+        data = out / "data_sts2_linuxbsd_arm64"
+        for name in ("libsteam_api64.so", "libsteam_api.so"):
+            self.assertEqual(valve.read_bytes(), (data / name).read_bytes())
+        report = json.loads((out / "native-launch.json").read_text())
+        self.assertEqual(["SteamAPI_Gone"], report["steam_api_missing"])
+        self.assertIn("1 names the game's Steamworks.NET mentions are not exported (SteamAPI_Gone)", err.getvalue())
+
+    def test_run_puts_no_stub_on_any_path_and_valve_library_wins(self):
+        # The engine's env and command name no stubs/ path, Steam's x86 overlay preload is dropped, and the engine's
+        # data folder holds Valve's library under both names (a component with stubs/ is refused, tested above).
+        comp = self.root / "component"
+        comp.mkdir()
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF\0SteamAPI_Init\0")
+        out = self.root / "launch"
+        seen = []
+        real = NG["main"].__globals__["watch"]
+        NG["main"].__globals__["watch"] = lambda cmd, env, **kw: seen.append((list(cmd), dict(env))) or 0
+        before = {k: os.environ.get(k) for k in ("LD_LIBRARY_PATH", "LD_PRELOAD")}
+        os.environ["LD_LIBRARY_PATH"] = "/usr/lib/aarch64-linux-gnu"
+        os.environ["LD_PRELOAD"] = "/root/.steam/bin32/gameoverlayrenderer.so"
+        try:
+            with unittest.mock.patch("sys.stderr", io.StringIO()):
+                rc = NG["main"](["run", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                 "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
+        finally:
+            NG["main"].__globals__["watch"] = real
+            for k, v in before.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            os.chdir(Path(__file__).resolve().parent)
+        self.assertEqual(0, rc)
+        cmd, env = seen[0]
+        for key in ("LD_LIBRARY_PATH", "LD_PRELOAD", "DOTNET_ROOT", "PATH"):
+            self.assertNotIn("stubs", env.get(key, ""), key)
+        self.assertFalse(any("stubs" in a for a in cmd), cmd)
+        self.assertNotIn("gameoverlayrenderer", env.get("LD_PRELOAD", ""))
+        data = out / "data_sts2_linuxbsd_arm64"
+        for name in ("libsteam_api64.so", "libsteam_api.so"):
+            self.assertEqual(valve.read_bytes(), (data / name).read_bytes(), name)
+            self.assertFalse((data / name).is_symlink(), name)
+        hits = [str(p) for p in out.rglob("*") if p.is_file() and p.read_bytes() == b"stub"]
+        self.assertEqual([], hits)
+
+    def test_steam_api_download_is_checked_and_cached(self):
+        import hashlib, zipfile
+        lib = b"\x7fELF valve"
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("runtimes/linux-arm64/native/libsteam_api.so", lib)
+        pkg = buf.getvalue()
+        spec = {"url": "https://example.invalid/p.nupkg", "sha256": hashlib.sha256(pkg).hexdigest(),
+                "member": "runtimes/linux-arm64/native/libsteam_api.so", "member_sha256": hashlib.sha256(lib).hexdigest()}
+        calls = []
+        def opener(url, timeout):
+            calls.append(url)
+            return io.BytesIO(pkg)
+        cache = self.root / "cache"
+        path = NG["steam_api"](spec, str(cache), opener)
+        self.assertEqual(lib, Path(path).read_bytes())
+        self.assertEqual(path, NG["steam_api"](spec, str(cache), opener))
+        self.assertEqual(1, len(calls))
+        with self.assertRaises(SystemExit):
+            NG["steam_api"](dict(spec, member_sha256="0" * 64), str(self.root / "c2"), opener)
+        with self.assertRaises(SystemExit):
+            NG["steam_api"](dict(spec, sha256="0" * 64), str(self.root / "c3"), opener)
 
     @unittest.skipUnless(shutil.which("zstd"), "zstd not installed")
     def test_fetch_checks_and_caches(self):
@@ -295,6 +464,49 @@ class GameEnvHookTest(unittest.TestCase):
             return Done()
         result = self.env_mod["native_engine"](self.cmd, env, run=run, clock=lambda: next(times))
         return result, calls
+
+    def run_env(self, env):
+        seen = []
+
+        class Done:
+            returncode = 0
+
+        def run(args, **kw):
+            seen.append(kw["env"])
+            return Done()
+        times = iter([100.0, 1000.0])
+        _, notes = self.env_mod["native_engine"](self.cmd, env, run=run, clock=lambda: next(times))
+        return seen[0], notes
+
+    def test_engine_gets_the_powervr_vulkan_layers_proton_gets(self):
+        # Phone run 18:49:56Z Nov 14: without the WSI layer Godot found no queue that can present and exited.
+        runtime = self.root / "powervr"
+        for name in self.env_mod["POWERVR_VULKAN_FILES"]:
+            (runtime / name).parent.mkdir(parents=True, exist_ok=True)
+            (runtime / name).write_bytes(b"x")
+        env = dict(self.on, DROIDDECK_POWERVR_RUNTIME=str(runtime), ENABLE_GAMESCOPE_WSI="1", DISABLE_WSI_LAYER="1",
+                   VK_ICD_FILENAMES="/icd.json", DISPLAY=":1")
+        got, notes = self.run_env(env)
+        proton = self.env_mod["powervr_vulkan_env"](runtime, env)
+        for key in ("VK_LAYER_PATH", "VK_INSTANCE_LAYERS", "ENABLE_GAMESCOPE_WSI", "VK_LOADER_LAYERS_DISABLE",
+                    "HYBRIS_BC_TEXTURES", "DISABLE_VK_LAYER_VALVE_steam_fossilize_1"):
+            self.assertEqual(proton[key], got[key], key)
+        self.assertTrue(got["VK_INSTANCE_LAYERS"].startswith("VK_LAYER_window_system_integration:"))
+        self.assertIn(str(runtime / "wsi"), got["VK_LAYER_PATH"].split(":"))
+        self.assertEqual("0", got["ENABLE_GAMESCOPE_WSI"])
+        self.assertNotIn("DISABLE_WSI_LAYER", got)
+        self.assertEqual(("/icd.json", ":1"), (got["VK_ICD_FILENAMES"], got["DISPLAY"]))  # the session's, untouched
+        self.assertNotIn("PROTON_ENABLE_WAYLAND", got)
+        self.assertIn("native-engine: Vulkan through the PowerVR runtime's WSI and hybris compat layers", notes)
+        self.assertNotIn("VK_INSTANCE_LAYERS", env)  # the caller's env is not changed
+
+    def test_engine_env_is_left_alone_without_a_powervr_runtime_or_its_layers(self):
+        got, notes = self.run_env(dict(self.on, VK_ICD_FILENAMES="/icd.json"))
+        self.assertNotIn("VK_INSTANCE_LAYERS", got)
+        self.assertFalse(any("PowerVR" in n for n in notes))
+        got, notes = self.run_env(dict(self.on, DROIDDECK_POWERVR_RUNTIME=str(self.root / "none")))
+        self.assertNotIn("VK_INSTANCE_LAYERS", got)
+        self.assertTrue(any("PowerVR Vulkan layers unavailable" in n for n in notes))
 
     def test_off_without_the_experiment(self):
         (rc, notes), calls = self.hook({})
