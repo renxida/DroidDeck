@@ -39,13 +39,22 @@ crash at main-menu asset preload on ARM64 even with full TSO.
 | --- | --- | --- | --- |
 | Godot 4.5.1 engine, linux arm64, .NET (CoreCLR) | godotengine/godot (official linux arm64 mono templates exist) | MIT | free, buildable in CI |
 | .NET 9 runtime linux-arm64 | dotnet/runtime | MIT | free |
-| Skeleton animation (Spine stand-in) | ours, clean-room, `tools/native-engine/modules/native_compat/skel` | MIT | **Cedar chose to write our own** (Nov 13). Core, JSON and atlas reading done; binary `.skel` reader waits on the inventory |
-| Audio (FMOD stand-in) | ours, clean-room event player | MIT | not started; needs the bank inventory first |
+| Skeleton animation (Spine stand-in) | ours, clean-room, `tools/native-engine/modules/native_compat/skel` | MIT | **Cedar chose to write our own** (Nov 13). JSON, binary 4.2 `.skel` (all five sampled game skeletons load and play), atlas, path constraints and physics springs |
+| Audio (FMOD stand-in) | ours, clean-room event player, `native_compat/fsb` and `fmod_compat` | MIT | Vorbis sounds, path table and event metadata read; starting an event plays its sounds (598 of 600 sfx events resolve). Parameters, buses, 3D and looping not mixed yet |
 | Steamworks | stub (ours, MIT) or Valve's libsteam_api arm64 | stub: none | stub is enough to boot (port does it) |
 | Sentry | disable | n/a | trivial |
 
 Clean-room rule: work from public format notes and the game's own data as read on Cedar's phone. Never
 copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No game files in any repo.
+
+### Clean-room progress (Nov 14)
+
+- Bank event metadata (`fsb/event_table.h`, worked out from the game's own `sfx.bank` bytes): every
+  object's first chunk starts with its GUID; events reach waveform and multi instruments through their
+  event block, timeline and (fallback) parameter sheets; a multi instrument's playlist is (GUID, weight)
+  entries; a waveform names its sound's index in the FSB5 block; instrument volume is a dB float.
+  `FmodEvent.start` and `play_one_shot` play the picked sounds through Godot audio players. The engine test
+  hears its synthetic event at the expected level on the Master bus.
 
 ### Clean-room progress (Nov 13)
 

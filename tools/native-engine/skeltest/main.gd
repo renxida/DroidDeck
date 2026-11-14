@@ -34,6 +34,7 @@ func _ready() -> void:
 	var same = berr == OK and sb.get_bone_position("tip").distance_to(sk.get_bone_position("tip")) < 0.01
 	print("SKELTEST binary load ", berr, " '", sb.get_load_error(), "' tip=", sb.get_bone_position("tip"), " same=", same)
 	var sound_ok = sound_test() and paths_test() and fmod_test()
+	sound_ok = await event_sound_test() and sound_ok
 	var spine_ok = spine_compat_test(sb)
 	get_tree().quit(0 if err == OK and same and sound_ok and spine_ok else 1)
 
@@ -195,6 +196,39 @@ func fmod_test() -> bool:
 		and server.get_global_parameter_by_name("act") == 2.0 and server.get_bus("bus:/a").get_volume() == 0.25 \
 		and emitter_playing and signals == ["started", "stopped"] and absf(emitter.get_parameter("intensity") - 0.75) < 1e-6
 	print("SKELTEST fmod buses=", bank.get_bus_count(), " guid=", desc.get_guid(), " signals=", signals, " stats=", stats, " ok=", ok)
+	return ok
+
+# A bank's own event metadata (sound/events.bank, made by make_event_bank.py): starting "Event:/x" plays
+# sound 0 of the embedded tone through an audio player, which reaches the Master bus, and the instance
+# reads as stopped once the 0.5 s tone has ended. A one-shot plays too.
+func event_sound_test() -> bool:
+	var server = Engine.get_singleton("FmodServer")
+	var bank = server.load_bank("res://sound/events.bank", 0)
+	var capture = AudioEffectCapture.new()
+	AudioServer.add_bus_effect(0, capture)
+	var before = server.get_compat_stats()["sounds_started"]
+	var inst = server.create_event_instance("event:/x")
+	inst.start()
+	var started = server.get_compat_stats()["sounds_started"] - before
+	await get_tree().create_timer(0.3).timeout
+	capture.clear_buffer()
+	await get_tree().create_timer(0.1).timeout
+	var frames = capture.get_buffer(capture.get_frames_available())
+	var sum := 0.0
+	for f in frames:
+		sum += f.x * f.x + f.y * f.y
+	var rms = sqrt(sum / max(1, frames.size() * 2))
+	var playing_mid = inst.get_playback_state() == 0
+	await get_tree().create_timer(0.6).timeout
+	var ended = inst.get_playback_state() == 2
+	server.play_one_shot("event:/x")
+	await get_tree().create_timer(0.7).timeout # let it end: a sound still playing at quit reads as a leak
+	var stats = server.get_compat_stats()
+	AudioServer.remove_bus_effect(0, AudioServer.get_bus_effect_count(0) - 1)
+	var ok = bank.get_event_description_count() == 1 and started == 1 and frames.size() > 0 and rms > 0.05 \
+		and playing_mid and ended and stats["sounds_started"] - before == 2
+	print("SKELTEST event sound started=", started, " frames=", frames.size(), " rms=", rms, " playing_mid=",
+		playing_mid, " ended=", ended, " stats=", stats, " ok=", ok)
 	return ok
 
 func shot(tag: String) -> void:
