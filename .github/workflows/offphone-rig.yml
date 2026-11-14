@@ -52,6 +52,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     outputs:
       apk_run: ${{ steps.apk.outputs.run }}
+      apk_sha: ${{ steps.apk.outputs.sha }}
       standin_run: ${{ steps.standin.outputs.run }}
       scenarios: ${{ steps.scenarios.outputs.list }}
     steps:
@@ -76,8 +77,9 @@ jobs:
             run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/runs?branch=$ref&status=success&per_page=1" --jq '.workflow_runs[0].id')
           fi
           [ -n "$run" ] && [ "$run" != null ] || { echo "no green build.yml run for $ref"; exit 1; }
-          echo "run=$run" >> "$GITHUB_OUTPUT"
-          echo "APK from build run $run" >> "$GITHUB_STEP_SUMMARY"
+          sha=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$run" --jq .head_sha)
+          echo "run=$run" >> "$GITHUB_OUTPUT"; echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "APK from build run $run (commit ${sha::8})" >> "$GITHUB_STEP_SUMMARY"
       - name: Find the stand-in game build
         id: standin
         env:
@@ -114,8 +116,18 @@ jobs:
     env:
       ANDROID_SERIAL: 127.0.0.1:5555
       REDROID_IMAGE: ${{ inputs.image || 'redroid/redroid:14.0.0_64only-latest' }}
+      DD_APP_TOOLS: ${{ github.workspace }}/tools
     steps:
+      # The APK's own commit, for the app's tools (droiddeckctl, app-id, device-smoke.sh) ...
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.apk_sha }}
+          persist-credentials: false
+      # ... and the rig from the commit that runs this workflow (main, when a release calls it).
+      - uses: actions/checkout@v4
+        with:
+          path: rig
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: droiddeck-apk
@@ -132,15 +144,15 @@ jobs:
       - name: Host tools and the rig's Vulkan layer
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq adb libvulkan-dev mesa-vulkan-drivers >/dev/null
-          tools/offphone/cpusync/build.sh cpusync
+          rig/tools/offphone/cpusync/build.sh cpusync
           # The layer is checked against the runner's own lavapipe before it goes near the device.
-          gcc -O1 -Wall -o cpusync/test tools/offphone/cpusync/test.c -lvulkan
+          gcc -O1 -Wall -o cpusync/test rig/tools/offphone/cpusync/test.c -lvulkan
           mkdir -p cpusync/il
           sed "s#/usr/local/lib/offphone/#$PWD/cpusync/#" cpusync/VkLayer_offphone_cpu_sync.json > cpusync/il/layer.json
           VK_ICD_FILENAMES=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1) VK_LAYER_PATH=$PWD/cpusync/il \
             VK_INSTANCE_LAYERS=VK_LAYER_OFFPHONE_cpu_sync timeout 60 cpusync/test
       - name: Boot Android
-        run: tools/offphone/redroid-up.sh
+        run: rig/tools/offphone/redroid-up.sh
       - name: Install and open the app
         run: |
           apk=$(ls apk/*.apk | head -1)
@@ -154,7 +166,7 @@ jobs:
           sleep 5
           echo "top: $(adb shell dumpsys activity activities | grep -m1 topResumedActivity)"
       - name: Drive ${{ matrix.scenario }}
-        run: tools/offphone/drive.sh "${{ matrix.scenario }}" out "${{ inputs.guest_vulkan || 'lavapipe' }}" 900 standin
+        run: rig/tools/offphone/drive.sh "${{ matrix.scenario }}" out "${{ inputs.guest_vulkan || 'lavapipe' }}" 900 standin
       - name: Verdict and logs
         if: always()
         run: |

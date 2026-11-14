@@ -11,8 +11,11 @@
 set -uo pipefail
 scenario=${1:?scenario}; out=${2:?out dir}; gv=${3:-lavapipe}; limit=${4:-900}; standin=${5:-}
 here=$(cd "$(dirname "$0")" && pwd); repo=$(cd "$here/../.." && pwd)
-ctl="$repo/tools/droiddeckctl"
-pkg=$("$repo/tools/app-id")
+# The app's own tools (droiddeckctl, app-id) come from the APK's commit when CI checks that out
+# separately from the rig; locally they are this checkout's.
+apptools=${DD_APP_TOOLS:-$repo/tools}
+ctl="$apptools/droiddeckctl"
+pkg=$("$apptools/app-id")
 fs=/data/user/0/$pkg/files/linuxfs
 mkdir -p "$out"; : > "$out/rig-events.jsonl"
 now_ms() { date +%s%3N; }
