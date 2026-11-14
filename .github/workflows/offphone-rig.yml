@@ -8,6 +8,10 @@ on:
       build_run:
         description: Build APK run id whose droiddeck-apk to test (default the newest green perf/switchboard build)
         required: false
+      start_timeout:
+        description: seconds to wait for the Steam session to be READY
+        required: false
+        default: '1200'
       image:
         description: redroid image
         required: false
@@ -49,14 +53,42 @@ jobs:
         run: tools/offphone/redroid-up.sh
       - name: Install and smoke the app
         run: |
-          ls -la apk
-          tools/device-smoke.sh --apk "$(ls apk/*.apk | head -1)" --no-fold 2>&1 | tee smoke.txt
+          apk=$(ls apk/*.apk | head -1)
+          tools/device-smoke.sh --apk "$apk" --no-fold 2>&1 | tee smoke.txt
+          pkg=$(tools/app-id)
+          adb install -r -g "$apk" >/dev/null
+          adb shell pm grant "$pkg" android.permission.POST_NOTIFICATIONS || true
+          adb shell am force-stop "$pkg"; adb shell monkey -p "$pkg" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+          sleep 8
+          echo "::group::top activity"; adb shell dumpsys activity activities | grep -m3 -E "topResumedActivity|ResumedActivity"; echo "::endgroup::"
+          echo "::group::app UI"; tools/droiddeckctl ui dump 2>&1 | head -c 6000; echo; echo "::endgroup::"
       - name: Start the Steam session
         continue-on-error: true
         run: |
           mkdir -p out
-          (while true; do date -u +%T; tools/droiddeckctl state 2>&1 | head -c 2000; echo; sleep 20; done) > out/state-poll.txt 2>&1 &
-          tools/droiddeckctl start steam --timeout 1500 --wait 2>&1 | tee out/start.txt
+          t0=$(date +%s)
+          tools/droiddeckctl start steam 2>&1 | tee out/start.txt
+          last=
+          while [ $(( $(date +%s) - t0 )) -lt ${{ inputs.start_timeout || 1200 }} ]; do
+            st=$(tools/droiddeckctl state 2>/dev/null)
+            ph=$(jq -r '.session.phase // "?"' <<<"$st" 2>/dev/null)
+            line="$ph $(jq -c '{step:.session.step, status:.session.status, error:.session.error}' <<<"$st" 2>/dev/null)"
+            if [ "$line" != "$last" ]; then echo "+$(( $(date +%s) - t0 ))s $line"; last=$line; fi
+            echo "$st" > out/state.json
+            case $ph in READY|FAILED) break;; esac
+            sleep 10
+          done
+          echo "::group::final state"; cat out/state.json; echo "::endgroup::"
+          [ "$ph" = READY ]
+      - name: Diagnostics
+        if: always()
+        run: |
+          pkg=$(tools/app-id)
+          echo "::group::app UI"; tools/droiddeckctl ui dump 2>&1 | head -c 6000; echo; echo "::endgroup::"
+          echo "::group::logcat (app and errors)"
+          pid=$(adb shell pidof "$pkg" | tr -d '\r')
+          adb logcat -d -v time | grep -E "${pid:-NOPID}|AgentStart|AgentBridge|LinuxRuntime|Session|droiddeck|kestrel| E/| F/" | grep -v -E "chatty|SurfaceFlinger" | tail -400
+          echo "::endgroup::"
       - name: Collect
         if: always()
         run: |
