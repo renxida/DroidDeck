@@ -59,5 +59,5 @@ on-time exit; `FEX_SAMPLER_DIAG=16` (mask knocked out) 25-85M ops and ~310 s exi
 ## Notes for later
 
 - Any unix-side signal handler that runs inside a Wine process needs the same mask.
-- The `clr.exe` row exits after 2 s even on stock FEX (a winedbg crash in this environment); ignore it.
+- The `clr.exe` row died at start because the harness disabled mscoree (`WINEDLLOVERRIDES=mscoree=`): Wine refuses to load IL-only DLLs such as System.Runtime.dll without it (`fixup_imports_ilonly`). The game starts on the phone, so its launch does not disable mscoree; this was the harness only.
 - Run winedbg with `WINEDEBUG=-all`, or the parent's trace channels bury the stacks.
