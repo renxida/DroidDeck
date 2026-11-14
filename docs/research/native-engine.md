@@ -130,6 +130,37 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
 - Expected first-run gaps: no Spine drawing and no audio until the stand-ins match the game's names;
   Steam goes through Valve's own linux-arm64 libsteam_api.so to the real arm64 client in the session; Sentry absent.
 
+### Startup gate (CI) and phone dry run
+
+- `.github/workflows/native-startup-gate.yml` (also `workflow_call`; input `component`: `pinned` or a
+  `native-engine-N` tag; `soak`): a stand-in Godot 4.5.1 C# game, `tools/native-engine/standin` (our code plus
+  public NuGet packages: Sentry, 0Harmony, MonoMod.Backports/ILHelpers, SmartFormat+ZString, Steamworks.NET
+  (a managed value type only, no SteamAPI_Init), Vortice.Mathematics/DXGI+SharpGen.Runtime,
+  JetBrains.Annotations, System.IO.Hashing; a Windows-only `.gdextension`), exported for Windows x86_64 with
+  ReadyToRun on/off x deps on/off x extension present/missing, then run on `ubuntu-24.04-arm` through the
+  wrapper from the checkout on the published component, 3x per row, plus Xvfb rows (opengl3, Vulkan on
+  lavapipe). Self-test rows run older converters and must fail: 7754c57b (same file as 0aa91a7) at compose
+  ("mixed-mode"), d68b35ad and f86b8550 at load (Godot: "Failed to get GodotPlugins initialization function
+  pointer"). VERIFIED (run 43632103981): every R2R row starts on da7d6114 and none did on f86b8550.
+- Stand-in contract: `StandIn.exe`, `StandIn.pck`, `data_StandIn_windows_x86_64/`; stdout (unbuffered, .NET
+  Console) `STANDIN_DEPS loaded=N ...`, `FIRST_FRAME` on the first `_Process`, `MAINLOOP_OK frames=N` then exit
+  0, with N from `--quit-after-frames N` (engine or user args) or `STANDIN_QUIT_AFTER_FRAMES`.
+- `--print-fps` works in the release template, headless or not, but the first `Project FPS:` line comes about
+  4 s into the main loop (Godot hides the first three). Headless runs uncapped (~145 fps here), so 300 frames
+  end in ~2 s, before any FPS line: the wrapper then says 86. The gate passes `--max-fps 30` (300 frames, 10 s).
+- MEASURED: Godot's stdout is block-buffered in the release template (`application/run/flush_stdout_on_print`
+  is false outside debug builds), so through the wrapper's pipe the first FPS line arrives only at exit: a 30 s
+  run delivered it at 30.4 s; under `stdbuf -oL` at 4.1 s (probe job, run 43632484157). On the phone a game
+  that prints under ~4 KB of stdout in 90 s would be killed by the watchdog as "did not start". `gate.py
+  --require-live-fps` turns this into a failure once the wrapper runs the engine line-buffered.
+- `droiddeck-native-godot check` (same args as compose, plus `--name`): composes into `--out`, checks the launch
+  folder is startable (game assembly there, every game assembly loadable-shaped, deps.json and
+  runtimeconfig.json written, engine in place) and writes pass/fail, rejected files, component tag, converter
+  hash and a fingerprint of the game's data folder (names, sizes, mtimes) to
+  `~/.cache/droiddeck/native/check/<name>.json`; exit 0/1. `droiddeck-game-env` skips native up front while a
+  fresh result (same fingerprint, component, converter) says fail; with no fresh result it schedules a check
+  for after the session (waits for the launch's pid to exit, nice 19, detached, scratch folder removed after).
+
 ## 4. Measurements
 
 Run 2026-11-13 on a GitHub `ubuntu-24.04-arm` runner (job 131679200006, commit d6a02c44),

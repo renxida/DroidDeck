@@ -2,7 +2,8 @@
 """Run the stand-in game through droiddeck-native-godot and judge whether it started.
 
     gate.py --wrapper PATH --game-dir DIR --work DIR [--component pinned|DIR] [--deps on|off]
-            [--repeat N] [--prefix CMD] [--old-converter FILE] [--expect-fail compose|load] [--name NAME] -- ENGINE ARGS...
+            [--repeat N] [--prefix CMD] [--old-converter FILE] [--expect-fail compose|load] [--require-live-fps]
+            [--name NAME] -- ENGINE ARGS...
 
 A run passes when: the wrapper exits 0, it logged "first frame", stdout has FIRST_FRAME and MAINLOOP_OK, the
 deps line matches --deps, and nothing shows a compose rejection, a missing or malformed assembly or a .NET
@@ -126,6 +127,9 @@ def main(argv=None):
     ap.add_argument("--old-converter")
     ap.add_argument("--expect-fail", choices=("compose", "load"))
     ap.add_argument("--timeout", type=float, default=300)
+    ap.add_argument("--require-live-fps", action="store_true",
+                    help="also fail when Godot's first FPS line reaches the wrapper only as the engine exits "
+                         "(stdout buffered: on the phone the 90 s watchdog would then kill a long-running game)")
     ap.add_argument("--name", default="gate")
     a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
     os.makedirs(a.work, exist_ok=True)
@@ -153,12 +157,14 @@ def main(argv=None):
             want = " or ".join(want)
             verdict = (f"failed as expected ({want})" if passed
                        else f"did NOT fail with {want} as expected (found: {', '.join(found) or 'nothing'})")
-        else:
+        fps_live = (timing["fps_first"] is not None and timing["MAINLOOP_OK"] is not None
+                    and timing["fps_first"] < timing["MAINLOOP_OK"] - 0.5)
+        if not a.expect_fail:
+            if a.require_live_fps and not fps_live:
+                reasons.append("Godot's FPS line reached the wrapper only at exit (stdout buffered)")
             passed = not reasons
             verdict = "pass" if passed else "FAIL: " + "; ".join(reasons)
         ok &= passed
-        fps_live = (timing["fps_first"] is not None and timing["MAINLOOP_OK"] is not None
-                    and timing["fps_first"] < timing["MAINLOOP_OK"] - 0.5)
         runs.append({"run": i + 1, "rc": rc, "seconds": round(took, 3), "passed": passed, "verdict": verdict,
                      "reasons": reasons, "fps_lines": fps_lines, "fps_line_arrived_while_running": fps_live,
                      "timing": {k: (round(v, 3) if v is not None else None) for k, v in timing.items()},
@@ -166,6 +172,9 @@ def main(argv=None):
         print(f"{a.name} run {i + 1}: {verdict} (rc {rc}, {took:.1f} s, {fps_lines} FPS lines, "
               f"first FPS line at {runs[-1]['timing']['fps_first']} s, MAINLOOP_OK at {runs[-1]['timing']['MAINLOOP_OK']} s)",
               flush=True)
+        for t, line in lines:
+            if re.match(r"(Vulkan|OpenGL( ES)?) [0-9.]+|droiddeck-native-godot: (first frame|composed|Steam)|STANDIN_DEPS", line):
+                print(f"    [{t:8.3f}] {line[:240]}")
         if not passed:
             for t, line in lines[-60:]:
                 print(f"    [{t:8.3f}] {line}")
