@@ -63,6 +63,7 @@ object SmapsRollup {
                     else -> "fex-${name.replace('_', '-')}" to "FEX"
                 }
             }
+            p.startsWith("[anon:FEXAllocator") -> return "fex-malloc" to "FEX: its own malloc (rpmalloc: IR, block maps, compiler)"
             p.startsWith("[anon:win:") -> {
                 val name = p.removePrefix("[anon:win:").removeSuffix("]").substringBefore(':')
                 return "win-$name" to when (name) {
@@ -70,6 +71,7 @@ object SmapsRollup {
                     "exec" -> "executable private memory: .NET JIT code and stubs"
                     "heap" -> "Windows heaps (Wine RtlHeap: malloc from Godot, .NET runtime, Wine, FEX's PE side)"
                     "stack" -> "thread stacks"
+                    "big" -> "other reservations of 256 MB or more (.NET loader heaps, engine pools)"
                     else -> "Windows private memory"
                 }
             }

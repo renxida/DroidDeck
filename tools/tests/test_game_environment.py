@@ -1417,6 +1417,13 @@ class GameEnvironmentTest(unittest.TestCase):
             result = subprocess.run(command, env=env, text=True, capture_output=True)
             self.assertEqual(result.stdout.split(), ["250"], result.stderr)
             self.assertIn("droiddeck-game-env: experiments: fex-sample\n", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_NAMEWINDOWSMEMORY'))\n")
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_SMAPS": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["60"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-smaps\n", result.stderr)
 
     def test_easy_anti_cheat_games_start_offline_only_when_opted_in(self):
         with tempfile.TemporaryDirectory() as tmp:
