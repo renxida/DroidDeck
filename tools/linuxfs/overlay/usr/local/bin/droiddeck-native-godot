@@ -406,6 +406,112 @@ def steam_api_missing(steamworks_dll, library):
     return sorted(n for n in wanted if b"\0" + n.encode() + b"\0" not in have)
 
 
+# Read-only probe for the forwarding question: does the phone's arm64 steamclient still serve the interface
+# versions behind the two missing accessors? It changes nothing about what runs: missing accessors still mean the
+# game is not started here. Valve's own library, in the environment Steam set for this launch (no appid file, no
+# invented variables); handles and the client interface only, then SteamAPI_Shutdown; once per steamclient.so.
+STEAM_PROBE_VERSIONS = ("SteamMatchGameSearch001", "STEAMMUSICREMOTE_INTERFACE_VERSION001", "SteamInput006",
+                        "STEAMREMOTEPLAY_INTERFACE_VERSION003")
+STEAM_PROBE_TIMEOUT_S = 15
+STEAM_PROBE_CHILD = r"""
+import ctypes, json, sys, time
+t0 = time.monotonic()
+lib = ctypes.CDLL(sys.argv[1])
+err = ctypes.create_string_buffer(1024)
+lib.SteamAPI_InitFlat.restype = ctypes.c_int
+lib.SteamAPI_InitFlat.argtypes = [ctypes.c_char_p]
+init = lib.SteamAPI_InitFlat(err)
+out = {"init": init, "init_message": err.value.decode("utf-8", "replace")[:200], "versions": {}}
+if init == 0:
+    try:
+        lib.SteamInternal_CreateInterface.restype = ctypes.c_void_p
+        lib.SteamInternal_CreateInterface.argtypes = [ctypes.c_char_p]
+        lib.SteamAPI_GetHSteamUser.restype = ctypes.c_int32
+        lib.SteamAPI_GetHSteamPipe.restype = ctypes.c_int32
+        get = lib.SteamAPI_ISteamClient_GetISteamGenericInterface
+        get.restype = ctypes.c_void_p
+        get.argtypes = [ctypes.c_void_p, ctypes.c_int32, ctypes.c_int32, ctypes.c_char_p]
+        client = lib.SteamInternal_CreateInterface(b"SteamClient021")
+        user, pipe = lib.SteamAPI_GetHSteamUser(), lib.SteamAPI_GetHSteamPipe()
+        out["client"] = bool(client)
+        for v in sys.argv[2:]:
+            out["versions"][v] = bool(client) and bool(get(client, user, pipe, v.encode()))
+    finally:
+        lib.SteamAPI_Shutdown()
+out["seconds"] = round(time.monotonic() - t0, 3)
+print("STEAMPROBE " + json.dumps(out), flush=True)
+"""
+
+
+def arm64_steamclients(home=None, env=None):
+    """The aarch64 steamclient.so files Valve's library may load, by real path."""
+    home = home or os.path.expanduser("~")
+    env = os.environ if env is None else env
+    roots = [os.path.join(home, ".steam", "sdkarm64"), os.path.join(home, ".steam", "steam", "linuxarm64")]
+    for base in (env.get("XDG_DATA_HOME") or os.path.join(home, ".local", "share"),):
+        roots += [os.path.join(base, "Steam", "linuxarm64"), os.path.join(base, "Steam", "steamrtarm64")]
+    found = []
+    for root in roots:
+        path = os.path.realpath(os.path.join(root, "steamclient.so"))
+        try:
+            with open(path, "rb") as f:
+                head = f.read(20)
+        except OSError:
+            continue
+        if head[:4] == b"\x7fELF" and struct.unpack_from("<H", head, 18)[0] == 183 and path not in found:
+            found.append(path)
+    return found
+
+
+def steam_probe(library, cwd, env, cache=CACHE, clients=None, timeout=STEAM_PROBE_TIMEOUT_S, runner=subprocess.run):
+    """Ask the phone's steamclient, through Valve's library, whether it serves STEAM_PROBE_VERSIONS. Cached per
+    steamclient.so contents; any error or timeout is {"unknown": why} (and the decision stays: not started)."""
+    clients = arm64_steamclients(env=env) if clients is None else clients
+    if not clients:
+        return {"unknown": "no arm64 steamclient.so found"}
+    digest = hashlib.sha256()
+    for path in clients:
+        with open(path, "rb") as f:
+            digest.update(hashlib.sha256(f.read()).digest())
+    key = digest.hexdigest()
+    path = os.path.join(cache, "steam-probe", key + ".json")
+    try:
+        with open(path) as f:
+            return dict(json.load(f), cached=True)
+    except (OSError, ValueError):
+        pass
+    t0 = time.monotonic()
+    try:
+        done = runner([sys.executable, "-I", "-c", STEAM_PROBE_CHILD, library] + list(STEAM_PROBE_VERSIONS),
+                      cwd=cwd, env=without_x86_preloads(env), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                      timeout=timeout)
+        line = next((l for l in done.stdout.decode("utf-8", "replace").splitlines() if l.startswith("STEAMPROBE ")), None)
+        if line is None:
+            return {"unknown": f"probe exited {done.returncode} without an answer"}
+        result = json.loads(line[len("STEAMPROBE "):])
+    except subprocess.TimeoutExpired:
+        return {"unknown": f"probe timed out after {timeout} s"}
+    except (OSError, ValueError) as error:
+        return {"unknown": f"probe failed: {error}"}
+    result.update(steamclient=clients, steamclient_key=key, wall_seconds=round(time.monotonic() - t0, 3))
+    if result.get("init") == 0:  # only a probe that reached the client is worth keeping
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w") as f:
+            json.dump(result, f)
+        os.replace(path + ".tmp", path)
+    return result
+
+
+def steam_probe_line(result):
+    if "unknown" in result:
+        return f"Steam probe: unknown ({result['unknown']})"
+    if result.get("init") != 0:
+        return f"Steam probe: SteamAPI_InitFlat returned {result['init']} ({result.get('init_message', '')}), {result.get('wall_seconds')} s"
+    served = ", ".join(f"{v} {'non-null' if ok else 'null'}" for v, ok in result["versions"].items())
+    return (f"Steam probe: {served}; client {'non-null' if result.get('client') else 'null'}; "
+            f"{result.get('wall_seconds')} s" + (" (cached)" if result.get("cached") else ""))
+
+
 def steam_init_blockers(missing):
     """The missing names that stop SteamAPI.Init itself: interface accessors (see STEAM_ACCESSOR)."""
     return [n for n in (missing or []) if n.startswith(STEAM_ACCESSOR)]
@@ -1173,6 +1279,7 @@ def main(argv=None):
     r = compose(a.game_dir, kit, engine, a.out, a.exe, steam)
     fatal = steam_init_blockers(r.get("steam_api_missing"))
     if fatal and a.command == "run" and not a.no_steam_preflight:
+        log(steam_probe_line(steam_probe(r["steam_api"], os.path.abspath(a.game_dir), dict(os.environ))))
         log(f"not starting: Steam cannot initialise with this game's Steamworks.NET: the library lacks "
             f"{', '.join(fatal)}, which its SteamAPI.Init calls (the game would quit on 'Failed to initialize Steam')")
         return DID_NOT_START

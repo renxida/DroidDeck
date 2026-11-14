@@ -394,6 +394,7 @@ class NativeGodotTest(unittest.TestCase):
                                      "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
                 self.assertEqual(0 if expect_start else NG["DID_NOT_START"], rc, extra)
                 self.assertEqual(not expect_start, "lacks SteamAPI_ISteamClient_GetISteamGameSearch" in err.getvalue())
+                self.assertEqual(not expect_start, "Steam probe: " in err.getvalue())  # asked only when it matters
             # A program that never calls SteamAPI.Init (the gate's stand-in) can turn the preflight off.
             rc = NG["main"](["run", "--no-steam-preflight", "--game-dir", str(self.game), "--component", str(comp),
                              "--out", str(out), "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
@@ -402,6 +403,52 @@ class NativeGodotTest(unittest.TestCase):
             NG["main"].__globals__["watch"] = real
             os.chdir(Path(__file__).resolve().parent)
         self.assertEqual(2, len(seen))  # the run whose missing name is not an Init accessor, and the opted-out one
+
+    def test_steam_probe_asks_once_per_steamclient_and_treats_errors_as_unknown(self):
+        import subprocess
+        home = self.root / "home"
+        arm = home / ".local" / "share" / "Steam" / "linuxarm64"
+        arm.mkdir(parents=True)
+        x64 = home / ".steam" / "sdkarm64"
+        x64.mkdir(parents=True)
+        (x64 / "steamclient.so").write_bytes(b"\x7fELF" + b"\0" * 14 + struct.pack("<H", 62))  # x86-64: not ours
+        self.assertEqual([], NG["arm64_steamclients"](str(home), {}))
+        client = arm / "steamclient.so"
+        client.write_bytes(b"\x7fELF" + b"\0" * 14 + struct.pack("<H", 183) + b"one")
+        self.assertEqual([str(client)], NG["arm64_steamclients"](str(home), {}))
+        calls = []
+
+        def runner(cmd, **kw):
+            calls.append((cmd, kw))
+            self.assertNotIn("LD_PRELOAD", kw["env"])
+            self.assertEqual(list(NG["STEAM_PROBE_VERSIONS"]), cmd[5:])
+            out = {"init": 0, "client": True, "seconds": 0.2,
+                   "versions": {v: v != "SteamInput006" for v in cmd[5:]}}
+            return subprocess.CompletedProcess(cmd, 0, ("noise\nSTEAMPROBE " + json.dumps(out) + "\n").encode())
+        env = {"LD_PRELOAD": "/root/.steam/bin32/gameoverlayrenderer.so", "SteamAppId": "1"}
+        cache = str(self.root / "cache")
+        first = NG["steam_probe"]("/lib/libsteam_api.so", "/game", env, cache, [str(client)], runner=runner)
+        self.assertTrue(first["versions"]["SteamMatchGameSearch001"])
+        self.assertFalse(first["versions"]["SteamInput006"])
+        line = NG["steam_probe_line"](first)
+        self.assertIn("SteamMatchGameSearch001 non-null", line)
+        self.assertIn("SteamInput006 null", line)
+        again = NG["steam_probe"]("/lib/libsteam_api.so", "/game", env, cache, [str(client)], runner=runner)
+        self.assertTrue(again["cached"])
+        self.assertEqual(1, len(calls))
+        client.write_bytes(client.read_bytes() + b"updated")  # a new steamclient is asked again
+
+        def hangs(cmd, **kw):
+            raise subprocess.TimeoutExpired(cmd, kw["timeout"])
+        self.assertIn("timed out", NG["steam_probe"]("/l", "/g", env, cache, [str(client)], runner=hangs)["unknown"])
+        silent = lambda cmd, **kw: subprocess.CompletedProcess(cmd, -11, b"")
+        self.assertIn("without an answer", NG["steam_probe"]("/l", "/g", env, cache, [str(client)], runner=silent)["unknown"])
+        refused = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, b'STEAMPROBE {"init": 1, "init_message": "x", "versions": {}}\n')
+        result = NG["steam_probe"]("/l", "/g", env, cache, [str(client)], runner=refused)
+        self.assertIn("returned 1", NG["steam_probe_line"](result))
+        self.assertEqual(1, len(os.listdir(Path(cache) / "steam-probe")))  # failures are not cached
+        self.assertEqual("Steam probe: unknown (no arm64 steamclient.so found)",
+                         NG["steam_probe_line"](NG["steam_probe"]("/l", "/g", env, cache, [])))
 
     def test_run_puts_no_stub_on_any_path_and_valve_library_wins(self):
         # The engine's env and command name no stubs/ path, Steam's x86 overlay preload is dropped, and the engine's
