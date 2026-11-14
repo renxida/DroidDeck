@@ -44,6 +44,8 @@ jobs:
           WORK="$PWD/fex-ec" tools/fex/arm64ec/build.sh fetch
           # Keep FEX's symbol table so the profile can name functions (Release links with --strip-all).
           sed -i '/--strip-all"/d' fex-ec/src/Data/CMake/LinkerGC.cmake
+          # Bench only: FEX_TEST_X87SITES=1 prints which guest instructions needed x87 fallbacks (checks patch 0007's hook).
+          patch -p1 -d fex-ec/src < tools/fex/bench/sampler/x87-sites-test.patch
           cmake -S fex-ec/src -B fex-linux -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DUSE_LINKER=lld \
             -DTUNE_CPU=none -DTUNE_ARCH=armv8-a -DBUILD_TESTING=OFF -DBUILD_FEXCONFIG=OFF -DBUILD_THUNKS=OFF \
@@ -116,6 +118,37 @@ jobs:
             done
           } | tee x87.txt
           mkdir -p bench-out && cp x87.txt bench-out/
+          # Patch 0007 names the guest instruction behind every fallback. Check it against the binary: each site it
+          # reports must be an x87 instruction (mnemonic f...) in x87cost.
+          FEX_TEST_X87SITES=1 FEX_SILENTLOG=1 "$FEX_BIN/FEX" ./x87cost 2> x87sites.txt > /dev/null
+          cp x87sites.txt bench-out/
+          python3 - x87sites.txt x87cost <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import re, shutil, sys, subprocess
+          objdump = shutil.which("llvm-objdump") or "objdump"
+          rows = [l.strip().split(",") for l in open(sys.argv[1]) if l.startswith("x87site,")]
+          if not rows:
+              print("x87 sites: no output"); sys.exit(1)
+          last = max(int(r[1]) for r in rows)
+          rows = [r for r in rows if int(r[1]) == last]
+          print("### Which guest instructions needed x87 fallbacks (patch 0007 hook)\n")
+          print("%d fallbacks, %.1f%% decoded to the exact instruction\n" % (last, 100 * int(rows[0][2]) / last))
+          print("| guest rip | fallbacks | instruction |\n|---|---|---|")
+          bad = 0
+          for r in rows:
+              rip = int(r[3], 16)
+              out = subprocess.run([objdump, "-d", "--no-show-raw-insn", "--start-address=%#x" % rip,
+                                    "--stop-address=%#x" % (rip + 16), sys.argv[2]], capture_output=True, text=True).stdout
+              insn = "?"
+              for l in out.splitlines():
+                  m = re.match(r"\s*([0-9a-f]+):\s*(\S.*)", l)
+                  if m and int(m.group(1), 16) == rip:
+                      insn = m.group(2).strip()
+                      break
+              bad += not insn.startswith("f")
+              print("| %#x | %s | %s |" % (rip, r[4], insn))
+          print("\n%s" % ("all sites are x87 instructions" if not bad else "%d sites are NOT x87 instructions" % bad))
+          sys.exit(1 if bad else 0)
+          PY
           python3 - x87.txt <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import sys, statistics, collections
           rows = collections.defaultdict(list)

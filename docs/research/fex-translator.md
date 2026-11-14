@@ -327,6 +327,11 @@ phone. Patch 0007 adds `SampleHz` (experiment `fex-sample`, `FEX_SAMPLEHZ=250`, 
   - the busiest thread's top 200 places;
   - the other threads' top 50;
   - its own cost.
+- Every x87 softfloat fallback is counted, not sampled. A hook in FEXCore's F80 fallbacks puts the calling JIT
+  address in the same ring. Each minute adds `x87` rows (the top 50 guest instructions that needed a fallback) and
+  `x87-module` rows (fallbacks per guest module). This answers whether the game's `float_fallback` comes from Spine,
+  the exe, the CRT or .NET in one play session. The bench checks the hook natively (`FEX_TEST_X87SITES`, bench-only
+  patch): every site it reports must be an x87 instruction in `x87cost`.
 - The app copies these rows into `fex-samples.csv` in the telemetry zip.
 - Posix CPU timers fire on the kernel tick, so a thread gets at most `CONFIG_HZ` samples per second (250 on the CI
   runner) whatever rate is asked. 250 is the right setting.

@@ -1,0 +1,78 @@
+From ac84fdaf90faf7142bfc9bb48a0d91141c963c74 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 14 Nov 2026 00:55:37 +0000
+Subject: [PATCH 8/8] Bench only: FEX_TEST_X87SITES prints which guest
+ instructions needed x87 fallbacks
+
+---
+ .../Tools/FEXInterpreter/FEXInterpreter.cpp   | 46 +++++++++++++++++++
+ 1 file changed, 46 insertions(+)
+
+diff --git a/Source/Tools/FEXInterpreter/FEXInterpreter.cpp b/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
+index bed03b9..791aec1 100644
+--- a/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
++++ b/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
+@@ -6,6 +6,8 @@ desc: Glues the ELF loader, FEXCore and LinuxSyscalls to launch an elf under fex
+ $end_info$
+ */
+ 
++#include <algorithm>
++#include <cstring>
+ #include "Common/ArgumentLoader.h"
+ #include "Common/FEXServerClient.h"
+ #include "Common/Config.h"
+@@ -382,7 +384,51 @@ static int StealFEXFDFromEnv(const char* Env) {
+   return FEXFD;
+ }
+ 
++// Bench-only check of the x87 fallback hook and DecodeSampledRIP (FEX_TEST_X87SITES=1): every 256k fallbacks, the
++// guest instructions that needed them so far, as decoded from the translated code that called the fallback.
++#include <FEXCore/Utils/FloatFallbackHook.h>
++namespace X87SitesTest {
++constexpr size_t N = 4096;
++uint64_t Keys[N], Counts[N], Total, InBlock;
++bool Read(uint64_t Address, void* Dest, size_t Size) {
++  memcpy(Dest, reinterpret_cast<const void*>(Address), Size);
++  return true;
++}
++void Dump() {
++  uint64_t Order[N];
++  size_t n = 0;
++  for (size_t i = 0; i < N; ++i) {
++    if (Keys[i]) {
++      Order[n++] = i;
++    }
++  }
++  std::sort(Order, Order + n, [](uint64_t a, uint64_t b) { return Counts[a] > Counts[b]; });
++  for (size_t i = 0; i < n && i < 12; ++i) {
++    fprintf(stderr, "x87site,%llu,%llu,0x%llx,%llu\n", (unsigned long long)Total, (unsigned long long)InBlock,
++            (unsigned long long)Keys[Order[i]], (unsigned long long)Counts[Order[i]]);
++  }
++}
++void Hook(FEXCore::Core::CpuStateFrame* Frame, uint64_t HostPC) {
++  uint64_t Guest = Frame->State.rip;
++  bool In = false;
++  FEXCore::Context::Context::DecodeSampledRIP(Frame->State.InlineJITBlockHeader, HostPC, Read, &Guest, &In);
++  InBlock += In;
++  size_t h = (Guest * 0x9E3779B97F4A7C15ull) >> 52;
++  while (Keys[h] && Keys[h] != Guest) {
++    h = (h + 1) & (N - 1);
++  }
++  Keys[h] = Guest;
++  ++Counts[h];
++  if ((++Total & 0x3ffff) == 0) {
++    Dump();
++  }
++}
++} // namespace X87SitesTest
++
+ int main(int argc, char** argv, char** const envp) {
++  if (getenv("FEX_TEST_X87SITES")) {
++    FEXCore::SHMStats::FloatFallbackHook = X87SitesTest::Hook;
++  }
+   auto SBRKPointer = FEX::SBRKAllocations::DisableSBRKAllocations();
+   FEXCore::Allocator::GLIBCScopedFault GLIBFaultScope;
+ 
+-- 
+2.43.0
+
