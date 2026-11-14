@@ -1,0 +1,102 @@
+name: FEX .NET exit stall (Wine ARM64EC, off-device)
+
+# The gate for perf/emu-fex d13ed5b (run 43638597885) failed on clr throughput 0.72x: its last heartbeat was at
+# t=120 but it exited at 153 s; stock exited at 122 s. clr.exe joins each thread for up to 30 s after Stop, so one
+# thread or async loop took ~30 s to finish. This runs clr CLR_RUNS times under stock FEX, the published .24 .wcp
+# (preserve_all on) and that run's candidate (preserve_all off), and prints the shutdown timings clr.exe now logs.
+# Nothing is published.
+
+on:
+  push:
+    branches: ['emu/winetest-bisect*']
+    paths:
+      - '.github/workflows/fex-clr-exit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  HANGOVER_TAG: hangover-11.16
+  WCP: Kestrel-FEXCore-20261114.24-ab135df09-618bd252.wcp
+  CAND_RUN: '43638597885'
+  CLR_RUNS: '8'
+  CLR_SECONDS: '60'
+
+jobs:
+  programs:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - run: dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o bin/clr -v q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exit-programs
+          path: bin
+
+  run:
+    needs: programs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        fex: [stock, wcp24, cand]
+    name: run-${{ matrix.fex }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: exit-programs
+          path: ${{ runner.temp }}/bin
+      - uses: actions/download-artifact@v4
+        if: matrix.fex == 'cand'
+        with:
+          name: gate-candidate
+          path: ${{ runner.temp }}/cand
+          run-id: ${{ env.CAND_RUN }}
+          github-token: ${{ github.token }}
+      - name: Wine (Hangover ARM64EC)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
+      - name: This row's FEX
+        if: matrix.fex != 'stock'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.fex }}" = wcp24 ]; then
+            gh release download kestrel-fex -R "$GITHUB_REPOSITORY" -p "$WCP" -D "$RUNNER_TEMP/cand"
+            tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/cand/$WCP"
+          else
+            tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/cand/candidate.wcp"
+          fi
+      - name: Run
+        shell: bash
+        run: |
+          set +e +o pipefail -u
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
+          export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
+          chmod -R +x "$RUNNER_TEMP/bin"
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"; slow=0
+          for i in $(seq 1 "$CLR_RUNS"); do
+            tools/fex/winetest/run.sh "clr$i" "$out" "$CLR_SECONDS" "$RUNNER_TEMP/bin/clr/clr.exe" > "$out/clr$i.verdict" 2>&1
+            v=$(grep '^VERDICT ' "$out/clr$i.verdict")
+            s=$(grep -a '^shutdown: [0-9]* ms' "$out/clr$i.out" 2>/dev/null)
+            echo "$v | $s"
+            grep -a '^shutdown: [a-z]' "$out/clr$i.out" 2>/dev/null | sed "s/^/  clr$i /"
+            grep -a 'Fatal\|Unhandled\|SuspendThread' "$out/clr$i.err" | head -2 | sed "s/^/  clr$i: /"
+            ms=$(echo "$s" | grep -oE '[0-9]+' | head -1); [ "${ms:-0}" -gt 5000 ] && slow=$((slow + 1))
+            wineserver -k; sleep 1
+          done
+          echo "SUMMARY ${{ matrix.fex }} slow-exits $slow/$CLR_RUNS" | tee -a "$GITHUB_STEP_SUMMARY"

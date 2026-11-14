@@ -93,8 +93,21 @@ static class Program
             last = ops;
         }
         Stop = true;
-        foreach (var th in threads) th.Join(30000);
-        Task.WaitAll(tasks.ToArray(), 30000);
+        // Shutdown is timed: a thread that doesn't see Stop, or a task that never completes, shows up by name.
+        var stopWatch = Stopwatch.StartNew();
+        foreach (var th in threads)
+        {
+            long before = stopWatch.ElapsedMilliseconds;
+            bool joined = th.Join(30000);
+            long took = stopWatch.ElapsedMilliseconds - before;
+            if (!joined || took > 1000) Console.WriteLine($"shutdown: {th.Name} {(joined ? "joined" : "NOT joined")} after {took} ms");
+        }
+        long tasksFrom = stopWatch.ElapsedMilliseconds;
+        bool tasksDone = Task.WaitAll(tasks.ToArray(), 30000);
+        long tasksTook = stopWatch.ElapsedMilliseconds - tasksFrom;
+        if (!tasksDone || tasksTook > 1000)
+            Console.WriteLine($"shutdown: async loops {(tasksDone ? "done" : "NOT done")} after {tasksTook} ms, {tasks.FindAll(x => !x.IsCompleted).Count} still running");
+        Console.WriteLine($"shutdown: {stopWatch.ElapsedMilliseconds} ms");
         Console.WriteLine("done");
         return 0;
     }
