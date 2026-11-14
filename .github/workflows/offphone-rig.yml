@@ -101,7 +101,7 @@ jobs:
                 for i in $(seq 1 60); do
                   sleep 5
                   adb shell "ls $fs/usr/share/vulkan/icd.d" >/dev/null 2>&1 && \
-                    [ "$(tools/droiddeckctl state 2>/dev/null | jq -r '.session.phase')" = IDLE ] && break
+                    case "$(tools/droiddeckctl state 2>/dev/null | jq -r '.session.phase')" in IDLE|FAILED) true;; *) false;; esac && break
                 done
                 tools/droiddeckctl stop >/dev/null 2>&1 || true
               fi
@@ -116,6 +116,9 @@ jobs:
               [ -n "$lib" ] && tools/droiddeckctl env set "BL_VK_DRIVER=/usr/local/share/offphone/lvp_icd.json" --persistent
               # gamescope also needs sync-file semaphores, which lavapipe lacks: the rig's own layer
               # (tools/offphone/cpusync) adds them with CPU waits. Never part of the APK.
+              # udmabuf (see redroid-up.sh): the app reaches it like the dma-buf heaps apps may open.
+              adb shell "ls -lZ /dev/udmabuf /dev/dma_heap 2>&1; getenforce"
+              adb shell "chmod 666 /dev/udmabuf && chcon u:object_r:dmabuf_system_heap_device:s0 /dev/udmabuf && ls -lZ /dev/udmabuf" || true
               adb shell "mkdir -p $fs/usr/local/lib/offphone $fs/usr/local/share/vulkan/implicit_layer.d"
               adb push cpusync/libVkLayer_offphone_cpu_sync.so $fs/usr/local/lib/offphone/
               adb push cpusync/VkLayer_offphone_cpu_sync.json $fs/usr/local/share/vulkan/implicit_layer.d/
@@ -154,6 +157,7 @@ jobs:
           pid=$(adb shell pidof "$pkg" | tr -d '\r')
           adb logcat -d -v time | grep -E "\( *${pid:-NOPID}\)|AgentStart|AgentBridge|LinuxRuntime|ActivityTaskManager|kestrel" | grep -v -E "chatty|JIT allocated|Compiler allocated" | tail -400
           echo "::endgroup::"
+          echo "::group::SELinux denials"; adb logcat -d | grep -i "avc: *denied" | grep -E "untrusted_app|$pkg" | tail -40; echo "::endgroup::"
           d=/data/user/0/$pkg/files/logs
           last=$(adb shell "ls -1d $d/*/ 2>/dev/null | tail -1" | tr -d '\r')
           echo "session dir: ${last:-none}"

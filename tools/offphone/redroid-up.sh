@@ -9,6 +9,9 @@ width=${REDROID_WIDTH:-2400}
 height=${REDROID_HEIGHT:-1080}
 
 sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
+# udmabuf: Mesa's CPU Vulkan driver makes its shareable (dma-buf) memory with it, as phones' GPU
+# drivers do with their own allocators. Without it gamescope cannot allocate a single texture.
+sudo modprobe udmabuf 2>/dev/null || echo "udmabuf: no module on this kernel"
 docker rm -f "$name" >/dev/null 2>&1 || true
 docker run -d --name "$name" --privileged \
   -p "127.0.0.1:${port}:5555" \
