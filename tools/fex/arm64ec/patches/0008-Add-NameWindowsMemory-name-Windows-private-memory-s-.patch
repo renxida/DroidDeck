@@ -1,4 +1,4 @@
-From a192acd5eb4acdb3d5bfaec6fb7fd44a4bd43841 Mon Sep 17 00:00:00 2001
+From 443c13370de85f5f736126c49039021fa5aebcf9 Mon Sep 17 00:00:00 2001
 From: Kestrel <kestrel@invalid>
 Date: Sat, 14 Nov 2026 06:49:43 +0000
 Subject: [PATCH 8/9] Add NameWindowsMemory: name Windows private memory's
@@ -9,20 +9,21 @@ private memory and names its Linux mappings (PR_SET_VMA_ANON_NAME): win:heap
 (Wine heaps: each heap, its subheaps and large blocks), win:stack (guard page),
 win:exec (executable), win:gc (reservation of 16 GB or more), win:big (256 MB or
 more), win:private. Ranges FEX named for itself are recorded and never
-relabelled; a refused name no longer turns FEX's own naming off. The first pass
+relabelled; a refused name no longer turns FEX's own naming off. The worker starts
+with the process's second thread, never during process init, and its first pass
 waits at least 30 s. Heaps are found with ntdll's RtlGetProcessHeaps and
 RtlLockHeap: the emulator DLL must import nothing but ntdll, since it loads
 before kernelbase.
 ---
  .../Source/Interface/Config/Config.json.in    |   9 +
  Source/Windows/ARM64EC/CMakeLists.txt         |   1 +
- Source/Windows/ARM64EC/MemoryNames.cpp        | 232 ++++++++++++++++++
- Source/Windows/ARM64EC/MemoryNames.h          |  12 +
- Source/Windows/ARM64EC/Module.cpp             |   2 +
+ Source/Windows/ARM64EC/MemoryNames.cpp        | 242 ++++++++++++++++++
+ Source/Windows/ARM64EC/MemoryNames.h          |  14 +
+ Source/Windows/ARM64EC/Module.cpp             |   3 +
  Source/Windows/Common/FEXUnixLib.cpp          |  43 ++++
  Source/Windows/Common/FEXUnixLib.h            |   6 +
  Source/Windows/include/winternl.h             |   3 +
- 8 files changed, 308 insertions(+)
+ 8 files changed, 321 insertions(+)
  create mode 100644 Source/Windows/ARM64EC/MemoryNames.cpp
  create mode 100644 Source/Windows/ARM64EC/MemoryNames.h
 
@@ -60,10 +61,10 @@ index c92282a..aec460f 100644
  
 diff --git a/Source/Windows/ARM64EC/MemoryNames.cpp b/Source/Windows/ARM64EC/MemoryNames.cpp
 new file mode 100644
-index 0000000..8374454
+index 0000000..261b49d
 --- /dev/null
 +++ b/Source/Windows/ARM64EC/MemoryNames.cpp
-@@ -0,0 +1,232 @@
+@@ -0,0 +1,242 @@
 +// SPDX-License-Identifier: MIT
 +#include "ARM64EC/MemoryNames.h"
 +#include "Windows/Common/FEXUnixLib.h"
@@ -77,6 +78,7 @@ index 0000000..8374454
 +#include <FEXCore/fextl/vector.h>
 +
 +#include <algorithm>
++#include <atomic>
 +#include <chrono>
 +#include <cstdint>
 +#include <cstring>
@@ -289,8 +291,17 @@ index 0000000..8374454
 +
 +void ProcessInit() {
 +  FEX_CONFIG_OPT(NameWindowsMemory, NAMEWINDOWSMEMORY);
-+  IntervalS = NameWindowsMemory();
-+  if (!IntervalS || !UnixLib::Available()) {
++  if (UnixLib::Available()) {
++    IntervalS = NameWindowsMemory();
++  }
++}
++
++// The worker is never created during process init (Wine is still setting up the ARM64EC process and a thread created
++// then can hang it at start), only once a second thread initializes, and outside FEX's locks.
++void ThreadInit() {
++  static std::atomic<uint32_t> Inits {};
++  static std::atomic<bool> Started {};
++  if (!IntervalS || Inits.fetch_add(1) == 0 || Started.exchange(true)) {
 +    return;
 +  }
 +  Worker = FEXCore::Threads::Thread::Create(WorkerMain, nullptr, {.LowPriority = true, .Internal = true}, "FEX memory names");
@@ -298,10 +309,10 @@ index 0000000..8374454
 +} // namespace FEX::Windows::MemoryNames
 diff --git a/Source/Windows/ARM64EC/MemoryNames.h b/Source/Windows/ARM64EC/MemoryNames.h
 new file mode 100644
-index 0000000..491f05b
+index 0000000..b9fc3fc
 --- /dev/null
 +++ b/Source/Windows/ARM64EC/MemoryNames.h
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,14 @@
 +// SPDX-License-Identifier: MIT
 +#pragma once
 +
@@ -313,9 +324,11 @@ index 0000000..491f05b
 +// win:private (the rest). FEX's own named memory is never relabelled.
 +namespace FEX::Windows::MemoryNames {
 +void ProcessInit();
++// At the start of every thread's init, before FEX's locks: starts the worker with the process's second thread.
++void ThreadInit();
 +} // namespace FEX::Windows::MemoryNames
 diff --git a/Source/Windows/ARM64EC/Module.cpp b/Source/Windows/ARM64EC/Module.cpp
-index d6c9d03..62b2b6e 100644
+index d6c9d03..ef818ce 100644
 --- a/Source/Windows/ARM64EC/Module.cpp
 +++ b/Source/Windows/ARM64EC/Module.cpp
 @@ -50,6 +50,7 @@ $end_info$
@@ -334,6 +347,14 @@ index d6c9d03..62b2b6e 100644
    }
  
    if (StartupSleep() && (StartupSleepProcName().empty() || AppConfigName == StartupSleepProcName())) {
+@@ -1193,6 +1195,7 @@ void BTCpu64NotifyReadFile(HANDLE Handle, void* Address, SIZE_T Size, BOOL After
+ }
+ 
+ NTSTATUS ThreadInit() {
++  FEX::Windows::MemoryNames::ThreadInit();
+   std::scoped_lock Lock(ThreadCreationMutex);
+   FEX::Windows::InitCRTThread();
+   const auto CPUArea = GetCPUArea();
 diff --git a/Source/Windows/Common/FEXUnixLib.cpp b/Source/Windows/Common/FEXUnixLib.cpp
 index 061431a..7f6c086 100644
 --- a/Source/Windows/Common/FEXUnixLib.cpp

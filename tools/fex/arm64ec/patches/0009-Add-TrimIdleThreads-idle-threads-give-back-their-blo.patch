@@ -1,4 +1,4 @@
-From ae73a3d9520e710b5a6c56b3ab4e45f4c7b60316 Mon Sep 17 00:00:00 2001
+From ba8d102fd632ed0fa7d8d4fcda91fe623c321000 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 14 Nov 2026 10:50:46 +0000
 Subject: [PATCH 9/9] Add TrimIdleThreads: idle threads give back their block
@@ -18,7 +18,8 @@ freed while it is suspended; old buffers are dropped after it resumes.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
-The first pass waits at least 30 s. Threads are opened, timed and resumed with ntdll
+The worker starts with the process's second thread, never during process init,
+and its first pass waits at least 30 s. Threads are opened, timed and resumed with ntdll
 calls only, so the emulator DLL imports nothing but ntdll.
 ---
  .../Source/Interface/Config/Config.json.in    |   9 ++
@@ -26,11 +27,11 @@ calls only, so the emulator DLL imports nothing but ntdll.
  FEXCore/Source/Interface/Core/CPUBackend.h    |  12 ++
  FEXCore/Source/Interface/Core/Core.cpp        |  29 ++++
  FEXCore/Source/Interface/Core/LookupCache.cpp |  21 +++
- FEXCore/Source/Interface/Core/LookupCache.h   |  23 ++++
+ FEXCore/Source/Interface/Core/LookupCache.h   |  23 +++
  FEXCore/include/FEXCore/Core/Context.h        |  15 ++
- Source/Windows/ARM64EC/Module.cpp             | 129 ++++++++++++++++++
+ Source/Windows/ARM64EC/Module.cpp             | 136 ++++++++++++++++++
  Source/Windows/include/winternl.h             |   2 +
- 9 files changed, 242 insertions(+)
+ 9 files changed, 249 insertions(+)
 
 diff --git a/FEXCore/Source/Interface/Config/Config.json.in b/FEXCore/Source/Interface/Config/Config.json.in
 index 734e6f7..3d0192f 100644
@@ -270,7 +271,7 @@ index 0f66f21..0cba061 100644
    ConfigureAOTGen(FEXCore::Core::InternalThreadState* Thread, fextl::set<uint64_t>* ExternalBranches, uint64_t SectionMaxAddress) = 0;
  
 diff --git a/Source/Windows/ARM64EC/Module.cpp b/Source/Windows/ARM64EC/Module.cpp
-index 62b2b6e..d44d18d 100644
+index ef818ce..14341ee 100644
 --- a/Source/Windows/ARM64EC/Module.cpp
 +++ b/Source/Windows/ARM64EC/Module.cpp
 @@ -52,6 +52,9 @@ $end_info$
@@ -283,7 +284,7 @@ index 62b2b6e..d44d18d 100644
  #include <cstdint>
  #include <cstdio>
  #include <type_traits>
-@@ -750,6 +753,131 @@ extern "C" void SyncThreadContext(CONTEXT* Context) {
+@@ -750,6 +753,137 @@ extern "C" void SyncThreadContext(CONTEXT* Context) {
    Exception::LoadStateFromECContext(Thread, *Context);
  }
  
@@ -405,7 +406,13 @@ index 62b2b6e..d44d18d 100644
 +  void ProcessInit() {
 +    FEX_CONFIG_OPT(TrimIdleThreads, TRIMIDLETHREADS);
 +    IntervalS = TrimIdleThreads();
-+    if (!IntervalS) {
++  }
++
++  // The worker is never created during process init, only once a second thread initializes, and outside FEX's locks.
++  void ThreadInit() {
++    static std::atomic<uint32_t> Inits {};
++    static std::atomic<bool> Started {};
++    if (!IntervalS || Inits.fetch_add(1) == 0 || Started.exchange(true)) {
 +      return;
 +    }
 +    Worker = FEXCore::Threads::Thread::Create(WorkerMain, nullptr, {.LowPriority = true, .Internal = true}, "FEX idle trim");
@@ -415,7 +422,7 @@ index 62b2b6e..d44d18d 100644
  NTSTATUS ProcessInit() {
    if (!InitSyscalls()) {
      return STATUS_NOT_SUPPORTED;
-@@ -822,6 +950,7 @@ NTSTATUS ProcessInit() {
+@@ -822,6 +956,7 @@ NTSTATUS ProcessInit() {
    if (IsWine) {
      FEX::Windows::Sampler::ProcessInit();
      FEX::Windows::MemoryNames::ProcessInit();
@@ -423,6 +430,14 @@ index 62b2b6e..d44d18d 100644
    }
  
    if (StartupSleep() && (StartupSleepProcName().empty() || AppConfigName == StartupSleepProcName())) {
+@@ -1196,6 +1331,7 @@ void BTCpu64NotifyReadFile(HANDLE Handle, void* Address, SIZE_T Size, BOOL After
+ 
+ NTSTATUS ThreadInit() {
+   FEX::Windows::MemoryNames::ThreadInit();
++  IdleTrim::ThreadInit();
+   std::scoped_lock Lock(ThreadCreationMutex);
+   FEX::Windows::InitCRTThread();
+   const auto CPUArea = GetCPUArea();
 diff --git a/Source/Windows/include/winternl.h b/Source/Windows/include/winternl.h
 index 918e92a..2d34863 100644
 --- a/Source/Windows/include/winternl.h

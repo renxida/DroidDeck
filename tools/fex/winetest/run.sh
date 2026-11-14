@@ -51,6 +51,16 @@ while kill -0 "$runner" 2>/dev/null; do
         timeout 120 sudo gdb -p "$pid" -batch -nx -ex 'set pagination off' -ex 'info threads' \
           -ex 'thread apply all bt 24' 2>&1 | grep -v '^\[New LWP\|^warning: ' | head -3000
       done
+      # Windows-side stacks: winedbg attaches to the hung process (Wine pid from its process list) and walks every
+      # thread; the test FEX DLL is built with debug info so its frames have names.
+      echo "-- winedbg"
+      wpid=$(timeout 30 winedbg --command "info proc" 2>/dev/null | grep -F "$base" | grep -oE '[0-9a-f]{8}' | head -1 || true)
+      if [ -n "$wpid" ]; then
+        printf 'attach 0x%s\nbt all\ndetach\n' "$wpid" > "$out/$label.wdbg"
+        timeout 120 winedbg --file "$out/$label.wdbg" 2>&1 | grep -v '^fixme:\|^[0-9a-f]*:fixme' | head -1500
+      else
+        echo "no Wine pid for $base"
+      fi
       echo "-- wineserver threads"
       for pid in $(pgrep -x wineserver); do
         for t in /proc/"$pid"/task/*; do printf '%s %s wchan=%s\n' "$(basename "$t")" "$(cut -d' ' -f3 "$t/stat")" "$(cat "$t/wchan")"; done

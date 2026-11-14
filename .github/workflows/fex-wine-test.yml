@@ -63,6 +63,9 @@ jobs:
             if [ "$n" \< "${{ matrix.upto }}" ] || [ "$n" = "${{ matrix.upto }}" ]; then cp "$p" "$r/patches/"; fi
           done
           ls "$r/patches"
+          # Debug info in the DLLs, so winedbg can name FEX frames in a hang dump.
+          sed -i 's/-DCMAKE_BUILD_TYPE=Release \\$/-DCMAKE_BUILD_TYPE=RelWithDebInfo \\/' "$r/build.sh"
+          grep -n CMAKE_BUILD_TYPE "$r/build.sh"
           # build.sh globs patches/*.patch; with no patches, make its loops and hashes take an empty set.
           if ! ls "$r/patches"/*.patch >/dev/null 2>&1; then
             sed -i 's|for p in "$HERE"/patches/\*.patch; do|for p in $(ls "$HERE"/patches/*.patch 2>/dev/null); do|; s|cat "$HERE"/patches/\*.patch|cat /dev/null|g' "$r/build.sh"
@@ -196,7 +199,7 @@ jobs:
             cat "$out/verdicts.txt"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          for f in "$out"/*.hang.txt; do [ -f "$f" ] && { echo "== $f"; head -200 "$f"; }; done
+          for f in "$out"/*.hang.txt; do [ -f "$f" ] && { echo "== $f"; head -700 "$f"; }; done
           true
       - uses: actions/upload-artifact@v4
         if: always()
