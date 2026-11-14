@@ -115,15 +115,16 @@ class CiChecksTest(unittest.TestCase):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
         gate = jobs['checks']
         self.assertEqual(gate['name'], 'Compile and test APK')
-        self.assertEqual(set(gate['needs']), {'build', 'python-tests'})
+        self.assertEqual(set(gate['needs']), {'build', 'python-tests', 'native-startup-gate'})
         self.assertIn('!cancelled()', gate['if'])
-        for build, python in itertools.product(('success', 'failure', 'cancelled', 'skipped'), repeat=2):
-            with self.subTest(build=build, python=python):
+        self.assertEqual(jobs['native-startup-gate']['uses'], './.github/workflows/native-startup-gate.yml')
+        for build, python, native in itertools.product(('success', 'failure', 'cancelled', 'skipped'), repeat=3):
+            with self.subTest(build=build, python=python, native=native):
                 result = subprocess.run(
                     ['bash', '-c', gate['steps'][0]['run']],
-                    env=dict(os.environ, BUILD_RESULT=build, PYTHON_RESULT=python),
+                    env=dict(os.environ, BUILD_RESULT=build, PYTHON_RESULT=python, NATIVE_GATE_RESULT=native),
                     capture_output=True)
-                self.assertEqual(result.returncode == 0, build == python == 'success')
+                self.assertEqual(result.returncode == 0, build == python == native == 'success')
         for publisher in ('sign', 'packs'):
             self.assertIn('checks', jobs[publisher]['needs'])
 
