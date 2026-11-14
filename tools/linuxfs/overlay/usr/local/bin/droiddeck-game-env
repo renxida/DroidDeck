@@ -76,7 +76,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
                "wayland-present", "vk-count",
                "native-inventory", "free-memory", "fex-l1", "fex-code-buffer",
-               "fex-sample")
+               "fex-sample", "fex-smaps")
 
 
 FREE_MEMORY_WAIT_S = 15

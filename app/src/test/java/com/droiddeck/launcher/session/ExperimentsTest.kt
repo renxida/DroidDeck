@@ -58,6 +58,7 @@ class ExperimentsTest {
             "fex-l1" to "DROIDDECK_EXP_FEX_L1",
             "fex-code-buffer" to "DROIDDECK_EXP_FEX_CODE_BUFFER",
             "fex-sample" to "DROIDDECK_EXP_FEX_SAMPLE",
+            "fex-smaps" to "DROIDDECK_EXP_FEX_SMAPS",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

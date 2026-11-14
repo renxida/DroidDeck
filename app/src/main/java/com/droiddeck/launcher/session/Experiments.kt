@@ -47,6 +47,7 @@ object Experiments {
     const val FEX_CODE_BUFFER = "fex-code-buffer"
     /** Kestrel's FEX samples where each emulated thread spends its CPU time; the app logs it to fex-samples.csv. */
     const val FEX_SAMPLE = "fex-sample"
+    const val FEX_SMAPS = "fex-smaps"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -74,6 +75,7 @@ object Experiments {
         Switch(FEX_L1, R.string.exp_fex_l1),
         Switch(FEX_CODE_BUFFER, R.string.exp_fex_code_buffer),
         Switch(FEX_SAMPLE, R.string.exp_fex_sample),
+        Switch(FEX_SMAPS, R.string.exp_fex_smaps),
     )
 
     /** At most one of each group is on. */
@@ -91,7 +93,7 @@ object Experiments {
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
         DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
         WAYLAND_PRESENT, VK_COUNT,
-        NATIVE_INVENTORY, FREE_MEMORY, FEX_L1, FEX_CODE_BUFFER, FEX_SAMPLE)
+        NATIVE_INVENTORY, FREE_MEMORY, FEX_L1, FEX_CODE_BUFFER, FEX_SAMPLE, FEX_SMAPS)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,

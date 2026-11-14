@@ -848,7 +848,7 @@ class SessionService : Service() {
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"))
         lastPressureAt = 0L
-        MemoryLog.start(File(sessionDir, "memory.csv"))
+        MemoryLog.start(File(sessionDir, "memory.csv"), smaps = Experiments.on(this, Experiments.FEX_SMAPS))
         ThreadLog.start(sessionDir)
         FexStatsLog.start(sessionDir, File(LinuxRuntime.liveDir(this), "shm"),
             stats = Experiments.on(this, Experiments.FEX_STATS), samples = Experiments.on(this, Experiments.FEX_SAMPLE))
