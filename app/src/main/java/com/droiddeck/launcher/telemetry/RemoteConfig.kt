@@ -76,6 +76,13 @@ object RemoteConfig {
             .getOrNull()?.also { last = it }
     }
 
+    /** Fetches now (a background thread only), falling back to the kept copy; for unattended test runs. */
+    fun fetchNow(context: Context): JSONObject? {
+        val app = context.applicationContext
+        val text = fetch(app) ?: cached(app) ?: return null
+        return runCatching { JSONObject(text) }.getOrNull()
+    }
+
     private fun fetchedAt(context: Context): String = runCatching {
         val t = File(TelemetryUploadSettings.dir(context), CACHE).lastModified()
         java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
@@ -193,6 +200,7 @@ object RemoteConfig {
                 appendLine("# settings this session started with")
                 appendLine(applied?.line() ?: "remote config: none")
                 appendLine("experiments: " + Experiments.line(experiments))
+                appendLine(com.droiddeck.launcher.session.AutoTest.summary(context))
                 prefs.keys.filter { SettingsReset.isSessionSetting(it) }.sorted().forEach { appendLine("$it=${prefs[it]}") }
             }
             File(sessionDir, SETTINGS_FILE).writeText(text)

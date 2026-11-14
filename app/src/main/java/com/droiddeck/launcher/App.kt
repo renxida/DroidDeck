@@ -38,6 +38,7 @@ class App : Application() {
         com.droiddeck.launcher.runtime.RootSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
         com.droiddeck.launcher.telemetry.TelemetryUploader.flushPending(this)
+        com.droiddeck.launcher.session.AutoTest.schedule(this)
     }
 
     private fun prefetchAddonPacks() {

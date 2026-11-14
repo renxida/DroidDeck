@@ -609,6 +609,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (intent.action == SessionService.ACTION_AGENT_START) {
             SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
         }
+        intent.getStringExtra(com.droiddeck.launcher.session.AutoTest.EXTRA_ID)?.let { id ->
+            // Unattended test run: the phone is charging with the screen off, so wake it, show over the
+            // lock screen, and keep it as dim as it goes.
+            SessionEvents.record("autotest.start", mapOf("id" to id))
+            if (android.os.Build.VERSION.SDK_INT >= 27) {
+                setShowWhenLocked(true)
+                setTurnScreenOn(true)
+            } else {
+                @Suppress("DEPRECATION")
+                window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+            }
+            window.attributes = window.attributes.apply { screenBrightness = 0.01f }
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
             SessionState.fpsLimit = 0
