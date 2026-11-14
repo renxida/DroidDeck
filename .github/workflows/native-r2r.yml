@@ -159,8 +159,15 @@ jobs:
           echo "label,own_first,own_tier1,all_first,all" > counts.csv
           run() {  # label dir [env...]
             label=$1 dir=$2; shift 2
+            set +e
+            env "$@" dotnet "$T/$dir/KestrelHost.dll" 300 > "$label.plain.out" 2> "$label.plain.err"
+            echo "$label without JIT logging: exit $?"; tail -c 3000 "$label.plain.err"
             env "$@" DOTNET_TieredPGO=0 DOTNET_JitDisasmSummary=1 DOTNET_JitStdOutFile="$PWD/$label.jit.txt" \
               dotnet "$T/$dir/KestrelHost.dll" 300 > "$label.out" 2> "$label.err"
+            rc=$?
+            set -e
+            echo "$label with JIT logging: exit $rc"
+            if [ $rc -ne 0 ]; then tail -c 3000 "$label.err"; tail -5 "$label.jit.txt" || true; return 1; fi
             python3 tools/native-engine/r2r-arm64/jit-count.py "$label" "$label.jit.txt" Kestrel >> counts.csv
             ms=()
             for i in 1 2 3 4 5 6 7; do
@@ -169,10 +176,12 @@ jobs:
             done
             echo "$label wall_ms (7 runs, sorted): $(printf '%s\n' "${ms[@]}" | sort -n | tr '\n' ' ')" | tee -a times.txt
           }
-          run il run-il
-          run r2r run-r2r
-          run r2r-off run-r2r DOTNET_ReadyToRun=0
+          fail=0
+          run il run-il || fail=1
+          run r2r run-r2r || fail=1
+          run r2r-off run-r2r DOTNET_ReadyToRun=0 || fail=1
           cat counts.csv
+          [ $fail = 0 ]
           cat il.err
           head -1 il.out
           cmp il.out r2r.out && cmp il.out r2r-off.out
