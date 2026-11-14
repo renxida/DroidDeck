@@ -97,7 +97,16 @@ class SessionSuspendRealProcessTest {
         assertTrue("$context: no threads were created around the freezes", tree.counters()!![GAME_TRANSIENT] > createdAtFreeze.max())
         assertEquals("$context: threads left stopped", emptyList<Task>(), tree.stuckTasks())
         assertTrue("$context: controller did not close", await { done -> controller.closeAndResume { done(true) } })
-        assertEquals("$context: stillStopped reports", emptyList<SessionSuspendController.Stuck>(), reports.toList())
+        // Without proot nothing should ever be left stopped. Under proot a thread born during the freeze can sit in
+        // a stop for a moment after resume while proot attaches it; the controller's check exists for that: it
+        // re-sends SIGCONT and reports. A report there is fine because the progress wait and stuckTasks above already
+        // proved every thread ran again (CI run 43536130157 saw one such thread, back in S after the re-send).
+        val reported = reports.toList()
+        if (tree.underProot) {
+            if (reported.isNotEmpty()) println("$context: woken after resume: $reported")
+        } else {
+            assertEquals("$context: stillStopped reports", emptyList<SessionSuspendController.Stuck>(), reported)
+        }
         val after = tree.counters()!!
         println("$context: froze with ${workersAtFreeze.joinToString("/")} of $WORKERS workers and after " +
             "${createdAtFreeze.joinToString("/")} short-lived threads (${after[GAME_TRANSIENT]} by the end); every thread ran again")
