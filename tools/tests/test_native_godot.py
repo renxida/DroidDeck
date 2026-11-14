@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 import re
 import os
@@ -438,6 +439,44 @@ class NativeGodotTest(unittest.TestCase):
             self.assertFalse((data / name).is_symlink(), name)
         hits = [str(p) for p in out.rglob("*") if p.is_file() and p.read_bytes() == b"stub"]
         self.assertEqual([], hits)
+
+    def test_icu_download_is_checked_cached_and_linked_by_soname(self):
+        import zipfile
+        libs = {"libicudata.so.72.1.0.3": b"data", "libicuuc.so.72.1.0.3": b"uc", "libicui18n.so.72.1.0.3": b"i18n"}
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            for name, data in libs.items():
+                z.writestr("runtimes/linux-arm64/native/" + name, data)
+        package = buf.getvalue()
+        spec = dict(NG["ICU"], sha256=hashlib.sha256(package).hexdigest(),
+                    members={n: hashlib.sha256(d).hexdigest() for n, d in libs.items()})
+        calls = []
+        def opener(url, timeout):
+            calls.append(url)
+            return io.BytesIO(package)
+        cache = self.root / "cache"
+        folder = NG["icu_libs"](spec, str(cache), opener)
+        self.assertEqual(b"uc", (Path(folder) / "libicuuc.so.72").read_bytes())
+        self.assertEqual(b"data", (Path(folder) / "libicudata.so.72").read_bytes())
+        self.assertEqual(b"i18n", (Path(folder) / "libicui18n.so.72.1.0.3").read_bytes())
+        self.assertEqual(folder, NG["icu_libs"](spec, str(cache), opener))
+        self.assertEqual(1, len(calls))
+        bad = dict(spec, members=dict(spec["members"], **{"libicuuc.so.72.1.0.3": "0" * 64}))
+        with self.assertRaises(SystemExit):
+            NG["icu_libs"](bad, str(self.root / "cache2"), opener)
+
+    def test_engine_env_uses_app_local_icu_and_falls_back_to_invariant(self):
+        env = NG["engine_env"]({"LD_LIBRARY_PATH": "/a"}, "/icu", system_icu="")
+        self.assertEqual(NG["ICU"]["version"], env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"])
+        self.assertEqual("/icu:/a", env["LD_LIBRARY_PATH"])
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", env)
+        env = NG["engine_env"]({}, None, system_icu="")
+        self.assertEqual("1", env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"])
+        env = NG["engine_env"]({}, "/icu", system_icu="libicuuc.so.72")
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU", env)
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", env)
+        env = NG["engine_env"]({"DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "1"}, "/icu", system_icu="")
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU", env)
 
     def test_steam_api_download_is_checked_and_cached(self):
         import hashlib, zipfile

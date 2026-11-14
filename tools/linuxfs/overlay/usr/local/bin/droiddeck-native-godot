@@ -67,6 +67,17 @@ STEAM_API = {"package": "Steamworks.NET.AnyCPU 2026.165.3",
              "member": "runtimes/linux-arm64/native/libsteam_api.so",
              "member_sha256": "6010ff5049f0154a270092cb93729f1fc691d28e3b8a6f5fc6f8fcccfbd1e508"}
 STEAM_API_NAMES = ("libsteam_api64.so", "libsteam_api.so")
+# Microsoft's own ICU build for .NET (app-local ICU), as packaged on nuget.org. The guest has no ICU, and in
+# invariant mode the game's `new CultureInfo(name)` throws (MEASURED on the phone, native-engine-54: its loc setup
+# and error dialog both died on CultureNotFoundException).
+ICU = {"package": "Microsoft.ICU.ICU4C.Runtime.linux-arm64 72.1.0.3",
+       "url": "https://api.nuget.org/v3-flatcontainer/microsoft.icu.icu4c.runtime.linux-arm64/72.1.0.3/"
+              "microsoft.icu.icu4c.runtime.linux-arm64.72.1.0.3.nupkg",
+       "sha256": "1f090fc45429292ae21f9199d5b956ad3570c38a7778ea4085258641727eefaf",
+       "version": "72.1.0.3",
+       "members": {"libicudata.so.72.1.0.3": "900d44dddc886bfb22c926f3e11d875c734ff59bd603efe7f790d24ebff7a78e",
+                   "libicuuc.so.72.1.0.3": "aa6e27e0e3b4f634787535404d72689a743f74889283f515a96878a629b476e2",
+                   "libicui18n.so.72.1.0.3": "515ecc70c21f0e0a5b790fe460c2ef3459efbc8efd36d4863347d3629cf320b3"}}
 DID_NOT_START = 86
 FIRST_FRAME_S = float(os.environ.get("DROIDDECK_NATIVE_FIRST_FRAME_S", "90"))
 FPS_EVERY_S = 60
@@ -332,6 +343,45 @@ def steam_api(spec=STEAM_API, cache=CACHE, opener=urllib.request.urlopen):
         os.chmod(staged, 0o755)
         os.replace(staged, path)
         return path
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def icu_libs(spec=ICU, cache=CACHE, opener=urllib.request.urlopen):
+    """Folder holding Microsoft's linux-arm64 ICU (and the soname links its libraries load each other by),
+    downloading and checking it the first time."""
+    folder = os.path.join(cache, "icu", spec["version"])
+    names = list(spec["members"])
+    if all(os.path.isfile(os.path.join(folder, n)) for n in names):
+        return folder
+    os.makedirs(cache, exist_ok=True)
+    tmp = tempfile.mkdtemp(dir=cache)
+    try:
+        package = os.path.join(tmp, "package.nupkg")
+        digest = hashlib.sha256()
+        with opener(spec["url"], timeout=60) as source, open(package, "wb") as f:
+            for block in iter(lambda: source.read(1 << 20), b""):
+                digest.update(block)
+                f.write(block)
+        if digest.hexdigest() != spec["sha256"]:
+            raise SystemExit("ICU package download did not match its checksum")
+        import zipfile
+        staged = os.path.join(tmp, "icu")
+        os.mkdir(staged)
+        with zipfile.ZipFile(package) as z:
+            for name, sha in spec["members"].items():
+                data = z.read("runtimes/linux-arm64/native/" + name)
+                if hashlib.sha256(data).hexdigest() != sha:
+                    raise SystemExit(f"{name} in the ICU package did not match its checksum")
+                with open(os.path.join(staged, name), "wb") as f:
+                    f.write(data)
+                os.chmod(os.path.join(staged, name), 0o755)
+                os.symlink(name, os.path.join(staged, name.split(".so.")[0] + ".so." + name.split(".so.")[1].split(".")[0]))
+        os.makedirs(os.path.dirname(folder), exist_ok=True)
+        if os.path.isdir(folder):
+            shutil.rmtree(folder)
+        os.rename(staged, folder)
+        return folder
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -828,10 +878,19 @@ def without_x86_preloads(env):
     return env
 
 
-def engine_env(env):
-    """.NET needs ICU unless told to run culture-invariant; the guest may not have it."""
+def engine_env(env, icu=None, system_icu=None):
+    """.NET needs ICU unless told to run culture-invariant, and the guest has none. With icu (icu_libs()'s folder)
+    it loads Microsoft's ICU from there (app-local ICU); without it, it runs culture-invariant, where the game
+    cannot create a CultureInfo by name."""
     env = without_x86_preloads(env)
-    if "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" not in env and not ctypes.util.find_library("icuuc"):
+    if system_icu is None:
+        system_icu = ctypes.util.find_library("icuuc")
+    if "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" in env or "DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU" in env or system_icu:
+        return env
+    if icu:
+        env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] = ICU["version"]
+        env["LD_LIBRARY_PATH"] = icu + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
+    else:
         env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1"
     return env
 
@@ -1046,6 +1105,7 @@ def main(argv=None):
     ap.add_argument("--component")
     ap.add_argument("--kit")
     ap.add_argument("--engine")
+    ap.add_argument("--icu", help="folder with Microsoft's linux-arm64 ICU libraries (default with --fetch: download them)")
     ap.add_argument("--steam-api", help="Valve's linux-arm64 libsteam_api.so (default with --fetch: download it)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--exe")
@@ -1090,7 +1150,15 @@ def main(argv=None):
     cmd = [r["engine"], "--main-pack", r["pack"], "--print-fps"] + rest
     log("run " + " ".join(cmd))
     os.chdir(os.path.abspath(a.game_dir))
-    return watch(line_buffered(cmd), engine_env(os.environ), forward_signals=True,
+    icu = a.icu
+    if icu is None and a.fetch:
+        try:
+            icu = icu_libs()
+        except (Exception, SystemExit) as error:
+            log(f"ICU unavailable ({error}); .NET runs culture-invariant")
+    if icu:
+        log(f"ICU: {ICU['package']} from {icu} (app-local)")
+    return watch(line_buffered(cmd), engine_env(os.environ, icu), forward_signals=True,
                  on_first_frame=r2r_after_first_frame(r))
 
 

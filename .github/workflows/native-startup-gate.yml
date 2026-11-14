@@ -165,6 +165,43 @@ jobs:
           print("accessors match; a missing accessor stops the native launch")
           PY
 
+  app-local-icu:
+    # The guest has no ICU, so the wrapper hands .NET Microsoft's linux-arm64 ICU (app-local). The runner has
+    # its own ICU, so the env is built as the guest's would be; DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU makes .NET
+    # fail fast if it cannot load that copy, and the culture must be a real one (eng), not invariant (ivl).
+    name: app-local ICU
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: A .NET 9 program finds cultures through the wrapper's ICU
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cult" && cd "$RUNNER_TEMP/cult"
+          printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>' > cult.csproj
+          printf '%s\n' 'using System.Globalization;' \
+            'foreach (var n in new[] { "en-US", "fr-FR", "C" }) { var c = new CultureInfo(n); Console.WriteLine($"CULTURE {n} name={c.Name} three={c.ThreeLetterISOLanguageName}"); }' \
+            'Console.WriteLine($"ICU {string.Join(",", System.Diagnostics.Process.GetCurrentProcess().Modules.Cast<System.Diagnostics.ProcessModule>().Select(m => m.FileName).Where(f => f.Contains("icu")))}");' > Program.cs
+          dotnet build -c Release -o out > /dev/null
+          cd "$GITHUB_WORKSPACE"
+          python3 - "$WRAPPER" "$RUNNER_TEMP/cult/out/cult.dll" <<'PY' | tee "$RUNNER_TEMP/cult.log"
+          import os, runpy, subprocess, sys
+          ng = runpy.run_path(sys.argv[1])
+          icu = ng["icu_libs"]()
+          env = ng["engine_env"](dict(os.environ, LANG="C"), icu, system_icu="")
+          assert env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] == ng["ICU"]["version"], env
+          sys.stdout.flush()
+          sys.exit(subprocess.run(["dotnet", sys.argv[2]], env=env).returncode)
+          PY
+          grep -q "CULTURE en-US name=en-US three=eng" "$RUNNER_TEMP/cult.log"
+          grep -q "CULTURE fr-FR name=fr-FR three=fra" "$RUNNER_TEMP/cult.log"
+          grep -E "^ICU " "$RUNNER_TEMP/cult.log" | grep -q "/icu/72.1.0.3/libicuuc.so.72"
+
   gate:
     name: gate ${{ matrix.row }}
     needs: export
