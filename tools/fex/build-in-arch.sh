@@ -7,6 +7,9 @@ grep -q '^DisableSandbox' /etc/pacman.conf || sed -i 's/^\[options\]/[options]\n
 { for m in https://ca.us.mirror.archlinuxarm.org https://fl.us.mirror.archlinuxarm.org https://de3.mirror.archlinuxarm.org https://nl.mirror.archlinuxarm.org; do echo "Server = $m/\$arch/\$repo"; done; cat /etc/pacman.d/mirrorlist; } > /etc/pacman.d/mirrorlist.new
 mv /etc/pacman.d/mirrorlist.new /etc/pacman.d/mirrorlist
 pacman -Syu --noconfirm --needed git zstd binutils cmake ninja clang lld llvm python squashfs-tools file patchelf xxhash
+{ set +x; } 2>/dev/null
+echo "toolchain: $(clang --version | head -1); gcc $(gcc -dumpfullversion); $(cmake --version | head -1); $(pacman -Q glibc)"
+set -x
 
 THUNKS=${FEX_THUNKS:-0}
 X86ROOT=$WORK/x86root

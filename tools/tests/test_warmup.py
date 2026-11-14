@@ -89,6 +89,46 @@ class FexDiskCacheTest(unittest.TestCase):
             _, notes = WARMUP["fex_disk_cache"](STS2, str(tool.prefix), str(tool.proton), {})
             self.assertIn("(FEX-2610, 2 files, 2.0 MB, folder", notes[0])
 
+    def test_cache_keep_stops_fex_pruning_and_keeps_the_last_two_builds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tool = Proton(tmp)
+            cache = tool.prefix / "droiddeck-fex-cache/DiskCache"
+            for age, name in enumerate(("cccccccccccccccc", "bbbbbbbbbbbbbbbb", "aaaaaaaaaaaaaaaa")):
+                (cache / name).mkdir(parents=True)
+                blob = cache / name / "RWCacheDB_1.foz"
+                blob.write_bytes(b"x" * 1048576)
+                then = 1_700_000_000 - age * 3600
+                os.utime(blob, (then, then))
+                os.utime(cache / name, (then, then))
+            env = {"DROIDDECK_EXP_FEX_CACHE_KEEP": "1"}
+            chosen, notes = WARMUP["fex_disk_cache"](STS2, str(tool.prefix), str(tool.proton), env)
+            self.assertEqual("0", chosen["FEX_DISKCACHEPRUNESTALEENTRIES"])
+            self.assertEqual(["bbbbbbbbbbbbbbbb", "cccccccccccccccc"], sorted(p.name for p in cache.iterdir()))
+            self.assertIn("kept: cccccccccccccccc 1.0 MB, bbbbbbbbbbbbbbbb 1.0 MB; deleted: aaaaaaaaaaaaaaaa 1.0 MB", notes[1])
+            self.assertIn("2 files, 2.0 MB", notes[0])
+
+    def test_cache_keep_drops_older_builds_past_the_size_limit_but_never_the_newest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for age, name in enumerate(("new", "old")):
+                (root / name).mkdir()
+                blob = root / name / "db"
+                blob.write_bytes(b"x" * 3 * 1048576)
+                os.utime(blob, (1_700_000_000 - age, 1_700_000_000 - age))
+                os.utime(root / name, (1_700_000_000 - age, 1_700_000_000 - age))
+            line = WARMUP["keep_recent_buckets"](root, 2, 2)
+            self.assertEqual(["new"], [p.name for p in root.iterdir()])
+            self.assertIn("deleted: old 3.0 MB", line)
+
+    def test_without_cache_keep_fex_prunes_as_usual(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tool = Proton(tmp)
+            for name in ("a", "b", "c"):
+                (tool.prefix / "droiddeck-fex-cache/DiskCache" / name).mkdir(parents=True)
+            chosen, _ = WARMUP["fex_disk_cache"](STS2, str(tool.prefix), str(tool.proton), {})
+            self.assertNotIn("FEX_DISKCACHEPRUNESTALEENTRIES", chosen)
+            self.assertEqual(3, len(list((tool.prefix / "droiddeck-fex-cache/DiskCache").iterdir())))
+
     def test_other_games_only_on_request(self):
         with tempfile.TemporaryDirectory() as tmp:
             tool = Proton(tmp)
@@ -249,6 +289,86 @@ class GameEnvironmentWarmupTest(unittest.TestCase):
                                     env=env, text=True, capture_output=True, check=True)
             self.assertEqual("unset", result.stdout.strip())
             self.assertNotIn("warmup:", result.stderr)
+
+
+
+def fake_pe(path, pck, trailer=b"GDPC"):
+    """A PE32+ file like a Godot export: a small .text at 0x400 and the pack in a .pck section at a 512-byte
+    offset, then a trailer after the last section."""
+    import struct
+    headers = bytearray(0x400)
+    headers[:2] = b"MZ"
+    struct.pack_into("<I", headers, 0x3C, 0x80)
+    headers[0x80:0x84] = b"PE\0\0"
+    struct.pack_into("<HHIIIHH", headers, 0x84, 0x8664, 2, 0, 0, 0, 240, 0x22)
+    opt = 0x98
+    struct.pack_into("<H", headers, opt, 0x20B)
+    struct.pack_into("<II", headers, opt + 32, 0x1000, 0x200)  # SectionAlignment, FileAlignment
+    struct.pack_into("<I", headers, opt + 60, 0x400)  # SizeOfHeaders
+    struct.pack_into("<I", headers, opt + 108, 16)  # NumberOfRvaAndSizes
+    sections = opt + 240
+    text = b"\xc3" * 0x200
+    struct.pack_into("<8sIIII", headers, sections, b".text", 0x200, 0x1000, 0x200, 0x400)
+    struct.pack_into("<8sIIII", headers, sections + 40, b".pck", len(pck), 0x2000, len(pck), 0x600)
+    with open(path, "wb") as f:
+        f.write(bytes(headers) + text + pck + trailer)
+
+
+class PeAlignTest(unittest.TestCase):
+    def test_the_copy_has_every_section_at_4096_and_the_same_contents(self):
+        import struct
+        with tempfile.TemporaryDirectory() as tmp:
+            pck = os.urandom(3 << 20)
+            src, dst = os.path.join(tmp, "Game.exe"), os.path.join(tmp, "copy.exe")
+            fake_pe(src, pck)
+            self.assertTrue(WARMUP["pe_needs_align"](src, 0))
+            WARMUP["pe_align_copy"](src, dst)
+            data = open(dst, "rb").read()
+            self.assertFalse(WARMUP["pe_needs_align"](dst, 0))
+            opt = 0x98
+            self.assertEqual((0x1000, 0x1000), struct.unpack_from("<II", data, opt + 36 - 4)[1:] + struct.unpack_from("<I", data, opt + 60))
+            raw = struct.unpack_from("<I", data, opt + 240 + 40 + 20)[0]
+            self.assertEqual(0, raw % 4096)
+            self.assertEqual(pck + b"GDPC", data[raw:])
+
+    def test_section_lines_name_offsets_and_the_last_section(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "Game.exe")
+            fake_pe(src, os.urandom(3 << 20))
+            lines = WARMUP["pe_section_lines"](src, 0)
+            self.assertEqual("Game.exe: 3 MB, 2 sections, FileAlignment 0x200", lines[0])
+            self.assertEqual("Game.exe section .text: offset 0x400 size 512 (0.0 MB) offset%4096 1024", lines[1])
+            self.assertEqual("Game.exe section .pck: offset 0x600 size 3145728 (3.0 MB) offset%4096 1536 last", lines[2])
+            self.assertEqual([], WARMUP["pe_section_lines"](src))
+
+    def test_small_or_aligned_files_stay(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "Game.exe")
+            fake_pe(src, os.urandom(3 << 20))
+            self.assertEqual((None, None), WARMUP["pe_aligned_exe"](src))  # under 64 MB
+            Path(tmp, "a.exe").write_bytes(b"MZ" + b"\0" * 100)
+            self.assertFalse(WARMUP["pe_needs_align"](os.path.join(tmp, "a.exe"), 0))
+
+    def test_the_game_runs_from_a_linked_folder_and_the_copy_is_remade_when_the_game_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp, "game")
+            (game / "data_Game_windows_x86_64").mkdir(parents=True)
+            (game / "steam_api64.dll").write_bytes(b"x")
+            src = game / "Game.exe"
+            fake_pe(src, os.urandom(3 << 20))
+            exe, line = WARMUP["pe_aligned_exe"](str(src), 0)
+            self.assertEqual(str(game / ".droiddeck-aligned" / "Game.exe"), exe)
+            self.assertIn("made in", line)
+            self.assertTrue((game / ".droiddeck-aligned" / "data_Game_windows_x86_64").is_dir())
+            self.assertEqual(b"x", (game / ".droiddeck-aligned" / "steam_api64.dll").read_bytes())
+            self.assertIn("in use", WARMUP["pe_aligned_exe"](str(src), 0)[1])
+            fake_pe(src, os.urandom(3 << 20), b"GDPC2")
+            os.utime(src, ns=(1, 2))
+            self.assertIn("made in", WARMUP["pe_aligned_exe"](str(src), 0)[1])
+            self.assertTrue(open(exe, "rb").read().endswith(b"GDPC2"))
+            (game / "steam_api64.dll").unlink()
+            WARMUP["pe_aligned_exe"](str(src), 0)
+            self.assertFalse(os.path.lexists(game / ".droiddeck-aligned" / "steam_api64.dll"))
 
 
 if __name__ == "__main__":

@@ -5,6 +5,9 @@ name: Build FEX for games (ARM64EC, patched)
 # A push to a perf/emu-fex* or emu/fex* branch adds it to this repo's prerelease kestrel-fex as
 # Kestrel-FEXCore-<yyyymmdd>.<run>-<upstream>-<patch set>.wcp, which the app's fex-kestrel experiment
 # installs through the Auto component line. A patch set already published is not uploaded again.
+# Nothing is published until the build passes the off-device gate (fex-wine-gate.yml): the same Windows
+# programs under Wine on an arm64 runner with stock FEX and with this build, failing on a bad import, a hang,
+# a program that only stock finishes, or a throughput or stall regression.
 
 on:
   push:
@@ -57,8 +60,26 @@ jobs:
           path: |
             fex-ec/*.wcp
             fex-ec/*.wcp.sha256
+            fex-ec/wcp-name
+            fex-ec/patchset
+
+  gate:
+    needs: build
+    uses: ./.github/workflows/fex-wine-gate.yml
+    with:
+      wcp_artifact: fex-arm64ec
+
+  publish:
+    needs: [build, gate]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: fex-arm64ec
+          path: fex-ec
       - name: Publish
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

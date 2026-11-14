@@ -84,7 +84,8 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "hybris-index-session", "native-engine", "dxvk-arm64ec",
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
-               "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim", "vk-blocks-64")
+               "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
+               "fex-cache-keep", "pe-align", "vk-blocks-64")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -3526,6 +3527,26 @@ def load_warmup():
         return None
 
 
+def pe_aligned_launch(command, align):
+    """Logs a large game .exe's sections (headers only) and, with pe-align on, runs the game from a copy of the
+    .exe whose sections Wine can map from the file (droiddeck-warmup, pe_aligned_exe)."""
+    warmup = load_warmup()
+    if warmup is None:
+        return command
+    exe, lines = None, []
+    try:
+        lines = warmup["pe_section_lines"](command[2])
+        if align:
+            exe, line = warmup["pe_aligned_exe"](command[2])
+            if line:
+                lines.append(line)
+    except Exception as error:  # optional: a fault here must not stop the game
+        lines.append("exe sections or aligned copy skipped (%s)" % error)
+    for line in lines:
+        print("droiddeck-game-env: warmup: " + line, file=sys.stderr)
+    return command[:2] + [exe] + command[3:] if exe else command
+
+
 def warmup_launch(command, env, app_id, phases):
     """FEX disk cache, .NET tiering profile and launch-prep timing (droiddeck-warmup)."""
     warmup = load_warmup()
@@ -3822,6 +3843,9 @@ def main():
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)
     watch = bool(waiting and app_id and exit_watch(app_id, env, bool(pacing)))
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        # Last, so everything above sees the game's own folder.
+        command = pe_aligned_launch(command, experiment(env, "pe-align"))
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if waiting and experiment(env, "free-memory"):
