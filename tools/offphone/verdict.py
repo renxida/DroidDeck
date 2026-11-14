@@ -32,6 +32,21 @@ SCENARIOS = {
                       "standin_exit_clean"],
     # runtime_ready and proton_ready only fire when something was installed, so they are not required.
 }
+STEAM = ["start_requested", "guest_started", "steam_starting", "steam_ui", "login_screen"]
+SCENARIOS.update({
+    "steam-ui-screen-cycle": STEAM[:3] + ["screen_cycled"] + STEAM[3:],
+    "steam-ui-background": STEAM[:3] + ["backgrounded"] + STEAM[3:],
+    "stand-in-background": SCENARIOS["stand-in-game"][:2] + ["backgrounded"] + SCENARIOS["stand-in-game"][2:],
+    "upgrade": ["upgrade_installed", "settings_kept", "runtime_kept"] + STEAM,
+})
+# Seconds after the start request by which a stage must have happened. CI's Steam UI takes about
+# 70 s; the cdabfbd regression made a display change cost minutes.
+DEADLINES = {
+    "steam-ui": {"steam_ui": 180},
+    "steam-ui-screen-cycle": {"steam_ui": 180},
+    "steam-ui-background": {"steam_ui": 210},
+    "upgrade": {"steam_ui": 180},
+}
 
 
 def read_jsonl(path):
@@ -116,7 +131,7 @@ def main():
                 seen[stage] = None  # present, time unknown from the log alone
 
     frames = None
-    if a.scenario == "stand-in-game":
+    if a.scenario.startswith("stand-in"):
         first, frames = game_frames(os.path.join(a.session_dir, "frames.csv"))
         if first is not None:
             seen["standin_first_frame"] = first
@@ -126,6 +141,22 @@ def main():
         last = [e for e in events if e.get("event") == "exit.classified"]
         if "standin_frames" in seen and done and done.get("status") == 0 and last and last[-1].get("class") == "clean":
             seen["standin_exit_clean"] = done["t"]
+
+    # Deadlines count from the rig's own start command, so a session the app restarted later
+    # cannot look fast.
+    sent = next((e["t"] for e in rig if e.get("stage") == "start_sent"), start)
+    late = {}
+    for stage, limit in DEADLINES.get(a.scenario, {}).items():
+        t = seen.get(stage)
+        if t is not None and sent is not None and (t - sent) / 1000.0 > limit:
+            late[stage] = {"seconds": round((t - sent) / 1000.0, 1), "limit": limit}
+            del seen[stage]
+    # Stages after a restart belong to another session than the one the rig started.
+    restarted = next((e["t"] for e in rig if e.get("stage") == "session_restarted"), None)
+    if restarted is not None:
+        for stage in [s for s, t in seen.items() if t is not None and t >= restarted]:
+            del seen[stage]
+    seen.pop("start_sent", None)
 
     order = SCENARIOS[a.scenario]
     reached = None
@@ -150,6 +181,8 @@ def main():
         "exit": {k: last_exit.get(k) for k in ("class", "suspect", "status", "signal", "detail")} if last_exit else None,
         "next_missing_stage": next((s for s in order if s not in seen), None),
         "game_vulkan_frames": frames,
+        "too_late": late or None,
+        "session_restarted": restarted is not None,
     }
     with open(a.out, "w") as f:
         json.dump(verdict, f, indent=2)
