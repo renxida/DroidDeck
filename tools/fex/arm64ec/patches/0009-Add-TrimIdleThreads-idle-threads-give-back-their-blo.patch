@@ -1,4 +1,4 @@
-From c456c85cabb82716aa3f923feda29b885420f035 Mon Sep 17 00:00:00 2001
+From ccd055f186c276c5001f3d6681612d8338a9de7a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 14 Nov 2026 10:50:46 +0000
 Subject: [PATCH 9/9] Add TrimIdleThreads: idle threads give back their block
