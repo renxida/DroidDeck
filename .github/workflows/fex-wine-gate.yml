@@ -9,6 +9,9 @@ name: FEX gate (Wine ARM64EC, off-device)
 #   - a program finishes under stock FEX but not under the candidate;
 #   - the candidate's throughput falls below MIN_THROUGHPUT of stock's on the same program, or it stalls
 #     (seconds with no progress) more than STALL_SLACK seconds beyond stock.
+# Programs: stress.exe (heap, VirtualAlloc, threads, events, x87, suspend/get-context), a self-contained .NET 9
+# app, and the Godot 4.5.1 mono stand-in game (native-startup-gate.yml's newest native-standin-win-x64), run
+# headless until GODOT_FRAMES frames; it is skipped when no stand-in artifact is left.
 # A program that fails under stock FEX too is reported, not failed on: that is the environment, not the build.
 #
 # Called by build-fex-arm64ec.yml with the .wcp it just built (wcp_artifact). Run by hand, or on a push to an
@@ -43,12 +46,14 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   HANGOVER_TAG: hangover-11.16
   LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
   MIN_THROUGHPUT: '0.75'
   STALL_SLACK: '3'
+  GODOT_FRAMES: '600'
 
 jobs:
   candidate:
@@ -120,6 +125,10 @@ jobs:
           "$RUNNER_TEMP/$LLVM_MINGW/bin/x86_64-w64-mingw32-clang" -O2 -Wall -static -o bin/stress.exe tools/fex/winetest/stress.c
           dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o bin/clr -v q
           ls -la bin bin/clr/clr.exe
+      - name: Godot stand-in
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/fex/winetest/get-standin.sh bin/standin
       - uses: actions/upload-artifact@v4
         with:
           name: gate-programs
@@ -166,9 +175,15 @@ jobs:
           out="$RUNNER_TEMP/out"
           mkdir -p "$out"
           : > "$out/verdicts.txt"
-          for run in stress:stress.exe clr:clr/clr.exe stress2:stress.exe; do
+          for run in stress:stress.exe clr:clr/clr.exe godot:standin/StandIn.exe stress2:stress.exe; do
             label=${run%%:*} exe="$RUNNER_TEMP/bin/${run#*:}"
-            tools/fex/winetest/run.sh "$label" "$out" "$SECONDS_PER_RUN" "$exe" | tee "$out/$label.verdict" || true
+            [ -f "$exe" ] || { echo "$label: no $exe, skipped"; continue; }
+            if [ "$label" = godot ]; then
+              env HB_RE='^(STANDIN_DEPS|FIRST_FRAME|MAINLOOP_OK)' DONE_RE='^MAINLOOP_OK' OPS_KEY=frames STALL_S=300 PROG_ARGS="--headless -- --quit-after-frames $GODOT_FRAMES" \
+                tools/fex/winetest/run.sh "$label" "$out" "$SECONDS_PER_RUN" "$exe" | tee "$out/$label.verdict" || true
+            else
+              tools/fex/winetest/run.sh "$label" "$out" "$SECONDS_PER_RUN" "$exe" | tee "$out/$label.verdict" || true
+            fi
             grep '^VERDICT ' "$out/$label.verdict" >> "$out/verdicts.txt" || echo "VERDICT $label no-verdict 0 0 0" >> "$out/verdicts.txt"
             wineserver -k || true
             sleep 2

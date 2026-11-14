@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  actions: read # the gate fetches the Godot stand-in from another workflow's run
 
 concurrency:
   group: fex-arm64ec-${{ github.ref }}

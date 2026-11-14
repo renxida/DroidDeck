@@ -7,9 +7,15 @@
 # STALL_S seconds (default 40) is a hang: every thread of the program's process is listed with its state,
 # kernel wait channel and syscall, then gdb prints each thread's native stack, and the process tree is
 # killed. Exit status: 0 done, 1 hang, 2 exited without "done".
+#
+# Another program's progress lines: HB_RE (default '^hb '), DONE_RE (default '^done'), OPS_KEY (the
+# "<key>=N" count on the last progress line; default ops) and PROG_ARGS (its arguments; default <seconds>).
+# The Godot stand-in: HB_RE='^(STANDIN_DEPS|FIRST_FRAME|MAINLOOP_OK)' DONE_RE='^MAINLOOP_OK' OPS_KEY=frames.
 set -uo pipefail
 label=$1 out=$2 seconds=$3 exe=$4
 stall=${STALL_S:-40}
+hb_re=${HB_RE:-'^hb '} done_re=${DONE_RE:-'^done'} ops_key=${OPS_KEY:-ops}
+read -r -a prog_args <<< "${PROG_ARGS:-$seconds}"
 base=$(basename "$exe")
 mkdir -p "$out"
 log="$out/$label.out" err="$out/$label.err" diag="$out/$label.hang.txt"
@@ -19,13 +25,13 @@ pids() { pgrep -x "${base:0:15}" || pgrep -f "[\\/]$base" | while read -r p; do
   case $(cat "/proc/$p/comm" 2>/dev/null) in timeout|bash|run.sh) ;; *) echo "$p" ;; esac; done; }
 
 start=$(date +%s)
-timeout --signal=KILL $((seconds + 240)) wine "$exe" "$seconds" >"$log" 2>"$err" &
+timeout --signal=KILL $((seconds + 240)) wine "$exe" "${prog_args[@]}" >"$log" 2>"$err" &
 runner=$!
 
 last_hb="" last_change=$start status=2
 while kill -0 "$runner" 2>/dev/null; do
   sleep 2
-  hb=$(grep -a '^hb ' "$log" | tail -1)
+  hb=$(grep -aE "$hb_re" "$log" | tail -1)
   now=$(date +%s)
   if [ "$hb" != "$last_hb" ]; then
     if [ -z "$last_hb" ]; then
@@ -72,7 +78,7 @@ while kill -0 "$runner" 2>/dev/null; do
   fi
 done
 wait "$runner" 2>/dev/null
-grep -aq '^done' "$log" && status=0
+grep -aqE "$done_re" "$log" && status=0
 cp /dev/shm/fex-*-samples.csv "$out/" 2>/dev/null || true
 end=$(date +%s)
 case $status in
@@ -81,9 +87,9 @@ case $status in
   *) verdict="exited-without-done" ;;
 esac
 echo "$label: $verdict after $((end - start)) s ($(cat "$out/$label.maps" 2>/dev/null | head -1))"
-echo "$label: last heartbeat: $(grep -a '^hb ' "$log" | tail -1)"
+echo "$label: last heartbeat: $(grep -aE "$hb_re" "$log" | tail -1)"
 # One machine-readable line for the gate: verdict, seconds, last ops count, seconds that made no progress.
-ops=$(grep -a '^hb ' "$log" | tail -1 | grep -oE 'ops=[0-9]+' | cut -d= -f2)
+ops=$(grep -aE "$hb_re" "$log" | tail -1 | grep -oE "$ops_key=[0-9]+" | cut -d= -f2)
 echo "VERDICT $label $verdict $((end - start)) ${ops:-0} $(grep -ac 'STALLED' "$log")"
 grep -a -i "fex\|Sampler\|NameWindowsMemory\|TrimIdleThreads" "$err" | tail -10 || true
 for csv in "$out"/fex-*-samples.csv; do

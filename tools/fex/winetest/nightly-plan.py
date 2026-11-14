@@ -34,7 +34,7 @@ def main():
     soak = os.environ.get("SOAK_SECONDS", "")
     rows = []
 
-    def add(name, wcp, env, secs=seconds, programs="stress clr stress2"):
+    def add(name, wcp, env, secs=seconds, programs="stress clr godot stress2"):
         for r in range(1, repeats + 1):
             rows.append({"name": f"{name} #{r}", "group": name, "id": f"{name}.{r}".replace("+", "_"), "wcp": wcp, "env": env, "seconds": secs, "programs": programs})
 
@@ -59,9 +59,9 @@ def main():
         if soak:
             saved = repeats
             repeats = 1
-            add("soak-stock", "stock", "", soak, "stress clr")
-            add("soak", newest, "", soak, "stress clr")
-            add("soak-all", newest, " ".join(OPTIONS.values()), soak, "stress clr")
+            add("soak-stock", "stock", "", soak, "stress clr godot")
+            add("soak", newest, "", soak, "stress clr godot")
+            add("soak-all", newest, " ".join(OPTIONS.values()), soak, "stress clr godot")
             repeats = saved
     print(json.dumps({"include": rows}))
     print(f"{len(rows)} rows", file=sys.stderr)

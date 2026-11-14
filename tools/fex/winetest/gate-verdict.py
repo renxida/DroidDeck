@@ -7,8 +7,12 @@ Each line: VERDICT <program> <done|HANG|exited-without-done|no-verdict> <seconds
 Programs whose label ends in a digit (stress2) are repeats and pool with their base (stress) for throughput.
 Prints a Markdown table and exits 1 if the candidate fails.
 """
+import os
 import re
 import sys
+
+# Programs whose speed is reported but not failed on yet (a new row, until its noise is known).
+REPORT_ONLY = set(os.environ.get("GATE_REPORT_ONLY", "godot").split())
 
 
 def load(path):
@@ -48,21 +52,26 @@ def main():
                 notes.append(f"{name}: {c['verdict']} under stock FEX too, so not counted against the candidate")
         if s is not None and c["verdict"] == "done" and s["verdict"] == "done" and c["stalls"] > s["stalls"] + slack:
             failures.append(f"{name}: {c['stalls']} stalled seconds against stock's {s['stalls']}")
-    # Throughput, pooled over repeats (stress + stress2), only where both finished.
+    # Throughput: work per wall second, start-up included, pooled over repeats (stress + stress2), only where both
+    # finished. The Godot stand-in does a fixed number of frames, so for it only the time moves.
     pools = {}
     for name in set(stock) & set(cand):
         s, c = stock[name], cand[name]
         if s["verdict"] != "done" or c["verdict"] != "done":
             continue
         base = re.sub(r"\d+$", "", name)
-        a = pools.setdefault(base, [0, 0])
+        a = pools.setdefault(base, [0, 0, 0, 0])
         a[0] += s["ops"]
         a[1] += c["ops"]
+        a[2] += max(s["seconds"], 1)
+        a[3] += max(c["seconds"], 1)
     print()
-    for base, (s_ops, c_ops) in sorted(pools.items()):
-        r = c_ops / s_ops if s_ops else 0.0
+    for base, (s_ops, c_ops, s_secs, c_secs) in sorted(pools.items()):
+        r = (c_ops / c_secs) / (s_ops / s_secs) if s_ops else 0.0
         print(f"- {base}: candidate does {r:.2f}x stock's work (minimum {ratio:.2f})")
-        if r < ratio:
+        if r < ratio and base in REPORT_ONLY:
+            notes.append(f"{base}: {r:.2f}x stock, below {ratio:.2f} (reported only)")
+        elif r < ratio:
             failures.append(f"{base}: throughput {r:.2f}x stock, below {ratio:.2f}")
     print()
     for n in notes:
