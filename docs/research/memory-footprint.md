@@ -161,8 +161,38 @@ lead time and few false alarms.
 | I6b | `DROIDDECK_DOTNET_HEAP_LIMIT_MB` + `tools/dotnet_heap_limit.py` | **built**, off until set | caps runaway managed growth; GC compacts near 90 % of the cap | none until set | too low a cap turns into `OutOfMemoryException` (`DROIDDECK_GAME_EXIT ... class=out_of_memory`) |
 | I9 | Drop Coil's memory cache during sessions | **built** | up to 20 % of the large memory class (about 100 MB at 512 MB) | images reload from disk on return | none known |
 | I7 | lmkd-risk warning (not a stop) | **built** | the player saves before a kill | one 2 s poll | false alarms only annoy |
+| I10 | Close other apps' background processes (experiment `free-memory`) | **built**, remote config turns it on | cached apps' RAM and zram back before Steam starts and before a game | up to ~10 s at session start or game launch; killed apps start fresh | balloon pressure reaches lmkd's low-swap kills (adj > 200), so home or the previous app may restart too |
 | - | FEX code-cache or lookup caps | not possible | none left: sizes are compile-time, savers are already on | - | - |
 | - | Stop only the game on predicted lmkd kill | rejected (section 4) | - | - | kills games lmkd would spare |
+
+## 5a. Closing other apps' background processes (I10)
+
+Telemetry of one session: 8.9 GB used and 4 GB of swap held by other apps before the game; with the game
+running, swap full, `MemAvailable` 300-700 MB, the game at ~500 MB resident and 2.2 GB swapped, 42 → 11 fps.
+
+**What the platform allows (VERIFIED, `ActivityManagerService.killBackgroundProcesses`, Android 14+).** A caller
+without the privileged `KILL_ALL_BACKGROUND_PROCESSES` only reaches its own package; for any other it logs
+`Invalid packageName` and returns. The app still makes the calls and measures, so an older or different build
+shows up in the numbers.
+
+**The balloon.** `FreeMemory` binds `MemoryBalloonService` in the `:balloon` process with
+`BIND_NOT_PERCEPTIBLE`. From an app at adj ≤ 200 that pins the balloon to `PERCEPTIBLE_LOW_APP_ADJ` 250
+(`OomAdjuster`), and the app refuses to grow it unless its `oom_score_adj` is above the app's. It maps 256 MB
+steps of shared memory filled with random bytes (zram cannot compress them away). lmkd [L1] then kills on its
+own rules: free pages under the high watermark kill adj ≥ 701 (cached apps, `LOW_MEM`); low swap or thrashing
+reach adj ≥ 201; a complete stall reaches 0, still highest adj first, so the balloon (250) dies before this app
+(0) or a perceptible one (200). Growth stops when two steps in a row bring nothing back after kills began, at a
+third of RAM or 4 GB, after 6 s, under 256 MB available, or when PSI `full` exceeds 25 % of a step. Then the
+memory is released and the process exits.
+
+**When.** Once per session after the session folder opens, joined before the session's own processes start, when
+under 4 GB is available; and before a game, when `droiddeck-game-env` writes `free-memory` to `$BL_LAUNCH_DIR`
+and waits up to 15 s for `free-memory-done`, if under 3 GB is available. Each run writes a `memory.freed` event
+and a `DROIDDECK_FREE_MEMORY` line in `session.log`; the lmkd-risk warning stays quiet for 30 s after it.
+
+**To verify on the device:** `balloonAdj=250 appAdj=0`, `balloonStop=reclaimed` rather than `cap`/`time`/`floor`,
+`freedMb` and `swapUsedAfterMb` against before, and the game's resident share and fps against a run with the
+experiment off.
 
 ## 6. On-device experiment plan
 

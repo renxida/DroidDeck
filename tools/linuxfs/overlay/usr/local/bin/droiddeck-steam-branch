@@ -1,0 +1,300 @@
+#!/usr/bin/python3
+"""Put a Steam game on the branch Kestrel asked for, before the Steam client starts.
+
+The app writes the wanted branch ("beta" or "public") to <requests>/<appid>. Steam keeps one
+install per app, so the branch that is not in use is parked whole under
+steamapps/kestrel-branches/<appid>/<branch>/ and moved back by rename: switching to a branch that
+was played before downloads only what Steam changed on it since. The first switch to a branch
+copies the current install as the parked one, then Steam updates the live copy to the new branch.
+
+  droiddeck-steam-branch apply <steam_root> <requests>       Steam must not be running
+  droiddeck-steam-branch pending <steam_root> <requests> <appid>   exit 0 if a switch is due
+"""
+import os
+import re
+import runpy
+import shutil
+import sys
+
+BIN_DIR = os.path.dirname(os.path.abspath(__file__))
+PARK = "kestrel-branches"
+PUBLIC = "public"
+FULLY_INSTALLED = 4
+MARGIN = 2 << 30
+_compat = None
+
+
+def compat():
+    global _compat
+    if _compat is None:
+        _compat = runpy.run_path(os.path.join(BIN_DIR, "steam-compatibility"))
+    return _compat
+
+
+def log(message):
+    print("== steam branch: " + message, flush=True)
+
+
+def parse(text):
+    tokens = re.findall(r'"((?:[^"\\]|\\.)*)"|([{}])', text)
+    position = 0
+
+    def block():
+        nonlocal position
+        items = []
+        while position < len(tokens):
+            string, brace = tokens[position]
+            position += 1
+            if brace == "}":
+                return items
+            if brace == "{":
+                raise ValueError("unexpected {")
+            if position >= len(tokens):
+                raise ValueError("key without value")
+            value, open_brace = tokens[position]
+            position += 1
+            if open_brace == "{":
+                items.append([string, block()])
+            elif open_brace:
+                raise ValueError("unexpected }")
+            else:
+                items.append([string, value])
+        return items
+
+    return block()
+
+
+def dump(items, depth=0):
+    out = []
+    pad = "\t" * depth
+    for key, value in items:
+        if isinstance(value, list):
+            out.append('%s"%s"\n%s{\n%s%s}\n' % (pad, key, pad, dump(value, depth + 1), pad))
+        else:
+            out.append('%s"%s"\t\t"%s"\n' % (pad, key, value))
+    return "".join(out)
+
+
+def find(items, key):
+    for item in items:
+        if item[0].lower() == key.lower():
+            return item
+    return None
+
+
+class Manifest:
+    def __init__(self, path):
+        self.path = path
+        with open(path, encoding="utf-8", errors="replace") as f:
+            self.items = parse(f.read())
+        state = find(self.items, "AppState")
+        if state is None or not isinstance(state[1], list):
+            raise ValueError("no AppState in " + path)
+        self.state = state[1]
+
+    def value(self, key, default=""):
+        item = find(self.state, key)
+        return item[1] if item and not isinstance(item[1], list) else default
+
+    @property
+    def branch(self):
+        config = find(self.state, "UserConfig")
+        item = find(config[1], "BetaKey") if config and isinstance(config[1], list) else None
+        key = item[1] if item and not isinstance(item[1], list) else ""
+        return key or PUBLIC
+
+    def set_branch(self, key):
+        config = find(self.state, "UserConfig")
+        if config is None or not isinstance(config[1], list):
+            config = ["UserConfig", []]
+            self.state.append(config)
+        config[1][:] = [item for item in config[1] if item[0].lower() != "betakey"]
+        if key != PUBLIC:
+            config[1].append(["BetaKey", key])
+
+    @property
+    def clean(self):
+        try:
+            return int(self.value("StateFlags", "0")) == FULLY_INSTALLED
+        except ValueError:
+            return False
+
+    def save(self, path=None):
+        path = path or self.path
+        temporary = path + ".tmp"
+        with open(temporary, "w", encoding="utf-8") as f:
+            f.write(dump(self.items))
+        os.replace(temporary, path)
+
+
+def wanted(requests, appid):
+    try:
+        with open(os.path.join(requests, appid), encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def resolve(steam_root, appid, want):
+    """Map "beta"/"public" (or an exact branch name) to the branch key Steam lists for the app."""
+    if want in ("", PUBLIC, "stable"):
+        return PUBLIC
+    entry = compat()["appinfo_entries"](os.path.join(steam_root, "appcache", "appinfo.vdf"), wanted={appid}).get(appid, {})
+    listed = entry.get("branches", {})
+    if want in listed and want != PUBLIC:
+        return want if not listed[want]["password"] else None
+    if want != "beta":
+        return None
+    open_betas = [(branch["updated"], name) for name, branch in listed.items()
+                  if name != PUBLIC and not branch["password"] and "beta" in name.lower()]
+    return max(open_betas)[1] if open_betas else None
+
+
+def installed(steam_root, appid):
+    for library in compat()["libraries"](steam_root):
+        path = os.path.join(library, "steamapps", "appmanifest_%s.acf" % appid)
+        if os.path.isfile(path):
+            return library, path
+    return None, None
+
+
+def park_dir(library, appid, branch):
+    return os.path.join(library, "steamapps", PARK, appid, branch.replace("/", "_"))
+
+
+def free_bytes(path):
+    try:
+        stat = os.statvfs(path)
+    except OSError:
+        return 0
+    return stat.f_bavail * stat.f_frsize
+
+
+def tree_size(path):
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            try:
+                total += os.lstat(os.path.join(root, name)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def drop_staging(library, appid):
+    for part in ("downloading", "temp"):
+        shutil.rmtree(os.path.join(library, "steamapps", part, appid), ignore_errors=True)
+
+
+def due(steam_root, requests, appid):
+    want = wanted(requests, appid)
+    if not want:
+        return None
+    library, path = installed(steam_root, appid)
+    if not path:
+        return None
+    try:
+        manifest = Manifest(path)
+    except (OSError, ValueError) as e:
+        log("%s: manifest unreadable (%s)" % (appid, e))
+        return None
+    key = resolve(steam_root, appid, want)
+    if key is None:
+        log("%s: no open %s branch listed for this app; leaving it on '%s'" % (appid, want, manifest.branch))
+        return None
+    if key == manifest.branch:
+        return None
+    return library, manifest, key
+
+
+def switch(steam_root, requests, appid):
+    found = due(steam_root, requests, appid)
+    if found is None:
+        library, path = installed(steam_root, appid)
+        if path:
+            try:
+                live = Manifest(path).branch
+            except (OSError, ValueError):
+                return
+            stale = park_dir(library, appid, live)
+            if os.path.isdir(stale):
+                log("%s: removing a parked copy of '%s', which is the live install" % (appid, live))
+                shutil.rmtree(stale, ignore_errors=True)
+        return
+    library, manifest, key = found
+    current = manifest.branch
+    folder = manifest.value("installdir")
+    common = os.path.join(library, "steamapps", "common")
+    live = os.path.join(common, folder) if folder else ""
+    if not folder or not os.path.isdir(live):
+        log("%s: install folder missing; asking Steam for '%s'" % (appid, key))
+        manifest.set_branch(key)
+        manifest.save()
+        return
+    target = park_dir(library, appid, key)
+    parked = os.path.join(target, "appmanifest.acf")
+    leaving = park_dir(library, appid, current)
+    for leftover in (target + ".tmp", leaving + ".tmp"):
+        shutil.rmtree(leftover, ignore_errors=True)
+    if os.path.isfile(parked) and os.path.isdir(os.path.join(target, "files")) and manifest.clean:
+        shutil.rmtree(leaving, ignore_errors=True)
+        staging = leaving + ".tmp"
+        os.makedirs(staging)
+        os.rename(live, os.path.join(staging, "files"))
+        os.rename(manifest.path, os.path.join(staging, "appmanifest.acf"))
+        os.rename(staging, leaving)
+        restored = Manifest(parked)
+        if restored.value("installdir") != folder:
+            restored.state[:] = [i for i in restored.state if i[0].lower() != "installdir"] + [["installdir", folder]]
+        os.rename(os.path.join(target, "files"), live)
+        restored.save(manifest.path)
+        shutil.rmtree(target, ignore_errors=True)
+        drop_staging(library, appid)
+        log("%s: swapped in the parked '%s' install; '%s' parked" % (appid, key, current))
+        return
+    if manifest.clean:
+        size = tree_size(live)
+        if free_bytes(library) >= size * 2 + MARGIN:
+            staging = leaving + ".tmp"
+            os.makedirs(staging)
+            shutil.copytree(live, os.path.join(staging, "files"), symlinks=True)
+            manifest.save(os.path.join(staging, "appmanifest.acf"))
+            shutil.rmtree(leaving, ignore_errors=True)
+            os.rename(staging, leaving)
+            log("%s: kept a %.1f GB copy of '%s' so switching back needs no download" % (appid, size / 2**30, current))
+        else:
+            log("%s: not enough free space to keep '%s' as well (%.1f GB install); switching in place"
+                % (appid, current, size / 2**30))
+    else:
+        log("%s: '%s' install is mid-update; switching in place" % (appid, current))
+    manifest.set_branch(key)
+    manifest.save()
+    drop_staging(library, appid)
+    log("%s: set to '%s' (was '%s'); Steam downloads the difference on start" % (appid, key, current))
+
+
+def main(argv):
+    if len(argv) >= 3 and argv[0] == "apply":
+        steam_root, requests = argv[1], argv[2]
+        try:
+            apps = sorted(name for name in os.listdir(requests) if name.isdigit())
+        except OSError:
+            return 0
+        for appid in apps:
+            try:
+                switch(steam_root, requests, appid)
+            except (OSError, ValueError) as e:
+                log("%s: switch failed (%s)" % (appid, e))
+        return 0
+    if len(argv) == 4 and argv[0] == "pending" and argv[3].isdigit():
+        found = due(argv[1], argv[2], argv[3])
+        if found:
+            print(found[2])
+            return 0
+        return 1
+    print(__doc__.strip(), file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -118,9 +118,9 @@ did not move a game's stick with injected rates, so gyro remains unconfirmed.
 ## DroidDeck's look
 
 With feature parity reached, the overlay keeps Steam Link's controls (outlined, white, Steam's face
-colours) but is DroidDeck's own: the guide button carries the split-D mark (artwork/droiddeck-mark.svg)
+colours) but is the app's own: the guide button carries the Lanner falcon mark (artwork/lanner-mark.svg)
 instead of Steam's logo, and the menu, tray and pickers use the app's palette (ui/Theme.kt: surfaces
-#121417 / #1A1D22, hairlines #262A31, text #F2F4F7 / #9AA3AF, accent #1A9FFF), rounded corners and
+#121417 / #1A1D22, hairlines #262A31, text #F2F4F7 / #9AA3AF, accent #E0703A in the default Lanner theme), rounded corners and
 switches rather than Steam Link's navy panels and blue gradient tiles.
 
 **Shake to hide**: a toggle in the menu (Steam Link's shake_fade). Three jolts above 2.3 g within

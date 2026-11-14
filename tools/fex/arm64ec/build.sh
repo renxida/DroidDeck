@@ -18,6 +18,11 @@ SRC=$WORK/src
 OUT=$WORK/install
 JOBS=${JOBS:-$(nproc)}
 
+# Patch set id: the patches plus this recipe, so a change to how the DLLs are built publishes a new wcp too.
+patchset() { cat "$HERE"/patches/*.patch "$HERE/build.sh" | sha256sum | cut -c1-8; }
+# The name the DLLs carry (FEXCore's version string, < 32 chars), so telemetry can tell this build from stock FEX.
+fex_name() { echo "FEX-Kestrel-$(cut -c1-9 < "$HERE/FEX_REF")-$(patchset)"; }
+
 fetch() {
   local stamp
   stamp="$FEX_REF $(cat "$HERE"/patches/*.patch | sha256sum | cut -c1-16)"
@@ -44,7 +49,8 @@ dll() { # $1 = arm64ec | wow64
     -DCMAKE_TOOLCHAIN_FILE=Data/CMake/toolchain_mingw.cmake -DMINGW_TRIPLE=${triple}-w64-mingw32 \
     -DCMAKE_INSTALL_LIBDIR=/usr/lib/wine/aarch64-windows -DCMAKE_INSTALL_PREFIX=/usr \
     -DENABLE_LTO=False -DENABLE_ASSERTIONS=False -DENABLE_JEMALLOC_GLIBC_ALLOC=False \
-    -DBUILD_TESTING=False -DTUNE_ARCH=generic -DTUNE_CPU=none -DRANGES_NATIVE=OFF
+    -DBUILD_TESTING=False -DTUNE_ARCH=generic -DTUNE_CPU=none -DRANGES_NATIVE=OFF \
+    -DOVERRIDE_VERSION="$(fex_name)"
   ninja -C "$WORK/build_$1" -j "$JOBS"
   DESTDIR="$OUT" ninja -C "$WORK/build_$1" install >/dev/null
 }
@@ -64,7 +70,7 @@ unixlib() {
 package() {
   local upstream patches version files=() f
   upstream=$(cut -c1-9 < "$HERE/FEX_REF")
-  patches=$(cat "$HERE"/patches/*.patch | sha256sum | cut -c1-8)
+  patches=$(patchset)
   # Starts with a digit (the Auto line needs it) and sorts by build: <yyyymmdd>.<build>-<upstream>-<patch set>.
   version=${FEX_BUILD:-$(date -u +%Y%m%d).0}-$upstream-$patches
   echo "$upstream-$patches" > "$WORK/patchset"

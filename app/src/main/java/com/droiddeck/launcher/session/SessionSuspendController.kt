@@ -24,7 +24,11 @@ internal class SessionSuspendController(
     private val readBackAllowed: () -> Boolean = { true },
     private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _ -> },
+    private val stillStopped: (List<Stuck>) -> Unit = {},
 ) {
+    /** A process with [threads] of its [total] threads still stopped (states in [states]) after a resume. */
+    data class Stuck(val pid: Int, val name: String, val threads: Int, val total: Int, val states: String)
+
     private enum class Role { SESSION_ROOT, SESSION_CHILD, HELPER_ROOT, HELPER_CHILD }
 
     private data class ProcessRecord(
@@ -119,8 +123,58 @@ internal class SessionSuspendController(
             val resumed = restoreSafely(records)
             if (resumed) frozen = emptyList()
             completion(resumed)
-            if (resumed) readBack()
+            if (resumed) {
+                checkStillStopped(records)
+                readBack()
+            }
         }, { completion(false) })
+    }
+
+    /**
+     * Threads that stay stopped (T, or t under the proot tracer) with no CPU time across [STUCK_WINDOW_MS]
+     * after a resume did not wake. They get SIGCONT again, thread by thread, and are reported.
+     */
+    private fun checkStillStopped(records: List<ProcessRecord>) {
+        try {
+            val first = stoppedThreads(records)
+            if (first.isEmpty() || closing) return
+            sleep(STUCK_WINDOW_MS)
+            val second = stoppedThreads(records)
+            val stuck = first.filter { (key, ticks) -> second[key] == ticks }.keys
+            if (stuck.isEmpty()) return
+            val byProcess = stuck.groupBy { it.first }
+            for ((record, threads) in byProcess) {
+                send(record, SIGCONT)
+                for ((_, tid) in threads) {
+                    try { threadSignal(record.pid, tid, SIGCONT) } catch (_: Throwable) {}
+                }
+            }
+            stillStopped(byProcess.map { (record, threads) ->
+                val tasks = File(procRoot, "${record.pid}/task").listFiles().orEmpty()
+                val states = threads.mapNotNull { (_, tid) ->
+                    try { readStat(File(procRoot, "${record.pid}/task/$tid/stat"))[0].first() } catch (_: IOException) { null }
+                }.distinct().joinToString("")
+                val name = try { File(procRoot, "${record.pid}/comm").readText().trim() } catch (_: IOException) { "?" }
+                Stuck(record.pid, name, threads.size, tasks.count { it.name.toIntOrNull() != null }, states)
+            })
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun stoppedThreads(records: List<ProcessRecord>): Map<Pair<ProcessRecord, Int>, Long> {
+        val found = HashMap<Pair<ProcessRecord, Int>, Long>()
+        for (record in records) {
+            if (isGone(record)) continue
+            for (entry in File(procRoot, "${record.pid}/task").listFiles().orEmpty()) {
+                val tid = entry.name.toIntOrNull() ?: continue
+                val fields = try { readStat(File(entry, "stat")) } catch (_: IOException) { continue }
+                val state = fields[0].first()
+                if (state == 'T' || state == 't') found[record to tid] = fields[11].toLong() + fields[12].toLong()
+            }
+        }
+        return found
     }
 
     fun closeAndResume(completion: () -> Unit) {
@@ -438,6 +492,7 @@ internal class SessionSuspendController(
         const val READ_BACK_AVAILABLE_FACTOR = 2L
         const val READ_BACK_TOTAL_SHARE = 10L
         const val RESTORE_CHECKS = 80
+        const val STUCK_WINDOW_MS = 500L
         const val FREEZE_TIMEOUT_MS = 8_000L
         const val FREEZE_MAX_PASSES = 256
     }

@@ -88,4 +88,24 @@ class AddonPackTest {
                 }
             }
         }
+
+    @Test fun aForkBuildAlsoLooksInTheForksOwnReleases() {
+        assertEquals(
+            listOf(
+                "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/pack-powervr-aa0fcacd40acdece/powervr.tar.zst",
+                "https://github.com/renxida/DroidDeck/releases/download/pack-powervr-aa0fcacd40acdece/powervr.tar.zst",
+            ),
+            AddonPack.urls("pack-powervr-aa0fcacd40acdece", "powervr", "renxida/DroidDeck", 0),
+        )
+    }
+
+    @Test fun upstreamAndLocalBuildsLookOnlyInTheComponentsRelease() {
+        assertEquals(1, AddonPack.urls("pack-proot-0123456789abcdef", "proot", "", 0).size)
+        assertEquals(1, AddonPack.urls("pack-proot-0123456789abcdef", "proot", "Droid-Deck/DroidDeck-Components", 0).size)
+        assertEquals(3, AddonPack.urls("pack-proot-0123456789abcdef", "proot", "renxida/DroidDeck", 7).size)
+    }
+
+    @Test fun aFailedDownloadIsRetriedAfterPauses() {
+        assertEquals(listOf(2_000L, 5_000L, 15_000L), AddonPack.RETRY_DELAYS_MS)
+    }
 }

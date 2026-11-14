@@ -69,4 +69,16 @@ internal fun TelemetryUploadRows(host: MenuHost) {
         }
         message?.let { Text(it, fontSize = 12.sp, color = colors.onSurfaceVariant) }
     }
+    var testMessage by remember { mutableStateOf<String?>(null) }
+    ActionRow(stringResource(R.string.autotest_run_now), testMessage ?: stringResource(R.string.autotest_run_now_hint),
+        stringResource(R.string.autotest_run_now_button), onClick = {
+            testMessage = ctx.getString(R.string.autotest_checking)
+            com.droiddeck.launcher.session.AutoTest.runNow(ctx) { testMessage = it }
+        })
+    var remote by remember { mutableStateOf(com.droiddeck.launcher.agent.AgentRemote.enabled(ctx)) }
+    ToggleRow(host, "remote-control", stringResource(R.string.remote_control),
+        com.droiddeck.launcher.agent.AgentRemote.lastResult(ctx) ?: stringResource(R.string.remote_control_hint), remote) {
+        com.droiddeck.launcher.agent.AgentRemote.setEnabled(ctx, it)
+        remote = it
+    }
 }

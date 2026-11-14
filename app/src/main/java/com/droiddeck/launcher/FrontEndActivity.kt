@@ -399,7 +399,7 @@ class FrontEndActivity : ComponentActivity() {
     private var bootMovieCustomName by mutableStateOf<String?>(null)
     private var bootMovieImporting by mutableStateOf(false)
     private var bootMovieProgress by mutableStateOf(-1)
-    private var theme by mutableStateOf("graphite")
+    private var theme by mutableStateOf("lanner")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
     private var upscaler by mutableStateOf(0)
@@ -666,11 +666,14 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
-    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false): Boolean {
+    private fun launchGame(
+        game: Library.SteamGame, returnHome: Boolean = false, branch: String = com.droiddeck.launcher.session.SteamBranch.BETA,
+    ): Boolean {
         if (pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
+        com.droiddeck.launcher.session.SteamBranch.request(this, game.appId, branch)
         if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, game)) return launchWithoutSteam(game, returnHome)
         if (SessionState.running) {
             if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
@@ -913,6 +916,12 @@ class FrontEndActivity : ComponentActivity() {
                             else if (g.gameIdString !in preparingGames) {
                                 preparingGames = preparingGames + g.gameIdString
                                 prepareAndLaunch(g, g.gameIdString)
+                            }
+                        },
+                        onSteamGameStable = { g ->
+                            if (g.gameIdString !in preparingGames) {
+                                preparingGames = preparingGames + g.gameIdString
+                                prepareAndLaunch(g, g.gameIdString, com.droiddeck.launcher.session.SteamBranch.STABLE)
                             }
                         },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
@@ -1505,13 +1514,13 @@ class FrontEndActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) state.getParcelable(key, Intent::class.java)
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
-    private fun prepareAndLaunch(g: Library.SteamGame, key: String) {
+    private fun prepareAndLaunch(g: Library.SteamGame, key: String, branch: String = com.droiddeck.launcher.session.SteamBranch.BETA) {
         val request = gameLaunchRequest.incrementAndGet()
         val done = { preparingGames = preparingGames - key }
         com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g, onBlocked = done) {
             if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) { done(); return@beforeLaunch }
             done()
-            launchGame(g)
+            launchGame(g, branch = branch)
         }
     }
 

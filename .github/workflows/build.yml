@@ -214,10 +214,10 @@ jobs:
         if: steps.proot.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py proot
 
-      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse and vkcount layers)
+      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, texture converter, Xclipse, vkcount and indexed hybris compat layers)
         run: |
           set -euo pipefail
-          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan-dev
           D=app/src/main/assets/linuxfs
           mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
@@ -229,8 +229,12 @@ jobs:
             -o "$D/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so" tools/linuxfs/vkcount-layer/vkcount_layer.c
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so"
           install -m644 tools/linuxfs/vkcount-layer/VkLayer_droiddeck_vkcount.json "$D/usr/local/lib/droiddeck-vkcount/"
+          bash tools/hybris/compat-layer/build.sh "$D/usr/local/lib/droiddeck-hybris-compat"
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-hybris-compat/libVkLayer_droiddeck_hybris_compat.so"
           aarch64-linux-gnu-gcc -O2 -Wall -o "$D/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-glprobe"
+          bash tools/linuxfs/texpack/build.sh "$D/usr/local/bin/droiddeck-ctex-astc" aarch64-linux-gnu-g++
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-ctex-astc"
 
       - name: Check the preloads
         run: |
@@ -502,6 +506,8 @@ jobs:
           D=app/src/main/assets/linuxfs/usr/local/lib/droiddeck-tso-litmus
           bash tools/tso-litmus/build.sh "$D" --smoke 20
           test -f "$D/tso-litmus.exe" && test -f "$D/tso-litmus.dll"
+      - name: Fetch crossgen2 for droiddeck-dotnet-r2r (MIT, Microsoft.NETCore.App.Crossgen2.linux-arm64)
+        run: bash tools/dotnet-r2r/fetch-crossgen2.sh app/src/main/assets/linuxfs/usr/local/lib/droiddeck-crossgen2
 
       - name: Build
         id: build
@@ -525,6 +531,16 @@ jobs:
           NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
           python3 tools/release/check_android_libraries.py app/build/outputs/apk/release/app-release.apk \
             --readelf "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+
+      - name: Build a host proot for the suspend tests (tools/proot/build-host.sh)
+        run: |
+          set -euo pipefail
+          if [ ! -f /usr/include/talloc.h ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libtalloc-dev
+          fi
+          bash tools/proot/build-host.sh "$RUNNER_TEMP/host-proot"
+          echo "KESTREL_TEST_PROOT=$RUNNER_TEMP/host-proot/proot" >> "$GITHUB_ENV"
 
       - name: Unit tests
         id: unit-tests
@@ -694,6 +710,55 @@ jobs:
       actions: read
     uses: ./.github/workflows/publish-packs.yml
     secrets: inherit
+
+  fork-packs:
+    needs: [build, checks]
+    # A fork's APK downloads each add-on pack from upstream's DroidDeck-Components release, then from the fork's own
+    # release of the same tag (AddonPack.urls). A pack the fork changed exists only here, so publish it to the fork.
+    if: github.event_name == 'push' && github.event.repository.fork
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: fork-packs
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: droiddeck-packs
+          path: packs
+
+      - name: Publish this build's packs to the fork's releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for name in proot directaudio powervr; do
+            file="packs/$name.tar.zst"
+            [ -f "$file" ] || { echo "::error::$name.tar.zst is missing from this run's packs"; exit 1; }
+            sha=$(sha256sum "$file" | cut -d' ' -f1)
+            tag="pack-$name-${sha:0:16}"
+            if curl -fsIL -o /dev/null "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$tag/$name.tar.zst"; then
+              echo "$tag: upstream has it"
+              continue
+            fi
+            if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "$tag: already on the fork; published tags are never replaced"
+              continue
+            fi
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "$tag" --notes "$name add-on pack built by Build APK run $GITHUB_RUN_ID ($GITHUB_SHA). sha256 $sha" \
+              "$file"
+            echo "$tag: published"
+          done
+          for name in proot directaudio powervr; do
+            sha=$(sha256sum "packs/$name.tar.zst" | cut -d' ' -f1)
+            tag="pack-$name-${sha:0:16}"
+            curl -fsIL -o /dev/null "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$tag/$name.tar.zst" ||
+              curl -fsIL -o /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$name.tar.zst" ||
+              { echo "::error::$tag is not downloadable from upstream or the fork; this APK's setup would fail"; exit 1; }
+          done
 
   announce:
     needs: [build, sign, packs]

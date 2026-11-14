@@ -526,6 +526,61 @@ attenuation = true
         self.assertEqual(["--game-dir", "/games/Slay the Spire 2"], calls[0][0][-2:])
         self.assertIn("native-inventory", env["EXPERIMENTS"])
 
+    def test_lists_the_largest_files_and_every_font(self):
+        entries = [
+            (".godot/imported/NotoSansCJK.otf-1a2b.fontdata", b"F" * 5000),
+            (".godot/imported/Kreon.ttf-3c4d.fontdata", b"F" * 300),
+            ("fonts/NotoSansCJK.otf.import",
+             b'[remap]\nimporter="font_data_dynamic"\ntype="FontFile"\npath="res://.godot/imported/NotoSansCJK.otf-1a2b.fontdata"\n'),
+            ("cards/strike.ctex", b"T" * 2000),
+        ]
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        game = Path(tmp.name) / "Slay the Spire 2"
+        game.mkdir()
+        (game / "SlayTheSpire2.pck").write_bytes(pack(entries))
+        report = self.run_inventory(game, tmp)
+        self.assertEqual([".godot/imported/NotoSansCJK.otf-1a2b.fontdata", "cards/strike.ctex"],
+                         [f["name"] for f in report["big_files"][:2]])
+        self.assertEqual({".godot/imported/NotoSansCJK.otf-1a2b.fontdata": 5000, ".godot/imported/Kreon.ttf-3c4d.fontdata": 300},
+                         {f["name"]: f["size"] for f in report["fonts"]})
+        self.assertEqual([{"import": "fonts/NotoSansCJK.otf.import", "path": "res://.godot/imported/NotoSansCJK.otf-1a2b.fontdata"}],
+                         report["font_imports"])
+
+    def test_texture_survey_counts_formats_bytes_and_pixels(self):
+        def ctex(w, h, data, fmt, mips, body=64):
+            return (b"GST2" + struct.pack("<IIIIIIII", 1, w, h, 0, 0, 0, 0, 0)
+                    + struct.pack("<IHHII", data, w, h, mips, fmt) + b"\0" * body)
+        entries = [
+            (".godot/imported/a.png-1.bptc.ctex", ctex(2048, 1024, 0, 22, 0)),
+            (".godot/imported/b.png-2.bptc.ctex", ctex(256, 256, 0, 22, 0)),
+            (".godot/imported/c.png-3.s3tc.ctex", ctex(64, 64, 0, 17, 6)),
+            (".godot/imported/d.png-4.ctex", ctex(32, 32, 2, 5, 0)),
+            (".godot/imported/e.png-5.ctex", b"junk"),
+        ]
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        game = Path(tmp.name) / "Slay the Spire 2"
+        game.mkdir()
+        (game / "SlayTheSpire2.pck").write_bytes(pack(entries))
+        report = self.run_inventory(game, tmp)
+        kinds = report["textures"]["kinds"]
+        self.assertEqual(["image BPTC_RGBA", "image DXT1 mips", "webp RGBA8"], list(kinds))
+        self.assertEqual({"files": 2, "bytes": 232, "pixels": 2048 * 1024 + 256 * 256, "over_1024": 1,
+                          "largest": [2048, 1024]}, kinds["image BPTC_RGBA"])
+        self.assertEqual(1, report["textures"]["unread"])
+
+    def test_loader_names_pick_mods_fonts_and_locales(self):
+        pattern = INV["LOADER_NAME"]
+        picked = [n for n in ("ModManager", "LoadMods", "FontVariation", "SetLocale", "Modulate", "SelfModulate",
+                              "ModelBase", "Mode", "GetMode", "LoadResourcePack", "LanguageChanged", "Modifier")
+                  if pattern.search(n)]
+        self.assertEqual(["ModManager", "LoadMods", "FontVariation", "SetLocale", "LoadResourcePack", "LanguageChanged"], picked)
+        literal = INV["LOADER_LITERAL"]
+        self.assertTrue(literal.search("mods/{0}.pck"))
+        self.assertTrue(literal.search("res://fonts/kreon.tres"))
+        self.assertFalse(literal.search("event:/sfx/attack"))
+
     def test_missing_folder_is_reported(self):
         self.assertEqual(1, INV["main"](["--game-dir", "/nonexistent/folder"]))
 

@@ -9,9 +9,23 @@
  *   ms:      time inside vkQueueSubmit, vkQueuePresentKHR (includes the WSI layer's CPU wait on the
  *            present fence), vkAcquireNextImageKHR, vkWaitForFences and queue/device idle waits
  *   misc:    pipelines compiled and the ms spent compiling them, memory allocations
+ *   memory:  device memory the app holds now (from vkAllocateMemory and vkFreeMemory), the host-visible
+ *            part, and the peak; and the BC-compressed images it holds, with the size they take once the
+ *            libhybris compat layer decodes them for a GPU without BC support. Those decoded copies are
+ *            allocated below this layer, so they are an estimate from each image's format and extent.
+ *            "bound" splits what the app has placed in that memory between images and buffers (each
+ *            object's memory requirement at bind time); live minus bound is allocator slack.
  * The present, acquire and wait times are time the CPU spent blocked on the GPU or the compositor;
  * the rest of the frame interval is CPU work. Counters are relaxed atomics; nothing is held per call.
- * With DROIDDECK_VKCOUNT_FILE set, the same lines are appended to that file too.
+ * With DROIDDECK_VKCOUNT_FILE set, the same lines are appended to that file too. DROIDDECK_VKCOUNT_SECONDS=0
+ * turns the reports off (the layer is then loaded only to pace frames).
+ *
+ * Frame pacing: with DROIDDECK_PACE_FPS set to a rate, each vkQueuePresentKHR returns no sooner than one
+ * frame interval after the last, so the game starts its next frame (and reads input) after the wait, as a
+ * game's own limiter would. It holds games that set their own frame rate and present mode after start
+ * (Slay the Spire 2 re-applies its saved settings over Godot's --max-fps). DROIDDECK_PACE_FILE names a file
+ * holding the rate in force now; the app rewrites it for the thermal governor and when the player has been
+ * idle, and the layer checks it at most every 100 ms. A rate of 0 there means no pacing until it changes.
  */
 #define _GNU_SOURCE
 #include <vulkan/vk_layer.h>
@@ -21,6 +35,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
 #include <time.h>
 
 #define EXPORT __attribute__((visibility("default")))
@@ -40,7 +56,7 @@ static uint64_t now_ns(void) {
 #define COUNTERS(X) \
     X(frames) X(submits) X(command_buffers) X(draws) X(indirect_draws) X(dispatches) X(pipeline_binds) \
     X(set_binds) X(push_constants) X(passes) X(barriers) X(copies) X(pipelines) X(allocations) \
-    X(submit_ns) X(present_ns) X(acquire_ns) X(fence_ns) X(idle_ns) X(pipeline_ns)
+    X(submit_ns) X(present_ns) X(acquire_ns) X(fence_ns) X(idle_ns) X(pipeline_ns) X(pace_ns)
 enum { 
 #define X(name) C_##name,
     COUNTERS(X)
@@ -55,21 +71,79 @@ static uint64_t counters[C_COUNT];
 static void add(int counter, uint64_t value) { __atomic_fetch_add(&counters[counter], value, __ATOMIC_RELAXED); }
 static void bump(int counter) { add(counter, 1); }
 
+/* ---- memory gauges: what is held now, not per window ---- */
+
+/* Handle -> bytes, open addressing with linear probing and backward-shift deletion, under mem_lock. */
+#define TABLE_SIZE (1u << 16)
+struct entry { uint64_t handle, bytes, extra; };
+struct table { struct entry slots[TABLE_SIZE]; uint32_t used; };
+static uint32_t slot_of(uint64_t handle) { return (uint32_t)((handle * 0x9E3779B97F4A7C15ull) >> 48) & (TABLE_SIZE - 1); }
+static int table_put(struct table *t, uint64_t handle, uint64_t bytes, uint64_t extra) {
+    if (!handle || t->used >= TABLE_SIZE - TABLE_SIZE / 8) return 0;
+    uint32_t i = slot_of(handle);
+    while (t->slots[i].handle && t->slots[i].handle != handle) i = (i + 1) & (TABLE_SIZE - 1);
+    if (!t->slots[i].handle) t->used++;
+    t->slots[i] = (struct entry){handle, bytes, extra};
+    return 1;
+}
+static int table_take(struct table *t, uint64_t handle, struct entry *out) {
+    if (!handle) return 0;
+    uint32_t i = slot_of(handle);
+    while (t->slots[i].handle != handle) {
+        if (!t->slots[i].handle) return 0;
+        i = (i + 1) & (TABLE_SIZE - 1);
+    }
+    *out = t->slots[i];
+    uint32_t hole = i;
+    for (uint32_t j = (hole + 1) & (TABLE_SIZE - 1); t->slots[j].handle; j = (j + 1) & (TABLE_SIZE - 1)) {
+        uint32_t home = slot_of(t->slots[j].handle);
+        /* An entry stays put while its home slot lies cyclically in (hole, j]; otherwise it fills the hole. */
+        int stays = hole <= j ? (hole < home && home <= j) : (hole < home || home <= j);
+        if (!stays) { t->slots[hole] = t->slots[j]; hole = j; }
+    }
+    t->slots[hole].handle = 0;
+    t->used--;
+    return 1;
+}
+static struct table memory_table, image_table, bound_table;
+static pthread_mutex_t mem_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t live_bytes, host_bytes, peak_bytes, live_allocations, untracked_allocations;
+static uint64_t bc_bytes, bc_decoded_bytes, bc_images;
+/* bound_table: extra is 1 for an image, 2 for a buffer. */
+static uint64_t bound_image_bytes, bound_images, bound_buffer_bytes, bound_buffers;
+static void unbind(uint64_t handle) { /* mem_lock held */
+    struct entry gone;
+    if (!table_take(&bound_table, handle, &gone)) return;
+    if (gone.extra == 1) { bound_image_bytes -= gone.bytes; bound_images--; }
+    else { bound_buffer_bytes -= gone.bytes; bound_buffers--; }
+}
+
 static uint64_t window_ns = 10000000000ull, window_start;
+static int reports_off;
 static FILE *extra;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void report(uint64_t now, const char *why) {
     uint64_t snapshot[C_COUNT];
     for (int i = 0; i < C_COUNT; i++) snapshot[i] = __atomic_exchange_n(&counters[i], 0, __ATOMIC_RELAXED);
+    struct { uint64_t live, host, peak, allocations, untracked, bc, bc_decoded, bc_images, image, images, buffer,
+             buffers; } mem;
+    pthread_mutex_lock(&mem_lock);
+    mem.live = live_bytes; mem.host = host_bytes; mem.peak = peak_bytes; mem.allocations = live_allocations;
+    mem.untracked = untracked_allocations; mem.bc = bc_bytes; mem.bc_decoded = bc_decoded_bytes;
+    mem.bc_images = bc_images;
+    mem.image = bound_image_bytes; mem.images = bound_images; mem.buffer = bound_buffer_bytes; mem.buffers = bound_buffers;
+    pthread_mutex_unlock(&mem_lock);
     double seconds = (double)(now - window_start) / 1e9;
     double frames = snapshot[C_frames] ? (double)snapshot[C_frames] : 1.0;
-    char line[1024];
+    char line[1400];
     int n = snprintf(line, sizeof line,
         "droiddeck-vkcount: %s %.1fs %llu frames %.1f fps | per frame: %.1f submits %.1f cmdbufs %.0f draws "
         "(%.0f indirect) %.1f dispatches %.0f pipeline-binds %.0f set-binds %.0f push-consts %.1f passes "
-        "%.1f barriers %.1f copies | ms/frame: submit %.2f present %.2f acquire %.2f fence-wait %.2f idle %.2f "
-        "| pipelines %llu in %.0f ms, allocations %llu\n",
+        "%.1f barriers %.1f copies | ms/frame: submit %.2f present %.2f acquire %.2f fence-wait %.2f idle %.2f pace %.2f "
+        "| pipelines %llu in %.0f ms, allocations %llu | memory %.1f MB live (%.1f MB host-visible, peak %.1f MB) "
+        "in %llu allocations%s, bound %.1f MB in %llu images and %.1f MB in %llu buffers, "
+        "BC textures %.1f MB -> %.1f MB decoded (%llu images)\n",
         why, seconds, (unsigned long long)snapshot[C_frames], snapshot[C_frames] / (seconds > 0 ? seconds : 1),
         snapshot[C_submits] / frames, snapshot[C_command_buffers] / frames,
         (snapshot[C_draws] + snapshot[C_indirect_draws]) / frames, snapshot[C_indirect_draws] / frames,
@@ -77,8 +151,11 @@ static void report(uint64_t now, const char *why) {
         snapshot[C_push_constants] / frames, snapshot[C_passes] / frames, snapshot[C_barriers] / frames,
         snapshot[C_copies] / frames, snapshot[C_submit_ns] / 1e6 / frames, snapshot[C_present_ns] / 1e6 / frames,
         snapshot[C_acquire_ns] / 1e6 / frames, snapshot[C_fence_ns] / 1e6 / frames, snapshot[C_idle_ns] / 1e6 / frames,
-        (unsigned long long)snapshot[C_pipelines], snapshot[C_pipeline_ns] / 1e6,
-        (unsigned long long)snapshot[C_allocations]);
+        snapshot[C_pace_ns] / 1e6 / frames, (unsigned long long)snapshot[C_pipelines], snapshot[C_pipeline_ns] / 1e6,
+        (unsigned long long)snapshot[C_allocations], mem.live / 1048576.0, mem.host / 1048576.0,
+        mem.peak / 1048576.0, (unsigned long long)mem.allocations, mem.untracked ? " (some untracked)" : "",
+        mem.image / 1048576.0, (unsigned long long)mem.images, mem.buffer / 1048576.0, (unsigned long long)mem.buffers,
+        mem.bc / 1048576.0, mem.bc_decoded / 1048576.0, (unsigned long long)mem.bc_images);
     (void)counter_names;
     if (n <= 0) return;
     fputs(line, stderr);
@@ -89,7 +166,7 @@ static void report(uint64_t now, const char *why) {
 static void frame_done(void) {
     bump(C_frames);
     uint64_t now = now_ns();
-    if (now - __atomic_load_n(&window_start, __ATOMIC_RELAXED) < window_ns) return;
+    if (reports_off || now - __atomic_load_n(&window_start, __ATOMIC_RELAXED) < window_ns) return;
     if (pthread_mutex_trylock(&lock)) return;
     if (now - window_start >= window_ns) report(now, "window");
     pthread_mutex_unlock(&lock);
@@ -100,7 +177,10 @@ static void frame_done(void) {
 #define DEVICE_FUNCTIONS(X) \
     X(DestroyDevice) X(QueueSubmit) X(QueueSubmit2) X(QueueSubmit2KHR) X(QueuePresentKHR) \
     X(AcquireNextImageKHR) X(AcquireNextImage2KHR) X(WaitForFences) X(QueueWaitIdle) X(DeviceWaitIdle) \
-    X(CreateGraphicsPipelines) X(CreateComputePipelines) X(AllocateMemory) \
+    X(CreateGraphicsPipelines) X(CreateComputePipelines) X(AllocateMemory) X(FreeMemory) X(CreateImage) \
+    X(DestroyImage) X(DestroyBuffer) X(BindImageMemory) X(BindImageMemory2) X(BindImageMemory2KHR) \
+    X(BindBufferMemory) X(BindBufferMemory2) X(BindBufferMemory2KHR) X(GetImageMemoryRequirements) \
+    X(GetBufferMemoryRequirements) \
     X(CmdDraw) X(CmdDrawIndexed) X(CmdDrawIndirect) X(CmdDrawIndexedIndirect) X(CmdDrawIndirectCount) \
     X(CmdDrawIndexedIndirectCount) X(CmdDispatch) X(CmdDispatchIndirect) X(CmdBindPipeline) \
     X(CmdBindDescriptorSets) X(CmdPushConstants) X(CmdBeginRenderPass) X(CmdBeginRenderPass2) \
@@ -112,6 +192,7 @@ struct device_data {
     dispatch_key key;
     VkDevice handle;
     PFN_vkGetDeviceProcAddr next;
+    uint32_t host_visible_types; /* bit i: memory type i is host-visible */
 #define X(name) PFN_vk##name name;
     DEVICE_FUNCTIONS(X)
 #undef X
@@ -191,6 +272,14 @@ static VkResult VKAPI_CALL create_device(VkPhysicalDevice physical, const VkDevi
     VkResult result = create(physical, info, allocator, device);
     if (result != VK_SUCCESS) return result;
     struct device_data data = {.key = key_of(*device), .handle = *device, .next = next_gdpa};
+    PFN_vkGetPhysicalDeviceMemoryProperties properties =
+        (PFN_vkGetPhysicalDeviceMemoryProperties)next_gipa(owner ? owner->handle : NULL, "vkGetPhysicalDeviceMemoryProperties");
+    if (properties) {
+        VkPhysicalDeviceMemoryProperties memory;
+        properties(physical, &memory);
+        for (uint32_t i = 0; i < memory.memoryTypeCount && i < 32; i++)
+            if (memory.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) data.host_visible_types |= 1u << i;
+    }
 #define X(name) data.name = (PFN_vk##name)next_gdpa(*device, "vk" #name);
     DEVICE_FUNCTIONS(X)
 #undef X
@@ -205,7 +294,7 @@ static VkResult VKAPI_CALL create_device(VkPhysicalDevice physical, const VkDevi
 static void VKAPI_CALL destroy_device(VkDevice device, const VkAllocationCallbacks *allocator) {
     NEXT(device, DestroyDevice);
     pthread_mutex_lock(&lock);
-    if (__atomic_load_n(&counters[C_frames], __ATOMIC_RELAXED)) report(now_ns(), "final");
+    if (!reports_off && __atomic_load_n(&counters[C_frames], __ATOMIC_RELAXED)) report(now_ns(), "final");
     for (int i = 0; i < MAX_OBJECTS; i++)
         if (devices[i].handle == device) memset(&devices[i], 0, sizeof devices[i]);
     pthread_mutex_unlock(&lock);
@@ -242,11 +331,69 @@ static VkResult VKAPI_CALL queue_submit2_khr(VkQueue queue, uint32_t count, cons
     return submit2(next_, queue, count, submits, fence);
 }
 
+/* ---- frame pacing ---- */
+
+#define PACE_MAX_FPS 240
+#define PACE_CHECK_NS 100000000ull
+static int pace_base, pace_fps;
+static const char *pace_file;
+static uint64_t pace_next_ns, pace_checked_ns;
+static struct timespec pace_mtime;
+static pthread_mutex_t pace_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static int pace_rate(const char *text, int fallback) {
+    char *end;
+    long value = text ? strtol(text, &end, 10) : -1;
+    if (!text || end == text || value < 0 || value > PACE_MAX_FPS) return fallback;
+    return (int)value;
+}
+
+/* The rate in force: the file's when it holds one, else DROIDDECK_PACE_FPS. Called under pace_lock. */
+static int pace_current(uint64_t now) {
+    if (!pace_file || now - pace_checked_ns < PACE_CHECK_NS) return pace_fps;
+    pace_checked_ns = now;
+    struct stat st;
+    if (stat(pace_file, &st)) { pace_fps = pace_base; return pace_fps; }
+    if (st.st_mtim.tv_sec == pace_mtime.tv_sec && st.st_mtim.tv_nsec == pace_mtime.tv_nsec) return pace_fps;
+    FILE *f = fopen(pace_file, "re");
+    if (!f) return pace_fps;
+    char text[16] = {0};
+    size_t n = fread(text, 1, sizeof text - 1, f);
+    fclose(f);
+    text[n] = 0;
+    pace_mtime = st.st_mtim;
+    pace_fps = pace_rate(text, pace_base);
+    return pace_fps;
+}
+
+static void pace(void) {
+    if (!pace_base) return;
+    pthread_mutex_lock(&pace_lock);
+    uint64_t now = now_ns();
+    int fps = pace_current(now);
+    if (fps > 0) {
+        uint64_t interval = 1000000000ull / (uint64_t)fps, start = now;
+        if (pace_next_ns && now < pace_next_ns) {
+            struct timespec until = {(time_t)(pace_next_ns / 1000000000ull), (long)(pace_next_ns % 1000000000ull)};
+            while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &until, NULL) == EINTR) {}
+            start = pace_next_ns;
+            add(C_pace_ns, start - now);
+        } else if (pace_next_ns && now - pace_next_ns < interval) {
+            start = pace_next_ns;  /* a little late: keep the cadence rather than drift */
+        }
+        pace_next_ns = start + interval;
+    } else {
+        pace_next_ns = 0;
+    }
+    pthread_mutex_unlock(&pace_lock);
+}
+
 static VkResult VKAPI_CALL queue_present(VkQueue queue, const VkPresentInfoKHR *info) {
     NEXT(queue, QueuePresentKHR);
     VkResult result;
     TIMED(C_present_ns, next_(queue, info));
     frame_done();
+    pace();
     return result;
 }
 
@@ -306,7 +453,147 @@ static VkResult VKAPI_CALL allocate_memory(VkDevice device, const VkMemoryAlloca
                                            const VkAllocationCallbacks *allocator, VkDeviceMemory *memory) {
     NEXT(device, AllocateMemory);
     bump(C_allocations);
-    return next_(device, info, allocator, memory);
+    VkResult result = next_(device, info, allocator, memory);
+    if (result != VK_SUCCESS) return result;
+    uint64_t bytes = info->allocationSize;
+    int host = info->memoryTypeIndex < 32 && d_ && (d_->host_visible_types >> info->memoryTypeIndex & 1);
+    pthread_mutex_lock(&mem_lock);
+    if (table_put(&memory_table, (uint64_t)*memory, bytes, (uint64_t)host)) {
+        live_bytes += bytes;
+        if (host) host_bytes += bytes;
+        if (live_bytes > peak_bytes) peak_bytes = live_bytes;
+        live_allocations++;
+    } else {
+        untracked_allocations++;
+    }
+    pthread_mutex_unlock(&mem_lock);
+    return result;
+}
+static void VKAPI_CALL free_memory(VkDevice device, VkDeviceMemory memory, const VkAllocationCallbacks *allocator) {
+    NEXT(device, FreeMemory);
+    struct entry gone;
+    pthread_mutex_lock(&mem_lock);
+    if (table_take(&memory_table, (uint64_t)memory, &gone)) {
+        live_bytes -= gone.bytes;
+        if (gone.extra) host_bytes -= gone.bytes;
+        live_allocations--;
+    }
+    pthread_mutex_unlock(&mem_lock);
+    if (next_) next_(device, memory, allocator);
+}
+
+/* Bytes per texel of the format the libhybris compat layer decodes each BC format into (bc_image.c);
+ * BC1 RGB and BC6H count their four-channel form. 0 for anything that is not BC. */
+static unsigned bc_decoded_texel(VkFormat format) {
+    switch (format) {
+    case VK_FORMAT_BC4_UNORM_BLOCK: case VK_FORMAT_BC4_SNORM_BLOCK: return 2;
+    case VK_FORMAT_BC6H_UFLOAT_BLOCK: case VK_FORMAT_BC6H_SFLOAT_BLOCK: return 8;
+    default: return format >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && format <= VK_FORMAT_BC7_SRGB_BLOCK ? 4 : 0;
+    }
+}
+static VkResult VKAPI_CALL create_image(VkDevice device, const VkImageCreateInfo *info,
+                                        const VkAllocationCallbacks *allocator, VkImage *image) {
+    NEXT(device, CreateImage);
+    VkResult result = next_(device, info, allocator, image);
+    unsigned texel = bc_decoded_texel(info->format);
+    if (result != VK_SUCCESS || !texel) return result;
+    unsigned block = info->format <= VK_FORMAT_BC1_RGBA_SRGB_BLOCK || info->format == VK_FORMAT_BC4_UNORM_BLOCK ||
+        info->format == VK_FORMAT_BC4_SNORM_BLOCK ? 8 : 16;
+    uint64_t compressed = 0, decoded = 0;
+    for (uint32_t mip = 0; mip < info->mipLevels && mip < 32; mip++) {
+        uint64_t w = info->extent.width >> mip, h = info->extent.height >> mip;
+        if (!w) w = 1;
+        if (!h) h = 1;
+        compressed += (w + 3) / 4 * ((h + 3) / 4) * block * info->arrayLayers;
+        decoded += w * h * texel * info->arrayLayers;
+    }
+    pthread_mutex_lock(&mem_lock);
+    if (table_put(&image_table, (uint64_t)*image, compressed, decoded)) {
+        bc_bytes += compressed;
+        bc_decoded_bytes += decoded;
+        bc_images++;
+    }
+    pthread_mutex_unlock(&mem_lock);
+    return result;
+}
+static void VKAPI_CALL destroy_image(VkDevice device, VkImage image, const VkAllocationCallbacks *allocator) {
+    NEXT(device, DestroyImage);
+    struct entry gone;
+    pthread_mutex_lock(&mem_lock);
+    if (table_take(&image_table, (uint64_t)image, &gone)) {
+        bc_bytes -= gone.bytes;
+        bc_decoded_bytes -= gone.extra;
+        bc_images--;
+    }
+    unbind((uint64_t)image);
+    pthread_mutex_unlock(&mem_lock);
+    if (next_) next_(device, image, allocator);
+}
+static void VKAPI_CALL destroy_buffer(VkDevice device, VkBuffer buffer, const VkAllocationCallbacks *allocator) {
+    NEXT(device, DestroyBuffer);
+    pthread_mutex_lock(&mem_lock);
+    unbind((uint64_t)buffer);
+    pthread_mutex_unlock(&mem_lock);
+    if (next_) next_(device, buffer, allocator);
+}
+
+/* Binding records the object's memory requirement; the lookup runs before the bind, outside the lock. */
+static void bound(const struct device_data *d, uint64_t handle, int is_image) {
+    if (!d || !handle) return;
+    VkMemoryRequirements need = {0};
+    if (is_image && d->GetImageMemoryRequirements) d->GetImageMemoryRequirements(d->handle, (VkImage)handle, &need);
+    else if (!is_image && d->GetBufferMemoryRequirements)
+        d->GetBufferMemoryRequirements(d->handle, (VkBuffer)handle, &need);
+    else return;
+    pthread_mutex_lock(&mem_lock);
+    unbind(handle);
+    if (table_put(&bound_table, handle, need.size, is_image ? 1 : 2)) {
+        if (is_image) { bound_image_bytes += need.size; bound_images++; }
+        else { bound_buffer_bytes += need.size; bound_buffers++; }
+    } else {
+        untracked_allocations++;
+    }
+    pthread_mutex_unlock(&mem_lock);
+}
+static VkResult VKAPI_CALL bind_image(VkDevice device, VkImage image, VkDeviceMemory memory, VkDeviceSize offset) {
+    NEXT(device, BindImageMemory);
+    VkResult result = next_(device, image, memory, offset);
+    if (result == VK_SUCCESS) bound(d_, (uint64_t)image, 1);
+    return result;
+}
+static VkResult bind_images(const struct device_data *d, PFN_vkBindImageMemory2 next_, VkDevice device, uint32_t n,
+                            const VkBindImageMemoryInfo *infos) {
+    VkResult result = next_(device, n, infos);
+    if (result == VK_SUCCESS) for (uint32_t i = 0; i < n; i++) bound(d, (uint64_t)infos[i].image, 1);
+    return result;
+}
+static VkResult VKAPI_CALL bind_image2(VkDevice device, uint32_t n, const VkBindImageMemoryInfo *infos) {
+    NEXT(device, BindImageMemory2);
+    return bind_images(d_, next_, device, n, infos);
+}
+static VkResult VKAPI_CALL bind_image2_khr(VkDevice device, uint32_t n, const VkBindImageMemoryInfo *infos) {
+    NEXT(device, BindImageMemory2KHR);
+    return bind_images(d_, next_, device, n, infos);
+}
+static VkResult VKAPI_CALL bind_buffer(VkDevice device, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset) {
+    NEXT(device, BindBufferMemory);
+    VkResult result = next_(device, buffer, memory, offset);
+    if (result == VK_SUCCESS) bound(d_, (uint64_t)buffer, 0);
+    return result;
+}
+static VkResult bind_buffers(const struct device_data *d, PFN_vkBindBufferMemory2 next_, VkDevice device, uint32_t n,
+                             const VkBindBufferMemoryInfo *infos) {
+    VkResult result = next_(device, n, infos);
+    if (result == VK_SUCCESS) for (uint32_t i = 0; i < n; i++) bound(d, (uint64_t)infos[i].buffer, 0);
+    return result;
+}
+static VkResult VKAPI_CALL bind_buffer2(VkDevice device, uint32_t n, const VkBindBufferMemoryInfo *infos) {
+    NEXT(device, BindBufferMemory2);
+    return bind_buffers(d_, next_, device, n, infos);
+}
+static VkResult VKAPI_CALL bind_buffer2_khr(VkDevice device, uint32_t n, const VkBindBufferMemoryInfo *infos) {
+    NEXT(device, BindBufferMemory2KHR);
+    return bind_buffers(d_, next_, device, n, infos);
 }
 
 /* ---- counted commands ---- */
@@ -415,6 +702,16 @@ static const struct hook { const char *name; PFN_vkVoidFunction function; } devi
     {"vkCreateGraphicsPipelines", (PFN_vkVoidFunction)graphics_pipelines},
     {"vkCreateComputePipelines", (PFN_vkVoidFunction)compute_pipelines},
     {"vkAllocateMemory", (PFN_vkVoidFunction)allocate_memory},
+    {"vkFreeMemory", (PFN_vkVoidFunction)free_memory},
+    {"vkCreateImage", (PFN_vkVoidFunction)create_image},
+    {"vkDestroyImage", (PFN_vkVoidFunction)destroy_image},
+    {"vkDestroyBuffer", (PFN_vkVoidFunction)destroy_buffer},
+    {"vkBindImageMemory", (PFN_vkVoidFunction)bind_image},
+    {"vkBindImageMemory2", (PFN_vkVoidFunction)bind_image2},
+    {"vkBindImageMemory2KHR", (PFN_vkVoidFunction)bind_image2_khr},
+    {"vkBindBufferMemory", (PFN_vkVoidFunction)bind_buffer},
+    {"vkBindBufferMemory2", (PFN_vkVoidFunction)bind_buffer2},
+    {"vkBindBufferMemory2KHR", (PFN_vkVoidFunction)bind_buffer2_khr},
     {"vkCmdDraw", (PFN_vkVoidFunction)cmd_draw},
     {"vkCmdDrawIndexed", (PFN_vkVoidFunction)cmd_draw_indexed},
     {"vkCmdDrawIndirect", (PFN_vkVoidFunction)cmd_draw_indirect},
@@ -483,6 +780,11 @@ EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkN
     if (!negotiate || negotiate->loaderLayerInterfaceVersion < 2) return VK_ERROR_INITIALIZATION_FAILED;
     const char *seconds = getenv("DROIDDECK_VKCOUNT_SECONDS");
     if (seconds && atof(seconds) > 0) window_ns = (uint64_t)(atof(seconds) * 1e9);
+    else if (seconds && !strcmp(seconds, "0")) reports_off = 1;
+    pace_base = pace_rate(getenv("DROIDDECK_PACE_FPS"), 0);
+    pace_fps = pace_base;
+    const char *pace_path = getenv("DROIDDECK_PACE_FILE");
+    if (pace_base && pace_path && *pace_path) pace_file = pace_path;
     const char *file = getenv("DROIDDECK_VKCOUNT_FILE");
     if (file && *file && !extra) extra = fopen(file, "ae");
     negotiate->loaderLayerInterfaceVersion = 2;

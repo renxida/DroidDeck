@@ -516,10 +516,14 @@ object AutoComponents {
             caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
-    fun constrained(context: Context): Boolean {
+    fun constrained(context: Context): Boolean = constraint(context) != null
+
+    /** What holds new builds back now (battery saver, a warm phone or a metered network), or null. */
+    fun constraint(context: Context): String? {
         val power = context.getSystemService(PowerManager::class.java)
-        if (power?.isPowerSaveMode == true) return true
-        if (Build.VERSION.SDK_INT >= 29 && (power?.currentThermalStatus ?: 0) >= PowerManager.THERMAL_STATUS_MODERATE) return true
-        return context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == true
+        if (power?.isPowerSaveMode == true) return "battery saver"
+        val thermal = if (Build.VERSION.SDK_INT >= 29) power?.currentThermalStatus ?: 0 else 0
+        if (thermal >= PowerManager.THERMAL_STATUS_MODERATE) return "thermal status $thermal"
+        return if (context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == true) "metered network" else null
     }
 }

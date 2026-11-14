@@ -69,8 +69,8 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
                     if (power != null && Build.VERSION.SDK_INT >= 29) {
                         line.append(" | thermal ${power.currentThermalStatus}")
                         if (Build.VERSION.SDK_INT >= 30) {
-                            val h = power.getThermalHeadroom(10)
-                            if (!h.isNaN()) line.append(String.format(Locale.US, " headroom %.2f", h))
+                            val h = com.droiddeck.launcher.telemetry.HeadroomCache.shared.get { power.getThermalHeadroom(10) }
+                            if (h != null) line.append(String.format(Locale.US, " headroom %.2f", h))
                         }
                     }
                     batteryTenths()?.let { line.append(String.format(Locale.US, " | battery %.1f C", it / 10.0)) }

@@ -609,6 +609,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (intent.action == SessionService.ACTION_AGENT_START) {
             SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
         }
+        intent.getStringExtra(com.droiddeck.launcher.session.AutoTest.EXTRA_ID)?.let { id ->
+            // Unattended test run: the phone is charging with the screen off, so wake it, show over the
+            // lock screen, and keep it as dim as it goes.
+            val manual = intent.getBooleanExtra(com.droiddeck.launcher.session.AutoTest.EXTRA_MANUAL, false)
+            SessionEvents.record("autotest.start", mapOf("id" to id, "manual" to manual))
+            if (manual) return@let
+            if (android.os.Build.VERSION.SDK_INT >= 27) {
+                setShowWhenLocked(true)
+                setTurnScreenOn(true)
+            } else {
+                @Suppress("DEPRECATION")
+                window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+            }
+            window.attributes = window.attributes.apply { screenBrightness = 0.01f }
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
             SessionState.fpsLimit = 0
@@ -628,8 +643,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!LinuxRuntime.isInstalled(this)) Log.i(TAG, "the Linux runtime is not installed; the loading screen installs it")
 
         val root = object : FrameLayout(this) {
-            override fun dispatchCapturedPointerEvent(event: MotionEvent): Boolean =
-                onCapturedPointer(event) || super.dispatchCapturedPointerEvent(event)
+            override fun dispatchCapturedPointerEvent(event: MotionEvent): Boolean {
+                SessionState.input()
+                return onCapturedPointer(event) || super.dispatchCapturedPointerEvent(event)
+            }
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {
                 super.dispatchPointerCaptureChanged(hasCapture)
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
@@ -810,6 +827,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onRepair = if (repairOffered) ({ repairRuntime() }) else null,
                     onShareLogs = { shareCurrentSessionLogs() },
                     onClose = { finish() },
+                    info = launchLines(loading.step),
+                    flavor = launchFlavor,
+                )
+                if (!loading.visible) com.droiddeck.launcher.ui.LaunchStrip(
+                    lines = { com.droiddeck.launcher.session.LaunchInfo.lines(this@SessionActivity) },
+                    flavor = launchFlavor,
+                    visible = {
+                        com.droiddeck.launcher.session.LaunchInfo.cornerVisible(System.currentTimeMillis(),
+                            com.droiddeck.launcher.session.GamePacing.plan != null)
+                    },
                 )
                 LaunchedEffect(AgentGuest.focusRevision, secondScreenDisplays.isNotEmpty()) {
                     val nextGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -2250,6 +2277,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        SessionState.input()
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
                 val steamVolume =
@@ -2409,6 +2437,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        SessionState.input()
         if (pipUi) return true
         if (PadBridge.isControllerMotionEvent(event) && (drawerOpen || pcKeyboardOpen || inputSettingsOpen || gestureSettingsOpen || SessionState.suspended)) {
             padBridge?.setInputEnabled(false)
@@ -2459,6 +2488,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        SessionState.input()
         if (pipUi) return true
         if (event.actionMasked == MotionEvent.ACTION_DOWN && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
             drawerControllerActive = false
@@ -3994,6 +4024,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        if (::surfaceView.isInitialized) com.droiddeck.launcher.agent.AgentRemote.capture = { dir, done ->
+            com.droiddeck.launcher.session.SessionScreenshot.capture(window, surfaceView, dir, uiHandler, done)
+        }
         com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
             com.droiddeck.launcher.input.GuestKeys.send(event) { code, down -> sendGuestKey(code, down, 8) }
         }
@@ -4298,6 +4331,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    /** One flavour line per activity, so it holds still through the launch. */
+    private val launchFlavor: String by lazy { com.droiddeck.launcher.session.LaunchInfo.flavor(System.nanoTime() / 1000) }
+
+    /** The launch lines, read again as the loading step changes so the FEX line and rotation row show once known. */
+    @androidx.compose.runtime.Composable
+    private fun launchLines(step: String): List<String> =
+        androidx.compose.runtime.remember(step) { runCatching { com.droiddeck.launcher.session.LaunchInfo.lines(this) }.getOrDefault(emptyList()) }
+
     private val endListener: (Int) -> Unit = { status -> onSessionEnded(status) }
     private val firstFrameListener = Runnable {
         SessionEvents.firstFrame()
@@ -4305,6 +4346,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         runOnUiThread {
             if (isFinishing || isDestroyed) return@runOnUiThread
             loading.visible = false
+            com.droiddeck.launcher.session.LaunchInfo.firstFrame(System.currentTimeMillis())
             hud.start()
             memoryHud.start()
             if (started) {
@@ -4315,6 +4357,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        com.droiddeck.launcher.agent.AgentRemote.capture = null
         if (AgentGuest.readyListener === agentReadyListener) AgentGuest.readyListener = null
         if (com.droiddeck.launcher.session.GamePacing.listener === pacingListener) com.droiddeck.launcher.session.GamePacing.listener = null
         relativeMouseRequests.shutdownNow()

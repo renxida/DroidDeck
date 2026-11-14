@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">实体按键快捷操作</string>
-    <string name="shortcuts_dd_menu">Kestrel 菜单</string>
+    <string name="shortcuts_dd_menu">Lanner 菜单</string>
     <string name="shortcuts_capture">分配：%1$s</string>
     <string name="shortcuts_press">按下并松开一个按钮，分配将自动保存。</string>
     <string name="shortcuts_release">松开按键以继续。</string>

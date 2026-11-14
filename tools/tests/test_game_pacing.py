@@ -117,6 +117,79 @@ class FrameCapTest(unittest.TestCase):
         command, _ = self.cap([str(self.other)], dict(env))
         self.assertEqual(command[3:], [])
 
+    def test_godot_presents_are_paced_by_the_layer_when_the_system_layers_are_in_use(self):
+        layer_dir = Path(self.tmp.name) / "vkcount"
+        layer_dir.mkdir()
+        env = {"DROIDDECK_FPS_CAP": "30", "VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration",
+               "VK_LAYER_PATH": "/sys/wsi", "BL_LOG": "/data/session/7/session.log"}
+        with mock.patch.dict(MODULE["present_pacing"].__globals__, {"VKCOUNT_DIR": str(layer_dir)}):
+            _, note = self.cap([str(self.godot)], dict(env))
+            self.assertEqual(note, "frame cap 30 fps (Godot --max-fps, present pacing: layer not installed)")
+            (layer_dir / "libVkLayer_droiddeck_vkcount.so").write_bytes(b"")
+            paced = dict(env)
+            _, note = self.cap([str(self.godot)], paced)
+            self.assertEqual(note, "frame cap 30 fps (Godot --max-fps, presents paced)")
+            self.assertEqual(paced["VK_INSTANCE_LAYERS"], "VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration")
+            self.assertEqual(paced["VK_LAYER_PATH"], str(layer_dir) + ":/sys/wsi")
+            self.assertEqual(paced["DROIDDECK_VKCOUNT_SECONDS"], "0")
+            self.assertEqual(paced["DROIDDECK_PACE_FPS"], "30")
+            self.assertEqual(paced["DROIDDECK_PACE_FILE"], "/data/session/7/pace")
+            counted = dict(env, VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration",
+                           DROIDDECK_PACE_FILE="/x/pace")
+            self.cap([str(self.godot)], counted)
+            self.assertNotIn("DROIDDECK_VKCOUNT_SECONDS", counted)
+            self.assertEqual(counted["DROIDDECK_PACE_FILE"], "/x/pace")
+            off = dict(env, DROIDDECK_PACE="0")
+            _, note = self.cap([str(self.godot)], off)
+            self.assertNotIn("DROIDDECK_PACE_FPS", off)
+            self.assertEqual(note, "frame cap 30 fps (Godot --max-fps)")
+            other = dict(env)
+            self.cap([str(self.other)], other)
+            self.assertNotIn("DROIDDECK_PACE_FPS", other)
+
+    def test_slay_the_spire_2_settings_save_gets_the_cap_and_keeps_everything_else(self):
+        prefix = Path(self.tmp.name) / "compat"
+        users = prefix / "pfx" / MODULE["STS2_SETTINGS"]
+        (users / "76561198000000001").mkdir(parents=True)
+        (users / "76561198000000002").mkdir()
+        (users / "logs").mkdir()
+        saved = users / "76561198000000001" / "settings.save"
+        saved.write_text(json.dumps({"fps_limit": 60, "language": "eng", "schema_version": 8, "vsync": "adaptive"}))
+        env = {"DROIDDECK_FPS_CAP": "30", "STEAM_COMPAT_DATA_PATH": str(prefix), "DROIDDECK_EXP_ONE_LIMITER": "1"}
+        note = MODULE["sts2_settings_cap"](["/proton", "waitforexitandrun", str(self.godot)], env)
+        self.assertEqual(note, "Slay the Spire 2 settings.save: fps_limit 30, vsync off (written, created)")
+        self.assertEqual(json.loads(saved.read_text()),
+                         {"fps_limit": 30, "language": "eng", "schema_version": 8, "vsync": "off"})
+        self.assertEqual(json.loads((users / "76561198000000002" / "settings.save").read_text()),
+                         {"schema_version": 8, "fps_limit": 30, "vsync": "off"})
+        self.assertFalse((users / "logs" / "settings.save").exists())
+        note = MODULE["sts2_settings_cap"](["/proton", "waitforexitandrun", str(self.godot)], env)
+        self.assertEqual(note, "Slay the Spire 2 settings.save: fps_limit 30, vsync off (already set, already set)")
+        without = dict(env)
+        del without["DROIDDECK_EXP_ONE_LIMITER"]
+        saved.write_text("{not json")
+        note = MODULE["sts2_settings_cap"](["/proton", "waitforexitandrun", str(self.godot)], without)
+        self.assertEqual(note, "Slay the Spire 2 settings.save: fps_limit 30 (not JSON, left alone, already set)")
+        self.assertEqual(saved.read_text(), "{not json")
+        for command, e in ((["/proton", "waitforexitandrun", str(self.godot), "--max-fps", "60"], env),
+                           (["/proton", "waitforexitandrun", str(self.other)], env),
+                           (["/proton", "waitforexitandrun", str(self.godot)], dict(env, DROIDDECK_FPS_CAP="0"))):
+            self.assertIsNone(MODULE["sts2_settings_cap"](command, e))
+
+    def test_godot_verbose_logs_resource_loads_ahead_of_user_arguments_only_for_godot(self):
+        verbose = MODULE["godot_verbose"]
+        env = {"DROIDDECK_EXP_GODOT_VERBOSE": "1"}
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.godot), "--max-fps", "30", "--", "--mod"], env)
+        self.assertEqual(command[3:], ["--max-fps", "30", "--verbose", "--", "--mod"])
+        self.assertEqual(note, "Godot verbose log on (resource loads named)")
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.godot), "-v"], env)
+        self.assertEqual(command[3:], ["-v"])
+        self.assertEqual(note, "Godot verbose log already on")
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.other)], env)
+        self.assertEqual((command[3:], note), ([], None))
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.godot)], {})
+        self.assertEqual((command[3:], note), ([], None))
+
     def test_a_capped_game_gets_three_gamescope_swapchain_images_not_eight(self):
         env = {"DROIDDECK_FPS_CAP": "60", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8"}
         _, note = self.cap([str(self.godot)], env)
@@ -169,6 +242,13 @@ class FrameCapTest(unittest.TestCase):
         self.assertTrue(note.startswith("Slay the Spire 2:"))
         self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="slaythespire2", files=set(), env=game.env)))
         self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="brotato", files={"brotato.pck"}, env=game.env)))
+
+    def test_slay_the_spire_2_caps_at_30_under_fps_30(self):
+        game = mock.Mock(stem="slaythespire2", files={"slaythespire2.pck", "godotsharp.dll"},
+                         env={"DROIDDECK_EXP_SCHED": "1", "DROIDDECK_EXP_FPS_30": "1"})
+        env, extra, note = MODULE["slay_the_spire_2_pacing"](game)
+        self.assertEqual(env, {"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": "30"})
+        self.assertIn("30 fps cap", note)
 
     def test_launch_applies_the_cap_and_a_game_profile_can_undo_it(self):
         home = Path(self.tmp.name)

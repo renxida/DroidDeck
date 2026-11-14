@@ -1,7 +1,9 @@
 import hashlib
 import io
+import hashlib
 import json
 import os
+import re
 import shutil
 import struct
 from pathlib import Path
@@ -10,6 +12,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from unittest import mock
 import unittest
 from unittest.mock import patch
@@ -19,6 +22,47 @@ MODULE = runpy.run_path(str(BIN / "droiddeck-game-env"))
 COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
 STATE = tempfile.TemporaryDirectory()
 COMPAT["main"].__globals__["COMPAT_DIR"] = STATE.name
+
+
+class FreeMemoryRequestTest(unittest.TestCase):
+    def test_the_game_waits_for_the_apps_answer_to_its_own_request(self):
+        import threading
+        with tempfile.TemporaryDirectory() as tmp:
+            request = Path(tmp) / "free-memory"
+            (Path(tmp) / "free-memory-done").write_text("2868840-stale method=none\n")
+
+            def app():
+                for _ in range(200):
+                    if request.exists():
+                        token = request.read_text().strip()
+                        request.unlink()
+                        staged = Path(tmp) / "free-memory-done.tmp"
+                        staged.write_text(token + " method=kill_background+balloon freedMb=1800 availableMb=4100\n")
+                        os.replace(staged, Path(tmp) / "free-memory-done")
+                        return
+                    time.sleep(0.01)
+
+            answering = threading.Thread(target=app)
+            answering.start()
+            answer = MODULE["free_memory"](tmp, "2868840", wait=5, poll=0.01)
+            answering.join()
+            self.assertEqual(answer, "method=kill_background+balloon freedMb=1800 availableMb=4100")
+            self.assertFalse((Path(tmp) / "free-memory-done").exists())
+
+    def test_without_an_answer_or_a_launch_directory_the_game_goes_on(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(MODULE["free_memory"](tmp, "2868840", wait=0.05, poll=0.01), "no answer in 0 s")
+            token = (Path(tmp) / "free-memory").read_text().strip()
+            self.assertRegex(token, r"^2868840-[0-9a-f]{16}$")
+        self.assertEqual(MODULE["free_memory"]("", "2868840"), "no launch directory")
+        self.assertEqual(MODULE["free_memory"]("/nonexistent/launch", "2868840"), "no launch directory")
+
+    def test_the_guest_lists_the_same_experiments_as_the_app(self):
+        source = (Path(__file__).resolve().parents[2] /
+                  "app/src/main/java/com/droiddeck/launcher/session/Experiments.kt").read_text()
+        names = dict(re.findall(r'const val (\w+) = "([^"]+)"', source))
+        ids = re.search(r"val ids = listOf\(([^)]*)\)", source).group(1)
+        self.assertEqual(tuple(names[n.strip()] for n in ids.split(",")), MODULE["EXPERIMENTS"])
 
 
 class SupergiantDotnetReporterTest(unittest.TestCase):
@@ -523,6 +567,41 @@ class EgoCorePlanTest(unittest.TestCase):
         self.assertIn("added a copy of its 4-core plan", result.stderr)
 
 
+def fake_wayland_server(path, interfaces):
+    """A Wayland server that answers one client's get_registry and sync with these globals, then the done."""
+    import socket
+    import threading
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(str(path))
+    server.listen(4)
+
+    def message(obj, opcode, body):
+        return struct.pack("=II", obj, ((8 + len(body)) << 16) | opcode) + body
+
+    def serve():
+        while True:
+            try:
+                conn, _ = server.accept()
+            except OSError:
+                return
+            with conn:
+                data = b""
+                while len(data) < 24:
+                    chunk = conn.recv(64)
+                    if not chunk:
+                        break
+                    data += chunk
+                registry, callback = struct.unpack_from("=I", data, 8)[0], struct.unpack_from("=I", data, 20)[0]
+                out = b""
+                for number, name in enumerate(interfaces, 1):
+                    text = name.encode() + b"\0"
+                    text += b"\0" * (-len(text) % 4)
+                    out += message(registry, 0, struct.pack("=II", number, len(name) + 1) + text + struct.pack("=I", 1))
+                conn.sendall(out + message(callback, 0, struct.pack("=I", 0)))
+    threading.Thread(target=serve, daemon=True).start()
+    return path
+
+
 class SystemGraphicsLaunchTest(unittest.TestCase):
     def test_start_configures_ubisoft_with_proton_before_wrapping_the_game(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -559,16 +638,25 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             runtime, _ = self.runtime(Path(tmp))
             manifest = runtime / "wsi" / "VkLayer_window_system_integration.json"
+            full = fake_wayland_server(Path(tmp) / "gamescope-0", ("wl_compositor", "wl_subcompositor", "xdg_wm_base",
+                                                                  "wl_shm", "wl_seat"))
+            fake_wayland_server(Path(tmp) / "gamescope-1", ("wl_compositor", "xdg_wm_base", "wl_shm", "wl_seat"))
             base = {"DROIDDECK_POWERVR_RUNTIME": str(runtime), "STEAM_COMPAT_DATA_PATH": "/compatdata/42",
-                    "WAYLAND_DISPLAY": "", "GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0"}
+                    "WAYLAND_DISPLAY": "", "GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0", "XDG_RUNTIME_DIR": tmp}
             command = ["/proton", "waitforexitandrun", "game.exe"]
             on = dict(base, DROIDDECK_EXP_WAYLAND_PRESENT="1")
             cases = [
                 ("off", base, '{"name": "VK_KHR_wayland_surface"}', None),
                 ("x11-only layer", on, '{"name": "VK_KHR_xcb_surface"}', None),
                 ("no socket", dict(on, GAMESCOPE_WAYLAND_DISPLAY=""), '{"name": "VK_KHR_wayland_surface"}', None),
+                ("no wl_subcompositor", dict(on, GAMESCOPE_WAYLAND_DISPLAY="gamescope-1"),
+                 '{"name": "VK_KHR_wayland_surface"}', None),
+                ("nobody listening", dict(on, GAMESCOPE_WAYLAND_DISPLAY="gamescope-9"),
+                 '{"name": "VK_KHR_wayland_surface"}', None),
                 ("on", on, '{"name": "VK_KHR_wayland_surface"}', "gamescope-0"),
             ]
+            self.assertEqual(MODULE["wayland_globals"](str(full), {}),
+                             {"wl_compositor", "wl_subcompositor", "xdg_wm_base", "wl_shm", "wl_seat"})
             for name, env, text, socket in cases:
                 with self.subTest(name), mock.patch("sys.stderr", new=io.StringIO()):
                     manifest.write_text(text)
@@ -576,9 +664,11 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
                     if socket:
                         self.assertEqual(result["WAYLAND_DISPLAY"], socket)
                         self.assertEqual(result["PROTON_ENABLE_WAYLAND"], "1")
+                        self.assertEqual(result["DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER"], "1")
                     else:
                         self.assertEqual(result["WAYLAND_DISPLAY"], "")
                         self.assertNotIn("PROTON_ENABLE_WAYLAND", result)
+                        self.assertNotIn("DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER", result)
                     self.assertEqual(env.get("WAYLAND_DISPLAY"), "")
 
     def test_vk_count_puts_its_layer_first_only_when_on_and_installed(self):
@@ -598,6 +688,48 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             self.assertEqual(env["VK_INSTANCE_LAYERS"],
                              "VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat")
             self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+
+    def test_hybris_index_swaps_in_its_compat_layer_only_when_on_and_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layer_dir = Path(tmp) / "hybris-compat"
+            layer_dir.mkdir()
+            base = {"VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat",
+                    "VK_LAYER_PATH": "/rt/wsi:/rt/lib"}
+            env = dict(base)
+            self.assertIsNone(MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env, base)
+            env = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1")
+            self.assertIn("not installed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"], base["VK_INSTANCE_LAYERS"])
+            (layer_dir / "libVkLayer_droiddeck_hybris_compat.so").write_bytes(b"\x7fELF")
+            self.assertIn("indexed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"],
+                             "VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+            xclipse = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_xclipse")
+            self.assertIn("no hybris compat", MODULE["hybris_index"](xclipse, str(layer_dir)))
+            session = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertIn("already indexed", MODULE["hybris_index"](session, str(layer_dir)))
+            self.assertEqual(session["VK_LAYER_PATH"], base["VK_LAYER_PATH"])
+
+    def test_dxvk_arm64ec_picks_its_payload_only_when_on_complete_and_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = Path(tmp)
+            self.assertIsNone(MODULE["dxvk_arm64ec"](runtime, {}))
+            env = {"DROIDDECK_EXP_DXVK_ARM64EC": "1"}
+            self.assertIn("not in this runtime", MODULE["dxvk_arm64ec"](runtime, env))
+            self.assertNotIn("DROIDDECK_HYBRIS_DXVK", env)
+            for arch in ("x32", "x64"):
+                (runtime / "dxvk-arm64ec" / arch).mkdir(parents=True)
+                for name in ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"):
+                    (runtime / "dxvk-arm64ec" / arch / (name + ".dll")).write_bytes(b"MZ")
+            self.assertIn("native ARM64EC", MODULE["dxvk_arm64ec"](runtime, env))
+            self.assertEqual(env["DROIDDECK_HYBRIS_DXVK"], "dxvk-arm64ec")
+            xclipse = {"DROIDDECK_EXP_DXVK_ARM64EC": "1", "DROIDDECK_HYBRIS_DXVK": "dxvk-2.6.2"}
+            self.assertIn("kept the dxvk-2.6.2", MODULE["dxvk_arm64ec"](runtime, xclipse))
+            self.assertEqual(xclipse["DROIDDECK_HYBRIS_DXVK"], "dxvk-2.6.2")
 
     def test_other_gpus_and_non_game_calls_keep_the_original_launch(self):
         command = ["/proton", "waitforexitandrun", "game.exe"]
@@ -1351,6 +1483,43 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.split(), ["1", "0"])
             self.assertIn("FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=0", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_DYNAMICL1CACHE'), os.environ.get('FEX_L1CACHEENTRIES'))\n")
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None", "None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_L1": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["0", "262144"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-l1\n", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_INITIALCODEBUFFERMB'))\n")
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_CODE_BUFFER": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["64"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-code-buffer\n", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_SAMPLEHZ'))\n")
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps({"version": 1}))
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_SAMPLE": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["250"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-sample\n", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_NAMEWINDOWSMEMORY'))\n")
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_SMAPS": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["60"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-smaps\n", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_TRIMIDLETHREADS'))\n")
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps({"version": 1}))
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_TRIM": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["30"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-trim\n", result.stderr)
 
     def test_easy_anti_cheat_games_start_offline_only_when_opted_in(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1823,7 +1992,7 @@ class GameEnvironmentTest(unittest.TestCase):
             on = {"BL_DEBUG_DIR": tmp, "BL_GAME_LOGS": "1"}
             with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
                 result = game_logs(command, on, "2868840", now=0)
-            self.assertEqual(result["WINEDEBUG"], "+timestamp,+pid,+tid,+threadname,+loaddll")
+            self.assertEqual(result["WINEDEBUG"], "+timestamp,+pid,+tid,+threadname,+loaddll,fixme-ntdll")
             self.assertNotIn("unwind", result["WINEDEBUG"])
             self.assertIn("+seh,+unwind default stays off", err.getvalue())
             self.assertEqual(result["DROIDDECK_GAME_LOG_DIR"], result["PROTON_LOG_DIR"])
@@ -1843,6 +2012,26 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIn("DOTNET_GCConserveMemory=5", final)
             self.assertNotIn("HOME=", final)
             MODULE["record_final_env"](["/proton", "run"], {"VK_X": "1"})
+
+    def test_launch_txt_names_the_fex_build_the_game_loads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton = Path(tmp, "proton-dir")
+            dll = proton / "files/lib/wine/aarch64-windows/libarm64ecfex.dll"
+            dll.parent.mkdir(parents=True)
+            (proton / "proton").write_text("")
+            data = b"MZ\0\0FEX-2611\0..FEX-Kestrel-ab135df09-1cbcab5e\0rest"
+            dll.write_bytes(data)
+            env = {"DROIDDECK_GAME_LOG_DIR": tmp}
+            MODULE["record_final_env"](["/runtime/run-proton.py", "/proton"], env, str(proton / "proton"))
+            text = Path(tmp, "launch.txt").read_text()
+            self.assertIn("fex: FEX-Kestrel-ab135df09-1cbcab5e %d bytes sha256 %s\n" % (
+                len(data), hashlib.sha256(data).hexdigest()[:12]), text)
+            dll.write_bytes(b"MZ no name")
+            MODULE["record_final_env"](["/x"], env, str(proton / "proton"))
+            self.assertIn("fex: (no version name) 10 bytes", Path(tmp, "launch.txt").read_text())
+            dll.unlink()
+            MODULE["record_final_env"](["/x"], env, str(proton / "proton"))
+            self.assertIn("fex: no files/lib/wine/aarch64-windows/libarm64ecfex.dll", Path(tmp, "launch.txt").read_text())
 
     def test_rapid_game_launches_keep_separate_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):

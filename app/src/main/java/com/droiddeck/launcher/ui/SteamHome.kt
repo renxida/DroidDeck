@@ -51,11 +51,16 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, onSelect: (String) 
         if (s.busy || s.removalPending || (s.available != null && s.available != s.installed)) RuntimeChip(s)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             if (last != null) {
+                val lastBranches = com.droiddeck.launcher.session.SteamBranch.offered(last.appId)
                 PrimaryButton(
-                    stringResource(R.string.home_play_game, last.name),
+                    stringResource(if (lastBranches) R.string.home_play_game_beta else R.string.home_play_game, last.name),
                     enabled = !s.busy && last.gameIdString !in s.preparingGames, main = true, large = true, fill = true,
                     icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-last").widthIn(max = 460.dp),
                 ) { a.onSteamGame(last) }
+                if (lastBranches) {
+                    SecondaryButton(stringResource(R.string.lib_play_stable), enabled = !s.busy && last.gameIdString !in s.preparingGames,
+                        modifier = Modifier.testTag("play-last-stable"), onClick = { a.onSteamGameStable(last) })
+                }
                 SecondaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, modifier = Modifier.testTag("play-steam"), onClick = a.onPlay)
             } else {
                 PrimaryButton(
@@ -72,6 +77,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, onSelect: (String) 
                 HomeGameRow(
                     g, enabled = !s.busy && g.gameIdString !in s.preparingGames,
                     onPlay = { a.onSteamGame(g) }, onOpen = { onSelect(GameRef.key(g)) },
+                    onStable = { a.onSteamGameStable(g) },
                 )
             }
         }
@@ -79,7 +85,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, onSelect: (String) 
 }
 
 @Composable
-private fun HomeGameRow(g: Library.SteamGame, enabled: Boolean, onPlay: () -> Unit, onOpen: () -> Unit) {
+private fun HomeGameRow(g: Library.SteamGame, enabled: Boolean, onPlay: () -> Unit, onOpen: () -> Unit, onStable: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -98,6 +104,10 @@ private fun HomeGameRow(g: Library.SteamGame, enabled: Boolean, onPlay: () -> Un
             g.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
-        SecondaryButton(stringResource(R.string.lib_play), enabled = enabled, compact = true, modifier = Modifier.testTag("play:${g.gameIdString}"), onClick = onPlay)
+        val branches = com.droiddeck.launcher.session.SteamBranch.offered(g.appId)
+        if (branches) {
+            SecondaryButton(stringResource(R.string.lib_play_stable), enabled = enabled, compact = true, modifier = Modifier.testTag("play-stable:${g.gameIdString}"), onClick = onStable)
+        }
+        SecondaryButton(stringResource(if (branches) R.string.lib_play_beta else R.string.lib_play), enabled = enabled, compact = true, modifier = Modifier.testTag("play:${g.gameIdString}"), onClick = onPlay)
     }
 }

@@ -1,0 +1,1555 @@
+From 008da12ecd4d1e54dabf483262dc04c44d574372 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 14 Nov 2026 00:52:31 +0000
+Subject: [PATCH 7/8] Add SampleHz, a sampling profiler for ARM64EC under Wine
+ (default off)
+
+Each emulated thread gets a timer on its own CPU time that sends it SIGPROF.
+The unixlib handler records the interrupted PC and the thread's last JIT block
+header and RIP in a lock-free ring. A FEX-internal thread drains it every
+100 ms, maps the host PC back to the exact guest instruction when it is inside
+the block (Context::DecodeSampledRIP), names guest and host addresses by
+module, offset and nearest export, and once a minute appends the busiest
+thread's top 200 and the other threads' top 50 to
+/dev/shm/fex-<pid>-samples.csv, with handler and reader cost rows.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../Source/Interface/Config/Config.json.in    |   9 +
+ FEXCore/Source/Interface/Core/Core.cpp        |  49 ++
+ .../Interface/Core/Dispatcher/Dispatcher.cpp  |   2 +
+ .../Core/Interpreter/Fallbacks/F80Fallbacks.h | 100 ++--
+ FEXCore/include/FEXCore/Core/Context.h        |   7 +
+ FEXCore/include/FEXCore/Core/CoreState.h      |   6 +
+ .../include/FEXCore/Utils/FloatFallbackHook.h |  16 +
+ Source/Windows/ARM64EC/CMakeLists.txt         |   1 +
+ Source/Windows/ARM64EC/Module.cpp             |  12 +-
+ Source/Windows/ARM64EC/Sampler.cpp            | 510 ++++++++++++++++++
+ Source/Windows/ARM64EC/Sampler.h              |  16 +
+ Source/Windows/UnixLib/FEXUnixLib.cpp         |  31 ++
+ Source/Windows/UnixLib/FEXUnixLib.h           |  48 ++
+ Source/Windows/UnixLib/Sampler.h              | 219 ++++++++
+ 14 files changed, 980 insertions(+), 46 deletions(-)
+ create mode 100644 FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
+ create mode 100644 Source/Windows/ARM64EC/Sampler.cpp
+ create mode 100644 Source/Windows/ARM64EC/Sampler.h
+ create mode 100644 Source/Windows/UnixLib/Sampler.h
+
+diff --git a/FEXCore/Source/Interface/Config/Config.json.in b/FEXCore/Source/Interface/Config/Config.json.in
+index 0e03b44..b4ca487 100644
+--- a/FEXCore/Source/Interface/Config/Config.json.in
++++ b/FEXCore/Source/Interface/Config/Config.json.in
+@@ -589,6 +589,15 @@
+           "By default telemetry data is stored in {$FEX_APP_DATA_LOCATION,{$XDG_DATA_HOME,$HOME}/fex-emu/Telemetry/}"
+         ]
+       },
++      "SampleHz": {
++        "Type": "uint32",
++        "Default": "0",
++        "AffectsCodeGen": "false",
++        "Desc": [
++          "ARM64EC under Wine: sample each thread this many times per second of its CPU time (0 = off).",
++          "Once a minute the busiest thread's top 200 guest locations go to /dev/shm/fex-<pid>-samples.csv."
++        ]
++      },
+       "ProfileStats": {
+         "Type": "bool",
+         "Default": "false",
+diff --git a/FEXCore/Source/Interface/Core/Core.cpp b/FEXCore/Source/Interface/Core/Core.cpp
+index dbc7f7c..8ef180b 100644
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -46,6 +46,7 @@ $end_info$
+ #include <FEXCore/Utils/Allocator.h>
+ #include <FEXCore/Utils/Event.h>
+ #include <FEXCore/Utils/File.h>
++#include <FEXCore/Utils/FloatFallbackHook.h>
+ #include <FEXCore/Utils/LogManager.h>
+ #include "FEXCore/Utils/SignalScopeGuards.h"
+ #include <FEXCore/Utils/Threads.h>
+@@ -185,6 +186,54 @@ uint64_t ContextImpl::RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* T
+   return Frame->State.rip;
+ }
+ 
++} // namespace FEXCore::Context
++
++namespace FEXCore::SHMStats {
++FloatFallbackHookFn FloatFallbackHook {};
++} // namespace FEXCore::SHMStats
++
++namespace FEXCore::Context {
++bool Context::DecodeSampledRIP(uint64_t BlockHeader, uint64_t HostPC, SampleReadFn Read, uint64_t* GuestRIP, bool* InBlock) {
++  *InBlock = false;
++  CPU::CPUBackend::JITCodeHeader Header {};
++  CPU::CPUBackend::JITCodeTail Tail {};
++  if (!BlockHeader || !Read(BlockHeader, &Header, sizeof(Header)) || !Read(BlockHeader + Header.OffsetToBlockTail, &Tail, sizeof(Tail))) {
++    return false;
++  }
++  *GuestRIP = Tail.RIP;
++  if (HostPC < BlockHeader || HostPC >= BlockHeader + Tail.Size) {
++    return true;
++  }
++  *InBlock = true;
++
++  // RIP entries, as in RestoreRIPFromHostPC; zero padding keeps the last decode inside the buffer.
++  constexpr size_t MaxEntryBytes = 4096;
++  constexpr size_t Pad = 32;
++  uint8_t Entries[MaxEntryBytes + Pad] {};
++  const uint64_t EntriesAddr = BlockHeader + Header.OffsetToBlockTail + Tail.OffsetToRIPEntries;
++  size_t Want = std::min<size_t>(MaxEntryBytes, size_t {Tail.NumberOfRIPEntries} * 17);
++  while (Want && !Read(EntriesAddr, Entries, Want)) {
++    Want /= 2;
++  }
++  if (!Want) {
++    return true;
++  }
++  const uint8_t* Ptr = Entries;
++  uint64_t StartingHostPC = BlockHeader;
++  uint64_t StartingGuestRIP = Tail.RIP;
++  for (uint32_t i = 0; i < Tail.NumberOfRIPEntries && Ptr < Entries + Want; ++i) {
++    auto Offset = FEXCore::Utils::vl64pair::Decode(Ptr);
++    Ptr += Offset.Size;
++    if (HostPC < StartingHostPC + Offset.IntegerARMPC) {
++      break;
++    }
++    StartingHostPC += Offset.IntegerARMPC;
++    StartingGuestRIP += Offset.IntegerX86RIP;
++  }
++  *GuestRIP = StartingGuestRIP;
++  return true;
++}
++
+ uint32_t ContextImpl::ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs,
+                                                  uint64_t PSTATE) {
+   const auto Frame = Thread->CurrentFrame;
+diff --git a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
+index c903d3b..a0212d4 100644
+--- a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
++++ b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
+@@ -2347,6 +2347,8 @@ void Dispatcher::EmitF64FPREM1() {
+ 
+ uint64_t Dispatcher::GenerateABICall(FallbackABI ABI) {
+   auto Address = GetCursorAddress<uint64_t>();
++  // x30 is the return address into the translated code that needs the fallback: keep it for profilers.
++  str(ARMEmitter::XReg::lr, STATE_PTR(CpuStateFrame, FallbackReturnPC));
+   constexpr static auto FallbackPointerReg = TMP4;
+   constexpr static auto ABI1 = ARMEmitter::XReg::x0;
+   constexpr static auto ABI2 = ARMEmitter::XReg::x1;
+diff --git a/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h b/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
+index 5c0e656..6731adb 100644
+--- a/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
++++ b/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
+@@ -6,8 +6,18 @@
+ #include "Interface/IR/IR.h"
+ 
+ #include <FEXCore/Debug/InternalThreadState.h>
++#include <FEXCore/Utils/FloatFallbackHook.h>
+ #include <FEXCore/Utils/SHMStats.h>
+ 
++// Counts a softfloat fallback, and tells a profiler which translated code called it.
++#define FEXCORE_FLOAT_FALLBACK(Frame)                                                                         \
++  do {                                                                                                        \
++    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);                       \
++    if (auto Hook = FEXCore::SHMStats::FloatFallbackHook) [[unlikely]] {                                      \
++      Hook(Frame, Frame->FallbackReturnPC);                                                                   \
++    }                                                                                                         \
++  } while (0)
++
+ namespace FEXCore::CPU {
+ FEXCORE_PRESERVE_ALL_ATTR static softfloat_state SoftFloatStateFromFCW(uint16_t FCW, bool Force80BitPrecision = false) {
+   softfloat_state State {};
+@@ -69,13 +79,13 @@ private:
+ template<>
+ struct OpHandlers<IR::OP_F80CVTTO> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle4(uint16_t FCW, float src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(&State.State, src);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle8(uint16_t FCW, double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(&State.State, src);
+   }
+@@ -84,7 +94,7 @@ struct OpHandlers<IR::OP_F80CVTTO> {
+ template<>
+ struct OpHandlers<IR::OP_F80CMP> {
+   FEXCORE_PRESERVE_ALL_ATTR static uint64_t handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+ 
+     bool eq, lt, nan;
+@@ -107,13 +117,13 @@ struct OpHandlers<IR::OP_F80CMP> {
+ template<>
+ struct OpHandlers<IR::OP_F80CVT> {
+   FEXCORE_PRESERVE_ALL_ATTR static float handle4(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToF32(&State.State);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static double handle8(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToF64(&State.State);
+   }
+@@ -122,25 +132,25 @@ struct OpHandlers<IR::OP_F80CVT> {
+ template<>
+ struct OpHandlers<IR::OP_F80CVTINT> {
+   FEXCORE_PRESERVE_ALL_ATTR static int16_t handle2(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToI16(&State.State);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int32_t handle4(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToI32(&State.State);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int64_t handle8(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat(src).ToI64(&State.State);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int16_t handle2t(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     auto rv = extF80_to_i32(&State.State, X80SoftFloat(src), softfloat_round_minMag, false);
+ 
+@@ -153,13 +163,13 @@ struct OpHandlers<IR::OP_F80CVTINT> {
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int32_t handle4t(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return extF80_to_i32(&State.State, X80SoftFloat(src), softfloat_round_minMag, false);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static int64_t handle8t(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return extF80_to_i64(&State.State, X80SoftFloat(src), softfloat_round_minMag, false);
+   }
+@@ -168,12 +178,12 @@ struct OpHandlers<IR::OP_F80CVTINT> {
+ template<>
+ struct OpHandlers<IR::OP_F80CVTTOINT> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle2(uint16_t FCW, int16_t src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return X80SoftFloat(src);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle4(uint16_t FCW, int32_t src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return X80SoftFloat(src);
+   }
+ };
+@@ -181,7 +191,7 @@ struct OpHandlers<IR::OP_F80CVTTOINT> {
+ template<>
+ struct OpHandlers<IR::OP_F80ROUND> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FRNDINT(&State.State, Src1);
+   }
+@@ -190,7 +200,7 @@ struct OpHandlers<IR::OP_F80ROUND> {
+ template<>
+ struct OpHandlers<IR::OP_F80F2XM1> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::F2XM1(&State.State, Src1);
+   }
+@@ -199,7 +209,7 @@ struct OpHandlers<IR::OP_F80F2XM1> {
+ template<>
+ struct OpHandlers<IR::OP_F80TAN> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FTAN(&State.State, Src1);
+   }
+@@ -208,7 +218,7 @@ struct OpHandlers<IR::OP_F80TAN> {
+ template<>
+ struct OpHandlers<IR::OP_F80SQRT> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FSQRT(&State.State, Src1);
+   }
+@@ -217,7 +227,7 @@ struct OpHandlers<IR::OP_F80SQRT> {
+ template<>
+ struct OpHandlers<IR::OP_F80SIN> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FSIN(&State.State, Src1);
+   }
+@@ -226,7 +236,7 @@ struct OpHandlers<IR::OP_F80SIN> {
+ template<>
+ struct OpHandlers<IR::OP_F80COS> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FCOS(&State.State, Src1);
+   }
+@@ -235,7 +245,7 @@ struct OpHandlers<IR::OP_F80COS> {
+ template<>
+ struct OpHandlers<IR::OP_F80SINCOS> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegPairType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return FEXCore::MakeVectorRegPair(X80SoftFloat::FSIN(&State.State, Src1), X80SoftFloat::FCOS(&State.State, Src1));
+   }
+@@ -244,7 +254,7 @@ struct OpHandlers<IR::OP_F80SINCOS> {
+ template<>
+ struct OpHandlers<IR::OP_F80XTRACT_EXP> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return X80SoftFloat::FXTRACT_EXP(Src1);
+   }
+ };
+@@ -252,7 +262,7 @@ struct OpHandlers<IR::OP_F80XTRACT_EXP> {
+ template<>
+ struct OpHandlers<IR::OP_F80XTRACT_SIG> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return X80SoftFloat::FXTRACT_SIG(Src1);
+   }
+ };
+@@ -260,7 +270,7 @@ struct OpHandlers<IR::OP_F80XTRACT_SIG> {
+ template<>
+ struct OpHandlers<IR::OP_F80ADD> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FADD(&State.State, Src1, Src2);
+   }
+@@ -269,7 +279,7 @@ struct OpHandlers<IR::OP_F80ADD> {
+ template<>
+ struct OpHandlers<IR::OP_F80SUB> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FSUB(&State.State, Src1, Src2);
+   }
+@@ -278,7 +288,7 @@ struct OpHandlers<IR::OP_F80SUB> {
+ template<>
+ struct OpHandlers<IR::OP_F80MUL> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FMUL(&State.State, Src1, Src2);
+   }
+@@ -287,7 +297,7 @@ struct OpHandlers<IR::OP_F80MUL> {
+ template<>
+ struct OpHandlers<IR::OP_F80DIV> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame};
+     return X80SoftFloat::FDIV(&State.State, Src1, Src2);
+   }
+@@ -296,7 +306,7 @@ struct OpHandlers<IR::OP_F80DIV> {
+ template<>
+ struct OpHandlers<IR::OP_F80FYL2X> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FYL2X(&State.State, Src1, Src2);
+   }
+@@ -305,7 +315,7 @@ struct OpHandlers<IR::OP_F80FYL2X> {
+ template<>
+ struct OpHandlers<IR::OP_F80FYL2XP1> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     const X80SoftFloat One {&State.State, 1.0};
+     return X80SoftFloat::FYL2X(&State.State, X80SoftFloat::FADD(&State.State, Src1, One), Src2);
+@@ -315,7 +325,7 @@ struct OpHandlers<IR::OP_F80FYL2XP1> {
+ template<>
+ struct OpHandlers<IR::OP_F80ATAN> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FATAN(&State.State, Src1, Src2);
+   }
+@@ -324,7 +334,7 @@ struct OpHandlers<IR::OP_F80ATAN> {
+ template<>
+ struct OpHandlers<IR::OP_F80FPREM1> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FREM1(&State.State, Src1, Src2);
+   }
+@@ -333,7 +343,7 @@ struct OpHandlers<IR::OP_F80FPREM1> {
+ template<>
+ struct OpHandlers<IR::OP_F80FPREM> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FREM(&State.State, Src1, Src2);
+   }
+@@ -342,7 +352,7 @@ struct OpHandlers<IR::OP_F80FPREM> {
+ template<>
+ struct OpHandlers<IR::OP_F80SCALE> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     ScopedSoftFloatState State {FCW, Frame, true};
+     return X80SoftFloat::FSCALE(&State.State, Src1, Src2);
+   }
+@@ -351,7 +361,7 @@ struct OpHandlers<IR::OP_F80SCALE> {
+ template<>
+ struct OpHandlers<IR::OP_F64SIN> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return sin(src);
+   }
+ };
+@@ -359,7 +369,7 @@ struct OpHandlers<IR::OP_F64SIN> {
+ template<>
+ struct OpHandlers<IR::OP_F64COS> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return cos(src);
+   }
+ };
+@@ -367,7 +377,7 @@ struct OpHandlers<IR::OP_F64COS> {
+ template<>
+ struct OpHandlers<IR::OP_F64SINCOS> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorScalarF64Pair handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     double sin, cos;
+ #ifdef _WIN32
+     sin = ::sin(src);
+@@ -382,7 +392,7 @@ struct OpHandlers<IR::OP_F64SINCOS> {
+ template<>
+ struct OpHandlers<IR::OP_F64TAN> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return tan(src);
+   }
+ };
+@@ -390,7 +400,7 @@ struct OpHandlers<IR::OP_F64TAN> {
+ template<>
+ struct OpHandlers<IR::OP_F64F2XM1> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return exp2(src) - 1.0;
+   }
+ };
+@@ -398,7 +408,7 @@ struct OpHandlers<IR::OP_F64F2XM1> {
+ template<>
+ struct OpHandlers<IR::OP_F64ATAN> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return atan2(src1, src2);
+   }
+ };
+@@ -406,7 +416,7 @@ struct OpHandlers<IR::OP_F64ATAN> {
+ template<>
+ struct OpHandlers<IR::OP_F64FPREM> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return fmod(src1, src2);
+   }
+ };
+@@ -414,7 +424,7 @@ struct OpHandlers<IR::OP_F64FPREM> {
+ template<>
+ struct OpHandlers<IR::OP_F64FPREM1> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return remainder(src1, src2);
+   }
+ };
+@@ -422,7 +432,7 @@ struct OpHandlers<IR::OP_F64FPREM1> {
+ template<>
+ struct OpHandlers<IR::OP_F64FYL2X> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return src2 * log2(src1);
+   }
+ };
+@@ -430,7 +440,7 @@ struct OpHandlers<IR::OP_F64FYL2X> {
+ template<>
+ struct OpHandlers<IR::OP_F64FYL2XP1> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     return src2 * log2(1.0 + src1);
+   }
+ };
+@@ -438,7 +448,7 @@ struct OpHandlers<IR::OP_F64FYL2XP1> {
+ template<>
+ struct OpHandlers<IR::OP_F64SCALE> {
+   FEXCORE_PRESERVE_ALL_ATTR static double handle(double src1, double src2, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     if (src1 == 0.0) { // src1 might be +/- zero
+       return src1;     // this will return negative or positive zero if when appropriate
+     }
+@@ -450,7 +460,7 @@ struct OpHandlers<IR::OP_F64SCALE> {
+ template<>
+ struct OpHandlers<IR::OP_F80BCDSTORE> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1q, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     X80SoftFloat Src1 = Src1q;
+     ScopedSoftFloatState State {FCW, Frame};
+     bool Negative = Src1.Top.Sign;
+@@ -492,7 +502,7 @@ struct OpHandlers<IR::OP_F80BCDSTORE> {
+ template<>
+ struct OpHandlers<IR::OP_F80BCDLOAD> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src, FEXCore::Core::CpuStateFrame* Frame) {
+-    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
++    FEXCORE_FLOAT_FALLBACK(Frame);
+     uint8_t* Src1 = reinterpret_cast<uint8_t*>(&Src);
+     uint64_t BCD {};
+     // We walk through each uint8_t and pull out the BCD encoding
+diff --git a/FEXCore/include/FEXCore/Core/Context.h b/FEXCore/include/FEXCore/Core/Context.h
+index 8aa448e..0f66f21 100644
+--- a/FEXCore/include/FEXCore/Core/Context.h
++++ b/FEXCore/include/FEXCore/Core/Context.h
+@@ -86,6 +86,13 @@ public:
+   ///< State reconstruction helpers
+   ///< Reconstructs the guest RIP from the passed in thread context and related Host PC.
+   FEX_DEFAULT_VISIBILITY virtual uint64_t RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) = 0;
++
++  ///< For a sampling profiler. BlockHeader is a thread's CPUState::InlineJITBlockHeader when HostPC was sampled.
++  ///< Read copies memory and returns false if it can't (the block may have been thrown away since).
++  ///< On success GuestRIP is the guest instruction for HostPC when InBlock, else the block's entry RIP
++  ///< (the guest code that was running before HostPC left translated code).
++  using SampleReadFn = bool (*)(uint64_t Address, void* Dest, size_t Size);
++  FEX_DEFAULT_VISIBILITY static bool DecodeSampledRIP(uint64_t BlockHeader, uint64_t HostPC, SampleReadFn Read, uint64_t* GuestRIP, bool* InBlock);
+   /**
+    * @brief Reconstructs a compacted EFLAGS from FEX's internal EFLAG representation.
+    *
+diff --git a/FEXCore/include/FEXCore/Core/CoreState.h b/FEXCore/include/FEXCore/Core/CoreState.h
+index 2112073..0164ccf 100644
+--- a/FEXCore/include/FEXCore/Core/CoreState.h
++++ b/FEXCore/include/FEXCore/Core/CoreState.h
+@@ -459,6 +459,12 @@ struct CpuStateFrame {
+    */
+   uint64_t InSyscallInfo {};
+ 
++  /**
++   * @brief Return address in translated code of the last softfloat fallback call (stored by the fallback ABI thunk),
++   * so a profiler can name the guest instruction that needed it.
++   */
++  uint64_t FallbackReturnPC {};
++
+   struct SynchronousFaultDataStruct {
+     bool FaultToTopAndGeneratedException {};
+     uint8_t Signal;
+diff --git a/FEXCore/include/FEXCore/Utils/FloatFallbackHook.h b/FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
+new file mode 100644
+index 0000000..daa7180
+--- /dev/null
++++ b/FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
+@@ -0,0 +1,16 @@
++// SPDX-License-Identifier: MIT
++#pragma once
++#include <FEXCore/Utils/CompilerDefs.h>
++#include <cstdint>
++
++namespace FEXCore::Core {
++struct CpuStateFrame;
++}
++
++namespace FEXCore::SHMStats {
++// Set by a frontend's profiler (ARM64EC SampleHz). Called on every x87 softfloat fallback with the thread's frame
++// and the host PC in translated code that called the fallback (CpuStateFrame::FallbackReturnPC), so the profiler can
++// name the guest instruction.
++using FloatFallbackHookFn = void (*)(FEXCore::Core::CpuStateFrame* Frame, uint64_t HostPC);
++FEX_DEFAULT_VISIBILITY extern FloatFallbackHookFn FloatFallbackHook;
++} // namespace FEXCore::SHMStats
+diff --git a/Source/Windows/ARM64EC/CMakeLists.txt b/Source/Windows/ARM64EC/CMakeLists.txt
+index 0c9a57a..c92282a 100644
+--- a/Source/Windows/ARM64EC/CMakeLists.txt
++++ b/Source/Windows/ARM64EC/CMakeLists.txt
+@@ -1,6 +1,7 @@
+ add_library(arm64ecfex SHARED
+   Module.cpp
+   Module.S
++  Sampler.cpp
+   libarm64ecfex.def
+   $<TARGET_OBJECTS:FEXCore_object>)
+ 
+diff --git a/Source/Windows/ARM64EC/Module.cpp b/Source/Windows/ARM64EC/Module.cpp
+index c9f0d74..d6c9d03 100644
+--- a/Source/Windows/ARM64EC/Module.cpp
++++ b/Source/Windows/ARM64EC/Module.cpp
+@@ -49,6 +49,7 @@ $end_info$
+ #include "DummyHandlers.h"
+ #include "BTInterface.h"
+ #include "Windows/Common/SHMStats.h"
++#include "ARM64EC/Sampler.h"
+ 
+ #include <cstdint>
+ #include <cstdio>
+@@ -817,6 +818,9 @@ NTSTATUS ProcessInit() {
+   if (IsWine && ProfileStats()) {
+     StatAllocHandler = fextl::make_unique<FEX::Windows::StatAlloc>(FEXCore::SHMStats::AppType::WIN_ARM64EC);
+   }
++  if (IsWine) {
++    FEX::Windows::Sampler::ProcessInit();
++  }
+ 
+   if (StartupSleep() && (StartupSleepProcName().empty() || AppConfigName == StartupSleepProcName())) {
+     LogMan::Msg::IFmt("[{}][{}] Sleeping for {} seconds", GetCurrentProcessId(), AppConfigName, StartupSleep());
+@@ -826,7 +830,11 @@ NTSTATUS ProcessInit() {
+   return STATUS_SUCCESS;
+ }
+ 
+-void ProcessTerm(HANDLE Handle, BOOL After, NTSTATUS Status) {}
++void ProcessTerm(HANDLE Handle, BOOL After, NTSTATUS Status) {
++  if (!After) {
++    FEX::Windows::Sampler::ProcessTerm();
++  }
++}
+ 
+ class ScopedCallbackDisable {
+ private:
+@@ -1251,6 +1259,7 @@ NTSTATUS ThreadInit() {
+ 
+   CPUArea.ThreadState() = Thread;
+   CPUArea.Area->SuspendDoorbell = reinterpret_cast<ULONG*>(&Thread->CurrentFrame->SuspendDoorbell);
++  FEX::Windows::Sampler::ThreadInit(Thread);
+   return STATUS_SUCCESS;
+ }
+ 
+@@ -1296,6 +1305,7 @@ NTSTATUS ThreadTerm(HANDLE Thread, LONG ExitCode) {
+     }
+   }
+   auto ThreadState = CPUArea.ThreadState();
++  FEX::Windows::Sampler::ThreadTerm(ThreadState);
+ 
+   delete GetFrontendThreadData(ThreadState);
+ 
+diff --git a/Source/Windows/ARM64EC/Sampler.cpp b/Source/Windows/ARM64EC/Sampler.cpp
+new file mode 100644
+index 0000000..4a948d6
+--- /dev/null
++++ b/Source/Windows/ARM64EC/Sampler.cpp
+@@ -0,0 +1,510 @@
++// SPDX-License-Identifier: MIT
++#include "ARM64EC/Sampler.h"
++#include "Windows/Common/FEXUnixLib.h"
++#include "Windows/Common/Module.h"
++
++#include <FEXCore/Config/Config.h>
++#include <FEXCore/Core/Context.h>
++#include <FEXCore/Core/CoreState.h>
++#include <FEXCore/Debug/InternalThreadState.h>
++#include <FEXCore/Utils/FloatFallbackHook.h>
++#include <FEXCore/Utils/LogManager.h>
++#include <FEXCore/Utils/Threads.h>
++#include <FEXCore/fextl/fmt.h>
++#include <FEXCore/fextl/memory.h>
++#include <FEXCore/fextl/string.h>
++#include <FEXCore/fextl/unordered_map.h>
++#include <FEXCore/fextl/vector.h>
++
++#include <algorithm>
++#include <atomic>
++#include <cstddef>
++#include <mutex>
++
++#include <windef.h>
++#include <winternl.h>
++#include <winnt.h>
++
++namespace FEX::Windows::Sampler {
++namespace {
++  constexpr uint32_t MainRows = 200;
++  constexpr uint32_t RestRows = 50;
++  constexpr uint32_t ThreadRows = 8;
++  constexpr uint64_t FlushIntervalMs = 60000;
++  constexpr uint32_t FallbackRows = 50;
++  constexpr uint32_t FallbackModuleRows = 20;
++  // Ring records written by FloatFallback (on every x87 softfloat fallback) rather than by the timer.
++  constexpr uint32_t FlagFloatFallback = 1;
++
++  uint32_t Hz {};
++  FEXSampleRecord* Ring {};
++  uint64_t* Head {};
++  uint64_t* HandlerTicks {};
++  uint64_t Capacity {};
++  uint32_t PID {};
++  std::atomic<bool> AggregatorStarted {};
++  fextl::unique_ptr<FEXCore::Threads::Thread> Aggregator;
++
++  std::mutex HandlesMutex;
++  fextl::unordered_map<FEXCore::Core::InternalThreadState*, void*> Handles;
++
++  bool SafeRead(uint64_t Address, void* Dest, size_t Size) {
++    FEXUnixLib_SamplerRead Args {.Address = Address, .Dest = Dest, .Size = Size};
++    return UnixLib::Call(FEXUnixLibFunctions::SamplerRead, &Args) == 0;
++  }
++
++  uint64_t TimerFrequency() {
++    uint64_t F;
++    asm volatile("mrs %0, cntfrq_el0" : "=r"(F));
++    return F ? F : 1;
++  }
++
++  uint64_t UnixTimeMs() {
++    LARGE_INTEGER T {};
++    NtQuerySystemTime(&T);
++    return (T.QuadPart - 116444736000000000LL) / 10000;
++  }
++
++  uint64_t OwnCPUTimeUs() {
++    KERNEL_USER_TIMES Times {};
++    if (NtQueryInformationThread(NtCurrentThread(), ThreadTimes, &Times, sizeof(Times), nullptr)) {
++      return 0;
++    }
++    return (Times.KernelTime.QuadPart + Times.UserTime.QuadPart) / 10;
++  }
++
++  // Where a sample was: in the thread's current translated block (JIT, exact guest instruction), elsewhere with a
++  // known last block (Out: FEX itself, a native ARM64EC DLL, Wine's unix side; guest = that block's entry), or with
++  // no block decodable (None: guest = the thread's last synced RIP).
++  enum class Kind : uint8_t { JIT, Out, None };
++
++  struct Key {
++    uint32_t TID;
++    Kind K;
++    uint64_t Guest;
++    uint64_t Host;
++    bool operator==(const Key&) const = default;
++  };
++  struct KeyHash {
++    size_t operator()(const Key& k) const {
++      uint64_t h = k.Guest * 0x9E3779B97F4A7C15ull ^ (k.Host + 0x632BE59BD9B4E019ull) * 0xC2B2AE3D27D4EB4Full;
++      return size_t(h ^ (uint64_t(k.TID) << 8) ^ uint64_t(k.K));
++    }
++  };
++  struct DecodeKey {
++    uint64_t Header, PC;
++    bool operator==(const DecodeKey&) const = default;
++  };
++  struct DecodeKeyHash {
++    size_t operator()(const DecodeKey& k) const {
++      return size_t(k.Header * 0x9E3779B97F4A7C15ull ^ k.PC * 0xC2B2AE3D27D4EB4Full);
++    }
++  };
++  struct Decoded {
++    uint64_t Guest;
++    Kind K;
++  };
++
++  struct Module {
++    fextl::string Name; // Empty: not an image.
++    uint64_t Base {};
++    bool Executable {};
++    fextl::vector<std::pair<uint32_t, fextl::string>> Exports; // Sorted by RVA.
++  };
++
++  std::mutex AggMutex;
++  uint64_t Tail {};
++  uint64_t Lost {};
++  uint64_t MinuteIndex {};
++  uint64_t LastHandlerTicks {};
++  uint64_t LastOwnUs {};
++  bool WroteHeader {};
++  fextl::unordered_map<Key, uint32_t, KeyHash> Counts;
++  fextl::unordered_map<uint64_t, uint32_t> FallbackCounts; // Guest RIP of the x87 instruction.
++  fextl::unordered_map<DecodeKey, Decoded, DecodeKeyHash> DecodeCache;
++  fextl::unordered_map<uint64_t, fextl::unique_ptr<Module>> Modules;
++  Module NotAnImage;
++  Module NotAnImageExec;
++
++  void ParseExports(Module& M) {
++    IMAGE_DOS_HEADER Dos;
++    if (!SafeRead(M.Base, &Dos, sizeof(Dos)) || Dos.e_magic != IMAGE_DOS_SIGNATURE) {
++      return;
++    }
++    IMAGE_NT_HEADERS64 Nt;
++    if (!SafeRead(M.Base + Dos.e_lfanew, &Nt, sizeof(Nt)) || Nt.Signature != IMAGE_NT_SIGNATURE ||
++        Nt.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
++      return;
++    }
++    const auto& Dir = Nt.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
++    IMAGE_EXPORT_DIRECTORY Exp;
++    if (!Dir.VirtualAddress || !SafeRead(M.Base + Dir.VirtualAddress, &Exp, sizeof(Exp))) {
++      return;
++    }
++    const uint32_t Names = std::min<uint32_t>(Exp.NumberOfNames, 30000);
++    const uint32_t Functions = std::min<uint32_t>(Exp.NumberOfFunctions, 65536);
++    fextl::vector<uint32_t> NameRVAs(Names), FunctionRVAs(Functions);
++    fextl::vector<uint16_t> Ordinals(Names);
++    if (!Names || !SafeRead(M.Base + Exp.AddressOfNames, NameRVAs.data(), Names * 4) ||
++        !SafeRead(M.Base + Exp.AddressOfNameOrdinals, Ordinals.data(), Names * 2) ||
++        !SafeRead(M.Base + Exp.AddressOfFunctions, FunctionRVAs.data(), Functions * 4)) {
++      return;
++    }
++    M.Exports.reserve(Names);
++    for (uint32_t i = 0; i < Names; ++i) {
++      if (Ordinals[i] >= Functions) {
++        continue;
++      }
++      const uint32_t RVA = FunctionRVAs[Ordinals[i]];
++      if (RVA >= Dir.VirtualAddress && RVA < Dir.VirtualAddress + Dir.Size) {
++        continue; // Forwarder string, not code.
++      }
++      char Buf[128] {};
++      if (!SafeRead(M.Base + NameRVAs[i], Buf, sizeof(Buf) - 1) && !SafeRead(M.Base + NameRVAs[i], Buf, 32)) {
++        continue;
++      }
++      Buf[sizeof(Buf) - 1] = 0;
++      M.Exports.emplace_back(RVA, fextl::string(Buf));
++    }
++    std::sort(M.Exports.begin(), M.Exports.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
++  }
++
++  const Module* FindModule(uint64_t Address) {
++    MEMORY_BASIC_INFORMATION Info {};
++    if (!Address || NtQueryVirtualMemory(NtCurrentProcess(), reinterpret_cast<void*>(Address), MemoryBasicInformation, &Info, sizeof(Info), nullptr)) {
++      return &NotAnImage;
++    }
++    if (Info.Type != MEM_IMAGE) {
++      constexpr DWORD Exec = PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
++      return (Info.Protect & Exec) ? &NotAnImageExec : &NotAnImage;
++    }
++    const uint64_t Base = reinterpret_cast<uint64_t>(Info.AllocationBase);
++    if (auto it = Modules.find(Base); it != Modules.end()) {
++      return it->second.get();
++    }
++    auto M = fextl::make_unique<Module>();
++    M->Base = Base;
++    M->Name = fextl::string(FEX::Windows::BaseName(FEX::Windows::GetSectionFilePath(Base)));
++    for (auto& c : M->Name) {
++      if (c == ',' || c == '\n' || c == '"') {
++        c = '_';
++      }
++    }
++    if (M->Name.empty()) {
++      M->Name = "image";
++    }
++    ParseExports(*M);
++    return Modules.emplace(Base, std::move(M)).first->second.get();
++  }
++
++  // module, offset, symbol
++  void Describe(fextl::string& Out, uint64_t Address, const Module* M) {
++    if (!Address) {
++      Out += ",,,";
++      return;
++    }
++    if (M->Name.empty()) {
++      Out += fextl::fmt::format(",anon,0x{:x},", Address);
++      return;
++    }
++    const uint64_t RVA = Address - M->Base;
++    Out += fextl::fmt::format(",{},0x{:x},", M->Name, RVA);
++    auto it = std::upper_bound(M->Exports.begin(), M->Exports.end(), RVA, [](uint64_t v, const auto& e) { return v < e.first; });
++    if (it != M->Exports.begin()) {
++      --it;
++      if (RVA - it->first < 0x100000) {
++        Out += fextl::fmt::format("{}+0x{:x}", it->second, RVA - it->first);
++      }
++    }
++  }
++
++  const char* KindName(Kind K, const Module* HostModule) {
++    if (K == Kind::JIT) {
++      return "jit";
++    }
++    if (!HostModule->Name.empty()) {
++      return (HostModule->Name == "libarm64ecfex.dll" || HostModule->Name == "libFEXCore.dll") ? "fex" : "native";
++    }
++    return HostModule == &NotAnImageExec ? "jit-other" : "host";
++  }
++
++  void Account(const FEXSampleRecord& R) {
++    if (R.Flags & FlagFloatFallback) {
++      uint64_t Guest = R.RIP;
++      bool InBlock {};
++      if (R.BlockHeader) {
++        DecodeKey DK {R.BlockHeader, R.PC};
++        if (auto it = DecodeCache.find(DK); it != DecodeCache.end()) {
++          Guest = it->second.Guest;
++        } else if (FEXCore::Context::Context::DecodeSampledRIP(R.BlockHeader, R.PC, SafeRead, &Guest, &InBlock) && DecodeCache.size() < 500000) {
++          DecodeCache.emplace(DK, Decoded {Guest, InBlock ? Kind::JIT : Kind::Out});
++        }
++      }
++      ++FallbackCounts[Guest];
++      return;
++    }
++    Decoded D {R.RIP, Kind::None};
++    if (R.BlockHeader) {
++      DecodeKey DK {R.BlockHeader, R.PC};
++      if (auto it = DecodeCache.find(DK); it != DecodeCache.end()) {
++        D = it->second;
++      } else {
++        uint64_t Guest {};
++        bool InBlock {};
++        if (FEXCore::Context::Context::DecodeSampledRIP(R.BlockHeader, R.PC, SafeRead, &Guest, &InBlock)) {
++          D = {Guest, InBlock ? Kind::JIT : Kind::Out};
++        }
++        if (DecodeCache.size() < 500000) {
++          DecodeCache.emplace(DK, D);
++        }
++      }
++    }
++    ++Counts[Key {R.TID, D.K, D.Guest, D.K == Kind::JIT ? 0 : R.PC}];
++  }
++
++  void Drain() {
++    const uint64_t H = __atomic_load_n(Head, __ATOMIC_ACQUIRE);
++    if (H - Tail > Capacity) {
++      Lost += H - Tail - Capacity;
++      Tail = H - Capacity;
++    }
++    while (Tail < H) {
++      const auto& Slot = Ring[Tail & (Capacity - 1)];
++      const uint64_t Seq = __atomic_load_n(&Slot.Seq, __ATOMIC_ACQUIRE);
++      if (Seq != Tail + 1) {
++        if (Seq > Tail + 1) {
++          ++Lost; // Overwritten by a newer lap.
++          ++Tail;
++          continue;
++        }
++        break; // Still being written.
++      }
++      FEXSampleRecord Copy = Slot;
++      __atomic_thread_fence(__ATOMIC_ACQUIRE);
++      if (__atomic_load_n(&Slot.Seq, __ATOMIC_RELAXED) != Seq) {
++        ++Lost;
++      } else {
++        Account(Copy);
++      }
++      ++Tail;
++    }
++  }
++
++  struct Row {
++    Kind K;
++    uint64_t Guest, Host;
++    uint32_t Count;
++  };
++
++  void TopRows(fextl::string& Out, const fextl::unordered_map<Key, uint32_t, KeyHash>& From, bool Main, uint32_t BusiestTID, uint32_t Limit,
++               uint64_t Minute, uint64_t Now) {
++    fextl::unordered_map<Key, uint32_t, KeyHash> Merged;
++    uint64_t Total = 0;
++    for (const auto& [k, n] : From) {
++      if ((k.TID == BusiestTID) != Main) {
++        continue;
++      }
++      Total += n;
++      Merged[Key {0, k.K, k.Guest, k.Host}] += n;
++    }
++    fextl::vector<Row> Rows;
++    Rows.reserve(Merged.size());
++    for (const auto& [k, n] : Merged) {
++      Rows.push_back({k.K, k.Guest, k.Host, n});
++    }
++    const size_t Keep = std::min<size_t>(Limit, Rows.size());
++    std::partial_sort(Rows.begin(), Rows.begin() + Keep, Rows.end(), [](const Row& a, const Row& b) { return a.Count > b.Count; });
++    for (size_t i = 0; i < Keep; ++i) {
++      const auto& r = Rows[i];
++      const Module* HostModule = r.K == Kind::JIT ? &NotAnImage : FindModule(r.Host);
++      Out += fextl::fmt::format("{},{},{},{},{},{},{},{:.4f},{}", Minute, Now, PID, Main ? "main" : "rest", Main ? BusiestTID : 0, i + 1,
++                                r.Count, double(r.Count) / double(Total ? Total : 1), KindName(r.K, HostModule));
++      Describe(Out, r.Guest, FindModule(r.Guest));
++      if (r.K == Kind::JIT) {
++        Out += ",,,";
++      } else {
++        Describe(Out, r.Host, HostModule);
++      }
++      Out += '\n';
++    }
++  }
++
++  void Flush() {
++    const uint64_t Now = UnixTimeMs();
++    fextl::string Out;
++    if (!WroteHeader) {
++      Out += "minute,t_unix_ms,pid,scope,tid,rank,samples,share,kind,guest_module,guest_offset,guest_symbol,host_module,host_offset,"
++             "host_symbol\n";
++      WroteHeader = true;
++    }
++    fextl::unordered_map<uint32_t, uint64_t> PerThread;
++    uint64_t Total = 0;
++    for (const auto& [k, n] : Counts) {
++      PerThread[k.TID] += n;
++      Total += n;
++    }
++    fextl::vector<std::pair<uint32_t, uint64_t>> Threads(PerThread.begin(), PerThread.end());
++    std::sort(Threads.begin(), Threads.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
++    const uint32_t Busiest = Threads.empty() ? 0 : Threads[0].first;
++    for (size_t i = 0; i < Threads.size() && i < ThreadRows; ++i) {
++      Out += fextl::fmt::format("{},{},{},thread,{},{},{},{:.4f},,,,,,,\n", MinuteIndex, Now, PID, Threads[i].first, i + 1, Threads[i].second,
++                                double(Threads[i].second) / double(Total ? Total : 1));
++    }
++    if (Total) {
++      TopRows(Out, Counts, true, Busiest, MainRows, MinuteIndex, Now);
++      TopRows(Out, Counts, false, Busiest, RestRows, MinuteIndex, Now);
++    }
++    // Every x87 softfloat fallback, by the guest instruction that needed it and by guest module (not sampled: counted).
++    uint64_t Fallbacks = 0;
++    if (!FallbackCounts.empty()) {
++      fextl::vector<std::pair<uint64_t, uint32_t>> Sites(FallbackCounts.begin(), FallbackCounts.end());
++      fextl::unordered_map<const Module*, uint64_t> PerModule;
++      for (const auto& [Guest, n] : Sites) {
++        Fallbacks += n;
++        PerModule[FindModule(Guest)] += n;
++      }
++      const size_t Keep = std::min<size_t>(FallbackRows, Sites.size());
++      std::partial_sort(Sites.begin(), Sites.begin() + Keep, Sites.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
++      for (size_t i = 0; i < Keep; ++i) {
++        Out += fextl::fmt::format("{},{},{},x87,0,{},{},{:.4f},x87", MinuteIndex, Now, PID, i + 1, Sites[i].second,
++                                  double(Sites[i].second) / double(Fallbacks));
++        Describe(Out, Sites[i].first, FindModule(Sites[i].first));
++        Out += ",,,\n";
++      }
++      fextl::vector<std::pair<const Module*, uint64_t>> Mods(PerModule.begin(), PerModule.end());
++      std::sort(Mods.begin(), Mods.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
++      for (size_t i = 0; i < Mods.size() && i < FallbackModuleRows; ++i) {
++        const auto* M = Mods[i].first;
++        const char* Name = M->Name.empty() ? (M == &NotAnImageExec ? "anon-exec" : "anon") : M->Name.c_str();
++        Out += fextl::fmt::format("{},{},{},x87-module,0,{},{},{:.4f},x87,{},,,,,\n", MinuteIndex, Now, PID, i + 1, Mods[i].second,
++                                  double(Mods[i].second) / double(Fallbacks), Name);
++      }
++      FallbackCounts.clear();
++    }
++    // Meta rows: kind names a counter, samples holds its value.
++    const uint64_t Ticks = __atomic_load_n(HandlerTicks, __ATOMIC_RELAXED);
++    const uint64_t HandlerUs = (Ticks - LastHandlerTicks) * 1000000 / TimerFrequency();
++    LastHandlerTicks = Ticks;
++    const uint64_t OwnUs = OwnCPUTimeUs();
++    const auto Meta = [&](const char* Name, uint64_t Value) {
++      Out += fextl::fmt::format("{},{},{},meta,0,0,{},,{},,,,,,\n", MinuteIndex, Now, PID, Value, Name);
++    };
++    Meta("hz", Hz);
++    Meta("samples", Total);
++    Meta("lost", Lost);
++    Meta("x87_fallbacks", Fallbacks);
++    Meta("handler_us", HandlerUs);
++    Meta("aggregator_us", OwnUs - LastOwnUs);
++    LastOwnUs = OwnUs;
++    Lost = 0;
++
++    FEXUnixLib_SamplerWrite Args {.Data = Out.data(), .Size = Out.size()};
++    UnixLib::Call(FEXUnixLibFunctions::SamplerWrite, &Args);
++    Counts.clear();
++    DecodeCache.clear();
++    if (Modules.size() > 2048) {
++      Modules.clear();
++    }
++    ++MinuteIndex;
++  }
++
++  // Runs on the emulated thread, inside the fallback: no system call, just a slot in the same ring the timer uses.
++  void FloatFallback(FEXCore::Core::CpuStateFrame* Frame, uint64_t HostPC) {
++    const uint64_t Index = __atomic_fetch_add(Head, 1, __ATOMIC_RELAXED);
++    auto& R = Ring[Index & (Capacity - 1)];
++    __atomic_store_n(&R.Seq, 0, __ATOMIC_RELAXED);
++    __atomic_thread_fence(__ATOMIC_RELEASE);
++    R.PC = HostPC;
++    R.BlockHeader = Frame->State.InlineJITBlockHeader;
++    R.RIP = Frame->State.rip;
++    R.TID = 0;
++    R.Flags = FlagFloatFallback;
++    __atomic_store_n(&R.Seq, Index + 1, __ATOMIC_RELEASE);
++  }
++
++  void* AggregatorMain(void*) {
++    uint64_t Elapsed = 0;
++    LastOwnUs = OwnCPUTimeUs();
++    for (;;) {
++      LARGE_INTEGER Delay {.QuadPart = -100 * 10000LL}; // 100 ms
++      NtDelayExecution(FALSE, &Delay);
++      std::scoped_lock Lock(AggMutex);
++      Drain();
++      Elapsed += 100;
++      if (Elapsed >= FlushIntervalMs) {
++        Elapsed = 0;
++        Flush();
++      }
++    }
++    return nullptr;
++  }
++} // namespace
++
++void ProcessInit() {
++  FEX_CONFIG_OPT(SampleHz, SAMPLEHZ);
++  Hz = SampleHz();
++  if (!Hz || !UnixLib::Available()) {
++    return;
++  }
++  FEXUnixLib_SamplerStart Args {
++    .Hz = Hz,
++    .FrameOffsetBlockHeader = uint32_t(offsetof(FEXCore::Core::CpuStateFrame, State) + offsetof(FEXCore::Core::CPUState, InlineJITBlockHeader)),
++    .FrameOffsetRIP = uint32_t(offsetof(FEXCore::Core::CpuStateFrame, State) + offsetof(FEXCore::Core::CPUState, rip)),
++  };
++  if (UnixLib::Call(FEXUnixLibFunctions::SamplerStart, &Args) || !Args.Ring || !Args.Capacity) {
++    LogMan::Msg::IFmt("Sampler: not available");
++    Hz = 0;
++    return;
++  }
++  Ring = Args.Ring;
++  Head = Args.Head;
++  HandlerTicks = Args.HandlerTicks;
++  Capacity = Args.Capacity;
++  PID = UnixLib::GetPID();
++  FEXCore::SHMStats::FloatFallbackHook = FloatFallback;
++}
++
++void ThreadInit(FEXCore::Core::InternalThreadState* Thread) {
++  if (!Ring) {
++    return;
++  }
++  FEXUnixLib_SamplerThread Args {.Frame = Thread->CurrentFrame};
++  if (UnixLib::Call(FEXUnixLibFunctions::SamplerThreadStart, &Args) == 0) {
++    std::scoped_lock Lock(HandlesMutex);
++    Handles[Thread] = Args.Handle;
++  }
++  if (!AggregatorStarted.exchange(true)) {
++    Aggregator = FEXCore::Threads::Thread::Create(AggregatorMain, nullptr, {.LowPriority = false, .Internal = true}, "FEX sampler");
++  }
++}
++
++void ThreadTerm(FEXCore::Core::InternalThreadState* Thread) {
++  if (!Ring) {
++    return;
++  }
++  void* Handle {};
++  {
++    std::scoped_lock Lock(HandlesMutex);
++    auto it = Handles.find(Thread);
++    if (it == Handles.end()) {
++      return;
++    }
++    Handle = it->second;
++    Handles.erase(it);
++  }
++  FEXUnixLib_SamplerThread Args {.Frame = Thread->CurrentFrame, .Handle = Handle};
++  UnixLib::Call(FEXUnixLibFunctions::SamplerThreadStop, &Args);
++}
++
++void ProcessTerm() {
++  if (!Ring) {
++    return;
++  }
++  std::unique_lock Lock(AggMutex, std::try_to_lock);
++  if (!Lock.owns_lock()) {
++    return;
++  }
++  Drain();
++  Flush();
++}
++} // namespace FEX::Windows::Sampler
+diff --git a/Source/Windows/ARM64EC/Sampler.h b/Source/Windows/ARM64EC/Sampler.h
+new file mode 100644
+index 0000000..8260bb4
+--- /dev/null
++++ b/Source/Windows/ARM64EC/Sampler.h
+@@ -0,0 +1,16 @@
++// SPDX-License-Identifier: MIT
++#pragma once
++
++namespace FEXCore::Core {
++struct InternalThreadState;
++}
++
++// Sampling profiler (config SampleHz, 0 = off). Each thread's own CPU time drives a SIGPROF timer (unix side); a
++// FEX-internal thread drains the samples, maps them to guest module+offset (and export, where one is near) and
++// once a minute appends the busiest thread's top 200 and the rest's top 50 to /dev/shm/fex-<pid>-samples.csv.
++namespace FEX::Windows::Sampler {
++void ProcessInit();
++void ThreadInit(FEXCore::Core::InternalThreadState* Thread);
++void ThreadTerm(FEXCore::Core::InternalThreadState* Thread);
++void ProcessTerm();
++} // namespace FEX::Windows::Sampler
+diff --git a/Source/Windows/UnixLib/FEXUnixLib.cpp b/Source/Windows/UnixLib/FEXUnixLib.cpp
+index d195357..6b7f748 100644
+--- a/Source/Windows/UnixLib/FEXUnixLib.cpp
++++ b/Source/Windows/UnixLib/FEXUnixLib.cpp
+@@ -8,6 +8,7 @@
+ #include <unistd.h>
+ 
+ #include "FEXUnixLib.h"
++#include "Sampler.h"
+ 
+ // Equivalent to C++23's std::to_underlying.
+ template<typename Enum>
+@@ -192,6 +193,31 @@ static NTSTATUS FEXUnixLib_CheckSupportsTPIDRRO_CPUHandler(void* _Args) {
+   return STATUS_SUCCESS;
+ }
+ 
++static NTSTATUS FEXUnixLib_SamplerStartHandler(void* _Args) {
++  return FEXSampler::Start(reinterpret_cast<FEXUnixLib_SamplerStart*>(_Args)) ? STATUS_SUCCESS : STATUS_NOT_SUPPORTED;
++}
++
++static NTSTATUS FEXUnixLib_SamplerThreadStartHandler(void* _Args) {
++  auto Args = reinterpret_cast<FEXUnixLib_SamplerThread*>(_Args);
++  Args->Handle = FEXSampler::StartThread(Args->Frame);
++  return Args->Handle ? STATUS_SUCCESS : STATUS_NOT_SUPPORTED;
++}
++
++static NTSTATUS FEXUnixLib_SamplerThreadStopHandler(void* _Args) {
++  FEXSampler::StopThread(reinterpret_cast<FEXSampler::ThreadSlot*>(reinterpret_cast<FEXUnixLib_SamplerThread*>(_Args)->Handle));
++  return STATUS_SUCCESS;
++}
++
++static NTSTATUS FEXUnixLib_SamplerWriteHandler(void* _Args) {
++  auto Args = reinterpret_cast<FEXUnixLib_SamplerWrite*>(_Args);
++  return FEXSampler::Write(Args->Data, Args->Size) ? STATUS_SUCCESS : STATUS_INTERNAL_ERROR;
++}
++
++static NTSTATUS FEXUnixLib_SamplerReadHandler(void* _Args) {
++  auto Args = reinterpret_cast<FEXUnixLib_SamplerRead*>(_Args);
++  return FEXSampler::SafeRead(Args->Address, Args->Dest, Args->Size) ? STATUS_SUCCESS : STATUS_INTERNAL_ERROR;
++}
++
+ extern "C" const unixlib_entry_t __wine_unix_call_funcs[] = {
+   FEXUnixLib_SetHardwareTSOControlHandler,
+   FEXUnixLib_SetKernelUnalignedAtomicControlHandler,
+@@ -202,6 +228,11 @@ extern "C" const unixlib_entry_t __wine_unix_call_funcs[] = {
+   FEXUnixLib_MapFileHandler,
+   FEXUnixLib_GetPIDHandler,
+   FEXUnixLib_CheckSupportsTPIDRRO_CPUHandler,
++  FEXUnixLib_SamplerStartHandler,
++  FEXUnixLib_SamplerThreadStartHandler,
++  FEXUnixLib_SamplerThreadStopHandler,
++  FEXUnixLib_SamplerWriteHandler,
++  FEXUnixLib_SamplerReadHandler,
+ };
+ 
+ static_assert(sizeof(__wine_unix_call_funcs) / sizeof(__wine_unix_call_funcs[0]) == ToUnderlying(FEXUnixLibFunctions::MAX));
+diff --git a/Source/Windows/UnixLib/FEXUnixLib.h b/Source/Windows/UnixLib/FEXUnixLib.h
+index e24502f..d1c8212 100644
+--- a/Source/Windows/UnixLib/FEXUnixLib.h
++++ b/Source/Windows/UnixLib/FEXUnixLib.h
+@@ -13,6 +13,11 @@ enum class FEXUnixLibFunctions : uint32_t {
+   MapFile,
+   GetPID,
+   CheckSupportsTPIDRRO_CPU,
++  SamplerStart,
++  SamplerThreadStart,
++  SamplerThreadStop,
++  SamplerWrite,
++  SamplerRead,
+   MAX,
+ };
+ 
+@@ -71,3 +76,46 @@ struct FEXUnixLib_CheckSupportsTPIDRRO_CPU {
+   uint32_t Result;
+ };
+ static_assert(sizeof(FEXUnixLib_CheckSupportsTPIDRRO_CPU) == 4);
++
++// Sampling profiler (config SampleHz). Each emulated thread gets a timer on its own CPU time that sends SIGPROF;
++// the handler records where the thread was into a shared ring that the PE side drains and symbolizes.
++struct FEXSampleRecord {
++  uint64_t Seq; // Index + 1 once the record is complete.
++  uint64_t PC;  // Host PC at the signal.
++  uint64_t BlockHeader; // The thread's CPUState::InlineJITBlockHeader: the last translated block it entered.
++  uint64_t RIP;         // The thread's CPUState::rip.
++  uint32_t TID;         // Linux TID.
++  uint32_t Flags;
++};
++static_assert(sizeof(FEXSampleRecord) == 40);
++
++struct FEXUnixLib_SamplerStart {
++  uint32_t Hz;
++  uint32_t FrameOffsetBlockHeader; // Offsets into CpuStateFrame.
++  uint32_t FrameOffsetRIP;
++  uint32_t Capacity; // Out: records in the ring (a power of two).
++  FEXSampleRecord* Ring; // Out.
++  uint64_t* Head;        // Out: records written so far.
++  uint64_t* HandlerTicks; // Out: generic-timer ticks spent in the signal handler.
++};
++static_assert(sizeof(FEXUnixLib_SamplerStart) == 40);
++
++struct FEXUnixLib_SamplerThread {
++  void* Frame;  // SamplerThreadStart: the calling thread's CpuStateFrame.
++  void* Handle; // Out from SamplerThreadStart, in to SamplerThreadStop.
++};
++static_assert(sizeof(FEXUnixLib_SamplerThread) == 16);
++
++struct FEXUnixLib_SamplerWrite {
++  const char* Data;
++  uint64_t Size;
++};
++static_assert(sizeof(FEXUnixLib_SamplerWrite) == 16);
++
++// Copies memory that may have been unmapped since it was sampled; fails instead of faulting.
++struct FEXUnixLib_SamplerRead {
++  uint64_t Address;
++  void* Dest;
++  uint64_t Size;
++};
++static_assert(sizeof(FEXUnixLib_SamplerRead) == 24);
+diff --git a/Source/Windows/UnixLib/Sampler.h b/Source/Windows/UnixLib/Sampler.h
+new file mode 100644
+index 0000000..22e3ca0
+--- /dev/null
++++ b/Source/Windows/UnixLib/Sampler.h
+@@ -0,0 +1,219 @@
++// SPDX-License-Identifier: MIT
++// Unix side of FEX's sampling profiler: per-thread CPU-time timers deliver SIGPROF to the thread that used the time,
++// and the handler records the interrupted PC plus the thread's last translated block into a lock-free ring.
++// Header-only so a host test can build the same handler.
++#pragma once
++#include <atomic>
++#include <cerrno>
++#include <csignal>
++#include <cstdint>
++#include <cstring>
++#include <ctime>
++#include <fcntl.h>
++#include <string>
++#include <sys/mman.h>
++#include <sys/syscall.h>
++#include <ucontext.h>
++#include <unistd.h>
++
++#include "FEXUnixLib.h"
++
++namespace FEXSampler {
++struct ThreadSlot {
++  std::atomic<uint32_t> InUse;
++  uint32_t TID;
++  const uint8_t* volatile Frame;
++  timer_t Timer;
++};
++
++static constexpr size_t MaxThreads = 4096;
++static constexpr uint32_t RingLog2 = 16; // 64k records, 2.5 MB
++static ThreadSlot Slots[MaxThreads];
++static FEXSampleRecord* Ring;
++static uint64_t Mask;
++static std::atomic<uint64_t> Head;
++static std::atomic<uint64_t> HandlerTicks;
++static uint32_t OffHeader, OffRIP;
++static long IntervalNs;
++static struct sigaction Previous;
++
++static inline uint64_t Ticks() {
++#if defined(__aarch64__)
++  uint64_t V;
++  asm volatile("mrs %0, cntvct_el0" : "=r"(V));
++  return V;
++#else
++  timespec T;
++  clock_gettime(CLOCK_MONOTONIC, &T);
++  return uint64_t(T.tv_sec) * 1000000000ull + T.tv_nsec;
++#endif
++}
++
++static inline uint64_t ContextPC(void* UC) {
++  auto Context = reinterpret_cast<ucontext_t*>(UC);
++#if defined(__aarch64__)
++  return Context->uc_mcontext.pc;
++#elif defined(__x86_64__)
++  return Context->uc_mcontext.gregs[REG_RIP];
++#else
++  return 0;
++#endif
++}
++
++static void OnSignal(int Signal, siginfo_t* Info, void* UC) {
++  auto Slot = reinterpret_cast<ThreadSlot*>(Info->si_value.sival_ptr);
++  if (Info->si_code != SI_TIMER || Slot < Slots || Slot >= Slots + MaxThreads || !Ring) {
++    // Not ours: pass it on to whoever had SIGPROF before.
++    if ((Previous.sa_flags & SA_SIGINFO) && Previous.sa_sigaction) {
++      Previous.sa_sigaction(Signal, Info, UC);
++    } else if (Previous.sa_handler != SIG_DFL && Previous.sa_handler != SIG_IGN && Previous.sa_handler) {
++      Previous.sa_handler(Signal);
++    }
++    return;
++  }
++  const uint64_t Start = Ticks();
++  const uint64_t Index = Head.fetch_add(1, std::memory_order_relaxed);
++  auto& R = Ring[Index & Mask];
++  // Mark the slot as being rewritten first, so a reader that copies it mid-write sees the sequence change.
++  __atomic_store_n(&R.Seq, 0, __ATOMIC_RELAXED);
++  __atomic_thread_fence(__ATOMIC_RELEASE);
++  R.PC = ContextPC(UC);
++  R.TID = Slot->TID;
++  R.Flags = 0;
++  const uint8_t* Frame = __atomic_load_n(&Slot->Frame, __ATOMIC_ACQUIRE);
++  R.BlockHeader = Frame ? __atomic_load_n(reinterpret_cast<const uint64_t*>(Frame + OffHeader), __ATOMIC_RELAXED) : 0;
++  R.RIP = Frame ? __atomic_load_n(reinterpret_cast<const uint64_t*>(Frame + OffRIP), __ATOMIC_RELAXED) : 0;
++  __atomic_store_n(&R.Seq, Index + 1, __ATOMIC_RELEASE);
++  HandlerTicks.fetch_add(Ticks() - Start, std::memory_order_relaxed);
++}
++
++static inline bool Start(FEXUnixLib_SamplerStart* Args) {
++  if (!Ring) {
++    if (Args->Hz == 0 || Args->Hz > 10000) {
++      return false;
++    }
++    const size_t Bytes = sizeof(FEXSampleRecord) << RingLog2;
++    void* Mem = mmap(nullptr, Bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++    if (Mem == MAP_FAILED) {
++      return false;
++    }
++    OffHeader = Args->FrameOffsetBlockHeader;
++    OffRIP = Args->FrameOffsetRIP;
++    IntervalNs = 1000000000L / Args->Hz;
++    Mask = (1ull << RingLog2) - 1;
++    struct sigaction Action {};
++    Action.sa_sigaction = OnSignal;
++    Action.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
++    sigemptyset(&Action.sa_mask);
++    if (sigaction(SIGPROF, &Action, &Previous) != 0) {
++      munmap(Mem, Bytes);
++      return false;
++    }
++    Ring = reinterpret_cast<FEXSampleRecord*>(Mem);
++  }
++  Args->Capacity = uint32_t(Mask + 1);
++  Args->Ring = Ring;
++  Args->Head = reinterpret_cast<uint64_t*>(&Head);
++  Args->HandlerTicks = reinterpret_cast<uint64_t*>(&HandlerTicks);
++  return true;
++}
++
++// Runs on the thread to sample: its timer counts that thread's CPU time only.
++static inline ThreadSlot* StartThread(const void* Frame) {
++  if (!Ring) {
++    return nullptr;
++  }
++  for (auto& Slot : Slots) {
++    uint32_t Free = 0;
++    if (!Slot.InUse.compare_exchange_strong(Free, 1)) {
++      continue;
++    }
++    Slot.TID = uint32_t(syscall(SYS_gettid));
++    Slot.Frame = reinterpret_cast<const uint8_t*>(Frame);
++    struct sigevent Event {};
++    Event.sigev_notify = SIGEV_THREAD_ID;
++    Event.sigev_signo = SIGPROF;
++    Event.sigev_value.sival_ptr = &Slot;
++#ifdef sigev_notify_thread_id
++    Event.sigev_notify_thread_id = Slot.TID;
++#else
++    Event._sigev_un._tid = Slot.TID;
++#endif
++    if (timer_create(CLOCK_THREAD_CPUTIME_ID, &Event, &Slot.Timer) != 0) {
++      Slot.Frame = nullptr;
++      Slot.InUse.store(0);
++      return nullptr;
++    }
++    // Start at a per-thread offset into the period so threads created together don't sample in lockstep.
++    struct itimerspec Spec {};
++    Spec.it_interval.tv_nsec = IntervalNs % 1000000000L;
++    Spec.it_interval.tv_sec = IntervalNs / 1000000000L;
++    Spec.it_value.tv_nsec = 1 + (Slot.TID * 7919L) % IntervalNs;
++    timer_settime(Slot.Timer, 0, &Spec, nullptr);
++    return &Slot;
++  }
++  return nullptr;
++}
++
++static inline void StopThread(ThreadSlot* Slot) {
++  if (Slot < Slots || Slot >= Slots + MaxThreads || !Slot->InUse.load()) {
++    return;
++  }
++  timer_delete(Slot->Timer);
++  __atomic_store_n(&Slot->Frame, nullptr, __ATOMIC_RELEASE);
++  Slot->InUse.store(0);
++}
++
++// A write() from a bad address fails with EFAULT instead of faulting, so a pipe makes a safe memcpy from any
++// syscall-only sandbox. Called from one thread at a time (the PE side's sampler thread).
++static int ReadPipe[2] = {-1, -1};
++static inline bool SafeRead(uint64_t Address, void* Dest, size_t Size) {
++  if (ReadPipe[0] < 0 && pipe2(ReadPipe, O_CLOEXEC | O_NONBLOCK) != 0) {
++    ReadPipe[0] = ReadPipe[1] = -1;
++    return false;
++  }
++  auto Out = reinterpret_cast<uint8_t*>(Dest);
++  while (Size) {
++    const size_t Chunk = Size < 4096 ? Size : 4096;
++    ssize_t N = write(ReadPipe[1], reinterpret_cast<const void*>(Address), Chunk);
++    if (N <= 0) {
++      return false;
++    }
++    ssize_t Got = 0;
++    while (Got < N) {
++      ssize_t R = read(ReadPipe[0], Out + Got, size_t(N - Got));
++      if (R <= 0) {
++        return false;
++      }
++      Got += R;
++    }
++    Out += N;
++    Address += uint64_t(N);
++    Size -= size_t(N);
++  }
++  return true;
++}
++
++static inline bool Write(const char* Data, size_t Size) {
++  const std::string Name = "/dev/shm/fex-" + std::to_string(getpid()) + "-samples.csv";
++  int FD = open(Name.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0666);
++  if (FD < 0) {
++    return false;
++  }
++  bool OK = true;
++  while (Size) {
++    ssize_t N = write(FD, Data, Size);
++    if (N < 0 && errno == EINTR) {
++      continue;
++    }
++    if (N <= 0) {
++      OK = false;
++      break;
++    }
++    Data += N;
++    Size -= size_t(N);
++  }
++  close(FD);
++  return OK;
++}
++} // namespace FEXSampler
+-- 
+2.43.0
+

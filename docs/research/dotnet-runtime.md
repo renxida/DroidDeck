@@ -43,7 +43,7 @@ case pays the suspension cost 11 times more often.
 | id | sets | for |
 |---|---|---|
 | `dotnet-trace` | EventPipe file output into the game's log folder, plus a watcher | measurement, see section 5 |
-| `dotnet-gen0` | `DOTNET_GCgen0size=4000000` (64 MB) | fewer GCs and suspensions |
+| `dotnet-gen0` | `DOTNET_GCgen0size=800000` (8 MB; 64 MB until Nov 14) | fewer GCs and suspensions; 64 MB made each gen1 a 120-170 ms hitch on the phone |
 | `dotnet-gc-stock` | `DOTNET_gcConcurrent=1`, `DOTNET_GCConserveMemory=0` | undoes `fex-fast`'s and `memory`'s GC settings, to test section 1's lead |
 
 `dotnet-gc-stock` runs after `fex-fast`'s fix, so it wins, and its conserve value of 0 stops

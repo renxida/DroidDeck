@@ -14,6 +14,7 @@ Read from each session (by base name, inside an optional <session>/ folder):
   frames.csv                                              per-frame times (t_ms,frametime_us)
   clocks.log                                              CPU/GPU clocks, thermal status, battery
   memory.csv                                              memory samples
+  power.csv                                               battery power samples (tools/power_report.py)
   crash-lines.txt, crash.log                              crash output from guest stderr, Android's crash buffer
 
 Every run ends with crashes and abnormal exits per build: game.exited events with abnormal set
@@ -32,12 +33,13 @@ from pathlib import Path
 
 KNOWN = (
     "build.txt", "device.txt", "graphics-report.txt", "upload.txt", "events.jsonl", "session.log",
-    "frames.csv", "clocks.log", "memory.csv", "crash-lines.txt", "crash.log",
+    "frames.csv", "clocks.log", "memory.csv", "power.csv", "crash-lines.txt", "crash.log",
 )
 SNIFF = (
     ("== clocks:", "clocks.log"),
     ("# frames ", "frames.csv"),
     ("build_label:", "build.txt"),
+    ("t_wall_ms,current_ua,", "power.csv"),
     ("t_wall_ms,", "memory.csv"),
     ("== graphics report", "graphics-report.txt"),
 )

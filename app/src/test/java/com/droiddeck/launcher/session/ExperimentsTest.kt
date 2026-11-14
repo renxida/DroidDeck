@@ -54,7 +54,25 @@ class ExperimentsTest {
             "wayland-present" to "DROIDDECK_EXP_WAYLAND_PRESENT",
             "vk-count" to "DROIDDECK_EXP_VK_COUNT",
             "native-inventory" to "DROIDDECK_EXP_NATIVE_INVENTORY",
+            "free-memory" to "DROIDDECK_EXP_FREE_MEMORY",
+            "hybris-index" to "DROIDDECK_EXP_HYBRIS_INDEX",
+            "fex-l1" to "DROIDDECK_EXP_FEX_L1",
+            "hybris-index-session" to "DROIDDECK_EXP_HYBRIS_INDEX_SESSION",
             "native-engine" to "DROIDDECK_EXP_NATIVE_ENGINE",
+            "dxvk-arm64ec" to "DROIDDECK_EXP_DXVK_ARM64EC",
+            "composite-timing" to "DROIDDECK_EXP_COMPOSITE_TIMING",
+            "dotnet-r2r" to "DROIDDECK_EXP_DOTNET_R2R",
+            "fex-code-buffer" to "DROIDDECK_EXP_FEX_CODE_BUFFER",
+            "fex-sample" to "DROIDDECK_EXP_FEX_SAMPLE",
+            "dotnet-r2r-generics" to "DROIDDECK_EXP_DOTNET_R2R_GENERICS",
+            "dotnet-r2r-bubble" to "DROIDDECK_EXP_DOTNET_R2R_BUBBLE",
+            "fps-30" to "DROIDDECK_EXP_FPS_30",
+            "webhelper-trim" to "DROIDDECK_EXP_WEBHELPER_TRIM",
+            "fex-smaps" to "DROIDDECK_EXP_FEX_SMAPS",
+            "godot-verbose" to "DROIDDECK_EXP_GODOT_VERBOSE",
+            "tex-astc" to "DROIDDECK_EXP_TEX_ASTC",
+            "tex-half" to "DROIDDECK_EXP_TEX_HALF",
+            "fex-trim" to "DROIDDECK_EXP_FEX_TRIM",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())
@@ -71,11 +89,11 @@ class ExperimentsTest {
 
     @Test fun aFreshInstallTurnsEverythingOnButLayerFenceAndTheFrameCap() {
         val everything = setOf("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames",
-            "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-fast", "fex-stats")
+            "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-fast", "fex-stats", "free-memory")
         assertEquals(everything, Experiments.defaults)
         assertEquals(everything, Experiments.enabled(context))
         assertEquals(1, Experiments.presentMode(Experiments.enabled(context)))
-        assertEquals("godot-render,warmup,all,compat-quiet,memory,adpf-all,two-frames,one-limiter,native-hz,quick-tap,fex-codegen,fex-fast,fex-stats",
+        assertEquals("godot-render,warmup,all,compat-quiet,memory,adpf-all,two-frames,one-limiter,native-hz,quick-tap,fex-codegen,fex-fast,fex-stats,free-memory",
             Experiments.line(Experiments.enabled(context)))
         GameEnvironmentStore.publish(context)
         assertEquals(everything.map { Experiments.envName(it) }.toSet(),

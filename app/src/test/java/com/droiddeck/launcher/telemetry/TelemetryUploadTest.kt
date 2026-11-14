@@ -105,6 +105,7 @@ class TelemetryUploadTest {
         dir.resolve("session.log").appendText("droiddeck-fex: SIGILL at 0x00007f0000001000 (si_code 01), offset 0x00001000\n" +
             "  in 7f0000000000-7f0000100000 r-xp 00000000 00:00 0 /game/libmono.so\nordinary line\n")
         dir.resolve("crash.log").writeText("--------- beginning of crash\nF libc: Fatal signal 11\n")
+        dir.resolve("native-engine.log").writeText("ValueError: mixed-mode (native C++) assembly; it cannot run on arm64\n")
         dir.resolve("${AppExits.TRACE_PREFIX}1762941700000-anr.txt").writeText("\"main\" prio=5 tid=1 Blocked\n")
         dir.resolve("games/20251112-100000-abc-2868840").mkdirs()
         dir.resolve("games/20251112-100000-abc-2868840/steam-2868840.log").writeText("wine: Unhandled page fault on read access\n")
@@ -135,6 +136,7 @@ class TelemetryUploadTest {
             assertTrue(lines.contains("steam-x64.log: Unhandled exception."))
             assertFalse(lines.contains("ordinary line"))
             assertTrue(text("crash.log").contains("Fatal signal 11"))
+            assertTrue(text("native-engine.log").contains("mixed-mode"))
             assertTrue(names.contains("${AppExits.TRACE_PREFIX}1762941700000-anr.txt"))
             assertFalse(text("steam-x64.log").contains("before the session"))
             assertTrue(text("proton/20251112-100000-abc-2868840/steam-2868840.log").contains("Unhandled page fault"))

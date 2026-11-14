@@ -100,8 +100,8 @@ object BootMovieLibrary {
 
     fun list(context: Context): List<Entry> {
         val out = ArrayList<Entry>()
-        out.add(Entry(BootMovie.DROIDDECK_30, "DroidDeck · 30 fps", SOURCE_DROIDDECK, null, removable = false))
-        out.add(Entry(BootMovie.DROIDDECK_60, "DroidDeck · 60 fps", SOURCE_DROIDDECK, null, removable = false))
+        out.add(Entry(BootMovie.DROIDDECK_30, "Lanner · 30 fps", SOURCE_DROIDDECK, null, removable = false))
+        out.add(Entry(BootMovie.DROIDDECK_60, "Lanner · 60 fps", SOURCE_DROIDDECK, null, removable = false))
         BootMovie.customName(context)?.let { out.add(Entry(BootMovie.CUSTOM, it, SOURCE_IMPORT, BootMovie.legacyCustomFile(context), removable = true)) }
         restore(context)
         val meta = readMeta(context)

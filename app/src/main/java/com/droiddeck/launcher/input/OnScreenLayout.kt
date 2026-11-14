@@ -76,18 +76,45 @@ object OnScreenLayout {
 
     private fun reference(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Pair<Float, Float>, Boolean> {
         val (display, metrics) = InputLibraries.primaryDisplay(context)
-        val long = max(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
-        val short = min(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
         val gamepad = layout.elements.filter(::isGamepad)
         if (gamepad.any { it.id.startsWith("legacy:") }) {
-            val named = layout.id.removePrefix("migrated.layout.").takeIf { it != layout.id }?.split('x')?.mapNotNull { it.toIntOrNull() }
-                ?.takeIf { it.size == 2 && it.all { size -> size > 0 } }?.let { it[0] to it[1] }
-            for ((w, h) in listOfNotNull(named, width to height, long to short, short to long).distinct()) {
+            for ((w, h) in sizes(layout, metrics, width to height)) {
                 if (matches(gamepad, LegacyGamepadLayout(display, w, h, scale = layout.scale).elements())) return (w.toFloat() to h.toFloat()) to true
             }
         }
+        val long = max(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
+        val short = min(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
         val aspect = layout.aspect.takeIf { it > 0f } ?: (long.toFloat() / short)
         return (aspect to 1f) to false
+    }
+
+    /** The sizes a generated gamepad may have been saved at: the one its id names, the surface's, and the display's either way round. */
+    private fun sizes(layout: SavedInputLayout, metrics: android.util.DisplayMetrics, surface: Pair<Int, Int>?): List<Pair<Int, Int>> {
+        val long = max(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
+        val short = min(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
+        val named = layout.id.removePrefix("migrated.layout.").takeIf { it != layout.id }?.split('x')?.mapNotNull { it.toIntOrNull() }
+            ?.takeIf { it.size == 2 && it.all { size -> size > 0 } }?.let { it[0] to it[1] }
+        return listOfNotNull(named, surface, long to short, short to long).distinct()
+    }
+
+    /**
+     * Moves a gamepad the person never edited from where it was generated before the d-pad and face buttons were raised
+     * into the strips beside the picture, to where it is generated now, keeping each button's look. An edited gamepad, or
+     * any other layout, comes back as it was.
+     */
+    fun raiseThumbs(context: Context, layout: SavedInputLayout): SavedInputLayout {
+        if (Sts2Pad.owns(layout)) return Sts2Pad.raiseThumbs(layout)
+        val gamepad = layout.elements.filter(::isGamepad)
+        if (gamepad.none { it.id.startsWith("legacy:") }) return layout
+        val (display, metrics) = InputLibraries.primaryDisplay(context)
+        val sizes = sizes(layout, metrics, null)
+        if (sizes.any { (w, h) -> matches(gamepad, LegacyGamepadLayout(display, w, h, scale = layout.scale).elements()) }) return layout
+        for ((w, h) in sizes) {
+            if (!matches(gamepad, LegacyGamepadLayout(display, w, h, scale = layout.scale, raisedThumbs = false).elements())) continue
+            val placed = LegacyGamepadLayout(display, w, h, scale = layout.scale).regenerate(gamepad).associateBy { it.id }
+            return layout.copy(elements = layout.elements.map { placed[it.id] ?: it })
+        }
+        return layout
     }
 
     private fun matches(stored: List<InputSurfaceElement>, generated: List<InputSurfaceElement>): Boolean {

@@ -10,6 +10,12 @@ object SessionState {
     @Volatile
     var phase = SessionPhase.IDLE
 
+    /** [android.os.SystemClock.elapsedRealtime] of the player's last touch, key, controller or remote input. */
+    @Volatile
+    var lastInputMs = 0L
+
+    fun input() { lastInputMs = android.os.SystemClock.elapsedRealtime() }
+
     @Volatile
     var sessionId: String? = null
 

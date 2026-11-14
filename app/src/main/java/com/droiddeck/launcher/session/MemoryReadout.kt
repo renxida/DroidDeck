@@ -205,13 +205,15 @@ object MemoryLog {
 
     /** Logs to logcat every [LOG_EVERY] samples and, with [csv], appends every sample to it (memory.csv). */
     @Synchronized
-    fun start(csv: java.io.File? = null) {
+    fun start(csv: java.io.File? = null, smaps: Boolean = false) {
         if (thread != null) return
         thread = Thread({
             runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) }
             val out = csv?.let { runCatching { java.io.FileWriter(it, true) }.getOrNull() }
             val processFile = csv?.parentFile?.let { java.io.File(it, PROCESS_FILE) }
             val processOut = processFile?.let { runCatching { java.io.FileWriter(it, true) }.getOrNull() }
+            val smapsFile = if (smaps) csv?.parentFile?.let { java.io.File(it, SmapsRollup.FILE) } else null
+            val smapsOut = smapsFile?.let { runCatching { java.io.FileWriter(it, true) }.getOrNull() }
             val ticksPerSecond = runCatching { android.system.Os.sysconf(android.system.OsConstants._SC_CLK_TCK) }
                 .getOrDefault(100L).takeIf { it > 0 } ?: 100L
             var lastTicks = emptyMap<Int, Long>()
@@ -224,6 +226,10 @@ object MemoryLog {
                 if (processOut != null && processFile?.length() == 0L) runCatching {
                     processOut.write(PROCESS_HEADER + "\n"); processOut.flush()
                     android.util.Log.i(TAG, "DROIDDECK_PROCESS_LOG file=$PROCESS_FILE every_s=${PERIOD_MS * PROCESS_EVERY / 1000} min_mb=${PROCESS_MIN_KB / 1024}")
+                }
+                if (smapsOut != null && smapsFile?.length() == 0L) runCatching {
+                    smapsOut.write(SmapsRollup.HEADER + "\n"); smapsOut.flush()
+                    android.util.Log.i(TAG, "DROIDDECK_SMAPS_LOG file=${SmapsRollup.FILE} every_s=${PERIOD_MS * PROCESS_EVERY / 1000}")
                 }
                 var sample = 0L
                 while (!Thread.currentThread().isInterrupted) {
@@ -250,6 +256,18 @@ object MemoryLog {
                             lastTicks = split.processes.associate { it.pid to it.cpuTicks }
                             lastSnapshotAt = now
                         }
+                        if (snapshot && smapsOut != null) {
+                            // The biggest game process (resident + swapped): the game itself, not wineserver or explorer.
+                            split.processes.filter { it.windows }.maxByOrNull { it.rssKb + it.swapKb }?.let { p ->
+                                val began = System.nanoTime()
+                                val text = runCatching { java.io.File("/proc/${p.pid}/smaps").readText() }.getOrNull()
+                                if (text != null) {
+                                    val readMs = (System.nanoTime() - began) / 1_000_000
+                                    for (row in SmapsRollup.lines(now, p.pid, p.name, text, readMs)) smapsOut.write(row + "\n")
+                                    smapsOut.flush()
+                                }
+                            }
+                        }
                     }
                     sample++
                     try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
@@ -257,6 +275,7 @@ object MemoryLog {
             } finally {
                 runCatching { out?.close() }
                 runCatching { processOut?.close() }
+                runCatching { smapsOut?.close() }
             }
         }, "memory-log").apply { isDaemon = true; start() }
     }
