@@ -139,11 +139,12 @@ class AppStartSmokeTest {
         }
         if (report.isNotEmpty()) System.err.println("AppStartSmokeTest diagnostics:\n$report")
         // Later tests must not inherit the launcher's work: stop what of it is still running.
-        val ours = leftovers.filter { t -> t.stackTrace.any { it.className.startsWith("com.droiddeck") } }
+        val ours = leftovers.filter { t -> t !in threadsBefore && t.stackTrace.any { it.className.startsWith("com.droiddeck") } }
         ours.forEach { it.interrupt() }
         ours.forEach { it.join(1_000) }
         shadowOf(Looper.getMainLooper()).idle()
         assertNoUncaughtExceptions()
+        watchForComposeHangs()
         if (problems.isNotEmpty()) fail(problems.joinToString("\n") + "\n" + uiDispatcherState() + "\n" + report)
     }
 
@@ -154,8 +155,46 @@ class AppStartSmokeTest {
         return if (Snapshot.current.hasPendingChanges()) "a main-thread snapshot write was never applied" else null
     }
 
-    private fun launcherThreads(): List<Thread> = Thread.getAllStackTraces().keys.filter {
-        it !in threadsBefore && it !== Thread.currentThread() && it.isAlive
+    // Threads started by this launcher, and any older thread (a shared pool's worker) now running launcher code.
+    private fun launcherThreads(): List<Thread> = Thread.getAllStackTraces().filter { (t, stack) ->
+        t !== Thread.currentThread() && t.isAlive && (t !in threadsBefore || stack.any { it.className.startsWith("com.droiddeck") })
+    }.keys.toList()
+
+    /**
+     * Diagnostics for the Compose tests that later share this sandbox: if its main thread then spins in Compose's idling
+     * loop for half a minute, print what the main thread is doing and every thread running app code or waiting on a lock.
+     */
+    private fun watchForComposeHangs() {
+        val main = Looper.getMainLooper().thread
+        val mx = java.lang.management.ManagementFactory.getThreadMXBean()
+        fun spinning() = main.stackTrace.any { it.className.contains("IdlingStrategy") }
+        Thread({
+            val end = System.currentTimeMillis() + HANG_WATCH_MS
+            var since = 0L
+            var dumps = 0
+            while (System.currentTimeMillis() < end && dumps < 2) {
+                Thread.sleep(5_000)
+                if (!spinning()) { since = 0L; continue }
+                if (since == 0L) since = System.currentTimeMillis()
+                if (System.currentTimeMillis() - since < 30_000) continue
+                dumps++
+                since = 0L
+                val samples = (1..6).joinToString("\n    --\n") {
+                    Thread.sleep(150)
+                    main.stackTrace.take(45).joinToString("\n") { "      at $it" }
+                }
+                val others = mx.dumpAllThreads(true, true).filter { info ->
+                    info.threadId != main.id && (info.threadState == Thread.State.BLOCKED || info.lockOwnerName != null ||
+                        info.stackTrace.any { it.className.startsWith("com.droiddeck") || it.className.startsWith("androidx.compose") })
+                }.joinToString("\n") { info ->
+                    "  \"${info.threadName}\" ${info.threadState}" +
+                        (info.lockName?.let { " on $it" } ?: "") + (info.lockOwnerName?.let { " held by \"$it\"" } ?: "") + "\n" +
+                        info.stackTrace.take(25).joinToString("\n") { "      at $it" }
+                }
+                System.err.println("AppStartSmokeTest hang watch: main thread \"${main.name}\" has spun in Compose's idling loop " +
+                    "for 30s+.\n  main samples:\n$samples\n  other threads:\n$others")
+            }
+        }, "smoke-test-hang-watch").apply { isDaemon = true; start() }
     }
 
     private fun describe(thread: Thread): String =
@@ -187,5 +226,6 @@ class AppStartSmokeTest {
     private companion object {
         const val STARTUP_WORK_SECONDS = 20L
         const val SETTLE_MS = 2_000L
+        const val HANG_WATCH_MS = 20 * 60_000L
     }
 }
