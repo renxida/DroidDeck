@@ -2149,6 +2149,7 @@
     <string name="exp_tex_astc">Godot games: re-encode textures to the phone\'s own GPU format (much less graphics memory); undone when off</string>
     <string name="exp_tex_half">Godot games: as above, and store textures over 1024 px at half resolution</string>
     <string name="exp_godot_verbose">Godot games: log every file the game loads, to see which fonts and textures it uses</string>
+    <string name="exp_fex_trim">Memory: idle game threads give back FEX\'s cached code and lookups</string>
     <string name="exp_fex_smaps">Memory: map where the game\'s memory goes, by owner, once a minute</string>
     <string name="exp_fex_sample">FEX: sample where game threads spend their time (Kestrel\'s FEX)</string>
     <string name="exp_fex_code_buffer">FEX: larger first code buffer, so translated code isn\'t thrown away once it fills</string>

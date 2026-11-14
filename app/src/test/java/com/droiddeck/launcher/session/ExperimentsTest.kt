@@ -72,6 +72,7 @@ class ExperimentsTest {
             "godot-verbose" to "DROIDDECK_EXP_GODOT_VERBOSE",
             "tex-astc" to "DROIDDECK_EXP_TEX_ASTC",
             "tex-half" to "DROIDDECK_EXP_TEX_HALF",
+            "fex-trim" to "DROIDDECK_EXP_FEX_TRIM",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

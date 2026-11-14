@@ -1,0 +1,418 @@
+From cdf3b92b54de6a4606fd31cdf47d46331c36bbd6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 14 Nov 2026 10:50:46 +0000
+Subject: [PATCH] Add TrimIdleThreads: idle threads give back their block
+ caches and old code buffers (default off)
+
+A thread only moves to a new code buffer when it next compiles, so threads that
+sit in waits keep every buffer they used alive, along with a dynamic L1 of up to
+16 MB each. On a phone this was about 112 MB of old code buffers and 110 MB of L1,
+nearly all of it in swap.
+
+With TrimIdleThreads=N, a FEX-internal thread checks every N seconds for threads
+that used no CPU time since the last check. Each is suspended exactly as
+ThreadTerm does (NtSuspendThread then NtGetContextThread, so it is outside the
+JIT and holds no JIT locks), its L1, L2, page map and call-return stack are
+decommitted, and it is pointed at the newest code buffer. Nothing is allocated or
+freed while it is suspended; old buffers are dropped after it resumes.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../Source/Interface/Config/Config.json.in    |   9 ++
+ FEXCore/Source/Interface/Context/Context.h    |   2 +
+ FEXCore/Source/Interface/Core/CPUBackend.h    |  12 ++
+ FEXCore/Source/Interface/Core/Core.cpp        |  29 +++++
+ FEXCore/Source/Interface/Core/LookupCache.cpp |  21 +++
+ FEXCore/Source/Interface/Core/LookupCache.h   |  23 ++++
+ FEXCore/include/FEXCore/Core/Context.h        |  15 +++
+ Source/Windows/ARM64EC/Module.cpp             | 123 ++++++++++++++++++
+ 8 files changed, 234 insertions(+)
+
+diff --git a/FEXCore/Source/Interface/Config/Config.json.in b/FEXCore/Source/Interface/Config/Config.json.in
+index d9f6903..9357bbe 100644
+--- a/FEXCore/Source/Interface/Config/Config.json.in
++++ b/FEXCore/Source/Interface/Config/Config.json.in
+@@ -598,6 +598,15 @@
+           "/proc/<pid>/smaps then shows [anon:win:heap], win:stack, win:exec, win:gc, win:big and win:private."
+         ]
+       },
++      "TrimIdleThreads": {
++        "Type": "uint32",
++        "Default": "0",
++        "AffectsCodeGen": "false",
++        "Desc": [
++          "ARM64EC under Wine: a thread that has used no CPU time for this many seconds gets its block caches emptied and",
++          "is moved onto the newest code buffer, so old code buffers that only idle threads hold can be freed (0 = off)."
++        ]
++      },
+       "SampleHz": {
+         "Type": "uint32",
+         "Default": "0",
+diff --git a/FEXCore/Source/Interface/Context/Context.h b/FEXCore/Source/Interface/Context/Context.h
+index 632767e..4d2b3d8 100644
+--- a/FEXCore/Source/Interface/Context/Context.h
++++ b/FEXCore/Source/Interface/Context/Context.h
+@@ -232,6 +232,8 @@ public:
+   void ConfigureAOTGen(FEXCore::Core::InternalThreadState* Thread, fextl::set<uint64_t>* ExternalBranches, uint64_t SectionMaxAddress) override;
+ 
+   bool IsAddressInCodeBuffer(FEXCore::Core::InternalThreadState* Thread, uintptr_t Address) const override;
++  bool TrimSuspendedThread(FEXCore::Core::InternalThreadState* Thread, TrimmedThreadState& Keep) override;
++  void FinishTrimmedThread(FEXCore::Core::InternalThreadState* Thread) override;
+ 
+   // returns false if a handler was already registered
+   std::optional<CustomIRResult>
+diff --git a/FEXCore/Source/Interface/Core/CPUBackend.h b/FEXCore/Source/Interface/Core/CPUBackend.h
+index 1d19bc1..87bf1aa 100644
+--- a/FEXCore/Source/Interface/Core/CPUBackend.h
++++ b/FEXCore/Source/Interface/Core/CPUBackend.h
+@@ -19,6 +19,7 @@ $end_info$
+ 
+ #include <cstdint>
+ #include <span>
++#include <utility>
+ 
+ namespace FEXCore::CPU {
+ union Relocation;
+@@ -138,6 +139,17 @@ namespace CPU {
+     [[nodiscard]]
+     fextl::shared_ptr<CodeBuffer> CheckCodeBufferUpdate();
+ 
++    // For a thread stopped outside the JIT (see Context::TrimSuspendedThread): makes Buffer its code buffer and returns
++    // the one it replaces. The thread's LookupCache must be moved to Buffer's map at the same time.
++    [[nodiscard]]
++    fextl::shared_ptr<CodeBuffer> MoveToCodeBuffer(fextl::shared_ptr<CodeBuffer> Buffer) {
++      return std::exchange(CurrentCodeBuffer, std::move(Buffer));
++    }
++
++    bool HasSignalHandlerCodeBuffers() const {
++      return !SignalHandlerCodeBuffers.empty();
++    }
++
+   protected:
+     // Max spill slot size in bytes. We need at most 32 bytes
+     // to be able to handle a 256-bit vector store to a slot.
+diff --git a/FEXCore/Source/Interface/Core/Core.cpp b/FEXCore/Source/Interface/Core/Core.cpp
+index 8ef180b..78899c6 100644
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -1118,6 +1118,35 @@ void ContextImpl::InvalidateCodeBuffersCodeRange(uint64_t Start, uint64_t Length
+   }
+ }
+ 
++bool ContextImpl::TrimSuspendedThread(FEXCore::Core::InternalThreadState* Thread, TrimmedThreadState& Keep) {
++  if (!Thread->CPUBackend || !Thread->LookupCache || !Thread->LookupCache->Shared ||
++      Thread->CurrentFrame->SignalHandlerRefCounter != 0 || Thread->CPUBackend->HasSignalHandlerCodeBuffers()) {
++    return false;
++  }
++  // Hold off invalidations: they touch other threads' caches and read their current map.
++  if (!CodeInvalidationMutex.try_lock()) {
++    return false;
++  }
++  // The thread's current map lives in its current code buffer, which stays alive in Keep until after the unlock.
++  const bool Trimmed = Thread->LookupCache->Shared->TryWithWriteLock([&](const LookupCacheWriteLockToken& lk) {
++    Thread->LookupCache->TrimLocked(Thread, lk);
++    auto Latest = GetLatest();
++    auto* LatestMap = Latest->LookupCache.get();
++    if (Thread->LookupCache->Shared != LatestMap) {
++      Keep.OldCodeBuffer = Thread->CPUBackend->MoveToCodeBuffer(std::move(Latest));
++      Thread->LookupCache->Shared = LatestMap;
++    }
++    // Return addresses into the old buffer must not be predicted any more.
++    Allocator::VirtualDontNeed(Thread->CallRetStackBase, FEXCore::Core::InternalThreadState::CALLRET_STACK_SIZE);
++  });
++  CodeInvalidationMutex.unlock();
++  return Trimmed;
++}
++
++void ContextImpl::FinishTrimmedThread(FEXCore::Core::InternalThreadState* Thread) {
++  Thread->LookupCache->ReleaseTrimmed();
++}
++
+ void ContextImpl::InvalidateThreadCachedCodeRange(FEXCore::Core::InternalThreadState* Thread, uint64_t Start, uint64_t Length) {
+   LOGMAN_THROW_A_FMT(CodeInvalidationMutex.try_lock() == false, "CodeInvalidationMutex needs to be unique_locked here");
+ 
+diff --git a/FEXCore/Source/Interface/Core/LookupCache.cpp b/FEXCore/Source/Interface/Core/LookupCache.cpp
+index 133bc28..d06aa38 100644
+--- a/FEXCore/Source/Interface/Core/LookupCache.cpp
++++ b/FEXCore/Source/Interface/Core/LookupCache.cpp
+@@ -68,6 +68,7 @@ LookupCache::LookupCache(FEXCore::Context::ContextImpl* CTX)
+     // A chosen starting (or, with DynamicL1Cache off, fixed) size: clamped and rounded down to a power of two.
+     CurrentL1Entries = std::bit_floor(std::clamp<uint64_t>(Entries, MIN_L1_ENTRIES, MAX_L1_ENTRIES));
+     L1PointerMask = CurrentL1Entries - 1;
++    InitialL1Entries = CurrentL1Entries;
+   } else if (DynamicL1Cache()) {
+     // Start at minimum size when dynamic.
+     L1PointerMask = MIN_L1_ENTRIES - 1;
+@@ -102,6 +103,26 @@ void LookupCache::ClearThreadLocalCaches(const LookupCacheWriteLockToken&) {
+   CachedCodePages.clear();
+ }
+ 
++void LookupCache::TrimLocked(FEXCore::Core::InternalThreadState* Thread, const LookupCacheWriteLockToken&) {
++  FEXCore::Allocator::VirtualDontNeed(reinterpret_cast<void*>(PagePointer), TotalCacheSize, false);
++  AllocateOffset = 0;
++  // Swapping two maps with the same stateless allocator moves no nodes, so this neither allocates nor frees.
++  TrimmedCachedCodePages.swap(CachedCodePages);
++  if (DynamicL1Cache() && CurrentL1Entries != InitialL1Entries) {
++    CurrentL1Entries = InitialL1Entries;
++    L1PointerMask = CurrentL1Entries - 1;
++    Thread->CurrentFrame->State.L1Mask = GetScaledL1PointerMask();
++  }
++}
++
++void LookupCache::ReleaseTrimmed() {
++  TrimmedCachedCodePages.clear();
++  // Decommitting replaces the mappings, which drops their names.
++  FEXCore::Allocator::VirtualName("FEXMem_Lookup", reinterpret_cast<void*>(PagePointer),
++                                  VirtualMemSize / FEXCore::Utils::FEX_PAGE_SIZE * 8 + CODE_SIZE);
++  FEXCore::Allocator::VirtualName("FEXMem_Lookup_L1", reinterpret_cast<void*>(L1Pointer), MAX_L1_SIZE);
++}
++
+ void LookupCache::ClearCache(const LookupCacheWriteLockToken& lk) {
+   // Clear L1 and L2 by clearing the full cache.
+   ClearThreadLocalCaches(lk);
+diff --git a/FEXCore/Source/Interface/Core/LookupCache.h b/FEXCore/Source/Interface/Core/LookupCache.h
+index eb2ce0f..fb36320 100644
+--- a/FEXCore/Source/Interface/Core/LookupCache.h
++++ b/FEXCore/Source/Interface/Core/LookupCache.h
+@@ -31,6 +31,8 @@ private:
+   friend struct GuestToHostMap;
+   LookupCacheWriteLockToken(FEXCore::Utils::WritePriorityMutex::Mutex& Mutex)
+     : Lock {Mutex} {}
++  LookupCacheWriteLockToken(FEXCore::Utils::WritePriorityMutex::Mutex& Mutex, std::adopt_lock_t)
++    : Lock {Mutex, std::adopt_lock} {}
+   std::lock_guard<FEXCore::Utils::WritePriorityMutex::Mutex> Lock;
+ };
+ 
+@@ -51,6 +53,17 @@ struct GuestToHostMap {
+     return LookupCacheWriteLockToken {Lock};
+   }
+ 
++  // Runs Func with the write lock held, if it can be taken without waiting. Returns whether it ran.
++  template<typename F>
++  bool TryWithWriteLock(F&& Func) {
++    if (!Lock.try_lock()) {
++      return false;
++    }
++    LookupCacheWriteLockToken lk {Lock, std::adopt_lock};
++    Func(static_cast<const LookupCacheWriteLockToken&>(lk));
++    return true;
++  }
++
+   [[nodiscard]]
+   LookupCacheReadLockToken AcquireReadLock() {
+     return LookupCacheReadLockToken {Lock};
+@@ -364,6 +377,13 @@ public:
+   void ClearL2Cache(const LookupCacheBaseLockToken&);
+   void ClearThreadLocalCaches(const LookupCacheWriteLockToken&);
+ 
++  // For a thread stopped outside the JIT: empties L1, L2 and the page map (the pages are decommitted, so they take
++  // no memory until used again), shrinks a dynamic L1 back to its starting size and sets CachedCodePages aside for
++  // ReleaseTrimmed. Allocates and frees nothing.
++  void TrimLocked(FEXCore::Core::InternalThreadState* Thread, const LookupCacheWriteLockToken&);
++  // Frees what TrimLocked set aside and renames the decommitted cache memory. Only for the thread doing the trim.
++  void ReleaseTrimmed();
++
+   uintptr_t GetL1Pointer() const {
+     return L1Pointer;
+   }
+@@ -452,6 +472,8 @@ private:
+ 
+   // Maps from a page index to all blocks in the page that have at some point been fetched into L1/L2
+   fextl::map<uint64_t, fextl::robin_set<uint64_t>> CachedCodePages;
++  // CachedCodePages of a trimmed thread, freed by ReleaseTrimmed after the thread resumes.
++  fextl::map<uint64_t, fextl::robin_set<uint64_t>> TrimmedCachedCodePages;
+ 
+   uintptr_t PagePointer;
+   uintptr_t PageMemory;
+@@ -475,6 +497,7 @@ private:
+   uint64_t VirtualMemSize {};
+ 
+   size_t CurrentL1Entries = MIN_L1_ENTRIES;
++  size_t InitialL1Entries = MIN_L1_ENTRIES;
+   uint64_t L2L3CacheHits {};
+   std::chrono::time_point<std::chrono::system_clock> LastPeriod {};
+   constexpr static std::chrono::seconds SamplePeriod {1};
+diff --git a/FEXCore/include/FEXCore/Core/Context.h b/FEXCore/include/FEXCore/Core/Context.h
+index 0f66f21..0cba061 100644
+--- a/FEXCore/include/FEXCore/Core/Context.h
++++ b/FEXCore/include/FEXCore/Core/Context.h
+@@ -46,6 +46,11 @@ using CustomIREntrypointHandler = std::function<void(uintptr_t Entrypoint, IR::I
+ 
+ using ExitHandler = std::function<void(Core::InternalThreadState* Thread)>;
+ 
++// What TrimSuspendedThread took from a thread: kept alive until the thread is running again.
++struct TrimmedThreadState {
++  fextl::shared_ptr<void> OldCodeBuffer;
++};
++
+ class Context {
+ public:
+   virtual ~Context() = default;
+@@ -152,6 +157,16 @@ public:
+   InvalidateThreadCachedCodeRange(FEXCore::Core::InternalThreadState* Thread, uint64_t Start, uint64_t Length) = 0;
+   FEX_DEFAULT_VISIBILITY virtual FEXCore::Utils::WritePriorityMutex::Mutex& GetCodeInvalidationMutex() = 0;
+ 
++  // For a thread suspended outside the JIT (the same state DestroyThread needs): empties its per-thread block caches
++  // (L1, L2, page map and call-return stack) and moves it onto the newest code buffer, so code buffers that only idle
++  // threads still hold can be freed. It allocates and frees nothing: what it releases goes into Keep, to be dropped
++  // once the thread is running again. Returns false, changing nothing, when a code cache lock is held or the thread
++  // keeps code buffers for signal handlers.
++  FEX_DEFAULT_VISIBILITY virtual bool TrimSuspendedThread(FEXCore::Core::InternalThreadState* Thread, TrimmedThreadState& Keep) = 0;
++  // After a successful TrimSuspendedThread and the thread's resume: frees the block map it set aside and renames the
++  // emptied cache memory. Must not race with another trim or with the thread's destruction.
++  FEX_DEFAULT_VISIBILITY virtual void FinishTrimmedThread(FEXCore::Core::InternalThreadState* Thread) = 0;
++
+   FEX_DEFAULT_VISIBILITY virtual void
+   ConfigureAOTGen(FEXCore::Core::InternalThreadState* Thread, fextl::set<uint64_t>* ExternalBranches, uint64_t SectionMaxAddress) = 0;
+ 
+diff --git a/Source/Windows/ARM64EC/Module.cpp b/Source/Windows/ARM64EC/Module.cpp
+index 62b2b6e..8574390 100644
+--- a/Source/Windows/ARM64EC/Module.cpp
++++ b/Source/Windows/ARM64EC/Module.cpp
+@@ -52,6 +52,9 @@ $end_info$
+ #include "ARM64EC/Sampler.h"
+ #include "ARM64EC/MemoryNames.h"
+ 
++#include <FEXCore/fextl/map.h>
++#include <chrono>
++
+ #include <cstdint>
+ #include <cstdio>
+ #include <type_traits>
+@@ -750,6 +753,125 @@ extern "C" void SyncThreadContext(CONTEXT* Context) {
+   Exception::LoadStateFromECContext(Thread, *Context);
+ }
+ 
++// Config TrimIdleThreads (seconds, 0 = off). A thread that has used no CPU time for that long gets its per-thread block
++// caches emptied and is moved onto the newest code buffer. A thread only gives up an old code buffer when it next
++// compiles, so threads that sit in waits (thread pools, loaders that finished) otherwise keep every buffer they ever
++// used alive, along with an L1 of up to 16 MB each, all of it cold and pushed to swap. Uses the same suspend as
++// ThreadTerm: once NtGetContextThread returns the thread is outside the JIT and holds no JIT locks.
++namespace IdleTrim {
++  uint32_t IntervalS {};
++  fextl::unique_ptr<FEXCore::Threads::Thread> Worker;
++
++  struct Seen {
++    uint64_t CPUTime;
++    bool Trimmed;
++  };
++  // Worker thread only.
++  fextl::map<DWORD, Seen> LastPass;
++
++  struct PassStats {
++    size_t Threads, Idle, Trimmed, Skipped, Moved, BuffersFreed;
++    double Ms;
++  };
++
++  PassStats Pass() {
++    const auto Began = std::chrono::steady_clock::now();
++    PassStats Stats {};
++    const DWORD Self = GetCurrentThreadId();
++    fextl::map<DWORD, Seen> Now;
++    fextl::vector<FEXCore::Context::TrimmedThreadState> Keep;
++    fextl::vector<FEXCore::Core::InternalThreadState*> Trimmed;
++
++    std::scoped_lock Lock(ThreadCreationMutex);
++    // Nothing may be allocated or freed while a thread is suspended (it may hold an allocator lock), so reserve first.
++    Keep.reserve(Threads.size());
++    Trimmed.reserve(Threads.size());
++    Stats.Threads = Threads.size();
++    for (const auto& [TID, Thread] : Threads) {
++      if (TID == Self) {
++        continue;
++      }
++      HANDLE Handle = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, TID);
++      if (!Handle) {
++        continue;
++      }
++      FILETIME Create {}, Exit {}, Kernel {}, User {};
++      if (!GetThreadTimes(Handle, &Create, &Exit, &Kernel, &User)) {
++        CloseHandle(Handle);
++        continue;
++      }
++      const uint64_t CPUTime = (uint64_t(Kernel.dwHighDateTime) << 32 | Kernel.dwLowDateTime) +
++                               (uint64_t(User.dwHighDateTime) << 32 | User.dwLowDateTime);
++      const auto Last = LastPass.find(TID);
++      const bool Idle = Last != LastPass.end() && Last->second.CPUTime == CPUTime;
++      const bool AlreadyTrimmed = Idle && Last->second.Trimmed;
++      Now[TID] = {CPUTime, AlreadyTrimmed};
++      if (!Idle || AlreadyTrimmed) {
++        CloseHandle(Handle);
++        continue;
++      }
++      ++Stats.Idle;
++
++      bool Done = false;
++      Keep.emplace_back();
++      if (NT_SUCCESS(NtSuspendThread(Handle, nullptr))) {
++        CONTEXT TmpContext {};
++        TmpContext.ContextFlags = CONTEXT_CONTROL;
++        // Waits for the thread to be suspended, as in ThreadTerm.
++        NtGetContextThread(Handle, &TmpContext);
++        const auto [Err, CPUArea] = GetThreadCPUArea(Handle);
++        if (!Err && !CPUArea.Area->InSimulation && CPUArea.ThreadState() == Thread) {
++          Done = CTX->TrimSuspendedThread(Thread, Keep.back());
++        }
++        ResumeThread(Handle);
++      }
++      CloseHandle(Handle);
++      if (Done) {
++        ++Stats.Trimmed;
++        Stats.Moved += Keep.back().OldCodeBuffer != nullptr;
++        Now[TID].Trimmed = true;
++        Trimmed.push_back(Thread);
++      } else {
++        ++Stats.Skipped;
++      }
++    }
++
++    for (auto* Thread : Trimmed) {
++      CTX->FinishTrimmedThread(Thread);
++    }
++    for (auto& K : Keep) {
++      Stats.BuffersFreed += K.OldCodeBuffer && K.OldCodeBuffer.use_count() == 1;
++    }
++    Keep.clear();
++    LastPass = std::move(Now);
++    Stats.Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - Began).count();
++    return Stats;
++  }
++
++  void* WorkerMain(void*) {
++    for (uint64_t N = 0;; ++N) {
++      LARGE_INTEGER Delay {.QuadPart = -int64_t(IntervalS) * 10'000'000LL};
++      NtDelayExecution(FALSE, &Delay);
++      const auto S = Pass();
++      if (S.Trimmed || S.Skipped || N < 3 || N % 10 == 0) {
++        LogMan::Msg::IFmt("TrimIdleThreads: {} threads, {} newly idle, {} trimmed, {} skipped, {} moved to the newest code buffer, "
++                          "{} old code buffers freed, {:.1f} ms",
++                          S.Threads, S.Idle, S.Trimmed, S.Skipped, S.Moved, S.BuffersFreed, S.Ms);
++      }
++    }
++    return nullptr;
++  }
++
++  void ProcessInit() {
++    FEX_CONFIG_OPT(TrimIdleThreads, TRIMIDLETHREADS);
++    IntervalS = TrimIdleThreads();
++    if (!IntervalS) {
++      return;
++    }
++    Worker = FEXCore::Threads::Thread::Create(WorkerMain, nullptr, {.LowPriority = true, .Internal = true}, "FEX idle trim");
++  }
++} // namespace IdleTrim
++
+ NTSTATUS ProcessInit() {
+   if (!InitSyscalls()) {
+     return STATUS_NOT_SUPPORTED;
+@@ -822,6 +944,7 @@ NTSTATUS ProcessInit() {
+   if (IsWine) {
+     FEX::Windows::Sampler::ProcessInit();
+     FEX::Windows::MemoryNames::ProcessInit();
++    IdleTrim::ProcessInit();
+   }
+ 
+   if (StartupSleep() && (StartupSleepProcName().empty() || AppConfigName == StartupSleepProcName())) {
+-- 
+2.43.0
+
