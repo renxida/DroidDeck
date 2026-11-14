@@ -50,7 +50,8 @@ import java.net.URL
  * ({"op": "reset"}) the Slay the Spire 2 pad or a "remote.*" layout. The bridge's "ui" drives the app by
  * hand: {"op": "tap"|"swipe", "x"/"fx", "y"/"fy", ...} and {"op": "back"}, never on the Debugging tools switch.
  * "update" checks the fork's latest APK now and downloads it; it installs only through the same checks and the
- * system's confirmation on the front screen. "ping" answers the read-only [com.droiddeck.launcher.telemetry.DeviceStatus].
+ * system's confirmation on the front screen, or, with Install updates over Wireless debugging on and the phone idle
+ * on the charger, over Wireless debugging with no prompt. "ping" answers the read-only [com.droiddeck.launcher.telemetry.DeviceStatus].
  */
 object AgentRemote {
     private const val TAG = "AgentRemote"

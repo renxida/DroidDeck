@@ -157,9 +157,10 @@ object AutoTest {
         edit.apply()
     }
 
-    private data class Power(val charging: Boolean, val level: Int, val batteryC: Float, val thermal: Int)
+    internal data class Power(val charging: Boolean, val level: Int, val batteryC: Float, val thermal: Int)
 
-    private fun power(context: Context): Power {
+    /** Charging, battery level and temperature, thermal status: what decides whether the phone may do unattended work. */
+    internal fun power(context: Context): Power {
         val manager = context.getSystemService(BatteryManager::class.java)
         val level = manager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
         val sticky = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -170,10 +171,20 @@ object AutoTest {
         return Power(plugged, level, if (deci == Int.MIN_VALUE) Float.NaN else deci / 10f, thermal)
     }
 
-    /** Runs on the job's thread: reads the config, decides, and launches. Returns what it did. */
+    /** A session, a runtime install or a package install is under way. */
+    internal fun sessionBusy(): Boolean =
+        SessionState.running || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
+            SessionState.installing != null || com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isBusy()
+
+    /**
+     * Runs on the job's thread (or on the first start after an unattended update): reads the config, decides, and
+     * launches. Returns what it did. One check at a time, so two callers can't both launch.
+     */
+    @Synchronized
     fun check(context: Context): String {
         val app = context.applicationContext
         if (!TelemetryUploadSettings.active(app)) return "telemetry off"
+        if (runningId != null) return "a test is running"
         val request = AutoTestPlan.parse(RemoteConfig.fetchNow(app))
         val power = power(app)
         val state = AutoTestPlan.State(
@@ -183,8 +194,7 @@ object AutoTest {
             thermal = power.thermal,
             batteryC = power.batteryC,
             interactive = app.getSystemService(PowerManager::class.java)?.isInteractive == true,
-            sessionBusy = SessionState.running || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
-                SessionState.installing != null || com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isBusy(),
+            sessionBusy = sessionBusy(),
             nowMs = System.currentTimeMillis(),
         )
         val record = record(app)
@@ -319,6 +329,9 @@ object AutoTest {
 class AutoTestJob : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         Thread({
+            // A staged update goes in first, over Wireless debugging when that is switched on; a test then runs on the new build.
+            runCatching { com.droiddeck.launcher.update.SelfUpdate.installUnattended(this) }
+                .onFailure { Log.w("AutoTest", "unattended update: ${it.javaClass.simpleName}: ${it.message}") }
             val result = runCatching { AutoTest.check(this) }
                 .getOrElse { "failed: ${it.javaClass.simpleName}: ${it.message}" }
             Log.i("AutoTest", result)

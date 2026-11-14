@@ -207,6 +207,22 @@ object WirelessAdbFix {
         return output
     }
 
+    /**
+     * Runs [block] on a live connection made with the saved pairing (the cached port first, then the one Wireless
+     * debugging advertises). A [block] that throws on the cached port runs again on the advertised one, so it should
+     * throw only before it changes anything. Throws when there is no pairing or no connection opens.
+     */
+    fun <T> withAdb(context: Context, connectTimeoutMs: Int = 5_000, socketTimeoutMs: Int = 0, block: (Kadb) -> T): T {
+        val holder = arrayOfNulls<Any>(1)
+        withSavedPairing(context) { appContext, host, port ->
+            loadOrCreateIdentity(appContext)
+            Kadb.create(host, port, connectTimeoutMs, socketTimeoutMs).use { adb -> holder[0] = block(adb) }
+            saveConnection(appContext, host, port)
+        }
+        @Suppress("UNCHECKED_CAST")
+        return holder[0] as T
+    }
+
     private fun withSavedPairing(context: Context, action: (Context, String, Int) -> Unit) {
         val appContext = context.applicationContext
         val saved = savedConnection(appContext)
