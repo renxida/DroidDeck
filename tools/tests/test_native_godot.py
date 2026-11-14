@@ -429,6 +429,252 @@ class NativeGodotTest(unittest.TestCase):
         self.assertTrue(NG["find_pack"](str(self.game), "SlayTheSpire2.exe").endswith("SlayTheSpire2.exe"))
 
 
+FAKE_CROSSGEN2 = """
+import json, os, shutil, sys
+args = sys.argv[1:]
+if args == ["--version"]:
+    print(os.environ.get("FAKE_CG_VERSION", "9.0.23+0123abcd"))
+    sys.exit(0)
+with open(os.environ["FAKE_CG_LOG"], "a") as f:
+    f.write(json.dumps({"args": args, "input": open(args[0], "rb").read().hex()}) + "\\n")
+mode = os.environ.get("FAKE_CG_MODE", "ok")
+if mode == "fail":
+    print("Emitting nothing")
+    print("Error: boom in " + os.path.basename(args[0]))
+    sys.exit(1)
+shutil.copyfile(os.environ["FAKE_CG_IMAGE"], args[args.index("-o") + 1])
+"""
+
+
+class NativeR2RTest(unittest.TestCase):
+    """Experiment native-r2r, with a stand-in crossgen2 that writes a fixed image."""
+
+    setUp_game = NativeGodotTest.setUp
+
+    def setUp(self):
+        self.setUp_game()
+        for name in ("System.Private.CoreLib.dll", "GodotSharp.dll"):  # managed, so they are references
+            (self.kit / name).write_bytes(pe(True) + name.encode())
+        self.cg_dir = self.root / "crossgen2"
+        self.cg_dir.mkdir()
+        cg = self.cg_dir / "crossgen2"
+        cg.write_text("#!" + sys.executable + "\n" + FAKE_CROSSGEN2)
+        cg.chmod(0o755)
+        Path(NG["crossgen2_jit"](str(cg))).write_bytes(b"jit")
+        self.cg_log = self.root / "cg.log"
+        self.image = self.root / "linux-arm64-r2r.dll"
+        self.image.write_bytes(pe(True, machine=0xD11D, r2r=True) + b"code")
+        self.cache = self.root / "r2r-cache"
+        self.pristine = self.root / "pristine"
+        self.env = {"DROIDDECK_EXP_NATIVE_R2R": "1", "DROIDDECK_CROSSGEN2": str(self.cg_dir),
+                    "DROIDDECK_NATIVE_R2R_CACHE": str(self.cache), "DROIDDECK_R2R_CACHE": str(self.pristine),
+                    "FAKE_CG_LOG": str(self.cg_log), "FAKE_CG_IMAGE": str(self.image)}
+        patch = unittest.mock.patch.dict(os.environ, self.env)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.out = self.root / "launch"
+        self.out.mkdir()
+        self.data = self.out / "data_sts2_linuxbsd_arm64"
+
+    def compose(self):
+        err = io.StringIO()
+        with unittest.mock.patch("sys.stderr", err):
+            r = NG["compose"](str(self.game), str(self.kit), str(self.engine), str(self.out), "SlayTheSpire2.exe")
+        return r, err.getvalue()
+
+    def job(self, r2r):
+        plan = self.root / "plan.json"
+        plan.write_text(json.dumps(r2r))
+        rc = NG["r2r_job"](str(plan))
+        self.assertFalse(plan.exists())
+        return rc, (self.cache / "compile.log").read_text()
+
+    def crossgen2_calls(self):
+        return [json.loads(line) for line in self.cg_log.read_text().splitlines()] if self.cg_log.exists() else []
+
+    def test_off_by_default(self):
+        with unittest.mock.patch.dict(os.environ, {"DROIDDECK_EXP_NATIVE_R2R": ""}):
+            r, err = self.compose()
+        self.assertNotIn("r2r", r)
+        self.assertNotIn("native-r2r", err)
+        self.assertIsNone(NG["r2r_after_first_frame"](r))
+
+    def test_compiles_after_a_miss_and_uses_the_cache_next_time(self):
+        stale = self.cache / "linux-arm64-single__fx9.0.0__cg9.0.1"
+        stale.mkdir(parents=True)
+        r, err = self.compose()
+        r2r = r["r2r"]
+        self.assertIn("native-r2r: 0 of 2 game assemblies from the linux-arm64 ReadyToRun cache "
+                      "(linux-arm64-single__fx9.0.0__cg9.0.23); 2 to compile after the first frame", err)
+        self.assertEqual(["0Harmony.dll", "sts2.dll"], sorted(m["name"] for m in r2r["missing"]))
+        self.assertTrue(r2r["can_compile"])
+        self.assertIsNotNone(NG["r2r_after_first_frame"](r))
+        stripped = (self.data / "0Harmony.dll").read_bytes()
+        rc, log = self.job(r2r)
+        self.assertEqual(0, rc)
+        self.assertIn("compiled 2 of 2", log)
+        calls = self.crossgen2_calls()
+        self.assertEqual(2, len(calls))
+        harmony = next(c for c in calls if c["args"][0].endswith("in-0Harmony.dll"))
+        args = harmony["args"]
+        self.assertEqual(stripped.hex(), harmony["input"])  # crossgen2 gets the stripped, portable image
+        for flag in (["--targetos", "linux"], ["--targetarch", "arm64"], ["--parallelism", "2"]):
+            self.assertIn(flag, [args[i:i + 2] for i in range(len(args))])
+        self.assertIn("-O", args)
+        refs = sorted(os.path.basename(args[i + 1]) for i, a in enumerate(args) if a == "-r")
+        self.assertEqual(["GodotSharp.dll", "System.Private.CoreLib.dll", "sts2.dll"], refs)
+        self.assertFalse(stale.exists())  # images for another kit or compiler are dropped
+        self.assertEqual([], [p for p in self.cache.iterdir() if p.name.startswith(("job-", "plan-"))])
+
+        r, err = self.compose()
+        self.assertIn("native-r2r: 2 of 2 game assemblies from the linux-arm64 ReadyToRun cache", err)
+        self.assertEqual([], r["r2r"]["missing"])
+        self.assertIsNone(NG["r2r_after_first_frame"](r))
+        for name in ("sts2.dll", "0Harmony.dll"):
+            self.assertTrue(NG["is_linux_arm64_r2r"]((self.data / name).read_bytes()))
+        # The game folder is untouched and the cache file is not the game's.
+        self.assertEqual(0x8664, NG["pe_info"]((self.game / "data_sts2_windows_x86_64" / "0Harmony.dll").read_bytes())["machine"])
+        self.assertFalse(os.path.samefile(self.game / "data_sts2_windows_x86_64" / "sts2.dll", self.data / "sts2.dll"))
+        deps = json.loads((self.data / "sts2.deps.json").read_text())
+        self.assertIn("sts2.dll", json.dumps(deps))
+
+    def test_a_failed_compile_keeps_the_jit_and_logs_the_error(self):
+        r, _ = self.compose()
+        with unittest.mock.patch.dict(os.environ, {"FAKE_CG_MODE": "fail"}):
+            rc, log = self.job(r["r2r"])
+        self.assertEqual(1, rc)
+        self.assertIn("compiled 0 of 2", log)
+        self.assertIn("Error: boom in in-sts2.dll", log)
+        r, err = self.compose()
+        self.assertIn("0 of 2 game assemblies", err)
+        self.assertEqual(NG["pe_info"](pe(True))["machine"], NG["pe_info"]((self.data / "sts2.dll").read_bytes())["machine"])
+
+    def test_output_that_is_not_linux_arm64_ready_to_run_is_not_cached(self):
+        r, _ = self.compose()
+        for bad in (pe(True, machine=0x8664, r2r=True), pe(True, machine=0xAA64, r2r=True), pe(True, machine=0xD11D)):
+            self.image.write_bytes(bad)
+            rc, log = self.job(r["r2r"])
+            self.assertEqual(1, rc)
+            self.assertIn("output is not a Linux arm64 ReadyToRun image", log.splitlines()[-1])
+        self.assertEqual([], list((self.cache / r["r2r"]["tag"]).iterdir()))
+
+    def test_a_damaged_cache_entry_is_compiled_again(self):
+        r, _ = self.compose()
+        self.job(r["r2r"])
+        images = sorted((self.cache / r["r2r"]["tag"]).glob("*.dll"))
+        os.chmod(images[0], 0o644)
+        images[0].write_bytes(images[0].read_bytes()[:100])
+        r, err = self.compose()
+        self.assertIn("1 of 2 game assemblies", err)
+
+    def test_one_compile_at_a_time(self):
+        import fcntl
+        r, _ = self.compose()
+        self.cache.mkdir(exist_ok=True)
+        with open(self.cache / "compile.lock", "w") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            rc, log = self.job(r["r2r"])
+        self.assertEqual(0, rc)
+        self.assertIn("another compile is running; nothing compiled", log)
+        self.assertEqual([], self.crossgen2_calls())
+
+    def test_a_game_file_changed_since_the_launch_is_skipped(self):
+        r, _ = self.compose()
+        (self.game / "data_sts2_windows_x86_64" / "sts2.dll").write_bytes(pe(True) + b"update")
+        rc, log = self.job(r["r2r"])
+        self.assertEqual(1, rc)
+        self.assertIn("sts2.dll (changed since the launch)", log)
+        self.assertIn("compiled 1 of 2", log)
+
+    def test_pristine_il_from_the_proton_r2r_tool_is_preferred(self):
+        win = self.game / "data_sts2_windows_x86_64"
+        theirs = pe(True, machine=0x8664, r2r=True) + b"their win-x64 image"
+        (win / "sts2.dll").write_bytes(theirs)
+        original = pe(True, machine=0x14C) + b"pristine IL"
+        import hashlib
+        il_sha = hashlib.sha256(original).hexdigest()
+        self.pristine.mkdir()
+        (self.pristine / f"{il_sha}.il.dll").write_bytes(original)
+        (self.pristine / "manifest.json").write_text(json.dumps({os.path.realpath(win / "sts2.dll"): {
+            "il": il_sha, "r2r": hashlib.sha256(theirs).hexdigest(), "mode": "single"}}))
+        r, _ = self.compose()
+        sts2 = next(m for m in r["r2r"]["missing"] if m["name"] == "sts2.dll")
+        self.assertEqual(str(self.pristine / f"{il_sha}.il.dll"), sts2["source"])
+        self.assertEqual(il_sha, sts2["key"])  # AnyCPU IL goes to crossgen2 as it is
+        self.job(r["r2r"])
+        call = next(c for c in self.crossgen2_calls() if c["args"][0].endswith("in-sts2.dll"))
+        self.assertEqual(original.hex(), call["input"])
+        # Without a matching manifest entry the game's own file is the source.
+        (self.pristine / "manifest.json").write_text("{}")
+        r, _ = self.compose()
+        self.assertEqual(str(win / "sts2.dll"), next(m for m in r["r2r"]["missing"] if m["name"] == "sts2.dll")["source"])
+
+    def test_no_crossgen2_or_the_wrong_one_runs_on_the_jit(self):
+        with unittest.mock.patch.dict(os.environ, {"DROIDDECK_CROSSGEN2": str(self.root / "nowhere")}):
+            r, err = self.compose()
+        self.assertIsNone(r["r2r"])
+        self.assertIn("no crossgen2 at", err)
+        self.assertTrue((self.data / "sts2.dll").is_file())
+        with unittest.mock.patch.dict(os.environ, {"FAKE_CG_VERSION": "8.0.10+abc"}):
+            r, err = self.compose()
+        self.assertIsNone(r["r2r"])
+        self.assertIn("crossgen2 8.0.10 does not fit the kit's .NET 9.0.0", err)
+
+    def test_without_the_arm64_code_generator_cached_images_still_count(self):
+        os.unlink(NG["crossgen2_jit"](str(self.cg_dir / "crossgen2")))
+        r, err = self.compose()
+        self.assertFalse(r["r2r"]["can_compile"])
+        self.assertIn("cannot compile the other 2: crossgen2 lacks libclrjit_universal_arm64_", err)
+        self.assertIsNone(NG["r2r_after_first_frame"](r))
+
+    def test_lookup_errors_never_stop_compose(self):
+        with unittest.mock.patch.dict(NG["_r2r_compose"].__globals__, {"r2r_input": unittest.mock.Mock(side_effect=OSError("disk"))}):
+            r, err = self.compose()
+        self.assertIsNone(r["r2r"])
+        self.assertIn("native-r2r: cache lookup failed (OSError: disk); running on the JIT", err)
+
+    def test_the_background_compile_is_detached(self):
+        r, _ = self.compose()
+        err = io.StringIO()
+        real = subprocess.Popen
+        popen = unittest.mock.Mock(side_effect=lambda *a, **kw: real(*a, **kw))
+        with unittest.mock.patch("sys.stderr", err), unittest.mock.patch("subprocess.Popen", popen):
+            proc = NG["r2r_after_first_frame"](r)()
+        self.assertIn("compiling 2 assemblies in the background", err.getvalue())
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+        self.assertEqual(0, proc.wait(timeout=60))
+        self.assertIn("compiled 2 of 2", (self.cache / "compile.log").read_text())
+        r, err = self.compose()
+        self.assertIn("2 of 2 game assemblies", err)
+
+    def test_run_starts_the_compile_at_the_first_frame(self):
+        seen = {}
+        real = NG["main"].__globals__["watch"]
+        NG["main"].__globals__["watch"] = lambda args, env, **kw: seen.update(kw) or 0
+        try:
+            with unittest.mock.patch("sys.stderr", io.StringIO()):
+                NG["main"](["run", "--game-dir", str(self.game), "--kit", str(self.kit), "--engine", str(self.engine),
+                            "--out", str(self.out), "--exe", "SlayTheSpire2.exe"])
+        finally:
+            NG["main"].__globals__["watch"] = real
+            os.chdir(Path(__file__).resolve().parent)
+        self.assertTrue(callable(seen["on_first_frame"]))
+
+    def test_watch_calls_on_first_frame_once_and_survives_its_errors(self):
+        calls = []
+        script = self.root / "engine.py"
+        script.write_text("print('Project FPS: 60 (16.67 mspf)')\nprint('Project FPS: 60 (16.67 mspf)')\n")
+
+        def boom():
+            calls.append(1)
+            raise RuntimeError("no")
+        with unittest.mock.patch("sys.stderr", io.StringIO()) as err:
+            rc = NG["watch"]([sys.executable, str(script)], dict(os.environ), first_frame_s=10, out=io.StringIO(),
+                             on_first_frame=boom)
+        self.assertEqual((0, [1]), (rc, calls))
+        self.assertIn("after the first frame: RuntimeError: no", err.getvalue())
+
+
 class GameEnvHookTest(unittest.TestCase):
     def setUp(self):
         self.env_mod = runpy.run_path(str(BIN / "droiddeck-game-env"))
