@@ -1,0 +1,117 @@
+name: Phone's FEX vs the Godot stand-in (Wine ARM64EC, off-device)
+
+# The phone's games FEX (the DD-FEXCore component, launch.txt "fex: FEX-2611-47-gea43314") against the Godot
+# 4.5.1 mono stand-in that upstream FEX ab135df crashes at ~10 s (fex-upstream-bisect.yml). Finds the
+# linux-nightly DD-FEXCore .wcp whose DLL names PHONE_FEX and runs the stand-in GODOT_RUNS times and the .NET
+# app CLR_RUNS times under it, next to Hangover's stock FEX (FEX-2608). Nothing is published.
+
+on:
+  push:
+    branches: ['emu/winetest-bisect*']
+    paths:
+      - '.github/workflows/fex-phone-fex.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  HANGOVER_TAG: hangover-11.16
+  PHONE_FEX: 'FEX-2611-47-gea43314'
+  COMPONENTS: Droid-Deck/DroidDeck-Components
+  GODOT_RUNS: '5'
+  CLR_RUNS: '2'
+  CLR_SECONDS: '90'
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: The phone's FEX component
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq zstd >/dev/null
+          mkdir -p dl phone
+          gh release view linux-nightly -R "$COMPONENTS" --json assets -q '.assets[].name' | grep -i 'fexcore' | sort -V | tee names.txt
+          found=""
+          for n in $(tac names.txt); do
+            gh release download linux-nightly -R "$COMPONENTS" -p "$n" -D dl --clobber
+            rm -rf x && mkdir x && { zstd -dc "dl/$n" | tar -C x -xf - 2>/dev/null || tar -C x -xf "dl/$n"; }
+            dll=$(find x -path '*aarch64-windows/libarm64ecfex.dll' | head -1)
+            v=$( [ -n "$dll" ] && strings "$dll" | grep -m1 -oE 'FEX-[0-9]{4}[0-9A-Za-z._+-]*' || true)
+            echo "$n: ${v:-no version}"
+            if [ -z "$found" ] && strings "$dll" 2>/dev/null | grep -q -- "$PHONE_FEX"; then found=$n; cp "dl/$n" phone/; fi
+          done
+          test -n "$found" || { echo "::error::no linux-nightly FEXCore .wcp names $PHONE_FEX"; exit 1; }
+          echo "phone FEX: $found" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Godot stand-in
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/fex/winetest/get-standin.sh bin/standin
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: .NET app
+        run: dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o bin/clr -v q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phone-inputs
+          path: |
+            phone
+            bin
+
+  run:
+    needs: find
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        fex: [stock, phone]
+    name: run-${{ matrix.fex }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: phone-inputs
+          path: ${{ runner.temp }}/in
+      - name: Wine (Hangover ARM64EC)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
+      - name: The phone's FEX
+        if: matrix.fex == 'phone'
+        run: tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$(ls "$RUNNER_TEMP"/in/phone/* | head -1)"
+      - name: Run
+        shell: bash
+        run: |
+          set -u
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
+          export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
+          bin="$RUNNER_TEMP/in/bin"; out="$RUNNER_TEMP/out"; mkdir -p "$out"; : > "$out/verdicts.txt"
+          for i in $(seq 1 "$GODOT_RUNS"); do
+            HB_RE='^(STANDIN_DEPS|FIRST_FRAME|MAINLOOP_OK)' DONE_RE='^MAINLOOP_OK' OPS_KEY=frames STALL_S=120 \
+              PROG_ARGS="--headless -- --quit-after-frames 600" \
+              tools/fex/winetest/run.sh "godot$i" "$out" 60 "$bin/standin/StandIn.exe" > "$out/godot$i.verdict" 2>&1
+            grep '^VERDICT ' "$out/godot$i.verdict" >> "$out/verdicts.txt" || echo "VERDICT godot$i no-verdict 0 0 0" >> "$out/verdicts.txt"
+            grep -a 'page fault\|Unhandled\|Fatal' "$out/godot$i.err" | head -2 | sed "s/^/godot$i: /"
+            wineserver -k; sleep 1
+          done
+          for i in $(seq 1 "$CLR_RUNS"); do
+            tools/fex/winetest/run.sh "clr$i" "$out" "$CLR_SECONDS" "$bin/clr/clr.exe" > "$out/clr$i.verdict" 2>&1
+            grep '^VERDICT ' "$out/clr$i.verdict" >> "$out/verdicts.txt" || echo "VERDICT clr$i no-verdict 0 0 0" >> "$out/verdicts.txt"
+            grep -a 'Fatal\|Unhandled\|page fault' "$out/clr$i.err" | head -2 | sed "s/^/clr$i: /"
+            wineserver -k; sleep 1
+          done
+          cat "$out/verdicts.txt"
+          g=$(grep -c 'VERDICT godot[0-9]* done' "$out/verdicts.txt"); c=$(grep -c 'VERDICT clr[0-9]* done' "$out/verdicts.txt")
+          echo "SUMMARY ${{ matrix.fex }} godot $g/$GODOT_RUNS clr $c/$CLR_RUNS" | tee -a "$GITHUB_STEP_SUMMARY"
