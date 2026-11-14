@@ -71,6 +71,9 @@ jobs:
           adb shell device_config set_sync_disabled_for_tests persistent || true
           adb shell device_config put activity_manager max_phantom_processes 2147483647 || true
           adb shell settings put global settings_enable_monitor_phantom_procs false || true
+          # CI Android has no PowerVR, Mali or Adreno: route the guest's Vulkan through Venus to the
+          # emulator's own Vulkan (SwiftShader), the same path Mali phones take.
+          tools/droiddeckctl prefs set session venus true --type bool
           t0=$(date +%s)
           tools/droiddeckctl start steam 2>&1 | tee out/start.txt
           sleep 5
