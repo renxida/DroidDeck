@@ -73,6 +73,8 @@ jobs:
           adb shell settings put global settings_enable_monitor_phantom_procs false || true
           # CI Android has no PowerVR, Mali or Adreno: route the guest's Vulkan through Venus to the
           # emulator's own Vulkan (SwiftShader), the same path Mali phones take.
+          tools/offphone/enable-debug-tools.sh "$(tools/app-id)"
+          tools/droiddeckctl access
           tools/droiddeckctl prefs set session venus true --type bool
           t0=$(date +%s)
           tools/droiddeckctl start steam 2>&1 | tee out/start.txt
