@@ -567,6 +567,41 @@ class EgoCorePlanTest(unittest.TestCase):
         self.assertIn("added a copy of its 4-core plan", result.stderr)
 
 
+def fake_wayland_server(path, interfaces):
+    """A Wayland server that answers one client's get_registry and sync with these globals, then the done."""
+    import socket
+    import threading
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(str(path))
+    server.listen(4)
+
+    def message(obj, opcode, body):
+        return struct.pack("=II", obj, ((8 + len(body)) << 16) | opcode) + body
+
+    def serve():
+        while True:
+            try:
+                conn, _ = server.accept()
+            except OSError:
+                return
+            with conn:
+                data = b""
+                while len(data) < 24:
+                    chunk = conn.recv(64)
+                    if not chunk:
+                        break
+                    data += chunk
+                registry, callback = struct.unpack_from("=I", data, 8)[0], struct.unpack_from("=I", data, 20)[0]
+                out = b""
+                for number, name in enumerate(interfaces, 1):
+                    text = name.encode() + b"\0"
+                    text += b"\0" * (-len(text) % 4)
+                    out += message(registry, 0, struct.pack("=II", number, len(name) + 1) + text + struct.pack("=I", 1))
+                conn.sendall(out + message(callback, 0, struct.pack("=I", 0)))
+    threading.Thread(target=serve, daemon=True).start()
+    return path
+
+
 class SystemGraphicsLaunchTest(unittest.TestCase):
     def test_start_configures_ubisoft_with_proton_before_wrapping_the_game(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -603,16 +638,25 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             runtime, _ = self.runtime(Path(tmp))
             manifest = runtime / "wsi" / "VkLayer_window_system_integration.json"
+            full = fake_wayland_server(Path(tmp) / "gamescope-0", ("wl_compositor", "wl_subcompositor", "xdg_wm_base",
+                                                                  "wl_shm", "wl_seat"))
+            fake_wayland_server(Path(tmp) / "gamescope-1", ("wl_compositor", "xdg_wm_base", "wl_shm", "wl_seat"))
             base = {"DROIDDECK_POWERVR_RUNTIME": str(runtime), "STEAM_COMPAT_DATA_PATH": "/compatdata/42",
-                    "WAYLAND_DISPLAY": "", "GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0"}
+                    "WAYLAND_DISPLAY": "", "GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0", "XDG_RUNTIME_DIR": tmp}
             command = ["/proton", "waitforexitandrun", "game.exe"]
             on = dict(base, DROIDDECK_EXP_WAYLAND_PRESENT="1")
             cases = [
                 ("off", base, '{"name": "VK_KHR_wayland_surface"}', None),
                 ("x11-only layer", on, '{"name": "VK_KHR_xcb_surface"}', None),
                 ("no socket", dict(on, GAMESCOPE_WAYLAND_DISPLAY=""), '{"name": "VK_KHR_wayland_surface"}', None),
+                ("no wl_subcompositor", dict(on, GAMESCOPE_WAYLAND_DISPLAY="gamescope-1"),
+                 '{"name": "VK_KHR_wayland_surface"}', None),
+                ("nobody listening", dict(on, GAMESCOPE_WAYLAND_DISPLAY="gamescope-9"),
+                 '{"name": "VK_KHR_wayland_surface"}', None),
                 ("on", on, '{"name": "VK_KHR_wayland_surface"}', "gamescope-0"),
             ]
+            self.assertEqual(MODULE["wayland_globals"](str(full), {}),
+                             {"wl_compositor", "wl_subcompositor", "xdg_wm_base", "wl_shm", "wl_seat"})
             for name, env, text, socket in cases:
                 with self.subTest(name), mock.patch("sys.stderr", new=io.StringIO()):
                     manifest.write_text(text)
@@ -620,9 +664,11 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
                     if socket:
                         self.assertEqual(result["WAYLAND_DISPLAY"], socket)
                         self.assertEqual(result["PROTON_ENABLE_WAYLAND"], "1")
+                        self.assertEqual(result["DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER"], "1")
                     else:
                         self.assertEqual(result["WAYLAND_DISPLAY"], "")
                         self.assertNotIn("PROTON_ENABLE_WAYLAND", result)
+                        self.assertNotIn("DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER", result)
                     self.assertEqual(env.get("WAYLAND_DISPLAY"), "")
 
     def test_vk_count_puts_its_layer_first_only_when_on_and_installed(self):
@@ -642,6 +688,48 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             self.assertEqual(env["VK_INSTANCE_LAYERS"],
                              "VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat")
             self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+
+    def test_hybris_index_swaps_in_its_compat_layer_only_when_on_and_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layer_dir = Path(tmp) / "hybris-compat"
+            layer_dir.mkdir()
+            base = {"VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat",
+                    "VK_LAYER_PATH": "/rt/wsi:/rt/lib"}
+            env = dict(base)
+            self.assertIsNone(MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env, base)
+            env = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1")
+            self.assertIn("not installed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"], base["VK_INSTANCE_LAYERS"])
+            (layer_dir / "libVkLayer_droiddeck_hybris_compat.so").write_bytes(b"\x7fELF")
+            self.assertIn("indexed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"],
+                             "VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+            xclipse = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_xclipse")
+            self.assertIn("no hybris compat", MODULE["hybris_index"](xclipse, str(layer_dir)))
+            session = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertIn("already indexed", MODULE["hybris_index"](session, str(layer_dir)))
+            self.assertEqual(session["VK_LAYER_PATH"], base["VK_LAYER_PATH"])
+
+    def test_dxvk_arm64ec_picks_its_payload_only_when_on_complete_and_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = Path(tmp)
+            self.assertIsNone(MODULE["dxvk_arm64ec"](runtime, {}))
+            env = {"DROIDDECK_EXP_DXVK_ARM64EC": "1"}
+            self.assertIn("not in this runtime", MODULE["dxvk_arm64ec"](runtime, env))
+            self.assertNotIn("DROIDDECK_HYBRIS_DXVK", env)
+            for arch in ("x32", "x64"):
+                (runtime / "dxvk-arm64ec" / arch).mkdir(parents=True)
+                for name in ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"):
+                    (runtime / "dxvk-arm64ec" / arch / (name + ".dll")).write_bytes(b"MZ")
+            self.assertIn("native ARM64EC", MODULE["dxvk_arm64ec"](runtime, env))
+            self.assertEqual(env["DROIDDECK_HYBRIS_DXVK"], "dxvk-arm64ec")
+            xclipse = {"DROIDDECK_EXP_DXVK_ARM64EC": "1", "DROIDDECK_HYBRIS_DXVK": "dxvk-2.6.2"}
+            self.assertIn("kept the dxvk-2.6.2", MODULE["dxvk_arm64ec"](runtime, xclipse))
+            self.assertEqual(xclipse["DROIDDECK_HYBRIS_DXVK"], "dxvk-2.6.2")
 
     def test_other_gpus_and_non_game_calls_keep_the_original_launch(self):
         command = ["/proton", "waitforexitandrun", "game.exe"]

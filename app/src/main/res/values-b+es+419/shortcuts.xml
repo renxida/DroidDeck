@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Atajos de botones físicos</string>
-    <string name="shortcuts_dd_menu">Menú de Kestrel</string>
+    <string name="shortcuts_dd_menu">Menú de Lanner</string>
     <string name="shortcuts_capture">Asignar: %1$s</string>
     <string name="shortcuts_press">Presiona y suelta un botón. La asignación se guarda automáticamente.</string>
     <string name="shortcuts_release">Suelta el botón para continuar.</string>

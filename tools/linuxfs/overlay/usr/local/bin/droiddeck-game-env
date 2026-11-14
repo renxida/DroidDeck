@@ -1,14 +1,18 @@
 #!/usr/bin/python3
+import errno
 import hashlib
 import json
 import os
 import re
 import runpy
+import select
+import shutil
 import signal
 import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -75,8 +79,11 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
                "wayland-present", "vk-count",
-               "native-inventory", "free-memory", "fex-l1", "fex-code-buffer",
-               "fex-sample", "fex-smaps", "fex-trim")
+               "native-inventory", "free-memory", "hybris-index", "fex-l1",
+               "hybris-index-session", "native-engine", "dxvk-arm64ec",
+               "composite-timing", "dotnet-r2r", "fex-code-buffer",
+               "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
+               "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -133,7 +140,8 @@ def without_experiments(env):
 
 # Their effect is fixed when the session starts (the app, droiddeck-session and Steam's scripts); memory is split:
 # its game part follows the saved switches and its app part the session's.
-SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap")
+SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap",
+                       "hybris-index-session", "composite-timing")
 
 
 def experiments_line(saved, session):
@@ -343,7 +351,10 @@ def dotnet_memory_ordering(game):
 # docs/research/dotnet-runtime.md. Workstation GC sizes gen0 from the largest CPU cache Windows reports
 # (GetLogicalProcessorInformation, which Wine fills from sysfs) and caps it at 6 MB while background GC is on,
 # so a game may collect every few MB; each collection suspends every managed thread through Wine.
-DOTNET_GEN0_BYTES = 64 << 20
+# 64 MB cut the phone's ~50 gen1 collections a minute to one every minute or two, but each then compacted
+# 20-34 MB of survivors in one 120-170 ms pause (a7526bd, Nov 14); at about 5-10 ms per surviving MB, 8 MB
+# should keep each pause near the old p99 (~30 ms) while dropping most of the per-collection overhead.
+DOTNET_GEN0_BYTES = 8 << 20
 
 
 @fix
@@ -520,9 +531,12 @@ def godot_accessibility(game):
 @fix
 def slay_the_spire_2_pacing(game):
     if game.stem == "slaythespire2" and is_godot(game) and experiment(game.env, "sched"):
-        return ({"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": "60"}, [],
-                "Slay the Spire 2: game threads kept off the little cores, 60 fps cap "
-                "(DROIDDECK_GAME_CPU_BUDGET=all or DROIDDECK_FPS_CAP=0 in the game's environment undoes them)")
+        # fps-30: a steady 30 over a 60 that dips (each frame gets 33 ms, the phone runs cooler and the
+        # thermal governor has nothing to step down).
+        fps = "30" if experiment(game.env, "fps-30") else "60"
+        return ({"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": fps}, [],
+                "Slay the Spire 2: game threads kept off the little cores, %s fps cap "
+                "(DROIDDECK_GAME_CPU_BUDGET=all or DROIDDECK_FPS_CAP=0 in the game's environment undoes them)" % fps)
 
 
 @fix
@@ -1050,6 +1064,15 @@ def fastest_first(cores):
     return sorted(cores, key=lambda core: -speeds[core]) if speeds else cores
 
 
+def slow_cores(speeds):
+    """The cores a big budget leaves out: cpu_capacity is IPC-weighted (little cores sit near a quarter of the
+    prime core); cpufreq is not."""
+    capacity = all(speed <= 1024 for speed in speeds.values())
+    top = max(speeds.values())
+    floor = top / 2 if capacity else top * 0.7
+    return {core for core, speed in speeds.items() if speed < floor}
+
+
 def thread_budget(budget, cores):
     """Wine confines every game thread to the host cores in WINE_CPU_TOPOLOGY, and Godot's worker pool
     and .NET's processor count follow the cores Windows sees."""
@@ -1059,11 +1082,8 @@ def thread_budget(budget, cores):
             print("droiddeck-game-env: thread budget big: core speeds unreadable; all %d cores kept" % len(cores),
                   file=sys.stderr)
             return cores
-        # cpu_capacity is IPC-weighted (little cores sit near a quarter of the prime core); cpufreq is not.
-        capacity = all(speed <= 1024 for speed in speeds.values())
-        top = max(speeds.values())
-        floor = top / 2 if capacity else top * 0.7
-        kept = [core for core in cores if speeds[core] >= floor]
+        slow = slow_cores(speeds)
+        kept = [core for core in cores if core not in slow]
     elif re.fullmatch(r"[1-9][0-9]{0,2}", budget):
         kept = cores[:int(budget)]
     else:
@@ -1111,6 +1131,9 @@ def frame_cap(command, env):
                 extra.append("--disable-vsync")
             command = command[:3] + args[:cut] + extra + args[cut:]
             ways.append("Godot --max-fps" + (", vsync off" if len(extra) > 2 else ""))
+            paced = present_pacing(env, fps)
+            if paced:
+                ways.append(paced)
     else:
         own = env.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
         if not re.search(r"(?:^|;)\s*dxvk\.maxFrameRate\s*=", own):
@@ -1126,6 +1149,107 @@ def frame_cap(command, env):
         env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"] = CAPPED_IMAGES
         ways.append("%s swapchain images" % CAPPED_IMAGES)
     return command, "frame cap %s fps (%s)" % (fps, ", ".join(ways) or "already set")
+
+
+STS2_SETTINGS = "drive_c/users/steamuser/AppData/Roaming/SlayTheSpire2/steam"
+STS2_SCHEMA = 8
+
+
+def sts2_settings_cap(command, env):
+    """Slay the Spire 2 applies Engine.MaxFps and the vsync mode from its own settings.save after Godot reads
+    --max-fps and --disable-vsync (NGame.InitializeGraphicsPreferences), so before each capped launch its
+    fps_limit is set to the cap, and vsync to "off" under one-limiter, in every Steam user's settings.save.
+    Every other key stays as the game wrote it. The file is local only (the game deletes any cloud copy), and the
+    game rewrites it when the player changes a setting, which holds until the next launch. A user folder with no
+    file yet gets a minimal one with the schema version, so the game's loader keeps it."""
+    fps = env.get("DROIDDECK_FPS_CAP", "").strip()
+    if (len(command) <= 2 or not FPS_CAP.fullmatch(fps) or any(a == "--max-fps" for a in command[3:])
+            or Game(command[2], command[3:]).stem != "slaythespire2"):
+        return None
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    root = os.path.join(prefix, "pfx", STS2_SETTINGS) if prefix else ""
+    try:
+        users = [d for d in sorted(os.listdir(root)) if d.isdigit() and os.path.isdir(os.path.join(root, d))]
+    except OSError:
+        return None
+    want = {"fps_limit": int(fps)}
+    if experiment(env, "one-limiter"):
+        want["vsync"] = "off"
+    done = []
+    for user in users:
+        path = os.path.join(root, user, "settings.save")
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except FileNotFoundError:
+            text = None
+        except OSError as error:
+            done.append("unreadable (%s)" % error.strerror)
+            continue
+        if text is None:
+            settings = {"schema_version": STS2_SCHEMA}
+        else:
+            try:
+                settings = json.loads(text)
+            except ValueError:
+                done.append("not JSON, left alone")
+                continue
+            if not isinstance(settings, dict):
+                done.append("not a settings object, left alone")
+                continue
+        if all(settings.get(k) == v for k, v in want.items()):
+            done.append("already set")
+            continue
+        settings.update(want)
+        try:
+            tmp = path + ".droiddeck-tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, path)
+            done.append("written" if text is not None else "created")
+        except OSError as error:
+            done.append("not written (%s)" % error.strerror)
+    if not done:
+        return None
+    return "Slay the Spire 2 settings.save: fps_limit %s%s (%s)" % (
+        fps, ", vsync off" if "vsync" in want else "", ", ".join(done))
+
+
+def present_pacing(env, fps, layer_dir=None):
+    """A game can set its own frame rate and vsync after start (Slay the Spire 2 re-applies its saved settings over
+    --max-fps and ran at 40-44 fps under a 30 cap, Nov 14), so VK_LAYER_DROIDDECK_vkcount also paces presents to
+    the cap: vkQueuePresentKHR returns no sooner than one interval after the last. The app rewrites the rate in
+    DROIDDECK_PACE_FILE for the thermal governor and an idle player. Needs the system Vulkan layers; the layer is
+    added (with its reports off) when vk-count did not add it. DROIDDECK_PACE=0 turns it off."""
+    if env.get("DROIDDECK_PACE", "").strip().lower() in ("0", "off", "false", "no"):
+        return None
+    layers = env.get("VK_INSTANCE_LAYERS")
+    if layers is None:
+        return None
+    layer_dir = layer_dir or VKCOUNT_DIR
+    if "VK_LAYER_DROIDDECK_vkcount" not in layers.split(":"):
+        if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_vkcount.so")):
+            return "present pacing: layer not installed"
+        env["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount:" + layers
+        env["VK_LAYER_PATH"] = layer_dir + (":" + env["VK_LAYER_PATH"] if env.get("VK_LAYER_PATH") else "")
+        env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
+    env["DROIDDECK_PACE_FPS"] = fps
+    if not env.get("DROIDDECK_PACE_FILE") and env.get("BL_LOG"):
+        env["DROIDDECK_PACE_FILE"] = os.path.join(os.path.dirname(env["BL_LOG"]), "pace")
+    return "presents paced"
+
+
+def godot_verbose(command, env):
+    """Experiment godot-verbose: Godot's --verbose, so its log names every resource it loads ("Loading resource:
+    res://..."). The upload lists them from the game's godot.log; that tells which fonts, textures and scenes a play
+    session actually touches."""
+    if not experiment(env, "godot-verbose") or len(command) <= 2 or not is_godot(Game(command[2], command[3:])):
+        return command, None
+    args = command[3:]
+    cut = next((i for i, arg in enumerate(args) if arg in ("--", "++")), len(args))
+    if "--verbose" in args[:cut] or "-v" in args[:cut]:
+        return command, "Godot verbose log already on"
+    return command[:3] + args[:cut] + ["--verbose"] + args[cut:], "Godot verbose log on (resource loads named)"
 
 
 PACING_SWITCHES = (("adpf", "DROIDDECK_PACING_ADPF"), ("display", "DROIDDECK_PACING_DISPLAY"),
@@ -1235,6 +1359,8 @@ def proton_cpu_limit(command, env):
 
 
 def cpu_topology(env, command=()):
+    """Sets WINE_CPU_TOPOLOGY to the cores the game runs on. Returns the plan CoreWatch keeps them with when it
+    chose them itself and the budget was not turned off (all or 0, or DROIDDECK_GAME_REPIN=0), else None."""
     if "PROTON_CPU_TOPOLOGY" in env:
         return
     if "WINE_CPU_TOPOLOGY" in env:
@@ -1256,6 +1382,7 @@ def cpu_topology(env, command=()):
     if not cores or cores[-1] >= len(online):
         return
     picked = picked and not set(cores) >= online
+    base = set(cores) if picked else None
     if fastest:
         limit = None if picked else proton_cpu_limit(command, env)
         if isinstance(limit, str):
@@ -1269,6 +1396,409 @@ def cpu_topology(env, command=()):
         return
     env["WINE_CPU_TOPOLOGY"] = env["PROTON_CPU_TOPOLOGY"] = "%d:%s" % (len(cores), ",".join(map(str, cores)))
     print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
+    if env.get("DROIDDECK_GAME_CPU_BUDGET", "").strip().lower() in ("all", "0") or \
+            env.get("DROIDDECK_GAME_REPIN", "").strip() == "0":
+        return None
+    return {"cores": list(cores), "budget": budget, "base": base}
+
+
+REPIN_POLL_S = 5
+REPIN_MAX_POLL_S = 80
+REPIN_CALM_S = 300
+REPIN_EARLY_POLLS = 12
+REPIN_RESCAN_POLLS = 6
+REPIN_FLAP_WINDOW_S = 120
+REPIN_FLAP_COUNT = 3
+REPIN_FAILED_ROUNDS = 3
+# Native helpers Wine starts without ntdll, which never get WINE_CPU_TOPOLOGY's cores at launch.
+REPIN_SKIP = frozenset({"wineserver"})
+
+
+def format_cores(cores):
+    runs, cores = [], sorted(cores)
+    for core in cores:
+        if runs and core == runs[-1][1] + 1:
+            runs[-1][1] = core
+        else:
+            runs.append([core, core])
+    return ",".join("%d" % a if a == b else "%d-%d" % (a, b) for a, b in runs) or "-"
+
+
+class CoreWatch:
+    """Keeps the game on the cores cpu_topology chose. Wine pins each of its processes to WINE_CPU_TOPOLOGY's
+    cores as it starts, but when Android moves the app to another cpuset (thermal, or top-app to foreground) the
+    kernel resets every task's affinity to the new cpuset and the pin is gone: the game then runs on the little
+    cores. Every few seconds this reads the affinity of the main thread of each Wine process in the launch's tree
+    that carried the pin; when one has cores outside the pin, it works the cores out again the way the launch did,
+    from that new allowed set, and pins every thread of those processes there. It never widens past the allowed
+    set, leaves the kernel's mask alone when only little cores are left, and polls less often when the mask flaps
+    or a pin fails, stopping after REPIN_FAILED_ROUNDS failed rounds in a row."""
+
+    def __init__(self, plan, app_id="", root=None, proc="/proc", setaffinity=None, online=None, speeds=None,
+                 clock=time.monotonic, wall=time.time):
+        self.cores = set(plan["cores"])
+        self.size = len(plan["cores"])
+        self.budget = plan.get("budget") or ""
+        self.base = set(plan["base"]) if plan.get("base") else None
+        self.app_id = app_id or "-"
+        self.root = root if root is not None else os.getpid()
+        self.proc = proc
+        self.setaffinity = setaffinity or os.sched_setaffinity
+        self.online = online or online_cores
+        self.speeds = speeds or core_speeds
+        self.clock, self.wall = clock, wall
+        self.budgeted = {}
+        self.left_alone = None
+        self.interval = REPIN_POLL_S
+        self.repins = []
+        self.changed = clock()
+        self.failed_rounds = 0
+        self.polls = 0
+        self.done = threading.Event()
+        self.thread = None
+
+    def start(self):
+        self.thread = threading.Thread(target=self.run, name="core-watch", daemon=True)
+        self.thread.start()
+        return self
+
+    def stop(self):
+        self.done.set()
+
+    def run(self):
+        while not self.done.wait(self.interval):
+            try:
+                self.poll()
+            except Exception as error:  # the watch must never take the launch down
+                print("droiddeck-game-env: core watch stopped (%s)" % error, file=sys.stderr, flush=True)
+                return
+
+    def read(self, path):
+        try:
+            with open(path, "rb") as f:
+                return f.read().decode("ascii", "replace")
+        except OSError:
+            return None
+
+    def mask(self, path):
+        text = self.read(path + "/status")
+        match = text and re.search(r"^Cpus_allowed_list:\s*(\S+)", text, re.M)
+        return parse_cores(match.group(1)) if match else None
+
+    def started(self, pid):
+        text = self.read("%s/%d/stat" % (self.proc, pid))
+        fields = text[text.rfind(")") + 2:].split() if text else []
+        return fields[19] if len(fields) > 19 else None
+
+    def rescan(self):
+        tree = set(descendants(self.root, self.proc))
+        for pid in list(self.budgeted):
+            if pid not in tree:
+                del self.budgeted[pid]
+        for pid in tree:
+            if pid in self.budgeted:
+                continue
+            comm = (self.read("%s/%d/comm" % (self.proc, pid)) or "").strip()
+            if not comm or comm in REPIN_SKIP:
+                continue
+            mask = self.mask("%s/%d" % (self.proc, pid))
+            if mask and mask <= self.cores:
+                started = self.started(pid)
+                if started:
+                    self.budgeted[pid] = started
+
+    def target(self, allowed):
+        """The launch's choice made again from the allowed cores: the fastest first, at most as many as the
+        launch kept, without the little cores on a big budget unless fewer than two others are left (None)."""
+        online = set(self.online())
+        allowed = allowed & online & (self.base or online)
+        if not allowed:
+            return None
+        speeds = self.speeds(sorted(online))
+        order = sorted(allowed, key=lambda core: (-speeds[core], core)) if speeds else sorted(allowed)
+        if self.budget == "big" and speeds:
+            slow = slow_cores(speeds)
+            order = [core for core in order if core not in slow]
+            if len(order) < 2:
+                return None
+        kept = order[:max(self.size, 2)]
+        return set(kept)
+
+    def log(self, seen, to, action, extra=""):
+        print("DROIDDECK_TIMELINE event=game_cores_reset app_id=%s from=%s to=%s action=%s%s next_s=%d wall_ms=%d" % (
+            self.app_id, format_cores(seen), format_cores(to), action, extra, self.interval, int(self.wall() * 1000)),
+            file=sys.stderr, flush=True)
+
+    def pin(self, target):
+        """Pins every thread of the budgeted processes that has a core outside target; (pinned, failed, error)."""
+        pinned = failed = 0
+        error = None
+        for pid, started in list(self.budgeted.items()):
+            if self.started(pid) != started:
+                del self.budgeted[pid]
+                continue
+            try:
+                tasks = os.listdir("%s/%d/task" % (self.proc, pid))
+            except OSError:
+                continue
+            for tid in tasks:
+                if not tid.isdigit():
+                    continue
+                mask = self.mask("%s/%d/task/%s" % (self.proc, pid, tid))
+                if mask is None or mask <= target:
+                    continue
+                try:
+                    self.setaffinity(int(tid), target)
+                    pinned += 1
+                except OSError as e:
+                    if e.errno == errno.ESRCH:
+                        continue
+                    failed += 1
+                    error = errno.errorcode.get(e.errno, str(e.errno))
+        return pinned, failed, error
+
+    def poll(self):
+        self.polls += 1
+        now = self.clock()
+        if self.polls <= REPIN_EARLY_POLLS or self.polls % REPIN_RESCAN_POLLS == 0 or not self.budgeted:
+            self.rescan()
+        seen = set()
+        for pid in list(self.budgeted):
+            mask = self.mask("%s/%d" % (self.proc, pid))
+            if mask is None:
+                del self.budgeted[pid]
+            elif not mask <= self.cores:
+                seen |= mask
+        if not seen:
+            self.left_alone = None
+            if self.interval > REPIN_POLL_S and now - self.changed >= REPIN_CALM_S:
+                self.interval = REPIN_POLL_S
+                self.changed = now
+            return
+        if seen == self.left_alone:
+            return
+        target = self.target(seen)
+        if target is None:
+            self.left_alone = seen
+            self.log(seen, seen, "kept")
+            return
+        self.left_alone = None
+        pinned, failed, error = self.pin(target)
+        if not self.budgeted:
+            return
+        self.changed = now
+        if failed and not pinned:
+            self.failed_rounds += 1
+            self.interval = min(self.interval * 2, REPIN_MAX_POLL_S)
+            stop = self.failed_rounds >= REPIN_FAILED_ROUNDS
+            self.log(seen, target, "stopped" if stop else "failed", " error=%s threads=%d" % (error, failed))
+            if stop:
+                self.done.set()
+            return
+        self.failed_rounds = 0
+        self.cores = target
+        self.repins = [t for t in self.repins if now - t < REPIN_FLAP_WINDOW_S] + [now]
+        if len(self.repins) >= REPIN_FLAP_COUNT:
+            self.interval = min(self.interval * 2, REPIN_MAX_POLL_S)
+            self.repins = []
+        self.log(seen, target, "repin", " threads=%d%s" % (pinned, " failed=%d error=%s" % (failed, error) if failed else ""))
+
+
+WEBHELPER_TRIM = "webhelper-trim"
+WEBHELPER_TRIM_FIRST_S = 60
+WEBHELPER_TRIM_EVERY_S = 120
+# Round 1 moved ~110 MB of the web helper to swap and round 2 a little; rounds 3-24 changed nothing (+-2 MB) and
+# each round costs a few more slow frames (Nov 14, 2 h session).
+WEBHELPER_TRIM_ROUNDS = 2
+WEBHELPER_TRIM_SETTLE_S = 5
+WEBHELPER_TRIM_CALL_S = 5
+WEBHELPER_TRIM_ROUND_S = 30
+WEBHELPER_TRIM_TYPES = frozenset({"page", "iframe", "worker", "shared_worker", "service_worker"})
+
+
+def webhelper_cdp_port(environ=None):
+    """The Steam client's DevTools port as droiddeck-session chose it: its agent/cdp-port file under BL_LAUNCH_DIR,
+    else BL_CDP_PORT (both set where it starts the client); None when neither holds a port."""
+    environ = os.environ if environ is None else environ
+    launch_dir = environ.get("BL_LAUNCH_DIR", "")
+    value = ""
+    if launch_dir:
+        try:
+            with open(os.path.join(launch_dir, "agent", "cdp-port"), encoding="ascii", errors="replace") as source:
+                value = source.read(16).strip()
+        except OSError:
+            value = ""
+    if not value.isdigit():
+        value = environ.get("BL_CDP_PORT", "").strip()
+    port = int(value) if value.isdigit() else 0
+    return port if 0 < port < 65536 else None
+
+
+def webhelper_usage(proc="/proc"):
+    """(processes, resident kB, swapped kB) summed over the processes whose command line names steamwebhelper."""
+    count = rss = swap = 0
+    try:
+        entries = os.listdir(proc)
+    except OSError:
+        return 0, 0, 0
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        try:
+            with open("%s/%s/cmdline" % (proc, entry), "rb") as f:
+                if b"steamwebhelper" not in f.read(8192):
+                    continue
+            with open("%s/%s/status" % (proc, entry), "rb") as f:
+                status = f.read().decode("ascii", "replace")
+        except OSError:
+            continue
+        resident = re.search(r"^VmRSS:\s+(\d+)", status, re.M)
+        if not resident:
+            continue
+        swapped = re.search(r"^VmSwap:\s+(\d+)", status, re.M)
+        count += 1
+        rss += int(resident.group(1))
+        swap += int(swapped.group(1)) if swapped else 0
+    return count, rss, swap
+
+
+class SteamDevTools:
+    """droiddeck-steam-compat's DevTools client (http_get, Page), which only ever connects to 127.0.0.1, with
+    every read bounded by WEBHELPER_TRIM_CALL_S."""
+
+    def __init__(self, port, client=None):
+        self.port = port
+        self.client = client or runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-steam-compat"))
+
+    def targets(self):
+        return self.client["http_get"](self.port, "/json/list")
+
+    def trim(self, target):
+        """Memory pressure, then a full GC, on one target; how many of the two it answered."""
+        path = "/" + target["webSocketDebuggerUrl"].split("/", 3)[3]
+        page = self.client["Page"](self.port, path)
+        page.ws.sock.settimeout(WEBHELPER_TRIM_CALL_S)
+        answered = 0
+        try:
+            try:
+                page.call("Memory.simulatePressureNotification", {"level": "critical"}, WEBHELPER_TRIM_CALL_S)
+                answered += 1
+            except Exception:
+                pass
+            enabled = False
+            try:
+                try:
+                    page.call("HeapProfiler.collectGarbage", None, WEBHELPER_TRIM_CALL_S)
+                except RuntimeError:  # an error answer: the domain wants enabling first
+                    page.call("HeapProfiler.enable", None, WEBHELPER_TRIM_CALL_S)
+                    enabled = True
+                    page.call("HeapProfiler.collectGarbage", None, WEBHELPER_TRIM_CALL_S)
+                answered += 1
+            except Exception:
+                pass
+            if enabled:
+                try:
+                    page.call("HeapProfiler.disable", None, WEBHELPER_TRIM_CALL_S)
+                except Exception:
+                    pass
+        finally:
+            page.ws.close()
+        return answered
+
+
+class WebhelperTrim:
+    """Experiment webhelper-trim: while the game runs, asks Steam's CEF over DevTools to give memory back (a
+    critical memory-pressure notification and a full V8 GC on every page and worker), WEBHELPER_TRIM_FIRST_S after
+    the start and then every WEBHELPER_TRIM_EVERY_S for WEBHELPER_TRIM_ROUNDS rounds, and prints the steamwebhelper processes' resident and swapped
+    memory before and WEBHELPER_TRIM_SETTLE_S after each round. The client and its web helper keep running: nothing
+    is killed or stopped. When the port is unknown or DevTools does not answer it says why once and stops."""
+
+    def __init__(self, app_id="", port=None, devtools=None, usage=None, first=WEBHELPER_TRIM_FIRST_S,
+                 every=WEBHELPER_TRIM_EVERY_S, settle=WEBHELPER_TRIM_SETTLE_S, clock=time.monotonic, wall=time.time,
+                 rounds=WEBHELPER_TRIM_ROUNDS):
+        self.app_id = app_id or "-"
+        self.port = port
+        self.devtools = devtools or SteamDevTools
+        self.usage = usage or webhelper_usage
+        self.first, self.every, self.settle = first, every, settle
+        self.clock, self.wall = clock, wall
+        self.rounds = 0
+        self.max_rounds = rounds
+        self.done = threading.Event()
+        self.thread = None
+        self.client = None
+
+    def start(self):
+        self.thread = threading.Thread(target=self.run, name="webhelper-trim", daemon=True)
+        self.thread.start()
+        return self
+
+    def stop(self):
+        self.done.set()
+
+    def run(self):
+        try:
+            if self.done.wait(self.first):
+                return
+            port = self.port if self.port is not None else webhelper_cdp_port()
+            if not port:
+                return self.off("no_port", "no BL_LAUNCH_DIR/agent/cdp-port or BL_CDP_PORT")
+            try:
+                self.client = self.devtools(port)
+            except Exception as error:
+                return self.off("no_client", error)
+            while not self.done.is_set():
+                if not self.trim() or self.rounds >= self.max_rounds:
+                    return
+                if self.done.wait(self.every):
+                    return
+        except Exception as error:  # the watch must never take the launch down
+            self.off("error", error)
+
+    def off(self, reason, error):
+        detail = re.sub(r"[^A-Za-z0-9_.:/-]+", "_", str(error) or type(error).__name__).strip("_")[:120] or "-"
+        print("DROIDDECK_TIMELINE event=game_webhelper_trim_off app_id=%s reason=%s round=%d detail=%s wall_ms=%d" % (
+            self.app_id, reason, self.rounds + 1, detail, int(self.wall() * 1000)), file=sys.stderr, flush=True)
+
+    def trim(self):
+        """One round; False when it stopped the watch."""
+        procs, rss, swap = self.usage()
+        began = self.clock()
+        try:
+            listed = self.client.targets()
+        except Exception as error:
+            self.off("devtools_unreachable", error)
+            return False
+        targets = [t for t in listed if isinstance(t, dict) and t.get("type") in WEBHELPER_TRIM_TYPES
+                   and str(t.get("webSocketDebuggerUrl", "")).count("/") >= 3] if isinstance(listed, list) else []
+        if not targets:
+            self.off("no_targets", "%d listed, none a page or worker" % (len(listed) if isinstance(listed, list) else 0))
+            return False
+        trimmed, failed, error = 0, 0, None
+        for target in targets:
+            if self.done.is_set() or self.clock() - began > WEBHELPER_TRIM_ROUND_S:
+                break
+            try:
+                if self.client.trim(target):
+                    trimmed += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                failed += 1
+                error = e
+        took = self.clock() - began
+        if not trimmed:
+            self.off("cdp_failed", error or "no target answered")
+            return False
+        self.rounds += 1
+        self.done.wait(self.settle)
+        _, rss_after, swap_after = self.usage()
+        print("DROIDDECK_TIMELINE event=game_webhelper_trim app_id=%s round=%d targets=%d trimmed=%d failed=%d procs=%d "
+              "rss_mb_before=%d swap_mb_before=%d rss_mb_after=%d swap_mb_after=%d took_ms=%d next_s=%d wall_ms=%d" % (
+                  self.app_id, self.rounds, len(targets), trimmed, failed, procs, rss // 1024,
+                  swap // 1024, rss_after // 1024, swap_after // 1024, int(took * 1000), self.every,
+                  int(self.wall() * 1000)), file=sys.stderr, flush=True)
+        return True
 
 
 def gl_vsync(env):
@@ -1893,11 +2423,12 @@ EXIT_WATCH_GAMES = frozenset({"2868840"})
 
 def exit_watch(app_id, env, pacing=False):
     """Wait for Proton instead of exec'ing it: DROIDDECK_GAME_EXIT_WATCH=1 or 0, else the per-game default,
-    or when a pacing line was printed, whose cap the app ends at the game_exit line."""
+    or when a pacing line was printed, whose cap the app ends at the game_exit line, or when webhelper-trim needs
+    the launch alive while the game runs."""
     setting = env.get("DROIDDECK_GAME_EXIT_WATCH", "")
     if setting in ("0", "1"):
         return setting == "1"
-    return app_id in EXIT_WATCH_GAMES or pacing
+    return app_id in EXIT_WATCH_GAMES or pacing or experiment(env, WEBHELPER_TRIM)
 
 
 def report_game_exit(app_id, raw_code, seconds):
@@ -1912,20 +2443,342 @@ def timeline_game_exit(app_id, raw_code, started):
         int((time.monotonic() - started) * 1000), int(time.time() * 1000)), file=sys.stderr, flush=True)
 
 
-def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False):
+# win32u/driver.c load_desktop_driver: the default driver_load_error, which nodrv_CreateWindow prints on
+# err:winediag when the desktop never registered a graphics driver. That process then waits in user32 for
+# ever without a window.
+EXPLORER_FAILED = b"The explorer process failed to start."
+EXPLORER_WINDOW_S = 300
+EXPLORER_POLL_S = 1.0
+EXPLORER_KILL_WAIT_S = 15
+EXPLORER_DRAIN_S = 5
+PIPE_BUF = 4096
+
+
+def proton_log_path(env):
+    """Where Proton sends Wine's output instead of stderr (its setup_logging), or None."""
+    value = env.get("PROTON_LOG", "")
+    if not value or value == "0" or not env.get("SteamGameId"):
+        return None
+    return (env.get("PROTON_LOG_DIR") or env.get("HOME", "")) + "/steam-" + env["SteamGameId"] + ".log"
+
+
+def explorer_watch_wanted(launch, env):
+    return env.get("DROIDDECK_EXPLORER_WATCHDOG") != "0" and "waitforexitandrun" in launch[1:]
+
+
+def with_winediag(env):
+    """Proton's default WINEDEBUG=-all hides err:winediag, the channel the explorer failure is printed on."""
+    debug = env.get("WINEDEBUG", "")
+    if debug:
+        return env if debug.rsplit(",", 1)[-1] == "err+winediag" else dict(env, WINEDEBUG=debug + ",err+winediag")
+    return env if proton_log_path(env) else dict(env, WINEDEBUG="-all,err+winediag")
+
+
+def wineserver_for(launch, env):
+    candidates = [env.get("WINESERVER", "")]
+    if "waitforexitandrun" in launch[1:]:
+        proton = os.path.dirname(launch[launch.index("waitforexitandrun", 1) - 1])
+        candidates += [os.path.join(proton, sub, "wineserver") for sub in ("files/bin-arm64", "files/bin", "files/bin-wow64")]
+    candidates.append(shutil.which("wineserver", path=env.get("PATH", os.defpath)) or "")
+    return next((path for path in candidates if path and os.path.isfile(path) and os.access(path, os.X_OK)), None)
+
+
+def descendants(pid, proc="/proc"):
+    children = {}
+    try:
+        entries = os.listdir(proc)
+    except OSError:
+        return []
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        try:
+            with open("%s/%s/stat" % (proc, entry), "rb") as f:
+                parent = int(f.read().rsplit(b")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            continue
+        children.setdefault(parent, []).append(int(entry))
+    found, queue = [], [pid]
+    while queue:
+        for child in children.get(queue.pop(), ()):
+            if child not in found:
+                found.append(child)
+                queue.append(child)
+    return found
+
+
+def file_identity(path):
+    try:
+        st = os.stat(path)
+        return (st.st_dev, st.st_ino), st.st_size
+    except OSError:
+        return None, 0
+
+
+class StderrRelay:
+    """Copies a child's stderr to ours in whole lines, each write at most PIPE_BUF so it stays as atomic as
+    the child's own, and shows every chunk to a scanner. It keeps reading after ours fails, so the child
+    never blocks on a full pipe."""
+
+    def __init__(self, fd, scan, out=2):
+        self.fd, self.scan, self.out = fd, scan, out
+        self.broken = False
+        self.thread = threading.Thread(target=self.run, name="stderr-relay", daemon=True)
+        self.thread.start()
+
+    def write(self, data):
+        while data and not self.broken:
+            try:
+                data = data[os.write(self.out, data):]
+            except InterruptedError:
+                continue
+            except OSError:
+                self.broken = True
+
+    def write_lines(self, data):
+        while data:
+            cut = len(data) if len(data) <= PIPE_BUF else \
+                (data.rfind(b"\n", 0, PIPE_BUF) + 1 or data.find(b"\n") + 1 or len(data))
+            self.write(data[:cut])
+            data = data[cut:]
+
+    def run(self):
+        pending = b""
+        try:
+            while True:
+                if pending and not select.select([self.fd], [], [], 0.5)[0]:
+                    self.write(pending)
+                    pending = b""
+                    continue
+                try:
+                    data = os.read(self.fd, 65536)
+                except OSError:
+                    break
+                if not data:
+                    break
+                text = pending + data
+                cut = text.rfind(b"\n") + 1
+                self.write_lines(text[:cut])
+                pending = text[cut:]
+                self.scan(data)
+                if len(pending) >= PIPE_BUF:
+                    self.write(pending)
+                    pending = b""
+        finally:
+            self.write(pending)
+            os.close(self.fd)
+
+
+class ExplorerGuard:
+    """One launch attempt, watched for Wine's explorer failure during its first EXPLORER_WINDOW_S. On the
+    first attempt the failure ends that attempt's Wine (wineserver -k for the prefix, then the Proton process
+    tree) so the caller can start the game once more; on a later attempt it is only reported."""
+
+    def __init__(self, launch, env, app_id, attempt=1, signalled=lambda: False):
+        self.launch, self.env, self.app_id, self.attempt = launch, env, app_id, attempt
+        self.signalled = signalled
+        self.log = proton_log_path(env)
+        self.lock = threading.Lock()
+        self.exited = threading.Event()
+        self.closed = self.fired = self.ended = False
+        self.process = self.killer = self.relay = None
+        self.tail = b""
+        self.how = ""
+        self.started = self.deadline = 0.0
+
+    def spawn(self):
+        self.started = time.monotonic()
+        self.deadline = self.started + EXPLORER_WINDOW_S
+        if self.log:
+            before = file_identity(self.log)
+            self.process = subprocess.Popen(self.launch, env=self.env)
+            threading.Thread(target=self.follow, args=(before,), name="explorer-log", daemon=True).start()
+        else:
+            self.process = subprocess.Popen(self.launch, env=self.env, stderr=subprocess.PIPE)
+            fd = os.dup(self.process.stderr.fileno())
+            self.process.stderr.close()
+            self.process.stderr = None
+            self.relay = StderrRelay(fd, self.scan)
+        return self.process
+
+    def scan(self, data):
+        if self.fired or self.closed or time.monotonic() > self.deadline:
+            return
+        text = self.tail + data
+        if EXPLORER_FAILED in text:
+            self.fire()
+        else:
+            self.tail = text[1 - len(EXPLORER_FAILED):]
+
+    def follow(self, before):
+        """With PROTON_LOG on, Proton deletes the old log and writes Wine's output to a new one."""
+        identity, offset = before
+        while not self.exited.wait(EXPLORER_POLL_S) and not self.fired and time.monotonic() <= self.deadline:
+            current, size = file_identity(self.log)
+            if current is None:
+                continue
+            if current != identity or size < offset:
+                identity, offset = current, 0
+            try:
+                with open(self.log, "rb") as f:
+                    f.seek(offset)
+                    while not self.fired:
+                        data = f.read(1 << 20)
+                        if not data:
+                            break
+                        offset += len(data)
+                        self.scan(data)
+            except OSError:
+                continue
+
+    def fire(self):
+        with self.lock:
+            if self.fired or self.closed or self.exited.is_set():
+                return
+            self.fired = True
+            self.killer = threading.Thread(target=self.end, name="explorer-end", daemon=True)
+            self.killer.start()
+
+    def end(self):
+        retry = self.attempt == 1 and not self.signalled()
+        print("droiddeck-game-env: Wine reports its desktop (explorer.exe) never started, so the game cannot open a "
+              "window; %s" % ("ending this launch's Wine and starting the game once more" if retry else
+                              "the launch is left as it is (end the game from Steam)"), file=sys.stderr, flush=True)
+        print("DROIDDECK_TIMELINE event=game_explorer_failed app_id=%s attempt=%d action=%s run_ms=%d wall_ms=%d" % (
+            self.app_id, self.attempt, "relaunch" if retry else "none", int((time.monotonic() - self.started) * 1000),
+            int(time.time() * 1000)), file=sys.stderr, flush=True)
+        if not retry:
+            return
+        self.ended = True
+        server = wineserver_for(self.launch, self.env)
+        killed = False
+        if server:
+            prefix = os.path.join(self.env.get("STEAM_COMPAT_DATA_PATH", ""), "pfx")
+            try:
+                killed = subprocess.run([server, "-k"], env=dict(self.env, WINEPREFIX=prefix), stdin=subprocess.DEVNULL,
+                                        stdout=subprocess.DEVNULL, timeout=EXPLORER_KILL_WAIT_S).returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                pass
+        self.how = "wineserver" if killed else ""
+        if killed and self.exited.wait(EXPLORER_KILL_WAIT_S):
+            return
+        if not self.exited.is_set():
+            for pid in descendants(self.process.pid)[::-1] + [self.process.pid]:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            self.how = (self.how + "+" if self.how else "") + "tree"
+
+    def finished(self):
+        with self.lock:
+            self.closed = True
+            killer = self.killer
+        self.exited.set()
+        if killer:
+            killer.join()
+
+    def keep_log(self):
+        """The next attempt's Proton deletes the log this attempt wrote."""
+        if self.log and os.path.isfile(self.log):
+            try:
+                os.replace(self.log, self.log[:-len(".log")] + "-explorer-failed.log")
+            except OSError:
+                pass
+
+
+def run_watched(guard):
+    """Waits for the first attempt's Proton with SIGTERM, SIGINT and SIGHUP forwarded as
+    wait_forwarding_signals_raw does, and starts it once more when Wine's desktop never came up on it and no
+    signal asked the launch to stop. Returns the raw status and start time of the attempt that ended the
+    launch, and a drain that waits a little for the relayed stderr to close."""
+    state = {"process": guard.process, "signalled": False}
+    guard.signalled = lambda: state["signalled"]
+
+    def forward(signum, frame):
+        state["signalled"] = True
+        if state["process"] is not None:
+            try:
+                state["process"].send_signal(signum)
+            except OSError:
+                pass
+
+    relays = []
+    previous = {signum: signal.signal(signum, forward) for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+    retry_env = None
+    try:
+        attempt = 1
+        while True:
+            if attempt > 1:
+                again = ExplorerGuard(guard.launch, retry_env or guard.env, guard.app_id, attempt,
+                                      lambda: state["signalled"])
+                try:
+                    state["process"] = again.spawn()
+                except OSError as error:
+                    print("droiddeck-game-env: the game could not be started again (%s)" % error, file=sys.stderr, flush=True)
+                    break
+                guard = again
+                if state["signalled"]:
+                    guard.process.terminate()
+            if guard.relay:
+                relays.append(guard.relay)
+            raw_code = guard.process.wait()
+            guard.finished()
+            state["process"] = None
+            if not guard.ended or state["signalled"] or attempt > 1:
+                break
+            guard.keep_log()
+            attempt += 1
+            retry_env = without_wayland_present(guard.env)
+            print("DROIDDECK_TIMELINE event=game_relaunch app_id=%s attempt=%d reason=explorer_failed ended_by=%s "
+                  "display=%s wall_ms=%d" % (guard.app_id, attempt, guard.how or "none", "x11" if retry_env else "same",
+                                             int(time.time() * 1000)), file=sys.stderr, flush=True)
+            if retry_env:
+                print("droiddeck-game-env: wayland-present taken back out for the second start; Wine uses Xwayland",
+                      file=sys.stderr, flush=True)
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+    def drain():
+        end = time.monotonic() + EXPLORER_DRAIN_S
+        for relay in relays:
+            relay.thread.join(max(0.0, end - time.monotonic()))
+    return raw_code, guard.started, drain
+
+
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False, cores=None):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     proton = launch[0] if len(launch) > 1 and launch[1] in ("waitforexitandrun", "run") else None
     launch, launch_env = system_graphics_launch(launch, launch_env)
+    waited = bool(after or diagnostic_app_id is not None or watch)
+    explorer = bool(waited and timeline_app_id and explorer_watch_wanted(launch, launch_env))
+    if explorer:
+        launch_env = with_winediag(launch_env)
     record_final_env(launch, launch_env, proton)
     started = time.monotonic()
-    if after or diagnostic_app_id is not None or watch:
-        process = subprocess.Popen(launch, env=launch_env)
+    if waited:
+        if explorer:
+            guard = ExplorerGuard(launch, launch_env, timeline_app_id)
+            process = guard.spawn()
+        else:
+            process = subprocess.Popen(launch, env=launch_env)
         if diagnostic_app_id is not None:
             diagnostic_game_event("game_start", diagnostic_app_id)
+        drain = None
+        core_watch = CoreWatch(cores, timeline_app_id).start() if cores else None
+        trim = WebhelperTrim(timeline_app_id).start() if timeline_app_id and experiment(launch_env, WEBHELPER_TRIM) else None
         try:
-            raw_code = wait_forwarding_signals_raw(process)
+            if explorer:
+                raw_code, started, drain = run_watched(guard)
+            else:
+                raw_code = wait_forwarding_signals_raw(process)
         finally:
+            if core_watch:
+                core_watch.stop()
+            if trim:
+                trim.stop()
             if after:
                 try:
                     after()
@@ -1940,6 +2793,8 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
         if timeline_app_id:
             timeline_game_exit(timeline_app_id, raw_code, started)
             report_game_exit(timeline_app_id, raw_code, int(time.monotonic() - started))
+        if drain:
+            drain()
         return code
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
@@ -1997,13 +2852,56 @@ def system_graphics_launch(command, env):
     })
     for name in ("DISABLE_WSI_LAYER", "PROTON_USE_WINED3D", "ENABLE_VK_LAYER_VALVE_steam_fossilize_1"):
         result.pop(name, None)
-    for note in (wayland_present(directory, result), vk_count(result)):
+    for note in (wayland_present(directory, result), hybris_index(result), vk_count(result),
+                 dxvk_arm64ec(directory, result)):
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
     return [str(wrapper), *command], result
 
 
 VKCOUNT_DIR = "/usr/local/lib/droiddeck-vkcount"
+DXVK_ARM64EC = "dxvk-arm64ec"
+DXVK_NAMES = ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi")
+
+
+def dxvk_arm64ec(directory, env):
+    """Experiment dxvk-arm64ec: a 64-bit Direct3D game gets the runtime's dxvk-arm64ec payload in place of the
+    default x86-64 one, so DXVK runs as native ARM64EC code instead of through FEX. Same DXVK source and patches
+    (tools/dxvk/build_arm64ec.sh); 32-bit games keep a translated i686 build. Vulkan-native games (Slay the Spire 2)
+    only load its dxgi.dll to list adapters, so they should not change. Independent of two-frames and
+    layer-fence. Only the default payload is replaced, never Xclipse's."""
+    if not experiment(env, DXVK_ARM64EC):
+        return None
+    if (env.get("DROIDDECK_HYBRIS_DXVK") or "dxvk") != "dxvk":
+        return "dxvk-arm64ec: kept the %s payload" % env["DROIDDECK_HYBRIS_DXVK"]
+    for arch in ("x32", "x64"):
+        for name in DXVK_NAMES:
+            path = Path(directory) / DXVK_ARM64EC / arch / (name + ".dll")
+            if not path.is_file() or not path.stat().st_size:
+                return "dxvk-arm64ec: payload not in this runtime (%s)" % path
+    env["DROIDDECK_HYBRIS_DXVK"] = DXVK_ARM64EC
+    return "dxvk-arm64ec: 64-bit DXVK runs as native ARM64EC"
+HYBRIS_COMPAT_DIR = "/usr/local/lib/droiddeck-hybris-compat"
+
+
+def hybris_index(env, layer_dir=HYBRIS_COMPAT_DIR):
+    """Experiment hybris-index: the game gets VK_LAYER_DROIDDECK_hybris_compat in place of the runtime's
+    VK_LAYER_HYBRIS_compat. It is the same libhybris source and patches plus tools/hybris/compat-layer's, which
+    index the per-call lookups (command buffers, images, pipeline layouts, entry points) that otherwise walk every
+    live object on each bind, push and barrier."""
+    if not experiment(env, "hybris-index"):
+        return None
+    layers = env.get("VK_INSTANCE_LAYERS", "").split(":")
+    if "VK_LAYER_DROIDDECK_hybris_compat" in layers:
+        return "hybris-index: already indexed for the whole session (hybris-index-session)"
+    if "VK_LAYER_HYBRIS_compat" not in layers:
+        return "hybris-index: the game has no hybris compat layer to replace"
+    if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_hybris_compat.so")):
+        return "hybris-index: layer not installed at %s" % layer_dir
+    env["VK_INSTANCE_LAYERS"] = ":".join(
+        "VK_LAYER_DROIDDECK_hybris_compat" if layer == "VK_LAYER_HYBRIS_compat" else layer for layer in layers)
+    env["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
+    return "hybris-index: indexed hybris compat layer"
 
 
 def vk_count(env, layer_dir=VKCOUNT_DIR):
@@ -2018,11 +2916,69 @@ def vk_count(env, layer_dir=VKCOUNT_DIR):
     return "vk-count: counting Vulkan calls per frame"
 
 
+# winewayland.drv's wayland_process_init gives up, and the driver unloads, unless the compositor offers all of
+# these. Wine then has no display driver, and explorer.exe never starts (seen on gamescope, Nov 13: no
+# wl_subcompositor).
+WINE_WAYLAND_GLOBALS = ("wl_compositor", "wl_subcompositor", "xdg_wm_base", "wl_shm")
+WAYLAND_PROBE_S = 2.0
+
+
+def wayland_globals(socket, env, timeout=WAYLAND_PROBE_S):
+    """The interface names a Wayland server advertises, read over the wire protocol (wl_display.get_registry,
+    then wl_display.sync, collecting wl_registry.global until the sync's done), or None when it cannot be read."""
+    import socket as sockets
+    path = socket if socket.startswith("/") else \
+        os.path.join(env.get("XDG_RUNTIME_DIR") or os.environ.get("XDG_RUNTIME_DIR", ""), socket)
+    names = set()
+    try:
+        with sockets.socket(sockets.AF_UNIX, sockets.SOCK_STREAM) as conn:
+            conn.settimeout(timeout)
+            conn.connect(path)
+            conn.sendall(struct.pack("=IIIIII", 1, (12 << 16) | 1, 2, 1, (12 << 16) | 0, 3))
+            data, end = b"", time.monotonic() + timeout
+            while time.monotonic() < end:
+                chunk = conn.recv(65536)
+                if not chunk:
+                    return None
+                data += chunk
+                while len(data) >= 8:
+                    obj, word = struct.unpack_from("=II", data)
+                    size, opcode = word >> 16, word & 0xFFFF
+                    if size < 8 or len(data) < size:
+                        if size < 8:
+                            return None
+                        break
+                    body, data = data[8:size], data[size:]
+                    if obj == 3 and opcode == 0:
+                        return names
+                    if obj == 1 and opcode == 0:
+                        return None
+                    if obj == 2 and opcode == 0 and len(body) >= 8:
+                        length = struct.unpack_from("=I", body, 4)[0]
+                        names.add(body[8:8 + max(0, length - 1)].decode("ascii", "replace"))
+    except (OSError, struct.error):
+        return None
+    return None
+
+
+def without_wayland_present(env):
+    """The launch environment with wayland-present taken back out, so Wine falls back to its X11 driver on
+    Xwayland; None when wayland-present never went in."""
+    if env.get("PROTON_ENABLE_WAYLAND") != "1" or not experiment(env, "wayland-present"):
+        return None
+    env = dict(env, WAYLAND_DISPLAY="")
+    for key in ("PROTON_ENABLE_WAYLAND", "DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER"):
+        env.pop(key, None)
+    return env
+
+
 def wayland_present(directory, env):
     """Experiment wayland-present: Wine's Wayland driver hands the game's frames to gamescope's own Wayland
-    socket, so the game's Xwayland and its DRI3 Present round trip drop out of every frame. The session clears
-    WAYLAND_DISPLAY for Steam (an empty one would make libwayland pick wayland-0, the app's compositor), so the
-    socket is named explicitly. Needs a WSI layer built with VK_KHR_wayland_surface."""
+    socket, so the game's Xwayland and its DRI3 Present round trip drop out of every frame. The session sets
+    WAYLAND_DISPLAY empty for Steam, and libwayland connects to an empty name as no socket at all (it falls back to
+    wayland-0 only when the variable is unset), so the socket is named explicitly. Needs a WSI layer built with
+    VK_KHR_wayland_surface. That layer connects to nothing itself: it only uses the wl_display a Wayland surface
+    hands it. Proton's Wayland Steam-overlay layer stays out of the game's Vulkan chain."""
     if not experiment(env, "wayland-present"):
         return None
     socket = env.get("GAMESCOPE_WAYLAND_DISPLAY", "").strip()
@@ -2034,8 +2990,18 @@ def wayland_present(directory, env):
         return "wayland-present: WSI layer manifest unreadable (%s); the game stays on Xwayland" % error
     if "VK_KHR_wayland_surface" not in manifest:
         return "wayland-present: this WSI layer has no Wayland surface; the game stays on Xwayland"
+    globals_seen = wayland_globals(socket, env)
+    if globals_seen is None:
+        return "wayland-present: gamescope's Wayland socket did not answer; the game stays on Xwayland"
+    missing = [name for name in WINE_WAYLAND_GLOBALS if name not in globals_seen]
+    if missing:
+        return "wayland-present: gamescope's Wayland socket lacks %s, which Wine's Wayland driver needs; the game " \
+               "stays on Xwayland" % ",".join(missing)
     env["WAYLAND_DISPLAY"] = socket
     env["PROTON_ENABLE_WAYLAND"] = "1"
+    # With Steam's overlay preloaded, Proton would add GE's Wayland Steam-overlay Vulkan layer to the game's
+    # chain. It is untested on the PowerVR path and only bridges the in-game overlay's input.
+    env["DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER"] = "1"
     return "wayland-present: Wine's Wayland driver presents to gamescope (%s), skipping the game's Xwayland" % socket
 
 
@@ -2101,7 +3067,9 @@ def game_logs(command, env, app_id, now=None):
 
 
 DOTNET_TRACE = "/usr/local/bin/droiddeck-dotnet-trace"
-DOTNET_TRACE_PROVIDERS = ("Microsoft-Windows-DotNETRuntime:0x400000001:4,"
+# GC (0x1), loader (0x8, module loads), JIT (0x10, verbose for method names and code sizes), GC heap-history
+# (0x400000000) and compilation-diagnostic (0x2000000000, precompiled methods used) events, plus runtime counters.
+DOTNET_TRACE_PROVIDERS = ("Microsoft-Windows-DotNETRuntime:0x2400000019:5,"
                           "System.Runtime:0:4:EventCounterIntervalSec=1")
 DOTNET_TRACE_EVERY_S = 60
 
@@ -2133,6 +3101,64 @@ def dotnet_trace(command, env, popen=subprocess.Popen):
         folder, DOTNET_TRACE_EVERY_S)
 
 
+DOTNET_R2R = "/usr/local/bin/droiddeck-dotnet-r2r"
+DOTNET_R2R_MANIFEST = os.path.expanduser("~/.cache/droiddeck-r2r/manifest.json")
+DOTNET_R2R_APPLY_S = 120
+
+
+def dotnet_folder(exe):
+    """The folder that holds a .NET game's coreclr.dll: the exe's own or one level below it, or None."""
+    folder = os.path.dirname(os.path.abspath(exe))
+    if os.path.exists(os.path.join(folder, "coreclr.dll")):
+        return folder
+    try:
+        with os.scandir(folder) as top:
+            for entry in sorted(top, key=lambda e: e.name):
+                if entry.is_dir(follow_symlinks=False) and os.path.exists(os.path.join(entry.path, "coreclr.dll")):
+                    return entry.path
+    except OSError:
+        pass
+    return None
+
+
+def dotnet_r2r(command, env, run=subprocess.run, popen=subprocess.Popen):
+    """Notes for the session log. For a .NET game, droiddeck-dotnet-r2r writes to dotnet-r2r.txt in the log
+    folder which of its assemblies ship precompiled. Under dotnet-r2r, the game's own IL-only assemblies are
+    swapped for x64 ReadyToRun images compiled on the phone before the game starts, and what is not compiled
+    yet is compiled in the background for the next launch. With the switch off, every swapped file is put
+    back. dotnet-r2r-generics does the same and also precompiles the framework's generics over the game's
+    types into the game's images (droiddeck-dotnet-r2r --mode generics); dotnet-r2r-bubble does it in one
+    version bubble with the framework copy (--mode bubble), which covers more and wins if both are on."""
+    if len(command) < 3 or command[1] != "waitforexitandrun":
+        return []
+    folder = dotnet_folder(command[2])
+    if not folder:
+        return []
+    log_dir = env.get("DROIDDECK_GAME_LOG_DIR")
+    log = ["--log", str(Path(log_dir) / "dotnet-r2r.txt")] if log_dir else []
+    tool = [sys.executable, DOTNET_R2R]
+    notes = []
+    wide = next((m for m in ("bubble", "generics") if experiment(env, "dotnet-r2r-" + m)), None)
+    on = bool(wide) or experiment(env, "dotnet-r2r")
+    mode = ["--mode", wide or "single"]
+    if on or os.path.exists(DOTNET_R2R_MANIFEST):
+        try:
+            result = run(tool + ["apply", folder, "--on" if on else "--off"] + mode + log, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=DOTNET_R2R_APPLY_S)
+            lines = (result.stderr or b"").decode(errors="replace").strip().splitlines()
+            notes.append("dotnet-r2r: " + (lines[-1] if lines else "apply exit %s" % result.returncode))
+        except (OSError, subprocess.TimeoutExpired) as error:
+            notes.append("dotnet-r2r: apply failed (%s)" % error)
+    background = ["status", folder] + log if not on else ["compile", folder] + mode + log
+    if on or log_dir:
+        try:
+            popen(["nice", "-n", "19"] + tool + background, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError as error:
+            notes.append("dotnet-r2r: %s not started (%s)" % (background[0], error))
+    return notes
+
+
 NATIVE_INVENTORY = "/usr/local/bin/droiddeck-native-inventory"
 
 
@@ -2147,6 +3173,113 @@ def native_inventory(exe, env, popen=subprocess.Popen):
     except OSError as error:
         return ["native-inventory: not started (%s)" % error]
     return ["native-inventory: started for %s" % os.path.basename(os.path.dirname(os.path.abspath(exe)))]
+
+
+TEXPACK = "/usr/local/bin/droiddeck-texpack"
+TEXPACK_STATE = "/var/tmp/droiddeck/texpack"
+# tex-half: textures larger than this on a side are stored at half resolution (the game sees the same size).
+TEX_HALF_ABOVE = 1024
+
+
+def godot_logs(env):
+    """The Godot game logs in the Proton prefix (user://logs/godot.log), for the texture check."""
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if not prefix:
+        return []
+    roaming = os.path.join(prefix, "pfx", "drive_c", "users", "steamuser", "AppData", "Roaming")
+    found = []
+    for base in (roaming, os.path.join(roaming, "Godot", "app_userdata")):
+        try:
+            names = os.listdir(base)
+        except OSError:
+            continue
+        for name in names[:64]:
+            log = os.path.join(base, name, "logs", "godot.log")
+            if os.path.isfile(log):
+                found.append(log)
+    return found
+
+
+def texture_pack(exe, env, run=subprocess.run):
+    """Under tex-astc (or tex-half), the Godot game's textures are re-encoded to ASTC inside its own pack
+    (droiddeck-texpack: appended, switched on at a launch, undone with the experiment off). Synchronous only for the
+    header switch; the conversion itself runs in the background and is used from the next launch."""
+    want = experiment(env, "tex-astc") or experiment(env, "tex-half")
+    if not want:
+        try:
+            if not any(n.endswith(".json") for n in os.listdir(TEXPACK_STATE)):
+                return []
+        except OSError:
+            return []
+    folder = os.path.dirname(os.path.abspath(exe))
+    cmd = [sys.executable, TEXPACK, "prepare" if want else "revert", "--game-dir", folder]
+    if want:
+        if experiment(env, "tex-half"):
+            cmd += ["--half-above", str(TEX_HALF_ABOVE)]
+        for log in godot_logs(env):
+            cmd += ["--godot-log", log]
+    try:
+        result = run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                     timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return ["textures: %s not run (%s)" % (cmd[2], error)]
+    lines = [line.split(" ", 1)[1] for line in result.stderr.splitlines() if line.startswith("DROIDDECK_TEXPACK ")]
+    return ["textures: " + (lines[-1] if lines else "%s exit %d" % (cmd[2], result.returncode))]
+
+
+NATIVE_GODOT = "/usr/local/bin/droiddeck-native-godot"
+# A native run that ends sooner than this with an error is taken as "did not start"; the game then starts on Proton.
+NATIVE_START_S = 60
+# droiddeck-native-godot's own exit when the engine drew no first frame (none within its timeout, or it ended before
+# one): the game never started natively, however long that took, so it starts on Proton.
+NATIVE_NO_FIRST_FRAME = 86
+
+
+def native_engine(command, env, run=subprocess.run, clock=time.monotonic):
+    """Under native-engine, a Godot C# game (a data_*_windows_x86_64 folder next to the exe) runs on Kestrel's
+    own linux-arm64 engine. Returns the exit code to end with, or None to go on to Proton."""
+    if not experiment(env, "native-engine") or len(command) < 3:
+        return None, []
+    exe = os.path.abspath(command[2])
+    folder = os.path.dirname(exe)
+    try:
+        managed = [n for n in os.listdir(folder) if n.startswith("data_") and n.endswith("_windows_x86_64")]
+    except OSError:
+        managed = []
+    if len(managed) != 1:
+        return None, ["native-engine: not a Godot C# game; Proton"]
+    out = os.path.join(os.path.expanduser("~"), ".cache", "droiddeck", "native", "launch", game_id(env) or "game")
+    args = [sys.executable, NATIVE_GODOT, "run", "--fetch", "--game-dir", folder, "--exe", os.path.basename(exe),
+            "--out", out, "--"] + list(command[3:])
+    log_dir = env.get("DROIDDECK_GAME_LOG_DIR") or env.get("BL_DEBUG_DIR")
+    path = os.path.join(log_dir, "native-engine.log") if log_dir else None
+    log = None
+    if path:
+        try:
+            log = open(path, "a", encoding="utf-8")
+        except OSError:
+            log, path = None, None
+    began = clock()
+    try:
+        rc = run(args, env=env, stdin=subprocess.DEVNULL, stdout=log or None, stderr=subprocess.STDOUT if log else None).returncode
+    except OSError as error:
+        return None, ["native-engine: could not start (%s); Proton" % error]
+    finally:
+        if log:
+            log.close()
+    took = clock() - began
+    notes = []
+    if rc != 0 and path:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                notes = ["native-engine log: " + line.rstrip() for line in f.readlines()[-30:]]
+        except OSError:
+            pass
+    if rc == NATIVE_NO_FIRST_FRAME:
+        return None, notes + ["native-engine: no first frame after %.0f s; starting on Proton" % took]
+    if rc != 0 and took < NATIVE_START_S:
+        return None, notes + ["native-engine: exited with %d after %.0f s; starting on Proton" % (rc, took)]
+    return rc, notes + ["native-engine: ran %.0f s natively, exit %d" % (took, rc)]
 
 
 def load_warmup():
@@ -2305,6 +3438,12 @@ def main():
                     except (OSError, ValueError) as error:
                         notes.append("Godot: cache and log check skipped (%s)" % error)
                     notes += native_inventory(command[2], effective_env)
+                    notes += texture_pack(command[2], effective_env)
+                    native_rc, native_notes = native_engine(command, effective_env)
+                    for note in native_notes:
+                        print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
+                    if native_rc is not None:
+                        return native_rc
             if not gl_default:
                 fixes.pop("vblank_mode", None)
             for note in notes:
@@ -2389,6 +3528,8 @@ def main():
         env, note = dotnet_trace(command, env)
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
+        for note in dotnet_r2r(command, env):
+            print("droiddeck-game-env: " + note, file=sys.stderr)
     note = render_path_defaults(command, env) if app_id else None
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)
@@ -2397,10 +3538,16 @@ def main():
         print("droiddeck-game-env: " + note, file=sys.stderr)
     env = force_ssbs(command, env)
     game_cores(env)
-    cpu_topology(env, command)
+    core_plan = cpu_topology(env, command)
     pacing = None
     if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        note = sts2_settings_cap(command, env)
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
         command, note = frame_cap(command, env)
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
+        command, note = godot_verbose(command, env)
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
         pacing = pacing_line(env, app_id)
@@ -2447,15 +3594,16 @@ def main():
     if waiting:
         print("DROIDDECK_TIMELINE event=game_exec app_id=%s wall_ms=%d" % (app_id, int(time.time() * 1000)),
               file=sys.stderr, flush=True)
+    core_plan = core_plan if waiting and app_id else None
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch)
+            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch)
+        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan)
     except OSError:
         if after:
             try:

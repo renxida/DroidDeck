@@ -175,7 +175,7 @@ class AppInfoLookupTest(unittest.TestCase):
         experiment = mock.patch.dict(os.environ, {"DROIDDECK_EXP_ALL": "1"})
         experiment.start()
         self.addCleanup(experiment.stop)
-        extra = {"depots": {"10": {"manifests": {"public": {"gid": "1"}}}, "branches": {"public": {"buildid": "2"}}},
+        extra = {"depots": {"10": {"manifests": {"public": {"gid": "1"}}}},
                  "localization": {"richpresence": {"english": {"tokens": {"#a": "b"}}}}, "ufs": {"quota": "1"}}
         plain = entry("One")
         for magic in FORMATS:

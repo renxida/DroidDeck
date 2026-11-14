@@ -13,8 +13,9 @@ import java.io.RandomAccessFile
 
 /**
  * Writes every frame gamescope publishes in the HUD ring to frames.csv for the whole session, shown
- * HUD or not, and marks the timeline's first Steam frame, first game frame, Steam sign-in and each
- * game's exit ([GameExitWatch]).
+ * HUD or not, and marks the timeline's first Steam frame, first game frame, Steam sign-in, each
+ * game's exit ([GameExitWatch]) and each launch droiddeck-game-env ended and started again because
+ * Wine's desktop never came up.
  * Its own ring handle keeps its own read position, so the HUD's reader is untouched. Polls twice a
  * second on a background-priority thread; the ring holds 1024 frames, over 8 s at 120 fps.
  */
@@ -57,6 +58,8 @@ class FrameLogComponent(
         var lastFrameNs = 0L
         var engine = ""
         var steam = false
+        var inFront = false
+        val gameFocus = GameFocus()
         var steamSeen = false
         var gameSeen = false
         var launchedAt = 0L
@@ -81,6 +84,7 @@ class FrameLogComponent(
                         if (name != null) {
                             engine = GameFrameFeed.engineLabel(name)
                             steam = info[4] != 0
+                            inFront = gameFocus.isGame(engine, info[0], steam)
                             exits.focus(info[0], engine, steam, System.currentTimeMillis())
                             if (out.info(now, engine, info[0], steam, info[1], info[2], info[3]) && focusEvents < MAX_FOCUS_EVENTS) {
                                 focusEvents++
@@ -88,6 +92,7 @@ class FrameLogComponent(
                             }
                         }
                         val n = HudFrames.nativePoll(handle, frametimes, times)
+                        GamePhase.inGame = inFront
                         if (n > 0) {
                             out.add(frametimes, times, n)
                             lastFrameNs = now
@@ -96,13 +101,14 @@ class FrameLogComponent(
                                 steamSeen = true
                                 SessionEvents.record("steam.ui_first_frame", at = first)
                             }
-                            if (!steam && !gameSeen && name != null && engine != "GAMESCOPE") {
+                            if (inFront && !gameSeen && name != null) {
                                 gameSeen = true
                                 SessionEvents.record("game.first_frame", mapOf("engine" to engine, "pid" to info[0]), at = first)
                             }
                         } else if (now - lastFrameNs > STALE_NS) {
                             HudFrames.nativeClose(handle)
                             handle = 0L
+                            GamePhase.inGame = false
                         }
                     }
                     out.flush()
@@ -112,6 +118,9 @@ class FrameLogComponent(
                         nextExitCheck = wallNow + EXIT_PERIOD_MS
                         stderr.read {
                             exits.line(it, wallNow)
+                            GameExitWatch.relaunchEvent(it)?.let { (event, fields) ->
+                                SessionEvents.record(event, fields, at = fields["wall_ms"]?.toLongOrNull())
+                            }
                             if (it.startsWith(EXPERIMENTS_LINE)) {
                                 SessionEvents.record("game.experiments", experimentsFields(it))
                                 launchedAt = wallNow
@@ -136,6 +145,7 @@ class FrameLogComponent(
             Log.w(TAG, "frame log stopped: $e")
         } finally {
             if (handle != 0L) HudFrames.nativeClose(handle)
+            GamePhase.inGame = false
         }
     }
 

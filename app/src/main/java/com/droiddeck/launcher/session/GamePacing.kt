@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.util.Log
+import java.io.File
 
 /**
  * The frame cap droiddeck-game-env gave the running game, read from its `DROIDDECK_PACING` line in
@@ -52,6 +53,29 @@ object GamePacing {
         listener?.let { runCatching { it() } }
     }
 
+    /**
+     * The rate the Vulkan layer paces presents to (the file droiddeck-game-env names in DROIDDECK_PACE_FILE):
+     * the cap in force, held to [IDLE_FPS] once the player has given no input for [IDLE_PACE_MS]. A menu left
+     * on screen burned as much CPU as play and held the phone at severe throttling for two hours while
+     * charging (Nov 14). The next touch puts the full cap back within the layer's 100 ms check.
+     */
+    fun paceFps(cap: Int, idleMs: Long): Int = if (cap > 0 && idleMs >= IDLE_PACE_MS) minOf(cap, IDLE_FPS) else cap
+
+    /** Why to end a session whose game has had no input for [idleMs], or null to keep it. */
+    fun idleStop(idleMs: Long): String? =
+        if (idleMs >= IDLE_STOP_MS) "no input for ${idleMs / 60_000} min" else null
+
+    const val IDLE_PACE_MS = 60_000L
+    const val IDLE_FPS = 15
+    const val IDLE_STOP_MS = 45 * 60_000L
+
+    /** Writes [fps] to [file] whole (a rename), so the layer never reads half a number. */
+    fun writePace(file: File, fps: Int) {
+        val tmp = File(file.parentFile, file.name + ".tmp")
+        tmp.writeText(fps.toString())
+        if (!tmp.renameTo(file)) { file.writeText(fps.toString()); tmp.delete() }
+    }
+
     fun parse(text: String): Plan? {
         if (!text.startsWith(LINE)) return null
         val fields = text.substring(LINE.length).trim().split(' ').mapNotNull {
@@ -92,9 +116,11 @@ object GamePacing {
 
     /**
      * Steps the cap down while the headroom forecast stays at or above [downAt] (or the thermal status
-     * is severe) for [downMs], and back up while it stays at or under [upAt] for [upMs]. Each step
-     * needs its own dwell, so a hot device walks the ladder rather than jumping to the bottom.
-     * Headroom 1.0 is Android's forecast of severe throttling.
+     * is severe) for [downMs], and back up while it stays at or under [upAt] for [upMs]. A further step
+     * down waits [settleMs] after the last one, because a lower cap takes tens of seconds to show in the
+     * forecast: with a short dwell the governor read a 40 fps step as having failed and went straight on
+     * to 30 (Nov 14, headroom 0.87, status light, while charging). Headroom 1.0 is Android's forecast of
+     * severe throttling.
      */
     class Governor(
         top: Int,
@@ -102,11 +128,13 @@ object GamePacing {
         private val upAt: Float = UP_AT,
         private val downMs: Long = DOWN_MS,
         private val upMs: Long = UP_MS,
+        private val settleMs: Long = SETTLE_MS,
     ) {
         val ladder: List<Int> = (listOf(top) + STEPS.filter { it < top }).distinct()
         private var index = 0
         private var hotSince = -1L
         private var coolSince = -1L
+        private var steppedAt = Long.MIN_VALUE / 2
         val cap: Int get() = ladder[index]
 
         /** The new cap when this sample moves it, else null. NaN headroom counts as unknown. */
@@ -115,9 +143,10 @@ object GamePacing {
             val cool = !hot && (headroom.isNaN() || headroom <= upAt) && status < STATUS_MODERATE
             if (!hot) hotSince = -1L else if (hotSince < 0) hotSince = nowMs
             if (!cool) coolSince = -1L else if (coolSince < 0) coolSince = nowMs
-            if (hot && index < ladder.size - 1 && nowMs - hotSince >= downMs) {
+            if (hot && index < ladder.size - 1 && nowMs - hotSince >= downMs && (index == 0 || nowMs - steppedAt >= settleMs)) {
                 index++
                 hotSince = nowMs
+                steppedAt = nowMs
                 return cap
             }
             if (cool && index > 0 && nowMs - coolSince >= upMs) {
@@ -130,10 +159,12 @@ object GamePacing {
     }
 
     val STEPS = listOf(60, 40, 30)
-    const val DOWN_AT = 0.85f
-    const val UP_AT = 0.65f
+    /** 0.85 stepped 60 to 40 at a light status that was holding, halving the frame rate for nothing. */
+    const val DOWN_AT = 0.95f
+    const val UP_AT = 0.80f
     const val DOWN_MS = 10_000L
     const val UP_MS = 30_000L
+    const val SETTLE_MS = 60_000L
     private const val STATUS_MODERATE = 2
     private const val STATUS_SEVERE = 3
 }

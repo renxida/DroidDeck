@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">물리 버튼 바로가기</string>
-    <string name="shortcuts_dd_menu">Kestrel 메뉴</string>
+    <string name="shortcuts_dd_menu">Lanner 메뉴</string>
     <string name="shortcuts_capture">지정: %1$s</string>
     <string name="shortcuts_press">버튼을 눌렀다 놓으세요. 할당은 자동으로 저장됩니다.</string>
     <string name="shortcuts_release">계속하려면 버튼을 놓으세요.</string>

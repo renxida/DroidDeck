@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Drive Lanner on the phone through the telemetry repository (Setup > Diagnostics > Remote control).
+
+  lanner-remote [--repo OWNER/NAME] METHOD [JSON_REQUEST] [--arg ARG] [--wait SECONDS]
+
+Signs the command with the operator key (LANNER_REMOTE_KEY, ECDSA P-256; the app holds only the
+public half), commits remote/inbox/<id>.json to a clone of the repository (LANNER_REMOTE_CLONE) and
+pushes it, then waits for remote/outbox/<id>.json and prints it; a
+"screenshot" answer also saves remote/outbox/<id>.jpg next to the current directory. Methods are the
+agent bridge's (state, stop, launch, input, ui, guest, logs, prefs, env, ...) plus start, screenshot,
+autotest and ping. The phone polls every 30 s, and every 5 s for ten minutes after a command.
+"""
+import argparse, base64, json, os, subprocess, sys, time
+
+KEY = os.environ.get("LANNER_REMOTE_KEY", "/mnt/project-files/.lanner-remote/key.pem")
+CLONE = os.environ.get("LANNER_REMOTE_CLONE", "/home/claude/kestrel-telemetry")
+
+def sign(payload: bytes) -> bytes:
+    r = subprocess.run(["openssl", "dgst", "-sha256", "-sign", KEY], input=payload, capture_output=True)
+    if r.returncode:
+        sys.exit("could not sign: " + r.stderr.decode().strip())
+    return r.stdout
+
+def gh(*args, input=None):
+    r = subprocess.run(["gh", "api", *args], input=input, capture_output=True, text=True)
+    return r.returncode, r.stdout, r.stderr
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--repo", default="renxida/kestrel-telemetry")
+    p.add_argument("method")
+    p.add_argument("request", nargs="?", default="{}")
+    p.add_argument("--arg")
+    p.add_argument("--wait", type=float, default=180)
+    a = p.parse_args()
+    request = json.loads(a.request)
+    cid = time.strftime("%Y%m%d-%H%M%S", time.gmtime()) + "-" + a.method.replace("_", "-")[:20]
+    payload = json.dumps({"id": cid, "expires": int((time.time() + a.wait) * 1000),
+                          "method": a.method, "arg": a.arg, "request": request}).encode()
+    body = {"payload": base64.b64encode(payload).decode(), "sig": base64.b64encode(sign(payload)).decode()}
+    def git(*args):
+        return subprocess.run(["git", "-C", CLONE, *args], capture_output=True, text=True)
+    for attempt in range(4):
+        r = git("pull", "-q", "--rebase")
+        path = os.path.join(CLONE, "remote", "inbox", f"{cid}.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").write(json.dumps(body))
+        git("add", path)
+        git("commit", "-q", "-m", f"lanner remote: {cid}")
+        r = git("push", "-q")
+        if r.returncode == 0:
+            break
+        time.sleep(2 ** attempt)
+    else:
+        sys.exit(f"could not queue: {r.stderr.strip()}")
+    print(f"queued {cid}", file=sys.stderr)
+    deadline = time.time() + a.wait
+    while time.time() < deadline:
+        time.sleep(3)
+        code, out, _ = gh("-H", "Accept: application/vnd.github.raw+json", f"repos/{a.repo}/contents/remote/outbox/{cid}.json")
+        if code == 0 and out.strip():
+            print(out)
+            if a.method == "screenshot":
+                code, img, _ = gh(f"repos/{a.repo}/contents/remote/outbox/{cid}.jpg", "-q", ".content")
+                if code == 0:
+                    open(f"{cid}.jpg", "wb").write(base64.b64decode(img))
+                    print(f"saved {cid}.jpg", file=sys.stderr)
+            return
+    sys.exit(f"no answer within {a.wait:.0f} s (is Remote control on, and the phone online?)")
+
+if __name__ == "__main__":
+    main()

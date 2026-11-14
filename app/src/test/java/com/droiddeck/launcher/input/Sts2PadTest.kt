@@ -89,6 +89,53 @@ class Sts2PadTest {
         assertTrue(box(elements.getValue("builtin:keyboard"), s).right < pictureLeft)
     }
 
+    @Test fun theThumbsSitInTheUpperMiddleOfTheEmptyStripsWithinReach() {
+        for (s in screens.filter { it.width > it.height * 16f / 9f }) {
+            val elements = elements(s).associateBy { it.id }
+            val strip = (s.width - s.height * 16f / 9f) / 2f
+            val dpad = listOf("legacy:up", "legacy:right", "legacy:down", "legacy:left").map { box(elements.getValue(it), s) }
+            val face = listOf("legacy:y", "legacy:b", "legacy:a").map { box(elements.getValue(it), s) }
+            for (cluster in listOf(dpad, face)) {
+                val cy = cluster.map { it.cy }.average().toFloat()
+                assertTrue("$s $cy", cy in s.height * .35f..s.height * .55f)
+            }
+            assertEquals("$s", dpad.map { it.cy }.average(), face.map { it.cy }.average(), 1.0)
+            assertTrue("$s", dpad.map { it.cx }.average() < strip && face.map { it.cx }.average() > s.width - strip)
+        }
+    }
+
+    /** Where the pad put the d-pad and A / B / Y before they were raised (stock pad at 2424 × 1080, density 2.625). */
+    private val lowThumbs = mapOf(
+        "legacy:up" to floatArrayOf(.05414604f, .5347222f), "legacy:right" to floatArrayOf(.103960395f, .64652777f),
+        "legacy:down" to floatArrayOf(.05414604f, .7583333f), "legacy:left" to floatArrayOf(.0043316833f, .64652777f),
+        "legacy:y" to floatArrayOf(.89820546f, .5347222f), "legacy:b" to floatArrayOf(.9480198f, .64652777f), "legacy:a" to floatArrayOf(.89820546f, .7583333f))
+
+    private fun lowPad(): SavedInputLayout = Sts2Pad.layout().let { pad ->
+        pad.copy(elements = pad.elements.map { e -> lowThumbs[e.id]?.let { e.copy(x = it[0], y = it[1], width = .047648516f, height = .10694444f) } ?: e })
+    }
+
+    @Test fun aPadSavedWithTheThumbsLowGetsThemRaisedButAThumbThePersonMovedStays() {
+        assertEquals(Sts2Pad.layout(), Sts2Pad.raiseThumbs(lowPad()))
+        val moved = lowPad().let { pad -> pad.copy(elements = pad.elements.map { if (it.id == "legacy:a") it.copy(x = .5f, y = .5f) else it }) }
+        val raised = Sts2Pad.raiseThumbs(moved)
+        assertEquals(listOf(.5f, .5f), raised.elements.single { it.id == "legacy:a" }.let { listOf(it.x, it.y) })
+        assertEquals(Sts2Pad.layout().elements.filterNot { it.id == "legacy:a" }, raised.elements.filterNot { it.id == "legacy:a" })
+        val pad = Sts2Pad.layout()
+        assertSame(pad, Sts2Pad.raiseThumbs(pad))
+        val other = InputLibraries.read(context).layouts.first { it.id == InputLibraries.OVERLAY }
+        assertSame(other, Sts2Pad.raiseThumbs(other))
+    }
+
+    @Test fun versionFifteenLibrariesGetTheirUntouchedPadRaisedOnce() {
+        val fresh = InputLibraries.read(context)
+        val old = fresh.withLayout(lowPad())
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(old)).put("version", 15).toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        assertEquals(Sts2Pad.layout(), upgraded.layouts.single { it.id == Sts2Pad.LAYOUT })
+        assertEquals(old.profiles, upgraded.profiles)
+        assertEquals(upgraded, InputLibraries.read(context))
+    }
+
     @Test fun theLibraryOffersThePadAndUsesItForSlayTheSpire2Only() {
         val library = InputLibraries.read(context)
         val layout = library.layouts.single { it.id == Sts2Pad.LAYOUT }

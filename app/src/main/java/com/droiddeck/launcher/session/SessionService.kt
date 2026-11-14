@@ -80,6 +80,7 @@ class SessionService : Service() {
         set(value) { SessionState.steamLibraryMounts = value }
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
+    private var gameKeptAwake = false
     private var steamDownloadsInBackground = false
     private var activityVisible = true
     private var activityDisplayId = Display.DEFAULT_DISPLAY
@@ -422,6 +423,10 @@ class SessionService : Service() {
     private fun runSession(gen: Int) {
         val remoteConfig = com.droiddeck.launcher.telemetry.RemoteConfig.applyCached(this)
         com.droiddeck.launcher.telemetry.RemoteConfig.refreshAsync(this, apply = false)
+        // The experiments are this session's from here on; put the FEX build they pick in place before the guest starts.
+        runCatching { ComponentUpdater.ensureForSession(this) }
+            .onSuccess { Log.i(TAG, "components: $it"); SessionEvents.record("components.fex", mapOf("state" to it)) }
+            .onFailure { Log.w(TAG, "components: FEX for this session", it) }
         SessionPrefs.ensurePowerVrAutoDrivers(this)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
@@ -580,7 +585,9 @@ class SessionService : Service() {
             components.add(it)
         }
 
-        GamePacingComponent(listOf(sessionLog, com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this))).let {
+        val paceFile = File(sessionDir, "pace").also { it.delete() }
+        guest.add("DROIDDECK_PACE_FILE=" + paceFile.path)
+        GamePacingComponent(listOf(sessionLog, com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this)), paceFile).let {
             it.attach(this)
             components.add(it)
         }
@@ -824,6 +831,15 @@ class SessionService : Service() {
                         SessionEvents.record("session.paged_in", mapOf(
                             "processes" to processes, "swapMb" to swapKb / 1024, "swapBeforeMb" to swapBeforeKb / 1024,
                             "availableMb" to availableKb / 1024, "ms" to millis,
+                        ))
+                    }
+                },
+                stillStopped = { stuck ->
+                    Log.w(TAG, "still stopped after resume: $stuck")
+                    mainHandler.post {
+                        SessionEvents.record("session.resume_stuck", mapOf(
+                            "processes" to stuck.size, "threads" to stuck.sumOf { it.threads },
+                            "names" to stuck.joinToString(",") { "${it.name}:${it.threads}/${it.total}${it.states}" }.take(400),
                         ))
                     }
                 },
@@ -1129,6 +1145,7 @@ class SessionService : Service() {
         val battery = BatteryComponent(
             File(filesDir, "session/sys/power_supply"),
             File(LinuxRuntime.rootDir(this), "run/vpower"),
+            File(sessionDir, com.droiddeck.launcher.telemetry.PowerRow.FILE),
         )
         battery.attach(this)
         components.add(battery)
@@ -1721,18 +1738,24 @@ class SessionService : Service() {
         if (!SessionState.running) return
         val hidden = !hasVisibleSurface
         val downloadsBlockingSuspend = downloadsKeepAwake() && hidden && !suspendDownloadNow
-        if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && hidden && !downloadsBlockingSuspend) {
-            manualPauseRequested = true
-        } else if (!hidden && !SessionState.suspended) {
-            manualPauseRequested = false
-        }
+        val steamMode = SessionState.mode == MODE_STEAM
+        val gameKeepsAwake = SessionSuspendPolicy.gameKeepsAwake(
+            hidden = hidden, manualHold = manualHold, suspended = SessionState.suspended,
+            steamMode = steamMode, gameRunning = ::steamGameRunning,
+        )
+        if (gameKeepsAwake && !gameKeptAwake) SessionEvents.record("session.suspend_skipped", mapOf("reason" to "game_running"))
+        gameKeptAwake = gameKeepsAwake
+        manualPauseRequested = SessionSuspendPolicy.manualPauseRequested(
+            policy = suspendPolicy, hidden = hidden, suspended = SessionState.suspended,
+            downloadsBlockingSuspend = downloadsBlockingSuspend, gameKeepsAwake = gameKeepsAwake, requested = manualPauseRequested,
+        )
         val controller = suspendController ?: return
         if (downloadsBlockingSuspend && !manualHold) acquireLocks()
-        val steamPause = SessionState.mode == MODE_STEAM && (manualHold || !downloadsBlockingSuspend && when (suspendPolicy) {
-            SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE -> hidden
-            SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
-            else -> false
-        })
+        val steamPause = SessionSuspendPolicy.steamPause(
+            policy = suspendPolicy, steamMode = steamMode, hidden = hidden, manualHold = manualHold,
+            downloadsBlockingSuspend = downloadsBlockingSuspend, gameKeepsAwake = gameKeepsAwake,
+            manualPauseRequested = manualPauseRequested,
+        )
         if (!steamPause) {
             completeNativeSleep()
         } else if (nativeSleepToken == null && steamSleepToken == null &&
@@ -1740,12 +1763,12 @@ class SessionService : Service() {
             prepareNativeSleep()
         }
         val prepared = SessionState.mode != MODE_STEAM || nativeSleepReady
-        val shouldSuspend = steamSleepToken != null || (manualHold && prepared) || when (suspendPolicy) {
-            SessionPrefs.SUSPEND_AUTO -> hidden && prepared && !downloadsBlockingSuspend
-            SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady && !downloadsBlockingSuspend
-            SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested && prepared && !downloadsBlockingSuspend
-            else -> false
-        }
+        val shouldSuspend = SessionSuspendPolicy.shouldSuspend(
+            policy = suspendPolicy, hidden = hidden, manualHold = manualHold,
+            downloadsBlockingSuspend = downloadsBlockingSuspend, gameKeepsAwake = gameKeepsAwake,
+            manualPauseRequested = manualPauseRequested, prepared = prepared, nativeSleepReady = nativeSleepReady,
+            steamSleepRequested = steamSleepToken != null,
+        )
         val quietRumble = !screenOn || shouldSuspend || SessionState.suspended
         components.forEach { (it as? RumbleComponent)?.quiet(quietRumble) }
         if (freezePending && !shouldSuspend && !freezeCancelled) {

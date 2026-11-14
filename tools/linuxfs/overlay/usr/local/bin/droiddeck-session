@@ -32,6 +32,51 @@ if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   echo "== rootfs: $(cat /.version 2>/dev/null || echo unversioned)"
 fi
 
+# Experiment hybris-index-session: everything in the session (gamescope, Steam's clients and games) loads the indexed
+# hybris compat layer (tools/hybris/compat-layer) in place of VK_LAYER_HYBRIS_compat, so gamescope's own composite
+# also skips the per-call list walks. Game launches see it through DROIDDECK_HYBRIS_LAYERS and
+# DROIDDECK_HYBRIS_LAYER_PATH. Independent of the present switches (two-frames, layer-fence).
+hybris_index_session() {
+  local dir=${HYBRIS_COMPAT_DIR:-/usr/local/lib/droiddeck-hybris-compat}
+  case ":${VK_INSTANCE_LAYERS:-}:" in
+    *:VK_LAYER_HYBRIS_compat:*) ;;
+    *) echo "== hybris-index-session: the session has no hybris compat layer to replace"; return 0 ;;
+  esac
+  if [ ! -f "$dir/libVkLayer_droiddeck_hybris_compat.so" ]; then
+    echo "== hybris-index-session: layer not installed at $dir"
+    return 0
+  fi
+  local trim='s/^:\(.*\):$/\1/'
+  VK_INSTANCE_LAYERS=$(printf ':%s:' "$VK_INSTANCE_LAYERS" | sed 's/:VK_LAYER_HYBRIS_compat:/:VK_LAYER_DROIDDECK_hybris_compat:/' | sed "$trim")
+  export VK_INSTANCE_LAYERS
+  if [ -n "${DROIDDECK_HYBRIS_LAYERS:-}" ]; then
+    DROIDDECK_HYBRIS_LAYERS=$(printf ':%s:' "$DROIDDECK_HYBRIS_LAYERS" | sed 's/:VK_LAYER_HYBRIS_compat:/:VK_LAYER_DROIDDECK_hybris_compat:/' | sed "$trim")
+    export DROIDDECK_HYBRIS_LAYERS
+  fi
+  export VK_LAYER_PATH="$dir${VK_LAYER_PATH:+:$VK_LAYER_PATH}"
+  export DROIDDECK_HYBRIS_LAYER_PATH="${DROIDDECK_HYBRIS_LAYER_PATH:+$DROIDDECK_HYBRIS_LAYER_PATH:}$dir"
+  echo "== hybris-index-session: indexed hybris compat layer for gamescope, Steam and games"
+}
+
+# Experiment composite-timing (measurement only): turns on gamescope's GPU timestamps around its composite pass,
+# which print "composite_timing: <pass> <us> us avg over <n>" to session.log every 2 s. The PowerVR copy into the
+# swapchain comes after the end stamp and is not included. Independent of two-frames and layer-fence.
+composite_timing() {
+  local display=${GAMESCOPE_WAYLAND_DISPLAY:-}
+  [ -n "$display" ] || { echo "== composite-timing: gamescope has no Wayland display"; return 0; }
+  command -v gamescopectl >/dev/null 2>&1 || { echo "== composite-timing: gamescopectl missing"; return 0; }
+  (
+    for _ in $(seq 1 60); do
+      if WAYLAND_DISPLAY=$display timeout 5 gamescopectl log_composite_timing debug >/dev/null 2>&1; then
+        echo "== composite-timing: gamescope composite GPU timestamps on"
+        exit 0
+      fi
+      sleep 1
+    done
+    echo "== composite-timing: gamescope did not take log_composite_timing"
+  ) &
+}
+
 start_diagnostic_inventory() {
   [ "${DROIDDECK_ENHANCED_DIAGNOSTICS:-0}" = 1 ] || return 0
   [ -z "${BL_INSIDE:-}" ] || return 0
@@ -497,6 +542,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
       echo "== gamescope: games at ${nested}x${nested_h} stretched to the ${width}x${height} output"
     fi
   fi
+  if [ "${DROIDDECK_EXP_HYBRIS_INDEX_SESSION:-}" = 1 ]; then hybris_index_session; fi
   backend=${BL_GAMESCOPE_BACKEND:-wayland}
   case "$backend" in
     wayland) ;;
@@ -645,6 +691,7 @@ case $mode in
     esac
     ;;
   steam)
+    if [ "${DROIDDECK_EXP_COMPOSITE_TIMING:-}" = 1 ]; then composite_timing; fi
     if [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
       export WAYLAND_DISPLAY= XDG_SESSION_TYPE=x11
     fi
@@ -1494,7 +1541,15 @@ case $mode in
       "${steam_client[@]:-$steam_root/steamrtarm64/steam}" -shutdown >/dev/null 2>&1
     }
     steam_launch_game() {
-      local state=0 tries
+      local state=0 tries branch
+      if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -f "$BL_LAUNCH_DIR/steam-branch/$1" ] &&
+        branch=$(/usr/local/bin/droiddeck-steam-branch pending "$steam_root" "$BL_LAUNCH_DIR/steam-branch" "$1" 2>/dev/null); then
+        if steam_other_game_running; then
+          echo "== steam: $1 wants branch '$branch', but a game is running; launching the installed branch"
+        elif steam_restart_for "$1" "$1 wants branch '$branch'"; then
+          return
+        fi
+      fi
       /usr/local/bin/droiddeck-agent --steam-shortcut-state "$1" 6 >/dev/null 2>&1 || state=$?
       [ "$state" -eq 0 ] && rm -f "$HOME/.bl-restarted-for"
       if [ "$state" -eq 4 ]; then
@@ -1799,6 +1854,9 @@ case $mode in
     rm -f "$HOME/.bl-restart-game" "$HOME/.bl-restarted-for"
     while :; do
       rm -f "$HOME/.bl-restart-once" "$HOME/.bl-restart-lost"
+      if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -d "$BL_LAUNCH_DIR/steam-branch" ]; then
+        /usr/local/bin/droiddeck-steam-branch apply "$steam_root" "$BL_LAUNCH_DIR/steam-branch" || true
+      fi
       if [ -f "$steam_beta" ] && [ "$(cat "$steam_beta" 2>/dev/null)" != "$steam_channel" ]; then
         echo "== steam: client branch on disk was '$(cat "$steam_beta" 2>/dev/null)', set to '$steam_channel' to match -clientbeta"
         echo "$steam_channel" > "$steam_beta"

@@ -41,13 +41,37 @@ object Experiments {
     const val VK_COUNT = "vk-count"
     const val NATIVE_INVENTORY = "native-inventory"
     const val FREE_MEMORY = "free-memory"
+    const val HYBRIS_INDEX = "hybris-index"
     /** FEX's per-thread block lookup cache at a fixed size from the start: 4 MB with Kestrel's FEX, 16 MB otherwise. */
     const val FEX_L1 = "fex-l1"
+    const val HYBRIS_INDEX_SESSION = "hybris-index-session"
+    /** Godot C# games run on Kestrel's own linux-arm64 engine (droiddeck-native-godot), skipping Wine and FEX; Proton if it fails to start. */
+    const val NATIVE_ENGINE = "native-engine"
+    /** PowerVR: 64-bit Direct3D games use DXVK built as ARM64EC (native) instead of x86-64 (translated by FEX). */
+    const val DXVK_ARM64EC = "dxvk-arm64ec"
+    /** Measurement only: gamescope logs the GPU time of its composite pass to session.log (log_composite_timing debug). */
+    const val COMPOSITE_TIMING = "composite-timing"
+    /** .NET games run their own assemblies as x64 ReadyToRun code compiled on the phone (droiddeck-dotnet-r2r). */
+    const val DOTNET_R2R = "dotnet-r2r"
     /** Kestrel's FEX starts its code buffer at 64 MB, not 16, so a session stops throwing its translated code away once it fills. */
     const val FEX_CODE_BUFFER = "fex-code-buffer"
     /** Kestrel's FEX samples where each emulated thread spends its CPU time; the app logs it to fex-samples.csv. */
     const val FEX_SAMPLE = "fex-sample"
+    /** As dotnet-r2r, and the framework's generics over the game's types (JSON, async) are precompiled into the game's images too. */
+    const val DOTNET_R2R_GENERICS = "dotnet-r2r-generics"
+    /** As dotnet-r2r-generics, in one version bubble with the game's framework copy: covers more, but crossgen2 calls it unsupported. Wins if both are on. */
+    const val DOTNET_R2R_BUBBLE = "dotnet-r2r-bubble"
+    /** Slay the Spire 2 capped at 30 fps instead of 60: steady frames over peak frame rate. */
+    const val FPS_30 = "fps-30"
+    /** While a game runs, ask steamwebhelper over DevTools to free memory every few minutes; logs before/after. */
+    const val WEBHELPER_TRIM = "webhelper-trim"
     const val FEX_SMAPS = "fex-smaps"
+    /** Godot games log every resource they load (--verbose); the upload lists them. */
+    const val GODOT_VERBOSE = "godot-verbose"
+    /** Godot games: textures re-encoded to ASTC (the GPU's own format) inside the game's pack on this device; undone when off. */
+    const val TEX_ASTC = "tex-astc"
+    /** As tex-astc, and textures over 1024 px on a side stored at half resolution. */
+    const val TEX_HALF = "tex-half"
     /** Kestrel's FEX lets threads that sat idle for 30 s give back their block caches and the old code buffers they held. */
     const val FEX_TRIM = "fex-trim"
 
@@ -74,10 +98,23 @@ object Experiments {
         Switch(VK_COUNT, R.string.exp_vk_count),
         Switch(NATIVE_INVENTORY, R.string.exp_native_inventory),
         Switch(FREE_MEMORY, R.string.exp_free_memory),
+        Switch(HYBRIS_INDEX, R.string.exp_hybris_index),
         Switch(FEX_L1, R.string.exp_fex_l1),
+        Switch(HYBRIS_INDEX_SESSION, R.string.exp_hybris_index_session),
+        Switch(NATIVE_ENGINE, R.string.exp_native_engine),
+        Switch(DXVK_ARM64EC, R.string.exp_dxvk_arm64ec),
+        Switch(COMPOSITE_TIMING, R.string.exp_composite_timing),
+        Switch(DOTNET_R2R, R.string.exp_dotnet_r2r),
         Switch(FEX_CODE_BUFFER, R.string.exp_fex_code_buffer),
         Switch(FEX_SAMPLE, R.string.exp_fex_sample),
+        Switch(DOTNET_R2R_GENERICS, R.string.exp_dotnet_r2r_generics),
+        Switch(DOTNET_R2R_BUBBLE, R.string.exp_dotnet_r2r_bubble),
+        Switch(FPS_30, R.string.exp_fps_30),
+        Switch(WEBHELPER_TRIM, R.string.exp_webhelper_trim),
         Switch(FEX_SMAPS, R.string.exp_fex_smaps),
+        Switch(GODOT_VERBOSE, R.string.exp_godot_verbose),
+        Switch(TEX_ASTC, R.string.exp_tex_astc),
+        Switch(TEX_HALF, R.string.exp_tex_half),
         Switch(FEX_TRIM, R.string.exp_fex_trim),
     )
 
@@ -96,7 +133,9 @@ object Experiments {
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
         DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
         WAYLAND_PRESENT, VK_COUNT,
-        NATIVE_INVENTORY, FREE_MEMORY, FEX_L1, FEX_CODE_BUFFER, FEX_SAMPLE, FEX_SMAPS, FEX_TRIM)
+        NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE,
+        DXVK_ARM64EC, COMPOSITE_TIMING, DOTNET_R2R, FEX_CODE_BUFFER, FEX_SAMPLE, DOTNET_R2R_GENERICS, DOTNET_R2R_BUBBLE,
+        FPS_30, WEBHELPER_TRIM, FEX_SMAPS, GODOT_VERBOSE, TEX_ASTC, TEX_HALF, FEX_TRIM)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,

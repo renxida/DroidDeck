@@ -11,7 +11,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The live status file the uploader rewrites every 30 s while a session runs (runs/.../<start>.live.txt):
- * settings, frame-time metrics for the last 30 s and the session so far, thermals, clocks, memory,
+ * settings, frame-time metrics for the last 30 s and the session so far, battery power, thermals, clocks, memory,
  * top processes, recent events and one history line per tick. Everything comes from the session
  * folder's own files, read incrementally, plus the sections other code adds through [addSection].
  */
@@ -126,6 +126,10 @@ internal class LiveSampler(private val dir: File) {
         val thermalStatus: Int?,
         val headroom: Double?,
         val batteryC: Double?,
+        /** power.csv added up so far ([PowerStats]); null before its first row. */
+        val power: PowerStats?,
+        /** Average power drawn over the last 30 s of unplugged power.csv rows. */
+        val windowMw: Double?,
         /** The newest memory.csv row by column name, blank columns left out. */
         val memory: Map<String, String>,
         val memoryAtMs: Long?,
@@ -171,6 +175,11 @@ internal class LiveSampler(private val dir: File) {
 
     private val frames = Tail(File(dir, FrameLogComponent.FILE))
     private val eventsTail = Tail(File(dir, "events.jsonl"))
+    private val powerTail = Tail(File(dir, PowerRow.FILE))
+    private var powerHeader: List<String>? = null
+    private val powerAcc = PowerAccumulator()
+    private var powerRows = 0
+    private val powerWindow = ArrayDeque<Pair<Long, Double>>()
     private var t0WallMs: Long? = null
     private var focusEngine: String? = null
     private var focusPid = 0
@@ -193,13 +202,18 @@ internal class LiveSampler(private val dir: File) {
     var startMs: Long = dir.lastModified()
         private set
 
-    private fun focusIsGame() = focusSteam == false && focusEngine != null && focusEngine !in NO_ENGINE
+    private val gameFocus = GameFocus()
+    private var focusGame = false
+
+    private fun focusIsGame() = focusGame
 
     fun sample(nowMs: Long): Sample {
         runCatching { eventsTail.read(::event) }
         runCatching { frames.read(::frameLine) }
+        runCatching { powerTail.read(::powerLine) }
         val cutoff = nowMs - LiveStatus.WINDOW_MS
         while (windowTimes.isNotEmpty() && windowTimes.first() <= cutoff) { windowTimes.removeFirst(); windowFrames.removeFirst() }
+        while (powerWindow.isNotEmpty() && powerWindow.first().first <= cutoff) powerWindow.removeFirst()
         val clockLine = runCatching { lastLine(File(dir, "clocks.log"), 4096) { CLOCK_LINE.containsMatchIn(it) } }.getOrNull()
         val (memory, memoryAt) = runCatching { memory() }.getOrNull() ?: (emptyMap<String, String>() to null)
         val focus = focusEngine?.let { "${if (focusSteam == true) "Steam" else it} pid $focusPid" }
@@ -223,6 +237,8 @@ internal class LiveSampler(private val dir: File) {
             thermalStatus = clockLine?.let { THERMAL.find(it) }?.groupValues?.get(1)?.toIntOrNull(),
             headroom = clockLine?.let { HEADROOM.find(it) }?.groupValues?.get(1)?.toDoubleOrNull(),
             batteryC = clockLine?.let { BATTERY.find(it) }?.groupValues?.get(1)?.toDoubleOrNull(),
+            power = if (powerRows > 0) powerAcc.stats() else null,
+            windowMw = powerWindow.takeIf { it.isNotEmpty() }?.let { w -> w.sumOf { it.second } / w.size },
             memory = memory,
             memoryAtMs = memoryAt,
             processes = runCatching { processes() }.getOrDefault(emptyList()),
@@ -237,6 +253,7 @@ internal class LiveSampler(private val dir: File) {
                 focusEngine = m.groupValues[1]
                 focusPid = m.groupValues[2].toIntOrNull() ?: 0
                 focusSteam = m.groupValues[3] == "1"
+                focusGame = gameFocus.isGame(focusEngine, focusPid, focusSteam == true)
             }
             return
         }
@@ -250,6 +267,14 @@ internal class LiveSampler(private val dir: File) {
         windowTimes.addLast(t0 + t)
         windowFrames.addLast(us)
         if (windowTimes.size > WINDOW_MAX_FRAMES) { windowTimes.removeFirst(); windowFrames.removeFirst() }
+    }
+
+    private fun powerLine(line: String) {
+        if (line.startsWith("t_wall_ms,")) { powerHeader = line.trimEnd('\r').split(','); return }
+        val row = PowerRow.parse(powerHeader ?: return, line.trimEnd('\r')) ?: return
+        powerAcc.add(row)
+        powerRows++
+        if (row.unplugged) row.powerMw?.let { powerWindow.addLast(row.tWallMs to it) }
     }
 
     private fun event(line: String) {
@@ -318,7 +343,6 @@ internal class LiveSampler(private val dir: File) {
         private const val EVENTS = 8
         private const val EVENT_CHARS = 200
         private const val PROCESSES = 6
-        private val NO_ENGINE = setOf("none", "GAMESCOPE")
         private val NOTABLE = setOf("game.first_frame", "game.exited", "pacing.cap", "game.experiments",
             "steam.game_launch_requested", "steam.signed_in", "steam.return_after_game", "guest.exited", "session.ready",
             "app.exit", "exit.classified", "memory.lmk_risk", "memory.trim", "memory.freed", "session.paged_out", "session.paged_in")
@@ -387,7 +411,7 @@ internal object LiveText {
 
     private fun num(value: Double?, format: String = "%.1f"): String = value?.let { String.format(Locale.US, format, it) } ?: "-"
 
-    const val HISTORY_COLUMNS = "uptime fps_30s p95_ms headroom cap battery_c game_rss_mb game_swap_mb game_majflt_s swapin_mb_s"
+    const val HISTORY_COLUMNS = "uptime fps_30s p95_ms headroom cap battery_c game_rss_mb game_swap_mb game_majflt_s swapin_mb_s mw_30s"
 
     private fun rate(value: String?): String = value?.toDoubleOrNull()?.let { num(it) } ?: "-"
 
@@ -396,7 +420,7 @@ internal object LiveText {
         val w = sample?.window
         return listOf("+" + duration(nowMs - startMs), num(w?.fps), num(w?.p95Ms), num(sample?.headroom, "%.2f"),
             sample?.cap?.toString() ?: "-", num(sample?.batteryC), sample?.gameRssMb ?: "-", sample?.gameSwapMb ?: "-",
-            rate(sample?.gameMajfltS), rate(sample?.swapinMbS)).joinToString(" ")
+            rate(sample?.gameMajfltS), rate(sample?.swapinMbS), num(sample?.windowMw, "%.0f")).joinToString(" ")
     }
 
     private fun frameRow(label: String, s: FrameSummary): String =
@@ -459,6 +483,7 @@ internal object LiveText {
         appendLine()
         appendLine("## device")
         appendLine("thermal: status ${s?.thermalStatus ?: "-"}, headroom ${num(s?.headroom, "%.2f")}, battery ${s?.batteryC?.let { num(it) + " C" } ?: "-"}")
+        appendLine("power: ${s?.power?.liveLine() ?: "no power.csv yet"}")
         appendLine("clocks: ${s?.clocks ?: "-"}")
         if (!s?.processes.isNullOrEmpty()) {
             appendLine("top processes (cpu, newest processes.csv snapshot):")

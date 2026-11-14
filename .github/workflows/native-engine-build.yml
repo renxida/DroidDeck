@@ -2,19 +2,30 @@ name: Native engine build (Godot 4.5.1 mono template, linux arm64, with our comp
 
 # Builds our own Godot 4.5.1 linux-arm64 mono export template with the
 # clean-room compat modules under tools/native-engine/modules, then swaps it into
-# the bench export and checks it starts and loads the module.
+# the bench export and checks it starts and loads the module, runs the bench's
+# Windows export through droiddeck-native-godot, and packs the engine component.
 # No game files, no Spine or FMOD code: the modules are written from scratch.
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the engine component as a release on this repository
+        type: boolean
+        default: false
   push:
     branches: [perf/emu-native]
     paths:
       - 'tools/native-engine/modules/**'
+      - 'tools/native-engine/skeltest/**'
+      - 'tools/native-engine/bench/**'
+      - 'tools/native-engine/stubs/**'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
+      - 'tools/tests/test_native_godot.py'
       - '.github/workflows/native-engine-build.yml'
 
 permissions:
-  contents: read
+  contents: write  # only the publish step uses it
 
 env:
   GODOT_VER: 4.5.1-stable
@@ -31,6 +42,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
+      - name: Host tests for the clean-room skeleton core
+        run: sh tools/native-engine/modules/native_compat/skel/tests/run_tests.sh
+      - name: Host tests for the clean-room FSB5 sound reader
+        run: sh tools/native-engine/modules/native_compat/fsb/tests/run_tests.sh
       - name: Build deps
         run: |
           sudo apt-get update -qq
@@ -91,6 +106,109 @@ jobs:
           grep -E "native_compat|BENCH|ERROR|\.NET|hostfxr" run.log | head -40
           grep -q "native_compat: module loaded" run.log
           grep -q "BENCH" run.log
+      - name: Run the bench's Windows export through droiddeck-native-godot on our template
+        timeout-minutes: 30
+        working-directory: tools/native-engine/bench
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/tools/tests/test_native_godot.py"
+          mkdir -p out/windows
+          timeout 900 "$GODOT" --headless --path . --export-release windows out/windows/NativeBench.exe > export-win.log 2>&1 || echo "export exit $?"
+          ls -la out/windows || true
+          test -d out/windows/data_NativeBench_windows_x86_64 || { tail -40 export-win.log; exit 1; }
+          # The component: our engine, the kit (the arm64 export's data dir, minus its own app files) and the stubs.
+          C=$GITHUB_WORKSPACE/out/component
+          rm -rf "$C" && mkdir -p "$C"
+          cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono "$C/godot"
+          cp -a out/arm64/data_NativeBench_linuxbsd_arm64 "$C/kit"
+          python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")], "deps": "NativeBench.deps.json", "runtimeconfig": "NativeBench.runtimeconfig.json"}, open(os.path.join(k,"kit.json"),"w"))' "$C/kit"
+          sh "$GITHUB_WORKSPACE/tools/native-engine/stubs/build.sh" "$C/stubs"
+          echo "${GITHUB_SHA}" > "$C/VERSION"
+          KIT=$C/kit
+          set +e
+          timeout 300 "$GITHUB_WORKSPACE/tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot" run \
+            --game-dir out/windows --component "$C" \
+            --out "$PWD/out/native-launch" --exe NativeBench.exe -- --headless --verbose > win-run.log 2>&1
+          rc=$?
+          set -e
+          echo "exit $rc"
+          python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print({k: v for k, v in r.items() if k != "skipped"}, len(r["skipped"]), "skipped")' out/native-launch/native-launch.json || true
+          grep -E "droiddeck-native-godot|native_compat|BENCH|ERROR|\.NET|hostfxr" win-run.log | head -40
+          if ! grep -q "BENCH" win-run.log; then
+            echo "--- diagnostics"
+            python3 - out/windows/data_NativeBench_windows_x86_64/NativeBench.dll "$KIT/NativeBench.dll" <<'PY' || true
+          import struct, sys
+          for p in sys.argv[1:]:
+              b = open(p, "rb").read()
+              pe = struct.unpack_from("<I", b, 0x3C)[0]
+              machine = struct.unpack_from("<H", b, pe + 4)[0]
+              opt = pe + 24
+              magic = struct.unpack_from("<H", b, opt)[0]
+              rva, size = struct.unpack_from("<II", b, opt + (112 if magic == 0x20B else 96) + 14 * 8)
+              nsec = struct.unpack_from("<H", b, pe + 6)[0]
+              sec = opt + struct.unpack_from("<H", b, pe + 20)[0]
+              off = None
+              for i in range(nsec):
+                  vs, va, raw_size, raw = struct.unpack_from("<IIII", b, sec + i * 40 + 8)
+                  if va <= rva < va + max(vs, raw_size):
+                      off = rva - va + raw
+              flags = struct.unpack_from("<I", b, off + 16)[0]
+              native_hdr = struct.unpack_from("<II", b, off + 64)
+              print(p, "machine=%#x" % machine, "corflags=%#x" % flags, "managed_native_header=", native_hdr, "size", len(b))
+          PY
+            cat out/native-launch/native-launch.json | head -40
+            for f in out/windows/data_NativeBench_windows_x86_64/NativeBench.runtimeconfig.json "$KIT/NativeBench.runtimeconfig.json" out/native-launch/data_NativeBench_linuxbsd_arm64/NativeBench.runtimeconfig.json; do echo "== $f"; cat "$f"; echo; done
+            COREHOST_TRACE=1 COREHOST_TRACE_VERBOSITY=4 COREHOST_TRACEFILE=$PWD/host.log DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 \
+              out/native-launch/NativeBench --main-pack "$PWD/out/windows/NativeBench.pck" --headless > /dev/null 2>&1 || true
+            grep -iE "error|fail|exception|could not|not found|Godot" host.log | tail -40
+            exit 1
+          fi
+      - name: Draw a test skeleton with our template (NativeSkeleton2D, two frames, checked)
+        timeout-minutes: 20
+        working-directory: tools/native-engine/skeltest
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 > /dev/null
+          timeout 300 "$GODOT" --headless --path . --import > import.log 2>&1 || true
+          mkdir -p out
+          timeout 600 "$GODOT" --headless --path . --export-release arm64 out/SkelTest.arm64 > export.log 2>&1 || echo "export exit $?"
+          test -f out/SkelTest.pck || { tail -40 export.log; exit 1; }
+          cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono out/SkelTest.arm64
+          chmod +x out/SkelTest.arm64
+          set +e
+          SKELTEST_OUT=$PWD/out DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 xvfb-run -a -s "-screen 0 256x256x24" \
+            out/SkelTest.arm64 --rendering-driver opengl3 --verbose > skel.log 2>&1
+          rc=$?
+          set -e
+          echo "exit $rc"
+          grep -E "SKELTEST|NativeSkeleton2D|native_compat|spine_compat|fmod_compat|ERROR|OpenGL" skel.log | head -60
+          grep -q "SKELTEST binary load 0 .* same=true" skel.log
+          grep -q "SKELTEST sound .* ok=true" skel.log
+          grep -q "SKELTEST paths .* ok=true" skel.log
+          grep -q "SKELTEST fmod .* ok=true" skel.log
+          grep -q "SKELTEST spine .* ok=true" skel.log
+          python3 check.py out
+      - name: Pack the component
+        run: |
+          set -euo pipefail
+          cd out/component
+          tar --owner=0 --group=0 -c . | zstd -q -19 -T0 -o "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
+          ls -la "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
+          sha256sum "$GITHUB_WORKSPACE/out/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Publish the component (manual run with publish=true only)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="native-engine-${GITHUB_RUN_NUMBER}"
+          sha=$(sha256sum out/native-engine.tar.zst | cut -d' ' -f1)
+          printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, Steam stub.\nCommit %s. sha256 %s\nNo game files.\n' \
+            "$(cat out/component/kit/*.runtimeconfig.json | python3 -c 'import json,sys; print([f.get("version") for f in json.load(sys.stdin)["runtimeOptions"].get("includedFrameworks",[])])')" \
+            "$GITHUB_SHA" "$sha" > notes.txt
+          gh release create "$tag" out/native-engine.tar.zst -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$tag" --notes-file notes.txt --prerelease
+          echo "COMPONENT tag=$tag sha256=$sha url=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -98,4 +216,9 @@ jobs:
           path: |
             ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono
             tools/native-engine/bench/run.log
+            tools/native-engine/bench/win-run.log
+            tools/native-engine/bench/host.log
+            tools/native-engine/bench/out/native-launch/native-launch.json
+            tools/native-engine/skeltest/out/*.png
+            tools/native-engine/skeltest/skel.log
           if-no-files-found: warn

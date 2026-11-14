@@ -403,6 +403,31 @@ class SessionSuspendControllerTest {
         assertTrue(fixture.game.threads.all { it.state == 'S' })
     }
 
+    @Test fun threadLeftStoppedAfterResumeIsWokenAndReported() {
+        val fixture = fixture(17)
+        fixture.controller.freeze { assertTrue(it) }
+        fixture.stickyThread = true
+        val before = fixture.signals.size
+        fixture.controller.resume { assertTrue(it) }
+        assertTrue(fixture.game.threads.all { it.state == 'S' })
+        val stuckTid = fixture.game.threads.last().tid
+        assertTrue(fixture.threadSignals.any { it == Triple(GAME, stuckTid, CONT) })
+        assertEquals(1, fixture.stuck.size)
+        assertEquals(GAME, fixture.stuck[0].pid)
+        assertEquals(1, fixture.stuck[0].threads)
+        assertEquals(17, fixture.stuck[0].total)
+        assertTrue(fixture.signals.size > before)
+    }
+
+    @Test fun cleanResumeReportsNothingAndWaitsForNothing() {
+        val fixture = fixture(17)
+        fixture.controller.freeze { assertTrue(it) }
+        val before = fixture.now
+        fixture.controller.resume { assertTrue(it) }
+        assertTrue(fixture.stuck.isEmpty())
+        assertTrue(fixture.now - before < 500L)
+    }
+
     @Test fun rejectedExecutorDoesNotFreezeOnTheCallingThread() {
         val executor = QueueExecutor().apply { shutdown() }
         val fixture = fixture(17, executor)
@@ -448,6 +473,9 @@ class SessionSuspendControllerTest {
         var unacknowledged = -1
         var handlerStalls = false
         var handlerReplaced = false
+        var stickyThread = false
+        val threadSignals = mutableListOf<Triple<Int, Int, Int>>()
+        val stuck = mutableListOf<SessionSuspendController.Stuck>()
         private var continuing = false
         val controller = SessionSuspendController(
             { rootPid }, { helpers }, { audioSuspends++ }, { audioResumes++ },
@@ -459,6 +487,7 @@ class SessionSuspendControllerTest {
             },
             readBackAllowed = { readBackAllowed },
             pagedIn = { processes, swap, swapBefore, _, _ -> pagedIn += Triple(processes, swap, swapBefore) },
+            stillStopped = { stuck += it },
         )
 
         init { sync() }
@@ -476,14 +505,19 @@ class SessionSuspendControllerTest {
                 if (control.readText() == "0") { pagingOut = false; pagingIn = true } else pagingOut = true
             } else if (signal == CONT) {
                 continuing = true
-                if (!(pid == GAME && blockGameContinue)) group.threads.forEach { if (it.state != 'Z') it.state = 'S' }
+                if (!(pid == GAME && blockGameContinue)) group.threads.forEach {
+                    // A tracee that a group SIGCONT does not reach, as a proot-traced thread can stay in 't'.
+                    if (it.state != 'Z' && !(stickyThread && pid == GAME && it == game.threads.last())) it.state = 'S'
+                }
             }
             sync()
         }
 
         private fun threadSignal(pid: Int, tid: Int, signal: Int) {
             signals += SentSignal(pid, signal)
+            threadSignals += Triple(pid, tid, signal)
             val task = groups.first { it.pid == pid }.threads.first { it.tid == tid }
+            if (signal == CONT && task.state == 't') task.state = 'S'
             if (signal == STOP && task.state !in listOf('T', 't', 'Z', 'X') && !(neverStop && task == game.threads.last())) {
                 task.state = 't'
             }

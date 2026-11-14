@@ -195,11 +195,13 @@ class DroidDeckHudPanelTest {
                 RectF(it.get(view) as RectF)
             }
             val second = render(Themes.ELECTRIC)
-            val x = (mark.left + mark.width() / 2f).toInt()
-            val y = mark.centerY().toInt()
             assertEquals(first.width, second.width)
             assertEquals(first.height, second.height)
-            assertTrue("the mark orb follows the current theme", first.getPixel(x, y) != second.getPixel(x, y))
+            // The falcon's head takes the theme accent; it is small, so look anywhere inside the mark.
+            val changed = (mark.left.toInt() until mark.right.toInt().coerceAtMost(first.width)).any { x ->
+                (mark.top.toInt() until mark.bottom.toInt().coerceAtMost(first.height)).any { y -> first.getPixel(x, y) != second.getPixel(x, y) }
+            }
+            assertTrue("the mark's head follows the current theme", changed)
             assertEquals(View.LAYER_TYPE_NONE, view.layerType)
         } finally {
             SessionPrefs.setTheme(app, oldTheme)

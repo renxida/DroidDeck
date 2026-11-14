@@ -41,6 +41,12 @@ own Wayland socket. The game's Xwayland, its DRI3 round trip and the X11 window 
   `PROTON_ENABLE_WAYLAND=1`. The socket is named explicitly because the session clears `WAYLAND_DISPLAY`, and an empty
   one makes libwayland fall back to wayland-0 (Kestrel's compositor). Any guard failing leaves the game on Xwayland
   and prints why on stderr.
+- Nov 13 session 16-12-52Z: gamescope's Wayland socket offers no `wl_subcompositor`, so winewayland.drv's
+  `wayland_process_init` failed, the driver unloaded and explorer.exe never started (`nodrv_CreateWindow`), on both
+  the launch and the watchdog's relaunch. The guard now reads the socket's globals over the wire first and needs
+  `wl_compositor`, `wl_subcompositor`, `xdg_wm_base` and `wl_shm`; and the explorer watchdog's relaunch takes
+  wayland-present back out (`game_relaunch ... display=x11`). The experiment is off in the remote config until
+  gamescope offers `wl_subcompositor`.
 - `tools/vulkan-wsi/build.sh` now builds the Wayland surface too (`BUILD_WSI_WAYLAND=ON`; same source revision
   40cfec09; one new dependency, libwayland-client.so.0, which both runtimes ship; same GLIBC/GLIBCXX floor). The
   X11 path is unchanged, and with the experiment off nothing calls the Wayland code.
@@ -81,6 +87,61 @@ GPU/CPU split, per window, with no GPU timestamps needed. `pipelines` catches sh
 
 Counting is relaxed atomics and one clock read around each blocking call, so the overhead is tens of nanoseconds per
 command. Tested on lavapipe with a headless swapchain (tools/tests/test_vkcount_layer.py).
+
+## Experiment `hybris-index`
+
+The libhybris compat layer (VK_LAYER_HYBRIS_compat) sits under every PowerVR game call. Reading its source showed
+per-call work that grows with the number of live objects:
+
+- each bind, push and barrier looks its command buffer up in a linked list under a global mutex;
+- each image barrier walks every live image, and each push walks every pipeline layout;
+- each hooked call fetches the next entry point with GetDeviceProcAddr by string;
+- each push or bind adds a calloc'd journal entry that is replayed later.
+
+`tools/hybris/compat-layer/0001-indexed-lookups.patch` adds open-addressed hash indexes beside those lists, a
+per-device proc table read without the lock, and coalesces a journal entry into the previous one when it has the
+same shape (replay gives the same state). The experiment swaps the runtime's layer for this build in the game's
+`VK_INSTANCE_LAYERS`. It is built separately by `compat-layer/build.sh` because the layer links only libc, which
+leaves the pinned runtime tarball untouched.
+
+Lavapipe, `HYBRIS_BC_TEXTURES=dxvk` (the phone's policy), 64 command buffers, 3000 images, 300 layouts:
+
+| call | before | after |
+| --- | --- | --- |
+| push constants | 1886 ns | 138 ns |
+| bind descriptor sets | 334 ns | 106 ns |
+| image barrier | 10192 ns | 202 ns |
+
+After the patch these costs stay flat as object counts grow. The BC decode probe's output is byte-identical, and a
+deliberately broken coalescing build fails the probe. The hash map passed 20M random operations against a reference
+under ASan and UBSan. What this saves on the phone depends on calls per frame, which vk-count reports.
+
+## Gamescope on PowerVR: where the frame waits (design, no change yet)
+
+PowerVR sessions run gamescope's SDL backend (`BL_GAMESCOPE_BACKEND=sdl`, SystemVulkanDriver), not the Wayland
+backend, so every frame takes the full-composite path even for one fullscreen game. Per frame, the paint thread does:
+
+1. `vulkan_composite`: the compute composite into an offscreen image, then a copy into the swapchain image. The copy
+   happens because the hybris Wayland swapchain lacks storage usage or mutable format (patch 0920 picks it).
+2. `vulkan_wait`: a CPU block on the composite's timeline value (patch 0925, because present has no
+   render-finished semaphore).
+3. `vkQueuePresentKHR` → libhybris `queue_present` → `vkQueueSignalReleaseImageANDROID` → the Wayland window's
+   `queueBuffer`, which `sync_wait`s the release fence on the calling thread before attach and commit.
+4. `acquire_next_image`: dequeue (FIFO) plus a fence wait.
+
+What this means:
+
+- Replacing step 2 with a semaphore (0925's own TODO) gains nothing alone, because step 3 waits on the same GPU work
+  on the same thread.
+- Getting the composite off the paint thread's critical path needs both changes: a semaphore present in gamescope,
+  and a presenter thread in libhybris's `wayland_window.cpp` so that `queueBuffer` hands off (buffer, fence) and
+  returns while that thread waits and commits. The gain is latency per frame, about the GPU time of composite plus
+  copy, not CPU.
+- Steps 2 to 4 are blocking waits, not CPU burn. So gamescope's 6 to 7 ms of CPU per game frame is real work
+  somewhere else: the paint thread's command recording and the compat layer under it, wlserver, or the X window
+  manager. Choosing a fix needs gamescope's CPU split by thread.
+- Removing the copy would need a graphics-pipeline composite or a swapchain with storage usage. That's a large
+  change, to weigh only if GPU time turns out to bind.
 
 ## Next rounds
 

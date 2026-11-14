@@ -1,0 +1,415 @@
+#!/usr/bin/env python3
+"""Run a Windows Godot 4 C# game on Kestrel's own linux-arm64 engine, skipping Wine and FEX.
+
+The game's managed code (its own DLLs) is portable IL, so it can run on a linux-arm64 .NET runtime.
+This tool builds a launch folder next to our engine binary:
+
+    <launch>/<engine>                          our Godot 4.5.1 linux-arm64 mono template
+    <launch>/data_<asm>_linuxbsd_arm64/        the "kit" (linux-arm64 .NET runtime + stock GodotSharp)
+                                               plus the game's own managed DLLs, hardlinked from the game
+                                               folder (they never leave the device)
+
+and starts the engine on the game's pack. Game files stay where Steam put them; nothing is uploaded.
+
+`run` watches the engine for its first frames: it asks Godot to print its frame rate (--print-fps), whose
+first "Project FPS" line comes a few seconds into the main loop, and logs "first frame" when it does. If none
+comes within FIRST_FRAME_S of the engine's start (timed after any fetch), or the engine exits before one,
+the engine did not start: `run` kills it and exits with DID_NOT_START (86), so the caller can fall back.
+After the first frame the engine's own exit code passes through. Frame-rate lines are thinned to one a minute.
+
+The engine, kit and stubs come as one component (`--component DIR`, or `--fetch` for the pinned release on
+the fork, cached under ~/.cache/droiddeck/native/<tag>/):
+
+    godot                  the engine
+    kit/                   kit.json + the linux-arm64 data folder of a stock C# export
+    stubs/                 libsteam_api64.so (Steamworks.NET stand-in)
+
+Usage:
+  droiddeck-native-godot compose|run --game-dir DIR (--fetch | --component DIR | --kit DIR --engine FILE)
+                                     --out DIR [--exe NAME] [-- ENGINE ARGS...]
+"""
+import argparse
+import ctypes.util
+import hashlib
+import json
+import os
+import shutil
+import signal
+import struct
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.request
+
+# The published component. Built by .github/workflows/native-engine-build.yml (publish=true).
+COMPONENT = {"tag": "native-engine-38",
+             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-38/native-engine.tar.zst",
+             "sha256": "176b8172f7c3efd8f6a49e684014aed9839a4c9c768d40db61c1fc1b086b73c0"}
+DID_NOT_START = 86
+FIRST_FRAME_S = float(os.environ.get("DROIDDECK_NATIVE_FIRST_FRAME_S", "90"))
+FPS_EVERY_S = 60
+CACHE = os.path.join(os.path.expanduser("~"), ".cache", "droiddeck", "native")
+
+# Files the game's data folder may hold that must come from the kit (runtime- or engine-specific).
+ENGINE_ASSEMBLIES = {"godotsharp.dll", "godotsharp.xml", "godotplugins.dll"}
+
+
+def log(msg):
+    print("droiddeck-native-godot: " + msg, file=sys.stderr, flush=True)
+
+
+AMD64, ARM64 = 0x8664, 0xAA64
+ILONLY, IL_LIBRARY = 0x1, 0x4
+
+
+def pe_info(data):
+    """Where the fields we read or patch live in a PE image, or None if it isn't a .NET assembly."""
+    if data[:2] != b"MZ" or len(data) < 0x40:
+        return None
+    pe = struct.unpack_from("<I", data, 0x3C)[0]
+    if data[pe:pe + 4] != b"PE\0\0" or len(data) < pe + 24:
+        return None
+    machine, nsec = struct.unpack_from("<HH", data, pe + 4)
+    opt_size = struct.unpack_from("<H", data, pe + 20)[0]
+    opt = pe + 24
+    if len(data) < opt + 2:
+        return None
+    magic = struct.unpack_from("<H", data, opt)[0]
+    dirs = {0x10B: 96, 0x20B: 112}.get(magic)
+    if dirs is None or opt_size < dirs + 15 * 8 or len(data) < opt + opt_size:
+        return None
+    rva, size = struct.unpack_from("<II", data, opt + dirs + 14 * 8)
+    if not rva or not size:
+        return None
+    cli = None
+    for i in range(nsec):
+        sec = opt + opt_size + 40 * i
+        if len(data) < sec + 40:
+            return None
+        vsize, va, raw_size, raw = struct.unpack_from("<IIII", data, sec + 8)
+        if va <= rva < va + max(vsize, raw_size):
+            cli = rva - va + raw
+    if cli is None or len(data) < cli + 72:
+        return None
+    flags = struct.unpack_from("<I", data, cli + 16)[0]
+    native = struct.unpack_from("<II", data, cli + 64)
+    return {"machine": machine, "machine_at": pe + 4, "flags": flags, "flags_at": cli + 16,
+            "native_header": native, "native_header_at": cli + 64}
+
+
+def is_managed(path):
+    """True when the file is a PE image with a CLI (.NET) header."""
+    try:
+        with open(path, "rb") as f:
+            return pe_info(f.read()) is not None
+    except OSError:
+        return False
+
+
+def portable_image(data):
+    """(bytes, note) for a Windows x64 build of an IL-only assembly that arm64 .NET will load, or (None, None)
+    when it loads as it is.
+
+    CoreCLR refuses an assembly whose PE machine is AMD64 on arm64. When the code inside is plain IL the
+    machine field is only a label, so it is relabelled ARM64. A ReadyToRun image also carries precompiled x64
+    code; its pointer to that code is cleared so the runtime JITs the IL instead, which is always present."""
+    info = pe_info(data)
+    if info is None or info["machine"] != AMD64:
+        return None, None
+    if not info["flags"] & ILONLY:
+        raise ValueError("mixed-mode (native C++) assembly; it cannot run on arm64")
+    out = bytearray(data)
+    struct.pack_into("<H", out, info["machine_at"], ARM64)
+    note = "relabelled x64 -> arm64"
+    if info["native_header"] != (0, 0):
+        struct.pack_into("<II", out, info["native_header_at"], 0, 0)
+        struct.pack_into("<I", out, info["flags_at"], info["flags"] & ~IL_LIBRARY)
+        note += ", dropped ReadyToRun x64 code"
+    return bytes(out), note
+
+
+def windows_data_dir(game_dir):
+    """(assembly name, path) of the game's data_<asm>_windows_x86_64 folder."""
+    found = []
+    for name in sorted(os.listdir(game_dir)):
+        if name.startswith("data_") and name.endswith("_windows_x86_64") and os.path.isdir(os.path.join(game_dir, name)):
+            found.append((name[len("data_"):-len("_windows_x86_64")], os.path.join(game_dir, name)))
+    if len(found) != 1:
+        raise SystemExit(f"expected one data_*_windows_x86_64 folder in {game_dir}, found {[f[0] for f in found]}")
+    return found[0]
+
+
+def find_pack(game_dir, exe):
+    stem = os.path.splitext(exe)[0] if exe else None
+    if stem and os.path.isfile(os.path.join(game_dir, stem + ".pck")):
+        return os.path.join(game_dir, stem + ".pck")
+    packs = [n for n in os.listdir(game_dir) if n.endswith(".pck")]
+    if len(packs) == 1:
+        return os.path.join(game_dir, packs[0])
+    if exe and os.path.isfile(os.path.join(game_dir, exe)):
+        return os.path.join(game_dir, exe)  # pack embedded in the executable
+    raise SystemExit(f"no Godot pack found in {game_dir}")
+
+
+def kit_manifest(kit):
+    """kit.json: {"app": [the kit's own stand-in app files], "deps": "<app>.deps.json", "runtimeconfig": "<app>.runtimeconfig.json"}."""
+    manifest = os.path.join(kit, "kit.json")
+    if not os.path.isfile(manifest):
+        return {"app": []}
+    with open(manifest) as f:
+        return json.load(f)
+
+
+def kit_files(kit):
+    """The kit's files, minus its own stand-in app."""
+    skip = {"kit.json"} | {n.lower() for n in kit_manifest(kit).get("app", [])}
+    return {n: os.path.join(kit, n) for n in os.listdir(kit) if n.lower() not in skip}
+
+
+def game_deps(kit_deps, asm, assemblies):
+    """The kit app's deps.json, with its project entry renamed to the game and listing the game's assemblies.
+
+    The runtime pack entries (linux-arm64 libcoreclr.so and the framework) stay as the kit built them, so
+    hostpolicy resolves the runtime exactly as it does for the kit's own app."""
+    deps = json.loads(json.dumps(kit_deps))
+    target = deps["runtimeTarget"]["name"]
+    libs = deps["libraries"]
+    app = next(k for k, v in libs.items() if v.get("type") == "project" and k in deps["targets"][target]
+               and not k.lower().startswith(("godotsharp/", "godotplugins/")))
+    new = f"{asm}/1.0.0"
+    for tname, tlibs in deps["targets"].items():
+        if app in tlibs:
+            entry = tlibs.pop(app)
+            if tname == target:
+                entry["runtime"] = {a: {} for a in assemblies}
+            tlibs[new] = entry
+    libs[new] = libs.pop(app)
+    return deps
+
+
+def game_runtimeconfig(kit_cfg, game_cfg):
+    """The kit's runtimeconfig (built for linux-arm64) with the game's own runtime switches on top."""
+    cfg = json.loads(json.dumps(kit_cfg))
+    props = cfg.setdefault("runtimeOptions", {}).setdefault("configProperties", {})
+    props.update((game_cfg or {}).get("runtimeOptions", {}).get("configProperties", {}))
+    return cfg
+
+
+def place(src, dst):
+    """Hardlink (copy across filesystems). Not a symlink: the .NET host resolves the main assembly's real
+    path and looks for the runtime next to it, so a symlinked game DLL sends it to the Windows folder."""
+    if os.path.lexists(dst):
+        os.unlink(dst)
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
+def fetch(component=COMPONENT, cache=CACHE, opener=urllib.request.urlopen):
+    """The pinned component's folder, downloading and checking it the first time."""
+    if not component.get("url"):
+        raise SystemExit("no native engine component is published yet")
+    folder = os.path.join(cache, component["tag"])
+    if os.path.isfile(os.path.join(folder, ".complete")):
+        return folder
+    os.makedirs(cache, exist_ok=True)
+    tmp = tempfile.mkdtemp(dir=cache)
+    try:
+        archive = os.path.join(tmp, "component.tar.zst")
+        digest = hashlib.sha256()
+        with opener(component["url"], timeout=60) as source, open(archive, "wb") as f:
+            for block in iter(lambda: source.read(1 << 20), b""):
+                digest.update(block)
+                f.write(block)
+        if digest.hexdigest() != component["sha256"]:
+            raise SystemExit("native engine download did not match its checksum")
+        root = os.path.join(tmp, "root")
+        os.mkdir(root)
+        unpack = subprocess.run(["sh", "-c", 'zstd -dc "$1" | tar -C "$2" -x', "sh", archive, root])
+        if unpack.returncode != 0:
+            raise SystemExit("native engine archive did not unpack")
+        open(os.path.join(root, ".complete"), "w").close()
+        if os.path.isdir(folder):
+            shutil.rmtree(folder)
+        os.rename(root, folder)
+        return folder
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def compose(game_dir, kit, engine, out, exe=None, stubs=None):
+    game_dir, kit, engine, out = (os.path.abspath(p) for p in (game_dir, kit, engine, out))
+    asm, win = windows_data_dir(game_dir)
+    data = os.path.join(out, f"data_{asm}_linuxbsd_arm64")
+    if os.path.isdir(data):
+        shutil.rmtree(data)
+    os.makedirs(data)
+    kit_map = kit_files(kit)
+    kit_lower = {n.lower() for n in kit_map}
+    for name, path in kit_map.items():
+        place(os.path.abspath(path), os.path.join(data, name))
+    taken, skipped, patched, game_cfg = [], [], {}, None
+    for name in sorted(os.listdir(win)):
+        src = os.path.join(win, name)
+        low = name.lower()
+        if not os.path.isfile(src):
+            continue
+        if low == f"{asm.lower()}.runtimeconfig.json":
+            with open(src) as f:
+                game_cfg = json.load(f)
+            skipped.append(name)
+        elif low == f"{asm.lower()}.deps.json":
+            skipped.append(name)  # describes the win-x64 runtime; rebuilt from the kit's below
+        elif low in ENGINE_ASSEMBLIES or low in kit_lower:
+            skipped.append(name)
+        elif is_managed(src):
+            with open(src, "rb") as f:
+                fixed, note = portable_image(f.read())
+            if fixed is None:
+                place(os.path.abspath(src), os.path.join(data, name))
+            else:
+                with open(os.path.join(data, name), "wb") as f:
+                    f.write(fixed)
+                patched[name] = note
+            taken.append(name)
+        else:
+            skipped.append(name)  # native Windows libraries and data the runtime doesn't need
+    if stubs and os.path.isdir(stubs):
+        for name in sorted(os.listdir(stubs)):
+            place(os.path.join(stubs, name), os.path.join(data, name))
+    manifest = kit_manifest(kit)
+    if manifest.get("deps"):
+        with open(os.path.join(kit, manifest["deps"])) as f:
+            deps = game_deps(json.load(f), asm, [n for n in taken if n.lower().endswith(".dll")])
+        with open(os.path.join(data, f"{asm}.deps.json"), "w") as f:
+            json.dump(deps, f, indent=1)
+    if manifest.get("runtimeconfig"):
+        with open(os.path.join(kit, manifest["runtimeconfig"])) as f:
+            cfg = game_runtimeconfig(json.load(f), game_cfg)
+    else:
+        cfg = game_cfg
+    if cfg is not None:
+        with open(os.path.join(data, f"{asm}.runtimeconfig.json"), "w") as f:
+            json.dump(cfg, f, indent=1)
+    # The engine finds its data folder next to its real path, so the binary itself lives in the launch dir.
+    target = os.path.join(out, asm)
+    if not (os.path.isfile(target) and os.path.getsize(target) == os.path.getsize(engine)
+            and os.path.getmtime(target) >= os.path.getmtime(engine)):
+        try:
+            if os.path.lexists(target):
+                os.unlink(target)
+            os.link(engine, target)
+        except OSError:
+            shutil.copy2(engine, target)
+        os.chmod(target, 0o755)
+    report = {"assembly": asm, "pack": find_pack(game_dir, exe), "engine": target, "data": data,
+              "game_assemblies": taken, "patched": patched, "skipped": skipped, "kit_files": len(kit_map)}
+    with open(os.path.join(out, "native-launch.json"), "w") as f:
+        json.dump(report, f, indent=1)
+    return report
+
+
+def engine_env(env):
+    """.NET needs ICU unless told to run culture-invariant; the guest may not have it."""
+    env = dict(env)
+    if "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" not in env and not ctypes.util.find_library("icuuc"):
+        env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1"
+    return env
+
+
+def die_with_parent():
+    """In the engine's child process: it gets SIGKILL if this wrapper dies (Linux prctl PR_SET_PDEATHSIG)."""
+    try:
+        ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGKILL, 0, 0, 0)
+    except (OSError, AttributeError):
+        pass
+
+
+def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.monotonic, forward_signals=False):
+    """Runs the engine in its own process group, passing its output through; returns its exit code, or
+    DID_NOT_START if no frame-rate line came within first_frame_s or before it exited. With forward_signals,
+    SIGTERM/SIGINT/SIGHUP to this wrapper stop the engine too."""
+    proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            start_new_session=True, preexec_fn=die_with_parent)
+    began = clock()
+    seen = threading.Event()
+    timed_out = threading.Event()
+
+    def kill():
+        try:
+            os.killpg(proc.pid, 9)
+        except OSError:
+            pass
+
+    def guard():
+        if not seen.wait(first_frame_s) and proc.poll() is None:
+            timed_out.set()
+            log(f"no first frame after {first_frame_s:.0f} s; stopping the engine")
+            kill()
+
+    threading.Thread(target=guard, daemon=True).start()
+    if forward_signals:
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            signal.signal(sig, lambda n, f: (kill(), sys.exit(128 + n)))
+    last_fps = None
+    for raw in proc.stdout:
+        line = raw.decode("utf-8", "replace")
+        if line.startswith("Project FPS:"):
+            now = clock()
+            if not seen.is_set():
+                seen.set()
+                log(f"first frame after {now - began:.1f} s")
+            elif last_fps is not None and now - last_fps < FPS_EVERY_S:
+                continue
+            last_fps = now
+        out.write(line)
+        out.flush()
+    proc.stdout.close()
+    rc = proc.wait()
+    if timed_out.is_set():
+        return DID_NOT_START
+    if not seen.is_set():
+        log(f"engine exited with {rc} after {clock() - began:.1f} s, before its first frame")
+        return DID_NOT_START
+    return rc if rc >= 0 else 128 - rc
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("command", choices=("compose", "run"))
+    ap.add_argument("--game-dir", required=True)
+    ap.add_argument("--fetch", action="store_true", help="use the pinned published component")
+    ap.add_argument("--component")
+    ap.add_argument("--kit")
+    ap.add_argument("--engine")
+    ap.add_argument("--stubs")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--exe")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    rest = argv[argv.index("--") + 1:] if "--" in argv else []
+    a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
+    component = fetch() if a.fetch else a.component
+    if component:
+        kit, engine, stubs = (os.path.join(component, n) for n in ("kit", "godot", "stubs"))
+    elif a.kit and a.engine:
+        kit, engine, stubs = a.kit, a.engine, a.stubs
+    else:
+        ap.error("give --fetch, --component, or --kit and --engine")
+    os.makedirs(a.out, exist_ok=True)
+    r = compose(a.game_dir, kit, engine, a.out, a.exe, stubs)
+    log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
+        f"{r['kit_files']} kit files, skipped {len(r['skipped'])}")
+    if a.command == "compose":
+        print(json.dumps(r))
+        return 0
+    cmd = [r["engine"], "--main-pack", r["pack"], "--print-fps"] + rest
+    log("run " + " ".join(cmd))
+    os.chdir(os.path.abspath(a.game_dir))
+    return watch(cmd, engine_env(os.environ), forward_signals=True)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

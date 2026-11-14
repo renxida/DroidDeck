@@ -232,10 +232,15 @@ private fun GameActions(game: Library.SteamGame, s: FrontEndState, a: FrontEndAc
             FileButtons(game, a)
         } else {
             val preparing = game.gameIdString in s.preparingGames
+            val branches = com.droiddeck.launcher.session.SteamBranch.offered(game.appId)
             PrimaryButton(
-                stringResource(if (preparing) R.string.common_starting else R.string.lib_play),
+                stringResource(if (preparing) R.string.common_starting else if (branches) R.string.lib_play_beta else R.string.lib_play),
                 enabled = !s.busy && !preparing, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn,
             ) { a.onSteamGame(game) }
+            if (branches && !preparing) {
+                SecondaryButton(stringResource(R.string.lib_play_stable), enabled = !s.busy, compact = true,
+                    modifier = Modifier.testTag("play-stable:${game.gameIdString}")) { a.onSteamGameStable(game) }
+            }
             if (compactMenu) GameMoreMenu(game, a) else {
                 FileButtons(game, a)
                 GameShortcutMenu(game, a)

@@ -4,8 +4,14 @@ import android.content.Context
 import android.graphics.Rect
 import kotlin.math.*
 
+/**
+ * The built-in gamepad, generated for a surface size. On a phone in landscape the d-pad and A / B / X / Y sit high in the
+ * strips beside a 16:9 game picture, with each stick below and inboard of them; [raisedThumbs] false gives the placement
+ * used before that (sticks outboard at mid height, d-pad and right stick low and inboard), kept so a gamepad saved
+ * untouched from it can be recognised and moved.
+ */
 internal class LegacyGamepadLayout(private val context: Context, private val width: Int, private val height: Int, private val safe: Rect = Rect(),
-    private val scale: Float = 1f) {
+    private val scale: Float = 1f, private val raisedThumbs: Boolean = true) {
     private val resources get() = context.resources
     private val settings = ControllerPrefs.read(context)
     private var fit = 1f
@@ -66,17 +72,30 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         val lift = (0.285f * usableH / mmY).coerceIn(22f, 45f) * mmY
         val gap = dp(12f)
         val floor = BOTTOM_MARGIN_MM * mmY
-        val drop = max(drop("dpad", "ls", gap), drop("rs", "face", gap))
-        val restY = min(h - safe.bottom - lift, h - safe.bottom - floor - drop)
-        put("ls", safe.left + inboard, restY)
-        put("face", w - safe.right - inboard, restY)
-        besideBelow("dpad", "ls", 1f, gap, floor)
-        besideBelow("rs", "face", -1f, gap, floor)
         val phone = usableH / mmY < PHONE_MAX_HEIGHT_MM
+        val raised = phone && raisedThumbs
+        val restY: Float
+        if (raised) {
+            restY = placeRaisedThumbs(w, h, usableH, gap, floor)
+        } else {
+            val drop = max(drop("dpad", "ls", gap), drop("rs", "face", gap))
+            restY = min(h - safe.bottom - lift, h - safe.bottom - floor - drop)
+            put("ls", safe.left + inboard, restY)
+            put("face", w - safe.right - inboard, restY)
+            besideBelow("dpad", "ls", 1f, gap, floor)
+            besideBelow("rs", "face", -1f, gap, floor)
+        }
         val shoulderY = if (phone) safe.top + floor + halfH("lb")
             else min(centre("ls").second - extent("ls"), centre("face").second - extent("face")) - gap - halfH("lb")
-        shoulders("ls", "lb", "lt", 1f, gap, shoulderY)
-        shoulders("face", "rb", "rt", -1f, gap, shoulderY)
+        if (raised) {
+            // The shoulders stay over the outboard cluster, now the d-pad and face buttons, as far out as the triggers fit.
+            val reach = dp(EDGE_DP) + extent("lb") + gap / 2f + max(extent("lt"), extent("rt"))
+            shouldersAt(max(centre("dpad").first, safe.left + reach), "lb", "lt", 1f, gap, shoulderY)
+            shouldersAt(min(centre("face").first, w - safe.right - reach), "rb", "rt", -1f, gap, shoulderY)
+        } else {
+            shoulders("ls", "lb", "lt", 1f, gap, shoulderY)
+            shoulders("face", "rb", "rt", -1f, gap, shoulderY)
+        }
         val bottom = h - safe.bottom - floor - extent("guide")
         val spread = extent("guide") + gap / 2f
         put("guide", w / 2f - spread, bottom)
@@ -116,20 +135,44 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
     private fun drop(group: String, anchor: String, gap: Float): Float =
         (extent(anchor) + extent(group) + gap) * sin(Math.toRadians(DROP_DEGREES)).toFloat() + extent(group)
 
-    private fun besideBelow(group: String, anchor: String, inward: Float, gap: Float, margin: Float) {
+    /**
+     * Puts the d-pad and face buttons high in the empty strips beside a 16:9 picture, centred in a strip when the cluster
+     * fits and otherwise as far out as it fits, and each stick below and inboard of them. Returns the clusters' height.
+     */
+    private fun placeRaisedThumbs(w: Float, h: Float, usableH: Float, gap: Float, floor: Float): Float {
+        val bar = max(0f, (w - h * PICTURE_ASPECT) / 2f)
+        val edge = dp(EDGE_DP)
+        val cluster = max(extent("dpad"), extent("face"))
+        val stick = max(extent("ls"), extent("rs"))
+        val shoulderBottom = safe.top + floor + 2 * halfH("lb")
+        // A stick's touch area reaches outboard (see widenStick), towards the cluster above it, so it keeps that much further away.
+        val stickGap = gap + 2 * stick * (STICK_REACH - 1f)
+        // On a short screen the sticks swing up beside the clusters (down to MIN_STICK_DROP_DEGREES) before the clusters crowd the shoulders.
+        val lowest = h - safe.bottom - floor - (cluster + stick + stickGap) * sin(Math.toRadians(MIN_STICK_DROP_DEGREES)).toFloat() - stick
+        val y = max(safe.top + usableH * RAISED_CENTRE, shoulderBottom + gap + cluster).coerceAtMost(lowest)
+        put("dpad", max(bar / 2f, safe.left + extent("dpad") + edge), y)
+        put("face", min(w - bar / 2f, w - safe.right - extent("face") - edge), y)
+        besideBelow("ls", "dpad", 1f, stickGap, floor, STICK_DROP_DEGREES)
+        besideBelow("rs", "face", -1f, stickGap, floor, STICK_DROP_DEGREES)
+        return y
+    }
+
+    private fun besideBelow(group: String, anchor: String, inward: Float, gap: Float, margin: Float, degrees: Double = DROP_DEGREES) {
         val (ax, ay) = centre(anchor)
         val reach = extent(anchor) + extent(group) + gap
         val floor = height - safe.bottom - margin - extent(group)
-        val dy = min(reach * sin(Math.toRadians(DROP_DEGREES)).toFloat(), floor - ay)
+        val dy = min(reach * sin(Math.toRadians(degrees)).toFloat(), floor - ay)
         val dx = sqrt(max(0f, reach * reach - dy * dy))
         put(group, ax + inward * dx, ay + dy)
     }
 
-    private fun shoulders(anchor: String, bumper: String, trigger: String, inward: Float, gap: Float, y: Float) {
-        val (ax, _) = centre(anchor)
+    private fun shoulders(anchor: String, bumper: String, trigger: String, inward: Float, gap: Float, y: Float) =
+        shouldersAt(centre(anchor).first, bumper, trigger, inward, gap, y)
+
+    private fun shouldersAt(x: Float, bumper: String, trigger: String, inward: Float, gap: Float, y: Float) {
         val spread = extent(bumper) + gap / 2f
-        put(bumper, ax + inward * spread, y)
-        put(trigger, ax - inward * spread, y)
+        put(bumper, x + inward * spread, y)
+        put(trigger, x - inward * spread, y)
     }
 
     private fun above(group: String, anchor: String, gap: Float) {
@@ -335,6 +378,14 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         const val BOTTOM_MARGIN_MM = 5f
         const val DROP_DEGREES = 35.0
         const val PHONE_MAX_HEIGHT_MM = 90f
+        /** The game's picture; on a wider phone the strips beside it are empty. */
+        const val PICTURE_ASPECT = 16f / 9f
+        /** Centre of the raised d-pad and face buttons, as a share of the usable height from the top. */
+        const val RAISED_CENTRE = .45f
+        /** The sticks sit this far below the raised clusters, measured from level, and inboard of them. */
+        const val STICK_DROP_DEGREES = 50.0
+        const val MIN_STICK_DROP_DEGREES = 20.0
+        const val EDGE_DP = 12f
         const val SHOULDER_WIDTH = 1.45f
         const val SHOULDER_HEIGHT = 0.8f
         val shoulderIds = setOf("lb", "rb", "lt", "rt")

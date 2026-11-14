@@ -130,7 +130,7 @@ class ThemeColorsTest {
 
     @Test fun theGradientIsAChoiceInTheThemeList() {
         assertTrue(Themes.all.any { it.id == Themes.GRADIENT })
-        assertEquals(Themes.GRAPHITE, Themes.byId("nonsense").id)
+        assertEquals(Themes.LANNER, Themes.byId("nonsense").id)
     }
 
     @Test fun innerGamerSitsJustAboveGradientInTheThemeList() {

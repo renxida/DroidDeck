@@ -13,6 +13,8 @@ import org.json.JSONObject
 object ComponentUpdater {
     private const val TAG = "ComponentUpdater"
     private const val CHECK_EVERY_MS = 3_600_000L
+    private const val SESSION_CHECK_EVERY_MS = 600_000L
+    private const val SESSION_CHECKED = "sessionFexCheckedAt"
     private const val BOOTED_KEPT = 200
     private const val HANDED_BACK = "handedBack"
     private const val PINNED_NOTE = "pinnedNote"
@@ -130,6 +132,50 @@ object ComponentUpdater {
         notes
     }
 
+    /**
+     * Run by the session before the guest starts, after the remote config has set this session's
+     * experiments. [ensure] runs only from the front end and never while a session runs, so it put in
+     * place the FEX line of the experiments it saw then: a session whose rotation row turned fex-kestrel
+     * on ran the stock build (Nov 14, a7526bd row 5). This checks the line the session will use, at most
+     * every [SESSION_CHECK_EVERY_MS], downloads its newest build if needed and swaps it into each Proton
+     * that follows Auto. Returns one line for the session log.
+     */
+    fun ensureForSession(context: Context): String = synchronized(lock) {
+        if (!managed(context, "fex")) return "fex: set by hand, left as it is"
+        val protons = runCatching { ComponentsManager.protons(context) }.getOrNull()
+            ?.filter { ComponentUpdates.follows(it) && ComponentsManager.supports(it, "fex") }
+        if (protons.isNullOrEmpty()) return "fex: no Proton follows Auto"
+        val state = load(context)
+        val notes = ArrayList<String>()
+        val wanted = listOf("fex")
+        var skipped: String? = null
+        try {
+            dropRemoved(state, protons)
+            val now = System.currentTimeMillis()
+            // Steam's offline login says nothing about the phone's network: the check gates on the connection
+            // itself (a session with Steam offline never updated FEX, Nov 14).
+            val sinceMs = now - state.optLong(SESSION_CHECKED)
+            val due = sinceMs >= SESSION_CHECK_EVERY_MS
+            if (due && check(context, state, protons, wanted, false, notes)) {
+                state.put(SESSION_CHECKED, now)
+                state.put("checkedAt", now)
+            }
+            if (!due) skipped = "not checked: last check ${sinceMs / 60_000} min ago"
+            apply(context, state, protons, wanted, notes)
+        } finally {
+            save(context, state)
+        }
+        val lines = state.optJSONObject("lines")
+        val choices = ComponentsManager.activeChoices(context)
+        val placed = protons.joinToString("; ") { p ->
+            val line = lineOf(context, state, p, "fex")
+            val current = line?.let { lines?.optJSONObject(it.key)?.optString("current") }.orEmpty()
+            "${p.name} ${line?.key ?: "-"} wants ${current.ifEmpty { "original" }}, has ${choices.fileOf(p, "fex") ?: "original"}"
+        }
+        return "fex: $placed" + (if (notes.isEmpty()) "" else " (${notes.joinToString(", ")})") +
+            ((skipped ?: state.optString("note")).takeIf { it.isNotEmpty() }?.let { " [$it]" } ?: "")
+    }
+
     private fun check(
         context: Context, state: JSONObject, protons: List<ComponentsManager.Proton>, wanted: List<String>, force: Boolean, notes: MutableList<String>,
     ): Boolean {
@@ -143,7 +189,8 @@ object ComponentUpdater {
             state.put("note", context.getString(R.string.comp_auto_check_failed))
             return false
         }
-        val holdBack = !force && AutoComponents.constrained(context)
+        val heldBy = if (force) null else AutoComponents.constraint(context)
+        val holdBack = heldBy != null
         val lines = state.obj("lines")
         var complete = true
         state.remove("note")
@@ -159,7 +206,7 @@ object ComponentUpdater {
             val relisted = if (missing) catalog.firstOrNull { it.file == current } else null
             if (relisted != null) {
                 if (holdBack) {
-                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered))
+                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered) + " ($heldBy)")
                     complete = false
                     continue
                 }
@@ -177,7 +224,7 @@ object ComponentUpdater {
             val stored = ComponentsManager.isStored(context, target.file)
             if (!stored) {
                 if (holdBack) {
-                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered))
+                    state.put("note", context.getString(R.string.comp_auto_waits_unmetered) + " ($heldBy)")
                     complete = false
                     continue
                 }

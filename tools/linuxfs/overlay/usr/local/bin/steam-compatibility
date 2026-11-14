@@ -706,7 +706,8 @@ def installed_apps(steam_root):
 
 APPINFO_CACHE = {}
 STEAM_PLAY_MANIFESTS = 891390
-APP_FIELDS = {"appinfo": {"common": {"steam_deck_compatibility": {"configuration": {}}}, "config": {"launch": None}}}
+APP_FIELDS = {"appinfo": {"common": {"steam_deck_compatibility": {"configuration": {}}}, "config": {"launch": None},
+                          "depots": {"branches": None}}}
 MANIFEST_FIELDS = {"appinfo": dict(APP_FIELDS["appinfo"], extended={"app_mappings": None})}
 
 
@@ -740,6 +741,24 @@ def launch_options(config):
             "oslist": str(settings.get("oslist", "")).lower(),
             "betakey": str(settings.get("betakey", "")),
         })
+    return found
+
+
+def branches(depots):
+    listed = depots.get("branches") if isinstance(depots, dict) else None
+    found = {}
+    for name, branch in listed.items() if isinstance(listed, dict) else ():
+        if not isinstance(branch, dict):
+            continue
+        try:
+            password = int(branch.get("pwdrequired", 0) or 0)
+        except (TypeError, ValueError):
+            password = 1
+        try:
+            updated = int(branch.get("timeupdated", 0) or 0)
+        except (TypeError, ValueError):
+            updated = 0
+        found[str(name)] = {"password": bool(password), "updated": updated, "buildid": str(branch.get("buildid", ""))}
     return found
 
 
@@ -937,6 +956,7 @@ def appinfo_entries(path, wanted=None):
             "recommended": str(recommended),
             "launch": launch_programs(info.get("config")),
             "launch_options": launch_options(info.get("config")),
+            "branches": branches(info.get("depots")),
         }
         if app == STEAM_PLAY_MANIFESTS:
             extended = info.get("extended", {})

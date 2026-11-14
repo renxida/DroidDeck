@@ -110,6 +110,34 @@ internal object CrashEvidence {
         return if (lines.isEmpty()) "" else lines.joinToString("\n", postfix = "\n")
     }
 
+    const val RESOURCE_LOADS_FILE = "resource-loads.txt"
+    private const val LOAD_PREFIX = "Loading resource: "
+    private const val MAX_LOAD_PATHS = 20_000
+
+    /**
+     * Godot's --verbose log (experiment godot-verbose) names each resource it loads. Lists the distinct paths in the
+     * order first loaded, with how often, and a count per extension; null when the log names none.
+     */
+    fun resourceLoads(file: File): String? = runCatching {
+        val counts = LinkedHashMap<String, Int>()
+        file.bufferedReader(Charsets.UTF_8).useLines { lines ->
+            for (line in lines) {
+                val at = line.indexOf(LOAD_PREFIX)
+                if (at < 0) continue
+                val path = line.substring(at + LOAD_PREFIX.length).trim().take(300)
+                if (path.isEmpty()) continue
+                if (path in counts || counts.size < MAX_LOAD_PATHS) counts[path] = (counts[path] ?: 0) + 1
+            }
+        }
+        if (counts.isEmpty()) return@runCatching null
+        val byExt = counts.keys.groupingBy { it.substringAfterLast('/').substringAfterLast('.', "").lowercase() }.eachCount()
+        buildString {
+            append("# resources Godot loaded: ${counts.size} distinct, ${counts.values.sum()} loads\n")
+            for ((ext, n) in byExt.entries.sortedByDescending { it.value }) append("# .${ext.ifEmpty { "(none)" }} $n\n")
+            for ((path, n) in counts) append(n).append('\t').append(path).append('\n')
+        }
+    }.getOrNull()
+
     private fun safePath(path: String): String =
         path.split('/').filter { it.isNotEmpty() && it != "." && it != ".." }
             .joinToString("/") { it.replace(Regex("[^A-Za-z0-9._ -]"), "_").take(80) }

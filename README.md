@@ -1,13 +1,13 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="artwork/droiddeck-banner-dark.svg">
-    <img alt="DroidDeck" src="artwork/droiddeck-banner-light.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="artwork/lanner-wordmark-dark.svg">
+    <img alt="Lanner" src="artwork/lanner-wordmark-light.svg" width="60%">
   </picture>
 </p>
 
-## Kestrel
+## Lanner
 
-Kestrel is a GPLv3 fork of [DroidDeck](https://github.com/Droid-Deck/DroidDeck), trimmed to running Steam and Proton games. It installs as `dev.renxida.kestrel`, so it can sit next to DroidDeck, and the two do not share data or settings. The runtime, drivers, input, HUD and nearly everything else here is the work of the DroidDeck developers and contributors; credit goes to them. The text below is upstream's README and still describes DroidDeck.
+Lanner is a GPLv3 fork of [DroidDeck](https://github.com/Droid-Deck/DroidDeck), trimmed to running Steam and Proton games. It installs as `dev.renxida.kestrel` (its package id from when the fork was called Kestrel), so it can sit next to DroidDeck, and the two do not share data or settings. The runtime, drivers, input, HUD and nearly everything else here is the work of the DroidDeck developers and contributors; credit goes to them. The text below is upstream's README and still describes DroidDeck.
 
 DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode through gamescope, Proton and FEX, with controllers, touch controls and a performance HUD.
 

@@ -2,6 +2,7 @@ package com.droiddeck.launcher.telemetry
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -91,6 +92,26 @@ class GameExitWatchTest {
         f.appendText("o\nthree\n")
         tail.read { seen += it }
         assertEquals(listOf("one", "two", "three"), seen)
+    }
+
+    @Test fun theExplorerWatchdogsLinesAreEventsThatEndNoGame() {
+        val failed = "DROIDDECK_TIMELINE event=game_explorer_failed app_id=2868840 attempt=1 action=relaunch run_ms=41000 wall_ms=1700000041000"
+        val relaunch = "DROIDDECK_TIMELINE event=game_relaunch app_id=2868840 attempt=2 reason=explorer_failed ended_by=wineserver wall_ms=1700000043000"
+        assertEquals("game.explorer_failed" to mapOf("app_id" to "2868840", "attempt" to "1", "action" to "relaunch",
+            "run_ms" to "41000", "wall_ms" to "1700000041000"), GameExitWatch.relaunchEvent(failed))
+        assertEquals("game.relaunch" to mapOf("app_id" to "2868840", "attempt" to "2", "reason" to "explorer_failed",
+            "ended_by" to "wineserver", "wall_ms" to "1700000043000"), GameExitWatch.relaunchEvent(relaunch))
+        assertNull(GameExitWatch.relaunchEvent("DROIDDECK_TIMELINE event=game_exec app_id=2868840 wall_ms=1000"))
+        val cores = "DROIDDECK_TIMELINE event=game_cores_reset app_id=2868840 from=0-6 to=2-6 action=repin threads=46 next_s=5 wall_ms=1700000174000"
+        assertEquals("game.cores_reset" to mapOf("app_id" to "2868840", "from" to "0-6", "to" to "2-6", "action" to "repin",
+            "threads" to "46", "next_s" to "5", "wall_ms" to "1700000174000"), GameExitWatch.relaunchEvent(cores))
+        watch.line("DROIDDECK_TIMELINE event=game_exec app_id=2868840 wall_ms=1000", 1_000)
+        watch.line(failed, 41_000)
+        watch.line(cores, 41_500)
+        watch.line(relaunch, 43_000)
+        assertTrue(watch.poll(120_000).isEmpty())
+        val f = File(tmp.root, "session.log").apply { writeText("$failed\n$relaunch\n") }
+        assertEquals("s: $failed\ns: $relaunch\n", CrashEvidence.crashLines(listOf(Triple("s", f, 0L))))
     }
 
     @Test fun crashLinesKeepTheFaultReportsMappingLine() {
