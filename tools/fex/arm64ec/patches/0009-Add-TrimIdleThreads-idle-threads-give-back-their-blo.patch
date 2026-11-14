@@ -1,7 +1,7 @@
-From cdf3b92b54de6a4606fd31cdf47d46331c36bbd6 Mon Sep 17 00:00:00 2001
+From c456c85cabb82716aa3f923feda29b885420f035 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 14 Nov 2026 10:50:46 +0000
-Subject: [PATCH] Add TrimIdleThreads: idle threads give back their block
+Subject: [PATCH 9/9] Add TrimIdleThreads: idle threads give back their block
  caches and old code buffers (default off)
 
 A thread only moves to a new code buffer when it next compiles, so threads that
@@ -17,19 +17,24 @@ decommitted, and it is pointed at the newest code buffer. Nothing is allocated o
 freed while it is suspended; old buffers are dropped after it resumes.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+The worker starts with the process's second thread, never during process init,
+and its first pass waits at least 30 s. Threads are opened, timed and resumed with ntdll
+calls only, so the emulator DLL imports nothing but ntdll.
 ---
  .../Source/Interface/Config/Config.json.in    |   9 ++
  FEXCore/Source/Interface/Context/Context.h    |   2 +
  FEXCore/Source/Interface/Core/CPUBackend.h    |  12 ++
- FEXCore/Source/Interface/Core/Core.cpp        |  29 +++++
+ FEXCore/Source/Interface/Core/Core.cpp        |  29 ++++
  FEXCore/Source/Interface/Core/LookupCache.cpp |  21 +++
- FEXCore/Source/Interface/Core/LookupCache.h   |  23 ++++
- FEXCore/include/FEXCore/Core/Context.h        |  15 +++
- Source/Windows/ARM64EC/Module.cpp             | 123 ++++++++++++++++++
- 8 files changed, 234 insertions(+)
+ FEXCore/Source/Interface/Core/LookupCache.h   |  23 +++
+ FEXCore/include/FEXCore/Core/Context.h        |  15 ++
+ Source/Windows/ARM64EC/Module.cpp             | 136 ++++++++++++++++++
+ Source/Windows/include/winternl.h             |   2 +
+ 9 files changed, 249 insertions(+)
 
 diff --git a/FEXCore/Source/Interface/Config/Config.json.in b/FEXCore/Source/Interface/Config/Config.json.in
-index d9f6903..9357bbe 100644
+index 734e6f7..3d0192f 100644
 --- a/FEXCore/Source/Interface/Config/Config.json.in
 +++ b/FEXCore/Source/Interface/Config/Config.json.in
 @@ -598,6 +598,15 @@
@@ -42,7 +47,7 @@ index d9f6903..9357bbe 100644
 +        "AffectsCodeGen": "false",
 +        "Desc": [
 +          "ARM64EC under Wine: a thread that has used no CPU time for this many seconds gets its block caches emptied and",
-+          "is moved onto the newest code buffer, so old code buffers that only idle threads hold can be freed (0 = off)."
++          "is moved onto the newest code buffer, so old code buffers that only idle threads hold can be freed (0 = off; the first pass waits at least 30 s)."
 +        ]
 +      },
        "SampleHz": {
@@ -266,7 +271,7 @@ index 0f66f21..0cba061 100644
    ConfigureAOTGen(FEXCore::Core::InternalThreadState* Thread, fextl::set<uint64_t>* ExternalBranches, uint64_t SectionMaxAddress) = 0;
  
 diff --git a/Source/Windows/ARM64EC/Module.cpp b/Source/Windows/ARM64EC/Module.cpp
-index 62b2b6e..8574390 100644
+index ef818ce..14341ee 100644
 --- a/Source/Windows/ARM64EC/Module.cpp
 +++ b/Source/Windows/ARM64EC/Module.cpp
 @@ -52,6 +52,9 @@ $end_info$
@@ -279,7 +284,7 @@ index 62b2b6e..8574390 100644
  #include <cstdint>
  #include <cstdio>
  #include <type_traits>
-@@ -750,6 +753,125 @@ extern "C" void SyncThreadContext(CONTEXT* Context) {
+@@ -750,6 +753,137 @@ extern "C" void SyncThreadContext(CONTEXT* Context) {
    Exception::LoadStateFromECContext(Thread, *Context);
  }
  
@@ -321,23 +326,25 @@ index 62b2b6e..8574390 100644
 +      if (TID == Self) {
 +        continue;
 +      }
-+      HANDLE Handle = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, TID);
-+      if (!Handle) {
++      // ntdll calls only: this DLL loads before kernelbase and must not import from it.
++      HANDLE Handle {};
++      OBJECT_ATTRIBUTES Attr {.Length = sizeof(Attr)};
++      CLIENT_ID Client {.UniqueThread = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(TID))};
++      if (!NT_SUCCESS(NtOpenThread(&Handle, THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, &Attr, &Client))) {
 +        continue;
 +      }
-+      FILETIME Create {}, Exit {}, Kernel {}, User {};
-+      if (!GetThreadTimes(Handle, &Create, &Exit, &Kernel, &User)) {
-+        CloseHandle(Handle);
++      KERNEL_USER_TIMES Times {};
++      if (!NT_SUCCESS(NtQueryInformationThread(Handle, ThreadTimes, &Times, sizeof(Times), nullptr))) {
++        NtClose(Handle);
 +        continue;
 +      }
-+      const uint64_t CPUTime = (uint64_t(Kernel.dwHighDateTime) << 32 | Kernel.dwLowDateTime) +
-+                               (uint64_t(User.dwHighDateTime) << 32 | User.dwLowDateTime);
++      const uint64_t CPUTime = Times.KernelTime.QuadPart + Times.UserTime.QuadPart;
 +      const auto Last = LastPass.find(TID);
 +      const bool Idle = Last != LastPass.end() && Last->second.CPUTime == CPUTime;
 +      const bool AlreadyTrimmed = Idle && Last->second.Trimmed;
 +      Now[TID] = {CPUTime, AlreadyTrimmed};
 +      if (!Idle || AlreadyTrimmed) {
-+        CloseHandle(Handle);
++        NtClose(Handle);
 +        continue;
 +      }
 +      ++Stats.Idle;
@@ -353,9 +360,9 @@ index 62b2b6e..8574390 100644
 +        if (!Err && !CPUArea.Area->InSimulation && CPUArea.ThreadState() == Thread) {
 +          Done = CTX->TrimSuspendedThread(Thread, Keep.back());
 +        }
-+        ResumeThread(Handle);
++        NtResumeThread(Handle, nullptr);
 +      }
-+      CloseHandle(Handle);
++      NtClose(Handle);
 +      if (Done) {
 +        ++Stats.Trimmed;
 +        Stats.Moved += Keep.back().OldCodeBuffer != nullptr;
@@ -378,9 +385,13 @@ index 62b2b6e..8574390 100644
 +    return Stats;
 +  }
 +
++  // The first pass waits at least this long, so no thread is suspended during process start.
++  constexpr uint32_t FirstPassMinS = 30;
++
 +  void* WorkerMain(void*) {
 +    for (uint64_t N = 0;; ++N) {
-+      LARGE_INTEGER Delay {.QuadPart = -int64_t(IntervalS) * 10'000'000LL};
++      const uint32_t WaitS = N == 0 ? std::max(IntervalS, FirstPassMinS) : IntervalS;
++      LARGE_INTEGER Delay {.QuadPart = -int64_t(WaitS) * 10'000'000LL};
 +      NtDelayExecution(FALSE, &Delay);
 +      const auto S = Pass();
 +      if (S.Trimmed || S.Skipped || N < 3 || N % 10 == 0) {
@@ -395,7 +406,13 @@ index 62b2b6e..8574390 100644
 +  void ProcessInit() {
 +    FEX_CONFIG_OPT(TrimIdleThreads, TRIMIDLETHREADS);
 +    IntervalS = TrimIdleThreads();
-+    if (!IntervalS) {
++  }
++
++  // The worker is never created during process init, only once a second thread initializes, and outside FEX's locks.
++  void ThreadInit() {
++    static std::atomic<uint32_t> Inits {};
++    static std::atomic<bool> Started {};
++    if (!IntervalS || Inits.fetch_add(1) == 0 || Started.exchange(true)) {
 +      return;
 +    }
 +    Worker = FEXCore::Threads::Thread::Create(WorkerMain, nullptr, {.LowPriority = true, .Internal = true}, "FEX idle trim");
@@ -405,7 +422,7 @@ index 62b2b6e..8574390 100644
  NTSTATUS ProcessInit() {
    if (!InitSyscalls()) {
      return STATUS_NOT_SUPPORTED;
-@@ -822,6 +944,7 @@ NTSTATUS ProcessInit() {
+@@ -822,6 +956,7 @@ NTSTATUS ProcessInit() {
    if (IsWine) {
      FEX::Windows::Sampler::ProcessInit();
      FEX::Windows::MemoryNames::ProcessInit();
@@ -413,6 +430,29 @@ index 62b2b6e..8574390 100644
    }
  
    if (StartupSleep() && (StartupSleepProcName().empty() || AppConfigName == StartupSleepProcName())) {
+@@ -1196,6 +1331,7 @@ void BTCpu64NotifyReadFile(HANDLE Handle, void* Address, SIZE_T Size, BOOL After
+ 
+ NTSTATUS ThreadInit() {
+   FEX::Windows::MemoryNames::ThreadInit();
++  IdleTrim::ThreadInit();
+   std::scoped_lock Lock(ThreadCreationMutex);
+   FEX::Windows::InitCRTThread();
+   const auto CPUArea = GetCPUArea();
+diff --git a/Source/Windows/include/winternl.h b/Source/Windows/include/winternl.h
+index 918e92a..2d34863 100644
+--- a/Source/Windows/include/winternl.h
++++ b/Source/Windows/include/winternl.h
+@@ -552,8 +552,10 @@ NTSTATUS WINAPI NtQueryAttributesFile(const OBJECT_ATTRIBUTES*, FILE_BASIC_INFOR
+ NTSTATUS WINAPI NtQueryDirectoryFile(HANDLE, HANDLE, PIO_APC_ROUTINE, PVOID, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS,
+                                      BOOLEAN, PUNICODE_STRING, BOOLEAN);
+ NTSTATUS WINAPI NtQueryValueKey(HANDLE, const UNICODE_STRING*, KEY_VALUE_INFORMATION_CLASS, void*, DWORD, DWORD*);
++NTSTATUS WINAPI NtOpenThread(HANDLE*, ACCESS_MASK, const OBJECT_ATTRIBUTES*, const CLIENT_ID*);
+ NTSTATUS WINAPI NtQueryVirtualMemory(HANDLE, LPCVOID, MEMORY_INFORMATION_CLASS, PVOID, SIZE_T, SIZE_T*);
+ NTSTATUS WINAPI NtRaiseException(EXCEPTION_RECORD*, CONTEXT*, BOOL);
++NTSTATUS WINAPI NtResumeThread(HANDLE, PULONG);
+ NTSTATUS WINAPI NtReadFile(HANDLE, HANDLE, PIO_APC_ROUTINE, PVOID, PIO_STATUS_BLOCK, PVOID, ULONG, PLARGE_INTEGER, PULONG);
+ NTSTATUS WINAPI NtSetContextThread(HANDLE, const CONTEXT*);
+ NTSTATUS WINAPI NtSuspendThread(HANDLE, PULONG);
 -- 
 2.43.0
 
