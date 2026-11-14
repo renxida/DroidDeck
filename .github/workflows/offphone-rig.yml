@@ -24,7 +24,7 @@ on:
         required: false
         default: perf/switchboard
       scenario:
-        description: "steam-ui, stand-in-game or all"
+        description: "all (steam-ui and stand-in-game), regressions (steam-ui-screen-cycle, steam-ui-background, stand-in-background, upgrade), everything, or one scenario"
         required: false
         default: all
       guest_vulkan:
@@ -94,16 +94,24 @@ jobs:
       - name: Scenarios
         id: scenarios
         run: |
-          case "${{ inputs.scenario || 'all' }}" in
-            all)
-              # The stand-in comes from native-startup-gate's artifact, which expires after 30 days;
-              # without one the run still checks Steam and says so, rather than blocking.
-              if [ -n "${{ steps.standin.outputs.run }}" ]; then echo 'list=["steam-ui","stand-in-game"]' >> "$GITHUB_OUTPUT"
-              else echo 'list=["steam-ui"]' >> "$GITHUB_OUTPUT"
-                echo "::warning::no unexpired native-standin-win-x64 artifact: stand-in-game skipped (re-run native-startup-gate)"
-                echo "stand-in-game skipped: no unexpired stand-in artifact" >> "$GITHUB_STEP_SUMMARY"; fi ;;
-            *) echo "list=[\"${{ inputs.scenario }}\"]" >> "$GITHUB_OUTPUT" ;;
+          core='"steam-ui"'; [ -n "${{ steps.standin.outputs.run }}" ] && core='"steam-ui","stand-in-game"'
+          reg='"steam-ui-screen-cycle","steam-ui-background","upgrade"'
+          [ -n "${{ steps.standin.outputs.run }}" ] && reg="$reg"',"stand-in-background"'
+          # A push to this workflow's own branch runs everything; a release or an autofix attempt, the core.
+          want="${{ inputs.scenario }}"; [ -z "$want" ] && { [ "${{ github.ref_name }}" = ci/offphone-probe ] && want=everything || want=all; }
+          case "$want" in
+            all) list="[$core]" ;;
+            regressions) list="[$reg]" ;;
+            everything) list="[$core,$reg]" ;;
+            *) list="[\"$want\"]" ;;
           esac
+          # The stand-in comes from native-startup-gate's artifact, which expires after 30 days;
+          # without one the stand-in scenarios are skipped with a warning rather than blocking.
+          if [ -z "${{ steps.standin.outputs.run }}" ]; then
+            echo "::warning::no unexpired native-standin-win-x64 artifact: stand-in scenarios skipped (re-run native-startup-gate)"
+            echo "stand-in scenarios skipped: no unexpired stand-in artifact" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "list=$list" >> "$GITHUB_OUTPUT"; echo "scenarios: $list" >> "$GITHUB_STEP_SUMMARY"
 
   rig:
     needs: plan
@@ -135,7 +143,7 @@ jobs:
           github-token: ${{ github.token }}
           path: apk
       - uses: actions/download-artifact@v4
-        if: matrix.scenario == 'stand-in-game' && needs.plan.outputs.standin_run != ''
+        if: startsWith(matrix.scenario, 'stand-in') && needs.plan.outputs.standin_run != ''
         with:
           name: native-standin-win-x64
           run-id: ${{ needs.plan.outputs.standin_run }}
@@ -153,6 +161,15 @@ jobs:
             VK_INSTANCE_LAYERS=VK_LAYER_OFFPHONE_cpu_sync timeout 60 cpusync/test
       - name: Boot Android
         run: rig/tools/offphone/redroid-up.sh
+      - name: The previous release (upgrade only)
+        if: matrix.scenario == 'upgrade'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # kestrel.apk as people have it now; the APK under test is installed over it in drive.sh.
+          gh release download latest -R "$GITHUB_REPOSITORY" -p kestrel.apk -D old
+          mv "$(ls apk/*.apk | head -1)" new.apk && mv old/kestrel.apk apk/kestrel-previous.apk
+          echo "NEW_APK=$PWD/new.apk" >> "$GITHUB_ENV"
       - name: Install and open the app
         run: |
           apk=$(ls apk/*.apk | head -1)

@@ -2,11 +2,18 @@
 # Drives the installed app on the CI Android (redroid) through one launch scenario and leaves
 # the evidence in OUT: rig-session/ (the app's own session folder), rig-events.jsonl, verdict.json.
 #
-#   tools/offphone/drive.sh steam-ui|stand-in-game OUT [lavapipe|venus] [timeout-seconds] [stand-in-dir]
+#   tools/offphone/drive.sh SCENARIO OUT [lavapipe|venus] [timeout-seconds] [stand-in-dir]
 #
-# steam-ui       Steam's client starts and reaches its sign-in screen. Nothing signs in.
-# stand-in-game  The stand-in Godot game (our own code, no game files) runs through Proton and FEX
-#                to its first frame and a clean main-loop exit.
+# steam-ui               Steam's client starts and reaches its sign-in screen. Nothing signs in.
+# stand-in-game          The stand-in Godot game (our own code, no game files) runs through Proton
+#                        and FEX, presents its frames and exits cleanly.
+# steam-ui-screen-cycle  steam-ui with the display switched off and on three times while Steam
+#                        starts (cdabfbd: Steam's UI took 150 s instead of 25).
+# steam-ui-background    steam-ui with the app sent home for 30 s while Steam starts.
+# stand-in-background    stand-in-game with the app sent home for 20 s while the game loads (008c6625).
+# upgrade                The previous kestrel.apk installed and set up first (OLD_APK, already
+#                        installed by the caller), then this APK (NEW_APK) installed over it: a
+#                        setting must survive, then steam-ui.
 # Exit status: 0 when the scenario's target stage was reached (see tools/offphone/verdict.py).
 set -uo pipefail
 scenario=${1:?scenario}; out=${2:?out dir}; gv=${3:-lavapipe}; limit=${4:-900}; standin=${5:-}
@@ -17,6 +24,11 @@ apptools=${DD_APP_TOOLS:-$repo/tools}
 ctl="$apptools/droiddeckctl"
 pkg=$("$apptools/app-id")
 fs=/data/user/0/$pkg/files/linuxfs
+case $scenario in
+  steam-ui|steam-ui-screen-cycle|steam-ui-background|upgrade) base=steam-ui ;;
+  stand-in-game|stand-in-background) base=stand-in-game ;;
+  *) echo "unknown scenario $scenario"; exit 2 ;;
+esac
 mkdir -p "$out"; : > "$out/rig-events.jsonl"
 now_ms() { date +%s%3N; }
 rig_event() { printf '{"stage":"%s","t":%s}\n' "$1" "$(now_ms)" >> "$out/rig-events.jsonl"; echo "rig: $1"; }
@@ -79,7 +91,7 @@ esac
 # steamclient.so even for a game that is not on Steam. So the stand-in runs after Steam has
 # installed itself once (to its sign-in screen, nothing signed in), as on a phone.
 steamclient() { adb shell "find $fs/root/.local/share/Steam -name steamclient.so 2>/dev/null" | tr -d '\r'; }
-if [ "$scenario" = stand-in-game ] && [ -z "$(steamclient)" ]; then
+if [ "$base" = stand-in-game ] && [ -z "$(steamclient)" ]; then
   echo "rig: Steam's client is not installed yet; starting Steam once to its sign-in screen"
   "$ctl" start steam >/dev/null 2>&1 || true
   w0=$(date +%s)
@@ -90,9 +102,46 @@ if [ "$scenario" = stand-in-game ] && [ -z "$(steamclient)" ]; then
   "$ctl" stop >/dev/null 2>&1 || true; wait_idle 120 || true
 fi
 
+launcher() { adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$pkg" | tr -d '\r' | tail -1; }
+
+if [ "$scenario" = upgrade ]; then
+  # Settings and the installed runtime from the previous release must survive the update.
+  "$ctl" prefs set session rig_upgrade_marker true --type bool >/dev/null
+  echo "rig: previous build $(adb shell dumpsys package "$pkg" | grep -m1 versionName | tr -d '\r ')"
+  adb shell am force-stop "$pkg"
+  r=$(adb install -r -g "${NEW_APK:?NEW_APK}" 2>&1 | tail -1); echo "rig: install over it: $r"
+  [ "$r" = Success ] && rig_event upgrade_installed
+  echo "rig: now $(adb shell dumpsys package "$pkg" | grep -m1 versionName | tr -d '\r ')"
+  adb shell am start -W -n "$(launcher)" >/dev/null; sleep 5
+  "$here/enable-debug-tools.sh" "$pkg" >/dev/null
+  if "$ctl" prefs get session 2>/dev/null | jq -e '[.. | objects | .rig_upgrade_marker? // empty] | any(. == true or . == "true")' >/dev/null; then
+    rig_event settings_kept
+  else echo "rig: the setting made before the update is gone"; "$ctl" prefs get session 2>&1 | head -c 2000; echo; fi
+  adb shell "ls $fs/usr/bin/bash" >/dev/null 2>&1 && rig_event runtime_kept || echo "rig: the runtime is gone after the update"
+fi
+
+perturbed=
+perturb() { # once, while the start is under way
+  [ -n "$perturbed" ] && return; perturbed=1
+  case $scenario in
+    steam-ui-screen-cycle)
+      for i in 1 2 3; do
+        adb shell input keyevent KEYCODE_SLEEP; sleep 4
+        adb shell input keyevent KEYCODE_WAKEUP; adb shell wm dismiss-keyguard >/dev/null 2>&1; sleep 4
+      done
+      echo "rig: display: $(adb shell dumpsys power | grep -m1 -E 'mWakefulness=' | tr -d '\r ')"
+      rig_event screen_cycled ;;
+    steam-ui-background|stand-in-background)
+      local away=30; [ "$base" = stand-in-game ] && away=20
+      adb shell input keyevent KEYCODE_HOME; echo "rig: app sent home for ${away}s"; sleep "$away"
+      adb shell am start -n "$(launcher)" >/dev/null
+      rig_event backgrounded ;;
+  esac
+}
+
 before=$(latest_dir)
 t0=$(date +%s)
-case $scenario in
+case $base in
   steam-ui) "$ctl" start steam ;;
   stand-in-game)
     [ -d "$standin" ] || { echo "rig: no stand-in folder"; exit 2; }
@@ -102,7 +151,6 @@ case $scenario in
     uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
     adb shell "chown -R $uid:$uid $fs/root/standin && restorecon -R $fs/root/standin"
     "$ctl" run /usr/local/bin/droiddeck-proton-run -- "/root/standin/$exe" --quit-after-frames 300 --max-fps 30 ;;
-  *) echo "unknown scenario $scenario"; exit 2 ;;
 esac
 
 last=; idle=0; login=; next_ps=60
@@ -118,7 +166,12 @@ while [ $(( $(date +%s) - t0 )) -lt "$limit" ]; do
   case $ph in FAILED) break;; IDLE) idle=$((idle + 1)); [ $idle -ge 6 ] && break;; *) idle=0;; esac
   el=$(( $(date +%s) - t0 ))
   [ "$el" -ge "$next_ps" ] && { sample_ps "${el}s"; next_ps=$(( next_ps + (next_ps < 240 ? 60 : 180) )); }
-  if [ "$scenario" = steam-ui ] && [ "$ph" = READY ]; then
+  # The perturbation lands while Steam starts, or while the game loads (just after READY).
+  case "$base:$ph" in
+    steam-ui:STARTING_STEAM) [ "$el" -ge 10 ] && perturb ;;
+    stand-in-game:READY) perturb ;;
+  esac
+  if [ "$base" = steam-ui ] && [ "$ph" = READY ]; then
     # Steam's sign-in screen, read from the client's own DevTools (its JS context sits on
     # steamloopback.host/routes/login). Nothing is typed into it.
     t=$("$ctl" cdp targets 2>/dev/null)
@@ -126,7 +179,7 @@ while [ $(( $(date +%s) - t0 )) -lt "$limit" ]; do
       echo "$t" > "$out/cdp-targets.json"; rig_event login_screen; login=1; break
     fi
   fi
-  if [ "$scenario" = stand-in-game ]; then
+  if [ "$base" = stand-in-game ]; then
     # The stand-in prints its markers to stdout, which lands in the session log.
     d=$(latest_dir)
     if [ -n "$d" ] && [ "$d" != "$before" ]; then
@@ -138,7 +191,7 @@ while [ $(( $(date +%s) - t0 )) -lt "$limit" ]; do
   sleep 5
 done
 sample_ps end
-[ "$scenario" = steam-ui ] && [ -z "$login" ] && { "$ctl" cdp targets > "$out/cdp-targets.json" 2>&1 || true; }
+[ "$base" = steam-ui ] && [ -z "$login" ] && { "$ctl" cdp targets > "$out/cdp-targets.json" 2>&1 || true; }
 echo "rig: DevTools targets:"; jq -c '[.. | objects | select(.title? or .url?) | {title, url}]' "$out/cdp-targets.json" 2>/dev/null | head -c 3000; echo
 
 # The app's own session folder, whole.
@@ -156,7 +209,7 @@ for f in $(find "$out/rig-session/games" -type f 2>/dev/null | sort); do
   else grep -v '^D [0-9]' "$f"; fi | cut -c1-300
   echo; echo "::endgroup::"
 done
-if [ "$scenario" = stand-in-game ]; then
+if [ "$base" = stand-in-game ]; then
   echo "rig: stand-in folder: $(ls "$standin" | tr '\n' ' ')"
   # Godot's own log, in the game's prefix.
   adb pull "$fs/root/.local/share/Steam/steamapps/compatdata/4055603035/pfx/drive_c/users/steamuser/AppData/Roaming/Godot/app_userdata/StandIn/logs" "$out/godot-logs" >/dev/null 2>&1 || true
