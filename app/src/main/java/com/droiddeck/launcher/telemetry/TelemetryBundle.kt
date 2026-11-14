@@ -171,7 +171,13 @@ object TelemetryBundle {
                     zip.closeEntry()
                 }
         var budget = EVIDENCE_BYTES
-        val logs = CrashEvidence.protonLogs(dir) + runCatching { CrashEvidence.gameLogs(sources.compatdata, sources.sinceMs) }.getOrDefault(emptyList())
+        val games = runCatching { CrashEvidence.gameLogs(sources.compatdata, sources.sinceMs) }.getOrDefault(emptyList())
+        games.firstNotNullOfOrNull { (name, file) -> CrashEvidence.resourceLoads(file)?.let { name to it } }?.let { (name, text) ->
+            val f = File(scratch, CrashEvidence.RESOURCE_LOADS_FILE).apply { writeText("# from $name\n$text") }
+            add(f, CrashEvidence.RESOURCE_LOADS_FILE, Long.MAX_VALUE)
+            f.delete()
+        }
+        val logs = CrashEvidence.protonLogs(dir) + games
         for ((name, file) in logs.sortedByDescending { it.second.lastModified() }) {
             if (budget <= 0) break
             val take = minOf(EVIDENCE_FILE_BYTES, budget, file.length())

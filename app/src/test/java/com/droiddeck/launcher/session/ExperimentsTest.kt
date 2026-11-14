@@ -69,6 +69,7 @@ class ExperimentsTest {
             "fps-30" to "DROIDDECK_EXP_FPS_30",
             "webhelper-trim" to "DROIDDECK_EXP_WEBHELPER_TRIM",
             "fex-smaps" to "DROIDDECK_EXP_FEX_SMAPS",
+            "godot-verbose" to "DROIDDECK_EXP_GODOT_VERBOSE",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

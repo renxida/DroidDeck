@@ -66,6 +66,8 @@ object Experiments {
     /** While a game runs, ask steamwebhelper over DevTools to free memory every few minutes; logs before/after. */
     const val WEBHELPER_TRIM = "webhelper-trim"
     const val FEX_SMAPS = "fex-smaps"
+    /** Godot games log every resource they load (--verbose); the upload lists them. */
+    const val GODOT_VERBOSE = "godot-verbose"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -104,6 +106,7 @@ object Experiments {
         Switch(FPS_30, R.string.exp_fps_30),
         Switch(WEBHELPER_TRIM, R.string.exp_webhelper_trim),
         Switch(FEX_SMAPS, R.string.exp_fex_smaps),
+        Switch(GODOT_VERBOSE, R.string.exp_godot_verbose),
     )
 
     /** At most one of each group is on. */
@@ -123,7 +126,7 @@ object Experiments {
         WAYLAND_PRESENT, VK_COUNT,
         NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE,
         DXVK_ARM64EC, COMPOSITE_TIMING, DOTNET_R2R, FEX_CODE_BUFFER, FEX_SAMPLE, DOTNET_R2R_GENERICS, DOTNET_R2R_BUBBLE,
-        FPS_30, WEBHELPER_TRIM, FEX_SMAPS)
+        FPS_30, WEBHELPER_TRIM, FEX_SMAPS, GODOT_VERBOSE)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,

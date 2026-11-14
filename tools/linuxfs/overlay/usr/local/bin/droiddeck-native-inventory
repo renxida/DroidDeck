@@ -27,8 +27,9 @@ import sys
 import time
 import zipfile
 
-SCHEMA = 4  # 2: JSON lines, Vorbis setup ids, imported pairing, FSB5 slice; 3: Spine 4.2 binary survey;
+SCHEMA = 5  # 2: JSON lines, Vorbis setup ids, imported pairing, FSB5 slice; 3: Spine 4.2 binary survey;
            # 4: text scene and resource survey, compiled GDScript identifier and string tables
+           # 5: the largest files, every font and its import source, and the game's mod, font and locale names
 PREFIX = "DROIDDECK_NATIVE_INVENTORY"
 MAX_LIST = 4000
 MAX_GDEXT_BYTES = 8192
@@ -53,6 +54,12 @@ NAME_HINTS = ("spine", "fmod", "anim", "skin", "bone", "slot", "track", "event",
               "sound", "audio", "music", "sfx", "attach", "skeleton", "mix", "loop", "volume", "pitch", "play",
               "stop", "emitter", "listener", "snapshot")
 SNAKE = re.compile(r"^[a-z][a-z0-9_]{1,47}$")
+BIG_FILES = 80
+FONT_EXT = (".fontdata", ".ttf", ".otf", ".ttc", ".woff", ".woff2", ".fnt")
+# Names in the game's assemblies that say how it loads mods (extra .pck files), fonts and locales.
+LOADER_NAME = re.compile(r"Mod(?!ulat|el|ifie|e(?:[A-Z0-9_s]|$)|al(?![a-z]))|ResourcePack|Pck|pck|Font|font|Locale|locale|Language")
+LOADER_LITERAL = re.compile(r"(?i)\.pck|\bmods?\b|mod_|manifest|font|locale|res://")
+LOADER_MAX = 600
 FSB_CODECS = {0: "none", 1: "pcm8", 2: "pcm16", 3: "pcm24", 4: "pcm32", 5: "pcmfloat", 6: "gcadpcm",
               7: "imaadpcm", 8: "vag", 9: "hevag", 10: "xma", 11: "mpeg", 12: "celt", 13: "at9", 14: "xwma",
               15: "vorbis", 16: "fadpcm", 17: "opus"}
@@ -892,8 +899,11 @@ def assembly_names(path):
     fmod_paths = sorted({s for s in literals if FMOD_PATH.match(s.encode("latin-1", "replace"))})
     hinted = sorted({s for s in literals if SNAKE.match(s) and any(h in s for h in NAME_HINTS)})
     classes = sorted({s for s in literals if re.match(r"^(Spine|Fmod|FMOD)[A-Za-z0-9_]*$", s)})
+    loader = sorted({n for n in names if LOADER_NAME.search(n) and len(n) <= 80})
+    loader_literals = sorted({s for s in literals if len(s) <= 160 and LOADER_LITERAL.search(s)})
     return {"metadata_names": picked[:MAX_LIST], "class_literals": classes, "fmod_paths": fmod_paths[:MAX_LIST],
-            "hinted_literals": hinted[:MAX_LIST], "literal_count": len(literals)}
+            "hinted_literals": hinted[:MAX_LIST], "literal_count": len(literals),
+            "loader_names": loader[:LOADER_MAX], "loader_literals": loader_literals[:LOADER_MAX]}
 
 
 # --- Putting it together --------------------------------------------------------------------------------------
@@ -1237,6 +1247,8 @@ def inventory(game_dir):
         exts[e] = (n + 1, total + src.size)
     report["extensions"] = {e: {"files": n, "bytes": b} for e, (n, b) in sorted(exts.items(), key=lambda kv: -kv[1][1])}
     report["encrypted_files"] = sum(1 for s in sources if s.encrypted)
+    report["big_files"] = [{"name": s.name, "size": s.size} for s in sorted(sources, key=lambda s: -s.size)[:BIG_FILES]]
+    report["fonts"] = [{"name": s.name, "size": s.size} for s in sources if ext_of(s.name) in FONT_EXT]
 
     gdext = []
     for src in sources:
@@ -1247,6 +1259,7 @@ def inventory(game_dir):
                                         if s.name.startswith("disk:") and ext_of(s.name) in (".dll", ".so", ".dylib"))[:400]
 
     importers = {}
+    font_imports = []
     for src in sources:
         if src.name.endswith(".import") and not src.encrypted and src.size < 65536:
             text = src.read().decode("utf-8", "replace")
@@ -1254,7 +1267,11 @@ def inventory(game_dir):
             t = re.search(r'type="([^"]+)"', text)
             key = "%s -> %s" % (m.group(1) if m else "?", t.group(1) if t else "?")
             importers[key] = importers.get(key, 0) + 1
+            if m and m.group(1).startswith("font_data"):
+                path = re.search(r'^path="([^"]+)"', text, re.M)
+                font_imports.append({"import": src.name, "path": path.group(1) if path else None})
     report["importers"] = importers
+    report["font_imports"] = font_imports
 
     skeleton_ext = (".skel", ".skel.bytes", ".spskel", ".spine-json", ".spjson")
     skeletons = []

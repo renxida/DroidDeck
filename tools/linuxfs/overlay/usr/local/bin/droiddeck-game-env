@@ -83,7 +83,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "hybris-index-session", "native-engine", "dxvk-arm64ec",
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
-               "fex-smaps")
+               "fex-smaps", "godot-verbose")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -1146,6 +1146,19 @@ def frame_cap(command, env):
         env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"] = CAPPED_IMAGES
         ways.append("%s swapchain images" % CAPPED_IMAGES)
     return command, "frame cap %s fps (%s)" % (fps, ", ".join(ways) or "already set")
+
+
+def godot_verbose(command, env):
+    """Experiment godot-verbose: Godot's --verbose, so its log names every resource it loads ("Loading resource:
+    res://..."). The upload lists them from the game's godot.log; that tells which fonts, textures and scenes a play
+    session actually touches."""
+    if not experiment(env, "godot-verbose") or len(command) <= 2 or not is_godot(Game(command[2], command[3:])):
+        return command, None
+    args = command[3:]
+    cut = next((i for i, arg in enumerate(args) if arg in ("--", "++")), len(args))
+    if "--verbose" in args[:cut] or "-v" in args[:cut]:
+        return command, "Godot verbose log already on"
+    return command[:3] + args[:cut] + ["--verbose"] + args[cut:], "Godot verbose log on (resource loads named)"
 
 
 PACING_SWITCHES = (("adpf", "DROIDDECK_PACING_ADPF"), ("display", "DROIDDECK_PACING_DISPLAY"),
@@ -3374,6 +3387,9 @@ def main():
     pacing = None
     if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
         command, note = frame_cap(command, env)
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
+        command, note = godot_verbose(command, env)
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
         pacing = pacing_line(env, app_id)

@@ -117,6 +117,20 @@ class FrameCapTest(unittest.TestCase):
         command, _ = self.cap([str(self.other)], dict(env))
         self.assertEqual(command[3:], [])
 
+    def test_godot_verbose_logs_resource_loads_ahead_of_user_arguments_only_for_godot(self):
+        verbose = MODULE["godot_verbose"]
+        env = {"DROIDDECK_EXP_GODOT_VERBOSE": "1"}
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.godot), "--max-fps", "30", "--", "--mod"], env)
+        self.assertEqual(command[3:], ["--max-fps", "30", "--verbose", "--", "--mod"])
+        self.assertEqual(note, "Godot verbose log on (resource loads named)")
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.godot), "-v"], env)
+        self.assertEqual(command[3:], ["-v"])
+        self.assertEqual(note, "Godot verbose log already on")
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.other)], env)
+        self.assertEqual((command[3:], note), ([], None))
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.godot)], {})
+        self.assertEqual((command[3:], note), ([], None))
+
     def test_a_capped_game_gets_three_gamescope_swapchain_images_not_eight(self):
         env = {"DROIDDECK_FPS_CAP": "60", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8"}
         _, note = self.cap([str(self.godot)], env)
