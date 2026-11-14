@@ -103,6 +103,38 @@ def sample_trace():
     return w.end()
 
 
+def method_load(at_ms, flags, tier, namespace, name):
+    payload = struct.pack("<QQQIII", 1, 2, 3, 64, 0x06000001, flags | (tier << 7)) + utf16z(namespace) + utf16z(name) + \
+        utf16z("void ()") + struct.pack("<HQ", 0, 0)
+    return (143, ms(at_ms), payload)
+
+
+class JitTest(unittest.TestCase):
+    def test_jitted_methods_by_minute_tier_and_kind(self):
+        w = Writer()
+        w.metadata([(143, "Microsoft-Windows-DotNETRuntime", 143, "", None)])
+        w.block("EventBlock", [
+            method_load(10, 0x8, 3, "MegaCrit.Sts2.Card", "Play"),
+            method_load(20, 0x8 | 0x4, 3, "System.Collections.Generic.List`1[MegaCrit.Sts2.Card]", "Add"),
+            method_load(30, 0x8 | 0x1, 2, "dynamicClass", "lambda_method1"),
+            method_load(40, 0x0, 5, "MegaCrit.Sts2.Card", "Precompiled"),
+            method_load(61_000, 0x8, 4, "MegaCrit.Sts2.Card", "Play"),
+        ])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dotnet-1.nettrace"
+            path.write_bytes(w.end())
+            summary = TRACE["summarise"](path)
+            self.assertEqual(4, len(summary.methods))
+            text = TRACE["jit_text"](summary)
+            TRACE["write_tables"](summary, tmp)
+            self.assertTrue((Path(tmp) / "dotnet-jit.txt").exists())
+        lines = text.splitlines()
+        self.assertEqual("minute,jitted,fullopts,tier0,tier1,plain,generic_framework,generic_own,generic_method,dynamic,r2r_rejected", lines[1])
+        self.assertEqual("0,3,1,2,0,1,1,0,0,1,0", lines[2])
+        self.assertEqual("1,1,0,0,1,1,0,0,0,0,0", lines[3])
+        self.assertIn("2,plain,tier0=1 tier1=1,MegaCrit.Sts2.Card", lines)
+
+
 class ParseTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -210,7 +242,7 @@ class GameEnvTest(unittest.TestCase):
             self.assertEqual("1", result["DOTNET_EventPipeOutputStreaming"])
             self.assertEqual("0", result["DOTNET_EventPipeRundown"])
             self.assertEqual("Z:" + str(logs).replace("/", "\\") + "\\dotnet-{pid}.nettrace", result["DOTNET_EventPipeOutputPath"])
-            self.assertTrue(result["DOTNET_EventPipeConfig"].startswith("Microsoft-Windows-DotNETRuntime:0x400000001:4,"))
+            self.assertTrue(result["DOTNET_EventPipeConfig"].startswith("Microsoft-Windows-DotNETRuntime:0x400000011:5,"))
             self.assertEqual([str(logs), "--watch", "60", "--pid", str(os.getpid())], started[0][2:])
             self.assertIn("dotnet-trace:", note)
             without_folder = dict(env)
