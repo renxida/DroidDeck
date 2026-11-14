@@ -1,0 +1,113 @@
+name: FEX .NET SuspendThread crash rate (Wine ARM64EC, off-device)
+
+# clr.exe sometimes dies with CoreCLR's "Fatal error. SuspendThread failed with error 5" and then a page fault
+# reading 0x1788 at 00006FFFFFA3A9A4: once under ab135df + patch 0001 (run 43635612966), once under the d13ed5b
+# candidate (run 43640000754, 1/8), once in the nightly (l1+sample), never under stock so far. This runs clr.exe
+# many short times per FEX to compare rates: stock (FEX-2608), upstream ab135df with preserve_all off and no
+# patches (run 43637676703), and the d13ed5b candidate (run 43638597885). The first crash in each shard prints
+# Wine's crash dump (backtrace and modules). Nothing is published.
+
+on:
+  push:
+    branches: ['emu/winetest-bisect*']
+    paths:
+      - '.github/workflows/fex-clr-suspend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  HANGOVER_TAG: hangover-11.16
+  CLR_RUNS: '16'
+  CLR_SECONDS: '30'
+
+jobs:
+  programs:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - run: dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o bin/clr -v q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: suspend-programs
+          path: bin
+
+  run:
+    needs: programs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        fex: [stock, upnopa, cand]
+        shard: [1, 2, 3, 4]
+    name: run-${{ matrix.fex }}-${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: suspend-programs
+          path: ${{ runner.temp }}/bin
+      - uses: actions/download-artifact@v4
+        if: matrix.fex == 'cand'
+        with:
+          name: gate-candidate
+          path: ${{ runner.temp }}/cand
+          run-id: '43638597885'
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        if: matrix.fex == 'upnopa'
+        with:
+          name: up-fex-nopa
+          path: ${{ runner.temp }}/fex
+          run-id: '43637676703'
+          github-token: ${{ github.token }}
+      - name: Wine (Hangover ARM64EC)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
+      - name: This row's FEX
+        if: matrix.fex != 'stock'
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.fex }}" = cand ]; then
+            tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/cand/candidate.wcp"
+          else
+            tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/fex"
+          fi
+      - name: Run
+        shell: bash
+        run: |
+          set +e +o pipefail -u
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
+          export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
+          chmod -R +x "$RUNNER_TEMP/bin"
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"; bad=0 shown=0
+          for i in $(seq 1 "$CLR_RUNS"); do
+            STALL_S=60 tools/fex/winetest/run.sh "clr$i" "$out" "$CLR_SECONDS" "$RUNNER_TEMP/bin/clr/clr.exe" > "$out/clr$i.verdict" 2>&1
+            v=$(grep '^VERDICT ' "$out/clr$i.verdict")
+            f=$(grep -a 'SuspendThread\|Fatal\|Unhandled' "$out/clr$i.err" "$out/clr$i.out" 2>/dev/null | head -2 | tr '\n' ' ')
+            echo "$v ${f:+| $f}"
+            if ! echo "$v" | grep -q ' done '; then
+              bad=$((bad + 1))
+              if [ $shown = 0 ]; then
+                shown=1
+                echo "---- crash dump, clr$i"
+                for x in out err; do grep -a -A120 'Unhandled\|SuspendThread' "$out/clr$i.$x" | grep -av 'fixme' | head -160; done
+                [ -f "$out/clr$i.hang.txt" ] && grep -a -A80 '^-- winedbg' "$out/clr$i.hang.txt" | head -120
+                echo "----"
+              fi
+            fi
+            wineserver -k; sleep 1
+          done
+          echo "SUMMARY ${{ matrix.fex }} shard ${{ matrix.shard }} crashed $bad/$CLR_RUNS" | tee -a "$GITHUB_STEP_SUMMARY"
