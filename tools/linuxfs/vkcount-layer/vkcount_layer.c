@@ -13,6 +13,8 @@
  *            part, and the peak; and the BC-compressed images it holds, with the size they take once the
  *            libhybris compat layer decodes them for a GPU without BC support. Those decoded copies are
  *            allocated below this layer, so they are an estimate from each image's format and extent.
+ *            "bound" splits what the app has placed in that memory between images and buffers (each
+ *            object's memory requirement at bind time); live minus bound is allocator slack.
  * The present, acquire and wait times are time the CPU spent blocked on the GPU or the compositor;
  * the rest of the frame interval is CPU work. Counters are relaxed atomics; nothing is held per call.
  * With DROIDDECK_VKCOUNT_FILE set, the same lines are appended to that file too.
@@ -93,10 +95,18 @@ static int table_take(struct table *t, uint64_t handle, struct entry *out) {
     t->used--;
     return 1;
 }
-static struct table memory_table, image_table;
+static struct table memory_table, image_table, bound_table;
 static pthread_mutex_t mem_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t live_bytes, host_bytes, peak_bytes, live_allocations, untracked_allocations;
 static uint64_t bc_bytes, bc_decoded_bytes, bc_images;
+/* bound_table: extra is 1 for an image, 2 for a buffer. */
+static uint64_t bound_image_bytes, bound_images, bound_buffer_bytes, bound_buffers;
+static void unbind(uint64_t handle) { /* mem_lock held */
+    struct entry gone;
+    if (!table_take(&bound_table, handle, &gone)) return;
+    if (gone.extra == 1) { bound_image_bytes -= gone.bytes; bound_images--; }
+    else { bound_buffer_bytes -= gone.bytes; bound_buffers--; }
+}
 
 static uint64_t window_ns = 10000000000ull, window_start;
 static FILE *extra;
@@ -105,11 +115,13 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static void report(uint64_t now, const char *why) {
     uint64_t snapshot[C_COUNT];
     for (int i = 0; i < C_COUNT; i++) snapshot[i] = __atomic_exchange_n(&counters[i], 0, __ATOMIC_RELAXED);
-    struct { uint64_t live, host, peak, allocations, untracked, bc, bc_decoded, bc_images; } mem;
+    struct { uint64_t live, host, peak, allocations, untracked, bc, bc_decoded, bc_images, image, images, buffer,
+             buffers; } mem;
     pthread_mutex_lock(&mem_lock);
     mem.live = live_bytes; mem.host = host_bytes; mem.peak = peak_bytes; mem.allocations = live_allocations;
     mem.untracked = untracked_allocations; mem.bc = bc_bytes; mem.bc_decoded = bc_decoded_bytes;
     mem.bc_images = bc_images;
+    mem.image = bound_image_bytes; mem.images = bound_images; mem.buffer = bound_buffer_bytes; mem.buffers = bound_buffers;
     pthread_mutex_unlock(&mem_lock);
     double seconds = (double)(now - window_start) / 1e9;
     double frames = snapshot[C_frames] ? (double)snapshot[C_frames] : 1.0;
@@ -119,7 +131,8 @@ static void report(uint64_t now, const char *why) {
         "(%.0f indirect) %.1f dispatches %.0f pipeline-binds %.0f set-binds %.0f push-consts %.1f passes "
         "%.1f barriers %.1f copies | ms/frame: submit %.2f present %.2f acquire %.2f fence-wait %.2f idle %.2f "
         "| pipelines %llu in %.0f ms, allocations %llu | memory %.1f MB live (%.1f MB host-visible, peak %.1f MB) "
-        "in %llu allocations%s, BC textures %.1f MB -> %.1f MB decoded (%llu images)\n",
+        "in %llu allocations%s, bound %.1f MB in %llu images and %.1f MB in %llu buffers, "
+        "BC textures %.1f MB -> %.1f MB decoded (%llu images)\n",
         why, seconds, (unsigned long long)snapshot[C_frames], snapshot[C_frames] / (seconds > 0 ? seconds : 1),
         snapshot[C_submits] / frames, snapshot[C_command_buffers] / frames,
         (snapshot[C_draws] + snapshot[C_indirect_draws]) / frames, snapshot[C_indirect_draws] / frames,
@@ -130,6 +143,7 @@ static void report(uint64_t now, const char *why) {
         (unsigned long long)snapshot[C_pipelines], snapshot[C_pipeline_ns] / 1e6,
         (unsigned long long)snapshot[C_allocations], mem.live / 1048576.0, mem.host / 1048576.0,
         mem.peak / 1048576.0, (unsigned long long)mem.allocations, mem.untracked ? " (some untracked)" : "",
+        mem.image / 1048576.0, (unsigned long long)mem.images, mem.buffer / 1048576.0, (unsigned long long)mem.buffers,
         mem.bc / 1048576.0, mem.bc_decoded / 1048576.0, (unsigned long long)mem.bc_images);
     (void)counter_names;
     if (n <= 0) return;
@@ -153,7 +167,9 @@ static void frame_done(void) {
     X(DestroyDevice) X(QueueSubmit) X(QueueSubmit2) X(QueueSubmit2KHR) X(QueuePresentKHR) \
     X(AcquireNextImageKHR) X(AcquireNextImage2KHR) X(WaitForFences) X(QueueWaitIdle) X(DeviceWaitIdle) \
     X(CreateGraphicsPipelines) X(CreateComputePipelines) X(AllocateMemory) X(FreeMemory) X(CreateImage) \
-    X(DestroyImage) \
+    X(DestroyImage) X(DestroyBuffer) X(BindImageMemory) X(BindImageMemory2) X(BindImageMemory2KHR) \
+    X(BindBufferMemory) X(BindBufferMemory2) X(BindBufferMemory2KHR) X(GetImageMemoryRequirements) \
+    X(GetBufferMemoryRequirements) \
     X(CmdDraw) X(CmdDrawIndexed) X(CmdDrawIndirect) X(CmdDrawIndexedIndirect) X(CmdDrawIndirectCount) \
     X(CmdDrawIndexedIndirectCount) X(CmdDispatch) X(CmdDispatchIndirect) X(CmdBindPipeline) \
     X(CmdBindDescriptorSets) X(CmdPushConstants) X(CmdBeginRenderPass) X(CmdBeginRenderPass2) \
@@ -440,8 +456,75 @@ static void VKAPI_CALL destroy_image(VkDevice device, VkImage image, const VkAll
         bc_decoded_bytes -= gone.extra;
         bc_images--;
     }
+    unbind((uint64_t)image);
     pthread_mutex_unlock(&mem_lock);
     if (next_) next_(device, image, allocator);
+}
+static void VKAPI_CALL destroy_buffer(VkDevice device, VkBuffer buffer, const VkAllocationCallbacks *allocator) {
+    NEXT(device, DestroyBuffer);
+    pthread_mutex_lock(&mem_lock);
+    unbind((uint64_t)buffer);
+    pthread_mutex_unlock(&mem_lock);
+    if (next_) next_(device, buffer, allocator);
+}
+
+/* Binding records the object's memory requirement; the lookup runs before the bind, outside the lock. */
+static void bound(const struct device_data *d, uint64_t handle, int is_image) {
+    if (!d || !handle) return;
+    VkMemoryRequirements need = {0};
+    if (is_image && d->GetImageMemoryRequirements) d->GetImageMemoryRequirements(d->handle, (VkImage)handle, &need);
+    else if (!is_image && d->GetBufferMemoryRequirements)
+        d->GetBufferMemoryRequirements(d->handle, (VkBuffer)handle, &need);
+    else return;
+    pthread_mutex_lock(&mem_lock);
+    unbind(handle);
+    if (table_put(&bound_table, handle, need.size, is_image ? 1 : 2)) {
+        if (is_image) { bound_image_bytes += need.size; bound_images++; }
+        else { bound_buffer_bytes += need.size; bound_buffers++; }
+    } else {
+        untracked_allocations++;
+    }
+    pthread_mutex_unlock(&mem_lock);
+}
+static VkResult VKAPI_CALL bind_image(VkDevice device, VkImage image, VkDeviceMemory memory, VkDeviceSize offset) {
+    NEXT(device, BindImageMemory);
+    VkResult result = next_(device, image, memory, offset);
+    if (result == VK_SUCCESS) bound(d_, (uint64_t)image, 1);
+    return result;
+}
+static VkResult bind_images(const struct device_data *d, PFN_vkBindImageMemory2 next_, VkDevice device, uint32_t n,
+                            const VkBindImageMemoryInfo *infos) {
+    VkResult result = next_(device, n, infos);
+    if (result == VK_SUCCESS) for (uint32_t i = 0; i < n; i++) bound(d, (uint64_t)infos[i].image, 1);
+    return result;
+}
+static VkResult VKAPI_CALL bind_image2(VkDevice device, uint32_t n, const VkBindImageMemoryInfo *infos) {
+    NEXT(device, BindImageMemory2);
+    return bind_images(d_, next_, device, n, infos);
+}
+static VkResult VKAPI_CALL bind_image2_khr(VkDevice device, uint32_t n, const VkBindImageMemoryInfo *infos) {
+    NEXT(device, BindImageMemory2KHR);
+    return bind_images(d_, next_, device, n, infos);
+}
+static VkResult VKAPI_CALL bind_buffer(VkDevice device, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset) {
+    NEXT(device, BindBufferMemory);
+    VkResult result = next_(device, buffer, memory, offset);
+    if (result == VK_SUCCESS) bound(d_, (uint64_t)buffer, 0);
+    return result;
+}
+static VkResult bind_buffers(const struct device_data *d, PFN_vkBindBufferMemory2 next_, VkDevice device, uint32_t n,
+                             const VkBindBufferMemoryInfo *infos) {
+    VkResult result = next_(device, n, infos);
+    if (result == VK_SUCCESS) for (uint32_t i = 0; i < n; i++) bound(d, (uint64_t)infos[i].buffer, 0);
+    return result;
+}
+static VkResult VKAPI_CALL bind_buffer2(VkDevice device, uint32_t n, const VkBindBufferMemoryInfo *infos) {
+    NEXT(device, BindBufferMemory2);
+    return bind_buffers(d_, next_, device, n, infos);
+}
+static VkResult VKAPI_CALL bind_buffer2_khr(VkDevice device, uint32_t n, const VkBindBufferMemoryInfo *infos) {
+    NEXT(device, BindBufferMemory2KHR);
+    return bind_buffers(d_, next_, device, n, infos);
 }
 
 /* ---- counted commands ---- */
@@ -553,6 +636,13 @@ static const struct hook { const char *name; PFN_vkVoidFunction function; } devi
     {"vkFreeMemory", (PFN_vkVoidFunction)free_memory},
     {"vkCreateImage", (PFN_vkVoidFunction)create_image},
     {"vkDestroyImage", (PFN_vkVoidFunction)destroy_image},
+    {"vkDestroyBuffer", (PFN_vkVoidFunction)destroy_buffer},
+    {"vkBindImageMemory", (PFN_vkVoidFunction)bind_image},
+    {"vkBindImageMemory2", (PFN_vkVoidFunction)bind_image2},
+    {"vkBindImageMemory2KHR", (PFN_vkVoidFunction)bind_image2_khr},
+    {"vkBindBufferMemory", (PFN_vkVoidFunction)bind_buffer},
+    {"vkBindBufferMemory2", (PFN_vkVoidFunction)bind_buffer2},
+    {"vkBindBufferMemory2KHR", (PFN_vkVoidFunction)bind_buffer2_khr},
     {"vkCmdDraw", (PFN_vkVoidFunction)cmd_draw},
     {"vkCmdDrawIndexed", (PFN_vkVoidFunction)cmd_draw_indexed},
     {"vkCmdDrawIndirect", (PFN_vkVoidFunction)cmd_draw_indirect},
