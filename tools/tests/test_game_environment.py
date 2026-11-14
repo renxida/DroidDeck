@@ -1992,7 +1992,7 @@ class GameEnvironmentTest(unittest.TestCase):
             on = {"BL_DEBUG_DIR": tmp, "BL_GAME_LOGS": "1"}
             with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
                 result = game_logs(command, on, "2868840", now=0)
-            self.assertEqual(result["WINEDEBUG"], "+timestamp,+pid,+tid,+threadname,+loaddll")
+            self.assertEqual(result["WINEDEBUG"], "+timestamp,+pid,+tid,+threadname,+loaddll,fixme-ntdll")
             self.assertNotIn("unwind", result["WINEDEBUG"])
             self.assertIn("+seh,+unwind default stays off", err.getvalue())
             self.assertEqual(result["DROIDDECK_GAME_LOG_DIR"], result["PROTON_LOG_DIR"])
