@@ -82,6 +82,9 @@ case $status in
 esac
 echo "$label: $verdict after $((end - start)) s ($(cat "$out/$label.maps" 2>/dev/null | head -1))"
 echo "$label: last heartbeat: $(grep -a '^hb ' "$log" | tail -1)"
+# One machine-readable line for the gate: verdict, seconds, last ops count, seconds that made no progress.
+ops=$(grep -a '^hb ' "$log" | tail -1 | grep -oE 'ops=[0-9]+' | cut -d= -f2)
+echo "VERDICT $label $verdict $((end - start)) ${ops:-0} $(grep -ac 'STALLED' "$log")"
 grep -a -i "fex\|Sampler\|NameWindowsMemory\|TrimIdleThreads" "$err" | tail -10 || true
 for csv in "$out"/fex-*-samples.csv; do
   [ -f "$csv" ] || continue
@@ -89,7 +92,9 @@ for csv in "$out"/fex-*-samples.csv; do
   echo "$label: sampler top rows:"; grep -av ',meta,' "$csv" | head -15
 done
 if [ $status = 2 ]; then
-  echo "-- stdout tail"; tail -60 "$log"
-  echo "-- stderr tail (without display noise)"; grep -av 'wgl:\|winediag\|systray\|explorer' "$err" | tail -40
+  # The crash itself, before winedbg's process list and dbghelp's noise.
+  echo "-- crash (stdout)"; grep -a -m1 -A40 'Unhandled exception\|^Backtrace\|Exception\|Unhandled' "$log" || head -60 "$log"
+  echo "-- errors (stderr)"; grep -a 'err:\|seh:\|Unhandled\|exception\|EXCEPTION' "$err" | grep -av 'fixme\|dbghelp' | head -60
+  echo "-- stderr tail (without display noise)"; grep -av 'wgl:\|winediag\|systray\|explorer\|fixme:dbghelp' "$err" | tail -40
 fi
 exit $status

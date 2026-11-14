@@ -1,0 +1,201 @@
+name: FEX gate (Wine ARM64EC, off-device)
+
+# The check every Kestrel FEX build passes before it is published. It runs the same Windows x86-64 programs
+# under Hangover's Wine (ARM64EC) on an arm64 runner twice: once with Hangover's own FEX (stock) and once
+# with the candidate .wcp. It fails when:
+#   - the candidate's libarm64ecfex.dll imports anything but ntdll.dll, or libwow64fex.dll anything but
+#     ntdll.dll and wow64.dll (those load before kernelbase; any other import hangs or crashes process start);
+#   - a program hangs under the candidate (no heartbeat for 40 s; every thread's state and stack is dumped);
+#   - a program finishes under stock FEX but not under the candidate;
+#   - the candidate's throughput falls below MIN_THROUGHPUT of stock's on the same program, or it stalls
+#     (seconds with no progress) more than STALL_SLACK seconds beyond stock.
+# A program that fails under stock FEX too is reported, not failed on: that is the environment, not the build.
+#
+# Called by build-fex-arm64ec.yml with the .wcp it just built (wcp_artifact). Run by hand, or on a push to an
+# emu/winetest* branch, it tests the newest .wcp in the kestrel-fex release.
+
+on:
+  workflow_call:
+    inputs:
+      wcp_artifact:
+        description: 'Artifact in the calling run that holds the candidate Kestrel-FEXCore-*.wcp'
+        type: string
+        required: false
+        default: ''
+      seconds:
+        type: string
+        required: false
+        default: '120'
+  workflow_dispatch:
+    inputs:
+      wcp_name:
+        description: 'A .wcp in the kestrel-fex release (default: the newest)'
+        required: false
+        default: ''
+      seconds:
+        required: false
+        default: '120'
+  push:
+    branches: ['emu/winetest*']
+    paths:
+      - 'tools/fex/winetest/**'
+      - '.github/workflows/fex-wine-gate.yml'
+
+permissions:
+  contents: read
+
+env:
+  HANGOVER_TAG: hangover-11.16
+  LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
+  MIN_THROUGHPUT: '0.75'
+  STALL_SLACK: '3'
+
+jobs:
+  candidate:
+    name: Candidate .wcp and its imports
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        if: inputs.wcp_artifact != ''
+        with:
+          name: ${{ inputs.wcp_artifact }}
+          path: cand
+      - name: Newest released .wcp
+        if: inputs.wcp_artifact == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WANT: ${{ inputs.wcp_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p cand
+          name=${WANT:-$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/kestrel-fex" --jq '.assets[].name' | grep '\.wcp$' | sort -V | tail -1)}
+          echo "candidate $name"
+          gh release download kestrel-fex -R "$GITHUB_REPOSITORY" -p "$name" -D cand
+      - name: Imports
+        run: |
+          set -euo pipefail
+          wcp=$(find cand -name 'Kestrel-FEXCore-*.wcp' | head -1)
+          test -n "$wcp" || { echo "no Kestrel-FEXCore-*.wcp in the candidate" >&2; exit 1; }
+          echo "### Candidate: $(basename "$wcp")" >> "$GITHUB_STEP_SUMMARY"
+          curl -fsSL -o lm.tar.xz "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -xf lm.tar.xz
+          mkdir -p x && zstd -dc "$wcp" | tar -C x -xf -
+          bad=0
+          check() {
+            local f=$1 allowed=$2 imports
+            imports=$("$LLVM_MINGW/bin/llvm-readobj" --coff-imports "$f" | sed -n 's/^ *Name: //p' | sort -u | tr '\n' ' ')
+            echo "$(basename "$f") imports: $imports" | tee -a "$GITHUB_STEP_SUMMARY"
+            for i in $imports; do
+              case " $allowed " in *" $i "*) ;; *) echo "::error::$(basename "$f") imports $i; only $allowed may load before kernelbase"; bad=1 ;; esac
+            done
+          }
+          check "$(find x -path '*aarch64-windows/libarm64ecfex.dll' | head -1)" 'ntdll.dll'
+          w=$(find x -path '*aarch64-windows/libwow64fex.dll' | head -1)
+          [ -z "$w" ] || check "$w" 'ntdll.dll wow64.dll'
+          mkdir -p gate && cp "$wcp" gate/candidate.wcp
+          exit $bad
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-candidate
+          path: gate/candidate.wcp
+
+  programs:
+    name: Test programs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
+          mkdir -p bin
+          "$RUNNER_TEMP/$LLVM_MINGW/bin/x86_64-w64-mingw32-clang" -O2 -Wall -static -o bin/stress.exe tools/fex/winetest/stress.c
+          dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o bin/clr -v q
+          ls -la bin bin/clr/clr.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-programs
+          path: bin
+
+  run:
+    name: Run under ${{ matrix.fex }} FEX
+    needs: [candidate, programs]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        fex: [stock, candidate]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: gate-programs
+          path: ${{ runner.temp }}/bin
+      - uses: actions/download-artifact@v4
+        if: matrix.fex == 'candidate'
+        with:
+          name: gate-candidate
+          path: ${{ runner.temp }}/cand
+      - name: Wine (Hangover ARM64EC)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
+      - name: Candidate FEX
+        if: matrix.fex == 'candidate'
+        run: tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/cand/candidate.wcp"
+      - name: Run
+        env:
+          SECONDS_PER_RUN: ${{ inputs.seconds || '120' }}
+        run: |
+          set -uo pipefail
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mscoree,mshtml=" HODLL64=libarm64ecfex.dll
+          # The game's FEX settings (droiddeck-game-env). No experiment options: the gate tests the defaults.
+          export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
+          chmod -R +x "$RUNNER_TEMP/bin" || true
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          : > "$out/verdicts.txt"
+          for run in stress:stress.exe clr:clr/clr.exe stress2:stress.exe; do
+            label=${run%%:*} exe="$RUNNER_TEMP/bin/${run#*:}"
+            tools/fex/winetest/run.sh "$label" "$out" "$SECONDS_PER_RUN" "$exe" | tee "$out/$label.verdict" || true
+            grep '^VERDICT ' "$out/$label.verdict" >> "$out/verdicts.txt" || echo "VERDICT $label no-verdict 0 0 0" >> "$out/verdicts.txt"
+            wineserver -k || true
+            sleep 2
+          done
+          for f in "$out"/*.hang.txt; do [ -f "$f" ] && { echo "== $f"; head -700 "$f"; }; done
+          cp "$out/verdicts.txt" "$RUNNER_TEMP/verdicts-${{ matrix.fex }}.txt"
+          cat "$RUNNER_TEMP/verdicts-${{ matrix.fex }}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-verdicts-${{ matrix.fex }}
+          path: ${{ runner.temp }}/verdicts-${{ matrix.fex }}.txt
+
+  verdict:
+    name: Gate verdict
+    needs: run
+    if: always() && needs.run.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: gate-verdicts-*
+          merge-multiple: true
+          path: v
+      - name: Compare
+        shell: bash
+        run: python3 tools/fex/winetest/gate-verdict.py v/verdicts-stock.txt v/verdicts-candidate.txt "$MIN_THROUGHPUT" "$STALL_SLACK" | tee -a "$GITHUB_STEP_SUMMARY"
