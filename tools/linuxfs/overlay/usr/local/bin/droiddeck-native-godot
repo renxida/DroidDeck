@@ -441,9 +441,368 @@ def compose(game_dir, kit, engine, out, exe=None, steam=None):
     report = {"assembly": asm, "pack": find_pack(game_dir, exe), "engine": target, "data": data,
               "game_assemblies": taken, "patched": patched, "mixed_mode": mixed_refs, "steam_api": steam,
               "steam_api_missing": steam_missing, "skipped": skipped, "kit_files": len(kit_map)}
+    if r2r_on():
+        report["r2r"] = r2r_compose(data, win, taken, kit)
     with open(os.path.join(out, "native-launch.json"), "w") as f:
         json.dump(report, f, indent=1)
     return report
+
+
+# --- Experiment native-r2r (DROIDDECK_EXP_NATIVE_R2R=1): linux-arm64 ReadyToRun for the game's assemblies ---
+#
+# A Windows build's precompiled code is for Windows x64, which arm64 CoreCLR ignores, so it JITs every method
+# the game runs. With the experiment on, compose puts a cached linux-arm64 ReadyToRun image (crossgen2 output,
+# same IL and metadata) in place of each relabelled copy. What is not cached yet is compiled after the engine's first
+# frame by one detached, niced background job (crossgen2, 2 threads, one job at a time), for the next launch.
+# Each image is compiled on its own (per-assembly version bubble) against the kit's framework and the game's
+# other assemblies as references, so it stays valid while those only change within the runtime's major
+# version; the runtime JITs any method whose precompiled code it rejects. Nothing here may stop a launch: on
+# any failure the game runs on the JIT as before.
+#
+# Cache: R2R_CACHE/<tag>/<sha256 of the IL that crossgen2 compiles>.dll, plus a .json beside each image
+# written once it was checked (crossgen2 exit 0, a ReadyToRun header, Linux arm64 machine). <tag> names the
+# target and mode, the kit's .NET version (and component VERSION) and the crossgen2 version. compile.log
+# (one line per job) and compile.lock sit in R2R_CACHE.
+
+R2R_TARGET = "linux-arm64-single"
+R2R_THREADS = os.environ.get("DROIDDECK_NATIVE_R2R_THREADS", "2")
+R2R_TIMEOUT_S = 1200
+R2R_RUNTIME_MAJOR = 9
+CROSSGEN2_DEFAULT = "/usr/local/lib/droiddeck-crossgen2"
+LINUX_ARM64_R2R = ARM64 ^ 0x7B79  # a ReadyToRun image for Linux carries its machine XOR the OS's value (0xD11D)
+
+
+def r2r_on(env=os.environ):
+    return env.get("DROIDDECK_EXP_NATIVE_R2R") == "1"
+
+
+def r2r_cache(env=os.environ):
+    return env.get("DROIDDECK_NATIVE_R2R_CACHE") or os.path.join(CACHE, "r2r")
+
+
+def r2r_pristine_root(env=os.environ):
+    """Where droiddeck-dotnet-r2r (the Proton path) keeps the original IL of the files it swapped."""
+    return env.get("DROIDDECK_R2R_CACHE") or os.path.join(os.path.expanduser("~"), ".cache", "droiddeck-r2r")
+
+
+def find_crossgen2(env=os.environ):
+    """The crossgen2 binary named by DROIDDECK_CROSSGEN2 (the binary, or a folder holding it or its nuget
+    package's tools/), else the one the image ships; None if there is none."""
+    value = env.get("DROIDDECK_CROSSGEN2") or CROSSGEN2_DEFAULT
+    paths = [os.path.join(value, "crossgen2"), os.path.join(value, "tools", "crossgen2")] if os.path.isdir(value) else [value]
+    for path in paths:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
+
+
+def crossgen2_jit(binary):
+    """The code generator crossgen2 needs to emit arm64 code (beside it, as in the nuget package's tools/)."""
+    import platform
+    host = {"aarch64": "arm64", "arm64": "arm64", "x86_64": "x64", "amd64": "x64"}.get(platform.machine().lower(), "arm64")
+    return os.path.join(os.path.dirname(binary), f"libclrjit_universal_arm64_{host}.so")
+
+
+def crossgen2_version(binary, run=subprocess.run):
+    """'9.0.23' from `crossgen2 --version` ('9.0.23+<commit>'), or None."""
+    try:
+        out = run([binary, "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                  timeout=30).stdout.decode(errors="replace").strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    version = out.splitlines()[0].split("+")[0].strip() if out else ""
+    return version if version[:1].isdigit() else None
+
+
+def kit_runtime_version(kit):
+    """The version of the kit's Microsoft.NETCore.App (from its runtimeconfig, else its deps.json), or None."""
+    names = [kit_manifest(kit).get("runtimeconfig")] + sorted(n for n in os.listdir(kit) if n.endswith(".runtimeconfig.json"))
+    for name in filter(None, names):
+        try:
+            with open(os.path.join(kit, name)) as f:
+                options = json.load(f).get("runtimeOptions", {})
+            for fw in options.get("includedFrameworks") or options.get("frameworks") or [options.get("framework") or {}]:
+                if fw.get("name") == "Microsoft.NETCore.App" and fw.get("version"):
+                    return fw["version"]
+        except (OSError, ValueError, AttributeError):
+            continue
+    for name in sorted(n for n in os.listdir(kit) if n.endswith(".deps.json")):
+        try:
+            with open(os.path.join(kit, name)) as f:
+                targets = json.load(f).get("targets", {})
+            for target in targets.values():
+                for key in target:
+                    if key.startswith(("runtimepack.Microsoft.NETCore.App.Runtime", "Microsoft.NETCore.App.Runtime")):
+                        return key.split("/")[-1]
+        except (OSError, ValueError, AttributeError):
+            continue
+    return None
+
+
+def r2r_tag(kit, crossgen2):
+    """The cache folder name for images compiled by this crossgen2 version against this kit."""
+    tag = f"{R2R_TARGET}__fx{kit_runtime_version(kit)}"
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(kit)), "VERSION")) as f:
+            component = f.read().strip()[:12]
+        tag += f"-{component}" if component else ""
+    except OSError:
+        pass
+    return re.sub(r"[^A-Za-z0-9._+-]", "_", f"{tag}__cg{crossgen2}")
+
+
+def _sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def is_linux_arm64_r2r(data):
+    info = pe_info(data)
+    return bool(info and info["ready_to_run"] and info["machine"] == LINUX_ARM64_R2R)
+
+
+def r2r_cached(image):
+    """True when a cached image is there whole: its record exists and the file matches it."""
+    try:
+        with open(image[:-len(".dll")] + ".json") as f:
+            meta = json.load(f)
+        if os.path.getsize(image) != meta["size"]:
+            return False
+        with open(image, "rb") as f:
+            return is_linux_arm64_r2r(f.read())
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def r2r_pristine_manifest(root):
+    try:
+        with open(os.path.join(root, "manifest.json")) as f:
+            manifest = json.load(f)
+        return manifest if isinstance(manifest, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def crossgen2_input(data):
+    """The IL image crossgen2 is given for an assembly, or None for one it cannot compile (not managed,
+    mixed-mode). crossgen2 refuses an image that is already ReadyToRun, so a Windows build's R2R image has its
+    ReadyToRun header cleared and is marked IL-only (and relabelled arm64). This copy only ever goes to crossgen2;
+    the launch folder gets portable_image's plain-IL copy, which crossgen2 also accepts."""
+    info = pe_info(data)
+    if info is None:
+        return None
+    r2r = info["ready_to_run"] and info["vtable_fixups"] == (0, 0)
+    if not info["flags"] & ILONLY and not r2r:
+        return None
+    out = bytearray(data)
+    if info["machine"] == AMD64:
+        struct.pack_into("<H", out, info["machine_at"], ARM64)
+    flags = info["flags"]
+    if info["native_header"] != (0, 0):
+        struct.pack_into("<II", out, info["native_header_at"], 0, 0)
+        flags &= ~IL_LIBRARY
+    struct.pack_into("<I", out, info["flags_at"], flags | ILONLY)
+    return bytes(out)
+
+
+def r2r_input(src, manifest, root):
+    """(path the IL came from, the IL image crossgen2 compiles) for a game file, or (src, None) if there is none.
+
+    If droiddeck-dotnet-r2r swapped its own win-x64 image in there, its pristine original is used. Either way
+    crossgen2_input makes the copy crossgen2 takes."""
+    with open(src, "rb") as f:
+        data = f.read()
+    used = src
+    entry = manifest.get(os.path.realpath(src))
+    if isinstance(entry, dict) and entry.get("il") and _sha256(data) == entry.get("r2r"):
+        original = os.path.join(root, entry["il"] + ".il.dll")
+        try:
+            with open(original, "rb") as f:
+                pristine = f.read()
+            if _sha256(pristine) == entry["il"]:
+                data, used = pristine, original
+        except OSError:
+            pass
+    return used, crossgen2_input(data)
+
+
+def r2r_compose(data_dir, win, taken, kit, env=os.environ):
+    """Puts cached linux-arm64 ReadyToRun images in place of the game's composed assemblies. Returns what it
+    did and what is left to compile (r2r_after_first_frame starts that), or None if it could not look."""
+    try:
+        return _r2r_compose(data_dir, win, taken, kit, env)
+    except Exception as error:  # never stop a launch over this
+        log(f"native-r2r: cache lookup failed ({type(error).__name__}: {error}); running on the JIT")
+        return None
+
+
+def _r2r_compose(data_dir, win, taken, kit, env):
+    crossgen2 = find_crossgen2(env)
+    if not crossgen2:
+        log(f"native-r2r: no crossgen2 at {env.get('DROIDDECK_CROSSGEN2') or CROSSGEN2_DEFAULT}; running on the JIT")
+        return None
+    version, fx = crossgen2_version(crossgen2), kit_runtime_version(kit)
+    if not version or not fx or version.split(".")[0] != fx.split(".")[0] or fx.split(".")[0] != str(R2R_RUNTIME_MAJOR):
+        log(f"native-r2r: crossgen2 {version} does not fit the kit's .NET {fx}; running on the JIT")
+        return None
+    cache = r2r_cache(env)
+    tag = r2r_tag(kit, version)
+    folder = os.path.join(cache, tag)
+    root = r2r_pristine_root(env)
+    manifest = r2r_pristine_manifest(root)
+    cached, missing = [], []
+    for name in taken:
+        if not name.lower().endswith(".dll"):
+            continue
+        used, image = r2r_input(os.path.join(win, name), manifest, root)
+        if image is None:
+            continue
+        key = _sha256(image)
+        path = os.path.join(folder, key + ".dll")
+        if r2r_cached(path):
+            place(path, os.path.join(data_dir, name))
+            cached.append(name)
+        else:
+            missing.append({"name": name, "source": os.path.abspath(used), "key": key})
+    jit = crossgen2_jit(crossgen2)
+    can_compile = os.path.isfile(jit)
+    log(f"native-r2r: {len(cached)} of {len(cached) + len(missing)} game assemblies from the linux-arm64 "
+        f"ReadyToRun cache ({tag})"
+        + ("" if not missing else f"; {len(missing)} to compile after the first frame" if can_compile
+           else f"; cannot compile the other {len(missing)}: crossgen2 lacks {os.path.basename(jit)}"))
+    return {"tag": tag, "folder": folder, "cache": cache, "crossgen2": crossgen2, "pristine": root, "data": data_dir,
+            "cached": cached, "missing": missing, "can_compile": can_compile}
+
+
+def r2r_after_first_frame(report, env=os.environ):
+    """What watch() calls at the engine's first frame: start the background compile, if there is one to do."""
+    r2r = report.get("r2r") or {}
+    if not r2r.get("missing") or not r2r.get("can_compile"):
+        return None
+    return lambda: r2r_spawn(r2r, env)
+
+
+R2R_JOB = "import runpy, sys; sys.exit(runpy.run_path(sys.argv[1])['r2r_job'](sys.argv[2]))"
+
+
+def r2r_spawn(r2r, env=os.environ):
+    """Starts r2r_job detached (own session, output appended to compile.log); returns at once."""
+    try:
+        os.makedirs(r2r["cache"], exist_ok=True)
+        plan = os.path.join(r2r["cache"], f"plan-{os.getpid()}.json")
+        with open(plan, "w") as f:
+            json.dump(r2r, f)
+        logfile = os.path.join(r2r["cache"], "compile.log")
+        with open(logfile, "a") as out:
+            proc = subprocess.Popen([sys.executable, "-I", "-c", R2R_JOB, os.path.abspath(__file__), plan],
+                                    env=dict(env), stdin=subprocess.DEVNULL, stdout=out, stderr=out,
+                                    start_new_session=True, close_fds=True)
+        log(f"native-r2r: compiling {len(r2r['missing'])} assemblies in the background (pid {proc.pid}); log in {logfile}")
+        return proc
+    except Exception as error:
+        log(f"native-r2r: could not start the background compile ({type(error).__name__}: {error})")
+        return None
+
+
+def r2r_job(plan_path, run=subprocess.run, clock=time.monotonic):
+    """The background compile: every missing image in the plan, one crossgen2 run each, checked and cached.
+    Appends one result line to compile.log. Exit status 0 when nothing failed."""
+    import fcntl
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+    with open(plan_path) as f:
+        plan = json.load(f)
+    try:
+        os.unlink(plan_path)
+    except OSError:
+        pass
+    cache, folder, tag = plan["cache"], plan["folder"], plan["tag"]
+
+    def note(line):
+        with open(os.path.join(cache, "compile.log"), "a") as f:
+            f.write(time.strftime("%Y-%m-%dT%H:%M:%S ") + line + "\n")
+
+    os.makedirs(cache, exist_ok=True)
+    lock = open(os.path.join(cache, "compile.lock"), "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock.close()
+        note(f"native-r2r {tag}: another compile is running; nothing compiled")
+        return 0
+    work = tempfile.mkdtemp(prefix="job-", dir=cache)
+    compiled, failed, size_in, size_out = [], [], 0, 0
+    began = clock()
+    try:
+        # The next launch may rebuild the launch folder while this runs: compile against links to today's files.
+        refs = os.path.join(work, "refs")
+        os.makedirs(refs)
+        os.makedirs(folder, exist_ok=True)
+        for name in sorted(os.listdir(plan["data"])):
+            path = os.path.join(plan["data"], name)
+            if name.lower().endswith(".dll") and is_managed(path):
+                place(path, os.path.join(refs, name))
+        references = sorted(os.listdir(refs))
+        manifest = r2r_pristine_manifest(plan["pristine"])
+        for item in plan["missing"]:
+            name, key = item["name"], item["key"]
+            image = os.path.join(folder, key + ".dll")
+            if r2r_cached(image):
+                continue
+            try:
+                _, il = r2r_input(item["source"], manifest, plan["pristine"])
+            except OSError:
+                il = None
+            if il is None or _sha256(il) != key:
+                failed.append(f"{name} (changed since the launch)")
+                continue
+            source, output = os.path.join(work, "in-" + name), os.path.join(work, "out-" + name)
+            with open(source, "wb") as f:
+                f.write(il)
+            cmd = ([plan["crossgen2"], source, "-o", output, "--targetos", "linux", "--targetarch", "arm64", "-O",
+                    "--parallelism", R2R_THREADS]
+                   + [arg for ref in references if ref.lower() != name.lower() for arg in ("-r", os.path.join(refs, ref))])
+            try:
+                result = run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             timeout=R2R_TIMEOUT_S)
+                code, lines = result.returncode, (result.stdout or b"").decode(errors="replace").strip().splitlines()
+            except (OSError, subprocess.SubprocessError) as error:
+                code, lines = None, [f"{type(error).__name__}: {error}"]
+            out = b""
+            if code == 0 and os.path.isfile(output):
+                with open(output, "rb") as f:
+                    out = f.read()
+            if code == 0 and is_linux_arm64_r2r(out):
+                os.chmod(output, 0o444)
+                os.replace(output, image)
+                record = image[:-len(".dll")] + ".json"
+                with open(record + ".tmp", "w") as f:
+                    json.dump({"name": name, "size": len(out), "sha256": _sha256(out), "il_size": len(il),
+                               "source": item["source"], "tag": tag}, f)
+                os.replace(record + ".tmp", record)
+                compiled.append(name)
+                size_in += len(il)
+                size_out += len(out)
+            else:
+                errors = [line.strip() for line in lines if line.lstrip().startswith("Error")] or lines[-1:]
+                why = ("; ".join(errors[:3]) if code != 0 else "no output" if not out
+                       else "output is not a Linux arm64 ReadyToRun image")
+                failed.append(f"{name} (exit {code}: {why})")
+        if compiled:  # a new kit or compiler: images for the old one are no longer looked up
+            for other in os.listdir(cache):
+                if other.startswith(R2R_TARGET + "__") and other != tag:
+                    shutil.rmtree(os.path.join(cache, other), ignore_errors=True)
+        note(f"native-r2r {tag}: compiled {len(compiled)} of {len(plan['missing'])} "
+             f"({size_in / 2**20:.1f} MB IL -> {size_out / 2**20:.1f} MB) in {clock() - began:.0f} s"
+             + (f"; failed {len(failed)}: " + ", ".join(failed) if failed else ""))
+    except Exception as error:
+        note(f"native-r2r {tag}: compile stopped ({type(error).__name__}: {error}) after {clock() - began:.0f} s")
+        failed.append(str(error))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+        lock.close()
+    return 1 if failed else 0
 
 
 def without_x86_preloads(env):
@@ -485,10 +844,12 @@ def line_buffered(cmd, which=shutil.which):
     return [stdbuf, "-oL", "-eL"] + list(cmd) if stdbuf else list(cmd)
 
 
-def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.monotonic, forward_signals=False):
+def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.monotonic, forward_signals=False,
+          on_first_frame=None):
     """Runs the engine in its own process group, passing its output through; returns its exit code, or
     DID_NOT_START if no frame-rate line came within first_frame_s or before it exited. With forward_signals,
-    SIGTERM/SIGINT/SIGHUP to this wrapper stop the engine too."""
+    SIGTERM/SIGINT/SIGHUP to this wrapper stop the engine too. on_first_frame, if given, is called once at the
+    first frame (its errors are logged, never raised)."""
     proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             start_new_session=True, preexec_fn=die_with_parent)
     began = clock()
@@ -519,6 +880,11 @@ def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.mono
             if not seen.is_set():
                 seen.set()
                 log(f"first frame after {now - began:.1f} s")
+                if on_first_frame:
+                    try:
+                        on_first_frame()
+                    except Exception as error:
+                        log(f"after the first frame: {type(error).__name__}: {error}")
             elif last_fps is not None and now - last_fps < FPS_EVERY_S:
                 continue
             last_fps = now
@@ -709,7 +1075,8 @@ def main(argv=None):
     cmd = [r["engine"], "--main-pack", r["pack"], "--print-fps"] + rest
     log("run " + " ".join(cmd))
     os.chdir(os.path.abspath(a.game_dir))
-    return watch(line_buffered(cmd), engine_env(os.environ), forward_signals=True)
+    return watch(line_buffered(cmd), engine_env(os.environ), forward_signals=True,
+                 on_first_frame=r2r_after_first_frame(r))
 
 
 if __name__ == "__main__":
