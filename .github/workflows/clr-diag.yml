@@ -1,0 +1,59 @@
+name: clr under Wine diag (throwaway)
+
+on:
+  push:
+    branches: ['emu/winetest-clr*']
+
+permissions:
+  contents: read
+
+env:
+  HANGOVER_TAG: hangover-11.16
+
+jobs:
+  diag:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build
+        run: |
+          dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o "$RUNNER_TEMP/clr" -v q
+          ls "$RUNNER_TEMP/clr" | wc -l
+          ls -la "$RUNNER_TEMP/clr/System.Runtime.dll" "$RUNNER_TEMP/clr/clr.exe" "$RUNNER_TEMP/clr/coreclr.dll"
+          python3 - "$RUNNER_TEMP/clr/System.Runtime.dll" "$RUNNER_TEMP/clr/System.Private.CoreLib.dll" <<'PY'
+          import struct, sys
+          for p in sys.argv[1:]:
+              d = open(p, "rb").read()
+              pe = struct.unpack_from("<I", d, 0x3C)[0]
+              machine, nsec = struct.unpack_from("<HH", d, pe + 4)
+              opt = pe + 24
+              magic = struct.unpack_from("<H", d, opt)[0]
+              dirs = opt + (112 if magic == 0x20B else 96)
+              clr_rva, clr_size = struct.unpack_from("<II", d, dirs + 8 * 14)
+              print(p.split("/")[-1], "machine %#x" % machine, "cor20 rva %#x size %d" % (clr_rva, clr_size))
+          PY
+      - name: Wine
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
+      - name: Variants
+        run: |
+          set -uo pipefail
+          export WINEPREFIX="$RUNNER_TEMP/pfx" HODLL64=libarm64ecfex.dll
+          v() {
+            echo "=== $1"
+            ( eval "$2"; timeout 60 wine "$RUNNER_TEMP/clr/clr.exe" 5 ) > out.txt 2> err.txt
+            echo "exit $?"; tail -3 out.txt; grep -av '^[0-9a-f]*:fixme' err.txt | grep -aE 'Exception|Could not|err:module|loaddll.*System.Runtime|System.Runtime' | head -12
+            wineserver -k; sleep 2
+          }
+          v mscoree-off 'export WINEDEBUG=-all,err+module WINEDLLOVERRIDES="mscoree,mshtml="'
+          v mscoree-on 'export WINEDEBUG=-all,err+module WINEDLLOVERRIDES="mshtml="'
+          v r2r-off 'export WINEDEBUG=-all,err+module WINEDLLOVERRIDES="mscoree,mshtml=" DOTNET_ReadyToRun=0'
+          v loaddll 'export WINEDEBUG=-all,+loaddll,err+module WINEDLLOVERRIDES="mscoree,mshtml="'
+          v cd-dir 'cd "$RUNNER_TEMP/clr"; export WINEDEBUG=-all WINEDLLOVERRIDES="mscoree,mshtml="'
