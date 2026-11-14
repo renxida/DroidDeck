@@ -70,6 +70,36 @@ jobs:
           mkdir -p rootfs/bench/jit rootfs/bench/r2r && cp bench-bin/* rootfs/bench/ && cp bench-bin/* rootfs/bench/jit/
           cp bench-r2r-x64/* rootfs/bench/r2r/
           ls rootfs/opt/dotnet/shared/Microsoft.NETCore.App
+      - name: What the fex-sample profiler costs a sampled thread (patch 0007's own handler, native)
+        run: |
+          set -euo pipefail
+          g++ -std=gnu++20 -O2 -Wall -Ifex-ec/src/Source/Windows/UnixLib -o sampler-overhead \
+            tools/fex/bench/sampler/overhead.cpp -lrt -pthread
+          # Four busy threads, about 2 s each; every rate five times, interleaved so drift hits all alike.
+          for r in 1 2 3 4 5; do
+            for hz in 0 250 500 1000; do
+              ./sampler-overhead $hz 4 1000000000 | sed "s/^/sampler,run=$r,/"
+            done
+          done | tee sampler.txt
+          python3 - sampler.txt <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import sys, statistics, collections
+          rows = collections.defaultdict(list)
+          for line in open(sys.argv[1]):
+              f = line.strip().split(",")
+              if f[0] == "sampler":
+                  rows[int(f[2])].append(f[3:])
+          base = statistics.median(float(r[1]) for r in rows[0])
+          print("### fex-sample overhead (4 busy threads, median of 5)\n")
+          print("| asked Hz | work ms | vs off | samples/s/thread | handler ns/sample | reader us/s |\n|---|---|---|---|---|---|")
+          for hz in sorted(rows):
+              r = rows[hz]
+              ms = statistics.median(float(x[1]) for x in r)
+              n = statistics.median(float(x[2]) for x in r)
+              ns = statistics.median(float(x[5]) for x in r)
+              dr = statistics.median(float(x[6]) for x in r)
+              print("| %d | %.0f | %+.2f%% | %.0f | %.0f | %.0f |" % (hz, ms, 100 * (ms / base - 1), n / 4 / (ms / 1000), ns, dr / (ms / 1000)))
+          PY
+          mkdir -p bench-out && cp sampler.txt bench-out/
       - name: What x87 instructions cost under FEX (full vs reduced precision)
         env:
           FEX_BIN: ${{ github.workspace }}/fex-linux/Bin
@@ -85,6 +115,7 @@ jobs:
               done
             done
           } | tee x87.txt
+          mkdir -p bench-out && cp x87.txt bench-out/
           python3 - x87.txt <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import sys, statistics, collections
           rows = collections.defaultdict(list)

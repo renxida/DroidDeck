@@ -309,6 +309,33 @@ the bench, so the phone may still fill 64 MB once; `code_buffer_full` in `fex.cs
 
 App: experiment `fex-code-buffer` on `perf/emu-fex` sets `FEX_INITIALCODEBUFFERMB=64`; off by default.
 
+### Where the game's own threads spend their time: fex-sample (round 12)
+
+The counters say how much time goes to translation, SMC and softfloat, but not which guest code is hot on the
+phone. Patch 0007 adds `SampleHz` (experiment `fex-sample`, `FEX_SAMPLEHZ=250`, off by default):
+
+- Each emulated thread gets a `CLOCK_THREAD_CPUTIME_ID` timer that sends it SIGPROF, so a thread is sampled in
+  proportion to the CPU it actually uses. The unixlib handler stores the interrupted PC and the thread's
+  `InlineJITBlockHeader` and `rip` in a lock-free ring. It makes no system call.
+- A FEX-internal thread drains the ring every 100 ms. When the PC is inside the current block,
+  `Context::DecodeSampledRIP` walks the block's RIP entries to the exact guest instruction. Otherwise the sample is
+  `fex` (FEX itself), `native` (an ARM64EC or Wine DLL), `jit-other` or `host`, with the guest location of the
+  block the thread last entered.
+- Addresses are named by module, offset and nearest export, read from the PE export table. There is no PDB lookup.
+- Once a minute it appends to `/dev/shm/fex-<pid>-samples.csv`:
+  - the 8 busiest threads;
+  - the busiest thread's top 200 places;
+  - the other threads' top 50;
+  - its own cost.
+- The app copies these rows into `fex-samples.csv` in the telemetry zip.
+- Posix CPU timers fire on the kernel tick, so a thread gets at most `CONFIG_HZ` samples per second (250 on the CI
+  runner) whatever rate is asked. 250 is the right setting.
+- The cost is measured natively on the CI runner with the same handler (`tools/fex/bench/sampler`), in the bench's
+  summary. On an x86 dev box the handler took about 0.4 µs a sample, which is about 0.01% of a thread at 250 Hz
+  before signal delivery. Total cost there was within run-to-run noise.
+
+Memory: a 2.5 MB ring, plus the decode cache, which is cleared every minute.
+
 ## Ranked next fixes (in FEX)
 
 0. **ReadyToRun for the game's assemblies** (.NET workstream, `dotnet-r2r`): new-content hitches 9.3 → 1.5 ms and
