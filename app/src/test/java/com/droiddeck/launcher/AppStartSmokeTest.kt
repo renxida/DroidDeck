@@ -2,6 +2,7 @@ package com.droiddeck.launcher
 
 import android.content.Intent
 import android.os.Looper
+import android.view.Choreographer
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.ObserverHandle
 import androidx.compose.runtime.snapshots.Snapshot
@@ -11,6 +12,7 @@ import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.ContinuationInterceptor
 import org.junit.After
@@ -34,6 +36,7 @@ class AppStartSmokeTest {
     private var threadsBefore: Set<Thread> = emptySet()
     private val backgroundWrites = ConcurrentHashMap<String, String>()
     private var writeObserver: ObserverHandle? = null
+    @Volatile private var launcherChoreographer: Any? = null
 
     @Before fun setUp() {
         SessionState.running = false
@@ -58,6 +61,9 @@ class AppStartSmokeTest {
     }
 
     @After fun tearDown() {
+        // Robolectric clears the main looper after each test; a frame still scheduled then is lost while the shared
+        // Choreographer keeps believing one is coming, so it never schedules another and later Compose tests never lay out.
+        runCatching { finishFrames() }
         writeObserver?.dispose()
         Thread.setDefaultUncaughtExceptionHandler(previousHandler)
         SessionState.running = false
@@ -143,9 +149,49 @@ class AppStartSmokeTest {
         ours.forEach { it.interrupt() }
         ours.forEach { it.join(1_000) }
         shadowOf(Looper.getMainLooper()).idle()
+        finishFrames()?.let { problems += "the main thread's Choreographer still has frame work after destroy: $it" }
         assertNoUncaughtExceptions()
         watchForComposeHangs()
         if (problems.isNotEmpty()) fail(problems.joinToString("\n") + "\n" + uiDispatcherState() + "\n" + report)
+    }
+
+    /**
+     * Run the frames the destroyed launcher left scheduled (a frame is due one vsync later, so idle() alone never runs
+     * it). Returns what is still scheduled after a few frames, which means something keeps asking for frames after destroy.
+     */
+    private fun finishFrames(): String? {
+        val looper = shadowOf(Looper.getMainLooper())
+        repeat(FRAMES_TO_SETTLE) {
+            if (choreographerWork(Choreographer.getInstance()) == null) return null
+            looper.idleFor(Duration.ofMillis(FRAME_MS))
+        }
+        return choreographerWork(Choreographer.getInstance())
+    }
+
+    // Pending Choreographer work, naming each queued callback; null when no frame is scheduled and nothing is queued.
+    private fun choreographerWork(choreographer: Any?): String? {
+        if (choreographer == null) return null
+        return runCatching {
+            fun field(owner: Any, name: String): Any? {
+                var type: Class<*>? = owner.javaClass
+                while (type != null) {
+                    runCatching { return type!!.getDeclaredField(name).apply { isAccessible = true }.get(owner) }
+                    type = type!!.superclass
+                }
+                error("no field $name on ${owner.javaClass.name}")
+            }
+            val scheduled = field(choreographer, "mFrameScheduled") as Boolean
+            val callbacks = (field(choreographer, "mCallbackQueues") as Array<*>).flatMapIndexed { type, queue ->
+                val out = mutableListOf<String>()
+                var record = queue?.let { field(it, "mHead") }
+                while (record != null && out.size < 20) {
+                    out += "type $type ${field(record, "action")?.javaClass?.name}"
+                    record = field(record, "next")
+                }
+                out
+            }
+            if (!scheduled && callbacks.isEmpty()) null else "frameScheduled=$scheduled callbacks=$callbacks"
+        }.getOrElse { System.err.println("AppStartSmokeTest: Choreographer state unreadable: $it"); null }
     }
 
     private fun composeApplyProblem(): String? {
@@ -166,6 +212,7 @@ class AppStartSmokeTest {
      */
     private fun watchForComposeHangs() {
         val main = Looper.getMainLooper().thread
+        launcherChoreographer = Choreographer.getInstance()
         fun spinning() = main.stackTrace.any { it.className.contains("IdlingStrategy") }
         Thread({
             val end = System.currentTimeMillis() + HANG_WATCH_MS
@@ -188,8 +235,16 @@ class AppStartSmokeTest {
                 }.entries.joinToString("\n") { (t, stack) ->
                     "  \"${t.name}\" ${t.state}\n" + stack.take(25).joinToString("\n") { "      at $it" }
                 }
+                val frames = runCatching {
+                    val dispatcher = AndroidUiDispatcher.Main[ContinuationInterceptor]!!
+                    val choreographer = dispatcher.javaClass.getDeclaredField("choreographer").apply { isAccessible = true }.get(dispatcher)
+                    "Compose's Choreographer: ${choreographerWork(choreographer) ?: "idle"} (same instance as the launcher's: ${choreographer === launcherChoreographer})"
+                }.getOrElse { "(Compose's Choreographer unreadable: $it)" }
                 System.err.println("AppStartSmokeTest hang watch: main thread \"${main.name}\" has spun in Compose's idling loop " +
-                    "for 30s+.\n  main samples:\n$samples\n  other threads:\n$others")
+                    "for 30s+.\n  ${uiDispatcherState()}\n  $frames\n  global snapshot has pending changes: " +
+                    "${runCatching { Snapshot.current.hasPendingChanges() }.getOrElse { it.toString() }}\n" +
+                    "  main looper holds:\n${pendingMainMessages().joinToString("\n") { "    $it" }}\n" +
+                    "  main samples:\n$samples\n  other threads:\n$others")
             }
         }, "smoke-test-hang-watch").apply { isDaemon = true; start() }
     }
@@ -224,5 +279,7 @@ class AppStartSmokeTest {
         const val STARTUP_WORK_SECONDS = 20L
         const val SETTLE_MS = 2_000L
         const val HANG_WATCH_MS = 20 * 60_000L
+        const val FRAMES_TO_SETTLE = 12
+        const val FRAME_MS = 17L
     }
 }
