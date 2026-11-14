@@ -140,12 +140,17 @@ class SessionService : Service() {
         override fun onDisplayChanged(displayId: Int) {
             if (displayId == sessionDisplayId && displayId != Display.DEFAULT_DISPLAY) refreshScreenOn()
             if (displayId == activityDisplayId) {
-                resumeSteamSleepOnReturn()
+                // Refresh-rate and brightness changes land here too: only a display that came back on wakes Steam,
+                // or each change replays a sleep/wake pair to it (46 while Steam was starting, Nov 14).
+                val on = activityDisplayOn()
+                if (on && activityDisplayWasOn == false) resumeSteamSleepOnReturn()
+                activityDisplayWasOn = on
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
             }
         }
     }
+    private var activityDisplayWasOn: Boolean? = null
 
     private fun readScreenOn(interactive: Boolean? = null): Boolean {
         val id = sessionDisplayId
