@@ -270,7 +270,7 @@ jobs:
           mkdir -p out/windows
           timeout 900 "$GODOT" --headless --path . --export-release windows out/windows/NativeBench.exe > export-win.log 2>&1 || echo "export exit $?"
           test -d out/windows/data_NativeBench_windows_x86_64 || { tail -40 export-win.log; exit 1; }
-          ls -la out/windows/data_NativeBench_windows_x86_64 | head -20
+          echo "$(ls out/windows/data_NativeBench_windows_x86_64 | wc -l) files in the Windows data folder"
       - name: First frame and JIT counts, JIT only vs our linux-arm64 ReadyToRun
         working-directory: tools/native-engine/bench
         run: |
