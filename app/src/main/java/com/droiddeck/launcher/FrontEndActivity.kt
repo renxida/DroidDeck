@@ -1228,6 +1228,7 @@ class FrontEndActivity : ComponentActivity() {
                     ),
                     page = page,
                 )
+                com.droiddeck.launcher.ui.SelfUpdateBar()
                 showNonAdreno?.let { release ->
                     ConfirmDialog(
                         title = androidx.compose.ui.res.stringResource(R.string.main_non_adreno_title),
@@ -1429,6 +1430,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onPause() {
         compatLaunchVisible = false
+        com.droiddeck.launcher.update.SelfUpdate.onFrontPaused()
         if (android.os.Build.VERSION.SDK_INT >= 29) com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, true)
         super.onPause()
     }
@@ -1436,6 +1438,7 @@ class FrontEndActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (!SessionState.running) com.droiddeck.launcher.telemetry.RemoteConfig.refreshAsync(this)
+        com.droiddeck.launcher.update.SelfUpdate.onFrontResumed(this)
         integrationState = readIntegration()
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
         compatLaunchVisible = true

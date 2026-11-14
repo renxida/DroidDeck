@@ -112,6 +112,8 @@ android {
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
+        // Read back from a downloaded APK by the self-updater; the prefixes keep aapt from storing them as numbers.
+        manifestPlaceholders = [kestrelCommit: "sha:${sourceCommit}".toString(), kestrelCommitTime: "t:${commitTime}".toString()]
         buildConfigField "String", "SGDB_API_KEY", "\"${System.getenv("SGDB_API_KEY") ?: project.findProperty("sgdbApiKey") ?: ""}\""
         addonPacks.each { name, pack ->
             buildConfigField "String", "PACK_${name.toUpperCase()}_SHA256", "\"${pack.sha256}\""
