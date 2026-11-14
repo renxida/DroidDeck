@@ -35,8 +35,18 @@ internal object Sts2Pad {
     private const val KEYBOARD_X_DP = 34f
     private const val KEYBOARD_Y_DP = 86f
     private const val KEYBOARD_RADIUS_DP = 18f
-    /** Tallest row of the tiled d-pad and A / B / Y; the rows are as wide as the strip beside the picture. */
+    /** Tallest row of the tiled d-pad and A / B / Y. */
     private const val ROW_DP = 72f
+    /**
+     * Where a thumb rests, from the screen's side: the line between Left and Right (X and B). The strip beside the picture
+     * is only about 15 mm wide on a phone, so pads that ended at the picture made the thumb pull back to reach them
+     * ("thumb retracted, cramped", Nov 14); the pads now reach over the picture's edge to put this line under the thumb.
+     */
+    private const val SPLIT_DP = 110f
+    /** Width of the inner half of the middle row (Right, X), past [SPLIT_DP]; Up and Down span both halves. */
+    private const val CELL_DP = 84f
+    /** The tiles over the picture let it show through; touches on them still go to the buttons only. */
+    private const val TILE_OPACITY = .55f
     /** Narrowest strip, and shortest row, the d-pad and A / B / Y are tiled in; below either they are circles. */
     private const val MIN_STRIP_DP = 56f
     private const val MIN_ROW_DP = 48f
@@ -61,13 +71,14 @@ internal object Sts2Pad {
 
     private val stock by lazy { elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY) }
     /**
-     * Where earlier pads put the d-pad and A / B / Y, which had no X: low circles near the piles, then raised circles, then
-     * tiles. Kept to recognise a pad saved untouched from then.
+     * Where earlier pads put the d-pad and A / B / Y: low circles near the piles, then raised circles, then tiles only as
+     * wide as the strip beside the picture (first without X, then with it). Kept to recognise a pad saved untouched from then.
      */
     private val earlierStocks by lazy { listOf(
         elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, raised = false, tiled = false, x = false),
         elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, tiled = false, x = false),
-        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, x = false)) }
+        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, x = false, wide = false),
+        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, wide = false)) }
     private val X_ID = "legacy:${InputControl.X.id}"
 
     /** The earlier stock pads, oldest first, for tests of the upgrade. */
@@ -102,14 +113,15 @@ internal object Sts2Pad {
         return stored.map { e ->
             if (untouched(e)) fresh.getValue(e.id).let {
                 e.copy(x = it.x, y = it.y, width = it.width, height = it.height,
-                    buttonShape = if (e.buttonShape == reference.getValue(e.id).buttonShape) it.buttonShape else e.buttonShape)
+                    buttonShape = if (e.buttonShape == reference.getValue(e.id).buttonShape) it.buttonShape else e.buttonShape,
+                    opacity = if (e.opacity == reference.getValue(e.id).opacity) it.opacity else e.opacity)
             } else moved.getValue(e.id)
         }
     }
 
     /**
-     * Moves the d-pad and A / B / Y of a saved pad that still has them where an earlier pad put them (low circles, raised
-     * circles, tiles without X) to the gapless tiles they are now, shape included, and adds X, which earlier pads lacked
+     * Moves the d-pad and A / B / Y (and X) of a saved pad that still has them where an earlier pad put them (low circles,
+     * raised circles, strip-wide tiles) to the gapless tiles they are now, shape and opacity included, and adds X where missing
      * (the game opens the potions with it); buttons the person moved, and every other button, are left as they are.
      */
     fun raiseThumbs(layout: SavedInputLayout): SavedInputLayout {
@@ -120,7 +132,8 @@ internal object Sts2Pad {
             abs(a.width - b.width) <= TOLERANCE && abs(a.height - b.height) <= TOLERANCE
         val moved = layout.elements.map { e ->
             if (e.id !in THUMB_IDS || earlier.none { before -> before[e.id]?.let { same(it, e) } == true }) return@map e
-            now.getValue(e.id).let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height, buttonShape = it.buttonShape) }
+            now.getValue(e.id).let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height, buttonShape = it.buttonShape,
+                opacity = it.opacity) }
         }
         val elements = if (moved.any { it.id == X_ID }) moved else {
             val at = moved.indexOfFirst { it.id == "legacy:${InputControl.Y.id}" }.let { if (it < 0) moved.size else it + 1 }
@@ -133,7 +146,7 @@ internal object Sts2Pad {
         elements(width, height, density, top, bottom, raised = true, tiled = true)
 
     private fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0, raised: Boolean = true,
-        tiled: Boolean = true, x: Boolean = true): List<InputSurfaceElement> {
+        tiled: Boolean = true, x: Boolean = true, wide: Boolean = true): List<InputSurfaceElement> {
         val face = if (x) FACE else FACE.filterNot { it.first == InputControl.X }
         val w = width.toFloat()
         val h = height.toFloat()
@@ -177,16 +190,54 @@ internal object Sts2Pad {
             cy = cy.coerceAtLeast(top + edge + spread + radius)
             return buttons.map { (control, offset) -> control to Box(cx + offset.first * spread, cy + offset.second * spread, 2 * radius, 2 * radius) }
         }
-        val tiles = if (tiled) tiles(w, h, density, top, bottom, pictureX, pictureW, keyboardBox.bottom + gap, x) else null
+        val tiles = if (!tiled) null else if (!wide) tiles(w, h, density, top, bottom, pictureX, pictureW, keyboardBox.bottom + gap, x)
+            else wideTiles(w, h, density, top, bottom, pictureX, keyboardBox.bottom + gap, x) { from, to ->
+                // The lowest the pads may reach where they cover [from, to]: above the game's buttons in the lower half.
+                hud.map { it.second }.filter { it.cy > h / 2f && it.left < to && from < it.right }.minOfOrNull { it.top - gap } ?: Float.MAX_VALUE
+            }
         val thumbs = tiles ?: (cluster(DPAD, leftX) + cluster(face, rightX))
         val thumbShape = if (tiles != null) InputButtonShape.RECTANGLE else InputButtonShape.CIRCLE
+        val thumbOpacity = if (tiles != null && wide) TILE_OPACITY else 1f
         fun element(control: InputControl, b: Box, id: String = "legacy:${control.id}", name: String = control.label,
             shape: InputButtonShape = InputButtonShape.CIRCLE, opacity: Float = 1f, icon: Int = 0) =
             InputSurfaceElement(control, b.left / w, b.top / h, b.width / w, b.height / h, id, name = name, floating = false,
                 icon = icon, opacity = opacity, buttonShape = shape).bounded()
         val keyboard = element(InputControl.A, keyboardBox, KEYBOARD, "Keyboard", icon = InputButtonIcons.KEYBOARD)
-        return thumbs.map { (control, b) -> element(control, b, shape = thumbShape) } +
+        return thumbs.map { (control, b) -> element(control, b, shape = thumbShape, opacity = thumbOpacity) } +
             hud.map { (s, b) -> element(s.control, b, s.id, s.name, s.shape, HUD_OPACITY) } + keyboard
+    }
+
+    /**
+     * The d-pad and A / B / Y as big gapless rectangles from each side of the screen to past the picture's edge, so the
+     * thumb rests on the line between Left | Right (X | B) at [SPLIT_DP]: Up, Left | Right, Down on the left and Y, X | B,
+     * A on the right, three equal rows level on both sides, below the keyboard key and above the game's lower buttons
+     * ([floor] gives the lowest edge the pads may reach over a span of x). Null where the picture fills the width (no
+     * strip beside it), or the rows would be too short; the pad then uses circles.
+     */
+    private fun wideTiles(w: Float, h: Float, density: Float, top: Int, bottom: Int, pictureX: Float, below: Float, x: Boolean,
+        floor: (Float, Float) -> Float): List<Pair<InputControl, Box>>? {
+        if (pictureX < MIN_STRIP_DP * density) return null
+        val split = max(pictureX, SPLIT_DP * density)
+        val reach = min(split + CELL_DP * density, w / 2f)
+        val spanTop = max(below, top.toFloat())
+        val spanBottom = minOf(h - bottom - EDGE_DP * density, floor(0f, reach), floor(w - reach, w))
+        val row = min(ROW_DP * density, (spanBottom - spanTop) / 3f)
+        if (row < MIN_ROW_DP * density) return null
+        val centre = top + (h - top - bottom) * REST
+        val first = (centre - 1.5f * row).coerceIn(spanTop, spanBottom - 3 * row)
+        fun rowY(i: Int) = first + (i + .5f) * row
+        val inner = reach - split
+        val face = if (x) listOf(
+            InputControl.X to Box(w - split - inner / 2f, rowY(1), inner, row),
+            InputControl.B to Box(w - split / 2f, rowY(1), split, row))
+        else listOf(InputControl.B to Box(w - reach / 2f, rowY(1), reach, row))
+        return listOf(
+            InputControl.UP to Box(reach / 2f, rowY(0), reach, row),
+            InputControl.RIGHT to Box(split + inner / 2f, rowY(1), inner, row),
+            InputControl.DOWN to Box(reach / 2f, rowY(2), reach, row),
+            InputControl.LEFT to Box(split / 2f, rowY(1), split, row),
+            InputControl.Y to Box(w - reach / 2f, rowY(0), reach, row)) + face +
+            (InputControl.A to Box(w - reach / 2f, rowY(2), reach, row))
     }
 
     /**
