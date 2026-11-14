@@ -688,6 +688,21 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             self.assertEqual(env["VK_INSTANCE_LAYERS"],
                              "VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat")
             self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+            # frame_cap ran first and paced presents: counting keeps its reports on, pacing alone loads the layer quiet
+            env = dict(base, DROIDDECK_EXP_VK_COUNT="1", DROIDDECK_PACE_FPS="30", DROIDDECK_VKCOUNT_SECONDS="0")
+            self.assertIn("counting", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertNotIn("DROIDDECK_VKCOUNT_SECONDS", env)
+            env = dict(base, DROIDDECK_PACE_FPS="30")
+            self.assertIn("present pacing", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"].split(":")[0], "VK_LAYER_DROIDDECK_vkcount")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+            self.assertEqual(env["DROIDDECK_VKCOUNT_SECONDS"], "0")
+            self.assertNotIn("DROIDDECK_VK_BLOCK_MB", env)
+            env = dict(base, DROIDDECK_EXP_VK_BLOCKS_64="1")
+            self.assertIn("capped at 64 MB", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["DROIDDECK_VK_BLOCK_MB"], "64")
+            self.assertEqual(env["DROIDDECK_VKCOUNT_SECONDS"], "0")
+            self.assertEqual(env["VK_INSTANCE_LAYERS"].count("VK_LAYER_DROIDDECK_vkcount"), 1)
 
     def test_hybris_index_swaps_in_its_compat_layer_only_when_on_and_installed(self):
         with tempfile.TemporaryDirectory() as tmp:

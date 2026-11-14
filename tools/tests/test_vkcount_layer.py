@@ -64,7 +64,29 @@ class VkCountLayerTest(unittest.TestCase):
                          "memory 8.0 MB live", "peak 12.0 MB", "in 1 allocations,", "bound 1.0 MB in 1 images and 0.0 MB in 2 buffers",
                          "BC textures 1.0 MB -> 4.0 MB decoded (1 images)"):
                 self.assertIn(part, line)
+            self.assertNotIn("blocks capped", line)
             self.assertIn(line, ran.stderr)
+
+    @unittest.skipUnless(LAVAPIPE and Path("/usr/include/vulkan/vulkan.h").is_file(),
+                         "lavapipe (mesa-vulkan-drivers) not installed")
+    def test_block_cap_refuses_plain_power_of_two_blocks_above_it(self):
+        with tempfile.TemporaryDirectory(prefix="droiddeck-vkcount-") as tmp:
+            compiler, include, layer_dir, _ = self.build(tmp)
+            program = Path(tmp) / "vkcount-test"
+            built = subprocess.run([compiler, "-O1", "-I", str(include), str(Path(__file__).with_name("vkcount_layer_test.c")),
+                                    "-lvulkan", "-o", str(program)], capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            log = Path(tmp) / "vkcount.log"
+            env = dict(os.environ, VK_ICD_FILENAMES=str(LAVAPIPE), VK_LAYER_PATH=str(layer_dir),
+                       VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vkcount", DROIDDECK_VKCOUNT_FILE=str(log),
+                       DROIDDECK_VKCOUNT_SECONDS="3600", NODEVICE_SELECT="1", DROIDDECK_VK_BLOCK_MB="8",
+                       VKCOUNT_TEST_BLOCKS="1")
+            ran = subprocess.run([str(program)], env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+            self.assertIn("blocks ok", ran.stdout)
+            line = log.read_text().splitlines()[0]
+            for part in ("memory 8.0 MB live", "peak 20.0 MB", "blocks capped at 8 MB (1 bigger refused)"):
+                self.assertIn(part, line)
 
     @unittest.skipUnless(LAVAPIPE and Path("/usr/include/vulkan/vulkan.h").is_file(),
                          "lavapipe (mesa-vulkan-drivers) not installed")

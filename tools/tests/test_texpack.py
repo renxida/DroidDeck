@@ -202,6 +202,37 @@ class TexpackTest(unittest.TestCase):
         self.assertEqual(1_700_000_000_000_000_000, os.stat(self.pck).st_mtime_ns)
         self.assertIsNone(self.state())
 
+    def test_park_puts_the_original_textures_on_and_keeps_the_build_for_the_next_launch(self):
+        self.assertEqual(0, self.run_tool("build"))
+        self.assertEqual(0, self.run_tool("prepare"))
+        active = self.pck.read_bytes()
+        self.assertEqual(0, self.run_tool("park"))
+        parked = self.pck.read_bytes()
+        self.assertEqual(self.original[:40], parked[:40], "the original directory is back")
+        self.assertEqual(active[40:], parked[40:], "the build stays appended")
+        self.assertEqual(dict(self.entries), read_pack(self.pck))
+        self.assertEqual("appended", self.mod["classify"](self.pck, self.state()))
+        self.assertEqual("built", self.state()["phase"])
+        self.assertEqual(0, self.run_tool("park"), "parking twice changes nothing")
+        self.assertEqual(parked, self.pck.read_bytes())
+        started = []
+        self.mod["main"].__globals__["start_build"] = lambda pack, args, popen=None: started.append(1)
+        self.assertEqual(0, self.run_tool("prepare"))
+        self.assertEqual([], started, "no rebuild")
+        self.assertEqual(active, self.pck.read_bytes())
+        self.assertEqual("active", self.mod["classify"](self.pck, self.state()))
+
+    def test_park_without_a_finished_build_reverts(self):
+        state = self.mod["fresh_state"](self.pck, self.mod["variant_of"](
+            type("A", (), {"half_above": 0, "effort": 10.0})()))
+        state["phase"] = "building"
+        self.mod["save_state"](self.pck, state)
+        with open(self.pck, "ab") as f:
+            f.write(b"half a texture")
+        self.assertEqual(0, self.run_tool("park"))
+        self.assertEqual(self.original, self.pck.read_bytes())
+        self.assertIsNone(self.state())
+
     def test_half_above_halves_big_textures_but_keeps_their_logical_size(self):
         self.assertEqual(0, self.run_tool("build", "--half-above", "32"))
         self.assertEqual(0, self.run_tool("prepare", "--half-above", "32"))
@@ -292,7 +323,7 @@ class GameEnvTextureTest(unittest.TestCase):
         self.assertEqual([], self.calls)
         (self.state_dir / "abc.json").write_text("{}")
         self.env_mod["texture_pack"]("/g/Game.exe", {}, run=self.run_)
-        self.assertEqual([["revert", "--game-dir", "/g"]], self.calls)
+        self.assertEqual([["park", "--game-dir", "/g"]], self.calls)
 
 
 class ConverterOutputTest(unittest.TestCase):

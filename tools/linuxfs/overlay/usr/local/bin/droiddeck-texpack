@@ -11,7 +11,10 @@ original size. Nothing leaves the device and no other file is touched.
 
     prepare  before a launch (game-env, experiment tex-astc): switch a finished build on, undo a stale one, and
              start a build in the background when there is none
-    revert   undo (the experiment is off, or a launch with the textures went wrong)
+    park     the experiment is off: the original directory goes back on, but a finished build stays appended, so
+             the next tex-astc launch switches it on again without a rebuild (a config change turned the
+             experiment off on Nov 14 and the next launch threw a 1573-texture build away)
+    revert   undo to the original bytes (a launch with the textures went wrong, or by hand)
     build    the background work: convert, append, write the new directory (not switched until the next launch)
     status   print the state
 
@@ -321,6 +324,36 @@ def revert(pack):
     return "original textures restored" if ok else "undo did not take; pack left alone"
 
 
+def park(pack):
+    """Original textures for this launch, keeping a finished build on disk for the next tex-astc launch; anything
+    else (no finished build, a pack Steam changed) is reverted as before."""
+    state = load_state(pack)
+    if not state:
+        return "no texture changes to undo"
+    if build_running(pack):
+        return "texture build running; undo on the next launch"
+    where = classify(pack, state)
+    if where == "active":
+        set_dir_offset(pack, state["original_dir_offset"])
+        mtime = state.get("original_mtime_ns")
+        if mtime:
+            try:
+                os.utime(pack, ns=(mtime, mtime))
+            except OSError:
+                pass
+        where = classify(pack, state)
+        if where != "appended":
+            return revert(pack)
+        state["phase"] = "built"
+        state.pop("activated_at", None)
+        save_state(pack, state)
+    if where == "appended" and state.get("phase") == "built":
+        write_report(state, {"parked": True})
+        kept = (os.stat(pack).st_size - state["original_size"]) / 1e6
+        return "original textures this launch; the ASTC build is kept (%.0f MB) for the next tex-astc launch" % kept
+    return revert(pack)
+
+
 def build(pack, args, run=subprocess.Popen):
     lock = state_path(pack).with_suffix(".pid")
     STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -444,7 +477,7 @@ def _build(pack, args, run):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=("prepare", "revert", "build", "status"))
+    parser.add_argument("command", choices=("prepare", "park", "revert", "build", "status"))
     parser.add_argument("--game-dir")
     parser.add_argument("--pack")
     parser.add_argument("--half-above", type=int, default=0)
@@ -462,6 +495,9 @@ def main(argv=None):
         return 0
     if args.command == "revert":
         say(PREFIX + " " + revert(pack))
+        return 0
+    if args.command == "park":
+        say(PREFIX + " " + park(pack))
         return 0
     if args.command == "build":
         return build(pack, args)
