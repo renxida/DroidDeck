@@ -527,9 +527,136 @@ def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.mono
     return rc if rc >= 0 else 128 - rc
 
 
+CHECK_DIR = os.path.join(CACHE, "check")
+
+
+def game_fingerprint(game_dir):
+    """sha256 over the names, sizes and mtimes of the files in the game's data_<asm>_windows_x86_64 folder:
+    changes when Steam updates the game's managed code."""
+    _, win = windows_data_dir(game_dir)
+    digest = hashlib.sha256()
+    for name in sorted(os.listdir(win)):
+        try:
+            st = os.stat(os.path.join(win, name))
+        except OSError:
+            continue
+        if os.path.isfile(os.path.join(win, name)):
+            digest.update(f"{name}\0{st.st_size}\0{st.st_mtime_ns}\n".encode())
+    return digest.hexdigest()
+
+
+def tool_fingerprint():
+    """sha256 of this script: a check made by an older converter says nothing about this one."""
+    try:
+        with open(os.path.abspath(__file__), "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except (NameError, OSError):
+        return None
+
+
+def check_name(game_dir, name=None):
+    return name or windows_data_dir(game_dir)[0]
+
+
+def check_path(game_dir, name=None, check_dir=CHECK_DIR):
+    return os.path.join(check_dir, check_name(game_dir, name) + ".json")
+
+
+def loadable_shape(path):
+    """None when the launch folder's copy of an assembly is something arm64 .NET will load, else why not."""
+    try:
+        with open(path, "rb") as f:
+            info = pe_info(f.read())
+    except OSError as error:
+        return f"unreadable ({error.strerror})"
+    if info is None:
+        return "not a .NET assembly"
+    if info["machine"] == AMD64:
+        return "still labelled x64"
+    if not info["flags"] & ILONLY and not info["ready_to_run"]:
+        return "mixed-mode (native code, no ReadyToRun header)"
+    return None
+
+
+def check(game_dir, kit, engine, out, exe=None, steam=None, component_tag=None, name=None, check_dir=CHECK_DIR):
+    """Composes the launch folder and checks it is one the engine can start: the game's own assembly is there,
+    every game assembly is loadable-shaped, deps.json and runtimeconfig.json are written, the engine is in
+    place. Writes the verdict, the component tag and the game's fingerprint to <check_dir>/<name>.json. Left-out
+    mixed-mode helpers do not fail it (only a load that reaches them fails, which the run's watchdog catches)."""
+    game_dir = os.path.abspath(game_dir)
+    asm = check_name(game_dir)
+    name = check_name(game_dir, name)
+    reasons, rejected, report = [], [], None
+    try:
+        report = compose(game_dir, kit, engine, out, exe, steam)
+    except SystemExit as error:
+        reasons.append(f"compose stopped: {error}")
+        rejected = [str(error).split(":", 1)[0]] if ":" in str(error) else []
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+        reasons.append(f"compose failed: {type(error).__name__}: {error}")
+        rejected = [str(error).split(":", 1)[0]] if isinstance(error, ValueError) and ":" in str(error) else []
+    if report:
+        data = report["data"]
+        main_dll = f"{asm}.dll"
+        if not any(n.lower() == main_dll.lower() for n in report["game_assemblies"]):
+            reasons.append(f"{main_dll} missing from the launch folder")
+            rejected.append(main_dll)
+        for n in report["game_assemblies"]:
+            if not n.lower().endswith((".dll", ".exe")):
+                continue
+            why = loadable_shape(os.path.join(data, n))
+            if why:
+                reasons.append(f"{n}: {why}")
+                rejected.append(n)
+        for n in (f"{asm}.deps.json", f"{asm}.runtimeconfig.json"):
+            path = os.path.join(data, n)
+            try:
+                with open(path) as f:
+                    json.load(f)
+            except (OSError, ValueError):
+                reasons.append(f"{n} not written")
+        if not (os.path.isfile(report["engine"]) and os.access(report["engine"], os.X_OK)):
+            reasons.append("engine not in place")
+    result = {"result": "fail" if reasons else "pass", "name": name, "assembly": asm, "game_dir": game_dir,
+              "fingerprint": game_fingerprint(game_dir), "component": component_tag, "tool": tool_fingerprint(),
+              "reasons": reasons, "rejected": rejected, "checked_at": int(time.time())}
+    if report:
+        result.update(game_assemblies=len(report["game_assemblies"]), patched=len(report["patched"]),
+                      left_out=report["mixed_mode"])
+    os.makedirs(check_dir, exist_ok=True)
+    path = os.path.join(check_dir, name + ".json")
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(result, f, indent=1)
+    os.replace(tmp, path)
+    log(f"check {result['result']} {name} (component {component_tag}): "
+        + ("; ".join(reasons) if reasons else
+           f"{result['game_assemblies']} game files loadable, {result['patched']} relabelled"
+           + (f", left out {', '.join(report['mixed_mode'])}" if report["mixed_mode"] else ""))
+        + f" -> {path}")
+    return result
+
+
+def fresh_check(game_dir, component_tag=None, name=None, check_dir=CHECK_DIR):
+    """The stored check result for this game if it still applies (same game files, component and converter),
+    else None."""
+    component_tag = component_tag or COMPONENT["tag"]
+    try:
+        with open(check_path(game_dir, name, check_dir)) as f:
+            result = json.load(f)
+        fingerprint = game_fingerprint(game_dir)
+    except (OSError, ValueError, SystemExit):
+        return None
+    if (result.get("fingerprint") != fingerprint or result.get("component") != component_tag
+            or result.get("tool") != tool_fingerprint() or result.get("result") not in ("pass", "fail")):
+        return None
+    return result
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("command", choices=("compose", "run"))
+    ap.add_argument("command", choices=("compose", "run", "check"))
+    ap.add_argument("--name", help="check: the result's name under ~/.cache/droiddeck/native/check (default: the game's assembly)")
     ap.add_argument("--game-dir", required=True)
     ap.add_argument("--fetch", action="store_true", help="use the pinned published component")
     ap.add_argument("--component")
@@ -561,6 +688,9 @@ def main(argv=None):
         ap.error("give --fetch, --component, or --kit and --engine")
     os.makedirs(a.out, exist_ok=True)
     steam = a.steam_api or (steam_api() if a.fetch else None)
+    if a.command == "check":
+        tag = COMPONENT["tag"] if a.fetch else (os.path.basename(os.path.normpath(component)) if component else "custom")
+        return 0 if check(a.game_dir, kit, engine, a.out, a.exe, steam, tag, a.name)["result"] == "pass" else 1
     r = compose(a.game_dir, kit, engine, a.out, a.exe, steam)
     log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
         f"{r['kit_files']} kit files, skipped {len(r['skipped'])}"
