@@ -55,15 +55,20 @@ internal object Sts2Pad {
         Spot("legacy:start", InputControl.START, .972f, .036f, .07f),
     )
     private val DPAD = listOf(InputControl.UP to (0f to -1f), InputControl.RIGHT to (1f to 0f), InputControl.DOWN to (0f to 1f), InputControl.LEFT to (-1f to 0f))
-    private val FACE = listOf(InputControl.Y to (0f to -1f), InputControl.B to (1f to 0f), InputControl.A to (0f to 1f))
+    private val FACE = listOf(InputControl.Y to (0f to -1f), InputControl.X to (-1f to 0f), InputControl.B to (1f to 0f), InputControl.A to (0f to 1f))
     val THUMB_IDS = (DPAD + FACE).map { "legacy:${it.first.id}" }.toSet()
     val HUD_IDS = HUD.map { it.id }.toSet()
 
     private val stock by lazy { elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY) }
-    /** Where earlier pads put the d-pad and A / B / Y: low circles near the piles, then raised circles. Kept to recognise a pad saved untouched from then. */
+    /**
+     * Where earlier pads put the d-pad and A / B / Y, which had no X: low circles near the piles, then raised circles, then
+     * tiles. Kept to recognise a pad saved untouched from then.
+     */
     private val earlierStocks by lazy { listOf(
-        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, raised = false, tiled = false),
-        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, tiled = false)) }
+        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, raised = false, tiled = false, x = false),
+        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, tiled = false, x = false),
+        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, x = false)) }
+    private val X_ID = "legacy:${InputControl.X.id}"
 
     /** The earlier stock pads, oldest first, for tests of the upgrade. */
     internal fun earlier(): List<List<InputSurfaceElement>> = earlierStocks
@@ -103,9 +108,9 @@ internal object Sts2Pad {
     }
 
     /**
-     * Moves the d-pad and A / B / Y of a saved pad that still has them where an earlier pad put them (low circles, then
-     * raised circles) to the gapless tiles they are now, shape included; buttons the person moved, and every other
-     * button, are left as they are.
+     * Moves the d-pad and A / B / Y of a saved pad that still has them where an earlier pad put them (low circles, raised
+     * circles, tiles without X) to the gapless tiles they are now, shape included, and adds X, which earlier pads lacked
+     * (the game opens the potions with it); buttons the person moved, and every other button, are left as they are.
      */
     fun raiseThumbs(layout: SavedInputLayout): SavedInputLayout {
         if (!owns(layout)) return layout
@@ -113,9 +118,13 @@ internal object Sts2Pad {
         val now = stock.associateBy { it.id }
         fun same(a: InputSurfaceElement, b: InputSurfaceElement) = abs(a.x - b.x) <= TOLERANCE && abs(a.y - b.y) <= TOLERANCE &&
             abs(a.width - b.width) <= TOLERANCE && abs(a.height - b.height) <= TOLERANCE
-        val elements = layout.elements.map { e ->
+        val moved = layout.elements.map { e ->
             if (e.id !in THUMB_IDS || earlier.none { before -> before[e.id]?.let { same(it, e) } == true }) return@map e
             now.getValue(e.id).let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height, buttonShape = it.buttonShape) }
+        }
+        val elements = if (moved.any { it.id == X_ID }) moved else {
+            val at = moved.indexOfFirst { it.id == "legacy:${InputControl.Y.id}" }.let { if (it < 0) moved.size else it + 1 }
+            moved.take(at) + now.getValue(X_ID) + moved.drop(at)
         }
         return if (elements == layout.elements) layout else layout.copy(elements = elements)
     }
@@ -124,7 +133,8 @@ internal object Sts2Pad {
         elements(width, height, density, top, bottom, raised = true, tiled = true)
 
     private fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0, raised: Boolean = true,
-        tiled: Boolean = true): List<InputSurfaceElement> {
+        tiled: Boolean = true, x: Boolean = true): List<InputSurfaceElement> {
+        val face = if (x) FACE else FACE.filterNot { it.first == InputControl.X }
         val w = width.toFloat()
         val h = height.toFloat()
         val pictureW = min(w, h * PICTURE_ASPECT)
@@ -156,7 +166,7 @@ internal object Sts2Pad {
         val rightX = w - edge - spread - radius
         // Both clusters start level, low enough to clear whatever is at the top on either side.
         val rest = if (raised) top + (h - top - bottom) * REST else (h - bottom) * LOW_REST
-        val start = if (raised) max(belowTop(DPAD, leftX, rest), belowTop(FACE, rightX, rest)) else rest
+        val start = if (raised) max(belowTop(DPAD, leftX, rest), belowTop(face, rightX, rest)) else rest
         fun cluster(buttons: List<Pair<InputControl, Pair<Float, Float>>>, cx: Float): List<Pair<InputControl, Box>> {
             var cy = start
             for ((_, offset) in buttons) {
@@ -167,8 +177,8 @@ internal object Sts2Pad {
             cy = cy.coerceAtLeast(top + edge + spread + radius)
             return buttons.map { (control, offset) -> control to Box(cx + offset.first * spread, cy + offset.second * spread, 2 * radius, 2 * radius) }
         }
-        val tiles = if (tiled) tiles(w, h, density, top, bottom, pictureX, pictureW, keyboardBox.bottom + gap) else null
-        val thumbs = tiles ?: (cluster(DPAD, leftX) + cluster(FACE, rightX))
+        val tiles = if (tiled) tiles(w, h, density, top, bottom, pictureX, pictureW, keyboardBox.bottom + gap, x) else null
+        val thumbs = tiles ?: (cluster(DPAD, leftX) + cluster(face, rightX))
         val thumbShape = if (tiles != null) InputButtonShape.RECTANGLE else InputButtonShape.CIRCLE
         fun element(control: InputControl, b: Box, id: String = "legacy:${control.id}", name: String = control.label,
             shape: InputButtonShape = InputButtonShape.CIRCLE, opacity: Float = 1f, icon: Int = 0) =
@@ -181,11 +191,11 @@ internal object Sts2Pad {
 
     /**
      * The d-pad and A / B / Y as big rectangles filling the strips beside the picture edge to edge, with no gap between them
-     * for a thumb to slip through to the game: Up, Left | Right, Down on the left and Y, B, A on the right, in rows as wide
+     * for a thumb to slip through to the game: Up, Left | Right, Down on the left and Y, X | B, A on the right, in rows as wide
      * as the strip. Null when the strips are too narrow or short for that; the pad then uses circles.
      */
     private fun tiles(w: Float, h: Float, density: Float, top: Int, bottom: Int, pictureX: Float, pictureW: Float,
-        below: Float): List<Pair<InputControl, Box>>? {
+        below: Float, x: Boolean = true): List<Pair<InputControl, Box>>? {
         val bar = pictureX
         if (bar < MIN_STRIP_DP * density) return null
         val spanTop = max(below, top.toFloat())
@@ -197,13 +207,16 @@ internal object Sts2Pad {
         fun rowY(i: Int) = first + (i + .5f) * row
         val right = pictureX + pictureW
         val rightW = w - right
+        val face = if (x) listOf(
+            InputControl.X to Box(right + rightW / 4f, rowY(1), rightW / 2f, row),
+            InputControl.B to Box(right + rightW * 3f / 4f, rowY(1), rightW / 2f, row))
+        else listOf(InputControl.B to Box(right + rightW / 2f, rowY(1), rightW, row))
         return listOf(
             InputControl.UP to Box(bar / 2f, rowY(0), bar, row),
             InputControl.LEFT to Box(bar / 4f, rowY(1), bar / 2f, row),
             InputControl.RIGHT to Box(bar * 3f / 4f, rowY(1), bar / 2f, row),
             InputControl.DOWN to Box(bar / 2f, rowY(2), bar, row),
-            InputControl.Y to Box(right + rightW / 2f, rowY(0), rightW, row),
-            InputControl.B to Box(right + rightW / 2f, rowY(1), rightW, row),
-            InputControl.A to Box(right + rightW / 2f, rowY(2), rightW, row))
+            InputControl.Y to Box(right + rightW / 2f, rowY(0), rightW, row)) + face +
+            (InputControl.A to Box(right + rightW / 2f, rowY(2), rightW, row))
     }
 }
