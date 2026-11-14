@@ -25,7 +25,8 @@ on:
       - '.github/workflows/native-engine-build.yml'
 
 permissions:
-  contents: write  # only the publish step uses it
+  contents: write  # only the publish job uses it
+  actions: read    # the gate downloads this run's component artifact
 
 env:
   GODOT_VER: 4.5.1-stable
@@ -254,20 +255,12 @@ jobs:
           tar --owner=0 --group=0 -c . | zstd -q -19 -T0 -o "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
           ls -la "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
           sha256sum "$GITHUB_WORKSPACE/out/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Publish the component (manual run with publish=true only)
-        if: github.event_name == 'workflow_dispatch' && inputs.publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          tag="native-engine-${GITHUB_RUN_NUMBER}"
-          sha=$(sha256sum out/native-engine.tar.zst | cut -d' ' -f1)
-          printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, no Steam stand-in.\nCommit %s. sha256 %s\nNo game files.\n' \
-            "$(cat out/component/kit/*.runtimeconfig.json | python3 -c 'import json,sys; print([f.get("version") for f in json.load(sys.stdin)["runtimeOptions"].get("includedFrameworks",[])])')" \
-            "$GITHUB_SHA" "$sha" > notes.txt
-          gh release create "$tag" out/native-engine.tar.zst -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "$tag" --notes-file notes.txt --prerelease
-          echo "COMPONENT tag=$tag sha256=$sha url=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-engine-component
+          path: out/native-engine.tar.zst
+          if-no-files-found: error
+          retention-days: 30
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -281,3 +274,38 @@ jobs:
             tools/native-engine/skeltest/out/*.png
             tools/native-engine/skeltest/skel.log
           if-no-files-found: warn
+
+  # The startup gate runs the stand-in Windows game through droiddeck-native-godot on the component this run
+  # built, so a component whose stand-in never reaches a first frame cannot be published.
+  gate:
+    needs: template
+    uses: ./.github/workflows/native-startup-gate.yml
+    with:
+      component_artifact: native-engine-component
+
+  publish:
+    needs: [template, gate]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-engine-component
+          path: out
+      - name: Publish the component
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/component && zstd -dc out/native-engine.tar.zst | tar -C out/component -x --wildcards './kit/*.runtimeconfig.json'
+          tag="native-engine-${GITHUB_RUN_NUMBER}"
+          sha=$(sha256sum out/native-engine.tar.zst | cut -d' ' -f1)
+          printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, no Steam stand-in.\nCommit %s. sha256 %s\nNo game files.\n' \
+            "$(cat out/component/kit/*.runtimeconfig.json | python3 -c 'import json,sys; print([f.get("version") for f in json.load(sys.stdin)["runtimeOptions"].get("includedFrameworks",[])])')" \
+            "$GITHUB_SHA" "$sha" > notes.txt
+          gh release create "$tag" out/native-engine.tar.zst -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$tag" --notes-file notes.txt --prerelease
+          echo "COMPONENT tag=$tag sha256=$sha url=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"

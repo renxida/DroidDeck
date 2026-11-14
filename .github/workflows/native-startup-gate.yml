@@ -12,6 +12,9 @@ name: Native startup gate (stand-in game through droiddeck-native-godot)
 # Reusable: `uses: ./.github/workflows/native-startup-gate.yml` with
 #   component: "pinned" (default: the wrapper's COMPONENT, via --fetch) or a release tag on this repository
 #              (e.g. native-engine-40), downloaded from its public release asset and passed as --component.
+#   component_artifact: name of an artifact of the calling run holding native-engine.tar.zst (the build the
+#              caller is about to publish); when set it is gated instead of `component`. With
+#              component_run_id (manual runs) it is taken from that run instead.
 #   soak:      true to also run the soak (non-blocking).
 # It consumes the wrapper from the checkout and the published component; no APK, no game files.
 
@@ -22,6 +25,10 @@ on:
         description: '"pinned" (the wrapper''s COMPONENT) or a native-engine-N release tag on this repository'
         type: string
         default: pinned
+      component_artifact:
+        description: Artifact of the calling run with native-engine.tar.zst; gated instead of component when set
+        type: string
+        default: ''
       soak:
         description: Also run the long soak (non-blocking)
         type: boolean
@@ -32,6 +39,14 @@ on:
         description: '"pinned" or a native-engine-N release tag'
         type: string
         default: pinned
+      component_artifact:
+        description: Artifact with native-engine.tar.zst (from component_run_id); gated instead of component
+        type: string
+        default: ''
+      component_run_id:
+        description: Run that made component_artifact (empty for this run)
+        type: string
+        default: ''
       soak:
         description: Also run the long soak (non-blocking)
         type: boolean
@@ -51,6 +66,7 @@ on:
 
 permissions:
   contents: read
+  actions: read  # component_artifact from another run
 
 env:
   GODOT_VER: 4.5.1-stable
@@ -171,10 +187,17 @@ jobs:
           git fetch --no-tags --depth 1 origin "$sha"
           git show "$sha:$WRAPPER" > "$RUNNER_TEMP/old-converter"
           sed -n '/^def portable_image/,/^def /p' "$RUNNER_TEMP/old-converter" | grep -nE 'raise|pack_into'
+      - uses: actions/download-artifact@v4
+        if: inputs.component_artifact != ''
+        with:
+          name: ${{ inputs.component_artifact }}
+          path: ${{ runner.temp }}/built-component
+          run-id: ${{ inputs.component_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Resolve the engine component
         id: component
         env:
-          COMPONENT: ${{ inputs.component || 'pinned' }}
+          COMPONENT: ${{ inputs.component_artifact != '' && format('file:{0}/built-component/native-engine.tar.zst', runner.temp) || inputs.component || 'pinned' }}
         run: |
           set -euo pipefail
           args=$(sh tools/native-engine/standin/component.sh "$WRAPPER" "$COMPONENT" "$RUNNER_TEMP/components")
@@ -248,10 +271,17 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 libglx-mesa0 xdotool > /dev/null
+      - uses: actions/download-artifact@v4
+        if: inputs.component_artifact != ''
+        with:
+          name: ${{ inputs.component_artifact }}
+          path: ${{ runner.temp }}/built-component
+          run-id: ${{ inputs.component_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Soak under Xvfb with scripted input, sampling RSS and fds
         env:
           MINUTES: ${{ inputs.soak_minutes || '45' }}
-          COMPONENT: ${{ inputs.component || 'pinned' }}
+          COMPONENT: ${{ inputs.component_artifact != '' && format('file:{0}/built-component/native-engine.tar.zst', runner.temp) || inputs.component || 'pinned' }}
         run: |
           args=$(sh tools/native-engine/standin/component.sh "$WRAPPER" "$COMPONENT" "$RUNNER_TEMP/components")
           xvfb-run -a -s '-screen 0 1280x720x24' python3 tools/native-engine/standin/soak.py --wrapper "$WRAPPER" \
