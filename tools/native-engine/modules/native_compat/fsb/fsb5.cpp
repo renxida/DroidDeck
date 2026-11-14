@@ -90,7 +90,15 @@ bool find_fsb5(const uint8_t *data, size_t length, size_t &at) {
 	return false;
 }
 
-bool parse_fsb5(const uint8_t *data, size_t length, Container &out, std::string &error) {
+size_t fsb5_head_size(const uint8_t *data, size_t length) {
+	if (length < 28 || memcmp(data, "FSB5", 4) != 0) {
+		return 0;
+	}
+	const size_t head = u32(data + 4) >= 1 ? 0x3C : 0x40;
+	return head + size_t(u32(data + 12)) + size_t(u32(data + 16));
+}
+
+bool parse_fsb5(const uint8_t *data, size_t length, Container &out, std::string &error, size_t full_length) {
 	out = Container();
 	if (length < 28 || memcmp(data, "FSB5", 4) != 0) {
 		error = "not an FSB5 block";
@@ -154,8 +162,9 @@ bool parse_fsb5(const uint8_t *data, size_t length, Container &out, std::string 
 	for (uint32_t i = 0; i < count; i++) {
 		Sample &s = out.samples[i];
 		const size_t next = i + 1 < count ? offsets[i + 1] : data_bytes;
-		s.begin = std::min(base + offsets[i], length);
-		s.end = std::min(base + std::max(next, offsets[i]), length);
+		const size_t limit = full_length ? full_length : length;
+		s.begin = std::min(base + offsets[i], limit);
+		s.end = std::min(base + std::max(next, offsets[i]), limit);
 	}
 	// Names: one 32-bit offset per sample from the start of the name table, then NUL-terminated strings.
 	const size_t names = table_end;

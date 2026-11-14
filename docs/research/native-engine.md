@@ -55,6 +55,10 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
   entries; a waveform names its sound's index in the FSB5 block; instrument volume is a dB float.
   `FmodEvent.start` and `play_one_shot` play the picked sounds through Godot audio players. The engine test
   hears its synthetic event at the expected level on the Master bus.
+- Memory: a bank loaded from a file keeps only its metadata and FSB5 headers; each sound's bytes are read
+  from the file when it is wanted, and sounds over 256 KB (music) are not cached. MEASURED with synthetic
+  banks of the game's 12 audio banks' real sizes and sample counts (361 MB in all), headless: loading all of
+  them cost +347 MB resident before, +0 MB after (the four boot-time banks: +64 MB before, +0 after).
 
 ### Clean-room progress (Nov 13)
 

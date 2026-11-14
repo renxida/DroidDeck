@@ -145,6 +145,23 @@ void test_damage() {
 	fsb::VorbisStream v;
 	CHECK(!fsb::vorbis_stream(fsb.data(), cut, c.samples[0], v, error));
 	CHECK(error.find("past the end") != std::string::npos);
+	// Headers and names alone, with the block's true length: the same ranges as the whole block, and the
+	// sound decodes from its own bytes read separately (as a bank streaming from its file does).
+	fsb::Container whole, head;
+	CHECK(fsb::parse_fsb5(fsb.data(), fsb.size(), whole, error));
+	const size_t hs = fsb::fsb5_head_size(fsb.data(), fsb.size());
+	CHECK(hs > 0 && hs < fsb.size() && fsb::fsb5_head_size(fsb.data(), 27) == 0);
+	CHECK(fsb::parse_fsb5(fsb.data(), hs, head, error, fsb.size()));
+	CHECK(head.samples.size() == 1 && head.samples[0].begin == whole.samples[0].begin &&
+			head.samples[0].end == whole.samples[0].end && head.samples[0].name == "a");
+	fsb::Sample own = head.samples[0];
+	std::vector<uint8_t> part(fsb.begin() + own.begin, fsb.begin() + own.end);
+	own.begin = 0;
+	own.end = part.size();
+	fsb::VorbisStream from_whole, from_part;
+	CHECK(fsb::vorbis_stream(fsb.data(), fsb.size(), whole.samples[0], from_whole, error));
+	CHECK(fsb::vorbis_stream(part.data(), part.size(), own, from_part, error));
+	CHECK(from_whole.packets == from_part.packets && from_whole.granules == from_part.granules);
 	spec.setup = 0x12345678u;
 	fsb = build(spec);
 	CHECK(fsb::parse_fsb5(fsb.data(), fsb.size(), c, error));

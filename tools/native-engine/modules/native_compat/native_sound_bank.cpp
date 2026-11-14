@@ -6,16 +6,54 @@
 
 Error NativeSoundBank::load(const String &p_path) {
 	Error err = OK;
-	Vector<uint8_t> raw = FileAccess::get_file_as_bytes(p_path, &err);
-	if (err != OK) {
+	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::READ, &err);
+	if (f.is_null()) {
 		load_error = "cannot read " + p_path;
-		return err;
+		return err != OK ? err : ERR_CANT_OPEN;
 	}
-	return load_bytes(raw);
+	const uint64_t length = f->get_length();
+	// Read the head of the file, growing it until it holds the metadata (which comes before the audio) and
+	// the FSB5 block's headers and names. A file with no FSB5 block (a strings bank) is read whole.
+	PackedByteArray head;
+	uint64_t have = 0, want = MIN(length, uint64_t(1) << 20);
+	while (true) {
+		head.resize(int64_t(want));
+		f->seek(have);
+		const uint64_t got = f->get_buffer(head.ptrw() + have, want - have);
+		have += got;
+		head.resize(int64_t(have));
+		size_t at = 0;
+		uint64_t need = 0;
+		if (fsb::find_fsb5(head.ptr(), size_t(have), at)) {
+			const size_t h = fsb::fsb5_head_size(head.ptr() + at, size_t(have - at));
+			need = at + (h ? h : 28);
+			if (h && need <= have) {
+				const Error e = parse(head.ptr(), size_t(have), length);
+				if (e == OK && container.samples.size() > 0) {
+					source = f;
+					source_fsb_at = at;
+				}
+				return e;
+			}
+		}
+		if (have >= length || got == 0) {
+			break;
+		}
+		want = MIN(length, MAX(want * 2, need));
+	}
+	return load_bytes(head);
 }
 
 Error NativeSoundBank::load_bytes(const PackedByteArray &p_bytes) {
+	return parse(p_bytes.ptr(), size_t(p_bytes.size()), 0);
+}
+
+// p_file_length 0: the data is the whole file, and its FSB5 block is kept. Otherwise the data is the head of
+// a file that long, and only the FSB5 headers are read from it.
+Error NativeSoundBank::parse(const uint8_t *p_data, size_t p_size, uint64_t p_file_length) {
 	bytes.clear();
+	source.unref();
+	source_fsb_at = 0;
 	container = fsb::Container();
 	paths = fsb::PathTable();
 	events = fsb::EventTable();
@@ -23,12 +61,12 @@ Error NativeSoundBank::load_bytes(const PackedByteArray &p_bytes) {
 	looping_streams.clear();
 	std::string error;
 	// Event metadata is optional: a bank we cannot read it from still serves its sounds by index.
-	if (!fsb::read_event_table(p_bytes.ptr(), p_bytes.size(), events, error)) {
+	if (!fsb::read_event_table(p_data, p_size, events, error)) {
 		events = fsb::EventTable();
 	}
 	error.clear();
 	// A strings bank has a path table and no audio; other banks have audio and no path table.
-	const bool has_paths = fsb::read_path_table(p_bytes.ptr(), p_bytes.size(), paths, error);
+	const bool has_paths = fsb::read_path_table(p_data, p_size, paths, error);
 	if (!has_paths) {
 		paths = fsb::PathTable();
 		if (error != "no path table (STDT) in the file") {
@@ -37,17 +75,20 @@ Error NativeSoundBank::load_bytes(const PackedByteArray &p_bytes) {
 		}
 	}
 	size_t at = 0;
-	if (!fsb::find_fsb5(p_bytes.ptr(), p_bytes.size(), at)) {
+	if (!fsb::find_fsb5(p_data, p_size, at)) {
 		load_error = has_paths ? String() : String("no FSB5 block or path table in the file");
 		return has_paths ? OK : ERR_FILE_UNRECOGNIZED;
 	}
 	fsb::Container parsed;
-	if (!fsb::parse_fsb5(p_bytes.ptr() + at, p_bytes.size() - at, parsed, error)) {
+	if (!fsb::parse_fsb5(p_data + at, p_size - at, parsed, error, p_file_length ? size_t(p_file_length - at) : 0)) {
 		load_error = String::utf8(error.c_str());
 		return ERR_FILE_CORRUPT;
 	}
-	const size_t keep = MIN(parsed.size, size_t(p_bytes.size()) - at);
-	bytes = p_bytes.slice(int64_t(at), int64_t(at + keep));
+	if (!p_file_length) {
+		const size_t keep = MIN(parsed.size, p_size - at);
+		bytes.resize(int64_t(keep));
+		memcpy(bytes.ptrw(), p_data + at, keep);
+	}
 	container = parsed;
 	load_error = String();
 	return OK;
@@ -143,9 +184,22 @@ Ref<AudioStreamOggVorbis> NativeSoundBank::get_stream(int p_index) {
 		load_error = "codec " + itos(container.codec) + " is not Vorbis";
 		return Ref<AudioStreamOggVorbis>();
 	}
+	fsb::Sample sample = container.samples[p_index];
+	PackedByteArray read; // this sound's data, when the bank reads it from its file
+	const uint8_t *data = bytes.ptr();
+	size_t size = bytes.size();
+	if (source.is_valid()) {
+		const size_t n = sample.end > sample.begin ? sample.end - sample.begin : 0;
+		read.resize(int64_t(n));
+		source->seek(source_fsb_at + sample.begin);
+		size = size_t(source->get_buffer(read.ptrw(), n));
+		data = read.ptr();
+		sample.begin = 0;
+		sample.end = size;
+	}
 	fsb::VorbisStream v;
 	std::string error;
-	if (!fsb::vorbis_stream(bytes.ptr(), bytes.size(), container.samples[p_index], v, error)) {
+	if (!fsb::vorbis_stream(data, size, sample, v, error)) {
 		load_error = String::utf8(error.c_str());
 		return Ref<AudioStreamOggVorbis>();
 	}
@@ -176,7 +230,9 @@ Ref<AudioStreamOggVorbis> NativeSoundBank::get_stream(int p_index) {
 	Ref<AudioStreamOggVorbis> stream;
 	stream.instantiate();
 	stream->set_packet_sequence(sequence);
-	streams[p_index] = stream;
+	if (container.samples[p_index].end - container.samples[p_index].begin <= STREAM_CACHE_LIMIT) {
+		streams[p_index] = stream;
+	}
 	return stream;
 }
 
@@ -190,7 +246,9 @@ Ref<AudioStreamOggVorbis> NativeSoundBank::get_looping_stream(int p_index) {
 	}
 	Ref<AudioStreamOggVorbis> loop = base->duplicate(); // shares the packet data
 	loop->set_loop(true);
-	looping_streams[p_index] = loop;
+	if (streams.has(p_index)) {
+		looping_streams[p_index] = loop;
+	}
 	return loop;
 }
 
@@ -198,6 +256,7 @@ void NativeSoundBank::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load", "path"), &NativeSoundBank::load);
 	ClassDB::bind_method(D_METHOD("load_bytes", "bytes"), &NativeSoundBank::load_bytes);
 	ClassDB::bind_method(D_METHOD("get_load_error"), &NativeSoundBank::get_load_error);
+	ClassDB::bind_method(D_METHOD("is_streaming_from_file"), &NativeSoundBank::is_streaming_from_file);
 	ClassDB::bind_method(D_METHOD("get_sound_count"), &NativeSoundBank::get_sound_count);
 	ClassDB::bind_method(D_METHOD("get_sound_name", "index"), &NativeSoundBank::get_sound_name);
 	ClassDB::bind_method(D_METHOD("find_sound", "name"), &NativeSoundBank::find_sound);

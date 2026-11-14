@@ -7,6 +7,7 @@
 #include "fsb/fsb5.h"
 #include "fsb/path_table.h"
 
+#include "core/io/file_access.h"
 #include "core/object/ref_counted.h"
 #include "core/templates/hash_map.h"
 #include "modules/vorbis/audio_stream_ogg_vorbis.h"
@@ -14,19 +15,29 @@
 class NativeSoundBank : public RefCounted {
 	GDCLASS(NativeSoundBank, RefCounted);
 
-	Vector<uint8_t> bytes; // the FSB5 block only
+	Vector<uint8_t> bytes; // the FSB5 block, when loaded from memory
+	Ref<FileAccess> source; // when loaded from a file: the audio stays there, read per sound
+	uint64_t source_fsb_at = 0; // file offset of the FSB5 block
 	fsb::Container container;
 	fsb::PathTable paths; // only in a strings bank
 	fsb::EventTable events; // only in a bank with events
 	HashMap<int, Ref<AudioStreamOggVorbis>> streams, looping_streams; // made on first use
 	String load_error;
 
+	Error parse(const uint8_t *p_data, size_t p_size, uint64_t p_file_length);
+
 protected:
 	static void _bind_methods();
 
 public:
+	// Sounds bigger than this (music) are rebuilt on each use rather than kept.
+	static constexpr size_t STREAM_CACHE_LIMIT = 256 * 1024;
+
+	// Reads the bank's metadata and the FSB5 block's headers; sound data is read from the file when a sound
+	// is wanted, so a bank costs memory for its metadata only.
 	Error load(const String &p_path);
-	Error load_bytes(const PackedByteArray &p_bytes);
+	Error load_bytes(const PackedByteArray &p_bytes); // keeps the FSB5 block in memory
+	bool is_streaming_from_file() const { return source.is_valid(); }
 	String get_load_error() const { return load_error; }
 	int get_sound_count() const { return int(container.samples.size()); }
 	String get_sound_name(int p_index) const;

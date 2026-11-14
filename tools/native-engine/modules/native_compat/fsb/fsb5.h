@@ -36,8 +36,14 @@ struct Container {
 bool find_fsb5(const uint8_t *data, size_t length, size_t &at);
 
 // Reads the FSB5 block that starts at data[0]. Sample ranges are clamped to [0, length), so a block cut
-// short still lists its samples; check Sample::end against the length you have.
-bool parse_fsb5(const uint8_t *data, size_t length, Container &out, std::string &error);
+// short still lists its samples; check Sample::end against the length you have. With `full_length`, `data`
+// may hold only the block's headers and names (fsb5_head_size() bytes): ranges are then clamped to
+// full_length, the block's true length, so the audio can be read from the file when a sound is wanted.
+bool parse_fsb5(const uint8_t *data, size_t length, Container &out, std::string &error, size_t full_length = 0);
+
+// Bytes from "FSB5" to the end of the sample headers and names (what parse_fsb5 needs), given at least
+// the block's first 28 bytes; 0 if `data` is not an FSB5 block.
+size_t fsb5_head_size(const uint8_t *data, size_t length);
 
 // One Vorbis sample as a standard Vorbis stream: the three header packets (identification, comment,
 // setup, the setup regenerated from the id), the audio packets, and the frame position after each.
