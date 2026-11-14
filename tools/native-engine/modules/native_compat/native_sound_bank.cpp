@@ -236,6 +236,15 @@ Ref<AudioStreamOggVorbis> NativeSoundBank::get_stream(int p_index) {
 	return stream;
 }
 
+int64_t NativeSoundBank::get_resident_bytes() const {
+	int64_t n = bytes.size();
+	for (const KeyValue<int, Ref<AudioStreamOggVorbis>> &kv : streams) {
+		const fsb::Sample &s = container.samples[kv.key];
+		n += int64_t(s.end - s.begin);
+	}
+	return n;
+}
+
 Ref<AudioStreamOggVorbis> NativeSoundBank::get_looping_stream(int p_index) {
 	if (const Ref<AudioStreamOggVorbis> *have = looping_streams.getptr(p_index)) {
 		return *have;
@@ -257,6 +266,7 @@ void NativeSoundBank::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_bytes", "bytes"), &NativeSoundBank::load_bytes);
 	ClassDB::bind_method(D_METHOD("get_load_error"), &NativeSoundBank::get_load_error);
 	ClassDB::bind_method(D_METHOD("is_streaming_from_file"), &NativeSoundBank::is_streaming_from_file);
+	ClassDB::bind_method(D_METHOD("get_resident_bytes"), &NativeSoundBank::get_resident_bytes);
 	ClassDB::bind_method(D_METHOD("get_sound_count"), &NativeSoundBank::get_sound_count);
 	ClassDB::bind_method(D_METHOD("get_sound_name", "index"), &NativeSoundBank::get_sound_name);
 	ClassDB::bind_method(D_METHOD("find_sound", "name"), &NativeSoundBank::find_sound);

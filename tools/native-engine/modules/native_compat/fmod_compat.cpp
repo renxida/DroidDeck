@@ -409,11 +409,14 @@ Ref<FmodBank> FmodServer::load_bank(const String &p_path, int p_flag) {
 		bank->path = strings_path;
 	}
 	banks[p_path] = bank;
+	print_line(vformat("native_compat: fmod bank loaded %s file_bytes=%d resident_bytes=%d", p_path.get_file(),
+			err == OK ? FileAccess::get_size(p_path) : 0, data->get_resident_bytes()));
 	return bank;
 }
 
 void FmodServer::unload_bank(const String &p_path) {
 	if (Ref<FmodBank> *b = banks.getptr(p_path)) {
+		print_line("native_compat: fmod bank unloaded " + p_path.get_file());
 		if ((*b)->data.is_valid()) {
 			name_tables.erase((*b)->data);
 		}
@@ -625,6 +628,16 @@ int64_t FmodServer::count_instances(const String &p_path) const {
 Dictionary FmodServer::get_compat_stats() const {
 	Dictionary d;
 	d["banks"] = banks.size();
+	Array files;
+	int64_t resident = 0;
+	for (const KeyValue<String, Ref<FmodBank>> &kv : banks) {
+		files.push_back(kv.key.get_file());
+		if (kv.value->data.is_valid()) {
+			resident += kv.value->data->get_resident_bytes();
+		}
+	}
+	d["bank_files"] = files;
+	d["bank_resident_bytes"] = resident;
 	d["name_tables"] = name_tables.size();
 	d["events_asked"] = events.size();
 	d["live_instances"] = live.size();

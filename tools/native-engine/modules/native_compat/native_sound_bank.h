@@ -38,6 +38,7 @@ public:
 	Error load(const String &p_path);
 	Error load_bytes(const PackedByteArray &p_bytes); // keeps the FSB5 block in memory
 	bool is_streaming_from_file() const { return source.is_valid(); }
+	int64_t get_resident_bytes() const; // audio data held in memory (cached sounds included)
 	String get_load_error() const { return load_error; }
 	int get_sound_count() const { return int(container.samples.size()); }
 	String get_sound_name(int p_index) const;
