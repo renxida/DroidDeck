@@ -80,7 +80,7 @@ jobs:
           find "$RUNNER_TEMP/hv" -name '*.deb' -print0 | xargs -0 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zstd gdb >/dev/null
           command -v wine
           wine --version
-          find / -xdev -name 'libarm64ecfex.*' 2>/dev/null | tee "$RUNNER_TEMP/fexpaths"
+          { find / -xdev -name 'libarm64ecfex.*' 2>/dev/null || true; } | tee "$RUNNER_TEMP/fexpaths"
       - name: Kestrel FEX
         if: matrix.dll == 'kestrel'
         env:
