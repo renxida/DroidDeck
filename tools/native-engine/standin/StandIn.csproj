@@ -1,0 +1,31 @@
+<Project Sdk="Godot.NET.Sdk/4.5.1">
+  <!--
+    Stand-in game for the native startup gate. Two switches, as MSBuild properties (or environment
+    variables of the same name, which is how build.sh passes them through Godot's export):
+      StandInR2R   true|false  publish ReadyToRun (crossgen2 x64 code; clears the IL-only COR flag)
+      StandInDeps  true|false  reference and touch the public NuGet packages a Godot C# game ships
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>disable</Nullable>
+    <StandInR2R Condition="'$(StandInR2R)' == ''">true</StandInR2R>
+    <StandInDeps Condition="'$(StandInDeps)' == ''">true</StandInDeps>
+    <PublishReadyToRun Condition="'$(StandInR2R)' == 'true'">true</PublishReadyToRun>
+    <PublishReadyToRun Condition="'$(StandInR2R)' != 'true'">false</PublishReadyToRun>
+    <DefineConstants Condition="'$(StandInDeps)' == 'true'">$(DefineConstants);STANDIN_DEPS</DefineConstants>
+    <NoWarn>$(NoWarn);NU5104;NU1603</NoWarn>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(StandInDeps)' == 'true'">
+    <PackageReference Include="Sentry" Version="5.16.2" />
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" />
+    <PackageReference Include="MonoMod.Backports" Version="1.1.2" />
+    <PackageReference Include="MonoMod.ILHelpers" Version="1.1.0" />
+    <PackageReference Include="SmartFormat" Version="3.6.1" />
+    <PackageReference Include="Steamworks.NET" Version="2024.8.0" />
+    <PackageReference Include="Vortice.Mathematics" Version="1.9.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.6.2" />
+    <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
+    <PackageReference Include="System.IO.Hashing" Version="9.0.7" />
+  </ItemGroup>
+</Project>
