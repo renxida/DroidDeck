@@ -419,7 +419,10 @@ public:
 	void set_bones_to_setup_pose();
 	void set_slots_to_setup_pose();
 	bool set_attachment(const String &p_slot, const String &p_attachment);
-	void update_world_transform();
+	// physics: 0 none, 1 reset, 2 update, 3 pose (the plugin's Physics constants); time comes from update().
+	void update_world_transform(int p_physics = 2);
+	void update(float p_delta);
+	void physics_translate(float p_x, float p_y);
 	Color get_color() const;
 	void set_color(const Color &p);
 	float get_x() const;

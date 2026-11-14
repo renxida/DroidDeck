@@ -125,7 +125,7 @@ class Bin:
 def spine42_loader_sample(deform_start=2, deform_end=4, named_skin=False):
     """The synthetic skeleton of the C++ loader's own test (skel_test.cpp, synthetic_binary): IK and transform
     constraints, a region with a sequence, a mesh and a linked mesh, an event, and an animation with every
-    timeline kind the loader reads (deform keys hold end - start floats). [named_skin] adds a skin with a
+    timeline kind the loader reads (deform keys hold end - start floats, written as a count and an offset). [named_skin] adds a skin with a
     weighted bounding box whose flags also carry bit 8, a point and a clipping attachment, and a deform key
     on the bounding box."""
     w = Bin()
@@ -165,7 +165,7 @@ def spine42_loader_sample(deform_start=2, deform_end=4, named_skin=False):
     w.v(4); w.u8(3 | 128); w.v(0, 3)  # linked mesh sharing deform keys with "mesh"
     if named_skin:
         w.v(1)
-        w.v(2)  # named "skin"
+        w.s("skin")  # skin names are inline strings
         w.v(1, 4)  # bones
         w.v(1, 0, 0, 0, 0)  # ik, transform, path, physics constraint lists
         w.v(1, 0, 3)
@@ -193,7 +193,7 @@ def spine42_loader_sample(deform_start=2, deform_end=4, named_skin=False):
     w.v(2 if named_skin else 1)
     w.v(0, 2, 1, 1, 3); w.u8(0); w.v(2, 0)  # deform on "mesh"
     w.f(0); w.v(0)
-    w.f(1); w.v(deform_end, deform_start); w.f(*range(deform_end - deform_start)); w.u8(0)
+    w.f(1); w.u8(0); w.v(deform_end - deform_start, deform_start); w.f(*range(deform_end - deform_start))
     w.v(0, 1, 1); w.u8(1); w.v(1); w.f(0); w.u32(0 << 4 | 1); w.f(0.1)  # sequence on "body"
     if named_skin:
         w.v(1, 1, 0, 1, 1); w.u8(0); w.v(1, 0); w.f(0); w.v(4, 0); w.f(1, 2, 3, 4)  # deform on the bounding box
@@ -509,7 +509,7 @@ attenuation = true
         self.assertTrue(INV["skel_survey"](spine42_loader_sample(deform_start=0, deform_end=6))["ok"])
         # A deform key reaching past the mesh's 6 vertex floats is a misread, not a bigger mesh.
         past = INV["skel_survey"](spine42_loader_sample(deform_start=0, deform_end=8))
-        self.assertEqual(("animations: attachment timelines", "ValueError: deform 0..8 past 6 floats"),
+        self.assertEqual(("animations: attachment timelines", "ValueError: deform 0+8 past 6 floats"),
                          (past["stage"], past["error"]))
 
     def test_user_strings_heap(self):

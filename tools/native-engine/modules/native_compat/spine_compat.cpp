@@ -1123,9 +1123,30 @@ bool SpineSkeleton::set_attachment(const String &p_slot, const String &p_attachm
 	return sk->set_attachment(to_std(p_slot), to_std(p_attachment));
 }
 
-void SpineSkeleton::update_world_transform() {
+void SpineSkeleton::update_world_transform(int p_physics) {
 	SKEL_OR();
+	if (p_physics == 1) {
+		sk->reset_physics();
+	} else if (p_physics == 0 || p_physics == 3) {
+		sk->physics_time = 0; // hold the simulation where it is
+	}
 	sk->update_world_transform();
+}
+
+void SpineSkeleton::update(float p_delta) {
+	SKEL_OR();
+	sk->update(p_delta);
+}
+
+void SpineSkeleton::physics_translate(float p_x, float p_y) {
+	SKEL_OR();
+	// Moves the simulated points with the skeleton, so a teleport does not swing anything.
+	for (auto &p : sk->physics) {
+		p.origin_x += p_x;
+		p.origin_y += p_y;
+		p.tip_x += p_x;
+		p.tip_y += p_y;
+	}
 }
 
 Color SpineSkeleton::get_color() const {
@@ -1189,7 +1210,9 @@ void SpineSkeleton::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_bones_to_setup_pose"), &SpineSkeleton::set_bones_to_setup_pose);
 	ClassDB::bind_method(D_METHOD("set_slots_to_setup_pose"), &SpineSkeleton::set_slots_to_setup_pose);
 	ClassDB::bind_method(D_METHOD("set_attachment", "slot_name", "attachment_name"), &SpineSkeleton::set_attachment);
-	ClassDB::bind_method(D_METHOD("update_world_transform"), &SpineSkeleton::update_world_transform);
+	ClassDB::bind_method(D_METHOD("update_world_transform", "physics"), &SpineSkeleton::update_world_transform, DEFVAL(2));
+	ClassDB::bind_method(D_METHOD("update", "delta"), &SpineSkeleton::update);
+	ClassDB::bind_method(D_METHOD("physics_translate", "x", "y"), &SpineSkeleton::physics_translate);
 	ClassDB::bind_method(D_METHOD("get_color"), &SpineSkeleton::get_color);
 	ClassDB::bind_method(D_METHOD("set_color", "color"), &SpineSkeleton::set_color);
 	ClassDB::bind_method(D_METHOD("get_x"), &SpineSkeleton::get_x);
@@ -1461,6 +1484,7 @@ void SpineSprite::update_skeleton(float p_delta) {
 	state->update(p_delta * time_scale);
 	emit_signal(SNAME("before_animation_state_apply"), this);
 	state->apply(*skeleton);
+	skeleton->update(p_delta * time_scale); // physics time
 	emit_signal(SNAME("before_world_transforms_change"), this);
 	for (int i = 0; i < get_child_count(); i++) {
 		if (SpineBoneNode *bn = Object::cast_to<SpineBoneNode>(get_child(i))) {

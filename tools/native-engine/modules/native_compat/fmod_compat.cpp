@@ -3,7 +3,13 @@
 
 #include "core/config/engine.h"
 #include "core/io/file_access.h"
+#include "core/math/math_funcs.h"
+#include "core/object/object.h"
 #include "core/string/print_string.h"
+#include "scene/audio/audio_stream_player.h"
+#include "scene/main/scene_tree.h"
+#include "scene/main/window.h"
+#include "scene/scene_string_names.h"
 
 FmodServer *FmodServer::singleton = nullptr;
 
@@ -24,14 +30,82 @@ void FmodParameterDescription::_bind_methods() {
 
 // --- FmodEvent ------------------------------------------------------------------------------------------
 
+namespace {
+
+AudioStreamPlayer *player_of(ObjectID p_id) {
+	return Object::cast_to<AudioStreamPlayer>(ObjectDB::get_instance(p_id));
+}
+
+float level_db(float p_linear) {
+	return Math::linear_to_db(MAX(p_linear, 0.00001f));
+}
+
+} // namespace
+
 void FmodEvent::start() {
-	if (!released) {
-		state = PLAYING;
+	if (released) {
+		return;
 	}
+	stop(IMMEDIATE); // a restart drops what the last start still plays
+	if (FmodServer *s = FmodServer::get_singleton()) {
+		s->play_event_sounds(guid, path, volume, pitch, &players, &player_db);
+	}
+	state = PLAYING;
 }
 
 void FmodEvent::stop(int p_mode) {
+	for (const ObjectID &id : players) {
+		if (AudioStreamPlayer *p = player_of(id)) {
+			p->stop();
+			p->queue_free();
+		}
+	}
+	players.clear();
+	player_db.clear();
 	state = STOPPED;
+}
+
+void FmodEvent::set_paused(bool p_paused) {
+	paused = p_paused;
+	for (const ObjectID &id : players) {
+		if (AudioStreamPlayer *p = player_of(id)) {
+			p->set_stream_paused(p_paused);
+		}
+	}
+}
+
+void FmodEvent::set_volume(float p_v) {
+	volume = p_v;
+	for (int i = 0; i < players.size(); i++) {
+		if (AudioStreamPlayer *p = player_of(players[i])) {
+			p->set_volume_db(player_db[i] + level_db(p_v));
+		}
+	}
+}
+
+void FmodEvent::set_pitch(float p_v) {
+	pitch = p_v;
+	for (const ObjectID &id : players) {
+		if (AudioStreamPlayer *p = player_of(id)) {
+			p->set_pitch_scale(CLAMP(p_v, 0.01f, 16.0f));
+		}
+	}
+}
+
+// An event that started sounds has stopped once its players have all finished (each frees itself then).
+int FmodEvent::get_playback_state() {
+	if (state == PLAYING && !players.is_empty()) {
+		bool any = false;
+		for (const ObjectID &id : players) {
+			any = any || player_of(id) != nullptr;
+		}
+		if (!any) {
+			players.clear();
+			player_db.clear();
+			state = STOPPED;
+		}
+	}
+	return state;
 }
 
 float FmodEvent::get_parameter_by_name(const String &p_name) const {
@@ -184,8 +258,7 @@ void FmodVCA::_bind_methods() {
 }
 
 // --- FmodBank -------------------------------------------------------------------------------------------
-// Until the bank's own event list is read, a bank answers with what the name table files under it:
-// a strings bank lists every path it names; other banks list nothing.
+// A bank lists its own events; a strings bank lists every event path it names.
 
 int FmodBank::get_event_description_count() const {
 	return get_description_list().size();
@@ -194,7 +267,19 @@ int FmodBank::get_event_description_count() const {
 Array FmodBank::get_description_list() const {
 	Array out;
 	FmodServer *s = FmodServer::get_singleton();
-	if (!s || data.is_null() || data->get_path_count() == 0) {
+	if (!s || data.is_null()) {
+		return out;
+	}
+	if (data->get_event_count() > 0) {
+		// The bank's own events, by path where a name table knows it.
+		for (const auto &kv : data->get_event_table().events) {
+			const String g = String(fsb::guid_text(kv.first).c_str());
+			const String p = s->path_for(g);
+			out.push_back(s->get_event(p.is_empty() ? g : p));
+		}
+		return out;
+	}
+	if (data->get_path_count() == 0) {
 		return out;
 	}
 	for (const String &p : data->get_paths_with_prefix("event:/")) {
@@ -344,6 +429,9 @@ Ref<FmodEventDescription> FmodServer::get_event(const String &p_path) {
 	d.instantiate();
 	d->path = p_path;
 	d->guid = guid_for(p_path);
+	if (d->guid.is_empty() && p_path.begins_with("{")) {
+		d->guid = p_path; // asked for by GUID with no name table entry: the banks may still know it
+	}
 	if (d->guid.is_empty() && missing.size() < 64 && !missing.has(p_path)) {
 		missing.push_back(p_path);
 	}
@@ -357,6 +445,7 @@ Ref<FmodEventDescription> FmodServer::get_event_from_guid(const String &p_guid) 
 }
 
 Ref<FmodEvent> FmodServer::create_event_instance(const String &p_path) {
+	update(); // the game may never call update(); drop finished instances nobody holds
 	Ref<FmodEventDescription> d = get_event(p_path);
 	Ref<FmodEvent> e;
 	e.instantiate();
@@ -372,8 +461,75 @@ Ref<FmodEvent> FmodServer::create_event_instance_with_guid(const String &p_guid)
 }
 
 void FmodServer::play_one_shot(const String &p_path) {
-	get_event(p_path);
+	Ref<FmodEventDescription> d = get_event(p_path);
 	one_shots++;
+	play_event_sounds(d->guid, p_path, 1, 1, nullptr, nullptr);
+}
+
+int FmodServer::play_event_sounds(const String &p_guid, const String &p_path, float p_volume, float p_pitch,
+		Vector<ObjectID> *r_players, Vector<float> *r_db) {
+	starts++;
+	fsb::Guid g;
+	SceneTree *tree = SceneTree::get_singleton();
+	Window *root = tree ? tree->get_root() : nullptr;
+	std::vector<fsb::Pick> picks;
+	if (!p_guid.is_empty() && fsb::parse_guid_text(p_guid.utf8().get_data(), g)) {
+		for (const KeyValue<String, Ref<FmodBank>> &kv : banks) {
+			const Ref<NativeSoundBank> &d = kv.value->data;
+			if (d.is_valid() && fsb::resolve_event(d->get_event_table(), g, rng, picks)) {
+				break;
+			}
+		}
+	}
+	int started = 0;
+	for (const fsb::Pick &pick : picks) {
+		Ref<AudioStreamOggVorbis> stream;
+		for (const KeyValue<String, Ref<FmodBank>> &kv : banks) {
+			const Ref<NativeSoundBank> &d = kv.value->data;
+			const int index = d.is_valid() ? d->find_wave(pick.wave) : -1;
+			if (index >= 0) {
+				stream = pick.loop ? d->get_looping_stream(index) : d->get_stream(index);
+				break;
+			}
+		}
+		if (stream.is_null()) {
+			sounds_without_wave++;
+			continue;
+		}
+		if (!root) {
+			continue;
+		}
+		AudioStreamPlayer *player = memnew(AudioStreamPlayer);
+		player->set_stream(stream);
+		player->set_volume_db(pick.volume_db + Math::linear_to_db(MAX(p_volume, 0.00001f)));
+		player->set_pitch_scale(CLAMP(p_pitch, 0.01f, 16.0f));
+		player->connect(SceneStringName(finished), callable_mp(static_cast<Node *>(player), &Node::queue_free));
+		// Deferred: the game may start events while the tree is busy adding or removing nodes.
+		root->call_deferred(SNAME("add_child"), player);
+		if (pick.delay > 0) {
+			// Placed later on the event's timeline. The connection goes when the player does (a stop).
+			Ref<SceneTreeTimer> timer = tree->create_timer(MAX(pick.delay, 0.02f));
+			timer->connect(SNAME("timeout"), callable_mp(player, &AudioStreamPlayer::play).bind(0.0));
+		} else {
+			player->set_autoplay(true);
+		}
+		if (r_players) {
+			r_players->push_back(player->get_instance_id());
+		}
+		if (r_db) {
+			r_db->push_back(pick.volume_db);
+		}
+		started++;
+	}
+	sounds_started += started;
+	if (started == 0) {
+		starts_without_sound++;
+		const String name = p_path.is_empty() ? p_guid : p_path;
+		if (silent.size() < 64 && !silent.has(name)) {
+			silent.push_back(name);
+		}
+	}
+	return started;
 }
 
 void FmodServer::play_one_shot_with_params(const String &p_path, const Dictionary &p_params) {
@@ -473,6 +629,11 @@ Dictionary FmodServer::get_compat_stats() const {
 	d["events_asked"] = events.size();
 	d["live_instances"] = live.size();
 	d["one_shots"] = one_shots;
+	d["starts"] = starts;
+	d["sounds_started"] = sounds_started;
+	d["starts_without_sound"] = starts_without_sound;
+	d["sounds_without_wave"] = sounds_without_wave;
+	d["silent_events"] = silent;
 	d["unknown_paths"] = missing;
 	d["globals"] = globals.size();
 	return d;

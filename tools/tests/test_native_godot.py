@@ -1,10 +1,14 @@
+import io
 import json
 import os
 from pathlib import Path
 import runpy
 import shutil
 import struct
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
@@ -132,14 +136,88 @@ class NativeGodotTest(unittest.TestCase):
     def test_run_passes_engine_args(self):
         out = self.root / "launch"
         seen = []
-        NG["os"].execve, real = (lambda path, args, env: seen.append(args)), NG["os"].execve
+        real = NG["main"].__globals__["watch"]
+        NG["main"].__globals__["watch"] = lambda args, env, **kw: seen.append(args) or 7
         try:
-            NG["main"](["run", "--game-dir", str(self.game), "--kit", str(self.kit), "--engine", str(self.engine),
-                        "--out", str(out), "--exe", "SlayTheSpire2.exe", "--", "--headless", "--verbose"])
+            rc = NG["main"](["run", "--game-dir", str(self.game), "--kit", str(self.kit), "--engine", str(self.engine),
+                             "--out", str(out), "--exe", "SlayTheSpire2.exe", "--", "--headless", "--verbose"])
         finally:
-            NG["os"].execve = real
+            NG["main"].__globals__["watch"] = real
             os.chdir(Path(__file__).resolve().parent)
-        self.assertEqual([str(out / "sts2"), "--main-pack", str(self.game / "SlayTheSpire2.pck"), "--headless", "--verbose"], seen[0])
+        self.assertEqual(7, rc)
+        self.assertEqual([str(out / "sts2"), "--main-pack", str(self.game / "SlayTheSpire2.pck"), "--print-fps",
+                          "--headless", "--verbose"], seen[0])
+
+    def fake_engine(self, body):
+        """A stand-in engine: a Python script, run with this interpreter."""
+        path = self.root / "fake_engine.py"
+        path.write_text("import sys, time\n" + body)
+        return [sys.executable, str(path)]
+
+    def run_watch(self, body, first_frame_s=5):
+        out = io.StringIO()
+        began = time.monotonic()
+        rc = NG["watch"](self.fake_engine(body), dict(os.environ), first_frame_s=first_frame_s, out=out)
+        return rc, out.getvalue(), time.monotonic() - began
+
+    def test_watch_passes_the_exit_code_after_a_first_frame(self):
+        rc, out, _ = self.run_watch("print('booting')\nprint('Project FPS: 60 (16.67 mspf)', flush=True)\n"
+                                    "print('Project FPS: 59 (16.95 mspf)')\nprint('bye')\nsys.exit(3)")
+        self.assertEqual(3, rc)
+        self.assertEqual(["booting", "Project FPS: 60 (16.67 mspf)", "bye"], out.splitlines())  # second FPS line thinned
+
+    def test_watch_clean_exit_after_a_first_frame(self):
+        rc, _, _ = self.run_watch("print('Project FPS: 60 (16.67 mspf)')")
+        self.assertEqual(0, rc)
+
+    def test_watch_exit_before_a_first_frame_did_not_start(self):
+        for code in (0, 1):
+            rc, out, _ = self.run_watch(f"print('loading')\nsys.exit({code})")
+            self.assertEqual(NG["DID_NOT_START"], rc)
+            self.assertIn("loading", out)
+
+    def test_watch_kills_a_hang(self):
+        rc, out, took = self.run_watch("print('loading', flush=True)\ntime.sleep(60)", first_frame_s=1)
+        self.assertEqual(NG["DID_NOT_START"], rc)
+        self.assertLess(took, 20)
+
+    def test_watch_kills_the_engine_s_children_on_a_hang(self):
+        # The engine's own child (a shader compiler, say) holding the pipe open must not keep us waiting.
+        rc, _, took = self.run_watch("import subprocess\nsubprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+                                     "time.sleep(60)", first_frame_s=1)
+        self.assertEqual(NG["DID_NOT_START"], rc)
+        self.assertLess(took, 20)
+
+    def test_watch_a_crash_after_the_first_frame_passes_through(self):
+        rc, _, _ = self.run_watch("import os, signal\nprint('Project FPS: 60 (16.67 mspf)', flush=True)\n"
+                                  "os.kill(os.getpid(), signal.SIGSEGV)")
+        self.assertEqual(128 + 11, rc)
+
+    def test_wrapper_death_takes_the_engine_with_it(self):
+        # Run watch() in a child wrapper, SIGKILL that wrapper, and check the engine is gone too.
+        pidfile = self.root / "engine.pid"
+        engine = self.fake_engine(f"import os\nopen({str(pidfile)!r}, 'w').write(str(os.getpid()))\n"
+                                  "print('Project FPS: 60 (16.67 mspf)', flush=True)\ntime.sleep(60)")
+        wrapper = subprocess.Popen([sys.executable, "-c", "import runpy, sys; NG = runpy.run_path(sys.argv[1]); "
+                                    "sys.exit(NG['watch'](sys.argv[2:], None, forward_signals=True))",
+                                    str(BIN / "droiddeck-native-godot")] + engine,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(100):
+            if pidfile.exists() and pidfile.read_text():
+                break
+            time.sleep(0.1)
+        pid = int(pidfile.read_text())
+        wrapper.kill()
+        wrapper.wait()
+        for _ in range(50):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            os.kill(pid, 9)
+            self.fail("engine outlived its wrapper")
 
     def test_relative_paths_become_absolute(self):
         old = os.getcwd()

@@ -18,7 +18,15 @@ Error NativeSoundBank::load_bytes(const PackedByteArray &p_bytes) {
 	bytes.clear();
 	container = fsb::Container();
 	paths = fsb::PathTable();
+	events = fsb::EventTable();
+	streams.clear();
+	looping_streams.clear();
 	std::string error;
+	// Event metadata is optional: a bank we cannot read it from still serves its sounds by index.
+	if (!fsb::read_event_table(p_bytes.ptr(), p_bytes.size(), events, error)) {
+		events = fsb::EventTable();
+	}
+	error.clear();
 	// A strings bank has a path table and no audio; other banks have audio and no path table.
 	const bool has_paths = fsb::read_path_table(p_bytes.ptr(), p_bytes.size(), paths, error);
 	if (!has_paths) {
@@ -101,8 +109,36 @@ int NativeSoundBank::get_sound_frames(int p_index) const {
 	return int(container.samples[p_index].frames);
 }
 
+bool NativeSoundBank::has_event(const String &p_guid) const {
+	fsb::Guid g;
+	return fsb::parse_guid_text(p_guid.utf8().get_data(), g) && events.events.count(g);
+}
+
+PackedInt32Array NativeSoundBank::pick_event_sounds(const String &p_guid, int p_seed) const {
+	PackedInt32Array out;
+	fsb::Guid g;
+	if (!fsb::parse_guid_text(p_guid.utf8().get_data(), g)) {
+		return out;
+	}
+	uint32_t rng = uint32_t(p_seed);
+	std::vector<fsb::Pick> picks;
+	fsb::resolve_event(events, g, rng, picks);
+	for (const fsb::Pick &p : picks) {
+		out.push_back(find_wave(p.wave));
+	}
+	return out;
+}
+
+int NativeSoundBank::find_wave(const fsb::Guid &p_wave) const {
+	auto it = events.waves.find(p_wave);
+	return it == events.waves.end() || it->second >= container.samples.size() ? -1 : int(it->second);
+}
+
 Ref<AudioStreamOggVorbis> NativeSoundBank::get_stream(int p_index) {
 	ERR_FAIL_INDEX_V(p_index, int(container.samples.size()), Ref<AudioStreamOggVorbis>());
+	if (const Ref<AudioStreamOggVorbis> *have = streams.getptr(p_index)) {
+		return *have;
+	}
 	if (container.codec != fsb::CODEC_VORBIS) {
 		load_error = "codec " + itos(container.codec) + " is not Vorbis";
 		return Ref<AudioStreamOggVorbis>();
@@ -140,7 +176,22 @@ Ref<AudioStreamOggVorbis> NativeSoundBank::get_stream(int p_index) {
 	Ref<AudioStreamOggVorbis> stream;
 	stream.instantiate();
 	stream->set_packet_sequence(sequence);
+	streams[p_index] = stream;
 	return stream;
+}
+
+Ref<AudioStreamOggVorbis> NativeSoundBank::get_looping_stream(int p_index) {
+	if (const Ref<AudioStreamOggVorbis> *have = looping_streams.getptr(p_index)) {
+		return *have;
+	}
+	Ref<AudioStreamOggVorbis> base = get_stream(p_index);
+	if (base.is_null()) {
+		return base;
+	}
+	Ref<AudioStreamOggVorbis> loop = base->duplicate(); // shares the packet data
+	loop->set_loop(true);
+	looping_streams[p_index] = loop;
+	return loop;
 }
 
 void NativeSoundBank::_bind_methods() {
@@ -158,4 +209,7 @@ void NativeSoundBank::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("find_guid_for_path", "path"), &NativeSoundBank::find_guid_for_path);
 	ClassDB::bind_method(D_METHOD("find_path_for_guid", "guid"), &NativeSoundBank::find_path_for_guid);
 	ClassDB::bind_method(D_METHOD("get_paths_with_prefix", "prefix"), &NativeSoundBank::get_paths_with_prefix);
+	ClassDB::bind_method(D_METHOD("get_event_count"), &NativeSoundBank::get_event_count);
+	ClassDB::bind_method(D_METHOD("has_event", "guid"), &NativeSoundBank::has_event);
+	ClassDB::bind_method(D_METHOD("pick_event_sounds", "guid", "seed"), &NativeSoundBank::pick_event_sounds, DEFVAL(1));
 }

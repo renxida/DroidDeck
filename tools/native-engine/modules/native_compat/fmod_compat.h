@@ -1,8 +1,8 @@
 // Clean-room code for DroidDeck/Kestrel. Classes under the names of the Godot FMOD plugin the game ships
 // (its Windows library has no linux-arm64 build), so the game's audio code finds them on our engine.
 // Written from the plugin's public API reference (method and property names only) and the game's own
-// bank files; no FMOD or plugin code. Playback state, parameters, buses and VCAs are tracked; audio comes
-// once the bank event metadata is read (the path table already maps event paths to GUIDs).
+// bank files; no FMOD or plugin code. Starting an event plays the sounds its bank metadata names (see
+// fsb/event_table.h) through Godot audio players; parameters, buses and VCAs are tracked but not mixed yet.
 #pragma once
 
 #include "native_sound_bank.h"
@@ -59,10 +59,13 @@ public:
 	HashMap<String, float> parameters;
 	Transform2D transform_2d;
 	Transform3D transform_3d;
+	// The audio players this start made, and the level (dB) each was set at before the event volume.
+	Vector<ObjectID> players;
+	Vector<float> player_db;
 
 	void start();
 	void stop(int p_mode);
-	void set_paused(bool p_paused) { paused = p_paused; }
+	void set_paused(bool p_paused);
 	bool get_paused() const { return paused; }
 	void release() { released = true; }
 	void event_key_off() {}
@@ -74,12 +77,12 @@ public:
 	void set_2d_attributes(const Transform2D &p_t) { transform_2d = p_t; }
 	void set_3d_attributes(const Transform3D &p_t) { transform_3d = p_t; }
 	void set_node_attributes(Node *p_node);
-	int get_playback_state() const { return state; }
+	int get_playback_state();
 	bool is_valid() const { return !released; }
 	float get_volume() const { return volume; }
-	void set_volume(float p_v) { volume = p_v; }
+	void set_volume(float p_v);
 	float get_pitch() const { return pitch; }
-	void set_pitch(float p_v) { pitch = p_v; }
+	void set_pitch(float p_v);
 	int get_timeline_position() const { return 0; }
 	void set_timeline_position(int p_ms) {}
 	String get_guid() const { return guid; }
@@ -190,7 +193,10 @@ class FmodServer : public Object {
 	HashMap<String, float> globals;
 	Vector<Ref<FmodEvent>> live;
 	int64_t one_shots = 0;
+	int64_t starts = 0, sounds_started = 0, starts_without_sound = 0, sounds_without_wave = 0;
+	uint32_t rng = 0x2545f491u;
 	PackedStringArray missing; // event paths asked for that no loaded name table knows (first 64)
+	PackedStringArray silent; // events started that no loaded bank gives a sound (first 64)
 
 	String guid_for(const String &p_path) const;
 	String path_for(const String &p_guid) const;
@@ -244,6 +250,10 @@ public:
 	friend class FmodBank;
 	friend class FmodBus;
 	int64_t count_instances(const String &p_path) const;
+	// Plays the sounds one start of the event (by GUID text) gives, each in its own audio player added to the
+	// scene root. Returns how many started; their ids and levels go to r_players and r_db when given.
+	int play_event_sounds(const String &p_guid, const String &p_path, float p_volume, float p_pitch,
+			Vector<ObjectID> *r_players, Vector<float> *r_db);
 };
 
 class FmodEventEmitter2D : public Node2D {

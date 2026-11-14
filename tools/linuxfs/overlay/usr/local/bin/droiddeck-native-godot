@@ -11,6 +11,12 @@ This tool builds a launch folder next to our engine binary:
 
 and starts the engine on the game's pack. Game files stay where Steam put them; nothing is uploaded.
 
+`run` watches the engine for its first frames: it asks Godot to print its frame rate (--print-fps), whose
+first "Project FPS" line comes a few seconds into the main loop, and logs "first frame" when it does. If none
+comes within FIRST_FRAME_S of the engine's start (timed after any fetch), or the engine exits before one,
+the engine did not start: `run` kills it and exits with DID_NOT_START (86), so the caller can fall back.
+After the first frame the engine's own exit code passes through. Frame-rate lines are thinned to one a minute.
+
 The engine, kit and stubs come as one component (`--component DIR`, or `--fetch` for the pinned release on
 the fork, cached under ~/.cache/droiddeck/native/<tag>/):
 
@@ -28,16 +34,22 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 import struct
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import urllib.request
 
 # The published component. Built by .github/workflows/native-engine-build.yml (publish=true).
-COMPONENT = {"tag": "native-engine-20",
-             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-20/native-engine.tar.zst",
-             "sha256": "c84254fca828b3d9be4e859fa32b3e99074d2dc4c090c13fdeeee11ab5b6f609"}
+COMPONENT = {"tag": "native-engine-38",
+             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-38/native-engine.tar.zst",
+             "sha256": "176b8172f7c3efd8f6a49e684014aed9839a4c9c768d40db61c1fc1b086b73c0"}
+DID_NOT_START = 86
+FIRST_FRAME_S = float(os.environ.get("DROIDDECK_NATIVE_FIRST_FRAME_S", "90"))
+FPS_EVERY_S = 60
 CACHE = os.path.join(os.path.expanduser("~"), ".cache", "droiddeck", "native")
 
 # Files the game's data folder may hold that must come from the kit (runtime- or engine-specific).
@@ -308,6 +320,63 @@ def engine_env(env):
     return env
 
 
+def die_with_parent():
+    """In the engine's child process: it gets SIGKILL if this wrapper dies (Linux prctl PR_SET_PDEATHSIG)."""
+    try:
+        ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGKILL, 0, 0, 0)
+    except (OSError, AttributeError):
+        pass
+
+
+def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.monotonic, forward_signals=False):
+    """Runs the engine in its own process group, passing its output through; returns its exit code, or
+    DID_NOT_START if no frame-rate line came within first_frame_s or before it exited. With forward_signals,
+    SIGTERM/SIGINT/SIGHUP to this wrapper stop the engine too."""
+    proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            start_new_session=True, preexec_fn=die_with_parent)
+    began = clock()
+    seen = threading.Event()
+    timed_out = threading.Event()
+
+    def kill():
+        try:
+            os.killpg(proc.pid, 9)
+        except OSError:
+            pass
+
+    def guard():
+        if not seen.wait(first_frame_s) and proc.poll() is None:
+            timed_out.set()
+            log(f"no first frame after {first_frame_s:.0f} s; stopping the engine")
+            kill()
+
+    threading.Thread(target=guard, daemon=True).start()
+    if forward_signals:
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            signal.signal(sig, lambda n, f: (kill(), sys.exit(128 + n)))
+    last_fps = None
+    for raw in proc.stdout:
+        line = raw.decode("utf-8", "replace")
+        if line.startswith("Project FPS:"):
+            now = clock()
+            if not seen.is_set():
+                seen.set()
+                log(f"first frame after {now - began:.1f} s")
+            elif last_fps is not None and now - last_fps < FPS_EVERY_S:
+                continue
+            last_fps = now
+        out.write(line)
+        out.flush()
+    proc.stdout.close()
+    rc = proc.wait()
+    if timed_out.is_set():
+        return DID_NOT_START
+    if not seen.is_set():
+        log(f"engine exited with {rc} after {clock() - began:.1f} s, before its first frame")
+        return DID_NOT_START
+    return rc if rc >= 0 else 128 - rc
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("command", choices=("compose", "run"))
@@ -336,10 +405,10 @@ def main(argv=None):
     if a.command == "compose":
         print(json.dumps(r))
         return 0
-    cmd = [r["engine"], "--main-pack", r["pack"]] + rest
-    log("exec " + " ".join(cmd))
+    cmd = [r["engine"], "--main-pack", r["pack"], "--print-fps"] + rest
+    log("run " + " ".join(cmd))
     os.chdir(os.path.abspath(a.game_dir))
-    os.execve(cmd[0], cmd, engine_env(os.environ))
+    return watch(cmd, engine_env(os.environ), forward_signals=True)
 
 
 if __name__ == "__main__":

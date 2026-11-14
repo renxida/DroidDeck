@@ -34,6 +34,7 @@ func _ready() -> void:
 	var same = berr == OK and sb.get_bone_position("tip").distance_to(sk.get_bone_position("tip")) < 0.01
 	print("SKELTEST binary load ", berr, " '", sb.get_load_error(), "' tip=", sb.get_bone_position("tip"), " same=", same)
 	var sound_ok = sound_test() and paths_test() and fmod_test()
+	sound_ok = await event_sound_test() and sound_ok
 	var spine_ok = spine_compat_test(sb)
 	get_tree().quit(0 if err == OK and same and sound_ok and spine_ok else 1)
 
@@ -196,6 +197,74 @@ func fmod_test() -> bool:
 		and emitter_playing and signals == ["started", "stopped"] and absf(emitter.get_parameter("intensity") - 0.75) < 1e-6
 	print("SKELTEST fmod buses=", bank.get_bus_count(), " guid=", desc.get_guid(), " signals=", signals, " stats=", stats, " ok=", ok)
 	return ok
+
+# A bank's own event metadata (sound/events.bank, made by make_event_bank.py): starting "Event:/x" plays
+# sound 0 of the embedded tone through an audio player, which reaches the Master bus, and the instance
+# reads as stopped once the 0.5 s tone has ended. A one-shot plays too.
+func event_sound_test() -> bool:
+	var server = Engine.get_singleton("FmodServer")
+	var bank = server.load_bank("res://sound/events.bank", 0)
+	var capture = AudioEffectCapture.new()
+	AudioServer.add_bus_effect(0, capture)
+	var before = server.get_compat_stats()["sounds_started"]
+	var inst = server.create_event_instance("event:/x")
+	inst.start()
+	var started = server.get_compat_stats()["sounds_started"] - before
+	await get_tree().create_timer(0.3).timeout
+	capture.clear_buffer()
+	await get_tree().create_timer(0.1).timeout
+	var frames = capture.get_buffer(capture.get_frames_available())
+	var sum := 0.0
+	for f in frames:
+		sum += f.x * f.x + f.y * f.y
+	var rms = sqrt(sum / max(1, frames.size() * 2))
+	var playing_mid = inst.get_playback_state() == 0
+	await get_tree().create_timer(0.6).timeout
+	var ended = inst.get_playback_state() == 2
+	server.play_one_shot("event:/x")
+	await get_tree().create_timer(0.7).timeout # let it end: a sound still playing at quit reads as a leak
+	# Event GUID 30 has no path and loops: still playing and audible past the tone's 0.5 s, stopped on stop().
+	var looping = server.create_event_instance_with_guid("{0000001e-0000-4000-8000-00000000001e}")
+	looping.start()
+	await get_tree().create_timer(0.8).timeout
+	capture.clear_buffer()
+	await get_tree().create_timer(0.1).timeout
+	var loop_frames = capture.get_buffer(capture.get_frames_available())
+	var loop_sum := 0.0
+	for f in loop_frames:
+		loop_sum += f.x * f.x + f.y * f.y
+	var loop_rms = sqrt(loop_sum / max(1, loop_frames.size() * 2))
+	var still_playing = looping.get_playback_state() == 0
+	looping.stop(1)
+	var loop_ok = still_playing and loop_rms > 0.05 and looping.get_playback_state() == 2
+	# Event GUID 40 places the tone 0.6 s in: silent at 0.3 s, audible at 0.8 s, stopped after 1.2 s.
+	var late = server.create_event_instance_with_guid("{00000028-0000-4000-8000-000000000028}")
+	late.start()
+	await get_tree().create_timer(0.2).timeout
+	capture.clear_buffer()
+	await get_tree().create_timer(0.1).timeout
+	var early_rms = rms_of(capture.get_buffer(capture.get_frames_available()))
+	await get_tree().create_timer(0.4).timeout
+	capture.clear_buffer()
+	await get_tree().create_timer(0.1).timeout
+	var late_rms = rms_of(capture.get_buffer(capture.get_frames_available()))
+	await get_tree().create_timer(0.6).timeout
+	var late_ok = early_rms < 0.01 and late_rms > 0.05 and late.get_playback_state() == 2
+	await get_tree().create_timer(0.1).timeout
+	var stats = server.get_compat_stats()
+	AudioServer.remove_bus_effect(0, AudioServer.get_bus_effect_count(0) - 1)
+	var ok = bank.get_event_description_count() == 3 and started == 1 and frames.size() > 0 and rms > 0.05 \
+		and playing_mid and ended and loop_ok and late_ok and stats["sounds_started"] - before == 4
+	print("SKELTEST event sound started=", started, " frames=", frames.size(), " rms=", rms, " playing_mid=",
+		playing_mid, " ended=", ended, " loop_rms=", loop_rms, " loop_ok=", loop_ok, " early_rms=", early_rms, " late_rms=", late_rms,
+		" late_ok=", late_ok, " stats=", stats, " ok=", ok)
+	return ok
+
+func rms_of(frames: PackedVector2Array) -> float:
+	var sum := 0.0
+	for f in frames:
+		sum += f.x * f.x + f.y * f.y
+	return sqrt(sum / max(1, frames.size() * 2))
 
 func shot(tag: String) -> void:
 	await RenderingServer.frame_post_draw

@@ -89,6 +89,7 @@ int main(int argc, char **argv) {
 			for (int s = 0; s < n; s++) {
 				st.update(1.0f / 30);
 				st.apply(sk);
+				sk.update(1.0f / 30);
 				sk.update_world_transform();
 				events += int(st.pending.size());
 				st.pending.clear();

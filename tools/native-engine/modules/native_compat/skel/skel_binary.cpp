@@ -5,10 +5,12 @@
 // group first; strings are a varint byte length plus one (0 = none) followed by UTF-8. Many
 // strings are written once in a table after the header and referenced by index plus one.
 //
-// Layouts confirmed by walking real files end to end: header, bones, slots, IK and transform
-// constraints, skins with region, mesh and linked mesh attachments, events, and every animation
-// section those files use. Bounding box, point and clipping attachments follow the same pattern but
-// have not been seen yet. Path and physics constraints have unknown layouts and fail the load.
+// Layouts confirmed by walking real files end to end: header, bones, slots, IK, transform, path and
+// physics constraints, skins (named skins carry inline names) with region, mesh, linked mesh and path
+// attachments, events, and every animation section those files use, including path timelines and
+// deform keys (time, then the curve from the previous key, then a count of floats and their offset).
+// Bounding box, point and clipping attachments follow the same pattern but have not been seen yet.
+// Physics timelines have not been seen and fail the load.
 #include "skel.h"
 
 #include <algorithm>
@@ -317,6 +319,78 @@ struct BinaryLoader {
 		return ok();
 	}
 
+	bool paths() {
+		int n = r.count();
+		for (int i = 0; i < n && ok(); i++) {
+			PathData d;
+			d.name = r.string();
+			d.order = int(r.varint());
+			// One flags byte before the bones. Only "skin required" (bit 0) has been seen; any other bit
+			// may mean an extra value follows, so it fails the load rather than misreading the rest.
+			uint8_t flags = r.byte();
+			d.skin_required = flags & 1;
+			if (flags & ~1) {
+				return fail("path " + d.name + ": flags " + std::to_string(flags) + " layout unknown");
+			}
+			constraint_bones(d.bones);
+			d.target = index(int(sd.slots.size()), "path target slot");
+			uint8_t f = r.byte();
+			// Bit 0 position mode, bits 1-2 spacing mode, bits 3-4 rotate mode (see PathData).
+			d.position_mode = f & 1;
+			d.spacing_mode = (f >> 1) & 3;
+			d.rotate_mode = (f >> 3) & 3;
+			if (d.rotate_mode > 2 || (f >> 5)) {
+				return fail("path " + d.name + ": modes " + std::to_string(f) + " layout unknown");
+			}
+			// Five values follow: position, spacing, then the rotate, x and y mixes. The offset
+			// rotation was not among them in the one file seen, so it stays 0 (see LAYOUT notes).
+			d.position = r.f32();
+			if (d.position_mode == 0) {
+				d.position *= scale;
+			}
+			d.spacing = r.f32();
+			if (d.spacing_mode == 0 || d.spacing_mode == 1) {
+				d.spacing *= scale;
+			}
+			d.mix_rotate = r.f32();
+			d.mix_x = r.f32();
+			d.mix_y = r.f32();
+			sd.paths.push_back(std::move(d));
+		}
+		return ok();
+	}
+
+	bool physics() {
+		int n = r.count();
+		for (int i = 0; i < n && ok(); i++) {
+			PhysicsData d;
+			d.name = r.string();
+			d.order = int(r.varint());
+			d.bone = index(int(sd.bones.size()), "physics bone");
+			uint8_t f = r.byte();
+			// 1 skin required, then which of x, y, rotate, scale x, shear x, limit follow; 128 mass follows.
+			d.skin_required = f & 1;
+			if (f & 2) d.x = r.f32();
+			if (f & 4) d.y = r.f32();
+			if (f & 8) d.rotate = r.f32();
+			if (f & 16) d.scale_x = r.f32();
+			if (f & 32) d.shear_x = r.f32();
+			if (f & 64) d.limit = r.f32() * scale;
+			d.fps = float(r.byte());
+			d.inertia = r.f32();
+			d.strength = r.f32();
+			d.damping = r.f32();
+			if (f & 128) d.mass_inverse = r.f32();
+			d.wind = r.f32();
+			d.gravity = r.f32();
+			d.global_flags = r.byte();
+			// Low bits: which values follow the skeleton-wide timelines; 128 mix follows (else 1).
+			if (d.global_flags & 128) d.mix = r.f32();
+			sd.physics.push_back(std::move(d));
+		}
+		return ok();
+	}
+
 	void vertices(Attachment &a, int vertex_count, bool weighted) {
 		a.vertex_count = vertex_count;
 		if (!weighted) {
@@ -435,6 +509,27 @@ struct BinaryLoader {
 				links.push_back(std::move(link));
 				break;
 			}
+			case 4: { // path: 16 closed, 32 constant speed, 64 weighted (seen with 32 and 64 set)
+				a->type = AttachmentType::Path;
+				a->name = a->path = key;
+				a->closed = f & 16;
+				a->constant_speed = f & 32;
+				int vc = r.count();
+				vertices(*a, vc, f & 64);
+				// One curve length per 3 vertices (anchor plus its two handles).
+				int lengths = vc / 3;
+				for (int i = 0; i < lengths && !r.bad; i++) {
+					a->lengths.push_back(r.f32() * scale);
+				}
+				if (nonessential) {
+					r.u32();
+				}
+				if (f & 8) {
+					fail("path " + key + ": flag 8 layout unknown");
+					return nullptr;
+				}
+				break;
+			}
 			case 5: // point (layout not yet seen in a file)
 				a->type = AttachmentType::Point;
 				a->name = a->path = key;
@@ -499,7 +594,7 @@ struct BinaryLoader {
 		for (int i = 0; i < n && ok(); i++) {
 			auto s = std::make_unique<Skin>();
 			s->slots.resize(sd.slots.size());
-			ref(s->name);
+			s->name = r.string(); // skin names are written inline, not through the string table
 			if (nonessential) {
 				r.u32();
 			}
@@ -749,8 +844,34 @@ struct BinaryLoader {
 			keep(std::move(tl));
 		}
 
-		if (r.count() != 0) {
-			return fail(where + "path constraint timelines (layout unknown)");
+		// Path constraints: per constraint, timelines of type 0 position, 1 spacing, 2 mix (rotate, x, y).
+		n = r.count();
+		for (int i = 0; i < n && ok(); i++) {
+			int pi = index(int(sd.paths.size()), "path");
+			int timelines = r.count();
+			for (int k = 0; k < timelines && ok(); k++) {
+				int type = r.byte();
+				int frames = r.count();
+				r.varint(); // bezier count
+				if (type > 2) {
+					return fail(where + "path timeline type " + std::to_string(type) + " unknown");
+				}
+				const PathData &pd = sd.paths[pi];
+				Timeline tl;
+				tl.target = pi;
+				float value_scale = 1.0f;
+				if (type == 0) {
+					tl.type = TimelineType::PathPosition;
+					value_scale = pd.position_mode == 0 ? scale : 1.0f;
+				} else if (type == 1) {
+					tl.type = TimelineType::PathSpacing;
+					value_scale = pd.spacing_mode <= 1 ? scale : 1.0f;
+				} else {
+					tl.type = TimelineType::PathMix;
+				}
+				float_frames(tl, frames, type == 2 ? 3 : 1, value_scale);
+				keep(std::move(tl));
+			}
 		}
 		if (r.count() != 0) {
 			return fail(where + "physics constraint timelines (layout unknown)");
@@ -798,26 +919,29 @@ struct BinaryLoader {
 					tl.attachment = att;
 					tl.curve.channels = 1;
 					size_t length = att->weighted() ? att->vertices.size() / 3 * 2 : att->vertices.size();
+					// Unlike float frames, a deform frame after the first has its segment curve right after
+					// its time and before its values: t0 d0, t1 c0 d1, t2 c1 d2 ...
 					for (int f = 0; f < frames && ok(); f++) {
 						float t = r.f32();
-						std::vector<float> d(length, 0.0f);
-						uint32_t end = r.varint();
-						if (end != 0) {
-							uint32_t start = r.varint();
-							if (start > end || end > length) {
-								return fail(where + "deform range out of bounds on " + key);
-							}
-							for (uint32_t k = start; k < end && !r.bad; k++) {
-								d[k] = r.f32() * scale;
-							}
-						}
 						float index_value = float(f);
 						tl.curve.add(t, &index_value, Curve::LINEAR);
-						tl.deforms.push_back(std::move(d));
 						if (f > 0) {
 							// The curve's value is the frame index, so bezier values (0..1) are offset by it.
 							segment(tl.curve, f, nullptr, float(f - 1));
 						}
+						std::vector<float> d(length, 0.0f);
+						// A count of values, then (if any) the offset of the first one.
+						uint32_t count = r.varint();
+						if (count != 0) {
+							uint32_t start = r.varint();
+							if (start > length || count > length - start) {
+								return fail(where + "deform range out of bounds on " + key);
+							}
+							for (uint32_t k = start; k < start + count && !r.bad; k++) {
+								d[k] = r.f32() * scale;
+							}
+						}
+						tl.deforms.push_back(std::move(d));
 					}
 					keep(std::move(tl));
 				}
@@ -907,13 +1031,7 @@ struct BinaryLoader {
 std::unique_ptr<SkeletonData> load_binary(const uint8_t *data, size_t length, float scale, std::string &error) {
 	auto sd = std::make_unique<SkeletonData>();
 	BinaryLoader l{ *sd, Reader{ data, data + length }, scale, false, {}, {}, {}, {} };
-	bool ok = l.header() && l.bones() && l.slots() && l.ik() && l.transforms();
-	if (ok && l.r.count() != 0) {
-		ok = l.fail("path constraints (layout unknown)");
-	}
-	if (ok && l.r.count() != 0) {
-		ok = l.fail("physics constraints (layout unknown)");
-	}
+	bool ok = l.header() && l.bones() && l.slots() && l.ik() && l.transforms() && l.paths() && l.physics();
 	ok = ok && l.skins() && l.events();
 	if (ok) {
 		int n = l.r.count();
