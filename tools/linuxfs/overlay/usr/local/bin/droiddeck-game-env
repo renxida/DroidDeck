@@ -2859,6 +2859,9 @@ def native_inventory(exe, env, popen=subprocess.Popen):
 NATIVE_GODOT = "/usr/local/bin/droiddeck-native-godot"
 # A native run that ends sooner than this with an error is taken as "did not start"; the game then starts on Proton.
 NATIVE_START_S = 60
+# droiddeck-native-godot's own exit when the engine drew no first frame (none within its timeout, or it ended before
+# one): the game never started natively, however long that took, so it starts on Proton.
+NATIVE_NO_FIRST_FRAME = 86
 
 
 def native_engine(command, env, run=subprocess.run, clock=time.monotonic):
@@ -2901,6 +2904,8 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic):
                 notes = ["native-engine log: " + line.rstrip() for line in f.readlines()[-30:]]
         except OSError:
             pass
+    if rc == NATIVE_NO_FIRST_FRAME:
+        return None, notes + ["native-engine: no first frame after %.0f s; starting on Proton" % took]
     if rc != 0 and took < NATIVE_START_S:
         return None, notes + ["native-engine: exited with %d after %.0f s; starting on Proton" % (rc, took)]
     return rc, notes + ["native-engine: ran %.0f s natively, exit %d" % (took, rc)]

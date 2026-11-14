@@ -235,6 +235,14 @@ class GameEnvHookTest(unittest.TestCase):
         self.assertIn("native-engine log: ERROR: something", notes)
         self.assertTrue(notes[-1].endswith("starting on Proton"))
 
+    def test_no_first_frame_falls_back_to_proton_however_late(self):
+        for took in (3, 95, 400):
+            with self.subTest(took=took):
+                (rc, notes), _ = self.hook(self.on, rc=86, took=took)
+                self.assertIsNone(rc)
+                self.assertIn("native-engine log: ERROR: something", notes)
+                self.assertEqual("native-engine: no first frame after %d s; starting on Proton" % took, notes[-1])
+
     def test_a_late_failure_is_not_retried(self):
         (rc, _), _ = self.hook(self.on, rc=1, took=600)
         self.assertEqual(1, rc)
