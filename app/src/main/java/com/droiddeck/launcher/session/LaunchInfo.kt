@@ -84,17 +84,17 @@ object LaunchInfo {
     fun flavor(seed: Long): String = FLAVOR[Math.floorMod(seed, FLAVOR.size.toLong()).toInt()]
 
     internal val FLAVOR = listOf(
-        "The lanner circles twice before it stoops.",
-        "Hooding the falcon. Checking the jesses.",
-        "Thermals rising over the Spire.",
-        "A lanner hunts in pairs; Proton and FEX take the left and right.",
-        "Translating x86 one wingbeat at a time.",
-        "Feathers preened, frame pacing set to thirty.",
-        "The falconer whistles. The deck answers.",
-        "Riding the updraft from the charger.",
-        "Scanning the desert floor for a first frame.",
-        "Lanners fly low and fast. So should frames.",
-        "Coaxing a Windows game onto an Android glove.",
-        "The Neow whale is waiting. The falcon is not.",
+        "Unhooding the falcon.",
+        "Waiting for a thermal.",
+        "Teaching an ARM to think in x86.",
+        "Proton says it's Windows. Nobody tell the game.",
+        "Translating instructions. Some nuance may be lost.",
+        "Asking Steam nicely.",
+        "The falcon is ready. The game is loading.",
+        "Warming the shader cache.",
+        "Your phone is pretending to be a PC. Be supportive.",
+        "Four layers of translation, one falcon.",
+        "Lanners spot prey from a mile off. Frames take longer.",
+        "Two architectures walk into a phone.",
     )
 }
