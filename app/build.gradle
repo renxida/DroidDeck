@@ -222,6 +222,48 @@ androidComponents {
     beforeVariants(selector().all()) { it.androidTest.enable = false }
 }
 
+// AppStartSmokeTest launches the real FrontEndActivity, and something it starts outlives the activity and keeps the
+// shared main looper busy, so the Compose tests that later share its JVM fork fail with AppNotIdleException. Run it in
+// a JVM of its own: each test<Variant>UnitTest excludes it and is finalized by test<Variant>AppStartSmokeTest, which
+// runs only that class with the same classpath and settings, so `testReleaseUnitTest` still runs it and fails on it.
+def appStartSmokeTestClass = 'com.droiddeck.launcher.AppStartSmokeTest'
+afterEvaluate {
+    tasks.names.findAll { it ==~ /test\w+UnitTest/ }.each { unitTestName ->
+        def unitTest = tasks.named(unitTestName, Test)
+        def smokeTest = tasks.register(unitTestName.replace('UnitTest', 'AppStartSmokeTest'), Test) { smoke ->
+            def source = unitTest.get()
+            smoke.group = 'verification'
+            smoke.description = "Runs ${appStartSmokeTestClass} in its own JVM after ${unitTestName}."
+            smoke.testClassesDirs = source.testClassesDirs
+            smoke.classpath = source.classpath
+            smoke.useJUnit()
+            smoke.filter.includeTestsMatching(appStartSmokeTestClass)
+            smoke.maxHeapSize = source.maxHeapSize
+            smoke.systemProperties(source.systemProperties)
+            smoke.jvmArgs(source.jvmArgs)
+            smoke.jvmArgumentProviders.addAll(source.jvmArgumentProviders)
+            smoke.workingDir = source.workingDir
+            def hostProot = providers.environmentVariable('KESTREL_TEST_PROOT').orNull
+            if (hostProot != null) smoke.environment 'KESTREL_TEST_PROOT', hostProot
+            smoke.binaryResultsDirectory = layout.buildDirectory.dir("test-results/${smoke.name}/binary")
+            smoke.reports.junitXml.outputLocation = layout.buildDirectory.dir("test-results/${smoke.name}")
+            smoke.reports.html.outputLocation = layout.buildDirectory.dir("reports/tests/${smoke.name}")
+            smoke.testLogging {
+                events 'passed', 'skipped', 'failed'
+                exceptionFormat 'full'
+            }
+            if (ciBuild) {
+                smoke.outputs.upToDateWhen { false }
+                smoke.outputs.doNotCacheIf('CI executes the test suite on every run') { true }
+            }
+        }
+        unitTest.configure {
+            exclude '**/AppStartSmokeTest*'
+            finalizedBy smokeTest
+        }
+    }
+}
+
 def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
     from(rootProject.file('tools/linuxfs/overlay')) {
         include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**'
