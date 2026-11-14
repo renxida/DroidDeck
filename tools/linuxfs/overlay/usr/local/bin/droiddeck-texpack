@@ -1,0 +1,474 @@
+#!/usr/bin/env python3
+"""Re-encodes a Godot game's textures to ASTC 4x4 inside its own .pck, on this device only, reversibly.
+
+A PC build ships BC (S3TC/BPTC) textures. The phone's GPU has no BC: the graphics layer keeps each BC texture and
+a decoded RGBA copy, about five times the BC size in GPU memory. ASTC 4x4 is native and as small as BC3/BC7.
+
+How the pack is changed: the converted textures and a new copy of the pack's directory (pointing at them) are
+appended to the end of the .pck, and the 8-byte directory offset in its header is switched to the new directory.
+The original data and directory stay where they were, so undoing it is: put the old offset back, truncate to the
+original size. Nothing leaves the device and no other file is touched.
+
+    prepare  before a launch (game-env, experiment tex-astc): switch a finished build on, undo a stale one, and
+             start a build in the background when there is none
+    revert   undo (the experiment is off, or a launch with the textures went wrong)
+    build    the background work: convert, append, write the new directory (not switched until the next launch)
+    status   print the state
+
+State: /var/tmp/droiddeck/texpack/<pack key>.json. Report for the telemetry bundle: /var/tmp/droiddeck/texpack.txt.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import struct
+import subprocess
+import sys
+import time
+
+TOOL = "/usr/local/bin/droiddeck-ctex-astc"
+CACHE_DIR = Path("/var/tmp/droiddeck")
+STATE_DIR = CACHE_DIR / "texpack"
+REPORT = CACHE_DIR / "texpack.txt"
+PREFIX = "DROIDDECK_TEXPACK"
+VERSION = 1  # bump when the conversion changes, so a finished build is redone
+HEADER_DIR_FIELD = 32  # "GDPC", version, 4 x u32 (major, minor, patch, flags), u64 file base, then u64 directory offset
+SPARE_BYTES = 1 << 30  # free space to leave on the disk after the build
+EFFORT = 60.0  # astcenc medium
+# Lines in the game's own log (godot.log) that mean a texture from the pack did not load or the GPU choked on one.
+BAD_LOG = re.compile(r"Compressed texture file is (?:corrupt|too new)|Expected Image data size|Unable to open file: res://[^ ]*\.ctex"
+                     r"|Failed loading resource: res://[^ ]*\.(?:ctex|png|jpe?g|webp|svg|tga)\b|VK_ERROR_DEVICE_LOST")
+
+
+def say(line):
+    print(line, file=sys.stderr, flush=True)
+
+
+def find_pack(game_dir):
+    packs = sorted(Path(game_dir).glob("*.pck"), key=lambda p: -p.stat().st_size)
+    return packs[0] if packs else None
+
+
+def read_header(path):
+    """(version, flags, absolute file base, directory offset) of a standalone Godot 4 pack (format 3), or an error."""
+    with open(path, "rb") as f:
+        head = f.read(HEADER_DIR_FIELD + 8)
+    if len(head) < HEADER_DIR_FIELD + 8 or head[:4] != b"GDPC":
+        raise ValueError("not a standalone Godot pack")
+    version, _major, _minor, _patch, flags = struct.unpack("<5I", head[4:24])
+    file_base, dir_offset = struct.unpack("<QQ", head[24:40])
+    if version != 3:
+        raise ValueError("pack format %d (only 3 is handled)" % version)
+    if flags & 1:
+        raise ValueError("encrypted directory")
+    if flags & ~3:
+        raise ValueError("pack flags %d" % flags)
+    return version, flags, file_base, dir_offset
+
+
+def read_directory(path, dir_offset):
+    """[(raw name bytes, offset, size, md5, flags)] and the directory's length in bytes."""
+    entries = []
+    with open(path, "rb") as f:
+        f.seek(dir_offset)
+        count = struct.unpack("<I", f.read(4))[0]
+        if count > 2_000_000:
+            raise ValueError("implausible file count %d" % count)
+        for _ in range(count):
+            length = struct.unpack("<I", f.read(4))[0]
+            if length > 4096:
+                raise ValueError("bad directory entry after %d files" % len(entries))
+            raw = f.read(length)
+            offset, size = struct.unpack("<QQ", f.read(16))
+            md5 = f.read(16)
+            flags = struct.unpack("<I", f.read(4))[0]
+            entries.append((raw, offset, size, md5, flags))
+        end = f.tell()
+    return entries, end - dir_offset
+
+
+def directory_bytes(entries):
+    out = [struct.pack("<I", len(entries))]
+    for raw, offset, size, md5, flags in entries:
+        out.append(struct.pack("<I", len(raw)) + raw + struct.pack("<QQ", offset, size) + md5 + struct.pack("<I", flags))
+    return b"".join(out)
+
+
+def name_of(raw):
+    name = raw.rstrip(b"\0").decode("utf-8", "replace")
+    return name[6:] if name.startswith("res://") else name
+
+
+def digest(path, offset, length):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        f.seek(offset)
+        h.update(f.read(length))
+    return h.hexdigest()
+
+
+def state_path(pack):
+    return STATE_DIR / (hashlib.sha256(str(Path(pack).resolve()).encode()).hexdigest()[:16] + ".json")
+
+
+def load_state(pack):
+    try:
+        return json.loads(state_path(pack).read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def save_state(pack, state):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    p = state_path(pack)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=1))
+    os.replace(tmp, p)
+
+
+def drop_state(pack):
+    try:
+        state_path(pack).unlink()
+    except OSError:
+        pass
+
+
+def write_report(state, extra=None):
+    report = {"made": int(time.time())}
+    if state:
+        report.update({k: state[k] for k in ("phase", "variant", "summary", "original_size", "modded_size") if k in state})
+    if extra:
+        report.update(extra)
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        REPORT.write_text(json.dumps(report, indent=1) + "\n")
+    except OSError:
+        pass
+
+
+def classify(pack, state):
+    """Where the pack stands against the state: original, appended (a build is or was on its way, or is finished
+    but not switched on), active, or unknown (Steam changed it, or there is no state)."""
+    if not state:
+        return "unknown"
+    try:
+        st = os.stat(pack)
+        _, _, _, dir_offset = read_header(pack)
+    except (OSError, ValueError):
+        return "unknown"
+    if dir_offset == state["original_dir_offset"] and st.st_size >= state["original_size"]:
+        try:
+            same = digest(pack, state["original_dir_offset"], state["original_dir_length"]) == state["original_dir_sha256"]
+        except OSError:
+            same = False
+        if not same:
+            return "unknown"
+        return "original" if st.st_size == state["original_size"] else "appended"
+    if state.get("phase") in ("built", "active") and dir_offset == state.get("new_dir_offset") and st.st_size == state.get("modded_size"):
+        return "active"
+    return "unknown"
+
+
+def set_dir_offset(pack, offset):
+    with open(pack, "r+b") as f:
+        f.seek(HEADER_DIR_FIELD)
+        f.write(struct.pack("<Q", offset))
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def undo(pack, state):
+    """Put the original directory offset back and cut the appended part off; True when the pack is original again."""
+    where = classify(pack, state)
+    if where == "unknown":
+        return False
+    if where == "active":
+        set_dir_offset(pack, state["original_dir_offset"])
+    if os.stat(pack).st_size != state["original_size"]:
+        os.truncate(pack, state["original_size"])
+    mtime = state.get("original_mtime_ns")
+    if mtime:
+        try:
+            os.utime(pack, ns=(mtime, mtime))
+        except OSError:
+            pass
+    return classify(pack, state) == "original"
+
+
+def fresh_state(pack, variant):
+    _, flags, file_base, dir_offset = read_header(pack)
+    _, length = read_directory(pack, dir_offset)
+    st = os.stat(pack)
+    return {"pack": str(pack), "original_size": st.st_size, "original_mtime_ns": st.st_mtime_ns,
+            "original_dir_offset": dir_offset, "original_dir_length": length,
+            "original_dir_sha256": digest(pack, dir_offset, length), "variant": variant, "phase": "original"}
+
+
+def variant_of(args):
+    return {"version": VERSION, "half_above": int(args.half_above or 0), "effort": float(args.effort)}
+
+
+def build_running(pack):
+    lock = state_path(pack).with_suffix(".pid")
+    try:
+        pid = int(lock.read_text().strip())
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError):
+        return None
+
+
+def start_build(pack, args, popen=subprocess.Popen):
+    cmd = [sys.executable, os.path.abspath(__file__), "build", "--pack", str(pack),
+           "--half-above", str(args.half_above or 0), "--effort", str(args.effort)]
+    log = open(CACHE_DIR / "texpack-build.log", "ab")
+    try:
+        popen(["nice", "-n", "19"] + cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+    finally:
+        log.close()
+
+
+def log_trouble(state, logs):
+    """The first line of the game's log, written since the textures went on, that says a texture failed."""
+    since = state.get("activated_at", 0)
+    for log in logs or ():
+        try:
+            if os.stat(log).st_mtime < since:
+                continue
+            with open(log, "rb") as f:
+                for line in f:
+                    text = line.decode("utf-8", "replace")
+                    if BAD_LOG.search(text):
+                        return text.strip()[:300]
+        except OSError:
+            continue
+    return None
+
+
+def prepare(pack, args, popen=subprocess.Popen):
+    """One line for the session log saying what this launch gets."""
+    variant = variant_of(args)
+    state = load_state(pack)
+    where = classify(pack, state)
+    if where == "active" and not build_running(pack):
+        trouble = log_trouble(state, args.godot_log)
+        if trouble:
+            undo(pack, state)
+            state.update(phase="original", failed_variant=state.get("variant"), failed_reason="game log: " + trouble)
+            state.pop("new_dir_offset", None)
+            save_state(pack, state)
+            write_report(state)
+            return "ASTC textures turned off: the last launch logged %r" % trouble
+    if build_running(pack):
+        if where == "active" and state.get("variant") == variant:
+            return "ASTC textures on (%s)" % brief(state)
+        return "texture build still running; original textures this launch"
+    if where == "active" and state.get("variant") == variant:
+        return "ASTC textures on (%s)" % brief(state)
+    if where == "appended" and state.get("phase") == "built" and state.get("variant") == variant:
+        set_dir_offset(pack, state["new_dir_offset"])
+        state["phase"] = "active"
+        state["activated_at"] = time.time()
+        st = os.stat(pack)
+        state["modded_size"], state["modded_mtime_ns"] = st.st_size, st.st_mtime_ns
+        save_state(pack, state)
+        write_report(state)
+        return "ASTC textures switched on (%s)" % brief(state)
+    if where in ("active", "appended"):
+        undo(pack, state)
+        where = "original"
+    if where == "unknown":
+        drop_state(pack)
+        state = None
+    if state is None or where == "original":
+        try:
+            state = fresh_state(pack, variant) if state is None else dict(state, variant=variant, phase="original")
+        except (OSError, ValueError) as error:
+            write_report(None, {"error": str(error)})
+            return "textures left as they are (%s)" % error
+        save_state(pack, state)
+    if state.get("failed_variant") == variant:
+        return "textures left as they are (this build of them failed before: %s)" % state.get("failed_reason", "?")
+    start_build(pack, args, popen)
+    return "texture build started in the background; ASTC textures from the next launch"
+
+
+def brief(state):
+    s = state.get("summary") or {}
+    return "%d of %d textures, %.0f MB of them now ASTC" % (s.get("converted", 0), s.get("textures", 0),
+                                                        s.get("from_bytes", 0) / 1e6)
+
+
+def revert(pack):
+    state = load_state(pack)
+    if not state:
+        return "no texture changes to undo"
+    if build_running(pack):
+        return "texture build running; undo on the next launch"
+    where = classify(pack, state)
+    if where == "original":
+        drop_state(pack)
+        return "textures already original"
+    if where == "unknown":
+        drop_state(pack)
+        return "pack changed since (Steam update?); state dropped, pack left alone"
+    ok = undo(pack, state)
+    drop_state(pack)
+    write_report(None, {"phase": "reverted"})
+    return "original textures restored" if ok else "undo did not take; pack left alone"
+
+
+def build(pack, args, run=subprocess.Popen):
+    lock = state_path(pack).with_suffix(".pid")
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    if build_running(pack):
+        say(PREFIX + " build already running")
+        return 1
+    lock.write_text(str(os.getpid()))
+    try:
+        return _build(pack, args, run)
+    finally:
+        try:
+            lock.unlink()
+        except OSError:
+            pass
+
+
+def _build(pack, args, run):
+    try:
+        os.sched_setscheduler(0, os.SCHED_IDLE, os.sched_param(0))
+    except (AttributeError, OSError):
+        pass
+    variant = variant_of(args)
+    state = load_state(pack)
+    where = classify(pack, state)
+    if where == "unknown":
+        state = fresh_state(pack, variant)
+    elif where in ("appended", "active"):
+        if not undo(pack, state):
+            say(PREFIX + " build: pack could not be put back; stopped")
+            return 1
+    state.update(variant=variant, phase="building")
+    state.pop("failed_variant", None)
+    save_state(pack, state)
+
+    _, flags, file_base, dir_offset = read_header(pack)
+    entries, _ = read_directory(pack, dir_offset)
+    base = file_base  # standalone pack: the base is already absolute (relative to the pack's start, which is 0)
+    jobs = []
+    for i, (raw, offset, size, md5, eflags) in enumerate(entries):
+        if name_of(raw).endswith(".ctex") and not eflags & 1:
+            jobs.append((i, base + offset, size))
+    candidate = sum(size for _, _, size in jobs)
+    free = shutil.disk_usage(os.path.dirname(os.path.abspath(pack))).free
+    if free < candidate + SPARE_BYTES:
+        state.update(phase="original", failed_variant=variant,
+                     failed_reason="%.1f GB free, %.1f GB needed" % (free / 1e9, (candidate + SPARE_BYTES) / 1e9))
+        save_state(pack, state)
+        write_report(state)
+        say(PREFIX + " build: not enough space (%s)" % state["failed_reason"])
+        return 1
+
+    threads = max(1, min(int(args.threads or 0) or (os.cpu_count() or 4) // 2, 8))
+    cmd = [args.tool, "--pack", str(pack), "--out", str(pack), "--threads", str(threads), "--effort", str(args.effort),
+           "--half-above", str(args.half_above or 0)]
+    started = time.monotonic()
+    proc = run(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    feed = "".join("%d %d %d\n" % job for job in jobs)
+    out, _ = proc.communicate(feed)
+    results = {}
+    for line in out.splitlines():
+        parts = line.split(" ", 2)
+        if len(parts) >= 2:
+            results[int(parts[0])] = parts[1:]
+    if proc.returncode != 0 or len(results) != len(jobs):
+        undo(pack, dict(state, phase="building"))
+        state.update(phase="original", failed_variant=variant,
+                     failed_reason="converter exit %s, %d of %d answered" % (proc.returncode, len(results), len(jobs)))
+        save_state(pack, state)
+        write_report(state)
+        say(PREFIX + " build failed: " + state["failed_reason"])
+        return 1
+
+    new_entries = list(entries)
+    summary = {"textures": len(jobs), "converted": 0, "kept": {}, "failed": {}, "from_bytes": 0, "to_bytes": 0,
+               "halved": 0, "psnr_min": None, "psnr_sum": 0.0, "kinds": {}}
+    for i, offset, size in jobs:
+        status, rest = results[i][0], (results[i][1] if len(results[i]) > 1 else "")
+        if status == "ok":
+            at, new_size, kind, dims, new_dims, psnr = rest.split(" ")
+            at, new_size, psnr = int(at), int(new_size), float(psnr)
+            raw, _, _, _, eflags = entries[i]
+            with open(pack, "rb") as f:
+                f.seek(at)
+                md5 = hashlib.md5(f.read(new_size)).digest()
+            new_entries[i] = (raw, at - base, new_size, md5, eflags)
+            summary["converted"] += 1
+            summary["from_bytes"] += size
+            summary["to_bytes"] += new_size
+            summary["halved"] += dims != new_dims
+            summary["psnr_sum"] += psnr
+            summary["psnr_min"] = psnr if summary["psnr_min"] is None else min(summary["psnr_min"], psnr)
+            k = summary["kinds"].setdefault(kind, [0, 0])
+            k[0] += 1
+            k[1] += size
+        else:
+            bucket = summary["kept" if status == "keep" else "failed"]
+            reason = rest.split(" ")[0] if rest else "?"
+            bucket[reason] = bucket.get(reason, 0) + 1
+    if summary["converted"]:
+        summary["psnr_mean"] = round(summary.pop("psnr_sum") / summary["converted"], 2)
+    else:
+        summary.pop("psnr_sum")
+    summary["seconds"] = round(time.monotonic() - started, 1)
+    summary["threads"] = threads
+
+    directory = directory_bytes(new_entries)
+    with open(pack, "ab") as f:
+        pad = -f.tell() % 16
+        f.write(b"\0" * pad)
+        new_dir_offset = f.tell()
+        f.write(directory)
+        f.flush()
+        os.fsync(f.fileno())
+    st = os.stat(pack)
+    state.update(phase="built", new_dir_offset=new_dir_offset, modded_size=st.st_size, summary=summary)
+    save_state(pack, state)
+    write_report(state)
+    say(PREFIX + "_SUMMARY " + json.dumps(summary))
+    return 0
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("command", choices=("prepare", "revert", "build", "status"))
+    parser.add_argument("--game-dir")
+    parser.add_argument("--pack")
+    parser.add_argument("--half-above", type=int, default=0)
+    parser.add_argument("--effort", type=float, default=EFFORT)
+    parser.add_argument("--threads", type=int, default=0)
+    parser.add_argument("--tool", default=TOOL)
+    parser.add_argument("--godot-log", action="append", default=[], help="the game's log, checked for texture errors")
+    args = parser.parse_args(argv)
+    pack = Path(args.pack) if args.pack else (find_pack(args.game_dir) if args.game_dir else None)
+    if pack is None or not pack.is_file():
+        say(PREFIX + " no .pck found")
+        return 1
+    if args.command == "prepare":
+        say(PREFIX + " " + prepare(pack, args))
+        return 0
+    if args.command == "revert":
+        say(PREFIX + " " + revert(pack))
+        return 0
+    if args.command == "build":
+        return build(pack, args)
+    state = load_state(pack)
+    print(json.dumps({"where": classify(pack, state), "running": build_running(pack), "state": state}, indent=1))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

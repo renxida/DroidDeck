@@ -2146,6 +2146,8 @@
     <string name="exp_webhelper_trim">While a game runs, ask Steam\'s built-in browser to free memory every few minutes</string>
     <string name="exp_dotnet_r2r_generics">.NET games: as above, and also precompile the .NET library code the game uses with its own types (JSON loading, async), which the plain switch leaves to the JIT</string>
     <string name="exp_dotnet_r2r">.NET games: precompile the game\'s own code to x86 once, in the background, so it JITs less each launch; turning it off puts the original files back</string>
+    <string name="exp_tex_astc">Godot games: re-encode textures to the phone\'s own GPU format (much less graphics memory); undone when off</string>
+    <string name="exp_tex_half">Godot games: as above, and store textures over 1024 px at half resolution</string>
     <string name="exp_godot_verbose">Godot games: log every file the game loads, to see which fonts and textures it uses</string>
     <string name="exp_fex_smaps">Memory: map where the game\'s memory goes, by owner, once a minute</string>
     <string name="exp_fex_sample">FEX: sample where game threads spend their time (Kestrel\'s FEX)</string>

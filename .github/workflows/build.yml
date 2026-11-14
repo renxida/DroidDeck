@@ -214,10 +214,10 @@ jobs:
         if: steps.proot.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py proot
 
-      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse, vkcount and indexed hybris compat layers)
+      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, texture converter, Xclipse, vkcount and indexed hybris compat layers)
         run: |
           set -euo pipefail
-          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan-dev
           D=app/src/main/assets/linuxfs
           mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
@@ -233,6 +233,8 @@ jobs:
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-hybris-compat/libVkLayer_droiddeck_hybris_compat.so"
           aarch64-linux-gnu-gcc -O2 -Wall -o "$D/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-glprobe"
+          bash tools/linuxfs/texpack/build.sh "$D/usr/local/bin/droiddeck-ctex-astc" aarch64-linux-gnu-g++
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-ctex-astc"
 
       - name: Check the preloads
         run: |

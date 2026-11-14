@@ -41,7 +41,11 @@ object TelemetryBundle {
                   val guestFiles: List<Pair<String, File>> = emptyList())
 
     /** Reports guest tools write for upload, as (zip name, path under the Linux root); taken when written this session. */
-    internal val GUEST_REPORTS = listOf("native-inventory.txt" to "var/tmp/droiddeck/native-inventory.txt")
+    internal val GUEST_REPORTS = listOf(
+        "native-inventory.txt" to "var/tmp/droiddeck/native-inventory.txt",
+        "texpack.txt" to "var/tmp/droiddeck/texpack.txt",
+        "texpack-build.log" to "var/tmp/droiddeck/texpack-build.log",
+    )
     private const val GUEST_REPORT_BYTES = 4L shl 20
     /**
      * Binary files guest tools write for upload, copied as they are (not text, so not through the redactor):

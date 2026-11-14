@@ -83,7 +83,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "hybris-index-session", "native-engine", "dxvk-arm64ec",
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
-               "fex-smaps", "godot-verbose")
+               "fex-smaps", "godot-verbose", "tex-astc", "tex-half")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -3079,6 +3079,58 @@ def native_inventory(exe, env, popen=subprocess.Popen):
     return ["native-inventory: started for %s" % os.path.basename(os.path.dirname(os.path.abspath(exe)))]
 
 
+TEXPACK = "/usr/local/bin/droiddeck-texpack"
+TEXPACK_STATE = "/var/tmp/droiddeck/texpack"
+# tex-half: textures larger than this on a side are stored at half resolution (the game sees the same size).
+TEX_HALF_ABOVE = 1024
+
+
+def godot_logs(env):
+    """The Godot game logs in the Proton prefix (user://logs/godot.log), for the texture check."""
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if not prefix:
+        return []
+    roaming = os.path.join(prefix, "pfx", "drive_c", "users", "steamuser", "AppData", "Roaming")
+    found = []
+    for base in (roaming, os.path.join(roaming, "Godot", "app_userdata")):
+        try:
+            names = os.listdir(base)
+        except OSError:
+            continue
+        for name in names[:64]:
+            log = os.path.join(base, name, "logs", "godot.log")
+            if os.path.isfile(log):
+                found.append(log)
+    return found
+
+
+def texture_pack(exe, env, run=subprocess.run):
+    """Under tex-astc (or tex-half), the Godot game's textures are re-encoded to ASTC inside its own pack
+    (droiddeck-texpack: appended, switched on at a launch, undone with the experiment off). Synchronous only for the
+    header switch; the conversion itself runs in the background and is used from the next launch."""
+    want = experiment(env, "tex-astc") or experiment(env, "tex-half")
+    if not want:
+        try:
+            if not any(n.endswith(".json") for n in os.listdir(TEXPACK_STATE)):
+                return []
+        except OSError:
+            return []
+    folder = os.path.dirname(os.path.abspath(exe))
+    cmd = [sys.executable, TEXPACK, "prepare" if want else "revert", "--game-dir", folder]
+    if want:
+        if experiment(env, "tex-half"):
+            cmd += ["--half-above", str(TEX_HALF_ABOVE)]
+        for log in godot_logs(env):
+            cmd += ["--godot-log", log]
+    try:
+        result = run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+                     timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return ["textures: %s not run (%s)" % (cmd[2], error)]
+    lines = [line.split(" ", 1)[1] for line in result.stderr.splitlines() if line.startswith("DROIDDECK_TEXPACK ")]
+    return ["textures: " + (lines[-1] if lines else "%s exit %d" % (cmd[2], result.returncode))]
+
+
 NATIVE_GODOT = "/usr/local/bin/droiddeck-native-godot"
 # A native run that ends sooner than this with an error is taken as "did not start"; the game then starts on Proton.
 NATIVE_START_S = 60
@@ -3290,6 +3342,7 @@ def main():
                     except (OSError, ValueError) as error:
                         notes.append("Godot: cache and log check skipped (%s)" % error)
                     notes += native_inventory(command[2], effective_env)
+                    notes += texture_pack(command[2], effective_env)
                     native_rc, native_notes = native_engine(command, effective_env)
                     for note in native_notes:
                         print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)

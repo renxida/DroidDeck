@@ -70,6 +70,8 @@ class ExperimentsTest {
             "webhelper-trim" to "DROIDDECK_EXP_WEBHELPER_TRIM",
             "fex-smaps" to "DROIDDECK_EXP_FEX_SMAPS",
             "godot-verbose" to "DROIDDECK_EXP_GODOT_VERBOSE",
+            "tex-astc" to "DROIDDECK_EXP_TEX_ASTC",
+            "tex-half" to "DROIDDECK_EXP_TEX_HALF",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())
