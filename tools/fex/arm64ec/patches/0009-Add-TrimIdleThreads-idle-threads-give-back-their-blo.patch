@@ -1,4 +1,4 @@
-From 7437ab0210114a5e700989b2d09cf6742fa1a467 Mon Sep 17 00:00:00 2001
+From cdf3b92b54de6a4606fd31cdf47d46331c36bbd6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 14 Nov 2026 10:50:46 +0000
 Subject: [PATCH] Add TrimIdleThreads: idle threads give back their block
@@ -20,13 +20,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  .../Source/Interface/Config/Config.json.in    |   9 ++
  FEXCore/Source/Interface/Context/Context.h    |   2 +
- FEXCore/Source/Interface/Core/CPUBackend.h    |  11 ++
+ FEXCore/Source/Interface/Core/CPUBackend.h    |  12 ++
  FEXCore/Source/Interface/Core/Core.cpp        |  29 +++++
  FEXCore/Source/Interface/Core/LookupCache.cpp |  21 +++
  FEXCore/Source/Interface/Core/LookupCache.h   |  23 ++++
  FEXCore/include/FEXCore/Core/Context.h        |  15 +++
  Source/Windows/ARM64EC/Module.cpp             | 123 ++++++++++++++++++
- 8 files changed, 233 insertions(+)
+ 8 files changed, 234 insertions(+)
 
 diff --git a/FEXCore/Source/Interface/Config/Config.json.in b/FEXCore/Source/Interface/Config/Config.json.in
 index d9f6903..9357bbe 100644
@@ -62,10 +62,18 @@ index 632767e..4d2b3d8 100644
    // returns false if a handler was already registered
    std::optional<CustomIRResult>
 diff --git a/FEXCore/Source/Interface/Core/CPUBackend.h b/FEXCore/Source/Interface/Core/CPUBackend.h
-index 1d19bc1..be011b0 100644
+index 1d19bc1..87bf1aa 100644
 --- a/FEXCore/Source/Interface/Core/CPUBackend.h
 +++ b/FEXCore/Source/Interface/Core/CPUBackend.h
-@@ -138,6 +138,17 @@ namespace CPU {
+@@ -19,6 +19,7 @@ $end_info$
+ 
+ #include <cstdint>
+ #include <span>
++#include <utility>
+ 
+ namespace FEXCore::CPU {
+ union Relocation;
+@@ -138,6 +139,17 @@ namespace CPU {
      [[nodiscard]]
      fextl::shared_ptr<CodeBuffer> CheckCodeBufferUpdate();
  
