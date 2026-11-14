@@ -58,6 +58,9 @@ jobs:
           dotnet publish tools/native-engine/r2r-arm64/Host -c Release -r win-x64 --self-contained false \
             -p:PublishReadyToRun=true -o "$T/win" 2>&1 | tail -3
           ls -la "$T/win"
+          # The same code without ReadyToRun: the JIT baseline on arm64.
+          dotnet publish tools/native-engine/r2r-arm64/Host -c Release -r win-x64 --self-contained false \
+            -p:PublishReadyToRun=false -o "$T/win-il" 2>&1 | tail -1
           python3 - "$T/win" <<'PY'
           import runpy, sys
           ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
@@ -145,17 +148,33 @@ jobs:
         run: |
           set -euo pipefail
           T=$RUNNER_TEMP
-          mkdir -p "$T/run-il" "$T/run-r2r"
-          python3 - "$T/win" "$T/run-il" <<'PY'
-          import runpy, sys
+          mkdir -p "$T/run-il" "$T/run-r2r" "$T/run-relabel" "$T/run-relabel-lib"
+          # The JIT baseline: the same code published without ReadyToRun (IL, relabelled if it says x64).
+          # Diagnostics: the win-x64 ReadyToRun images only relabelled (what compose puts in the launch folder
+          # without this experiment), both of them, and the library alone beside an IL host.
+          python3 - "$T" <<'PY'
+          import runpy, shutil, sys
           ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          T = sys.argv[1]
+          def put(src, dst):
+              data = open(src, "rb").read()
+              img, note = ng["portable_image"](data)
+              open(dst, "wb").write(img or data)
+              print(dst, note or "as it is")
           for name in ("KestrelLib.dll", "KestrelHost.dll"):
-              img, note = ng["portable_image"](open(f"{sys.argv[1]}/{name}", "rb").read())
-              open(f"{sys.argv[2]}/{name}", "wb").write(img)
-              print(name, note)
+              put(f"{T}/win-il/{name}", f"{T}/run-il/{name}")
+              put(f"{T}/win/{name}", f"{T}/run-relabel/{name}")
+          put(f"{T}/win-il/KestrelHost.dll", f"{T}/run-relabel-lib/KestrelHost.dll")
+          put(f"{T}/win/KestrelLib.dll", f"{T}/run-relabel-lib/KestrelLib.dll")
           PY
           cp "$T/launch/data_KestrelHost_linuxbsd_arm64/KestrelLib.dll" "$T/launch/data_KestrelHost_linuxbsd_arm64/KestrelHost.dll" "$T/run-r2r/"
-          for d in run-il run-r2r; do cp "$T/win/KestrelHost.runtimeconfig.json" "$T/$d/"; done
+          for d in run-il run-r2r run-relabel run-relabel-lib; do cp "$T/win/KestrelHost.runtimeconfig.json" "$T/$d/"; done
+          for d in run-relabel run-relabel-lib; do
+            set +e
+            dotnet "$T/$d/KestrelHost.dll" 50 > "$d.out" 2> "$d.err"
+            echo "diagnostic $d: exit $? $(head -c 300 "$d.out") $(grep -m1 -E 'Exception' "$d.err")" | tee -a diagnostics.txt
+            set -e
+          done
           echo "label,own_first,own_tier1,all_first,all" > counts.csv
           run() {  # label dir [env...]
             label=$1 dir=$2; shift 2
@@ -194,7 +213,7 @@ jobs:
           assert r2r * 4 <= il, "the ReadyToRun code was not used"
           assert off * 10 >= il * 9, "with ReadyToRun off the JIT should compile them all again"
           PY
-          { echo '### Our linux-arm64 ReadyToRun images on arm64 .NET'; echo '```'; cat counts.csv times.txt "$T/r2r-cache/compile.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo '### Our linux-arm64 ReadyToRun images on arm64 .NET'; echo '```'; cat counts.csv times.txt diagnostics.txt cg-today.txt "$T/r2r-cache/compile.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
