@@ -28,7 +28,7 @@ import time
 import zipfile
 
 SCHEMA = 4  # 2: JSON lines, Vorbis setup ids, imported pairing, FSB5 slice; 3: Spine 4.2 binary survey;
-           # 4: text scene and resource survey
+           # 4: text scene and resource survey, compiled GDScript identifier and string tables
 PREFIX = "DROIDDECK_NATIVE_INVENTORY"
 MAX_LIST = 4000
 MAX_GDEXT_BYTES = 8192
@@ -1082,6 +1082,98 @@ def scene_survey(sources):
     return survey
 
 
+# --- Compiled GDScript (.gdc): identifier and string tables, to learn which audio and animation calls the
+# game's scripts make. Layout from Godot's own MIT sources (modules/gdscript/gdscript_tokenizer_buffer.cpp).
+
+GDC_MAX = 1 << 20
+GDC_IDENTIFIERS = 800
+GDC_STRINGS = 300
+GDC_STRING_MAX = 160
+
+
+def zstd_decompress(blob, size):
+    try:
+        import compression.zstd as z  # Python 3.14+
+        return z.decompress(blob)
+    except ImportError:
+        pass
+    try:
+        import zstandard  # noqa: F401
+        return zstandard.ZstdDecompressor().decompress(blob, max_output_size=size)
+    except ImportError:
+        pass
+    import subprocess
+    out = subprocess.run(["zstd", "-dcq"], input=blob, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30)
+    if out.returncode != 0:
+        raise ValueError("zstd failed")
+    return out.stdout
+
+
+def gdc_variant(buf, at):
+    """(value or None, next offset) for one encoded Variant; None as the offset when the type is not handled."""
+    header = struct.unpack_from("<I", buf, at)[0]
+    kind, wide = header & 0xFF, bool(header & (1 << 16))
+    at += 4
+    if kind == 0:
+        return None, at
+    if kind == 1:
+        return bool(struct.unpack_from("<I", buf, at)[0]), at + 4
+    if kind in (2, 3):
+        return None, at + (8 if wide else 4)
+    if kind in (4, 21, 22):  # String, StringName, NodePath (new format starts with a flagged length)
+        n = struct.unpack_from("<I", buf, at)[0]
+        if kind == 22 and n & 0x80000000:
+            return None, None
+        text = buf[at + 4:at + 4 + n].decode("utf-8", "replace")
+        return text, at + 4 + n + (-n % 4)
+    # Fixed-size types: Vector2, Vector2i, Rect2, Rect2i, Vector3, Vector3i, Transform2D, Vector4, Vector4i,
+    # Plane, Quaternion, Color. Real-valued ones double in a 64-bit build.
+    sizes = {5: 8, 6: 8, 7: 16, 8: 16, 9: 12, 10: 12, 11: 24, 12: 16, 13: 16, 14: 16, 15: 16, 20: 16}
+    if kind in sizes:
+        return None, at + sizes[kind] * (2 if wide and kind in (5, 7, 9, 11, 12, 14, 15) else 1)
+    return None, None
+
+
+def gdc_tables(raw):
+    """{"identifiers": [...], "strings": [...]} from a compiled script, or {"error"}."""
+    if raw[:4] != b"GDSC" or len(raw) < 12:
+        return {"error": "not GDSC"}
+    version, size = struct.unpack_from("<II", raw, 4)
+    body = raw[12:] if size == 0 else zstd_decompress(raw[12:], size)
+    ids, consts = struct.unpack_from("<II", body, 0)
+    at, identifiers = 16, []
+    for _ in range(ids):
+        n = struct.unpack_from("<I", body, at)[0]
+        at += 4
+        chars = bytes(b ^ 0xB6 for b in body[at:at + n * 4])
+        identifiers.append(chars.decode("utf-32-le", "replace"))
+        at += n * 4
+    strings = []
+    for _ in range(consts):
+        value, at = gdc_variant(body, at)
+        if at is None:
+            break
+        if isinstance(value, str) and value and value not in strings:
+            strings.append(value[:GDC_STRING_MAX])
+    return {"version": version, "identifiers": identifiers[:GDC_IDENTIFIERS], "identifier_count": ids,
+            "strings": strings[:GDC_STRINGS], "constant_count": consts}
+
+
+def gdc_survey(sources):
+    out = []
+    for src in sources:
+        if src.encrypted or ext_of(src.name) != ".gdc" or src.size > GDC_MAX:
+            continue
+        try:
+            entry = gdc_tables(src.read())
+        except Exception as error:  # one odd script must not stop the rest
+            entry = {"error": "%s: %s" % (type(error).__name__, error)}
+        entry["name"] = src.name
+        entry["size"] = src.size
+        out.append(entry)
+    return out
+
+
 def find_pack(game_dir):
     packs = sorted(Path(game_dir).glob("*.pck"), key=lambda p: -p.stat().st_size)
     if packs:
@@ -1155,6 +1247,7 @@ def inventory(game_dir):
                 resource_hits[name] = resource_hits.get(name, 0) + 1
     report["resource_class_hits"] = dict(sorted(resource_hits.items(), key=lambda kv: -kv[1]))
     report["scene_survey"] = scene_survey(sources)
+    report["scripts"] = gdc_survey(sources)
 
     managed = {}
     for src in sources:
@@ -1364,6 +1457,8 @@ def summary(report):
             "spine_classes_in_scenes": [k for k in report.get("resource_class_hits", {}) if k.startswith("Spine")][:40],
             "fmod_classes_in_scenes": [k for k in report.get("resource_class_hits", {}) if k.startswith("Fmod")][:40],
             "scene_files": (report.get("scene_survey") or {}).get("files"),
+            "scripts": len(report.get("scripts") or []),
+            "script_errors": sum(1 for g in report.get("scripts") or [] if "error" in g),
             "scene_samples": {k: v.get("bytes") for k, v in ((report.get("scene_survey") or {}).get("samples") or {}).items()},
             "encrypted_files": report.get("encrypted_files")}
 

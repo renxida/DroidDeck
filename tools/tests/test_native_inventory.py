@@ -429,6 +429,44 @@ attenuation = true
         self.assertEqual(sorted(reach + ["scenes/sfx.tscn"]), sorted(names))
         self.assertNotIn("scenes/jaw_big.tscn", names)
 
+    def test_compiled_scripts_give_identifiers_and_strings(self):
+        import shutil
+        import subprocess
+
+        def body(identifiers, constants):
+            out = struct.pack("<4I", len(identifiers), len(constants), 0, 0)
+            for name in identifiers:
+                raw = name.encode("utf-32-le")
+                out += struct.pack("<I", len(name)) + bytes(b ^ 0xB6 for b in raw)
+            for value in constants:
+                if isinstance(value, str):
+                    raw = value.encode()
+                    out += struct.pack("<II", 4, len(raw)) + raw + b"\0" * (-len(raw) % 4)
+                elif isinstance(value, float):
+                    out += struct.pack("<Id", 3 | (1 << 16), value)
+                else:
+                    out += struct.pack("<Ii", 2, value)
+            return out
+
+        plain = body(["FmodServer", "play_one_shot", "_ready"], [1, "event:/sfx/attack", 0.5, "volume"])
+        scripts = [("audio/audio_manager.gdc", b"GDSC" + struct.pack("<II", 101, 0) + plain)]
+        if shutil.which("zstd"):
+            packed = subprocess.run(["zstd", "-q", "-c"], input=plain, stdout=subprocess.PIPE, check=True).stdout
+            scripts.append(("audio/packed.gdc", b"GDSC" + struct.pack("<II", 101, len(plain)) + packed))
+        scripts.append(("broken.gdc", b"GDSC" + struct.pack("<II", 101, 0) + b"\xff" * 8))
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        game = Path(tmp.name) / "Slay the Spire 2"
+        game.mkdir()
+        (game / "SlayTheSpire2.pck").write_bytes(pack(scripts))
+        report = self.run_inventory(game, tmp)
+        found = {g["name"]: g for g in report["scripts"]}
+        for name, _ in scripts[:-1]:
+            self.assertEqual(["FmodServer", "play_one_shot", "_ready"], found[name]["identifiers"])
+            self.assertEqual(["event:/sfx/attack", "volume"], found[name]["strings"])
+        self.assertIn("error", found["broken.gdc"])
+        self.assertEqual(1, INV["summary"](report)["script_errors"])
+
     def test_spine42_survey_walks_a_whole_skeleton(self):
         survey = INV["skel_survey"](spine42())
         self.assertTrue(survey["ok"], survey)
