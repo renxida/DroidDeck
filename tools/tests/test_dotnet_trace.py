@@ -178,6 +178,7 @@ class ClrMemoryTest(unittest.TestCase):
         self.assertEqual("/home/a/b.dll", TRACE["unix_path"]("Z:\\home\\a\\b.dll"))
         self.assertEqual("/pfx/dosdevices/c:/windows/x.dll", TRACE["unix_path"]("C:\\windows\\x.dll", "/pfx"))
         self.assertIsNone(TRACE["unix_path"]("C:\\windows\\x.dll", ""))
+        self.assertEqual("/usr/share/dotnet/x.dll", TRACE["unix_path"]("/usr/share/dotnet/x.dll"))
 
 
 class ParseTest(unittest.TestCase):

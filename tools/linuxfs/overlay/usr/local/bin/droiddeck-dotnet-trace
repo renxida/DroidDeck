@@ -416,7 +416,10 @@ def summary_text(summary):
 
 
 def unix_path(path, prefix=None):
-    """A Wine path as the Linux side sees it: Z: is /, other drives are under the prefix's dosdevices."""
+    """A Wine path as the Linux side sees it: Z: is /, other drives are under the prefix's dosdevices. A native
+    Linux runtime's paths are already Linux paths."""
+    if path.startswith("/"):
+        return path
     if len(path) < 3 or path[1] != ":":
         return None
     rest = path[2:].replace("\\", "/")

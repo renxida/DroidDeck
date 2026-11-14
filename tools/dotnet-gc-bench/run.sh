@@ -38,6 +38,11 @@ jit = (d / "dotnet-jit.txt").read_text().splitlines()
 if int(jit[0].split("=")[1].split()[0]) < 20:
     sys.exit(f"{name}: only {jit[0]}")
 print("\n".join(jit[:4]), file=sys.stderr)
+memory = (d / "dotnet-summary.txt").read_text().splitlines()[-1]
+fields = dict(part.split("=") for part in memory.split()[1:])
+if not memory.startswith("clr_memory: ") or float(fields["jit_code_mb"]) <= 0 or int(fields["modules_sized"]) < 3:
+    sys.exit(f"{name}: {memory}")
+print(memory, file=sys.stderr)
 print(f"| {name} | {r['fps']} | {r['p95_ms']} | {r['p99_ms']} | {r['max_ms']} | {r['gc_total']} | {r['gen1']} | {r['gen2']} | {r['pause_ms']} | {r['heap_mb']} |")
 PY
 done
