@@ -1,10 +1,10 @@
 name: FEX upstream Godot crash bisect (Wine ARM64EC, off-device)
 
 # Upstream FEX at ab135df (Kestrel's base) with no Kestrel patches crashes the Godot 4.5.1 mono stand-in at ~10 s
-# with a page fault inside StandIn.exe, while Hangover 11.16's FEX (FEX-2608, e869aa6, plus two Wine-side
-# commits) runs it (run 43634738239, run-0000). This builds 16 upstream commits evenly spaced (first parent)
-# from FEX-2608 to ab135df, no patches, and runs the stand-in GODOT_RUNS times under each with the game's FEX
-# settings, plus the tip and stock with no FEX settings and the tip with TSO alone. Nothing is published.
+# with a page fault inside StandIn.exe, while Hangover 11.16's FEX (FEX-2608) runs it. Round 1 (run 43635698654,
+# first run of each row) put the change between a6ba3e2 (passes) and e67bbd3 (crashes), 14 merged PRs in the
+# FEX-2611 release. This builds every first-parent commit in that range, no patches, and runs the stand-in
+# GODOT_RUNS times under each with the game's FEX settings. Nothing is published.
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ref: ['e869aa644', '73ab3bc56', '44f69f4dd', 'd04ad79ea', '8cf2bf7ad', 'cf6da6ac2', '50e6eee95', 'f18599d09', 'eb41dac33', '4e5c18113', 'd58a4e0da', 'd7b8e1497', '710195aed', 'a6ba3e2fb', 'e67bbd3ec', 'ab135df09']
+        ref: ['a6ba3e2fb', '524a37c7a', '24da3ae7c', 'b1f27cfa9', '2b1082060', '4a4669a07', 'fb68b0e9a', 'effbda64c', 'fc770b368', '75df0f815', 'd6ec06759', 'a81762cae', 'a8c901622', 'eff9f459d', 'e67bbd3ec']
     name: build-${{ matrix.ref }}
     steps:
       - uses: actions/checkout@v4
@@ -47,22 +47,21 @@ jobs:
           set -euo pipefail
           full() {
             case $1 in
-            e869aa644) echo e869aa644a16e4332cdc15c1ea0b4d13d482385d ;;
-            73ab3bc56) echo 73ab3bc56db3180485c186ef5b4d37fe3215ccf9 ;;
-            44f69f4dd) echo 44f69f4dd74e89671e903f26022bcd4e9055012d ;;
-            d04ad79ea) echo d04ad79eaf18287af5cd7607f5dc4ba1671dbeb9 ;;
-            8cf2bf7ad) echo 8cf2bf7ad8a7fcb3d4329388f1ddd26e11c63015 ;;
-            cf6da6ac2) echo cf6da6ac26dfaba9358225ee7b7de26a5a47cb21 ;;
-            50e6eee95) echo 50e6eee95ae95d3257672727a9302a30b4a60a9a ;;
-            f18599d09) echo f18599d097829e972e038bfecf706affce4a7e55 ;;
-            eb41dac33) echo eb41dac33fb7e5c4f66827cc2ed5ce6caa5ce40e ;;
-            4e5c18113) echo 4e5c18113a1044937a24f211f6aff21a4f6bf40f ;;
-            d58a4e0da) echo d58a4e0da26bde9b7bc3f2cb41ec588f4a6d6cb0 ;;
-            d7b8e1497) echo d7b8e1497a646fa7cdf63c38215c1f7c3a52852f ;;
-            710195aed) echo 710195aed5e1e03862d4d67b5f2783bfd6a7b49f ;;
             a6ba3e2fb) echo a6ba3e2fbdea3b77080d24a979e8955f4841933b ;;
+            524a37c7a) echo 524a37c7af6943ab3bde2336362c54a944746e93 ;;
+            24da3ae7c) echo 24da3ae7c736fb8d2e7a0df9862803236cc00dd7 ;;
+            b1f27cfa9) echo b1f27cfa9dca671f1602c651b6b3ec48df83e115 ;;
+            2b1082060) echo 2b1082060d47b93795c7a643202fec729e298d6d ;;
+            4a4669a07) echo 4a4669a078f79300d8b6bff283547ff5f0d6264a ;;
+            fb68b0e9a) echo fb68b0e9a8fe7766368326399c96c0426c7c3187 ;;
+            effbda64c) echo effbda64cab7b55c987b8382ff51ab14834ce27e ;;
+            fc770b368) echo fc770b368cef87b12ae5015784576bf1fb6d8aa1 ;;
+            75df0f815) echo 75df0f815bd929d28c2ddc6adfdf398029f9a898 ;;
+            d6ec06759) echo d6ec067592e3e36d88ce7eed0fd1766b484634f9 ;;
+            a81762cae) echo a81762caed68555299e40971e9f54f246b0cc8d2 ;;
+            a8c901622) echo a8c901622ba7514673f7ba534e680da9798425b4 ;;
+            eff9f459d) echo eff9f459d8a13dc80aa9edb331c3da0e98334a38 ;;
             e67bbd3ec) echo e67bbd3ecf4cf4faf075af4d2293eec2fe324681 ;;
-            ab135df09) echo ab135df091d005cc98dfddc56c3dc9c9e4bd501d ;;
             esac
           }
           r=recipe/tools/fex/arm64ec
@@ -71,6 +70,24 @@ jobs:
           full "${{ matrix.ref }}" > "$r/FEX_REF"
           cat "$r/FEX_REF"
           sed -i 's|for p in "$HERE"/patches/\*.patch; do|for p in $(ls "$HERE"/patches/*.patch 2>/dev/null); do|; s|cat "$HERE"/patches/\*.patch|cat /dev/null|g' "$r/build.sh"
+      - name: Source, with fmt made to build under today's llvm-mingw
+        # FEX before late September 2026 fails here in fmt's std.h (std::atomic_flag without <atomic>); the include
+        # changes nothing else. build.sh then finds the source fetched and skips its own fetch.
+        run: |
+          set -euo pipefail
+          ref=$(cat recipe/tools/fex/arm64ec/FEX_REF)
+          src=fex-ec/src
+          rm -rf fex-ec && mkdir -p "$src"
+          git -C "$src" init -q
+          git -C "$src" remote add origin https://github.com/FEX-Emu/FEX.git
+          git -C "$src" fetch -q --depth 1 origin "$ref"
+          git -C "$src" checkout -q FETCH_HEAD
+          git -C "$src" submodule update -q --init --depth 1
+          f=$src/External/fmt/include/fmt/std.h
+          if [ -f "$f" ] && ! grep -q '#include <atomic>' "$f"; then
+            sed -i '0,/^#include /s//#include <atomic>\n#include /' "$f" && echo "fmt: added <atomic>"
+          fi
+          echo "$ref $(cat /dev/null | sha256sum | cut -c1-16)" > fex-ec/applied
       - name: Build the DLLs
         run: WORK="$PWD/fex-ec" recipe/tools/fex/arm64ec/build.sh dlls
       - name: Build the unixlibs (Debian 12)
@@ -111,7 +128,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: [{fex: stock, env: game}, {fex: 'e869aa644', env: game}, {fex: '73ab3bc56', env: game}, {fex: '44f69f4dd', env: game}, {fex: 'd04ad79ea', env: game}, {fex: '8cf2bf7ad', env: game}, {fex: 'cf6da6ac2', env: game}, {fex: '50e6eee95', env: game}, {fex: 'f18599d09', env: game}, {fex: 'eb41dac33', env: game}, {fex: '4e5c18113', env: game}, {fex: 'd58a4e0da', env: game}, {fex: 'd7b8e1497', env: game}, {fex: '710195aed', env: game}, {fex: 'a6ba3e2fb', env: game}, {fex: 'e67bbd3ec', env: game}, {fex: 'ab135df09', env: game}, {fex: 'ab135df09', env: none}, {fex: 'ab135df09', env: tso}, {fex: stock, env: none}]
+        include: [{fex: stock, env: game}, {fex: 'a6ba3e2fb', env: game}, {fex: '524a37c7a', env: game}, {fex: '24da3ae7c', env: game}, {fex: 'b1f27cfa9', env: game}, {fex: '2b1082060', env: game}, {fex: '4a4669a07', env: game}, {fex: 'fb68b0e9a', env: game}, {fex: 'effbda64c', env: game}, {fex: 'fc770b368', env: game}, {fex: '75df0f815', env: game}, {fex: 'd6ec06759', env: game}, {fex: 'a81762cae', env: game}, {fex: 'a8c901622', env: game}, {fex: 'eff9f459d', env: game}, {fex: 'e67bbd3ec', env: game}]
     name: run-${{ matrix.fex }}-${{ matrix.env }}
     steps:
       - uses: actions/checkout@v4
@@ -136,7 +153,8 @@ jobs:
       - name: Run
         shell: bash
         run: |
-          set -u
+          # shell: bash is bash -eo pipefail; a crashed run or a grep that finds nothing must not end the row.
+          set +e +o pipefail -u
           export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
           case "${{ matrix.env }}" in
             game) export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0 ;;

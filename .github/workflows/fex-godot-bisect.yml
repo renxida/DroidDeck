@@ -147,10 +147,10 @@ jobs:
             tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/fex"
           fi
       - name: Run
-        # Not GitHub's default bash -e: a grep that finds nothing must not end the row.
         shell: bash
         run: |
-          set -u
+          # shell: bash is bash -eo pipefail; a crashed run or a grep that finds nothing must not end the row.
+          set +e +o pipefail -u
           export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
           export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
           out="$RUNNER_TEMP/out"; mkdir -p "$out"; : > "$out/verdicts.txt"

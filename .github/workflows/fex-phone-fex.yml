@@ -94,7 +94,8 @@ jobs:
       - name: Run
         shell: bash
         run: |
-          set -u
+          # shell: bash is bash -eo pipefail; a crashed run or a grep that finds nothing must not end the row.
+          set +e +o pipefail -u
           export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
           export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
           bin="$RUNNER_TEMP/in/bin"; out="$RUNNER_TEMP/out"; mkdir -p "$out"; : > "$out/verdicts.txt"
