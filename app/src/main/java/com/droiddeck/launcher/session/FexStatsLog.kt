@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import android.util.Log
 import java.io.File
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
@@ -16,6 +17,14 @@ import java.util.Locale
  */
 object FexStatsLog {
     const val FILE = "fex.csv"
+    /** Experiment fex-sample: what Kestrel's FEX writes once a minute to /dev/shm/fex-<pid>-samples.csv (patch 0007),
+     *  every process's rows in one file. Columns: minute,t_unix_ms,pid,scope,tid,rank,samples,share,kind,guest_module,
+     *  guest_offset,guest_symbol,host_module,host_offset,host_symbol. scope is thread (the 8 busiest threads), main (the
+     *  busiest thread's top 200 places), rest (the other threads' top 50) or meta (kind names a counter, samples holds
+     *  it: hz, samples, lost, handler_us, aggregator_us). */
+    const val SAMPLES_FILE = "fex-samples.csv"
+    private const val SAMPLES_HEADER = "minute,"
+    private const val SAMPLES_MAX_READ = 4L shl 20
     internal const val HEADER = "t_wall_ms,interval_ms,pid,process,threads,jit_ms,jit_blocks,smc,sigbus,signal_ms," +
         "float_fallback,cache_miss,cache_rlock_ms,cache_wlock_ms,disk_hit,disk_miss,disk_lookup_ms,code_buffer_full"
     private const val TAG = "FexStatsLog"
@@ -90,20 +99,67 @@ object FexStatsLog {
         return first.substringAfterLast('\\').substringAfterLast('/').replace(',', '_').ifEmpty { "?" }
     }
 
+    private val SAMPLES_NAME = Regex("""fex-(\d+)-samples\.csv""")
+
+    /**
+     * Whole lines of [text] that FEX has finished writing (up to the last newline), without the header line each
+     * process starts its file with, and how many bytes they took.
+     */
+    internal fun sampleLines(text: String): Pair<List<String>, Int> {
+        val end = text.lastIndexOf('\n') + 1
+        if (end == 0) return emptyList<String>() to 0
+        val lines = text.substring(0, end).split('\n').filter { it.isNotEmpty() && !it.startsWith(SAMPLES_HEADER) }
+        return lines to text.substring(0, end).toByteArray(Charsets.UTF_8).size
+    }
+
+    /** Appends what each process added to its samples file since [offsets] (path to bytes already copied). */
+    internal fun copySamples(shmDir: File, csv: File, offsets: MutableMap<String, Long>) {
+        val out = StringBuilder()
+        shmDir.listFiles()?.forEach { f ->
+            if (SAMPLES_NAME.matchEntire(f.name) == null) return@forEach
+            RandomAccessFile(f, "r").use { raf ->
+                val length = raf.length()
+                var from = offsets[f.path] ?: 0L
+                if (length < from) from = 0L // A new process reused the pid.
+                if (length == from) return@use
+                val bytes = ByteArray(minOf(length - from, SAMPLES_MAX_READ).toInt())
+                raf.seek(from)
+                raf.readFully(bytes)
+                val (lines, used) = sampleLines(String(bytes, Charsets.UTF_8))
+                offsets[f.path] = from + used
+                lines.forEach { out.append(it).append('\n') }
+            }
+        }
+        if (out.isEmpty()) return
+        if (!csv.isFile || csv.length() == 0L) {
+            csv.appendText("minute,t_unix_ms,pid,scope,tid,rank,samples,share,kind,guest_module,guest_offset,guest_symbol," +
+                "host_module,host_offset,host_symbol\n")
+        }
+        csv.appendText(out.toString())
+    }
+
     @Volatile private var thread: Thread? = null
 
+    /** Logs FEX's counters ([stats], experiment fex-stats) and its samples ([samples], experiment fex-sample). */
     @Synchronized
-    fun start(sessionDir: File, shmDir: File) {
+    fun start(sessionDir: File, shmDir: File, stats: Boolean = true, samples: Boolean = false) {
         stop()
-        val hz = timerHz().takeIf { it > 0 } ?: run { Log.w(TAG, "no timer frequency; FEX stats not logged"); return }
+        if (!stats && !samples) return
+        val hz = if (stats) timerHz() else 0.0
+        if (stats && hz <= 0) Log.w(TAG, "no timer frequency; FEX stats not logged")
         val csv = File(sessionDir, FILE)
+        val samplesCsv = File(sessionDir, SAMPLES_FILE)
+        // Samples left in shm by an earlier session's processes aren't this session's.
+        val sampleOffsets = HashMap<String, Long>()
+        shmDir.listFiles()?.forEach { if (SAMPLES_NAME.matchEntire(it.name) != null) sampleOffsets[it.path] = it.length() }
         thread = Thread({
             runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) }
             val last = HashMap<Int, Pair<Long, Map<Int, LongArray>>>()
             val names = HashMap<Int, String>()
             var wroteHeader = csv.isFile && csv.length() > 0
             while (!Thread.currentThread().isInterrupted) {
-                runCatching {
+                if (samples) runCatching { copySamples(shmDir, samplesCsv, sampleOffsets) }.onFailure { Log.w(TAG, "copying FEX samples", it) }
+                if (stats && hz > 0) runCatching {
                     val now = System.currentTimeMillis()
                     val rows = ArrayList<String>()
                     val seen = HashSet<Int>()

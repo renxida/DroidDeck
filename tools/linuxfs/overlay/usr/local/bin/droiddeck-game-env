@@ -75,7 +75,8 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
                "wayland-present", "vk-count",
-               "native-inventory", "free-memory", "fex-l1", "fex-code-buffer")
+               "native-inventory", "free-memory", "fex-l1", "fex-code-buffer",
+               "fex-sample")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -2336,6 +2337,11 @@ def main():
         # retranslated into a buffer twice the size. Starting at 64 MB (Kestrel's FEX, patch 0006) avoided that
         # off-device: translation time warm -28%, first run -9 to -15%, no extra memory. Other builds ignore it.
         env = dict(env, FEX_INITIALCODEBUFFERMB="64")
+    if experiment(env, "fex-sample"):
+        # Kestrel's FEX (patch 0007) samples each emulated thread 250 times per second of its own CPU time and once a
+        # minute writes the busiest thread's top 200 guest locations to /dev/shm/fex-<pid>-samples.csv; the app
+        # copies them to fex-samples.csv. About 0.1% of a sampled thread. Other FEX builds ignore FEX_SAMPLEHZ.
+        env = dict(env, FEX_SAMPLEHZ="250")
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
