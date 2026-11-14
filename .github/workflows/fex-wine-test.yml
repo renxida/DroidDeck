@@ -1,0 +1,202 @@
+name: FEX under Wine ARM64EC (hang test, off-device)
+
+# Runs Windows x86-64 programs under Wine ARM64EC with the game's FEX (libarm64ecfex.dll + .so from a
+# Kestrel FEX .wcp) on an arm64 runner, with each FEX option the phone's experiments turn on, and calls a run
+# hung when its once-a-second heartbeat stops. A hang leaves every thread's state, wait channel and native
+# stack in the artifact. Wine is Hangover's ARM64EC build (upstream Wine, not the phone's Proton 11).
+
+on:
+  push:
+    branches: ['perf/emu-fex-wine*']
+    paths:
+      - 'tools/fex/winetest/**'
+      - '.github/workflows/fex-wine-test.yml'
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Seconds per program run'
+        required: false
+        default: '150'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fex-wine-test-${{ github.sha }}
+  cancel-in-progress: true
+
+env:
+  LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
+
+jobs:
+  # FEX at tools/fex/arm64ec/FEX_REF with the Kestrel patches up to and including patch <upto> (0000 = none),
+  # built the same way as build-fex-arm64ec.yml, so a crash or hang can be pinned to one patch. Nothing here
+  # is published.
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        upto: ['0000', '0006', '0007', '0008', '0009']
+    name: build-${{ matrix.upto }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build zstd >/dev/null
+          curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
+          echo "$RUNNER_TEMP/$LLVM_MINGW/bin" >> "$GITHUB_PATH"
+      - name: Recipe with patches up to ${{ matrix.upto }}
+        run: |
+          set -euo pipefail
+          r=recipe/tools/fex/arm64ec
+          mkdir -p "$r/patches"
+          cp tools/fex/arm64ec/build.sh tools/fex/arm64ec/FEX_REF "$r/"
+          for p in tools/fex/arm64ec/patches/*.patch; do
+            n=$(basename "$p" | cut -c1-4)
+            if [ "$n" \< "${{ matrix.upto }}" ] || [ "$n" = "${{ matrix.upto }}" ]; then cp "$p" "$r/patches/"; fi
+          done
+          ls "$r/patches"
+          # build.sh globs patches/*.patch; with no patches, make its loops and hashes take an empty set.
+          if ! ls "$r/patches"/*.patch >/dev/null 2>&1; then
+            sed -i 's|for p in "$HERE"/patches/\*.patch; do|for p in $(ls "$HERE"/patches/*.patch 2>/dev/null); do|; s|cat "$HERE"/patches/\*.patch|cat /dev/null|g' "$r/build.sh"
+          fi
+      - name: Build the DLLs
+        run: WORK="$PWD/fex-ec" recipe/tools/fex/arm64ec/build.sh dlls
+      - name: Build the unixlibs (Debian 12)
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/work" -w /work debian:bookworm bash -c '
+            apt-get update -qq && apt-get install -y -qq g++ cmake ninja-build git binutils >/dev/null
+            git config --global --add safe.directory "*"
+            WORK=/work/fex-ec recipe/tools/fex/arm64ec/build.sh unixlib'
+          sudo chown -R "$(id -u):$(id -g)" fex-ec
+          git -C fex-ec/src log --oneline -12
+          mkdir -p out && cp fex-ec/install/usr/lib/wine/aarch64-windows/libarm64ecfex.dll fex-ec/install/usr/lib/wine/aarch64-unix/libarm64ecfex.so out/
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fex-${{ matrix.upto }}
+          path: out
+
+  hang:
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: hangover-fex, dll: hangover, env: ''}
+          - {name: up0000, dll: '0000', env: ''}
+          - {name: up0006, dll: '0006', env: ''}
+          - {name: up0007, dll: '0007', env: ''}
+          - {name: up0007-sample, dll: '0007', env: 'FEX_SAMPLEHZ=250'}
+          - {name: up0008, dll: '0008', env: ''}
+          - {name: up0008-smaps, dll: '0008', env: 'FEX_NAMEWINDOWSMEMORY=5'}
+          - {name: up0009, dll: '0009', env: ''}
+          - {name: up0009-trim, dll: '0009', env: 'FEX_TRIMIDLETHREADS=5'}
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Host
+        run: |
+          lscpu | sed -n '1,20p'
+          getconf PAGESIZE
+      - name: Wine with ARM64EC (Hangover's build)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rel=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/AndreRH/hangover/releases/latest)
+          echo "$rel" | jq -r '"release " + .tag_name, (.assets[] | "  " + .name)'
+          url=$(echo "$rel" | jq -r '.assets[] | select(.name | test("ubuntu.?24|noble"; "i")) | select(.name | test("arm64|aarch64"; "i")) | .browser_download_url' | head -1)
+          test -n "$url" || { echo "no Ubuntu 24.04 arm64 asset" >&2; exit 1; }
+          echo "asset $url"
+          curl -fsSL -o "$RUNNER_TEMP/hangover.pkg" "$url"
+          mkdir -p "$RUNNER_TEMP/hv"
+          case "$url" in
+            *.deb) cp "$RUNNER_TEMP/hangover.pkg" "$RUNNER_TEMP/hv/hangover.deb" ;;
+            *) tar -C "$RUNNER_TEMP/hv" -xf "$RUNNER_TEMP/hangover.pkg" ;;
+          esac
+          find "$RUNNER_TEMP/hv" -name '*.deb' | sort
+          sudo apt-get update -qq
+          find "$RUNNER_TEMP/hv" -name '*.deb' -print0 | xargs -0 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zstd gdb >/dev/null
+          command -v wine
+          wine --version
+          { find / -xdev -name 'libarm64ecfex.*' 2>/dev/null || true; } | tee "$RUNNER_TEMP/fexpaths"
+      - uses: actions/download-artifact@v4
+        if: matrix.dll != 'hangover'
+        with:
+          name: fex-${{ matrix.dll }}
+          path: ${{ runner.temp }}/fexbuild
+      - name: This row's FEX
+        if: matrix.dll != 'hangover'
+        run: |
+          set -euo pipefail
+          dll=$(grep 'aarch64-windows/libarm64ecfex.dll$' "$RUNNER_TEMP/fexpaths" | head -1 || true)
+          test -n "$dll" || { echo "Hangover has no libarm64ecfex.dll" >&2; exit 1; }
+          so=$(dirname "$(dirname "$dll")")/aarch64-unix/libarm64ecfex.so
+          sudo cp "$RUNNER_TEMP/fexbuild/libarm64ecfex.dll" "$dll"
+          sudo cp "$RUNNER_TEMP/fexbuild/libarm64ecfex.so" "$so"
+          ls -la "$dll" "$so"
+          strings "$dll" | grep -m1 -o 'FEX-[0-9A-Za-z._-]*' || true
+      - name: Build the test programs
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
+          mkdir -p "$RUNNER_TEMP/bin"
+          "$RUNNER_TEMP/$LLVM_MINGW/bin/x86_64-w64-mingw32-clang" -O2 -Wall -static -o "$RUNNER_TEMP/bin/stress.exe" tools/fex/winetest/stress.c
+          dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o "$RUNNER_TEMP/bin/clr" -v q
+          ls -la "$RUNNER_TEMP/bin" "$RUNNER_TEMP/bin/clr/clr.exe"
+      - name: Prefix
+        run: |
+          set -euo pipefail
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all WINEDLLOVERRIDES="mscoree,mshtml="
+          wineboot -i >/dev/null 2>&1 || true
+          wine reg add 'HKLM\Software\Microsoft\Wow64\amd64' /ve /d libarm64ecfex.dll /f
+          wineserver -w
+      - name: Run
+        env:
+          SECONDS_PER_RUN: ${{ inputs.seconds || '150' }}
+        run: |
+          set -uo pipefail
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh,+loaddll,+process WINEDLLOVERRIDES="mscoree,mshtml=" HODLL64=libarm64ecfex.dll
+          # The game's FEX settings (droiddeck-game-env), then this row's options.
+          export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
+          for kv in ${{ matrix.env }}; do export "$kv"; done
+          env | grep '^FEX_' | sort
+          out="$RUNNER_TEMP/out/${{ matrix.name }}"
+          mkdir -p "$out"
+          r=tools/fex/winetest/run.sh
+          : > "$out/verdicts.txt"
+          for run in stress:stress.exe clr:clr/clr.exe stress2:stress.exe; do
+            label=${run%%:*} exe="$RUNNER_TEMP/bin/${run#*:}"
+            "$r" "$label" "$out" "$SECONDS_PER_RUN" "$exe" | tee -a "$out/verdicts.txt" || true
+            wineserver -k || true
+            sleep 2
+          done
+          {
+            echo "### ${{ matrix.name }} (${{ matrix.env }})"
+            echo '```'
+            cat "$out/verdicts.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          for f in "$out"/*.hang.txt; do [ -f "$f" ] && { echo "== $f"; head -200 "$f"; }; done
+          true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wine-test-${{ matrix.name }}
+          path: ${{ runner.temp }}/out
