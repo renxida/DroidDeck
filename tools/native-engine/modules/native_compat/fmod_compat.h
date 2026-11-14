@@ -180,6 +180,26 @@ public:
 	int get_sound_count() const { return data.is_valid() ? data->get_sound_count() : 0; }
 };
 
+// FmodServer.get_performance_data's result. The plugin's user guide names its fields CPU, memory and file; the
+// game's FMOD tool script declares a variable of this type (MEASURED: on native-engine-54 the missing class failed
+// that script and with it FmodManager.gd). Nothing here measures anything yet: the fields are empty dictionaries,
+// also under lower-case cpu in case a script spells it so.
+class FmodPerformanceData : public RefCounted {
+	GDCLASS(FmodPerformanceData, RefCounted);
+
+protected:
+	static void _bind_methods();
+
+public:
+	Dictionary cpu, memory, file;
+	Dictionary get_cpu() const { return cpu; }
+	void set_cpu(const Dictionary &p_value) { cpu = p_value; }
+	Dictionary get_memory() const { return memory; }
+	void set_memory(const Dictionary &p_value) { memory = p_value; }
+	Dictionary get_file() const { return file; }
+	void set_file(const Dictionary &p_value) { file = p_value; }
+};
+
 // The FmodServer singleton.
 class FmodServer : public Object {
 	GDCLASS(FmodServer, Object);
@@ -243,6 +263,7 @@ public:
 	void pause_all_events() {}
 	void unpause_all_events() {}
 	bool banks_still_loading() const { return false; }
+	Ref<FmodPerformanceData> get_performance_data() const;
 	void wait_for_all_loads() {}
 	// Ours, for logs and tests.
 	Dictionary get_compat_stats() const;

@@ -652,7 +652,27 @@ Dictionary FmodServer::get_compat_stats() const {
 	return d;
 }
 
+void FmodPerformanceData::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("get_cpu"), &FmodPerformanceData::get_cpu);
+	ClassDB::bind_method(D_METHOD("set_cpu", "value"), &FmodPerformanceData::set_cpu);
+	ClassDB::bind_method(D_METHOD("get_memory"), &FmodPerformanceData::get_memory);
+	ClassDB::bind_method(D_METHOD("set_memory", "value"), &FmodPerformanceData::set_memory);
+	ClassDB::bind_method(D_METHOD("get_file"), &FmodPerformanceData::get_file);
+	ClassDB::bind_method(D_METHOD("set_file", "value"), &FmodPerformanceData::set_file);
+	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "CPU"), "set_cpu", "get_cpu");
+	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "cpu"), "set_cpu", "get_cpu");
+	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "memory"), "set_memory", "get_memory");
+	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "file"), "set_file", "get_file");
+}
+
+Ref<FmodPerformanceData> FmodServer::get_performance_data() const {
+	Ref<FmodPerformanceData> data;
+	data.instantiate();
+	return data;
+}
+
 void FmodServer::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("get_performance_data"), &FmodServer::get_performance_data);
 	ClassDB::bind_method(D_METHOD("init", "settings"), &FmodServer::init, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("update"), &FmodServer::update);
 	ClassDB::bind_method(D_METHOD("shutdown"), &FmodServer::shutdown);

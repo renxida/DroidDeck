@@ -191,12 +191,16 @@ func fmod_test() -> bool:
 	emitter.stop()
 	emitter.queue_free()
 	var stats = server.get_compat_stats()
-	var ok = bank.get_bus_count() == 2 and desc.get_guid() == "{00000002-0000-4000-8000-000000000002}" \
+	# The game's FMOD tool script types a variable as FmodPerformanceData and reads CPU, memory and file.
+	var perf = server.get_performance_data()
+	var perf_ok = ClassDB.class_exists("FmodPerformanceData") and perf != null and perf.is_class("FmodPerformanceData") \
+		and perf.CPU is Dictionary and perf.memory is Dictionary and perf.file is Dictionary
+	var ok = perf_ok and bank.get_bus_count() == 2 and desc.get_guid() == "{00000002-0000-4000-8000-000000000002}" \
 		and server.check_event_path("event:/x") and not server.check_event_path("event:/nope") and playing \
 		and inst.get_playback_state() == 2 and absf(inst.get_parameter_by_name("intensity") - 0.5) < 1e-6 \
 		and server.get_global_parameter_by_name("act") == 2.0 and server.get_bus("bus:/a").get_volume() == 0.25 \
 		and emitter_playing and signals == ["started", "stopped"] and absf(emitter.get_parameter("intensity") - 0.75) < 1e-6
-	print("SKELTEST fmod buses=", bank.get_bus_count(), " guid=", desc.get_guid(), " signals=", signals, " stats=", stats, " ok=", ok)
+	print("SKELTEST fmod buses=", bank.get_bus_count(), " guid=", desc.get_guid(), " signals=", signals, " stats=", stats, " perf=", perf_ok, " ok=", ok)
 	return ok
 
 # A bank's own event metadata (sound/events.bank, made by make_event_bank.py): starting "Event:/x" plays
@@ -258,7 +262,7 @@ func event_sound_test() -> bool:
 		and playing_mid and ended and loop_ok and late_ok and stats["sounds_started"] - before == 4
 	print("SKELTEST event sound started=", started, " frames=", frames.size(), " rms=", rms, " playing_mid=",
 		playing_mid, " ended=", ended, " loop_rms=", loop_rms, " loop_ok=", loop_ok, " early_rms=", early_rms, " late_rms=", late_rms,
-		" late_ok=", late_ok, " stats=", stats, " ok=", ok)
+		" late_ok=", late_ok, " stats=", stats, " perf=", perf_ok, " ok=", ok)
 	return ok
 
 func rms_of(frames: PackedVector2Array) -> float:
