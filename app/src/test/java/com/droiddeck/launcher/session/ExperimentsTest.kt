@@ -62,6 +62,7 @@ class ExperimentsTest {
             "dxvk-arm64ec" to "DROIDDECK_EXP_DXVK_ARM64EC",
             "composite-timing" to "DROIDDECK_EXP_COMPOSITE_TIMING",
             "dotnet-r2r" to "DROIDDECK_EXP_DOTNET_R2R",
+            "fex-code-buffer" to "DROIDDECK_EXP_FEX_CODE_BUFFER",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

@@ -6,9 +6,10 @@
 //     -s   summary only: wait until every watched process is gone, then print one total line per pid
 //
 // CSV: t_s,pid,threads,jit_ms,signal_ms,sigbus,smc,float_fallback,cache_miss,cache_rlock_ms,cache_wlock_ms,
-//      jit_blocks,disk_hit,disk_miss,disk_lookup_ms
+//      jit_blocks,disk_hit,disk_miss,disk_lookup_ms,code_buffer_full
 // Counts are cumulative since the process started; threads that exited keep counting in their pid's total.
-// Layout mirrors FEXCore/include/FEXCore/Utils/SHMStats.h, STATS_VERSION 2.
+// Layout mirrors FEXCore/include/FEXCore/Utils/SHMStats.h, STATS_VERSION 2. code_buffer_full is Kestrel's FEX
+// (patch 0005, in the struct's last, padding slot): stock FEX leaves it 0.
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <errno.h>
@@ -29,13 +30,13 @@ struct Header {
   char FexVersion[48];
   uint32_t Head, Size, Pad;
 };
-enum { NFIELDS = 12 };
+enum { NFIELDS = 13 };
 struct Stats {
   uint32_t Next, TID;
-  uint64_t f[NFIELDS + 1]; // JITTime, SignalTime, SIGBUS, SMC, FloatFallback, CacheMiss, CacheReadLock, CacheWriteLock,
-                           // JITCount, DiskHit, DiskMiss, DiskLookupTime, Padding
+  uint64_t f[NFIELDS]; // JITTime, SignalTime, SIGBUS, SMC, FloatFallback, CacheMiss, CacheReadLock, CacheWriteLock,
+                       // JITCount, DiskHit, DiskMiss, DiskLookupTime, CodeBufferFull (was Padding)
 };
-static const int IS_TIME[NFIELDS] = {1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1};
+static const int IS_TIME[NFIELDS] = {1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0};
 
 #define MAXT 4096
 struct Thread { uint32_t tid; uint64_t f[NFIELDS]; int seen; };
@@ -155,7 +156,7 @@ int main(int argc, char** argv) {
   clock_gettime(CLOCK_MONOTONIC, &t0);
   if (!summary)
     puts("t_s,pid,threads,jit_ms,signal_ms,sigbus,smc,float_fallback,cache_miss,cache_rlock_ms,cache_wlock_ms,"
-         "jit_blocks,disk_hit,disk_miss,disk_lookup_ms");
+         "jit_blocks,disk_hit,disk_miss,disk_lookup_ms,code_buffer_full");
   int ever = 0;
   for (;;) {
     discover();
