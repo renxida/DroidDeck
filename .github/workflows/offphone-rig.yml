@@ -1,0 +1,76 @@
+name: Off-phone launch rig
+
+on:
+  push:
+    branches: [ci/offphone-probe]
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Build APK run id whose droiddeck-apk to test (default the newest green perf/switchboard build)
+        required: false
+      image:
+        description: redroid image
+        required: false
+        default: redroid/redroid:14.0.0_64only-latest
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  rig:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    env:
+      ANDROID_SERIAL: 127.0.0.1:5555
+      REDROID_IMAGE: ${{ inputs.image || 'redroid/redroid:14.0.0_64only-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find the APK build
+        id: apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=${{ inputs.build_run }}
+          if [ -z "$run" ]; then
+            run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/runs?branch=perf/switchboard&status=success&per_page=1" --jq '.workflow_runs[0].id')
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "Testing the APK from build run $run" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/download-artifact@v4
+        with:
+          name: droiddeck-apk
+          run-id: ${{ steps.apk.outputs.run }}
+          github-token: ${{ github.token }}
+          path: apk
+      - name: Host tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq adb >/dev/null
+      - name: Boot Android
+        run: tools/offphone/redroid-up.sh
+      - name: Install and smoke the app
+        run: |
+          ls -la apk
+          tools/device-smoke.sh --apk "$(ls apk/*.apk | head -1)" --no-fold 2>&1 | tee smoke.txt
+      - name: Start the Steam session
+        continue-on-error: true
+        run: |
+          mkdir -p out
+          (while true; do date -u +%T; tools/droiddeckctl state 2>&1 | head -c 2000; echo; sleep 20; done) > out/state-poll.txt 2>&1 &
+          tools/droiddeckctl start steam --timeout 1500 --wait 2>&1 | tee out/start.txt
+      - name: Collect
+        if: always()
+        run: |
+          mkdir -p out
+          tools/droiddeckctl state > out/state.json 2>&1 || true
+          tools/droiddeckctl screenshot out/screen.png > /dev/null 2>&1 || adb exec-out screencap -p > out/screen.png || true
+          tools/droiddeckctl logs out/session > out/logs.txt 2>&1 || true
+          adb logcat -d > out/logcat.txt 2>&1 || true
+          adb shell dumpsys meminfo > out/meminfo.txt 2>&1 || true
+          docker logs kestrel-android > out/redroid.txt 2>&1 || true
+          cp smoke.txt out/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: offphone-rig
+          path: out
+          retention-days: 7
