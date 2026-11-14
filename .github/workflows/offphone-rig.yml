@@ -93,7 +93,13 @@ jobs:
         id: scenarios
         run: |
           case "${{ inputs.scenario || 'all' }}" in
-            all) echo 'list=["steam-ui","stand-in-game"]' >> "$GITHUB_OUTPUT" ;;
+            all)
+              # The stand-in comes from native-startup-gate's artifact, which expires after 30 days;
+              # without one the run still checks Steam and says so, rather than blocking.
+              if [ -n "${{ steps.standin.outputs.run }}" ]; then echo 'list=["steam-ui","stand-in-game"]' >> "$GITHUB_OUTPUT"
+              else echo 'list=["steam-ui"]' >> "$GITHUB_OUTPUT"
+                echo "::warning::no unexpired native-standin-win-x64 artifact: stand-in-game skipped (re-run native-startup-gate)"
+                echo "stand-in-game skipped: no unexpired stand-in artifact" >> "$GITHUB_STEP_SUMMARY"; fi ;;
             *) echo "list=[\"${{ inputs.scenario }}\"]" >> "$GITHUB_OUTPUT" ;;
           esac
 

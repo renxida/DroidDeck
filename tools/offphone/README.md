@@ -8,16 +8,22 @@ about the phone's own GPU driver, heat or memory should show up here first.
 | Scenario | Target stage | What it covers |
 | --- | --- | --- |
 | `steam-ui` | `login_screen` | install, runtime install, proot, PulseAudio, the Wayland compositor, gamescope, Xwayland, the Steam client download and start, its UI's first frame, its sign-in screen (read through DevTools; nothing signs in) |
-| `stand-in-game` | `standin_mainloop_ok` | the stand-in Godot game (`tools/native-engine/standin`, our own code, no game files) through `droiddeck-proton-run`, Proton and FEX, to its first frame and a clean exit after 300 frames |
+| `stand-in-game` | `standin_exit_clean` | the stand-in Godot game (`tools/native-engine/standin`, our own code, no game files) through `droiddeck-proton-run`, Proton (with Steam's client installed, as on a phone) and FEX, judged by the app's own `frames.csv`: its first Vulkan frame, at least 100 presented frames, then a clean exit (it quits after 300) |
 
 Outputs per scenario (artifact `rig-<scenario>`, and printed to the job log):
-- `verdict.json`: `{scenario, target_stage, stage_reached, ok, seconds_to_each_stage, exit, next_missing_stage}`
+- `verdict.json`: `{scenario, target_stage, stage_reached, ok, seconds_to_each_stage, exit, next_missing_stage, game_vulkan_frames}`
 - `rig-session/`: the app's own session folder (`build.txt`, `events.jsonl`, `session.log`, ...), as on a phone
-- `rig-events.jsonl`, `state.json`, `screen.png`, `logcat.txt`, `redroid.txt`
+- `rig-events.jsonl`, `state.json`, `ps-*.txt` (the app's processes every minute or so), `screen.png`, `logcat.txt`, `redroid.txt`
+- the app's per-game logs (`rig-session/games/`: Proton's log, launch.txt) and Godot's log, printed without FEX's noise
+
+The stand-in's stdout markers (`FIRST_FRAME`, `MAINLOOP_OK`) don't reach any log under Proton's
+`steam.exe`, which is why the frame log is the evidence. Without an unexpired stand-in artifact,
+`all` runs `steam-ui` alone and warns.
 
 The job fails unless the target stage was reached. Dispatch inputs: `apk_run_id` (a build.yml run)
 or `ref` (its newest green build), `scenario` (`steam-ui`, `stand-in-game`, `all`), `guest_vulkan`.
-Other workflows can `uses: ./.github/workflows/offphone-rig.yml` with the same inputs.
+Other workflows can `uses: ./.github/workflows/offphone-rig.yml` with the same inputs. Pushes to
+`autofix/**` run it against that commit's own build.yml APK.
 
 ## How CI Android differs from the phone
 
