@@ -9,6 +9,10 @@
  *   ms:      time inside vkQueueSubmit, vkQueuePresentKHR (includes the WSI layer's CPU wait on the
  *            present fence), vkAcquireNextImageKHR, vkWaitForFences and queue/device idle waits
  *   misc:    pipelines compiled and the ms spent compiling them, memory allocations
+ *   memory:  device memory the app holds now (from vkAllocateMemory and vkFreeMemory), the host-visible
+ *            part, and the peak; and the BC-compressed images it holds, with the size they take once the
+ *            libhybris compat layer decodes them for a GPU without BC support. Those decoded copies are
+ *            allocated below this layer, so they are an estimate from each image's format and extent.
  * The present, acquire and wait times are time the CPU spent blocked on the GPU or the compositor;
  * the rest of the frame interval is CPU work. Counters are relaxed atomics; nothing is held per call.
  * With DROIDDECK_VKCOUNT_FILE set, the same lines are appended to that file too.
@@ -55,6 +59,45 @@ static uint64_t counters[C_COUNT];
 static void add(int counter, uint64_t value) { __atomic_fetch_add(&counters[counter], value, __ATOMIC_RELAXED); }
 static void bump(int counter) { add(counter, 1); }
 
+/* ---- memory gauges: what is held now, not per window ---- */
+
+/* Handle -> bytes, open addressing with linear probing and backward-shift deletion, under mem_lock. */
+#define TABLE_SIZE (1u << 16)
+struct entry { uint64_t handle, bytes, extra; };
+struct table { struct entry slots[TABLE_SIZE]; uint32_t used; };
+static uint32_t slot_of(uint64_t handle) { return (uint32_t)((handle * 0x9E3779B97F4A7C15ull) >> 48) & (TABLE_SIZE - 1); }
+static int table_put(struct table *t, uint64_t handle, uint64_t bytes, uint64_t extra) {
+    if (!handle || t->used >= TABLE_SIZE - TABLE_SIZE / 8) return 0;
+    uint32_t i = slot_of(handle);
+    while (t->slots[i].handle && t->slots[i].handle != handle) i = (i + 1) & (TABLE_SIZE - 1);
+    if (!t->slots[i].handle) t->used++;
+    t->slots[i] = (struct entry){handle, bytes, extra};
+    return 1;
+}
+static int table_take(struct table *t, uint64_t handle, struct entry *out) {
+    if (!handle) return 0;
+    uint32_t i = slot_of(handle);
+    while (t->slots[i].handle != handle) {
+        if (!t->slots[i].handle) return 0;
+        i = (i + 1) & (TABLE_SIZE - 1);
+    }
+    *out = t->slots[i];
+    uint32_t hole = i;
+    for (uint32_t j = (hole + 1) & (TABLE_SIZE - 1); t->slots[j].handle; j = (j + 1) & (TABLE_SIZE - 1)) {
+        uint32_t home = slot_of(t->slots[j].handle);
+        /* An entry stays put while its home slot lies cyclically in (hole, j]; otherwise it fills the hole. */
+        int stays = hole <= j ? (hole < home && home <= j) : (hole < home || home <= j);
+        if (!stays) { t->slots[hole] = t->slots[j]; hole = j; }
+    }
+    t->slots[hole].handle = 0;
+    t->used--;
+    return 1;
+}
+static struct table memory_table, image_table;
+static pthread_mutex_t mem_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t live_bytes, host_bytes, peak_bytes, live_allocations, untracked_allocations;
+static uint64_t bc_bytes, bc_decoded_bytes, bc_images;
+
 static uint64_t window_ns = 10000000000ull, window_start;
 static FILE *extra;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -62,14 +105,21 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static void report(uint64_t now, const char *why) {
     uint64_t snapshot[C_COUNT];
     for (int i = 0; i < C_COUNT; i++) snapshot[i] = __atomic_exchange_n(&counters[i], 0, __ATOMIC_RELAXED);
+    struct { uint64_t live, host, peak, allocations, untracked, bc, bc_decoded, bc_images; } mem;
+    pthread_mutex_lock(&mem_lock);
+    mem.live = live_bytes; mem.host = host_bytes; mem.peak = peak_bytes; mem.allocations = live_allocations;
+    mem.untracked = untracked_allocations; mem.bc = bc_bytes; mem.bc_decoded = bc_decoded_bytes;
+    mem.bc_images = bc_images;
+    pthread_mutex_unlock(&mem_lock);
     double seconds = (double)(now - window_start) / 1e9;
     double frames = snapshot[C_frames] ? (double)snapshot[C_frames] : 1.0;
-    char line[1024];
+    char line[1400];
     int n = snprintf(line, sizeof line,
         "droiddeck-vkcount: %s %.1fs %llu frames %.1f fps | per frame: %.1f submits %.1f cmdbufs %.0f draws "
         "(%.0f indirect) %.1f dispatches %.0f pipeline-binds %.0f set-binds %.0f push-consts %.1f passes "
         "%.1f barriers %.1f copies | ms/frame: submit %.2f present %.2f acquire %.2f fence-wait %.2f idle %.2f "
-        "| pipelines %llu in %.0f ms, allocations %llu\n",
+        "| pipelines %llu in %.0f ms, allocations %llu | memory %.1f MB live (%.1f MB host-visible, peak %.1f MB) "
+        "in %llu allocations%s, BC textures %.1f MB -> %.1f MB decoded (%llu images)\n",
         why, seconds, (unsigned long long)snapshot[C_frames], snapshot[C_frames] / (seconds > 0 ? seconds : 1),
         snapshot[C_submits] / frames, snapshot[C_command_buffers] / frames,
         (snapshot[C_draws] + snapshot[C_indirect_draws]) / frames, snapshot[C_indirect_draws] / frames,
@@ -78,7 +128,9 @@ static void report(uint64_t now, const char *why) {
         snapshot[C_copies] / frames, snapshot[C_submit_ns] / 1e6 / frames, snapshot[C_present_ns] / 1e6 / frames,
         snapshot[C_acquire_ns] / 1e6 / frames, snapshot[C_fence_ns] / 1e6 / frames, snapshot[C_idle_ns] / 1e6 / frames,
         (unsigned long long)snapshot[C_pipelines], snapshot[C_pipeline_ns] / 1e6,
-        (unsigned long long)snapshot[C_allocations]);
+        (unsigned long long)snapshot[C_allocations], mem.live / 1048576.0, mem.host / 1048576.0,
+        mem.peak / 1048576.0, (unsigned long long)mem.allocations, mem.untracked ? " (some untracked)" : "",
+        mem.bc / 1048576.0, mem.bc_decoded / 1048576.0, (unsigned long long)mem.bc_images);
     (void)counter_names;
     if (n <= 0) return;
     fputs(line, stderr);
@@ -100,7 +152,8 @@ static void frame_done(void) {
 #define DEVICE_FUNCTIONS(X) \
     X(DestroyDevice) X(QueueSubmit) X(QueueSubmit2) X(QueueSubmit2KHR) X(QueuePresentKHR) \
     X(AcquireNextImageKHR) X(AcquireNextImage2KHR) X(WaitForFences) X(QueueWaitIdle) X(DeviceWaitIdle) \
-    X(CreateGraphicsPipelines) X(CreateComputePipelines) X(AllocateMemory) \
+    X(CreateGraphicsPipelines) X(CreateComputePipelines) X(AllocateMemory) X(FreeMemory) X(CreateImage) \
+    X(DestroyImage) \
     X(CmdDraw) X(CmdDrawIndexed) X(CmdDrawIndirect) X(CmdDrawIndexedIndirect) X(CmdDrawIndirectCount) \
     X(CmdDrawIndexedIndirectCount) X(CmdDispatch) X(CmdDispatchIndirect) X(CmdBindPipeline) \
     X(CmdBindDescriptorSets) X(CmdPushConstants) X(CmdBeginRenderPass) X(CmdBeginRenderPass2) \
@@ -112,6 +165,7 @@ struct device_data {
     dispatch_key key;
     VkDevice handle;
     PFN_vkGetDeviceProcAddr next;
+    uint32_t host_visible_types; /* bit i: memory type i is host-visible */
 #define X(name) PFN_vk##name name;
     DEVICE_FUNCTIONS(X)
 #undef X
@@ -191,6 +245,14 @@ static VkResult VKAPI_CALL create_device(VkPhysicalDevice physical, const VkDevi
     VkResult result = create(physical, info, allocator, device);
     if (result != VK_SUCCESS) return result;
     struct device_data data = {.key = key_of(*device), .handle = *device, .next = next_gdpa};
+    PFN_vkGetPhysicalDeviceMemoryProperties properties =
+        (PFN_vkGetPhysicalDeviceMemoryProperties)next_gipa(owner ? owner->handle : NULL, "vkGetPhysicalDeviceMemoryProperties");
+    if (properties) {
+        VkPhysicalDeviceMemoryProperties memory;
+        properties(physical, &memory);
+        for (uint32_t i = 0; i < memory.memoryTypeCount && i < 32; i++)
+            if (memory.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) data.host_visible_types |= 1u << i;
+    }
 #define X(name) data.name = (PFN_vk##name)next_gdpa(*device, "vk" #name);
     DEVICE_FUNCTIONS(X)
 #undef X
@@ -306,7 +368,80 @@ static VkResult VKAPI_CALL allocate_memory(VkDevice device, const VkMemoryAlloca
                                            const VkAllocationCallbacks *allocator, VkDeviceMemory *memory) {
     NEXT(device, AllocateMemory);
     bump(C_allocations);
-    return next_(device, info, allocator, memory);
+    VkResult result = next_(device, info, allocator, memory);
+    if (result != VK_SUCCESS) return result;
+    uint64_t bytes = info->allocationSize;
+    int host = info->memoryTypeIndex < 32 && d_ && (d_->host_visible_types >> info->memoryTypeIndex & 1);
+    pthread_mutex_lock(&mem_lock);
+    if (table_put(&memory_table, (uint64_t)*memory, bytes, (uint64_t)host)) {
+        live_bytes += bytes;
+        if (host) host_bytes += bytes;
+        if (live_bytes > peak_bytes) peak_bytes = live_bytes;
+        live_allocations++;
+    } else {
+        untracked_allocations++;
+    }
+    pthread_mutex_unlock(&mem_lock);
+    return result;
+}
+static void VKAPI_CALL free_memory(VkDevice device, VkDeviceMemory memory, const VkAllocationCallbacks *allocator) {
+    NEXT(device, FreeMemory);
+    struct entry gone;
+    pthread_mutex_lock(&mem_lock);
+    if (table_take(&memory_table, (uint64_t)memory, &gone)) {
+        live_bytes -= gone.bytes;
+        if (gone.extra) host_bytes -= gone.bytes;
+        live_allocations--;
+    }
+    pthread_mutex_unlock(&mem_lock);
+    if (next_) next_(device, memory, allocator);
+}
+
+/* Bytes per texel of the format the libhybris compat layer decodes each BC format into (bc_image.c);
+ * BC1 RGB and BC6H count their four-channel form. 0 for anything that is not BC. */
+static unsigned bc_decoded_texel(VkFormat format) {
+    switch (format) {
+    case VK_FORMAT_BC4_UNORM_BLOCK: case VK_FORMAT_BC4_SNORM_BLOCK: return 2;
+    case VK_FORMAT_BC6H_UFLOAT_BLOCK: case VK_FORMAT_BC6H_SFLOAT_BLOCK: return 8;
+    default: return format >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && format <= VK_FORMAT_BC7_SRGB_BLOCK ? 4 : 0;
+    }
+}
+static VkResult VKAPI_CALL create_image(VkDevice device, const VkImageCreateInfo *info,
+                                        const VkAllocationCallbacks *allocator, VkImage *image) {
+    NEXT(device, CreateImage);
+    VkResult result = next_(device, info, allocator, image);
+    unsigned texel = bc_decoded_texel(info->format);
+    if (result != VK_SUCCESS || !texel) return result;
+    unsigned block = info->format <= VK_FORMAT_BC1_RGBA_SRGB_BLOCK || info->format == VK_FORMAT_BC4_UNORM_BLOCK ||
+        info->format == VK_FORMAT_BC4_SNORM_BLOCK ? 8 : 16;
+    uint64_t compressed = 0, decoded = 0;
+    for (uint32_t mip = 0; mip < info->mipLevels && mip < 32; mip++) {
+        uint64_t w = info->extent.width >> mip, h = info->extent.height >> mip;
+        if (!w) w = 1;
+        if (!h) h = 1;
+        compressed += (w + 3) / 4 * ((h + 3) / 4) * block * info->arrayLayers;
+        decoded += w * h * texel * info->arrayLayers;
+    }
+    pthread_mutex_lock(&mem_lock);
+    if (table_put(&image_table, (uint64_t)*image, compressed, decoded)) {
+        bc_bytes += compressed;
+        bc_decoded_bytes += decoded;
+        bc_images++;
+    }
+    pthread_mutex_unlock(&mem_lock);
+    return result;
+}
+static void VKAPI_CALL destroy_image(VkDevice device, VkImage image, const VkAllocationCallbacks *allocator) {
+    NEXT(device, DestroyImage);
+    struct entry gone;
+    pthread_mutex_lock(&mem_lock);
+    if (table_take(&image_table, (uint64_t)image, &gone)) {
+        bc_bytes -= gone.bytes;
+        bc_decoded_bytes -= gone.extra;
+        bc_images--;
+    }
+    pthread_mutex_unlock(&mem_lock);
+    if (next_) next_(device, image, allocator);
 }
 
 /* ---- counted commands ---- */
@@ -415,6 +550,9 @@ static const struct hook { const char *name; PFN_vkVoidFunction function; } devi
     {"vkCreateGraphicsPipelines", (PFN_vkVoidFunction)graphics_pipelines},
     {"vkCreateComputePipelines", (PFN_vkVoidFunction)compute_pipelines},
     {"vkAllocateMemory", (PFN_vkVoidFunction)allocate_memory},
+    {"vkFreeMemory", (PFN_vkVoidFunction)free_memory},
+    {"vkCreateImage", (PFN_vkVoidFunction)create_image},
+    {"vkDestroyImage", (PFN_vkVoidFunction)destroy_image},
     {"vkCmdDraw", (PFN_vkVoidFunction)cmd_draw},
     {"vkCmdDrawIndexed", (PFN_vkVoidFunction)cmd_draw_indexed},
     {"vkCmdDrawIndirect", (PFN_vkVoidFunction)cmd_draw_indirect},
