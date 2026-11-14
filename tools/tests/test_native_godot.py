@@ -97,10 +97,6 @@ class NativeGodotTest(unittest.TestCase):
         info = NG["pe_info"](img)
         self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
         self.assertEqual("relabelled x64 -> arm64", note)
-        img, note = NG["portable_image"](pe(True, machine=0x8664, r2r=True))
-        info = NG["pe_info"](img)
-        self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
-        self.assertIn("ReadyToRun", note)
         self.assertEqual((None, None), NG["portable_image"](pe(True, machine=0x14C)))
         with self.assertRaises(ValueError):
             NG["portable_image"](pe(True, machine=0x8664, ilonly=False))
@@ -111,11 +107,18 @@ class NativeGodotTest(unittest.TestCase):
         with self.assertRaises(NG["MixedMode"]):  # ReadyToRun beside C++/CLI fixups
             NG["portable_image"](pe(True, machine=0x8664, ilonly=False, r2r=True, fixups=True))
 
-    def test_ready_to_run_without_il_only_mark_is_made_portable(self):
-        img, note = NG["portable_image"](pe(True, machine=0x8664, ilonly=False, r2r=True))
-        info = NG["pe_info"](img)
-        self.assertEqual((0xAA64, 1, (0, 0)), (info["machine"], info["flags"], info["native_header"]))
-        self.assertIn("marked IL-only", note)
+    def test_ready_to_run_images_are_only_relabelled(self):
+        # arm64 .NET refuses an R2R image whose R2R header is cleared or that is marked IL-only ("Bad IL
+        # format"), and ignores Windows x64 R2R code, so the only change is the machine label.
+        for ilonly in (False, True):
+            src = pe(True, machine=0x8664, ilonly=ilonly, r2r=True)
+            img, note = NG["portable_image"](src)
+            before, after = NG["pe_info"](src), NG["pe_info"](img)
+            self.assertEqual(0xAA64, after["machine"])
+            self.assertEqual((before["flags"], before["native_header"]), (after["flags"], after["native_header"]))
+            self.assertIn("ReadyToRun x64 code kept", note)
+            changed = [i for i in range(len(src)) if src[i] != img[i]]
+            self.assertTrue(set(changed) <= {before["machine_at"], before["machine_at"] + 1})
 
     def test_compose_leaves_out_mixed_mode_assemblies(self):
         win = self.game / "data_sts2_windows_x86_64"
@@ -134,7 +137,7 @@ class NativeGodotTest(unittest.TestCase):
         self.assertIn("left out Vortice.Native.dll", err.getvalue())
         self.assertIn("named by sts2.dll", err.getvalue())
         self.assertIn("Odd.dll", r["game_assemblies"])
-        self.assertIn("marked IL-only", r["patched"]["Odd.dll"])
+        self.assertIn("ReadyToRun x64 code kept", r["patched"]["Odd.dll"])
         deps = json.loads((data / "sts2.deps.json").read_text())
         self.assertNotIn("Vortice.Native.dll", json.dumps(deps))
 

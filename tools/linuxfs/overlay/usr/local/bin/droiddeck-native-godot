@@ -137,32 +137,28 @@ def is_managed(path):
 
 
 def portable_image(data):
-    """(bytes, note) for a Windows x64 build of an IL-only assembly that arm64 .NET will load, or (None, None)
-    when it loads as it is.
+    """(bytes, note) for a Windows x64 build of an assembly that arm64 .NET will load, or (None, None) when it
+    loads as it is.
 
-    CoreCLR refuses an assembly whose PE machine is AMD64 on arm64. When the code inside is plain IL the
-    machine field is only a label, so it is relabelled ARM64. A ReadyToRun image also carries precompiled x64
-    code; its pointer to that code is cleared so the runtime JITs the IL instead, which is always present.
-    Some ReadyToRun images are not marked IL-only; with the x64 code dropped they are, so they get the mark.
-    Anything else without the mark (C++/CLI, which has vtable fixups and no ReadyToRun header) raises
-    MixedMode."""
+    CoreCLR refuses an assembly whose PE machine is AMD64 on arm64 ("not compatible with the current process
+    architecture"). When the code inside is plain IL the machine field is only a label, so it is relabelled
+    ARM64. A ReadyToRun image (crossgen2 output: no IL-only mark, a ManagedNativeHeader with an RTR signature)
+    is relabelled the same way and otherwise left alone: its precompiled code is for Windows x64, so arm64 .NET
+    on Linux rejects that code and JIT-compiles the IL, which is always present. Clearing the R2R header or
+    marking such an image IL-only makes the loader refuse it ("Bad IL format": its PE layout is not an IL-only
+    one); MEASURED on arm64 .NET 9 (r2r-probe). Anything else without the IL-only mark (C++/CLI: vtable fixups,
+    no RTR header) raises MixedMode."""
     info = pe_info(data)
     if info is None or info["machine"] != AMD64:
         return None, None
-    flags = info["flags"]
-    if not flags & ILONLY and not (info["ready_to_run"] and info["vtable_fixups"] == (0, 0)):
+    r2r = info["ready_to_run"] and info["vtable_fixups"] == (0, 0)
+    if not info["flags"] & ILONLY and not r2r:
         raise MixedMode("mixed-mode (native C++) assembly; it cannot run on arm64")
     out = bytearray(data)
     struct.pack_into("<H", out, info["machine_at"], ARM64)
     note = "relabelled x64 -> arm64"
     if info["native_header"] != (0, 0):
-        struct.pack_into("<II", out, info["native_header_at"], 0, 0)
-        flags &= ~IL_LIBRARY
-        note += ", dropped ReadyToRun x64 code"
-    if not flags & ILONLY:
-        flags |= ILONLY
-        note += ", marked IL-only"
-    struct.pack_into("<I", out, info["flags_at"], flags)
+        note += " (ReadyToRun x64 code kept; arm64 .NET ignores it and JITs the IL)"
     return bytes(out), note
 
 

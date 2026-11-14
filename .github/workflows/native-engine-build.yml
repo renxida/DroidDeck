@@ -46,25 +46,32 @@ jobs:
         run: sh tools/native-engine/modules/native_compat/skel/tests/run_tests.sh
       - name: Host tests for the clean-room FSB5 sound reader
         run: sh tools/native-engine/modules/native_compat/fsb/tests/run_tests.sh
-      - name: A real Windows ReadyToRun assembly, made portable, runs on arm64 .NET
-        # Public Microsoft runtime pack (no game files): its R2R DLLs have IL-only cleared, like a game's
-        # published ones. portable_image must make one load and run here, and the untouched one must not.
+      - name: Windows x64 assemblies (IL-only and ReadyToRun), made portable, run on arm64 .NET
+        # A small public library published win-x64 with and without ReadyToRun (R2R: IL-only clear, like the
+        # game's DLLs), and Microsoft's own R2R System.Linq.dll from the public win-x64 runtime pack. Each
+        # patched copy must load and run here; the untouched x64 library must be refused. No game files.
         run: |
           set -euo pipefail
-          W=$RUNNER_TEMP/r2r && mkdir -p "$W"
+          W=$RUNNER_TEMP/r2r && mkdir -p "$W/patched"
           curl -fsSL -o "$W/rt.nupkg" https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.win-x64/9.0.7/microsoft.netcore.app.runtime.win-x64.9.0.7.nupkg
           unzip -oq "$W/rt.nupkg" runtimes/win-x64/lib/net9.0/System.Linq.dll -d "$W"
-          python3 - "$W/runtimes/win-x64/lib/net9.0/System.Linq.dll" "$W/System.Linq.dll" <<'PY'
-          import runpy, sys
+          dotnet publish tools/native-engine/r2r-check/lib -c Release -r win-x64 --self-contained false -o "$W/il" -p:PublishReadyToRun=false > /dev/null
+          dotnet publish tools/native-engine/r2r-check/lib -c Release -r win-x64 --self-contained false -o "$W/r2r" -p:PublishReadyToRun=true > /dev/null
+          python3 - "$W" <<'PY'
+          import os, runpy, sys
           ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
-          data = open(sys.argv[1], "rb").read()
-          info = ng["pe_info"](data)
-          print("original: machine %#x flags %#x ready_to_run %s" % (info["machine"], info["flags"], info["ready_to_run"]))
-          img, note = ng["portable_image"](data)
-          print("patched:", note)
-          open(sys.argv[2], "wb").write(img)
+          w = sys.argv[1]
+          for tag, src in (("il", "il/ProbeLib.dll"), ("r2r", "r2r/ProbeLib.dll"), ("linq", "runtimes/win-x64/lib/net9.0/System.Linq.dll")):
+              data = open(os.path.join(w, src), "rb").read()
+              info = ng["pe_info"](data)
+              img, note = ng["portable_image"](data)
+              print("%s: machine %#x flags %#x ready_to_run %s -> %s" % (src, info["machine"], info["flags"], info["ready_to_run"], note))
+              os.makedirs(os.path.join(w, "patched", tag), exist_ok=True)
+              open(os.path.join(w, "patched", tag, os.path.basename(src)), "wb").write(img)
           PY
-          dotnet run -c Release --project tools/native-engine/r2r-check -- "$W/System.Linq.dll" "$W/runtimes/win-x64/lib/net9.0/System.Linq.dll"
+          dotnet run -c Release --project tools/native-engine/r2r-check/host -- \
+            "ok:$W/patched/il/ProbeLib.dll" "ok:$W/patched/r2r/ProbeLib.dll" "ok:$W/patched/linq/System.Linq.dll" \
+            "refused:$W/r2r/ProbeLib.dll" "refused:$W/il/ProbeLib.dll"
       - name: Valve's linux-arm64 libsteam_api.so (what the wrapper fetches) loads and answers on arm64
         run: |
           set -euo pipefail
