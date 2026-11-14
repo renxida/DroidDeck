@@ -11,6 +11,7 @@ on:
     branches: ['emu/winetest*']
     paths:
       - 'tools/fex/winetest/**'
+      - 'tools/fex/arm64ec/**'
       - '.github/workflows/fex-wine-test.yml'
   workflow_dispatch:
     inputs:
