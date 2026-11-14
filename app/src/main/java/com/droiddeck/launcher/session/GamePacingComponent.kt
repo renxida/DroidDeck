@@ -80,14 +80,15 @@ class GamePacingComponent(private val logs: List<File>, private val paceFile: Fi
                 if (plan != null) {
                     val idleMs = SystemClock.elapsedRealtime() - maxOf(SessionState.lastInputMs, gameStartMs)
                     val fps = GamePacing.paceFps(GamePacing.cap, idleMs)
-                    if (fps != paced && paceFile != null) {
-                        runCatching { GamePacing.writePace(paceFile, fps) }
+                    val file = paceFile
+                    if (fps != paced && file != null) {
+                        runCatching { GamePacing.writePace(file, fps) }
                             .onSuccess {
                                 paced = fps
                                 Log.i(TAG, "presents paced to $fps fps" + if (fps < GamePacing.cap) " (idle ${idleMs / 1000} s)" else "")
                                 runCatching { SessionEvents.record("pacing.pace", mapOf("fps" to fps, "idle_s" to idleMs / 1000)) }
                             }
-                            .onFailure { Log.w(TAG, "could not write ${paceFile.path}: $it") }
+                            .onFailure { Log.w(TAG, "could not write ${file.path}: $it") }
                     }
                     GamePacing.idleStop(idleMs)?.let { why ->
                         if (!idleStopped) {
