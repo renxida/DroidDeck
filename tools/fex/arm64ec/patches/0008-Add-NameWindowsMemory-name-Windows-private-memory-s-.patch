@@ -1,4 +1,4 @@
-From 443c13370de85f5f736126c49039021fa5aebcf9 Mon Sep 17 00:00:00 2001
+From 9bb2ed497a7671c17b147e156628c7ae54b019e6 Mon Sep 17 00:00:00 2001
 From: Kestrel <kestrel@invalid>
 Date: Sat, 14 Nov 2026 06:49:43 +0000
 Subject: [PATCH 8/9] Add NameWindowsMemory: name Windows private memory's
@@ -9,7 +9,8 @@ private memory and names its Linux mappings (PR_SET_VMA_ANON_NAME): win:heap
 (Wine heaps: each heap, its subheaps and large blocks), win:stack (guard page),
 win:exec (executable), win:gc (reservation of 16 GB or more), win:big (256 MB or
 more), win:private. Ranges FEX named for itself are recorded and never
-relabelled; a refused name no longer turns FEX's own naming off. The worker starts
+relabelled (kept in a fixed array: recording must not allocate, since FEX's
+allocator names its own maps through the same call); a refused name no longer turns FEX's own naming off. The worker starts
 with the process's second thread, never during process init, and its first pass
 waits at least 30 s. Heaps are found with ntdll's RtlGetProcessHeaps and
 RtlLockHeap: the emulator DLL must import nothing but ntdll, since it loads
@@ -20,10 +21,10 @@ before kernelbase.
  Source/Windows/ARM64EC/MemoryNames.cpp        | 242 ++++++++++++++++++
  Source/Windows/ARM64EC/MemoryNames.h          |  14 +
  Source/Windows/ARM64EC/Module.cpp             |   3 +
- Source/Windows/Common/FEXUnixLib.cpp          |  43 ++++
+ Source/Windows/Common/FEXUnixLib.cpp          | 102 ++++++++
  Source/Windows/Common/FEXUnixLib.h            |   6 +
  Source/Windows/include/winternl.h             |   3 +
- 8 files changed, 321 insertions(+)
+ 8 files changed, 380 insertions(+)
  create mode 100644 Source/Windows/ARM64EC/MemoryNames.cpp
  create mode 100644 Source/Windows/ARM64EC/MemoryNames.h
 
@@ -356,46 +357,105 @@ index d6c9d03..ef818ce 100644
    FEX::Windows::InitCRTThread();
    const auto CPUArea = GetCPUArea();
 diff --git a/Source/Windows/Common/FEXUnixLib.cpp b/Source/Windows/Common/FEXUnixLib.cpp
-index 061431a..7f6c086 100644
+index 061431a..d31422b 100644
 --- a/Source/Windows/Common/FEXUnixLib.cpp
 +++ b/Source/Windows/Common/FEXUnixLib.cpp
 @@ -3,6 +3,8 @@
  #include <FEXCore/Utils/LogManager.h>
  
  #include <cstdint>
-+#include <map>
-+#include <mutex>
++#include <algorithm>
++#include <cstring>
  #include <windef.h>
  #include <winbase.h>
  #define __WINESRC__
-@@ -134,7 +136,48 @@ void VirtualTHPControl(const void* Ptr, size_t Size, FEXCore::Allocator::THPCont
+@@ -134,7 +136,107 @@ void VirtualTHPControl(const void* Ptr, size_t Size, FEXCore::Allocator::THPCont
    Call(FEXUnixLibFunctions::Madvise, &Args);
  }
  
-+// Every range FEX names for itself, coalesced (begin -> end), so NameWindowsMemory never relabels FEX's memory.
-+static std::mutex FEXNamedMutex;
-+static std::map<uint64_t, uint64_t> FEXNamed;
++// Every range FEX names for itself, coalesced and sorted by begin, so NameWindowsMemory never relabels FEX's memory.
++// A fixed array: recording must not allocate, because FEX's allocator names the memory it maps through VirtualName and
++// would come back in here (with the lock held). When full, the two closest neighbours are merged into one range.
++namespace {
++  struct FEXRange {
++    uint64_t Begin, End;
++  };
++  constexpr size_t MaxFEXNamed = 4096;
++  SRWLOCK FEXNamedLock = SRWLOCK_INIT;
++  FEXRange FEXNamed[MaxFEXNamed];
++  size_t FEXNamedCount;
 +
-+static void RecordFEXNamed(uint64_t Begin, uint64_t End) {
-+  std::scoped_lock Lock(FEXNamedMutex);
-+  auto it = FEXNamed.upper_bound(Begin);
-+  if (it != FEXNamed.begin() && std::prev(it)->second >= Begin) {
-+    --it;
-+    Begin = it->first;
-+    End = std::max(End, it->second);
-+    it = FEXNamed.erase(it);
++  // First index whose Begin is greater than Value.
++  size_t UpperBound(uint64_t Value) {
++    size_t Lo = 0, Hi = FEXNamedCount;
++    while (Lo < Hi) {
++      size_t Mid = (Lo + Hi) / 2;
++      if (FEXNamed[Mid].Begin <= Value) {
++        Lo = Mid + 1;
++      } else {
++        Hi = Mid;
++      }
++    }
++    return Lo;
 +  }
-+  while (it != FEXNamed.end() && it->first <= End) {
-+    End = std::max(End, it->second);
-+    it = FEXNamed.erase(it);
++
++  void RecordFEXNamed(uint64_t Begin, uint64_t End) {
++    AcquireSRWLockExclusive(&FEXNamedLock);
++    size_t First = UpperBound(Begin);
++    if (First > 0 && FEXNamed[First - 1].End >= Begin) {
++      --First;
++    }
++    size_t Last = First; // One past the last range that touches [Begin, End].
++    while (Last < FEXNamedCount && FEXNamed[Last].Begin <= End) {
++      ++Last;
++    }
++    if (Last > First) {
++      Begin = std::min(Begin, FEXNamed[First].Begin);
++      End = std::max(End, FEXNamed[Last - 1].End);
++    }
++    if (Last == First && FEXNamedCount == MaxFEXNamed) {
++      // Full: merge the pair with the smallest gap to make room.
++      size_t Best = 0;
++      for (size_t i = 1; i + 1 < FEXNamedCount; ++i) {
++        if (FEXNamed[i + 1].Begin - FEXNamed[i].End < FEXNamed[Best + 1].Begin - FEXNamed[Best].End) {
++          Best = i;
++        }
++      }
++      FEXNamed[Best].End = FEXNamed[Best + 1].End;
++      memmove(&FEXNamed[Best + 1], &FEXNamed[Best + 2], (FEXNamedCount - Best - 2) * sizeof(FEXRange));
++      --FEXNamedCount;
++      ReleaseSRWLockExclusive(&FEXNamedLock);
++      RecordFEXNamed(Begin, End);
++      return;
++    }
++    // Replace [First, Last) with the one merged range.
++    const size_t Tail = FEXNamedCount - Last;
++    const size_t NewLast = First + 1;
++    memmove(&FEXNamed[NewLast], &FEXNamed[Last], Tail * sizeof(FEXRange));
++    FEXNamed[First] = {Begin, End};
++    FEXNamedCount = NewLast + Tail;
++    ReleaseSRWLockExclusive(&FEXNamedLock);
 +  }
-+  FEXNamed.emplace(Begin, End);
-+}
++} // namespace
 +
 +bool OverlapsFEXNamed(uint64_t Begin, uint64_t End) {
-+  std::scoped_lock Lock(FEXNamedMutex);
-+  auto it = FEXNamed.lower_bound(End);
-+  return it != FEXNamed.begin() && std::prev(it)->second > Begin;
++  AcquireSRWLockShared(&FEXNamedLock);
++  const size_t i = [&] {
++    // Last range whose Begin is below End.
++    size_t Lo = 0, Hi = FEXNamedCount;
++    while (Lo < Hi) {
++      size_t Mid = (Lo + Hi) / 2;
++      if (FEXNamed[Mid].Begin < End) {
++        Lo = Mid + 1;
++      } else {
++        Hi = Mid;
++      }
++    }
++    return Lo;
++  }();
++  const bool Overlaps = i > 0 && FEXNamed[i - 1].End > Begin;
++  ReleaseSRWLockShared(&FEXNamedLock);
++  return Overlaps;
 +}
 +
 +bool TryVirtualName(const char* Name, const void* Ptr, size_t Size) {
