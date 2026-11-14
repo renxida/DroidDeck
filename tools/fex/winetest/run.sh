@@ -54,10 +54,10 @@ while kill -0 "$runner" 2>/dev/null; do
       # Windows-side stacks: winedbg attaches to the hung process (Wine pid from its process list) and walks every
       # thread; the test FEX DLL is built with debug info so its frames have names.
       echo "-- winedbg"
-      wpid=$(timeout 30 winedbg --command "info proc" 2>/dev/null | grep -F "$base" | grep -oE '[0-9a-f]{8}' | head -1 || true)
+      wpid=$(WINEDEBUG=-all timeout 30 winedbg --command "info proc" 2>/dev/null | grep -F "$base" | grep -oE '[0-9a-f]{8}' | head -1 || true)
       if [ -n "$wpid" ]; then
         printf 'attach 0x%s\nbt all\ndetach\n' "$wpid" > "$out/$label.wdbg"
-        timeout 120 winedbg --file "$out/$label.wdbg" 2>&1 | grep -v '^fixme:\|^[0-9a-f]*:fixme' | head -1500
+        WINEDEBUG=-all timeout 120 winedbg --file "$out/$label.wdbg" 2>&1 | grep -v '^fixme:\|^[0-9a-f]*:fixme' | head -1500
       else
         echo "no Wine pid for $base"
       fi
