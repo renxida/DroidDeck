@@ -88,7 +88,7 @@ object SelfUpdate {
 
     fun lastOutcome(context: Context): String? = prefs(context).getString(LAST_OUTCOME, null)
 
-    private fun setUi(value: Ui) {
+    private fun showUi(value: Ui) {
         if (Looper.myLooper() == Looper.getMainLooper()) ui = value else main.post { ui = value }
     }
 
@@ -123,7 +123,7 @@ object SelfUpdate {
         if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
 
     private fun checker(app: Context) = UpdateCheck(dir(app), prefs(app), http, { verify(app, it) }) { percent ->
-        setUi(Ui(Phase.DOWNLOADING, percent))
+        showUi(Ui(Phase.DOWNLOADING, percent))
     }
 
     // ---- checking ----
@@ -144,7 +144,7 @@ object SelfUpdate {
         }
     }
 
-    private fun showStaged(app: Context, staged: Boolean) = setUi(when {
+    private fun showStaged(app: Context, staged: Boolean) = showUi(when {
         !staged -> Ui()
         !canInstall(app) -> Ui(Phase.NEEDS_PERMISSION)
         else -> Ui(Phase.READY)
@@ -169,7 +169,7 @@ object SelfUpdate {
             val due = tracksRelease() && SelfUpdateRules.checkDue(System.currentTimeMillis(), prefs(app).getLong(LAST_CHECK, 0L), sessionActive())
             if (due) runCheck(app)
             else if (File(dir(app), UpdateCheck.APK).isFile) showStaged(app, checker(app).stagedReady() != null)
-            else setUi(Ui())
+            else showUi(Ui())
             main.post { startInstall(app, byPerson = false) }
         }, "self-update").start()
     }
@@ -194,10 +194,10 @@ object SelfUpdate {
         val staged = phase == Phase.READY || phase == Phase.NEEDS_PERMISSION
         val declined = prefs(app).getString(DECLINED, null)?.let { it == prefs(app).getString(UpdateCheck.HANDLED, null) } == true
         if (!SelfUpdateRules.mayStartInstall(sessionActive(), frontResumed, staged, declined, byPerson)) return
-        if (!canInstall(app)) { setUi(Ui(Phase.NEEDS_PERMISSION)); return }
+        if (!canInstall(app)) { showUi(Ui(Phase.NEEDS_PERMISSION)); return }
         if (busy.get() || (installing && !byPerson)) return
         installing = true
-        setUi(Ui(Phase.INSTALLING))
+        showUi(Ui(Phase.INSTALLING))
         Thread(work@{
             val file = if (busy.compareAndSet(false, true)) {
                 try { checker(app).stagedReady() } finally { busy.set(false) }
@@ -273,7 +273,7 @@ object SelfUpdate {
                 is UpdateInstaller.Result.Success -> {
                     installing = false
                     File(dir(app), UpdateCheck.APK).delete()
-                    setUi(Ui())
+                    showUi(Ui())
                 }
                 is UpdateInstaller.Result.NeedsConfirmation -> {
                     val activity = front?.get()
