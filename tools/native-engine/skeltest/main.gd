@@ -33,7 +33,7 @@ func _ready() -> void:
 	sb.advance(0.5)
 	var same = berr == OK and sb.get_bone_position("tip").distance_to(sk.get_bone_position("tip")) < 0.01
 	print("SKELTEST binary load ", berr, " '", sb.get_load_error(), "' tip=", sb.get_bone_position("tip"), " same=", same)
-	var sound_ok = sound_test()
+	var sound_ok = sound_test() and paths_test()
 	var spine_ok = spine_compat_test(sb)
 	get_tree().quit(0 if err == OK and same and sound_ok and spine_ok else 1)
 
@@ -145,6 +145,19 @@ func sound_test() -> bool:
 	var ok = absf(stream.get_length() - 0.5) < 0.01 and absf(rms.x - 0.354) < 0.05 and absf(rms.y - 0.354) < 0.05 \
 		and absf(hz.x - 440) < 10 and absf(hz.y - 660) < 10
 	print("SKELTEST sound length=", stream.get_length(), " rms=", rms, " hz=", hz, " ok=", ok)
+	return ok
+
+# Reads sound/paths.strings.bank (synthetic, written by fsb/tests/strings_test --write) through
+# NativeSoundBank's path table: paths, GUIDs both ways, case-insensitive lookup, prefix listing.
+func paths_test() -> bool:
+	var bank = ClassDB.instantiate("NativeSoundBank")
+	var err = bank.load("res://sound/paths.strings.bank")
+	var guid = bank.find_guid_for_path("bus:/a") if err == OK else ""
+	var ok = err == OK and bank.get_path_count() == 3 and bank.get_path(1) == "Event:/x" \
+		and guid == "{00000003-0000-4000-8000-000000000003}" and bank.find_path_for_guid(guid) == "bus:/a" \
+		and bank.find_guid_for_path("event:/X") == bank.get_path_guid(1) and bank.find_guid_for_path("bus:/b") == "" \
+		and bank.get_paths_with_prefix("bus:/") == PackedStringArray(["bus:/", "bus:/a"])
+	print("SKELTEST paths load ", err, " count=", bank.get_path_count(), " guid=", guid, " ok=", ok)
 	return ok
 
 func shot(tag: String) -> void:

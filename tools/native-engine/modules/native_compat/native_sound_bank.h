@@ -4,6 +4,7 @@
 #pragma once
 
 #include "fsb/fsb5.h"
+#include "fsb/strings.h"
 
 #include "core/object/ref_counted.h"
 #include "modules/vorbis/audio_stream_ogg_vorbis.h"
@@ -13,6 +14,7 @@ class NativeSoundBank : public RefCounted {
 
 	Vector<uint8_t> bytes; // the FSB5 block only
 	fsb::Container container;
+	fsb::PathTable paths; // only in a strings bank
 	String load_error;
 
 protected:
@@ -27,4 +29,13 @@ public:
 	int find_sound(const String &p_name) const;
 	int get_sound_frames(int p_index) const;
 	Ref<AudioStreamOggVorbis> get_stream(int p_index);
+
+	// The path table of a strings bank: event:/, bus:/, vca:/, snapshot:/, parameter:/ and bank:/ paths
+	// with their GUIDs (as {xxxxxxxx-...} text).
+	int get_path_count() const { return int(paths.paths.size()); }
+	String get_path(int p_index) const;
+	String get_path_guid(int p_index) const;
+	String find_guid_for_path(const String &p_path) const; // empty if absent
+	String find_path_for_guid(const String &p_guid) const; // empty if absent
+	PackedStringArray get_paths_with_prefix(const String &p_prefix) const;
 };
