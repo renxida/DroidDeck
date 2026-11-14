@@ -4,7 +4,7 @@
 #pragma once
 
 #include "fsb/fsb5.h"
-#include "fsb/strings.h"
+#include "fsb/path_table.h"
 
 #include "core/object/ref_counted.h"
 #include "modules/vorbis/audio_stream_ogg_vorbis.h"

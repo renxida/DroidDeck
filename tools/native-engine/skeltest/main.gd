@@ -147,7 +147,7 @@ func sound_test() -> bool:
 	print("SKELTEST sound length=", stream.get_length(), " rms=", rms, " hz=", hz, " ok=", ok)
 	return ok
 
-# Reads sound/paths.strings.bank (synthetic, written by fsb/tests/strings_test --write) through
+# Reads sound/paths.strings.bank (synthetic, written by fsb/tests/path_table_test --write) through
 # NativeSoundBank's path table: paths, GUIDs both ways, case-insensitive lookup, prefix listing.
 func paths_test() -> bool:
 	var bank = ClassDB.instantiate("NativeSoundBank")

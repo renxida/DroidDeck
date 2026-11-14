@@ -1,5 +1,5 @@
-// Clean-room code for DroidDeck/Kestrel; see strings.h.
-#include "strings.h"
+// Clean-room code for DroidDeck/Kestrel; see path_table.h.
+#include "path_table.h"
 
 #include <algorithm>
 #include <cstdio>

@@ -1,7 +1,7 @@
 // Host tests for the clean-room path table reader, on a hand-built synthetic table (no game files).
-// Usage: strings_test [bank]       with a bank, also prints its paths and GUIDs
-//        strings_test --write out  writes the synthetic bank (the engine test's fixture)
-#include "../strings.h"
+// Usage: path_table_test [bank]       with a bank, also prints its paths and GUIDs
+//        path_table_test --write out  writes the synthetic bank (the engine test's fixture)
+#include "../path_table.h"
 
 #include <cstdio>
 #include <cstdlib>
