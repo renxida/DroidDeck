@@ -70,8 +70,6 @@ case $gv in
     guest_env+=("BL_VK_DRIVER=/usr/local/share/offphone/lvp_icd.json" GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1)
     ;;
 esac
-# Proton's own log (loaded DLLs, exceptions, timestamps): where a stuck game stops is in it.
-[ "$scenario" = stand-in-game ] && guest_env+=(PROTON_LOG=1 PROTON_LOG_DIR=/root/rig-proton-log)
 [ ${#guest_env[@]} -gt 0 ] && "$ctl" env set "${guest_env[@]}" --persistent >/dev/null
 
 before=$(latest_dir)
@@ -81,10 +79,10 @@ case $scenario in
   stand-in-game)
     [ -d "$standin" ] || { echo "rig: no stand-in folder"; exit 2; }
     exe=$(cd "$standin" && find . -maxdepth 1 -iname '*.exe' | head -1); exe=${exe#./}
-    adb shell "rm -rf $fs/root/standin $fs/root/rig-proton-log && mkdir -p $fs/root/standin $fs/root/rig-proton-log"
+    adb shell "rm -rf $fs/root/standin && mkdir -p $fs/root/standin"
     adb push "$standin/." "$fs/root/standin/" >/dev/null
     uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
-    adb shell "chown -R $uid:$uid $fs/root/standin $fs/root/rig-proton-log && restorecon -R $fs/root/standin $fs/root/rig-proton-log"
+    adb shell "chown -R $uid:$uid $fs/root/standin && restorecon -R $fs/root/standin"
     "$ctl" run /usr/local/bin/droiddeck-proton-run -- "/root/standin/$exe" --quit-after-frames 300 --max-fps 30 ;;
   *) echo "unknown scenario $scenario"; exit 2 ;;
 esac
@@ -130,13 +128,12 @@ dir=$(latest_dir)
 [ "$dir" = "$before" ] && echo "rig: no new session folder (the session never started)"
 rm -rf "$out/rig-session"
 [ -n "$dir" ] && adb pull "${dir%/}" "$out/rig-session" >/dev/null 2>&1 && echo "rig: session folder $(basename "$dir")"
-if [ "$scenario" = stand-in-game ]; then
-  adb pull "$fs/root/rig-proton-log" "$out/proton-log" >/dev/null 2>&1 || true
-  for f in "$out"/proton-log/*.log; do
-    [ -f "$f" ] || continue
-    echo "::group::Proton log $(basename "$f") (last 300 lines)"; tail -n 300 "$f" | cut -c1-300; echo "::endgroup::"
-  done
-fi
+# The app keeps per-game logs (Proton's own log, DXVK, Mesa) under games/ on a GPU that is
+# not an Adreno, which CI Android is not.
+for f in $(find "$out/rig-session/games" -type f 2>/dev/null | sort); do
+  echo "::group::game log ${f#$out/rig-session/} (last 300 lines)"; tail -n 300 "$f" | cut -c1-300; echo; echo "::endgroup::"
+done
+echo "::group::all app processes at the end"; cat "$out/ps-end.txt" 2>/dev/null | cut -c1-240; echo "::endgroup::"
 echo "rig: session folder files:"; ls -la "$out/rig-session" 2>/dev/null
 python3 "$here/verdict.py" --session-dir "$out/rig-session" --scenario "$scenario" \
   --rig-events "$out/rig-events.jsonl" --out "$out/verdict.json"

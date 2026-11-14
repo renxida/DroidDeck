@@ -11,7 +11,9 @@ name: Off-phone launch rig
 
 on:
   push:
-    branches: [ci/offphone-probe]
+    # autofix/** attempts get a verdict on their own APK (the plan waits for build.yml on the
+    # same commit). GitHub reads this trigger from the pushed branch's copy of this file.
+    branches: [ci/offphone-probe, 'autofix/**']
   workflow_dispatch:
     inputs:
       apk_run_id:
@@ -60,6 +62,16 @@ jobs:
         run: |
           run=${{ inputs.apk_run_id }}
           ref=${{ inputs.ref || 'perf/switchboard' }}
+          case "${{ github.event_name }}:${{ github.ref_name }}" in
+            push:autofix/*)
+              # This commit's own build: wait for build.yml on the same sha (up to 40 minutes).
+              for i in $(seq 1 80); do
+                r=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/runs?head_sha=${{ github.sha }}&per_page=1" --jq '.workflow_runs[0] | "\(.id) \(.status) \(.conclusion)"')
+                case $r in *" completed success") run=${r%% *}; break;; *" completed "*) echo "build.yml failed for this commit: $r"; exit 1;; esac
+                sleep 30
+              done
+              [ -n "$run" ] || { echo "no finished build.yml run for ${{ github.sha }}"; exit 1; } ;;
+          esac
           if [ -z "$run" ]; then
             run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/runs?branch=$ref&status=success&per_page=1" --jq '.workflow_runs[0].id')
           fi
