@@ -1,5 +1,6 @@
 import hashlib
 import io
+import hashlib
 import json
 import os
 import re
@@ -1996,6 +1997,26 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIn("DOTNET_GCConserveMemory=5", final)
             self.assertNotIn("HOME=", final)
             MODULE["record_final_env"](["/proton", "run"], {"VK_X": "1"})
+
+    def test_launch_txt_names_the_fex_build_the_game_loads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton = Path(tmp, "proton-dir")
+            dll = proton / "files/lib/wine/aarch64-windows/libarm64ecfex.dll"
+            dll.parent.mkdir(parents=True)
+            (proton / "proton").write_text("")
+            data = b"MZ\0\0FEX-2611\0..FEX-Kestrel-ab135df09-1cbcab5e\0rest"
+            dll.write_bytes(data)
+            env = {"DROIDDECK_GAME_LOG_DIR": tmp}
+            MODULE["record_final_env"](["/runtime/run-proton.py", "/proton"], env, str(proton / "proton"))
+            text = Path(tmp, "launch.txt").read_text()
+            self.assertIn("fex: FEX-Kestrel-ab135df09-1cbcab5e %d bytes sha256 %s\n" % (
+                len(data), hashlib.sha256(data).hexdigest()[:12]), text)
+            dll.write_bytes(b"MZ no name")
+            MODULE["record_final_env"](["/x"], env, str(proton / "proton"))
+            self.assertIn("fex: (no version name) 10 bytes", Path(tmp, "launch.txt").read_text())
+            dll.unlink()
+            MODULE["record_final_env"](["/x"], env, str(proton / "proton"))
+            self.assertIn("fex: no files/lib/wine/aarch64-windows/libarm64ecfex.dll", Path(tmp, "launch.txt").read_text())
 
     def test_rapid_game_launches_keep_separate_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):

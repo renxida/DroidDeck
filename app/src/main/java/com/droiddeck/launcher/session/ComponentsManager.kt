@@ -320,7 +320,7 @@ object ComponentsManager {
         val dll = File(dir, FEX_FILES[0])
         if (!dll.isFile) return ""
         val text = runCatching { String(dll.readBytes(), Charsets.ISO_8859_1) }.getOrDefault("")
-        return Regex("FEX-\\d{4}(?:\\.\\d+)?(?:-\\d+-g[0-9a-f]{6,})?").findAll(text).map { it.value }.maxByOrNull { it.length }
+        return Regex("FEX-Kestrel-[0-9a-f]{6,}-[0-9a-f]{8}|FEX-\\d{4}(?:\\.\\d+)?(?:-\\d+-g[0-9a-f]{6,})?").findAll(text).map { it.value }.maxByOrNull { it.length }
             ?: unnamed
     }
 
