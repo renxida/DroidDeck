@@ -1,10 +1,13 @@
 name: FEX upstream Godot crash bisect (Wine ARM64EC, off-device)
 
-# Upstream FEX at ab135df (Kestrel's base) with no Kestrel patches crashes the Godot 4.5.1 mono stand-in at ~10 s
-# with a page fault inside StandIn.exe, while Hangover 11.16's FEX (FEX-2608) runs it. Round 1 (run 43635698654,
-# first run of each row) put the change between a6ba3e2 (passes) and e67bbd3 (crashes), 14 merged PRs in the
-# FEX-2611 release. This builds every first-parent commit in that range, no patches, and runs the stand-in
-# GODOT_RUNS times under each with the game's FEX settings. Nothing is published.
+# Upstream FEX at ab135df (Kestrel's base) crashes the Godot 4.5.1 mono stand-in at ~10 s with a page fault
+# inside StandIn.exe; Hangover 11.16's FEX (FEX-2608) runs it. Rounds 1-2 (runs 43635698654, 43636809784) put the
+# break at FEX PR #6094 (effbda6, "Feature flag fixes and alignment between targets"): fb68b0e 5/5, effbda6 0/5.
+# That PR changes three things. Each variant here is ab135df with one of them undone, no Kestrel patches:
+#   nopa   preserve_all stays off under mingw (the PR turned it on for clang >= 22.1; llvm-mingw 20261104 is 23.1.5)
+#   nocmo  cache maintenance ops stay off under Wine (the PR passed IsWine where it had passed !IsWine)
+#   wow64  the ARM64EC module asks for Wow64 host features again (the PR's copy-paste fix)
+# Nothing is published.
 
 on:
   push:
@@ -20,7 +23,7 @@ permissions:
 env:
   HANGOVER_TAG: hangover-11.16
   LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
-  GODOT_RUNS: '5'
+  GODOT_RUNS: '8'
 
 jobs:
   build:
@@ -29,8 +32,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ref: ['a6ba3e2fb', '524a37c7a', '24da3ae7c', 'b1f27cfa9', '2b1082060', '4a4669a07', 'fb68b0e9a', 'effbda64c', 'fc770b368', '75df0f815', 'd6ec06759', 'a81762cae', 'a8c901622', 'eff9f459d', 'e67bbd3ec']
-    name: build-${{ matrix.ref }}
+        var: ['none', 'nopa', 'nocmo', 'wow64']
+    name: build-${{ matrix.var }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,32 +45,13 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
           tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
           echo "$RUNNER_TEMP/$LLVM_MINGW/bin" >> "$GITHUB_PATH"
-      - name: Recipe at ${{ matrix.ref }}, no patches
+      - name: Recipe at ab135df, no patches
         run: |
           set -euo pipefail
-          full() {
-            case $1 in
-            a6ba3e2fb) echo a6ba3e2fbdea3b77080d24a979e8955f4841933b ;;
-            524a37c7a) echo 524a37c7af6943ab3bde2336362c54a944746e93 ;;
-            24da3ae7c) echo 24da3ae7c736fb8d2e7a0df9862803236cc00dd7 ;;
-            b1f27cfa9) echo b1f27cfa9dca671f1602c651b6b3ec48df83e115 ;;
-            2b1082060) echo 2b1082060d47b93795c7a643202fec729e298d6d ;;
-            4a4669a07) echo 4a4669a078f79300d8b6bff283547ff5f0d6264a ;;
-            fb68b0e9a) echo fb68b0e9a8fe7766368326399c96c0426c7c3187 ;;
-            effbda64c) echo effbda64cab7b55c987b8382ff51ab14834ce27e ;;
-            fc770b368) echo fc770b368cef87b12ae5015784576bf1fb6d8aa1 ;;
-            75df0f815) echo 75df0f815bd929d28c2ddc6adfdf398029f9a898 ;;
-            d6ec06759) echo d6ec067592e3e36d88ce7eed0fd1766b484634f9 ;;
-            a81762cae) echo a81762caed68555299e40971e9f54f246b0cc8d2 ;;
-            a8c901622) echo a8c901622ba7514673f7ba534e680da9798425b4 ;;
-            eff9f459d) echo eff9f459d8a13dc80aa9edb331c3da0e98334a38 ;;
-            e67bbd3ec) echo e67bbd3ecf4cf4faf075af4d2293eec2fe324681 ;;
-            esac
-          }
           r=recipe/tools/fex/arm64ec
           mkdir -p "$r/patches"
           cp tools/fex/arm64ec/build.sh "$r/"
-          full "${{ matrix.ref }}" > "$r/FEX_REF"
+          echo ab135df091d005cc98dfddc56c3dc9c9e4bd501d > "$r/FEX_REF"
           cat "$r/FEX_REF"
           sed -i 's|for p in "$HERE"/patches/\*.patch; do|for p in $(ls "$HERE"/patches/*.patch 2>/dev/null); do|; s|cat "$HERE"/patches/\*.patch|cat /dev/null|g' "$r/build.sh"
       - name: Source, with fmt made to build under today's llvm-mingw
@@ -87,6 +71,13 @@ jobs:
           if [ -f "$f" ] && ! grep -q '#include <atomic>' "$f"; then
             sed -i '0,/^#include /s//#include <atomic>\n#include /' "$f" && echo "fmt: added <atomic>"
           fi
+          case "${{ matrix.var }}" in
+            nopa)  sed -i 's/set(CLANG_MINIMUM_VERSION 22.1)/set(CLANG_MINIMUM_VERSION 999)/' "$src/CMakeLists.txt" ;;
+            nocmo) sed -i 's/FEX::FetchHostFeatures(Features, HostFeatures, IsWine, CTR, MIDR);/FEX::FetchHostFeatures(Features, HostFeatures, !IsWine, CTR, MIDR);/' "$src/Source/Windows/Common/CPUFeatures.cpp" ;;
+            wow64) sed -i 's/FetchHostFeatures(IsWine, FEXCore::HostFeatures::HostTypeEnum::Arm64ec,/FetchHostFeatures(IsWine, FEXCore::HostFeatures::HostTypeEnum::Wow64,/' "$src/Source/Windows/ARM64EC/Module.cpp" ;;
+          esac
+          git -C "$src" diff --stat; git -C "$src" diff | head -40
+          if [ "${{ matrix.var }}" != none ] && git -C "$src" diff --quiet; then echo "variant ${{ matrix.var }} changed nothing" >&2; exit 1; fi
           echo "$ref $(cat /dev/null | sha256sum | cut -c1-16)" > fex-ec/applied
       - name: Build the DLLs
         run: WORK="$PWD/fex-ec" recipe/tools/fex/arm64ec/build.sh dlls
@@ -101,7 +92,7 @@ jobs:
           mkdir -p out && cp fex-ec/install/usr/lib/wine/aarch64-windows/libarm64ecfex.dll fex-ec/install/usr/lib/wine/aarch64-unix/libarm64ecfex.so out/
       - uses: actions/upload-artifact@v4
         with:
-          name: up-fex-${{ matrix.ref }}
+          name: up-fex-${{ matrix.var }}
           path: out
 
   programs:
@@ -128,7 +119,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: [{fex: stock, env: game}, {fex: 'a6ba3e2fb', env: game}, {fex: '524a37c7a', env: game}, {fex: '24da3ae7c', env: game}, {fex: 'b1f27cfa9', env: game}, {fex: '2b1082060', env: game}, {fex: '4a4669a07', env: game}, {fex: 'fb68b0e9a', env: game}, {fex: 'effbda64c', env: game}, {fex: 'fc770b368', env: game}, {fex: '75df0f815', env: game}, {fex: 'd6ec06759', env: game}, {fex: 'a81762cae', env: game}, {fex: 'a8c901622', env: game}, {fex: 'eff9f459d', env: game}, {fex: 'e67bbd3ec', env: game}]
+        include: [{fex: stock, env: game}, {fex: none, env: game}, {fex: nopa, env: game}, {fex: nocmo, env: game}, {fex: wow64, env: game}]
     name: run-${{ matrix.fex }}-${{ matrix.env }}
     steps:
       - uses: actions/checkout@v4
