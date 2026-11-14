@@ -509,7 +509,11 @@ class NativeR2RTest(unittest.TestCase):
         self.assertEqual(["0Harmony.dll", "sts2.dll"], sorted(m["name"] for m in r2r["missing"]))
         self.assertTrue(r2r["can_compile"])
         self.assertIsNotNone(NG["r2r_after_first_frame"](r))
-        stripped = (self.data / "0Harmony.dll").read_bytes()
+        launch_copy = (self.data / "0Harmony.dll").read_bytes()
+        self.assertTrue(NG["pe_info"](launch_copy)["ready_to_run"])  # the launch folder keeps the loadable layout
+        stripped = NG["crossgen2_input"]((self.game / "data_sts2_windows_x86_64" / "0Harmony.dll").read_bytes())
+        info = NG["pe_info"](stripped)
+        self.assertEqual((0xAA64, (0, 0), 1), (info["machine"], info["native_header"], info["flags"] & 0x5))
         rc, log = self.job(r2r)
         self.assertEqual(0, rc)
         self.assertIn("compiled 2 of 2", log)
@@ -517,7 +521,7 @@ class NativeR2RTest(unittest.TestCase):
         self.assertEqual(2, len(calls))
         harmony = next(c for c in calls if c["args"][0].endswith("in-0Harmony.dll"))
         args = harmony["args"]
-        self.assertEqual(stripped.hex(), harmony["input"])  # crossgen2 gets the stripped, portable image
+        self.assertEqual(stripped.hex(), harmony["input"])  # crossgen2 gets a stripped copy, made in its scratch folder
         for flag in (["--targetos", "linux"], ["--targetarch", "arm64"], ["--parallelism", "2"]):
             self.assertIn(flag, [args[i:i + 2] for i in range(len(args))])
         self.assertIn("-O", args)
@@ -537,6 +541,15 @@ class NativeR2RTest(unittest.TestCase):
         self.assertFalse(os.path.samefile(self.game / "data_sts2_windows_x86_64" / "sts2.dll", self.data / "sts2.dll"))
         deps = json.loads((self.data / "sts2.deps.json").read_text())
         self.assertIn("sts2.dll", json.dumps(deps))
+
+    def test_crossgen2_input(self):
+        for image in (pe(True, machine=0x8664, r2r=True), pe(True, machine=0x8664, ilonly=False, r2r=True)):
+            info = NG["pe_info"](NG["crossgen2_input"](image))
+            self.assertEqual((0xAA64, (0, 0), 1, 0), (info["machine"], info["native_header"], info["flags"] & 1, info["flags"] & 4))
+        il = pe(True, machine=0x14C)
+        self.assertEqual(il, NG["crossgen2_input"](il))
+        self.assertIsNone(NG["crossgen2_input"](pe(True, machine=0x8664, ilonly=False, fixups=True)))
+        self.assertIsNone(NG["crossgen2_input"](pe(False)))
 
     def test_a_failed_compile_keeps_the_jit_and_logs_the_error(self):
         r, _ = self.compose()

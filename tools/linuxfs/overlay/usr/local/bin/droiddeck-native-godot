@@ -433,9 +433,9 @@ def compose(game_dir, kit, engine, out, exe=None, steam=None):
 
 # --- Experiment native-r2r (DROIDDECK_EXP_NATIVE_R2R=1): linux-arm64 ReadyToRun for the game's assemblies ---
 #
-# portable_image() drops a Windows build's x64 precompiled code, so arm64 CoreCLR JITs every method the game
-# runs. With the experiment on, compose puts a cached linux-arm64 ReadyToRun image (crossgen2 output, same IL
-# and metadata) in place of each stripped copy. What is not cached yet is compiled after the engine's first
+# A Windows build's precompiled code is for Windows x64, which arm64 CoreCLR ignores, so it JITs every method
+# the game runs. With the experiment on, compose puts a cached linux-arm64 ReadyToRun image (crossgen2 output,
+# same IL and metadata) in place of each relabelled copy. What is not cached yet is compiled after the engine's first
 # frame by one detached, niced background job (crossgen2, 2 threads, one job at a time), for the next launch.
 # Each image is compiled on its own (per-assembly version bubble) against the kit's framework and the game's
 # other assemblies as references, so it stays valid while those only change within the runtime's major
@@ -565,11 +565,33 @@ def r2r_pristine_manifest(root):
         return {}
 
 
+def crossgen2_input(data):
+    """The IL image crossgen2 is given for an assembly, or None for one it cannot compile (not managed,
+    mixed-mode). crossgen2 refuses an image that is already ReadyToRun, so a Windows build's R2R image has its
+    ReadyToRun header cleared and is marked IL-only (and relabelled arm64). The runtime refuses that layout
+    ("Bad IL format"), so this copy only ever goes to crossgen2, never into the launch folder."""
+    info = pe_info(data)
+    if info is None:
+        return None
+    r2r = info["ready_to_run"] and info["vtable_fixups"] == (0, 0)
+    if not info["flags"] & ILONLY and not r2r:
+        return None
+    out = bytearray(data)
+    if info["machine"] == AMD64:
+        struct.pack_into("<H", out, info["machine_at"], ARM64)
+    flags = info["flags"]
+    if info["native_header"] != (0, 0):
+        struct.pack_into("<II", out, info["native_header_at"], 0, 0)
+        flags &= ~IL_LIBRARY
+    struct.pack_into("<I", out, info["flags_at"], flags | ILONLY)
+    return bytes(out)
+
+
 def r2r_input(src, manifest, root):
     """(path the IL came from, the IL image crossgen2 compiles) for a game file, or (src, None) if there is none.
 
     If droiddeck-dotnet-r2r swapped its own win-x64 image in there, its pristine original is used. Either way
-    the image is made portable (x64 code dropped, IL-only, labelled arm64), which crossgen2 takes as input."""
+    crossgen2_input makes the copy crossgen2 takes."""
     with open(src, "rb") as f:
         data = f.read()
     used = src
@@ -583,11 +605,7 @@ def r2r_input(src, manifest, root):
                 data, used = pristine, original
         except OSError:
             pass
-    try:
-        fixed, _ = portable_image(data)
-    except MixedMode:
-        return used, None
-    return used, fixed or data
+    return used, crossgen2_input(data)
 
 
 def r2r_compose(data_dir, win, taken, kit, env=os.environ):

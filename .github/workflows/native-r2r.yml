@@ -94,12 +94,26 @@ jobs:
             python3 tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot compose --game-dir "$T/game" --kit "$T/kit" \
             --engine "$T/engine" --out "$T/launch-today" --exe KestrelHost.exe 2>&1 >/dev/null | tee today.log
           grep -q "lacks libclrjit_universal_arm64_arm64.so" today.log
+          # What crossgen2 takes: the launch copy (relabelled, R2R header kept) or a scratch copy with the header
+          # cleared and IL-only set (crossgen2_input); and the phone's crossgen2 today without the arm64 JIT.
+          python3 - "$T/win/KestrelLib.dll" "$T/KestrelLib.input.dll" <<'PY'
+          import runpy, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          open(sys.argv[2], "wb").write(ng["crossgen2_input"](open(sys.argv[1], "rb").read()))
+          PY
           set +e
-          "$T/cg-today/crossgen2" "$T/launch-today/data_KestrelHost_linuxbsd_arm64/KestrelLib.dll" -o "$T/today.dll" \
-            --targetos linux --targetarch arm64 -O --parallelism 2 -r "$T/kit/*.dll" > cg-today.txt 2>&1
-          echo "crossgen2 without libclrjit_universal_arm64_arm64.so: exit $?"
+          for input in "$T/launch-today/data_KestrelHost_linuxbsd_arm64/KestrelLib.dll" "$T/KestrelLib.input.dll"; do
+            for cg in crossgen2 cg-today; do
+              rm -f "$T/probe.dll"
+              "$T/$cg/crossgen2" "$input" -o "$T/probe.dll" --targetos linux --targetarch arm64 -O --parallelism 2 \
+                -r "$T/kit/*.dll" > probe.txt 2>&1
+              rc=$?
+              out=$(python3 -c 'import runpy,sys; ng=runpy.run_path(sys.argv[1]); d=open(sys.argv[2],"rb").read(); i=ng["pe_info"](d); print("machine %#x r2r %s linux_arm64_r2r %s" % (i["machine"], i["ready_to_run"], ng["is_linux_arm64_r2r"](d)))' \
+                tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot "$T/probe.dll" 2>/dev/null || echo "no output")
+              echo "$(basename "$input") with $cg: exit $rc, $out; $(grep -m1 -iE 'error|already' probe.txt)" | tee -a cg-today.txt
+            done
+          done
           set -e
-          tail -5 cg-today.txt
       - name: Launch twice through the wrapper; the first launch compiles in the background after its first frame
         run: |
           set -euo pipefail
