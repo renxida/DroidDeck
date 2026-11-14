@@ -35,6 +35,11 @@ internal object Sts2Pad {
     private const val KEYBOARD_X_DP = 34f
     private const val KEYBOARD_Y_DP = 86f
     private const val KEYBOARD_RADIUS_DP = 18f
+    /** Tallest row of the tiled d-pad and A / B / Y; the rows are as wide as the strip beside the picture. */
+    private const val ROW_DP = 72f
+    /** Narrowest strip, and shortest row, the d-pad and A / B / Y are tiled in; below either they are circles. */
+    private const val MIN_STRIP_DP = 56f
+    private const val MIN_ROW_DP = 48f
 
     /** Centre as a fraction of the game's picture and size as a fraction of its height, measured on the game's combat and death screens (v0.107). */
     private class Spot(val id: String, val control: InputControl, val x: Float, val y: Float, val width: Float, val height: Float = width,
@@ -55,7 +60,13 @@ internal object Sts2Pad {
     val HUD_IDS = HUD.map { it.id }.toSet()
 
     private val stock by lazy { elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY) }
-    private val lowStock by lazy { elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, raised = false) }
+    /** Where earlier pads put the d-pad and A / B / Y: low circles near the piles, then raised circles. Kept to recognise a pad saved untouched from then. */
+    private val earlierStocks by lazy { listOf(
+        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, raised = false, tiled = false),
+        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, tiled = false)) }
+
+    /** The earlier stock pads, oldest first, for tests of the upgrade. */
+    internal fun earlier(): List<List<InputSurfaceElement>> = earlierStocks
 
     fun owns(layout: SavedInputLayout?) = layout != null && (layout.origin ?: layout.id) == LAYOUT
 
@@ -82,32 +93,38 @@ internal object Sts2Pad {
         } == true
         val fresh = elements(width, height, density, top, bottom).associateBy { it.id }
         val moved = fit(stored.filterNot(::untouched)).associateBy { it.id }
+        // A shape the person chose stays; the stock shape follows the place (tiles in wide strips, circles in narrow ones).
         return stored.map { e ->
-            if (untouched(e)) fresh.getValue(e.id).let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) } else moved.getValue(e.id)
+            if (untouched(e)) fresh.getValue(e.id).let {
+                e.copy(x = it.x, y = it.y, width = it.width, height = it.height,
+                    buttonShape = if (e.buttonShape == reference.getValue(e.id).buttonShape) it.buttonShape else e.buttonShape)
+            } else moved.getValue(e.id)
         }
     }
 
     /**
-     * Moves the d-pad and A / B / Y of a saved pad that still has them where the pad put them before they were raised
-     * up to where they sit now; buttons the person moved, and every other button, are left as they are.
+     * Moves the d-pad and A / B / Y of a saved pad that still has them where an earlier pad put them (low circles, then
+     * raised circles) to the gapless tiles they are now, shape included; buttons the person moved, and every other
+     * button, are left as they are.
      */
     fun raiseThumbs(layout: SavedInputLayout): SavedInputLayout {
         if (!owns(layout)) return layout
-        val low = lowStock.associateBy { it.id }
-        val raised = stock.associateBy { it.id }
+        val earlier = earlierStocks.map { it.associateBy { e -> e.id } }
+        val now = stock.associateBy { it.id }
+        fun same(a: InputSurfaceElement, b: InputSurfaceElement) = abs(a.x - b.x) <= TOLERANCE && abs(a.y - b.y) <= TOLERANCE &&
+            abs(a.width - b.width) <= TOLERANCE && abs(a.height - b.height) <= TOLERANCE
         val elements = layout.elements.map { e ->
-            val before = low[e.id]?.takeIf { e.id in THUMB_IDS } ?: return@map e
-            if (abs(before.x - e.x) > TOLERANCE || abs(before.y - e.y) > TOLERANCE || abs(before.width - e.width) > TOLERANCE ||
-                abs(before.height - e.height) > TOLERANCE) return@map e
-            raised.getValue(e.id).let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) }
+            if (e.id !in THUMB_IDS || earlier.none { before -> before[e.id]?.let { same(it, e) } == true }) return@map e
+            now.getValue(e.id).let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height, buttonShape = it.buttonShape) }
         }
         return if (elements == layout.elements) layout else layout.copy(elements = elements)
     }
 
     fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0): List<InputSurfaceElement> =
-        elements(width, height, density, top, bottom, raised = true)
+        elements(width, height, density, top, bottom, raised = true, tiled = true)
 
-    private fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0, raised: Boolean): List<InputSurfaceElement> {
+    private fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0, raised: Boolean = true,
+        tiled: Boolean = true): List<InputSurfaceElement> {
         val w = width.toFloat()
         val h = height.toFloat()
         val pictureW = min(w, h * PICTURE_ASPECT)
@@ -150,13 +167,43 @@ internal object Sts2Pad {
             cy = cy.coerceAtLeast(top + edge + spread + radius)
             return buttons.map { (control, offset) -> control to Box(cx + offset.first * spread, cy + offset.second * spread, 2 * radius, 2 * radius) }
         }
-        val thumbs = cluster(DPAD, leftX) + cluster(FACE, rightX)
+        val tiles = if (tiled) tiles(w, h, density, top, bottom, pictureX, pictureW, keyboardBox.bottom + gap) else null
+        val thumbs = tiles ?: (cluster(DPAD, leftX) + cluster(FACE, rightX))
+        val thumbShape = if (tiles != null) InputButtonShape.RECTANGLE else InputButtonShape.CIRCLE
         fun element(control: InputControl, b: Box, id: String = "legacy:${control.id}", name: String = control.label,
             shape: InputButtonShape = InputButtonShape.CIRCLE, opacity: Float = 1f, icon: Int = 0) =
             InputSurfaceElement(control, b.left / w, b.top / h, b.width / w, b.height / h, id, name = name, floating = false,
                 icon = icon, opacity = opacity, buttonShape = shape).bounded()
         val keyboard = element(InputControl.A, keyboardBox, KEYBOARD, "Keyboard", icon = InputButtonIcons.KEYBOARD)
-        return thumbs.map { (control, b) -> element(control, b) } +
+        return thumbs.map { (control, b) -> element(control, b, shape = thumbShape) } +
             hud.map { (s, b) -> element(s.control, b, s.id, s.name, s.shape, HUD_OPACITY) } + keyboard
+    }
+
+    /**
+     * The d-pad and A / B / Y as big rectangles filling the strips beside the picture edge to edge, with no gap between them
+     * for a thumb to slip through to the game: Up, Left | Right, Down on the left and Y, B, A on the right, in rows as wide
+     * as the strip. Null when the strips are too narrow or short for that; the pad then uses circles.
+     */
+    private fun tiles(w: Float, h: Float, density: Float, top: Int, bottom: Int, pictureX: Float, pictureW: Float,
+        below: Float): List<Pair<InputControl, Box>>? {
+        val bar = pictureX
+        if (bar < MIN_STRIP_DP * density) return null
+        val spanTop = max(below, top.toFloat())
+        val spanBottom = h - bottom - EDGE_DP * density
+        val row = minOf(bar, ROW_DP * density, (spanBottom - spanTop) / 3f)
+        if (row < MIN_ROW_DP * density) return null
+        val centre = top + (h - top - bottom) * REST
+        val first = (centre - 1.5f * row).coerceIn(spanTop, spanBottom - 3 * row)
+        fun rowY(i: Int) = first + (i + .5f) * row
+        val right = pictureX + pictureW
+        val rightW = w - right
+        return listOf(
+            InputControl.UP to Box(bar / 2f, rowY(0), bar, row),
+            InputControl.LEFT to Box(bar / 4f, rowY(1), bar / 2f, row),
+            InputControl.RIGHT to Box(bar * 3f / 4f, rowY(1), bar / 2f, row),
+            InputControl.DOWN to Box(bar / 2f, rowY(2), bar, row),
+            InputControl.Y to Box(right + rightW / 2f, rowY(0), rightW, row),
+            InputControl.B to Box(right + rightW / 2f, rowY(1), rightW, row),
+            InputControl.A to Box(right + rightW / 2f, rowY(2), rightW, row))
     }
 }

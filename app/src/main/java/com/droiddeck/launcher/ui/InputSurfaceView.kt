@@ -166,6 +166,8 @@ class InputSurfaceView(
         elementSources.forEach { it.release() }
     }
 
+    private fun edge(size: Int, at: Float) = kotlin.math.round(size * at).toInt()
+
     override fun onVisibilityChanged(changedView: View, visibility: Int) {
         super.onVisibilityChanged(changedView, visibility)
         if (visibility != VISIBLE) releaseInputs()
@@ -178,15 +180,19 @@ class InputSurfaceView(
                 val w = MeasureSpec.getSize(widthMeasureSpec)
                 val h = MeasureSpec.getSize(heightMeasureSpec)
                 setMeasuredDimension(w, h)
-                for (i in layout.indices) getChildAt(i).measure(MeasureSpec.makeMeasureSpec((w * layout[i].width).toInt(), MeasureSpec.EXACTLY),
-                    MeasureSpec.makeMeasureSpec((h * layout[i].height).toInt(), MeasureSpec.EXACTLY))
+                // Edges are rounded on their own, not sizes, so buttons laid edge to edge leave no pixel between them.
+                for (i in layout.indices) {
+                    val e = layout[i]
+                    getChildAt(i).measure(MeasureSpec.makeMeasureSpec(edge(w, e.x + e.width) - edge(w, e.x), MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(edge(h, e.y + e.height) - edge(h, e.y), MeasureSpec.EXACTLY))
+                }
             }
             override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
                 val layout = customLayout
                 for (i in layout.indices) {
                     val e = layout[i]
                     val child = getChildAt(i)
-                    val x = (width * e.x).toInt(); val y = (height * e.y).toInt()
+                    val x = edge(width, e.x); val y = edge(height, e.y)
                     child.layout(x, y, x + child.measuredWidth, y + child.measuredHeight)
                 }
             }

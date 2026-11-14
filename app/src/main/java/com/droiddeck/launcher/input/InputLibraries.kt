@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 16
+    private const val VERSION = 17
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -35,6 +35,7 @@ object InputLibraries {
         if (version < 14) library = deckGamepadSurfaces(context, library)
         if (version < 15) library = withSts2Pad(library)
         if (version < 16) library = raiseGamepadThumbs(context, library)
+        if (version < 17) library = library.copy(layouts = library.layouts.map(Sts2Pad::raiseThumbs))
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
