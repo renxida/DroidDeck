@@ -26,7 +26,7 @@ the fork, cached under ~/.cache/droiddeck/native/<tag>/):
 Steam: the game's Steamworks.NET talks to the real Steam client in the session through Valve's own linux-arm64
 libsteam_api.so, downloaded on the device from the public Steamworks.NET NuGet package (STEAM_API, sha256
 pinned) and placed as libsteam_api64.so, the name a Windows build asks for. Nothing fakes Steam: an older
-component's stubs/ folder (a no-op Steamworks stand-in) is ignored.
+component that carries a stubs/ folder (a no-op Steamworks stand-in, up to native-engine-38) is refused.
 
 Usage:
   droiddeck-native-godot compose|run --game-dir DIR (--fetch | --component DIR | --kit DIR --engine FILE)
@@ -527,6 +527,12 @@ def main(argv=None):
     else:
         os.environ.pop("LD_PRELOAD", None)
     component = fetch() if a.fetch else a.component
+    if component and os.path.lexists(os.path.join(component, "stubs")):
+        # Components up to native-engine-38 carried a no-op Steam stand-in in stubs/. Such a component is refused
+        # outright, not just ignored, so it can never run; the game then starts on Proton.
+        log(f"refusing the native engine component in {component}: it carries a Steam stand-in (stubs/); "
+            "a component without one has to be published")
+        return DID_NOT_START
     if component:
         kit, engine = (os.path.join(component, n) for n in ("kit", "godot"))
     elif a.kit and a.engine:

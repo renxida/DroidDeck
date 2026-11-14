@@ -284,10 +284,36 @@ class NativeGodotTest(unittest.TestCase):
             os.chdir(old)
         self.assertTrue(os.path.isabs(r["pack"]) and os.path.isabs(r["engine"]))
 
-    def test_component_stubs_are_ignored_and_valve_library_is_placed(self):
+    def test_component_with_a_steam_stub_is_refused(self):
+        # Components up to native-engine-38 carry stubs/libsteam_api64.so (a no-op Steam stand-in). They never run.
         comp = self.root / "component"
         (comp / "stubs").mkdir(parents=True)
         (comp / "stubs" / "libsteam_api64.so").write_bytes(b"stub")
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF\0SteamAPI_Init\0")
+        out = self.root / "launch"
+        seen = []
+        real = NG["main"].__globals__["watch"]
+        NG["main"].__globals__["watch"] = lambda cmd, env, **kw: seen.append(cmd) or 0
+        err = io.StringIO()
+        try:
+            with unittest.mock.patch("sys.stderr", err):
+                for command in ("compose", "run"):
+                    rc = NG["main"]([command, "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                     "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
+                    self.assertEqual(NG["DID_NOT_START"], rc, command)
+        finally:
+            NG["main"].__globals__["watch"] = real
+            os.chdir(Path(__file__).resolve().parent)
+        self.assertEqual([], seen)
+        self.assertFalse(out.exists())
+        self.assertIn("carries a Steam stand-in (stubs/)", err.getvalue())
+
+    def test_valve_library_is_placed_and_missing_names_are_reported(self):
+        comp = self.root / "component"
+        comp.mkdir()
         os.rename(self.kit, comp / "kit")
         os.rename(self.engine, comp / "godot")
         win = self.game / "data_sts2_windows_x86_64"
@@ -295,7 +321,7 @@ class NativeGodotTest(unittest.TestCase):
         out = self.root / "launch"
         self.assertEqual(0, NG["main"](["compose", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
                                         "--exe", "SlayTheSpire2.exe"]))
-        self.assertFalse((out / "data_sts2_linuxbsd_arm64" / "libsteam_api64.so").exists())  # the stub is not used
+        self.assertFalse((out / "data_sts2_linuxbsd_arm64" / "libsteam_api64.so").exists())  # none given, none placed
         valve = self.root / "libsteam_api.so"
         valve.write_bytes(b"\x7fELF\0SteamAPI_Init\0SteamAPI_ISteamUser_GetSteamID\0")
         err = io.StringIO()
@@ -309,13 +335,11 @@ class NativeGodotTest(unittest.TestCase):
         self.assertEqual(["SteamAPI_Gone"], report["steam_api_missing"])
         self.assertIn("1 names the game's Steamworks.NET mentions are not exported (SteamAPI_Gone)", err.getvalue())
 
-    def test_run_never_loads_the_component_stub_and_valve_library_wins(self):
-        # An older published component (native-engine-38) still carries stubs/libsteam_api64.so. Running with it must
-        # not put stubs/ on any search or preload path, and the engine's data folder must hold Valve's library.
+    def test_run_puts_no_stub_on_any_path_and_valve_library_wins(self):
+        # The engine's env and command name no stubs/ path, Steam's x86 overlay preload is dropped, and the engine's
+        # data folder holds Valve's library under both names (a component with stubs/ is refused, tested above).
         comp = self.root / "component"
-        (comp / "stubs").mkdir(parents=True)
-        (comp / "stubs" / "libsteam_api64.so").write_bytes(b"stub")
-        (comp / "stubs" / "libsteam_api.so").write_bytes(b"stub")
+        comp.mkdir()
         os.rename(self.kit, comp / "kit")
         os.rename(self.engine, comp / "godot")
         valve = self.root / "libsteam_api.so"
