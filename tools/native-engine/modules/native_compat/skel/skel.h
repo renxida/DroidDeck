@@ -322,10 +322,11 @@ struct AnimationStateData {
 };
 
 struct StateEvent {
-	enum Kind { Start, Complete, End, Fire } kind = Fire;
+	enum Kind { Start, Interrupt, Complete, End, Fire } kind = Fire;
 	int track = 0;
 	const Animation *animation = nullptr;
 	Event event;
+	std::shared_ptr<TrackEntry> entry; // the entry the event is about
 };
 
 struct AnimationState {

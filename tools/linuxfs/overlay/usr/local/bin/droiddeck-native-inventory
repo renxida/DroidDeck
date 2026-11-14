@@ -11,7 +11,8 @@ under /var/tmp/droiddeck; every later session writes the kept result again so it
 Output:
     stderr (the session log): DROIDDECK_NATIVE_INVENTORY_SUMMARY {json}, a short summary
     /var/tmp/droiddeck/native-inventory.txt: the full report as JSON, which the telemetry bundle picks up
-    /var/tmp/droiddeck/native-samples.zip: a handful of the game's skeleton, atlas and sound bank files
+    /var/tmp/droiddeck/native-samples.zip: a handful of the game's skeleton, atlas and sound bank files,
+        and the few text scenes and resources that show how the game uses them
         (Cedar agreed on Nov 13 to send a few to the private telemetry repository so their formats can be
         decoded for the clean-room runtimes). At most SAMPLE_BUDGET bytes; never anything else.
 """
@@ -26,7 +27,8 @@ import sys
 import time
 import zipfile
 
-SCHEMA = 3  # 2: JSON lines, Vorbis setup ids, imported pairing, FSB5 slice; 3: Spine 4.2 binary survey
+SCHEMA = 4  # 2: JSON lines, Vorbis setup ids, imported pairing, FSB5 slice; 3: Spine 4.2 binary survey;
+           # 4: text scene and resource survey, compiled GDScript identifier and string tables
 PREFIX = "DROIDDECK_NATIVE_INVENTORY"
 MAX_LIST = 4000
 MAX_GDEXT_BYTES = 8192
@@ -38,7 +40,9 @@ SAMPLES = CACHE_DIR / "native-samples.zip"
 SAMPLE_BUDGET = 3 << 20
 SAMPLE_FILE_MAX = 1536 << 10
 HEAD_MAX = 2 << 20
-SAMPLES_VERSION = 2  # 2: bank metadata heads and skeletons with layouts the survey cannot read yet
+SAMPLES_VERSION = 4  # 2: bank metadata heads and skeletons with layouts the survey cannot read yet;
+                     # 3: the smallest scenes using SpineSprite, the bone and slot nodes, and an FMOD emitter
+                     # 4: also the smallest skeleton for each stage and kind of read error
 REPORT_LINE_MAX = 8000
 FOURCC = re.compile(rb"^[A-Za-z0-9 _]{4}$")
 VERSION_TEXT = re.compile(rb"(?<![0-9.])([34])\.(\d)\.(\d{1,3})(?![0-9])")
@@ -862,6 +866,315 @@ def assembly_names(path):
 
 # --- Putting it together --------------------------------------------------------------------------------------
 
+# --- Text scenes and resources: how the game uses the Spine and FMOD classes ---------------------------------
+# Godot's text format (.tscn/.tres) is documented in the Godot manual ("TSCN file format").
+
+SCENE_EXT = (".tscn", ".tres")
+SCENE_FILE_MAX = 1 << 20
+WATCHED = re.compile(r"^(?:Spine|Fmod)[A-Za-z0-9_]*$")
+SECTION = re.compile(r"^\[(\w+)((?:\s+\w+=(?:\"(?:[^\"\\]|\\.)*\"|[^\s\]]+))*)\s*\]\s*$")
+ATTR = re.compile(r"(\w+)=(\"(?:[^\"\\]|\\.)*\"|[^\s\]]+)")
+PROP = re.compile(r"^([A-Za-z_][A-Za-z0-9_/:.]*) = (.*)$")
+REF = re.compile(r"^(Ext|Sub)Resource\(\s*\"([^\"]*)\"\s*\)")
+EXAMPLES = 3
+EXAMPLE_MAX = 48
+SCENE_SAMPLE_CLASSES = (("SpineSprite",), ("SpineBoneNode", "SpineSlotNode"), ("FmodEventEmitter2D",))
+
+
+def unquote(text):
+    if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        return text[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+    return text
+
+
+def depth_change(text):
+    """How much a line opens ( [ { minus how much it closes, outside strings."""
+    depth, quoted, escaped = 0, False, False
+    for ch in text:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                quoted = False
+        elif ch == '"':
+            quoted = True
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+    return depth
+
+
+def value_kind(value, refs):
+    v = value.strip()
+    m = REF.match(v)
+    if m:
+        return "%sResource:%s" % (m.group(1), refs.get((m.group(1), m.group(2)), "?"))
+    if v in ("true", "false"):
+        return "bool"
+    if v == "null":
+        return "null"
+    if v.startswith('"'):
+        return "string"
+    if v.startswith('&"'):
+        return "StringName"
+    if v.startswith("^\""):
+        return "NodePath"
+    if v.startswith("["):
+        return "Array"
+    if v.startswith("{"):
+        return "Dictionary"
+    if re.match(r"^-?(?:\d|\.\d|inf|nan)", v):
+        return "float" if re.search(r"[.eE]|inf|nan", v) else "int"
+    m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)(?:\[[^\]]*\])?\(", v)
+    return m.group(1) if m else "other"
+
+
+def parse_text_resource(text):
+    """[(section kind, attributes, [(property, value)])] from a .tscn or .tres."""
+    sections, current, pending, depth = [], None, None, 0
+    for line in text.splitlines():
+        if pending is not None:
+            pending[1].append(line)
+            depth += depth_change(line)
+            if depth <= 0:
+                current[2].append((pending[0], "\n".join(pending[1])))
+                pending, depth = None, 0
+            continue
+        m = SECTION.match(line)
+        if m:
+            current = (m.group(1), {k: unquote(v) for k, v in ATTR.findall(m.group(2))}, [])
+            sections.append(current)
+            continue
+        m = PROP.match(line)
+        if m and current is not None:
+            d = depth_change(m.group(2))
+            if d > 0:
+                pending, depth = (m.group(1), [m.group(2)]), d
+            else:
+                current[2].append((m.group(1), m.group(2)))
+    return sections
+
+
+def res_name(path):
+    return path[6:] if path.startswith("res://") else path
+
+
+def node_path(attrs):
+    parent = attrs.get("parent")
+    name = attrs.get("name", "?")
+    if parent is None:
+        return "."
+    return name if parent == "." else parent + "/" + name
+
+
+def survey_text(name, text, survey):
+    """Adds one file's classes, their properties and signal connections to [survey]; returns the
+    watched class names it uses and the res paths of its watched external resources."""
+    sections = parse_text_resource(text)
+    refs, used, deps, nodes = {}, set(), [], {}
+    for kind, attrs, _ in sections:
+        if kind in ("ext_resource", "sub_resource") and "id" in attrs:
+            refs[("Ext" if kind == "ext_resource" else "Sub", attrs["id"])] = attrs.get("type", "?")
+    root = sections[0][1].get("type") if sections and sections[0][0] == "gd_resource" else None
+    for kind, attrs, props in sections:
+        cls = root if kind == "resource" else attrs.get("type")
+        if kind == "node":
+            nodes[node_path(attrs)] = cls or ("instance" if "instance" in attrs else "?")
+            if cls:
+                survey["node_types"][cls] = survey["node_types"].get(cls, 0) + 1
+        elif kind in ("sub_resource", "ext_resource", "gd_resource") and cls:
+            survey["resource_types"][cls] = survey["resource_types"].get(cls, 0) + 1
+        if kind == "ext_resource" and cls and WATCHED.match(cls):
+            deps.append(res_name(attrs.get("path", "")))
+        if kind == "gd_resource" or not cls or not WATCHED.match(cls):
+            continue
+        used.add(cls)
+        entry = survey["classes"].setdefault(cls, {"count": 0, "files": 0, "as": {}, "props": {}})
+        entry["count"] += 1
+        entry["as"][kind] = entry["as"].get(kind, 0) + 1
+        if kind == "ext_resource":
+            e = ext_of(attrs.get("path", ""))
+            entry.setdefault("paths", {})[e] = entry.get("paths", {}).get(e, 0) + 1
+        for prop, value in props:
+            p = entry["props"].setdefault(prop, {"n": 0, "kinds": {}, "eg": []})
+            p["n"] += 1
+            k = value_kind(value, refs)
+            p["kinds"][k] = p["kinds"].get(k, 0) + 1
+            short = value.strip()
+            if k in ("string", "StringName", "int", "float", "bool", "NodePath", "Vector2", "Color") \
+                    and len(short) <= EXAMPLE_MAX and short not in p["eg"] and len(p["eg"]) < EXAMPLES:
+                p["eg"].append(short)
+    for cls in used:
+        survey["classes"][cls]["files"] += 1
+    for kind, attrs, _ in sections:
+        if kind != "connection":
+            continue
+        source = nodes.get(attrs.get("from", ""), "?")
+        signal = attrs.get("signal", "?")
+        if WATCHED.match(source or "") or re.match(r"^(?:animation|before_animation)_", signal):
+            key = "%s.%s" % (source, signal)
+            survey["signals"][key] = survey["signals"].get(key, 0) + 1
+    return used, deps
+
+
+def imported_path(sources_by_name, path):
+    """The imported file a res path stands for, from its .import notes (path="res://.godot/imported/...")."""
+    note = sources_by_name.get(path + ".import")
+    if note is None or note.size > 65536:
+        return None
+    m = re.search(r'^path="([^"]+)"', note.read().decode("utf-8", "replace"), re.M)
+    return res_name(m.group(1)) if m else None
+
+
+def closure(start, sources_by_name, deps_of):
+    """The scene or resource [start] with the Spine and FMOD resources it reaches: the text resources
+    themselves and the imported skeleton and atlas files, never textures."""
+    files, todo = [], [start]
+    while todo and len(files) < 12:
+        name = todo.pop(0)
+        if name in files:
+            continue
+        if name in sources_by_name:
+            files.append(name)
+            todo += deps_of.get(name, [])
+            continue
+        target = imported_path(sources_by_name, name)
+        if target and target in sources_by_name and target not in files:
+            files.append(target)
+    return files
+
+
+def scene_survey(sources):
+    survey = {"files": 0, "unreadable": 0, "classes": {}, "signals": {}, "node_types": {}, "resource_types": {}}
+    by_name = {s.name: s for s in sources if not s.encrypted}
+    uses, deps_of = {}, {}
+    for src in sources:
+        if src.encrypted or ext_of(src.name) not in SCENE_EXT or src.size > SCENE_FILE_MAX:
+            continue
+        data = src.read()
+        if data[:1] != b"[":
+            survey["unreadable"] += 1
+            continue
+        survey["files"] += 1
+        used, deps = survey_text(src.name, data.decode("utf-8", "replace"), survey)
+        if used:
+            uses[src.name] = used
+        if deps:
+            deps_of[src.name] = deps
+    survey["node_types"] = dict(sorted(survey["node_types"].items(), key=lambda kv: -kv[1])[:150])
+    survey["resource_types"] = dict(sorted(survey["resource_types"].items(), key=lambda kv: -kv[1])[:150])
+    samples = {}
+    for wanted in SCENE_SAMPLE_CLASSES:
+        best = None
+        for name, used in uses.items():
+            if not name.endswith(".tscn") or not all(c in used for c in wanted[:1]):
+                continue
+            files = closure(name, by_name, deps_of)
+            size = sum(by_name[f].size for f in files)
+            score = (-sum(c in used for c in wanted), size)
+            if best is None or score < best[0]:
+                best = (score, files, size)
+        if best:
+            samples["+".join(wanted)] = {"files": best[1], "bytes": best[2]}
+    survey["samples"] = samples
+    return survey
+
+
+# --- Compiled GDScript (.gdc): identifier and string tables, to learn which audio and animation calls the
+# game's scripts make. Layout from Godot's own MIT sources (modules/gdscript/gdscript_tokenizer_buffer.cpp).
+
+GDC_MAX = 1 << 20
+GDC_IDENTIFIERS = 800
+GDC_STRINGS = 300
+GDC_STRING_MAX = 160
+
+
+def zstd_decompress(blob, size):
+    try:
+        import compression.zstd as z  # Python 3.14+
+        return z.decompress(blob)
+    except ImportError:
+        pass
+    try:
+        import zstandard  # noqa: F401
+        return zstandard.ZstdDecompressor().decompress(blob, max_output_size=size)
+    except ImportError:
+        pass
+    import subprocess
+    out = subprocess.run(["zstd", "-dcq"], input=blob, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30)
+    if out.returncode != 0:
+        raise ValueError("zstd failed")
+    return out.stdout
+
+
+def gdc_variant(buf, at):
+    """(value or None, next offset) for one encoded Variant; None as the offset when the type is not handled."""
+    header = struct.unpack_from("<I", buf, at)[0]
+    kind, wide = header & 0xFF, bool(header & (1 << 16))
+    at += 4
+    if kind == 0:
+        return None, at
+    if kind == 1:
+        return bool(struct.unpack_from("<I", buf, at)[0]), at + 4
+    if kind in (2, 3):
+        return None, at + (8 if wide else 4)
+    if kind in (4, 21, 22):  # String, StringName, NodePath (new format starts with a flagged length)
+        n = struct.unpack_from("<I", buf, at)[0]
+        if kind == 22 and n & 0x80000000:
+            return None, None
+        text = buf[at + 4:at + 4 + n].decode("utf-8", "replace")
+        return text, at + 4 + n + (-n % 4)
+    # Fixed-size types: Vector2, Vector2i, Rect2, Rect2i, Vector3, Vector3i, Transform2D, Vector4, Vector4i,
+    # Plane, Quaternion, Color. Real-valued ones double in a 64-bit build.
+    sizes = {5: 8, 6: 8, 7: 16, 8: 16, 9: 12, 10: 12, 11: 24, 12: 16, 13: 16, 14: 16, 15: 16, 20: 16}
+    if kind in sizes:
+        return None, at + sizes[kind] * (2 if wide and kind in (5, 7, 9, 11, 12, 14, 15) else 1)
+    return None, None
+
+
+def gdc_tables(raw):
+    """{"identifiers": [...], "strings": [...]} from a compiled script, or {"error"}."""
+    if raw[:4] != b"GDSC" or len(raw) < 12:
+        return {"error": "not GDSC"}
+    version, size = struct.unpack_from("<II", raw, 4)
+    body = raw[12:] if size == 0 else zstd_decompress(raw[12:], size)
+    ids, consts = struct.unpack_from("<II", body, 0)
+    at, identifiers = 16, []
+    for _ in range(ids):
+        n = struct.unpack_from("<I", body, at)[0]
+        at += 4
+        chars = bytes(b ^ 0xB6 for b in body[at:at + n * 4])
+        identifiers.append(chars.decode("utf-32-le", "replace"))
+        at += n * 4
+    strings = []
+    for _ in range(consts):
+        value, at = gdc_variant(body, at)
+        if at is None:
+            break
+        if isinstance(value, str) and value and value not in strings:
+            strings.append(value[:GDC_STRING_MAX])
+    return {"version": version, "identifiers": identifiers[:GDC_IDENTIFIERS], "identifier_count": ids,
+            "strings": strings[:GDC_STRINGS], "constant_count": consts}
+
+
+def gdc_survey(sources):
+    out = []
+    for src in sources:
+        if src.encrypted or ext_of(src.name) != ".gdc" or src.size > GDC_MAX:
+            continue
+        try:
+            entry = gdc_tables(src.read())
+        except Exception as error:  # one odd script must not stop the rest
+            entry = {"error": "%s: %s" % (type(error).__name__, error)}
+        entry["name"] = src.name
+        entry["size"] = src.size
+        out.append(entry)
+    return out
+
+
 def find_pack(game_dir):
     packs = sorted(Path(game_dir).glob("*.pck"), key=lambda p: -p.stat().st_size)
     if packs:
@@ -934,6 +1247,8 @@ def inventory(game_dir):
                 name = m.decode()
                 resource_hits[name] = resource_hits.get(name, 0) + 1
     report["resource_class_hits"] = dict(sorted(resource_hits.items(), key=lambda kv: -kv[1]))
+    report["scene_survey"] = scene_survey(sources)
+    report["scripts"] = gdc_survey(sources)
 
     managed = {}
     for src in sources:
@@ -985,24 +1300,29 @@ def stem_key(name):
 
 
 def unread_skeletons(report):
-    """Skeleton names grouped by the part of the layout the survey could not read (path or physics
-    constraints, an unknown attachment or timeline kind), so the smallest of each can be sampled."""
+    """Skeleton names grouped by why the survey could not read them (path or physics constraints, an
+    unknown attachment or timeline kind, or a read error at a given stage), so the smallest of each can
+    be sampled."""
     groups = {}
     for sk in (report or {}).get("skeletons", []):
         sv = sk.get("survey") or {}
-        if sv.get("ok"):
+        if sv.get("ok") or not sv.get("stage"):
             continue
         text = "%s %s" % (sv.get("stage", ""), sv.get("error", ""))
         m = re.search(r"(path|physics) (constraints|timelines)|attachment (type|timeline) \d+", text)
         if m:
-            groups.setdefault(m.group(0), []).append(sk.get("name"))
+            key = m.group(0)
+        else:
+            kind = (sv.get("error") or "").split(":", 1)[0].strip() or "stopped"
+            key = "%s: %s" % (sv.get("stage"), kind)
+        groups.setdefault(key, []).append(sk.get("name"))
     return groups
 
 
 def pick_samples(sources, budget=SAMPLE_BUDGET, report=None):
     """The strings bank, the metadata of the smallest bank with audio and of the bank with the most sounds
     (everything before their audio data), the smallest skeleton for each layout the survey could not read,
-    then a few skeletons of each format (small, middle and large) with their atlases and import notes, all
+    the smallest scenes that use the Spine and FMOD nodes with the resources they reach, then a few skeletons of each format (small, middle and large) with their atlases and import notes, all
     within [budget]."""
     usable = [s for s in sources if not s.encrypted and 0 < s.size <= SAMPLE_FILE_MAX]
     skel = {}
@@ -1050,8 +1370,11 @@ def pick_samples(sources, budget=SAMPLE_BUDGET, report=None):
         if group:
             unread.append(group[0])
             unread += by_stem.get(stem_key(group[0].name), [])
+    scenes = []
+    for group in ((report or {}).get("scene_survey") or {}).get("samples", {}).values():
+        scenes += [by_name[n] for n in group.get("files", []) if n in by_name]
     picked, total, seen = [], 0, set()
-    for src in strings + heads[:1] + unread + heads[1:] + chosen + extra:
+    for src in strings + heads[:1] + unread + scenes + heads[1:] + chosen + extra:
         if src.name in seen or total + src.size > budget:
             continue
         seen.add(src.name)
@@ -1139,6 +1462,10 @@ def summary(report):
             "gdextensions": [g["name"] for g in report.get("gdextensions", [])],
             "spine_classes_in_scenes": [k for k in report.get("resource_class_hits", {}) if k.startswith("Spine")][:40],
             "fmod_classes_in_scenes": [k for k in report.get("resource_class_hits", {}) if k.startswith("Fmod")][:40],
+            "scene_files": (report.get("scene_survey") or {}).get("files"),
+            "scripts": len(report.get("scripts") or []),
+            "script_errors": sum(1 for g in report.get("scripts") or [] if "error" in g),
+            "scene_samples": {k: v.get("bytes") for k, v in ((report.get("scene_survey") or {}).get("samples") or {}).items()},
             "encrypted_files": report.get("encrypted_files")}
 
 

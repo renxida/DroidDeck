@@ -181,9 +181,12 @@ jobs:
           rc=$?
           set -e
           echo "exit $rc"
-          grep -E "SKELTEST|NativeSkeleton2D|native_compat|ERROR|OpenGL" skel.log | head -40
+          grep -E "SKELTEST|NativeSkeleton2D|native_compat|spine_compat|fmod_compat|ERROR|OpenGL" skel.log | head -60
           grep -q "SKELTEST binary load 0 .* same=true" skel.log
           grep -q "SKELTEST sound .* ok=true" skel.log
+          grep -q "SKELTEST paths .* ok=true" skel.log
+          grep -q "SKELTEST fmod .* ok=true" skel.log
+          grep -q "SKELTEST spine .* ok=true" skel.log
           python3 check.py out
       - name: Pack the component
         run: |

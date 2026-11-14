@@ -17,12 +17,22 @@ Error NativeSoundBank::load(const String &p_path) {
 Error NativeSoundBank::load_bytes(const PackedByteArray &p_bytes) {
 	bytes.clear();
 	container = fsb::Container();
+	paths = fsb::PathTable();
+	std::string error;
+	// A strings bank has a path table and no audio; other banks have audio and no path table.
+	const bool has_paths = fsb::read_path_table(p_bytes.ptr(), p_bytes.size(), paths, error);
+	if (!has_paths) {
+		paths = fsb::PathTable();
+		if (error != "no path table (STDT) in the file") {
+			load_error = String::utf8(error.c_str());
+			return ERR_FILE_CORRUPT;
+		}
+	}
 	size_t at = 0;
 	if (!fsb::find_fsb5(p_bytes.ptr(), p_bytes.size(), at)) {
-		load_error = "no FSB5 block in the file";
-		return ERR_FILE_UNRECOGNIZED;
+		load_error = has_paths ? String() : String("no FSB5 block or path table in the file");
+		return has_paths ? OK : ERR_FILE_UNRECOGNIZED;
 	}
-	std::string error;
 	fsb::Container parsed;
 	if (!fsb::parse_fsb5(p_bytes.ptr() + at, p_bytes.size() - at, parsed, error)) {
 		load_error = String::utf8(error.c_str());
@@ -33,6 +43,42 @@ Error NativeSoundBank::load_bytes(const PackedByteArray &p_bytes) {
 	container = parsed;
 	load_error = String();
 	return OK;
+}
+
+String NativeSoundBank::get_path(int p_index) const {
+	ERR_FAIL_INDEX_V(p_index, int(paths.paths.size()), String());
+	return String::utf8(paths.paths[p_index].c_str());
+}
+
+String NativeSoundBank::get_path_guid(int p_index) const {
+	ERR_FAIL_INDEX_V(p_index, int(paths.guids.size()), String());
+	return String(fsb::guid_text(paths.guids[p_index]).c_str());
+}
+
+String NativeSoundBank::find_guid_for_path(const String &p_path) const {
+	const int i = paths.find_path(p_path.utf8().get_data());
+	return i < 0 ? String() : get_path_guid(i);
+}
+
+String NativeSoundBank::find_path_for_guid(const String &p_guid) const {
+	fsb::Guid g;
+	if (!fsb::parse_guid_text(p_guid.utf8().get_data(), g)) {
+		return String();
+	}
+	const int i = paths.find_guid(g);
+	return i < 0 ? String() : get_path(i);
+}
+
+PackedStringArray NativeSoundBank::get_paths_with_prefix(const String &p_prefix) const {
+	PackedStringArray out;
+	const CharString prefix = p_prefix.utf8();
+	for (const std::string &p : paths.paths) {
+		if (p.compare(0, prefix.length(), prefix.get_data()) == 0) {
+			out.push_back(String::utf8(p.c_str()));
+		}
+	}
+	out.sort();
+	return out;
 }
 
 String NativeSoundBank::get_sound_name(int p_index) const {
@@ -106,4 +152,10 @@ void NativeSoundBank::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("find_sound", "name"), &NativeSoundBank::find_sound);
 	ClassDB::bind_method(D_METHOD("get_sound_frames", "index"), &NativeSoundBank::get_sound_frames);
 	ClassDB::bind_method(D_METHOD("get_stream", "index"), &NativeSoundBank::get_stream);
+	ClassDB::bind_method(D_METHOD("get_path_count"), &NativeSoundBank::get_path_count);
+	ClassDB::bind_method(D_METHOD("get_path", "index"), &NativeSoundBank::get_path);
+	ClassDB::bind_method(D_METHOD("get_path_guid", "index"), &NativeSoundBank::get_path_guid);
+	ClassDB::bind_method(D_METHOD("find_guid_for_path", "path"), &NativeSoundBank::find_guid_for_path);
+	ClassDB::bind_method(D_METHOD("find_path_for_guid", "guid"), &NativeSoundBank::find_path_for_guid);
+	ClassDB::bind_method(D_METHOD("get_paths_with_prefix", "prefix"), &NativeSoundBank::get_paths_with_prefix);
 }
