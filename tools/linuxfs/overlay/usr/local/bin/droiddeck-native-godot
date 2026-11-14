@@ -67,6 +67,17 @@ STEAM_API = {"package": "Steamworks.NET.AnyCPU 2026.165.3",
              "member": "runtimes/linux-arm64/native/libsteam_api.so",
              "member_sha256": "6010ff5049f0154a270092cb93729f1fc691d28e3b8a6f5fc6f8fcccfbd1e508"}
 STEAM_API_NAMES = ("libsteam_api64.so", "libsteam_api.so")
+# Microsoft's own ICU build for .NET (app-local ICU), as packaged on nuget.org, for a guest without ICU. In
+# invariant mode the game's `new CultureInfo(name)` throws (MEASURED on the phone, native-engine-54: its loc setup
+# and error dialog both died on CultureNotFoundException).
+ICU = {"package": "Microsoft.ICU.ICU4C.Runtime.linux-arm64 72.1.0.3",
+       "url": "https://api.nuget.org/v3-flatcontainer/microsoft.icu.icu4c.runtime.linux-arm64/72.1.0.3/"
+              "microsoft.icu.icu4c.runtime.linux-arm64.72.1.0.3.nupkg",
+       "sha256": "1f090fc45429292ae21f9199d5b956ad3570c38a7778ea4085258641727eefaf",
+       "version": "72.1.0.3",
+       "members": {"libicudata.so.72.1.0.3": "900d44dddc886bfb22c926f3e11d875c734ff59bd603efe7f790d24ebff7a78e",
+                   "libicuuc.so.72.1.0.3": "aa6e27e0e3b4f634787535404d72689a743f74889283f515a96878a629b476e2",
+                   "libicui18n.so.72.1.0.3": "515ecc70c21f0e0a5b790fe460c2ef3459efbc8efd36d4863347d3629cf320b3"}}
 DID_NOT_START = 86
 FIRST_FRAME_S = float(os.environ.get("DROIDDECK_NATIVE_FIRST_FRAME_S", "90"))
 FPS_EVERY_S = 60
@@ -336,7 +347,51 @@ def steam_api(spec=STEAM_API, cache=CACHE, opener=urllib.request.urlopen):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def icu_libs(spec=ICU, cache=CACHE, opener=urllib.request.urlopen):
+    """Folder holding Microsoft's linux-arm64 ICU (and the soname links its libraries load each other by),
+    downloading and checking it the first time."""
+    folder = os.path.join(cache, "icu", spec["version"])
+    names = list(spec["members"])
+    if all(os.path.isfile(os.path.join(folder, n)) for n in names):
+        return folder
+    os.makedirs(cache, exist_ok=True)
+    tmp = tempfile.mkdtemp(dir=cache)
+    try:
+        package = os.path.join(tmp, "package.nupkg")
+        digest = hashlib.sha256()
+        with opener(spec["url"], timeout=60) as source, open(package, "wb") as f:
+            for block in iter(lambda: source.read(1 << 20), b""):
+                digest.update(block)
+                f.write(block)
+        if digest.hexdigest() != spec["sha256"]:
+            raise SystemExit("ICU package download did not match its checksum")
+        import zipfile
+        staged = os.path.join(tmp, "icu")
+        os.mkdir(staged)
+        with zipfile.ZipFile(package) as z:
+            for name, sha in spec["members"].items():
+                data = z.read("runtimes/linux-arm64/native/" + name)
+                if hashlib.sha256(data).hexdigest() != sha:
+                    raise SystemExit(f"{name} in the ICU package did not match its checksum")
+                with open(os.path.join(staged, name), "wb") as f:
+                    f.write(data)
+                os.chmod(os.path.join(staged, name), 0o755)
+                os.symlink(name, os.path.join(staged, name.split(".so.")[0] + ".so." + name.split(".so.")[1].split(".")[0]))
+        os.makedirs(os.path.dirname(folder), exist_ok=True)
+        if os.path.isdir(folder):
+            shutil.rmtree(folder)
+        os.rename(staged, folder)
+        return folder
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 STEAM_ENTRY = re.compile(rb"\0(Steam(?:API|Internal|GameServer)_[A-Za-z0-9_]+)\0")
+# Steamworks.NET's CSteamAPIContext.Init fetches every interface through these accessors, so one the library lacks
+# is an EntryPointNotFoundException at SteamAPI.Init: the game reports Steam as failed and quits. MEASURED on the
+# phone (native-engine-54, 2026-11-14): Valve's linux-arm64 libraries (SDK 1.64+) lack GetISteamGameSearch and
+# GetISteamMusicRemote, which SDK 1.63 removed and 1.62-era Steamworks.NET still calls.
+STEAM_ACCESSOR = "SteamAPI_ISteamClient_GetISteam"
 
 
 def steam_api_missing(steamworks_dll, library):
@@ -349,6 +404,11 @@ def steam_api_missing(steamworks_dll, library):
     except OSError:
         return []
     return sorted(n for n in wanted if b"\0" + n.encode() + b"\0" not in have)
+
+
+def steam_init_blockers(missing):
+    """The missing names that stop SteamAPI.Init itself: interface accessors (see STEAM_ACCESSOR)."""
+    return [n for n in (missing or []) if n.startswith(STEAM_ACCESSOR)]
 
 
 def compose(game_dir, kit, engine, out, exe=None, steam=None):
@@ -818,10 +878,52 @@ def without_x86_preloads(env):
     return env
 
 
-def engine_env(env):
-    """.NET needs ICU unless told to run culture-invariant; the guest may not have it."""
+GUEST_LIB_DIRS = ("/usr/lib", "/usr/lib64", "/usr/lib/aarch64-linux-gnu", "/lib/aarch64-linux-gnu")
+C_LOCALES = ("", "C", "POSIX", "C.UTF-8", "C.utf8")
+
+
+def guest_icu(dirs=GUEST_LIB_DIRS):
+    """The guest's own ICU as the soname .NET dlopens (libicuuc.so.<major>), or None. Looked for by file, not with
+    ctypes.util.find_library, which needs ldconfig or gcc and finds nothing in the guest's proot. All three of
+    libicuuc, libicui18n and libicudata must be there for the same major."""
+    import glob
+    for d in dirs:
+        majors = sorted((int(m.group(1)) for m in (re.fullmatch(r"libicuuc\.so\.(\d+)", os.path.basename(p))
+                                                    for p in glob.glob(os.path.join(d, "libicuuc.so.*"))) if m),
+                        reverse=True)
+        for major in majors:
+            if all(os.path.exists(os.path.join(d, f"lib{n}.so.{major}")) for n in ("icuuc", "icui18n", "icudata")):
+                return os.path.join(d, f"libicuuc.so.{major}")
+    return None
+
+
+def engine_env(env, icu=None, system_icu=None):
+    """.NET needs ICU unless told to run culture-invariant, where the game's `new CultureInfo(name)` throws. The
+    guest's own ICU comes first (system_icu, default guest_icu()): .NET finds it by soname and it costs nothing.
+    Without it, icu (icu_libs()'s folder) gives .NET Microsoft's ICU (app-local ICU); without either, .NET runs
+    culture-invariant. With a real ICU, a C or unset locale becomes en_US.UTF-8, or .NET's current culture would
+    be the invariant one."""
     env = without_x86_preloads(env)
-    if "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" not in env and not ctypes.util.find_library("icuuc"):
+    if "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" in env or "DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU" in env:
+        return env
+    if system_icu is None:
+        system_icu = guest_icu()
+    if system_icu:
+        pass
+    elif icu:
+        env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] = ICU["version"]
+        env["LD_LIBRARY_PATH"] = icu + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
+    else:
+        env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1"
+        return env
+    if env.get("LC_ALL", "") in C_LOCALES and env.get("LANG", "") in C_LOCALES:
+        env.pop("LC_ALL", None)
+        env["LANG"] = "en_US.UTF-8"
+    return env
+    if icu:
+        env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] = ICU["version"]
+        env["LD_LIBRARY_PATH"] = icu + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
+    else:
         env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1"
     return env
 
@@ -1036,6 +1138,9 @@ def main(argv=None):
     ap.add_argument("--component")
     ap.add_argument("--kit")
     ap.add_argument("--engine")
+    ap.add_argument("--icu", help="folder with Microsoft's linux-arm64 ICU libraries (default with --fetch: download them)")
+    ap.add_argument("--no-steam-preflight", action="store_true",
+                    help="run even when Steam could not initialise (for programs that never call SteamAPI.Init)")
     ap.add_argument("--steam-api", help="Valve's linux-arm64 libsteam_api.so (default with --fetch: download it)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--exe")
@@ -1066,6 +1171,11 @@ def main(argv=None):
         tag = COMPONENT["tag"] if a.fetch else (os.path.basename(os.path.normpath(component)) if component else "custom")
         return 0 if check(a.game_dir, kit, engine, a.out, a.exe, steam, tag, a.name)["result"] == "pass" else 1
     r = compose(a.game_dir, kit, engine, a.out, a.exe, steam)
+    fatal = steam_init_blockers(r.get("steam_api_missing"))
+    if fatal and a.command == "run" and not a.no_steam_preflight:
+        log(f"not starting: Steam cannot initialise with this game's Steamworks.NET: the library lacks "
+            f"{', '.join(fatal)}, which its SteamAPI.Init calls (the game would quit on 'Failed to initialize Steam')")
+        return DID_NOT_START
     log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
         f"{r['kit_files']} kit files, skipped {len(r['skipped'])}"
         + (f" (left out {len(r['mixed_mode'])} mixed-mode: {', '.join(r['mixed_mode'])})" if r["mixed_mode"] else ""))
@@ -1075,7 +1185,19 @@ def main(argv=None):
     cmd = [r["engine"], "--main-pack", r["pack"], "--print-fps"] + rest
     log("run " + " ".join(cmd))
     os.chdir(os.path.abspath(a.game_dir))
-    return watch(line_buffered(cmd), engine_env(os.environ), forward_signals=True,
+    icu, system_icu = a.icu, guest_icu()
+    if system_icu and icu is None:
+        log(f"ICU: the guest's {system_icu}")
+    else:
+        system_icu = ""
+        if icu is None and a.fetch:
+            try:
+                icu = icu_libs()
+            except (Exception, SystemExit) as error:
+                log(f"ICU unavailable ({error}); .NET runs culture-invariant")
+        if icu:
+            log(f"ICU: {ICU['package']} from {icu} (app-local)")
+    return watch(line_buffered(cmd), engine_env(os.environ, icu, system_icu), forward_signals=True,
                  on_first_frame=r2r_after_first_frame(r))
 
 

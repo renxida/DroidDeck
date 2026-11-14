@@ -52,6 +52,7 @@ void initialize_native_compat_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(FmodBus);
 	GDREGISTER_CLASS(FmodVCA);
 	GDREGISTER_CLASS(FmodBank);
+	GDREGISTER_CLASS(FmodPerformanceData);
 	GDREGISTER_CLASS(FmodServer);
 	GDREGISTER_CLASS(FmodEventEmitter2D);
 	GDREGISTER_CLASS(FmodEventEmitter3D);

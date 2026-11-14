@@ -287,9 +287,7 @@ jobs:
 
   publish:
     needs: [template, gate]
-    # A push to perf/emu-native publishes once the gate passes, like release-apk.yml does for kestrel.apk;
-    # a manual run publishes only when asked.
-    if: github.event_name == 'push' || inputs.publish
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     permissions:

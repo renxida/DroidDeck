@@ -146,7 +146,9 @@ def main(argv=None):
     runs, ok = [], True
     for i in range(a.repeat):
         out = os.path.join(a.work, f"{a.name}-launch")
-        cmd = shlex.split(a.prefix) + head + ["run"] + src + [
+        # The stand-in bundles Steamworks.NET only as a dependency and never calls SteamAPI.Init, so the wrapper's
+        # Steam preflight (which refuses the real game while Valve's arm64 library lacks an accessor) is off here.
+        cmd = shlex.split(a.prefix) + head + ["run", "--no-steam-preflight"] + src + [
             "--game-dir", os.path.abspath(a.game_dir), "--exe", a.exe, "--out", out, "--"] + engine_args
         log_path = os.path.join(a.work, f"{a.name}-{i + 1}.log")
         rc, lines, took = run_once(cmd, log_path, a.timeout)

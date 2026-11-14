@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 import re
 import os
@@ -368,6 +369,40 @@ class NativeGodotTest(unittest.TestCase):
         self.assertEqual(["SteamAPI_Gone"], report["steam_api_missing"])
         self.assertIn("1 names the game's Steamworks.NET mentions are not exported (SteamAPI_Gone)", err.getvalue())
 
+    def test_run_does_not_start_when_steam_init_would_miss_an_interface_accessor(self):
+        # The phone run on native-engine-54: the game's Steamworks.NET calls GetISteamGameSearch in SteamAPI.Init,
+        # Valve's linux-arm64 library (SDK 1.64+) has no such export, so the game quit. That is known before launch.
+        comp = self.root / "component"
+        comp.mkdir()
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        win = self.game / "data_sts2_windows_x86_64"
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF\0SteamAPI_Init\0SteamAPI_ISteamClient_GetISteamUser\0")
+        out = self.root / "launch"
+        seen = []
+        real = NG["main"].__globals__["watch"]
+        NG["main"].__globals__["watch"] = lambda cmd, env, **kw: seen.append(cmd) or 0
+        try:
+            for extra, expect_start in ((b"SteamAPI_ISteamFriends_GetUserRestrictions\0", True),
+                                        (b"SteamAPI_ISteamClient_GetISteamGameSearch\0", False)):
+                (win / "Steamworks.NET.dll").write_bytes(
+                    pe(True) + b"\0SteamAPI_Init\0SteamAPI_ISteamClient_GetISteamUser\0" + extra)
+                err = io.StringIO()
+                with unittest.mock.patch("sys.stderr", err):
+                    rc = NG["main"](["run", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                     "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
+                self.assertEqual(0 if expect_start else NG["DID_NOT_START"], rc, extra)
+                self.assertEqual(not expect_start, "lacks SteamAPI_ISteamClient_GetISteamGameSearch" in err.getvalue())
+            # A program that never calls SteamAPI.Init (the gate's stand-in) can turn the preflight off.
+            rc = NG["main"](["run", "--no-steam-preflight", "--game-dir", str(self.game), "--component", str(comp),
+                             "--out", str(out), "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
+            self.assertEqual(0, rc)
+        finally:
+            NG["main"].__globals__["watch"] = real
+            os.chdir(Path(__file__).resolve().parent)
+        self.assertEqual(2, len(seen))  # the run whose missing name is not an Init accessor, and the opted-out one
+
     def test_run_puts_no_stub_on_any_path_and_valve_library_wins(self):
         # The engine's env and command name no stubs/ path, Steam's x86 overlay preload is dropped, and the engine's
         # data folder holds Valve's library under both names (a component with stubs/ is refused, tested above).
@@ -408,6 +443,67 @@ class NativeGodotTest(unittest.TestCase):
             self.assertFalse((data / name).is_symlink(), name)
         hits = [str(p) for p in out.rglob("*") if p.is_file() and p.read_bytes() == b"stub"]
         self.assertEqual([], hits)
+
+    def test_icu_download_is_checked_cached_and_linked_by_soname(self):
+        import zipfile
+        libs = {"libicudata.so.72.1.0.3": b"data", "libicuuc.so.72.1.0.3": b"uc", "libicui18n.so.72.1.0.3": b"i18n"}
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            for name, data in libs.items():
+                z.writestr("runtimes/linux-arm64/native/" + name, data)
+        package = buf.getvalue()
+        spec = dict(NG["ICU"], sha256=hashlib.sha256(package).hexdigest(),
+                    members={n: hashlib.sha256(d).hexdigest() for n, d in libs.items()})
+        calls = []
+        def opener(url, timeout):
+            calls.append(url)
+            return io.BytesIO(package)
+        cache = self.root / "cache"
+        folder = NG["icu_libs"](spec, str(cache), opener)
+        self.assertEqual(b"uc", (Path(folder) / "libicuuc.so.72").read_bytes())
+        self.assertEqual(b"data", (Path(folder) / "libicudata.so.72").read_bytes())
+        self.assertEqual(b"i18n", (Path(folder) / "libicui18n.so.72.1.0.3").read_bytes())
+        self.assertEqual(folder, NG["icu_libs"](spec, str(cache), opener))
+        self.assertEqual(1, len(calls))
+        bad = dict(spec, members=dict(spec["members"], **{"libicuuc.so.72.1.0.3": "0" * 64}))
+        with self.assertRaises(SystemExit):
+            NG["icu_libs"](bad, str(self.root / "cache2"), opener)
+
+    def test_engine_env_uses_app_local_icu_and_falls_back_to_invariant(self):
+        env = NG["engine_env"]({"LD_LIBRARY_PATH": "/a"}, "/icu", system_icu="")
+        self.assertEqual(NG["ICU"]["version"], env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"])
+        self.assertEqual("/icu:/a", env["LD_LIBRARY_PATH"])
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", env)
+        env = NG["engine_env"]({}, None, system_icu="")
+        self.assertEqual("1", env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"])
+        env = NG["engine_env"]({}, "/icu", system_icu="libicuuc.so.72")
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU", env)
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", env)
+        env = NG["engine_env"]({"DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "1"}, "/icu", system_icu="")
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU", env)
+
+    def test_engine_env_prefers_the_guest_icu_and_gives_it_a_real_locale(self):
+        env = NG["engine_env"]({"LANG": "C", "LC_ALL": "C"}, "/icu", system_icu="/usr/lib/libicuuc.so.78")
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU", env)
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", env)
+        self.assertNotIn("LC_ALL", env)
+        self.assertEqual("en_US.UTF-8", env["LANG"])
+        env = NG["engine_env"]({"LANG": "fr_FR.UTF-8"}, None, system_icu="/usr/lib/libicuuc.so.78")
+        self.assertEqual("fr_FR.UTF-8", env["LANG"])
+        env = NG["engine_env"]({}, "/icu", system_icu="")
+        self.assertEqual("en_US.UTF-8", env["LANG"])
+        env = NG["engine_env"]({}, None, system_icu="")
+        self.assertNotIn("LANG", env)
+
+    def test_guest_icu_is_found_by_file_with_all_three_libraries(self):
+        lib = self.root / "lib"
+        lib.mkdir()
+        self.assertIsNone(NG["guest_icu"]((str(lib),)))
+        for name in ("libicuuc.so.78", "libicuuc.so.78.3", "libicui18n.so.78", "libicuuc.so.80"):
+            (lib / name).write_bytes(b"")
+        self.assertIsNone(NG["guest_icu"]((str(lib),)))
+        (lib / "libicudata.so.78").write_bytes(b"")
+        self.assertEqual(str(lib / "libicuuc.so.78"), NG["guest_icu"]((str(self.root / "none"), str(lib))))
 
     def test_steam_api_download_is_checked_and_cached(self):
         import hashlib, zipfile

@@ -140,6 +140,92 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  steam-exports:
+    # The pinned Valve linux-arm64 libsteam_api.so still exports the interface accessors recorded for it, and
+    # the wrapper refuses to start a game whose Steamworks.NET needs one it lacks (SDK 1.62-era GameSearch).
+    name: steam library exports
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compare the pinned library's accessors with the recorded list
+        run: |
+          set -euo pipefail
+          lib=$(python3 -c 'import runpy, sys; print(runpy.run_path(sys.argv[1])["steam_api"]())' "$WRAPPER")
+          nm -D --defined-only "$lib" | awk '{print $3}' | grep '^SteamAPI_ISteamClient_GetISteam' | sort > have.txt
+          grep -v '^#' tools/native-engine/standin/steam-api-accessors.txt > want.txt
+          diff -u want.txt have.txt
+          python3 - "$WRAPPER" <<'PY'
+          import runpy, sys
+          ng = runpy.run_path(sys.argv[1])
+          blockers = ng["steam_init_blockers"](["SteamAPI_ISteamClient_GetISteamGameSearch", "SteamAPI_ISteamFriends_GetUserRestrictions"])
+          assert blockers == ["SteamAPI_ISteamClient_GetISteamGameSearch"], blockers
+          print("accessors match; a missing accessor stops the native launch")
+          PY
+
+  app-local-icu:
+    # .NET needs a real ICU, or the game's `new CultureInfo(name)` throws. The wrapper prefers the guest's own ICU
+    # (found by file) and falls back to Microsoft's linux-arm64 ICU (app-local), which .NET must load or fail fast.
+    # Both start from LANG=C, as the guest does: cultures must be real ones (fra, not ivl), French grouping must be
+    # French, and the current culture must be en-US, not invariant.
+    name: ICU (${{ matrix.icu }})
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        icu: [guest, app-local]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: A .NET 9 program finds cultures through the wrapper's ICU
+        env:
+          ICU_MODE: ${{ matrix.icu }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cult" && cd "$RUNNER_TEMP/cult"
+          printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>' > cult.csproj
+          printf '%s\n' 'using System.Globalization;' \
+            'foreach (var n in new[] { "en-US", "fr-FR", "C" }) { var c = new CultureInfo(n); Console.WriteLine($"CULTURE {n} name={c.Name} three={c.ThreeLetterISOLanguageName}"); }' \
+            'Console.WriteLine("N0 fr-FR " + (1234567).ToString("N0", new CultureInfo("fr-FR")).Replace("\u202f", "_").Replace("\u00a0", "_"));' \
+            'Console.WriteLine($"CURRENT name={CultureInfo.CurrentCulture.Name}");' \
+            'Console.WriteLine($"ICU {string.Join(",", System.Diagnostics.Process.GetCurrentProcess().Modules.Cast<System.Diagnostics.ProcessModule>().Select(m => m.FileName).Where(f => f.Contains("icu")))}");' > Program.cs
+          dotnet build -c Release -o out > /dev/null
+          cd "$GITHUB_WORKSPACE"
+          python3 - "$WRAPPER" "$RUNNER_TEMP/cult/out/cult.dll" <<'PY' | tee "$RUNNER_TEMP/cult.log"
+          import os, runpy, subprocess, sys
+          ng = runpy.run_path(sys.argv[1])
+          base = {k: v for k, v in os.environ.items() if not k.startswith(("LC_", "DOTNET_SYSTEM_GLOBALIZATION"))}
+          base["LANG"] = "C"
+          if os.environ["ICU_MODE"] == "guest":
+              guest = ng["guest_icu"]()
+              assert guest, "the runner's own ICU was not found by file"
+              print(f"GUEST {guest}")
+              env = ng["engine_env"](base, None)
+              assert "DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU" not in env and "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" not in env, env
+          else:
+              env = ng["engine_env"](base, ng["icu_libs"](), system_icu="")
+              assert env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] == ng["ICU"]["version"], env
+          sys.stdout.flush()
+          sys.exit(subprocess.run(["dotnet", sys.argv[2]], env=env).returncode)
+          PY
+          grep -q "CULTURE en-US name=en-US three=eng" "$RUNNER_TEMP/cult.log"
+          grep -q "CULTURE fr-FR name=fr-FR three=fra" "$RUNNER_TEMP/cult.log"
+          grep -q "^N0 fr-FR 1_234_567$" "$RUNNER_TEMP/cult.log"
+          grep -q "^CURRENT name=en-US$" "$RUNNER_TEMP/cult.log"
+          if [ "$ICU_MODE" = guest ]; then
+            guest=$(sed -n 's/^GUEST //p' "$RUNNER_TEMP/cult.log")
+            grep -E "^ICU " "$RUNNER_TEMP/cult.log" | grep -q "/$(basename "$guest")"
+          else
+            grep -E "^ICU " "$RUNNER_TEMP/cult.log" | grep -q "/icu/72.1.0.3/libicuuc.so.72"
+          fi
+
   gate:
     name: gate ${{ matrix.row }}
     needs: export
