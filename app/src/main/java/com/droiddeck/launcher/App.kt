@@ -27,6 +27,7 @@ class App : Application() {
                 .runningAppProcesses?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName
         if (process == "$packageName:shortcuts_sync") return
         com.droiddeck.launcher.telemetry.Timeline.processStarted()
+        registerActivityLifecycleCallbacks(com.droiddeck.launcher.session.LauncherRejoin.Tracker)
         CrashHandler.install(this)
         com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)

@@ -792,8 +792,28 @@ class FrontEndActivity : ComponentActivity() {
         finish()
     }
 
+    /**
+     * The launcher icon opened a fresh front screen on top of a session the player had been watching start or run
+     * (see [com.droiddeck.launcher.session.LauncherRejoin]): go back to that session the way "Open Steam" does.
+     * Skips this activity's own start gating, which waits out installs that the live session itself is doing.
+     */
+    private fun rejoinLiveSession(request: Intent): Boolean {
+        if (!com.droiddeck.launcher.session.LauncherRejoin.shouldRejoin(request.action, request.categories)) return false
+        Log.i("MainActivity", "launcher icon while the session is live (${SessionState.phase}): back to the session")
+        super.startActivity(Intent(this, SessionActivity::class.java))
+        overridePendingTransition(0, 0)
+        return true
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Stacked over the session: step aside. As the task's root (the session's task was swiped away), stay as the
+        // library underneath it.
+        if (savedInstanceState == null && rejoinLiveSession(intent) && !isTaskRoot) {
+            finish()
+            overridePendingTransition(0, 0)
+            return
+        }
         window.decorView.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
             override fun onPreDraw(): Boolean {
                 window.decorView.viewTreeObserver.removeOnPreDrawListener(this)
@@ -1317,6 +1337,7 @@ class FrontEndActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (rejoinLiveSession(intent)) return
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
             pendingGameLink = null
