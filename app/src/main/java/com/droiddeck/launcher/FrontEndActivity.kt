@@ -1530,6 +1530,17 @@ class FrontEndActivity : ComponentActivity() {
     override fun onDestroy() {
         gameLaunchRequest.incrementAndGet()
         cancelCompatLaunch()
+        // Pollers and delayed work (session switch, component restore, link panel) must not run against a gone screen.
+        switchPoll = null
+        ui.removeCallbacksAndMessages(null)
+        if (!isChangingConfigurations) {
+            // Process-wide UI state must not outlive this screen: an open step-out keeps its content (and this screen)
+            // reachable, and a hop origin points a later screen's back chip at bounds that no longer exist.
+            com.droiddeck.launcher.ui.Steps.drop()
+            com.droiddeck.launcher.ui.Hops.origin = null
+            com.droiddeck.launcher.ui.Hops.restore = null
+            com.droiddeck.launcher.ui.Hops.sources.clear()
+        }
         super.onDestroy()
     }
 
