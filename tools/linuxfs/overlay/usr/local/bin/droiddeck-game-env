@@ -75,7 +75,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "sched", "one-limiter", "native-hz", "quick-tap", "fex-codegen", "fex-memcpy-tso", "fex-vector-tso",
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
                "wayland-present", "vk-count",
-               "native-inventory", "free-memory", "fex-l1")
+               "native-inventory", "free-memory", "fex-l1", "fex-code-buffer")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -2331,6 +2331,11 @@ def main():
         # 256k entries (4 MB per thread) kept nearly all of the gain of the full 1M for well under half the memory.
         # Other FEX builds ignore FEX_L1CACHEENTRIES and use the full 1M (16 MB per thread, touched as used).
         env = dict(env, FEX_DYNAMICL1CACHE="0", FEX_L1CACHEENTRIES="262144")
+    if experiment(env, "fex-code-buffer"):
+        # FEX's code buffer starts at 16 MB; when it fills, every thread's translated code is thrown away and
+        # retranslated into a buffer twice the size. Starting at 64 MB (Kestrel's FEX, patch 0006) avoided that
+        # off-device: translation time warm -28%, first run -9 to -15%, no extra memory. Other builds ignore it.
+        env = dict(env, FEX_INITIALCODEBUFFERMB="64")
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"

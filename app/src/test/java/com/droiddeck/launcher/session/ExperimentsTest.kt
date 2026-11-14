@@ -56,6 +56,7 @@ class ExperimentsTest {
             "native-inventory" to "DROIDDECK_EXP_NATIVE_INVENTORY",
             "free-memory" to "DROIDDECK_EXP_FREE_MEMORY",
             "fex-l1" to "DROIDDECK_EXP_FEX_L1",
+            "fex-code-buffer" to "DROIDDECK_EXP_FEX_CODE_BUFFER",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

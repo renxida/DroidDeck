@@ -43,6 +43,8 @@ object Experiments {
     const val FREE_MEMORY = "free-memory"
     /** FEX's per-thread block lookup cache at a fixed size from the start: 4 MB with Kestrel's FEX, 16 MB otherwise. */
     const val FEX_L1 = "fex-l1"
+    /** Kestrel's FEX starts its code buffer at 64 MB, not 16, so a session stops throwing its translated code away once it fills. */
+    const val FEX_CODE_BUFFER = "fex-code-buffer"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -68,6 +70,7 @@ object Experiments {
         Switch(NATIVE_INVENTORY, R.string.exp_native_inventory),
         Switch(FREE_MEMORY, R.string.exp_free_memory),
         Switch(FEX_L1, R.string.exp_fex_l1),
+        Switch(FEX_CODE_BUFFER, R.string.exp_fex_code_buffer),
     )
 
     /** At most one of each group is on. */
@@ -85,7 +88,7 @@ object Experiments {
         SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
         DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
         WAYLAND_PRESENT, VK_COUNT,
-        NATIVE_INVENTORY, FREE_MEMORY, FEX_L1)
+        NATIVE_INVENTORY, FREE_MEMORY, FEX_L1, FEX_CODE_BUFFER)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
