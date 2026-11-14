@@ -33,7 +33,7 @@ func _ready() -> void:
 	sb.advance(0.5)
 	var same = berr == OK and sb.get_bone_position("tip").distance_to(sk.get_bone_position("tip")) < 0.01
 	print("SKELTEST binary load ", berr, " '", sb.get_load_error(), "' tip=", sb.get_bone_position("tip"), " same=", same)
-	var sound_ok = sound_test() and paths_test()
+	var sound_ok = sound_test() and paths_test() and fmod_test()
 	var spine_ok = spine_compat_test(sb)
 	get_tree().quit(0 if err == OK and same and sound_ok and spine_ok else 1)
 
@@ -158,6 +158,43 @@ func paths_test() -> bool:
 		and bank.find_guid_for_path("event:/X") == bank.get_path_guid(1) and bank.find_guid_for_path("bus:/b") == "" \
 		and bank.get_paths_with_prefix("bus:/") == PackedStringArray(["bus:/", "bus:/a"])
 	print("SKELTEST paths load ", err, " count=", bank.get_path_count(), " guid=", guid, " ok=", ok)
+	return ok
+
+# The FMOD-compatible classes: the FmodServer singleton reads the synthetic strings bank, resolves paths to
+# GUIDs, tracks an event instance, buses and global parameters; an emitter node plays and stops.
+func fmod_test() -> bool:
+	if not Engine.has_singleton("FmodServer"):
+		print("SKELTEST fmod missing singleton")
+		return false
+	var server = Engine.get_singleton("FmodServer")
+	var bank = server.load_bank("res://sound/paths.strings.bank", 0)
+	var desc = server.get_event("Event:/x")
+	var inst = server.create_event_instance("Event:/x")
+	inst.set_parameter_by_name("intensity", 0.5)
+	inst.start()
+	var playing = inst.get_playback_state() == 0
+	inst.stop(1)
+	server.set_global_parameter_by_name("act", 2.0)
+	var bus = server.get_bus("bus:/a")
+	bus.set_volume(0.25)
+	var emitter = ClassDB.instantiate("FmodEventEmitter2D")
+	emitter.event_name = "Event:/x"
+	var signals := []
+	emitter.started.connect(func(): signals.append("started"))
+	emitter.stopped.connect(func(): signals.append("stopped"))
+	add_child(emitter)
+	emitter.play()
+	emitter.set_parameter("intensity", 0.75)
+	var emitter_playing = emitter.is_playing()
+	emitter.stop()
+	emitter.queue_free()
+	var stats = server.get_compat_stats()
+	var ok = bank.get_bus_count() == 2 and desc.get_guid() == "{00000002-0000-4000-8000-000000000002}" \
+		and server.check_event_path("event:/x") and not server.check_event_path("event:/nope") and playing \
+		and inst.get_playback_state() == 2 and absf(inst.get_parameter_by_name("intensity") - 0.5) < 1e-6 \
+		and server.get_global_parameter_by_name("act") == 2.0 and server.get_bus("bus:/a").get_volume() == 0.25 \
+		and emitter_playing and signals == ["started", "stopped"] and absf(emitter.get_parameter("intensity") - 0.75) < 1e-6
+	print("SKELTEST fmod buses=", bank.get_bus_count(), " guid=", desc.get_guid(), " signals=", signals, " stats=", stats, " ok=", ok)
 	return ok
 
 func shot(tag: String) -> void:

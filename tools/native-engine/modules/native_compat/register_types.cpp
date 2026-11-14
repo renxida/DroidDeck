@@ -1,10 +1,12 @@
 // Kestrel native-engine compatibility module. Clean-room: no Esoteric or FMOD code.
 #include "register_types.h"
 
+#include "fmod_compat.h"
 #include "native_skeleton_2d.h"
 #include "native_sound_bank.h"
 #include "spine_compat.h"
 
+#include "core/config/engine.h"
 #include "core/io/resource_loader.h"
 
 #include "core/object/class_db.h"
@@ -12,6 +14,7 @@
 #include "core/variant/variant.h"
 
 static Ref<SpineResourceLoader> spine_loader;
+static FmodServer *fmod_server = nullptr;
 
 void initialize_native_compat_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -41,9 +44,24 @@ void initialize_native_compat_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(SpineSlotNode);
 	GDREGISTER_CLASS(SpineMesh2D);
 	GDREGISTER_CLASS(SpineResourceLoader);
+	// Under the names of the game's FMOD plugin (see fmod_compat.h).
+	GDREGISTER_CLASS(FmodParameterDescription);
+	GDREGISTER_CLASS(FmodEvent);
+	GDREGISTER_CLASS(FmodEventDescription);
+	GDREGISTER_CLASS(FmodBus);
+	GDREGISTER_CLASS(FmodVCA);
+	GDREGISTER_CLASS(FmodBank);
+	GDREGISTER_CLASS(FmodServer);
+	GDREGISTER_CLASS(FmodEventEmitter2D);
+	GDREGISTER_CLASS(FmodEventEmitter3D);
+	GDREGISTER_CLASS(FmodListener2D);
+	GDREGISTER_CLASS(FmodListener3D);
+	GDREGISTER_CLASS(FmodBankLoader);
+	fmod_server = memnew(FmodServer);
+	Engine::get_singleton()->add_singleton(Engine::Singleton("FmodServer", fmod_server));
 	spine_loader.instantiate();
 	ResourceLoader::add_resource_format_loader(spine_loader);
-	print_verbose("native_compat: module loaded (NativeSkeleton2D, NativeSoundBank, Spine-compatible classes)");
+	print_verbose("native_compat: module loaded (NativeSkeleton2D, NativeSoundBank, Spine- and FMOD-compatible classes)");
 }
 
 void uninitialize_native_compat_module(ModuleInitializationLevel p_level) {
@@ -53,5 +71,10 @@ void uninitialize_native_compat_module(ModuleInitializationLevel p_level) {
 	if (spine_loader.is_valid()) {
 		ResourceLoader::remove_resource_format_loader(spine_loader);
 		spine_loader.unref();
+	}
+	if (fmod_server) {
+		Engine::get_singleton()->remove_singleton("FmodServer");
+		memdelete(fmod_server);
+		fmod_server = nullptr;
 	}
 }
