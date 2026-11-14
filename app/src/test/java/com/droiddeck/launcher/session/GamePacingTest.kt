@@ -50,34 +50,42 @@ class GamePacingTest {
         assertEquals(listOf(30), GamePacing.Governor(30).ladder)
     }
 
-    @Test fun `steps down one rung per dwell while hot and back up only after a longer cool spell`() {
+    @Test fun `steps down one rung, waits for it to settle before the next, and comes back up after a cool spell`() {
         val g = GamePacing.Governor(60)
-        assertNull(g.sample(0.9f, 1, 0))
-        assertNull(g.sample(0.9f, 1, 9_000))
-        assertEquals(40, g.sample(0.9f, 1, 10_000))
-        assertNull(g.sample(0.95f, 1, 15_000))
-        assertEquals(30, g.sample(0.95f, 1, 20_000))
-        assertNull(g.sample(0.99f, 1, 40_000))
-        assertNull(g.sample(0.75f, 1, 50_000))
-        assertNull(g.sample(0.6f, 1, 60_000))
-        assertNull(g.sample(0.6f, 1, 89_000))
-        assertEquals(40, g.sample(0.6f, 1, 90_000))
-        assertEquals(60, g.sample(0.5f, 1, 120_000))
-        assertNull(g.sample(0.5f, 1, 200_000))
+        assertNull(g.sample(0.96f, 1, 0))
+        assertNull(g.sample(0.96f, 1, 9_000))
+        assertEquals(40, g.sample(0.96f, 1, 10_000))
+        assertNull(g.sample(0.97f, 1, 20_000))
+        assertNull(g.sample(0.97f, 1, 69_000))
+        assertEquals(30, g.sample(0.97f, 1, 70_000))
+        assertNull(g.sample(0.99f, 1, 200_000))
+        assertNull(g.sample(0.85f, 1, 210_000))
+        assertNull(g.sample(0.75f, 1, 220_000))
+        assertNull(g.sample(0.75f, 1, 249_000))
+        assertEquals(40, g.sample(0.75f, 1, 250_000))
+        assertEquals(60, g.sample(0.7f, 1, 280_000))
+        assertNull(g.sample(0.7f, 1, 400_000))
+    }
+
+    @Test fun `a forecast that is high but short of severe at a light status keeps the game's cap`() {
+        val g = GamePacing.Governor(60)
+        for (t in 0..300_000L step 5_000) assertNull(g.sample(0.87f, 1, t))
+        assertEquals(60, g.cap)
     }
 
     @Test fun `the band between the thresholds resets both dwells`() {
         val g = GamePacing.Governor(60)
-        g.sample(0.9f, 1, 0)
-        g.sample(0.8f, 1, 5_000)
-        assertNull(g.sample(0.9f, 1, 10_000))
-        assertEquals(40, g.sample(0.9f, 1, 20_000))
+        g.sample(0.96f, 1, 0)
+        g.sample(0.9f, 1, 5_000)
+        assertNull(g.sample(0.96f, 1, 10_000))
+        assertEquals(40, g.sample(0.96f, 1, 20_000))
     }
 
     @Test fun `severe status counts as hot and moderate blocks a step up, unknown headroom goes by status`() {
         val g = GamePacing.Governor(60)
         g.sample(Float.NaN, 3, 0)
         assertEquals(40, g.sample(Float.NaN, 3, 10_000))
+        assertNull(g.sample(Float.NaN, 3, 20_000))
         assertNull(g.sample(0.5f, 2, 20_000))
         assertNull(g.sample(0.5f, 2, 60_000))
         g.sample(Float.NaN, 0, 70_000)
