@@ -1,5 +1,7 @@
 /* Drives VK_LAYER_DROIDDECK_vkcount on lavapipe: 60 frames on a headless swapchain, each with one
- * submit of one command buffer holding five buffer copies and a barrier. See test_vkcount_layer.py. */
+ * submit of one command buffer holding five buffer copies and a barrier. It holds 8 MiB of device memory
+ * after freeing a 4 MiB allocation, and one 1024x1024 BC3 image (1 MiB compressed, 4 MiB decoded) after
+ * destroying a BC1 one. See test_vkcount_layer.py. */
 #include <vulkan/vulkan.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,8 +31,19 @@ int main(void) {
     VkBufferCreateInfo bci = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .size = 4096, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT};
     VkBuffer b1, b2; CK(vkCreateBuffer(dev, &bci, NULL, &b1)); CK(vkCreateBuffer(dev, &bci, NULL, &b2));
     VkMemoryRequirements mr; vkGetBufferMemoryRequirements(dev, b1, &mr);
-    VkMemoryAllocateInfo mai = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .allocationSize = 8192, .memoryTypeIndex = 0};
+    VkMemoryAllocateInfo mai = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .allocationSize = 4 << 20, .memoryTypeIndex = 0};
+    VkDeviceMemory gone; CK(vkAllocateMemory(dev, &mai, NULL, &gone));
+    mai.allocationSize = 8 << 20;
     VkDeviceMemory mem; CK(vkAllocateMemory(dev, &mai, NULL, &mem));
+    vkFreeMemory(dev, gone, NULL);
+    VkImageCreateInfo ii = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .imageType = VK_IMAGE_TYPE_2D,
+        .format = VK_FORMAT_BC1_RGBA_UNORM_BLOCK, .extent = {512, 512, 1}, .mipLevels = 10, .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT};
+    VkImage bc1; CK(vkCreateImage(dev, &ii, NULL, &bc1));
+    vkDestroyImage(dev, bc1, NULL);
+    ii.format = VK_FORMAT_BC3_UNORM_BLOCK; ii.extent = (VkExtent3D){1024, 1024, 1}; ii.mipLevels = 1;
+    VkImage bc3; CK(vkCreateImage(dev, &ii, NULL, &bc3));
     vkBindBufferMemory(dev, b1, mem, 0); vkBindBufferMemory(dev, b2, mem, 4096);
     VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO}; VkFence fence, af; vkCreateFence(dev, &fci, NULL, &fence); vkCreateFence(dev, &fci, NULL, &af);
     for (int f = 0; f < 60; f++) {
@@ -48,6 +61,7 @@ int main(void) {
         CK(vkQueuePresentKHR(queue, &pi));
     }
     vkDeviceWaitIdle(dev);
+    (void)bc3; /* left alive, like mem, so the final line at vkDestroyDevice still counts it */
     vkDestroySwapchainKHR(dev, sc, NULL); vkDestroyDevice(dev, NULL); vkDestroyInstance(inst, NULL);
     puts("ok");
 }
