@@ -333,13 +333,39 @@ phone. Patch 0007 adds `SampleHz` (experiment `fex-sample`, `FEX_SAMPLEHZ=250`, 
   the exe, the CRT or .NET in one play session. The bench checks the hook natively (`FEX_TEST_X87SITES`, bench-only
   patch): every site it reports must be an x87 instruction in `x87cost`.
 - The app copies these rows into `fex-samples.csv` in the telemetry zip.
-- Posix CPU timers fire on the kernel tick, so a thread gets at most `CONFIG_HZ` samples per second (250 on the CI
-  runner) whatever rate is asked. 250 is the right setting.
-- The cost is measured natively on the CI runner with the same handler (`tools/fex/bench/sampler`), in the bench's
-  summary. On an x86 dev box the handler took about 0.4 µs a sample, which is about 0.01% of a thread at 250 Hz
-  before signal delivery. Total cost there was within run-to-run noise.
+- Posix CPU timers fire on the kernel tick, so a thread gets at most `CONFIG_HZ` samples per second whatever rate
+  is asked. The CI runner delivered the full 1000/s; an x86 dev box capped at 250. 250 stays the setting.
+- Cost, measured on the CI arm64 runner with the same handler (`tools/fex/bench/sampler`, 4 busy threads, median
+  of 5):
+
+  | asked Hz | work time vs off | samples/s/thread | handler ns/sample |
+  |---|---|---|---|
+  | 250 | -0.19% (noise) | 246 | 125 |
+  | 500 | +0.36% | 490 | 124 |
+  | 1000 | +0.42% | 980 | 100 |
+
+  At 250 Hz the handler is about 31 µs per second of thread time (0.003%). Signal delivery is in the work-time
+  column, which is within run-to-run noise. The reader thread costs about 30 µs a second. That is far under the 2%
+  limit.
 
 Memory: a 2.5 MB ring, plus the decode cache, which is cleared every minute.
+
+### What one x87 fallback costs (round 12): too little to matter
+
+`float_fallback` counts FEX's softfloat calls. At full x87 precision, which .NET games run with, every x87
+arithmetic instruction is one call. `tools/fex/bench/x87/x87cost.c` times them under FEX on the CI arm64 runner
+(ns per x87 instruction, warm, median of 3):
+
+| loop | full precision | reduced precision | native SSE2 mul+add |
+|---|---|---|---|
+| `fprem` loop (fmod as the x64 CRT does it) | 10–11 | 1.8–5.5 | 2.9 per op |
+| `fld`/`fadd`/`fmul`/`fstp` | 15.5 | 0.7 | |
+| `fsin` | 111 | 2.4 | |
+
+The game's worst minute had about 15.7k fallbacks per second. Even if every one were an `fsin`, that is 1.7 ms per
+second, 0.17% of one core. A phone core at half this runner's speed would make it about 0.35%. More likely it is
+0.02–0.05%. x87 is not why the later fights slow down, and reduced precision would buy almost nothing. The fex-sample
+`x87-module` rows will still say which module issues them, which is cheap to know.
 
 ## Ranked next fixes (in FEX)
 

@@ -1,4 +1,4 @@
-From ac84fdaf90faf7142bfc9bb48a0d91141c963c74 Mon Sep 17 00:00:00 2001
+From f986dbff72c855f3a142bbfdda340b465bfd00c0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 14 Nov 2026 00:55:37 +0000
 Subject: [PATCH 8/8] Bench only: FEX_TEST_X87SITES prints which guest

@@ -1,4 +1,4 @@
-From 8ef2efdac721dc71c27631f9f629a73f11c56669 Mon Sep 17 00:00:00 2001
+From 008da12ecd4d1e54dabf483262dc04c44d574372 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 14 Nov 2026 00:52:31 +0000
 Subject: [PATCH 7/8] Add SampleHz, a sampling profiler for ARM64EC under Wine
@@ -17,9 +17,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  .../Source/Interface/Config/Config.json.in    |   9 +
  FEXCore/Source/Interface/Core/Core.cpp        |  49 ++
+ .../Interface/Core/Dispatcher/Dispatcher.cpp  |   2 +
  .../Core/Interpreter/Fallbacks/F80Fallbacks.h | 100 ++--
  FEXCore/include/FEXCore/Core/Context.h        |   7 +
- .../include/FEXCore/Utils/FloatFallbackHook.h |  15 +
+ FEXCore/include/FEXCore/Core/CoreState.h      |   6 +
+ .../include/FEXCore/Utils/FloatFallbackHook.h |  16 +
  Source/Windows/ARM64EC/CMakeLists.txt         |   1 +
  Source/Windows/ARM64EC/Module.cpp             |  12 +-
  Source/Windows/ARM64EC/Sampler.cpp            | 510 ++++++++++++++++++
@@ -27,7 +29,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  Source/Windows/UnixLib/FEXUnixLib.cpp         |  31 ++
  Source/Windows/UnixLib/FEXUnixLib.h           |  48 ++
  Source/Windows/UnixLib/Sampler.h              | 219 ++++++++
- 12 files changed, 971 insertions(+), 46 deletions(-)
+ 14 files changed, 980 insertions(+), 46 deletions(-)
  create mode 100644 FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
  create mode 100644 Source/Windows/ARM64EC/Sampler.cpp
  create mode 100644 Source/Windows/ARM64EC/Sampler.h
@@ -120,8 +122,21 @@ index dbc7f7c..8ef180b 100644
  uint32_t ContextImpl::ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs,
                                                   uint64_t PSTATE) {
    const auto Frame = Thread->CurrentFrame;
+diff --git a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
+index c903d3b..a0212d4 100644
+--- a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
++++ b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
+@@ -2347,6 +2347,8 @@ void Dispatcher::EmitF64FPREM1() {
+ 
+ uint64_t Dispatcher::GenerateABICall(FallbackABI ABI) {
+   auto Address = GetCursorAddress<uint64_t>();
++  // x30 is the return address into the translated code that needs the fallback: keep it for profilers.
++  str(ARMEmitter::XReg::lr, STATE_PTR(CpuStateFrame, FallbackReturnPC));
+   constexpr static auto FallbackPointerReg = TMP4;
+   constexpr static auto ABI1 = ARMEmitter::XReg::x0;
+   constexpr static auto ABI2 = ARMEmitter::XReg::x1;
 diff --git a/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h b/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
-index 5c0e656..8d29e7d 100644
+index 5c0e656..6731adb 100644
 --- a/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
 +++ b/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
 @@ -6,8 +6,18 @@
@@ -136,7 +151,7 @@ index 5c0e656..8d29e7d 100644
 +  do {                                                                                                        \
 +    FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);                       \
 +    if (auto Hook = FEXCore::SHMStats::FloatFallbackHook) [[unlikely]] {                                      \
-+      Hook(Frame, reinterpret_cast<uint64_t>(__builtin_extract_return_addr(__builtin_return_address(0))));    \
++      Hook(Frame, Frame->FallbackReturnPC);                                                                   \
 +    }                                                                                                         \
 +  } while (0)
 +
@@ -551,12 +566,29 @@ index 8aa448e..0f66f21 100644
    /**
     * @brief Reconstructs a compacted EFLAGS from FEX's internal EFLAG representation.
     *
+diff --git a/FEXCore/include/FEXCore/Core/CoreState.h b/FEXCore/include/FEXCore/Core/CoreState.h
+index 2112073..0164ccf 100644
+--- a/FEXCore/include/FEXCore/Core/CoreState.h
++++ b/FEXCore/include/FEXCore/Core/CoreState.h
+@@ -459,6 +459,12 @@ struct CpuStateFrame {
+    */
+   uint64_t InSyscallInfo {};
+ 
++  /**
++   * @brief Return address in translated code of the last softfloat fallback call (stored by the fallback ABI thunk),
++   * so a profiler can name the guest instruction that needed it.
++   */
++  uint64_t FallbackReturnPC {};
++
+   struct SynchronousFaultDataStruct {
+     bool FaultToTopAndGeneratedException {};
+     uint8_t Signal;
 diff --git a/FEXCore/include/FEXCore/Utils/FloatFallbackHook.h b/FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
 new file mode 100644
-index 0000000..e4cdcf9
+index 0000000..daa7180
 --- /dev/null
 +++ b/FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,16 @@
 +// SPDX-License-Identifier: MIT
 +#pragma once
 +#include <FEXCore/Utils/CompilerDefs.h>
@@ -568,7 +600,8 @@ index 0000000..e4cdcf9
 +
 +namespace FEXCore::SHMStats {
 +// Set by a frontend's profiler (ARM64EC SampleHz). Called on every x87 softfloat fallback with the thread's frame
-+// and the host PC in translated code that called the fallback, so the profiler can name the guest instruction.
++// and the host PC in translated code that called the fallback (CpuStateFrame::FallbackReturnPC), so the profiler can
++// name the guest instruction.
 +using FloatFallbackHookFn = void (*)(FEXCore::Core::CpuStateFrame* Frame, uint64_t HostPC);
 +FEX_DEFAULT_VISIBILITY extern FloatFallbackHookFn FloatFallbackHook;
 +} // namespace FEXCore::SHMStats
