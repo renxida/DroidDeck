@@ -318,8 +318,13 @@ class NativeInventoryTest(unittest.TestCase):
             {"name": "a.skel", "survey": {"ok": False, "stage": "path constraints (layout unknown)"}},
             {"name": "b.skel", "survey": {"ok": False, "stage": "path constraints (layout unknown)"}},
             {"name": "c.skel", "survey": {"ok": False, "stage": "skins", "error": "ValueError: attachment type 4 (layout unknown)"}},
-            {"name": "d.skel", "survey": {"ok": True}}]}
-        self.assertEqual({"path constraints": ["a.skel", "b.skel"], "attachment type 4": ["c.skel"]},
+            {"name": "d.skel", "survey": {"ok": True}},
+            {"name": "e.skel", "survey": {"ok": False, "stage": "animations", "error": "IndexError: past end"}},
+            {"name": "f.skel", "survey": {"ok": False, "stage": "animations", "error": "IndexError: index out of range"}},
+            {"name": "g.skel", "survey": {"ok": False, "stage": "transform", "error": "IndexError: string past end"}},
+            {"name": "h.skel", "survey": {}}]}
+        self.assertEqual({"path constraints": ["a.skel", "b.skel"], "attachment type 4": ["c.skel"],
+                          "animations: IndexError": ["e.skel", "f.skel"], "transform: IndexError": ["g.skel"]},
                          INV["unread_skeletons"](report))
 
     def scene_game(self):
