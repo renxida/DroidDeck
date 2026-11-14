@@ -20,6 +20,13 @@
 
 #include <memory>
 
+
+// Counts for the log at exit, so a play session reports how the game's skeletons fared.
+struct SpineCompatStats {
+	int64_t loaded = 0, failed = 0, sprites = 0;
+};
+extern SpineCompatStats spine_compat_stats;
+
 class SpineSprite;
 class SpineSkeletonDataResource;
 

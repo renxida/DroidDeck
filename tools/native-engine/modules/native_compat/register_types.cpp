@@ -7,6 +7,7 @@
 #include "spine_compat.h"
 
 #include "core/config/engine.h"
+#include "core/io/json.h"
 #include "core/io/resource_loader.h"
 
 #include "core/object/class_db.h"
@@ -72,7 +73,11 @@ void uninitialize_native_compat_module(ModuleInitializationLevel p_level) {
 		ResourceLoader::remove_resource_format_loader(spine_loader);
 		spine_loader.unref();
 	}
+	// One line each for the session log: how the game's skeletons and sound calls fared.
+	print_line(vformat("native_compat: spine skeletons loaded=%d failed=%d sprites=%d", spine_compat_stats.loaded,
+			spine_compat_stats.failed, spine_compat_stats.sprites));
 	if (fmod_server) {
+		print_line("native_compat: fmod " + JSON::stringify(fmod_server->get_compat_stats()));
 		Engine::get_singleton()->remove_singleton("FmodServer");
 		memdelete(fmod_server);
 		fmod_server = nullptr;

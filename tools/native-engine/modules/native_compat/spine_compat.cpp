@@ -23,6 +23,12 @@ inline Vector2 to_canvas(float x, float y) {
 	return Vector2(x, -y);
 }
 
+} // namespace
+
+SpineCompatStats spine_compat_stats;
+
+namespace {
+
 void warn_once(const String &p_what) {
 	static HashSet<String> said;
 	if (!said.has(p_what)) {
@@ -261,8 +267,10 @@ void SpineSkeletonDataResource::_rebuild() {
 	if (!loaded) {
 		load_error = skeleton_file_res->get_path() + ": " + to_godot(error);
 		ERR_PRINT("spine_compat: " + load_error);
+		spine_compat_stats.failed++;
 		return;
 	}
+	spine_compat_stats.loaded++;
 	if (atlas_res.is_valid() && atlas_res->is_loaded()) {
 		for (const std::string &m : skel::bind_atlas(*loaded, atlas_res->get_atlas())) {
 			warn_once("no atlas region for " + to_godot(m) + " in " + skeleton_file_res->get_path());
@@ -1597,6 +1605,7 @@ void SpineSprite::_draw_skeleton() {
 void SpineSprite::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_READY:
+			spine_compat_stats.sprites++;
 			set_update_mode(update_mode);
 			_follow_children();
 			break;
