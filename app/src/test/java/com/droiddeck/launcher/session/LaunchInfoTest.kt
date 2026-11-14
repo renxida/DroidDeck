@@ -12,7 +12,7 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class LaunchInfoTest {
-    @After fun tearDown() { LaunchInfo.reset(); Experiments.session = null }
+    @After fun tearDown() { LaunchInfo.reset(); Experiments.endSession() }
 
     @Test
     fun theModeNamesTheEngineAndTheFexBuild() {
@@ -24,7 +24,8 @@ class LaunchInfoTest {
     @Test
     fun theLinesCarryTheModeBuildSwitchesAndFexLine() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        Experiments.session = setOf(Experiments.NATIVE_ENGINE)
+        Experiments.set(context, setOf(Experiments.NATIVE_ENGINE))
+        Experiments.beginSession(context)
         LaunchInfo.fex = "fex: stock 2508"
         val lines = LaunchInfo.lines(context)
         assertTrue(lines.first(), lines.first().startsWith("mode   native engine"))
