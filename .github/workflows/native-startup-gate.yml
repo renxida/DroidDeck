@@ -4,8 +4,9 @@ name: Native startup gate (stand-in game through droiddeck-native-godot)
 # (tools/native-engine/standin: our code plus public NuGet packages, never any game file) is exported for
 # Windows x86_64 in several variants, then each is run on an arm64 runner through the wrapper as checked out
 # (tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot) on the published engine component, the way
-# the phone runs a game. A self-test row runs the converter from before ReadyToRun support (7754c57b, the
-# one the first phone launch died on) and must fail. The soak runs only on schedule or by hand.
+# the phone runs a game. Two self-test rows run older converters and must fail: 7754c57b (before ReadyToRun
+# support; the first phone launch died on it at compose) and d68b35ad (stripped ReadyToRun code: "Bad IL
+# format" at load). The soak runs only on schedule or by hand.
 #
 # Reusable: `uses: ./.github/workflows/native-startup-gate.yml` with
 #   component: "pinned" (default: the wrapper's COMPONENT, via --fetch) or a release tag on this repository
@@ -54,7 +55,10 @@ env:
   GODOT_VER: 4.5.1-stable
   GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.5.1-stable
   WRAPPER: tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot
-  OLD_CONVERTER_COMMIT: 7754c57b092fba510674d202cbceedc04d12eb27
+  # Converters the self-test rows run: before ReadyToRun support (same file as 0aa91a7, which the first phone
+  # launch died on at compose), and the one that stripped ReadyToRun code ("Bad IL format" at load).
+  CONVERTER_7754C57B: 7754c57b092fba510674d202cbceedc04d12eb27
+  CONVERTER_D68B35AD: d68b35ad304995c2d85d3136f9a35be5401483f0
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_NOLOGO: '1'
 
@@ -119,7 +123,7 @@ jobs:
       matrix:
         row: [r2r-deps-gdext, r2r-deps-nogdext, r2r-nodeps-gdext, r2r-nodeps-nogdext,
               il-deps-gdext, il-deps-nogdext, il-nodeps-gdext, il-nodeps-nogdext,
-              xvfb-opengl3, xvfb-vulkan, selftest-old-converter, probe]
+              xvfb-opengl3, xvfb-vulkan, selftest-7754c57b, selftest-d68b35ad, probe]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -133,7 +137,8 @@ jobs:
           case $row in
             xvfb-opengl3) variant=r2r-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver opengl3 --quit-after-frames 300" ;;
             xvfb-vulkan) variant=r2r-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver vulkan --quit-after-frames 300" ;;
-            selftest-old-converter) variant=r2r-deps-gdext extra="--expect-fail --old-converter $RUNNER_TEMP/old-converter" ;;
+            selftest-7754c57b) variant=r2r-deps-gdext extra="--expect-fail compose --timeout 120 --old-converter $RUNNER_TEMP/old-converter" ;;
+            selftest-d68b35ad) variant=r2r-deps-gdext extra="--expect-fail load --timeout 120 --old-converter $RUNNER_TEMP/old-converter" ;;
             probe) variant=r2r-deps-gdext ;;
           esac
           case $variant in *-nodeps-*) deps=off ;; *) deps=on ;; esac
@@ -147,13 +152,14 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 libglx-mesa0 mesa-vulkan-drivers libvulkan1 vulkan-tools > /dev/null
-      - name: The converter from before ReadyToRun support
-        if: matrix.row == 'selftest-old-converter'
+      - name: The older converter this self-test runs
+        if: startsWith(matrix.row, 'selftest-')
         run: |
           set -euo pipefail
-          git fetch --no-tags --depth 1 origin "$OLD_CONVERTER_COMMIT"
-          git show "$OLD_CONVERTER_COMMIT:$WRAPPER" > "$RUNNER_TEMP/old-converter"
-          grep -n 'raise ValueError("mixed-mode' "$RUNNER_TEMP/old-converter"
+          case ${{ matrix.row }} in *7754c57b) sha=$CONVERTER_7754C57B ;; *) sha=$CONVERTER_D68B35AD ;; esac
+          git fetch --no-tags --depth 1 origin "$sha"
+          git show "$sha:$WRAPPER" > "$RUNNER_TEMP/old-converter"
+          sed -n '/^def portable_image/,/^def /p' "$RUNNER_TEMP/old-converter" | grep -nE 'raise|pack_into'
       - name: Resolve the engine component
         id: component
         env:

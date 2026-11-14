@@ -2,13 +2,15 @@
 """Run the stand-in game through droiddeck-native-godot and judge whether it started.
 
     gate.py --wrapper PATH --game-dir DIR --work DIR [--component pinned|DIR] [--deps on|off]
-            [--repeat N] [--prefix CMD] [--old-converter FILE] [--expect-fail] [--name NAME] -- ENGINE ARGS...
+            [--repeat N] [--prefix CMD] [--old-converter FILE] [--expect-fail compose|load] [--name NAME] -- ENGINE ARGS...
 
 A run passes when: the wrapper exits 0, it logged "first frame", stdout has FIRST_FRAME and MAINLOOP_OK, the
 deps line matches --deps, and nothing shows a compose rejection, a missing or malformed assembly or a .NET
-host error. Every run must pass. With --expect-fail every run must instead fail at compose on a mixed-mode
-rejection (the self-test: the converter from before ReadyToRun support). With --old-converter the wrapper runs
-with that file's portable_image() in place of its own; nothing else changes.
+host error. Every run must pass. With --expect-fail every run must instead fail before its first frame:
+"compose" at compose on a mixed-mode rejection (the converter from before ReadyToRun support, 7754c57b),
+"load" when .NET loads the game ("Bad IL format" / BadImageFormatException: the converter that stripped
+ReadyToRun code, d68b35ad). With --old-converter the wrapper runs with that file's portable_image() in place
+of its own; nothing else changes.
 
 Each line is logged with the time it arrived, so the log also shows whether Godot's "Project FPS" line (the
 watchdog's signal) arrives while the engine runs or only when it exits (stdout buffered). Writes
@@ -28,7 +30,7 @@ import time
 BAD = [
     ("compose rejection", re.compile(r"mixed-mode|expected one data_|no Godot pack found|Traceback \(most recent")),
     ("assembly load", re.compile(r"Could not load file or assembly|FileNotFoundException|FileLoadException")),
-    ("bad image", re.compile(r"BadImageFormatException")),
+    ("bad image", re.compile(r"BadImageFormatException|Bad IL format")),
     ("hostfxr", re.compile(r"hostfxr.*(error|fail|not found)|Failed to (load|resolve|find) .*hostfxr|"
                            r"\.NET: (Failed|failed)|Failed to initialize the \.NET|Could not find the \.NET", re.I)),
     ("missing method/type", re.compile(r"MissingMethodException|TypeLoadException|EntryPointNotFoundException")),
@@ -122,7 +124,7 @@ def main(argv=None):
     ap.add_argument("--repeat", type=int, default=1)
     ap.add_argument("--prefix", default="", help="command to run the wrapper under, e.g. 'xvfb-run -a'")
     ap.add_argument("--old-converter")
-    ap.add_argument("--expect-fail", action="store_true")
+    ap.add_argument("--expect-fail", choices=("compose", "load"))
     ap.add_argument("--timeout", type=float, default=300)
     ap.add_argument("--name", default="gate")
     a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
@@ -144,8 +146,10 @@ def main(argv=None):
         rc, lines, took = run_once(cmd, log_path, a.timeout)
         reasons, found, timing, fps_lines = judge(rc, lines, a.deps)
         if a.expect_fail:
-            passed = rc != 0 and "compose rejection" in found and timing["FIRST_FRAME"] is None
-            verdict = "failed as expected" if passed else "did NOT fail at compose as expected"
+            want = "compose rejection" if a.expect_fail == "compose" else "bad image"
+            passed = rc != 0 and want in found and timing["MAINLOOP_OK"] is None
+            verdict = (f"failed as expected ({want})" if passed
+                       else f"did NOT fail with {want} as expected (found: {', '.join(found) or 'nothing'})")
         else:
             passed = not reasons
             verdict = "pass" if passed else "FAIL: " + "; ".join(reasons)
