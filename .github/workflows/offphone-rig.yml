@@ -83,8 +83,23 @@ jobs:
           # the path Mali phones take; SwiftShader lacks the dma-buf sharing gamescope needs).
           case "${{ inputs.guest_vulkan || 'lavapipe' }}" in
             venus) tools/droiddeckctl prefs set session venus true --type bool ;;
-            # The runtime is not installed yet; the session log says whether the manifest was found.
-            lavapipe) tools/droiddeckctl env set "BL_VK_DRIVER=/usr/share/vulkan/icd.d/lvp_icd.aarch64.json" --persistent ;;
+            lavapipe)
+              # The runtime installs on the first start; a first, short session puts it in place.
+              fs=/data/user/0/$(tools/app-id)/files/linuxfs
+              if ! adb shell "ls $fs/usr/share/vulkan/icd.d" >/dev/null 2>&1; then
+                echo "warm-up start to install the runtime"
+                tools/droiddeckctl start steam >/dev/null 2>&1 || true
+                for i in $(seq 1 60); do
+                  sleep 5
+                  adb shell "ls $fs/usr/share/vulkan/icd.d" >/dev/null 2>&1 && \
+                    [ "$(tools/droiddeckctl state 2>/dev/null | jq -r '.session.phase')" = IDLE ] && break
+                done
+                tools/droiddeckctl stop >/dev/null 2>&1 || true
+              fi
+              adb shell "ls -la $fs/usr/share/vulkan/icd.d/"
+              icd=$(adb shell "cd $fs/usr/share/vulkan/icd.d && ls lvp_icd*.json" | tr -d '\r' | head -1)
+              echo "lavapipe ICD: ${icd:-not found}"
+              [ -n "$icd" ] && tools/droiddeckctl env set "BL_VK_DRIVER=/usr/share/vulkan/icd.d/$icd" --persistent ;;
           esac
           t0=$(date +%s)
           tools/droiddeckctl start steam 2>&1 | tee out/start.txt
@@ -118,7 +133,6 @@ jobs:
           pid=$(adb shell pidof "$pkg" | tr -d '\r')
           adb logcat -d -v time | grep -E "\( *${pid:-NOPID}\)|AgentStart|AgentBridge|LinuxRuntime|ActivityTaskManager|kestrel" | grep -v -E "chatty|JIT allocated|Compiler allocated" | tail -400
           echo "::endgroup::"
-          echo "::group::guest Vulkan drivers"; tools/droiddeckctl native --timeout 60 -- sh -c 'ls -la /usr/share/vulkan/icd.d/' 2>&1 | head -c 4000; echo; echo "::endgroup::"
           d=/data/user/0/$pkg/files/logs
           last=$(adb shell "ls -1d $d/*/ 2>/dev/null | tail -1" | tr -d '\r')
           echo "session dir: ${last:-none}"
