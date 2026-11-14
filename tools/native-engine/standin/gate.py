@@ -8,8 +8,8 @@ A run passes when: the wrapper exits 0, it logged "first frame", stdout has FIRS
 deps line matches --deps, and nothing shows a compose rejection, a missing or malformed assembly or a .NET
 host error. Every run must pass. With --expect-fail every run must instead fail before its first frame:
 "compose" at compose on a mixed-mode rejection (the converter from before ReadyToRun support, 7754c57b),
-"load" when .NET loads the game ("Bad IL format" / BadImageFormatException: the converter that stripped
-ReadyToRun code, d68b35ad). With --old-converter the wrapper runs with that file's portable_image() in place
+"load" when .NET loads the game (hostfxr cannot get GodotPlugins' entry point from it, or "Bad IL format":
+the converter that stripped ReadyToRun code but kept its PE layout, d68b35ad). With --old-converter the wrapper runs with that file's portable_image() in place
 of its own; nothing else changes.
 
 Each line is logged with the time it arrived, so the log also shows whether Godot's "Project FPS" line (the
@@ -146,8 +146,11 @@ def main(argv=None):
         rc, lines, took = run_once(cmd, log_path, a.timeout)
         reasons, found, timing, fps_lines = judge(rc, lines, a.deps)
         if a.expect_fail:
-            want = "compose rejection" if a.expect_fail == "compose" else "bad image"
-            passed = rc != 0 and want in found and timing["MAINLOOP_OK"] is None
+            # Godot reports a game assembly .NET refuses as "Failed to get GodotPlugins initialization function
+            # pointer" (the hostfxr pattern) without the HRESULT; a script load may say "Bad IL format".
+            want = ["compose rejection"] if a.expect_fail == "compose" else ["bad image", "hostfxr"]
+            passed = rc != 0 and any(w in found for w in want) and timing["FIRST_FRAME"] is None
+            want = " or ".join(want)
             verdict = (f"failed as expected ({want})" if passed
                        else f"did NOT fail with {want} as expected (found: {', '.join(found) or 'nothing'})")
         else:

@@ -5,8 +5,8 @@ name: Native startup gate (stand-in game through droiddeck-native-godot)
 # Windows x86_64 in several variants, then each is run on an arm64 runner through the wrapper as checked out
 # (tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot) on the published engine component, the way
 # the phone runs a game. Two self-test rows run older converters and must fail: 7754c57b (before ReadyToRun
-# support; the first phone launch died on it at compose) and d68b35ad (stripped ReadyToRun code: "Bad IL
-# format" at load). The soak runs only on schedule or by hand.
+# support; the first phone launch died on it at compose) and d68b35ad (stripped ReadyToRun code but kept its
+# PE layout: .NET refuses the game assembly at load). The soak runs only on schedule or by hand.
 #
 # Reusable: `uses: ./.github/workflows/native-startup-gate.yml` with
 #   component: "pinned" (default: the wrapper's COMPONENT, via --fetch) or a release tag on this repository
@@ -56,7 +56,7 @@ env:
   GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.5.1-stable
   WRAPPER: tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot
   # Converters the self-test rows run: before ReadyToRun support (same file as 0aa91a7, which the first phone
-  # launch died on at compose), and the one that stripped ReadyToRun code ("Bad IL format" at load).
+  # launch died on at compose), and the one that stripped ReadyToRun code but kept its layout (refused at load).
   CONVERTER_7754C57B: 7754c57b092fba510674d202cbceedc04d12eb27
   CONVERTER_D68B35AD: d68b35ad304995c2d85d3136f9a35be5401483f0
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
