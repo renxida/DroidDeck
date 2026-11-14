@@ -122,7 +122,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     private val graphPath = Path()
     private var resolution = ""
 
-    private var accent = 0xFF1A9FFF.toInt()
+    private var accent = 0xFFE0703A.toInt()
     private var surfaceRgb = 0x121417
     private var headerMark: RectF? = null
     private var headerWordmark: RectF? = null
