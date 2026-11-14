@@ -91,7 +91,12 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
   4.5.1 C# export: .NET runtime, GodotSharp, GodotPlugins) and a Steamworks stub. It then builds
   `~/.cache/droiddeck/native/launch/<appid>/` with the engine hardlinked in and
   `data_<asm>_linuxbsd_arm64/` holding the kit, the stub and the game's managed DLLs (hardlinked; they never
-  leave the phone), and runs `engine --main-pack <game>.pck`.
+  leave the phone), and runs `engine --main-pack <game>.pck --print-fps` under a first-frame watchdog: Godot's
+  first "Project FPS" line (about 4 s into the main loop) is logged as "first frame"; none within 90 s of the
+  engine's start (after the fetch), or an engine exit before one, kills the engine's process group and exits
+  86 ("did not start"; game-env's half falls back on it). The engine dies with the wrapper (PR_SET_PDEATHSIG).
+  Checked against our engine build: quits at 8 s with code 5 -> 5; quits at 1 s -> 86; idles past a 3 s
+  limit -> killed, 86. A main loop that runs on a black screen still counts as started.
 - Three things learned on the CI runner (VERIFIED, run 43374974943, the bench's Windows export):
   - the .NET host resolves the main assembly's real path, so symlinks send it to the Windows folder;
     hardlinks work;
