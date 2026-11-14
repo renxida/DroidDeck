@@ -1023,13 +1023,14 @@ std::shared_ptr<TrackEntry> AnimationState::start(int track, const Animation *an
 		e->from = prev;
 		prev->next.reset();
 		e->mix_duration = data->mix(prev->animation, animation);
+		pending.push_back({ StateEvent::Interrupt, track, prev->animation, {}, prev });
 		if (e->mix_duration <= 0) {
 			e->from.reset();
-			pending.push_back({ StateEvent::End, track, prev->animation, {} });
+			pending.push_back({ StateEvent::End, track, prev->animation, {}, prev });
 		}
 	}
 	tracks[track] = e;
-	pending.push_back({ StateEvent::Start, track, animation, {} });
+	pending.push_back({ StateEvent::Start, track, animation, {}, e });
 	return e;
 }
 
@@ -1076,7 +1077,10 @@ std::shared_ptr<TrackEntry> AnimationState::set_empty(int track, float mix_durat
 
 void AnimationState::clear_track(int track) {
 	if (track < int(tracks.size()) && tracks[track]) {
-		pending.push_back({ StateEvent::End, track, tracks[track]->animation, {} });
+		for (auto f = tracks[track]->from; f; f = f->from) {
+			pending.push_back({ StateEvent::End, track, f->animation, {}, f });
+		}
+		pending.push_back({ StateEvent::End, track, tracks[track]->animation, {}, tracks[track] });
 		tracks[track].reset();
 	}
 }
@@ -1108,10 +1112,10 @@ void AnimationState::update(float dt) {
 		float duration = e->animation ? e->animation->duration : 0;
 		if (duration > 0 && std::floor(e->track_time / duration) > std::floor(before / duration) && (e->loop || !e->complete_fired)) {
 			e->complete_fired = true;
-			pending.push_back({ StateEvent::Complete, int(t), e->animation, {} });
+			pending.push_back({ StateEvent::Complete, int(t), e->animation, {}, e });
 		} else if (duration <= 0 && !e->complete_fired && e->animation) {
 			e->complete_fired = true;
-			pending.push_back({ StateEvent::Complete, int(t), e->animation, {} });
+			pending.push_back({ StateEvent::Complete, int(t), e->animation, {}, e });
 		}
 		if (e->from) {
 			e->mix_time += dt;
@@ -1120,7 +1124,9 @@ void AnimationState::update(float dt) {
 				f->track_time += dt * f->time_scale;
 			}
 			if (e->mix_time >= e->mix_duration) {
-				pending.push_back({ StateEvent::End, int(t), e->from->animation, {} });
+				for (auto f = e->from; f; f = f->from) {
+					pending.push_back({ StateEvent::End, int(t), f->animation, {}, f });
+				}
 				e->from.reset();
 			}
 		}
@@ -1129,13 +1135,14 @@ void AnimationState::update(float dt) {
 			float over = e->track_time - n->delay;
 			n->delay = 0;
 			n->from = n->mix_duration > 0 ? e : nullptr;
+			pending.push_back({ StateEvent::Interrupt, int(t), e->animation, {}, e });
 			if (!n->from) {
-				pending.push_back({ StateEvent::End, int(t), e->animation, {} });
+				pending.push_back({ StateEvent::End, int(t), e->animation, {}, e });
 			}
 			e->next.reset();
 			n->track_time = std::max(0.0f, over);
 			tracks[t] = n;
-			pending.push_back({ StateEvent::Start, int(t), n->animation, {} });
+			pending.push_back({ StateEvent::Start, int(t), n->animation, {}, n });
 		}
 	}
 }
@@ -1153,11 +1160,12 @@ float wrapped(const TrackEntry &e, float track_time) {
 	return e.loop ? std::fmod(track_time, duration) : std::min(track_time, duration);
 }
 
-void apply_entry(const TrackEntry &e, Skeleton &sk, float alpha, MixBlend blend, bool discrete, int track,
+void apply_entry(const std::shared_ptr<TrackEntry> &entry, Skeleton &sk, float alpha, MixBlend blend, bool discrete, int track,
 		std::vector<StateEvent> &pending) {
+	const TrackEntry &e = *entry;
 	if (e.from) {
 		float m = e.mix_duration > 0 ? std::min(1.0f, e.mix_time / e.mix_duration) : 1;
-		apply_entry(*e.from, sk, alpha * (1 - m), blend, false, track, pending);
+		apply_entry(e.from, sk, alpha * (1 - m), blend, false, track, pending);
 		alpha *= m;
 		blend = MixBlend::Add;
 	}
@@ -1167,7 +1175,7 @@ void apply_entry(const TrackEntry &e, Skeleton &sk, float alpha, MixBlend blend,
 	std::vector<Event> fired;
 	apply_animation(*e.animation, sk, wrapped(e, e.last_time), wrapped(e, e.track_time), e.loop, &fired, alpha * e.alpha, blend, discrete);
 	for (const Event &ev : fired) {
-		pending.push_back({ StateEvent::Fire, track, e.animation, ev });
+		pending.push_back({ StateEvent::Fire, track, e.animation, ev, entry });
 	}
 }
 
@@ -1186,7 +1194,7 @@ void AnimationState::apply(Skeleton &sk) {
 		if (!e || e->delay > 0) {
 			continue;
 		}
-		apply_entry(*e, sk, 1, MixBlend::Replace, true, int(t), pending);
+		apply_entry(e, sk, 1, MixBlend::Replace, true, int(t), pending);
 		e->last_time = e->track_time;
 	}
 }

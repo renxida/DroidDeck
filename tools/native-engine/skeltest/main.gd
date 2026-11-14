@@ -34,7 +34,83 @@ func _ready() -> void:
 	var same = berr == OK and sb.get_bone_position("tip").distance_to(sk.get_bone_position("tip")) < 0.01
 	print("SKELTEST binary load ", berr, " '", sb.get_load_error(), "' tip=", sb.get_bone_position("tip"), " same=", same)
 	var sound_ok = sound_test()
-	get_tree().quit(0 if err == OK and same and sound_ok else 1)
+	var spine_ok = spine_compat_test(sb)
+	get_tree().quit(0 if err == OK and same and sound_ok and spine_ok else 1)
+
+# The Spine-compatible classes (spine_compat.h) driven the way a game's scenes and code drive them:
+# imported files through the resource loader, a text scene with a SpineSprite, the documented
+# animation state calls and the four-argument event signal. [reference] is the same rig posed by
+# NativeSkeleton2D at 0.5 s.
+func spine_compat_test(reference) -> bool:
+	for c in ["SpineSprite", "SpineSkeletonDataResource", "SpineAnimationState", "SpineTrackEntry"]:
+		if not ClassDB.class_exists(c):
+			print("SKELTEST spine missing class ", c)
+			return false
+	var skel_bytes := FileAccess.get_file_as_bytes("res://rig/rig.skel")
+	var f := FileAccess.open("user://compat_rig.spskel", FileAccess.WRITE)
+	f.store_buffer(skel_bytes)
+	f.close()
+	f = FileAccess.open("user://compat_rig.spatlas", FileAccess.WRITE)
+	f.store_string(JSON.stringify({"atlas_data": FileAccess.get_file_as_string("res://rig/rig.atlas"),
+		"normal_texture_prefix": "n", "source_path": "res://rig/rig.atlas", "specular_texture_prefix": "s"}))
+	f.close()
+	f = FileAccess.open("user://compat.tscn", FileAccess.WRITE)
+	f.store_string("""[gd_scene load_steps=5 format=3]
+
+[ext_resource type="SpineSkeletonFileResource" path="user://compat_rig.spskel" id="1_s"]
+[ext_resource type="SpineAtlasResource" path="user://compat_rig.spatlas" id="2_a"]
+
+[sub_resource type="SpineAnimationMix" id="Mix_1"]
+from = "wave"
+to = "wave"
+mix = 0.0
+
+[sub_resource type="SpineSkeletonDataResource" id="Data_1"]
+atlas_res = ExtResource("2_a")
+skeleton_file_res = ExtResource("1_s")
+animation_mixes = [SubResource("Mix_1")]
+default_mix = 0.0
+
+[node name="Body" type="SpineSprite"]
+skeleton_data_res = SubResource("Data_1")
+update_mode = 2
+preview_animation = "wave"
+debug_bones = false
+
+[node name="Tip" type="SpineBoneNode" parent="."]
+bone_name = "tip"
+""")
+	f.close()
+	var packed = ResourceLoader.load("user://compat.tscn")
+	if packed == null:
+		print("SKELTEST spine scene did not load")
+		return false
+	var sp = packed.instantiate()
+	sp.visible = false
+	add_child(sp)
+	var counts := {"started": 0, "completed": 0, "event": 0}
+	sp.animation_started.connect(func(s, st, e): counts.started += 1)
+	sp.animation_completed.connect(func(s, st, e): counts.completed += 1)
+	sp.animation_event.connect(func(s, st, e, ev): counts.event += 1)
+	var data = sp.skeleton_data_res
+	var state = sp.get_animation_state()
+	var entry = state.set_animation("wave", true, 0) if state != null else null
+	if entry == null:
+		print("SKELTEST spine no entry; loaded=", data.is_skeleton_data_loaded() if data else false, " '", data.get_load_error() if data else "", "'")
+		return false
+	sp.update_skeleton(0.0)
+	sp.update_skeleton(0.5)
+	var tip = sp.get_global_bone_transform("tip").origin - sp.global_position
+	var follow = sp.get_node("Tip").position
+	var want = reference.get_bone_position("tip")
+	var duration = entry.get_animation().get_duration()
+	sp.update_skeleton(duration)
+	var queued = state.add_animation("wave", 0.0, false, 1)
+	var ok = tip.distance_to(want) < 0.01 and follow.distance_to(want) < 0.01 and counts.started >= 1 \
+		and counts.completed >= 1 and entry.get_track_index() == 0 and queued != null and state.get_current(0) == entry \
+		and data.get_animation_names().has("wave") and sp.get_skeleton().find_bone("tip").get_name() == "tip"
+	print("SKELTEST spine tip=", tip, " follow=", follow, " want=", want, " counts=", counts, " duration=", duration, " ok=", ok)
+	return ok
 
 # Decodes sound/tone.fsb (made by make_sound_bank.py: 0.5 s, 440 Hz left, 660 Hz right) through
 # NativeSoundBank and the engine's own Vorbis stream, and checks length, level and pitch.
