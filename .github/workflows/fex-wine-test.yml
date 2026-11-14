@@ -97,11 +97,13 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/fex.wcp" "$url"
           mkdir -p "$RUNNER_TEMP/wcp" && zstd -dc "$RUNNER_TEMP/fex.wcp" | tar -C "$RUNNER_TEMP/wcp" -xf -
           cat "$RUNNER_TEMP/wcp/profile.json"
-          dll=$(grep 'aarch64-windows/libarm64ecfex.dll$' "$RUNNER_TEMP/fexpaths" | head -1)
-          so=$(grep 'aarch64-unix/libarm64ecfex.so$' "$RUNNER_TEMP/fexpaths" | head -1)
+          dll=$(grep 'aarch64-windows/libarm64ecfex.dll$' "$RUNNER_TEMP/fexpaths" | head -1 || true)
+          so=$(grep 'aarch64-unix/libarm64ecfex.so$' "$RUNNER_TEMP/fexpaths" | head -1 || true)
           test -n "$dll" || { echo "Hangover has no libarm64ecfex.dll" >&2; exit 1; }
           sudo cp "$RUNNER_TEMP/wcp/files/lib/wine/aarch64-windows/libarm64ecfex.dll" "$dll"
-          sudo cp "$RUNNER_TEMP/wcp/files/lib/wine/aarch64-unix/libarm64ecfex.so" "${so:-$(dirname "$(dirname "$dll")")/aarch64-unix/libarm64ecfex.so}"
+          so=${so:-$(dirname "$(dirname "$dll")")/aarch64-unix/libarm64ecfex.so}
+          sudo cp "$RUNNER_TEMP/wcp/files/lib/wine/aarch64-unix/libarm64ecfex.so" "$so"
+          ls -la "$dll" "$so"
           strings "$dll" | grep -m1 -o 'FEX-[0-9A-Za-z._-]*' || true
       - name: Build the test programs
         run: |
