@@ -4,7 +4,7 @@ run-name: ${{ github.event_name == 'pull_request' && format('building pr {0} on 
 on:
   push:
     # main, plus the fork's work branches so each can be built and installed without a PR.
-    branches: [ main, 'perf/**', 'cleanup/**', 'ux/**', 'test/**' ]
+    branches: [ main, 'perf/**', 'cleanup/**', 'ux/**', 'test/**', 'autofix/**' ]
     paths-ignore:
       - '**/*.md'
       - 'LICENSE'
