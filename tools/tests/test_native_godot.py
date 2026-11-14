@@ -394,10 +394,14 @@ class NativeGodotTest(unittest.TestCase):
                                      "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
                 self.assertEqual(0 if expect_start else NG["DID_NOT_START"], rc, extra)
                 self.assertEqual(not expect_start, "lacks SteamAPI_ISteamClient_GetISteamGameSearch" in err.getvalue())
+            # A program that never calls SteamAPI.Init (the gate's stand-in) can turn the preflight off.
+            rc = NG["main"](["run", "--no-steam-preflight", "--game-dir", str(self.game), "--component", str(comp),
+                             "--out", str(out), "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
+            self.assertEqual(0, rc)
         finally:
             NG["main"].__globals__["watch"] = real
             os.chdir(Path(__file__).resolve().parent)
-        self.assertEqual(1, len(seen))  # only the run whose missing name is not an Init accessor started
+        self.assertEqual(2, len(seen))  # the run whose missing name is not an Init accessor, and the opted-out one
 
     def test_run_puts_no_stub_on_any_path_and_valve_library_wins(self):
         # The engine's env and command name no stubs/ path, Steam's x86 overlay preload is dropped, and the engine's

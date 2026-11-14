@@ -1139,6 +1139,8 @@ def main(argv=None):
     ap.add_argument("--kit")
     ap.add_argument("--engine")
     ap.add_argument("--icu", help="folder with Microsoft's linux-arm64 ICU libraries (default with --fetch: download them)")
+    ap.add_argument("--no-steam-preflight", action="store_true",
+                    help="run even when Steam could not initialise (for programs that never call SteamAPI.Init)")
     ap.add_argument("--steam-api", help="Valve's linux-arm64 libsteam_api.so (default with --fetch: download it)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--exe")
@@ -1170,7 +1172,7 @@ def main(argv=None):
         return 0 if check(a.game_dir, kit, engine, a.out, a.exe, steam, tag, a.name)["result"] == "pass" else 1
     r = compose(a.game_dir, kit, engine, a.out, a.exe, steam)
     fatal = steam_init_blockers(r.get("steam_api_missing"))
-    if fatal and a.command == "run":
+    if fatal and a.command == "run" and not a.no_steam_preflight:
         log(f"not starting: Steam cannot initialise with this game's Steamworks.NET: the library lacks "
             f"{', '.join(fatal)}, which its SteamAPI.Init calls (the game would quit on 'Failed to initialize Steam')")
         return DID_NOT_START

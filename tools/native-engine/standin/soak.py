@@ -82,7 +82,7 @@ def main(argv=None):
     src = ["--fetch"] if a.component == "pinned" else ["--component", a.component]
     if a.steam_api:
         src += ["--steam-api", a.steam_api]
-    cmd = [sys.executable, os.path.abspath(a.wrapper), "run"] + src + [
+    cmd = [sys.executable, os.path.abspath(a.wrapper), "run", "--no-steam-preflight"] + src + [  # stand-in never calls SteamAPI.Init
         "--game-dir", os.path.abspath(a.game_dir), "--exe", a.exe, "--out", os.path.join(a.work, "launch"), "--"] + engine_args
     log = open(os.path.join(a.work, "soak.log"), "w")
     wrapper = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
