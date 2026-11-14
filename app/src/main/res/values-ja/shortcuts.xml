@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">物理ボタンのショートカット</string>
-    <string name="shortcuts_dd_menu">Kestrel メニュー</string>
+    <string name="shortcuts_dd_menu">Lanner メニュー</string>
     <string name="shortcuts_capture">割り当て：%1$s</string>
     <string name="shortcuts_press">ボタンを押して離してください。割り当ては自動的に保存されます。</string>
     <string name="shortcuts_release">ボタンを離して続行してください。</string>

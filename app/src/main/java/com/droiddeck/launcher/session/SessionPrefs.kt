@@ -1057,7 +1057,7 @@ object SessionPrefs {
         prefs(context).edit().putString("gameFolderBinds", binds.distinctBy { it.first }.joinToString("\n") { "${it.first}\t${it.second}" }).apply()
     }
 
-    fun theme(context: Context): String = prefs(context).getString("theme", "graphite") ?: "graphite"
+    fun theme(context: Context): String = prefs(context).getString("theme", "lanner") ?: "lanner"
 
     fun setTheme(context: Context, id: String) {
         prefs(context).edit().putString("theme", id).apply()

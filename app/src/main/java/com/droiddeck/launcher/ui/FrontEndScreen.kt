@@ -122,7 +122,7 @@ class FrontEndState(
     val shortcutLibraryScanning: Boolean = false,
     val gameSyncFolder: String? = null,
     val pageKey: String? = null,
-    val theme: String = Themes.GRAPHITE,
+    val theme: String = Themes.LANNER,
     val language: String = "",
     val appScale: Int = com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE,
     val integration: com.droiddeck.launcher.core.SteamIntegration.State = com.droiddeck.launcher.core.SteamIntegration.State(suggested = false),

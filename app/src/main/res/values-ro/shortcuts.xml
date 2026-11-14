@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Scurtături pentru butoane fizice</string>
-    <string name="shortcuts_dd_menu">Meniul Kestrel</string>
+    <string name="shortcuts_dd_menu">Meniul Lanner</string>
     <string name="shortcuts_capture">Atribuie: %1$s</string>
     <string name="shortcuts_press">Apasă și eliberează un buton. Atribuirea se salvează automat.</string>
     <string name="shortcuts_release">Eliberează butonul pentru a continua.</string>

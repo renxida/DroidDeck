@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Действия физических кнопок</string>
-    <string name="shortcuts_dd_menu">Меню Kestrel</string>
+    <string name="shortcuts_dd_menu">Меню Lanner</string>
     <string name="shortcuts_capture">Назначить: %1$s</string>
     <string name="shortcuts_press">Нажмите и отпустите кнопку. Назначение сохранится автоматически.</string>
     <string name="shortcuts_release">Отпустите кнопку, чтобы продолжить.</string>

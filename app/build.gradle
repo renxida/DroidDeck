@@ -155,7 +155,7 @@ android {
             def localSuffix = localBuildOptions.getProperty('droiddeck.debugApplicationIdSuffix')
             if (localSuffix) {
                 applicationIdSuffix localSuffix
-                resValue 'string', 'app_name', 'Kestrel Dev'
+                resValue 'string', 'app_name', 'Lanner Dev'
             }
         }
         release {

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Kestrel</string>
+    <string name="app_name">Lanner</string>
     <string name="session_channel">Sesión</string>
     <string name="session_notification">Steam se está ejecutando</string>
     <string name="session_notification_downloads">Descarga de Steam en curso</string>
@@ -106,7 +106,7 @@
     <string name="user_apps_runtime_required">Instala primero el runtime de Linux</string>
     <string name="user_apps_downloading">Descargando %1$s</string>
     <string name="user_apps_download_failed">La descarga falló</string>
-    <string name="session_proot_missing">No se ha podido descargar el proot de Kestrel. Comprueba la conexión y vuelve a intentarlo. La sesión no se ha iniciado porque el proot alternativo es demasiado lento para jugar.</string>
+    <string name="session_proot_missing">No se ha podido descargar el proot de Lanner. Comprueba la conexión y vuelve a intentarlo. La sesión no se ha iniciado porque el proot alternativo es demasiado lento para jugar.</string>
     <string name="session_powervr_missing">No se pudo descargar el entorno gráfico de PowerVR. Comprueba la conexión e inténtalo de nuevo.</string>
     <string name="session_directaudio_missing">No se ha podido descargar DirectAudio, así que el audio de los juegos usa la ruta más lenta en esta sesión.</string>
     <string name="session_end_program">Este programa</string>
@@ -161,7 +161,7 @@
     <string name="back_double_tap_window">Intervalo de doble toque</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">Permitir el control del brillo</string>
-    <string name="brightness_permission_text">Configura el control del brillo en Kestrel.</string>
+    <string name="brightness_permission_text">Configura el control del brillo en Lanner.</string>
     <string name="back_menu_then_qam">Menú → QAM</string>
     <string name="back_qam_then_menu">QAM → Menú</string>
     <string name="mode_session">Sesión</string>
@@ -175,12 +175,12 @@
     <string name="mode_suspend_note">Auto pausa en segundo plano y reanuda al mostrarse. Manual espera a Reanudar. Nunca sigue ejecutándose.</string>
     <string name="mode_startup">Inicio</string>
     <string name="mode_startup_session">Abrir al iniciar</string>
-    <string name="mode_startup_session_hint">Inicia esta sesión cuando se abre Kestrel.</string>
+    <string name="mode_startup_session_hint">Inicia esta sesión cuando se abre Lanner.</string>
     <string name="mode_client">Cliente</string>
     <string name="mode_mangoapp">Superposición de rendimiento</string>
     <string name="mode_mangoapp_hint">Desactívalo si los juegos fallan o se quedan en negro en modo Deck. Se aplica en la próxima sesión.</string>
-    <string name="mode_return_after_game">Volver a Kestrel al cerrar un juego</string>
-    <string name="mode_return_after_game_hint">Cuando se cierra un juego que iniciaste desde Kestrel u otro lanzador, Steam se cierra correctamente (primero termina de sincronizar las partidas en la nube) y vuelves allí. Desactivado: te quedas en Steam.</string>
+    <string name="mode_return_after_game">Volver a Lanner al cerrar un juego</string>
+    <string name="mode_return_after_game_hint">Cuando se cierra un juego que iniciaste desde Lanner u otro lanzador, Steam se cierra correctamente (primero termina de sincronizar las partidas en la nube) y vuelves allí. Desactivado: te quedas en Steam.</string>
     <string name="mode_shader_precache">Precarga de shaders</string>
     <string name="mode_shader_precache_hint">Steam descarga shaders precompilados para tus juegos y los procesa en segundo plano, para que los juegos tengan menos tirones. Desactivado ahorra datos, almacenamiento y batería; los juegos compilan los shaders mientras juegas. Es el mismo ajuste que Descargas &gt; Precarga de shaders en Steam. Se aplica en la próxima sesión.</string>
     <string name="mode_steam_repair">Reparar el cliente de Steam</string>
@@ -631,7 +631,7 @@
     <string name="setup_language_system">Predeterminado del sistema (%1$s)</string>
     <string name="setup_language_system_short">Predeterminado del sistema</string>
     <string name="setup_app_scale">Escala de la app</string>
-    <string name="setup_app_scale_hint">Texto y controles de Kestrel</string>
+    <string name="setup_app_scale_hint">Texto y controles de Lanner</string>
     <string name="setup_app_scale_default">%1$d%% (predeterminada)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Apariencia del launcher</string>
@@ -673,13 +673,13 @@
     <string name="gate_fix_for_me">Solucionarlo por mí</string>
     <string name="gate_toggle_steps">Activa “Inhabilitar restricciones de procesos secundarios” y vuelve. Deja activadas las Opciones de desarrollador o el interruptor se desactivará de nuevo.</string>
     <string name="gate_open_dev">Abrir Opciones de desarrollador</string>
-    <string name="gate_no_toggle">Esta versión de Android no tiene un interruptor para ello, así que Kestrel lo cambia mediante la Depuración inalámbrica. Tarda un minuto y no necesitas ordenador.</string>
+    <string name="gate_no_toggle">Esta versión de Android no tiene un interruptor para ello, así que Lanner lo cambia mediante la Depuración inalámbrica. Tarda un minuto y no necesitas ordenador.</string>
     <string name="gate_needs_wifi">La Depuración inalámbrica necesita Wi-Fi. Sirve cualquier red; no necesita internet.</string>
-    <string name="gate_needs_notifications">El código de vinculación aparece en una notificación. Permite las notificaciones de Kestrel o usa Otras formas.</string>
+    <string name="gate_needs_notifications">El código de vinculación aparece en una notificación. Permite las notificaciones de Lanner o usa Otras formas.</string>
     <string name="gate_allow_notifications">Permitir notificaciones</string>
     <string name="gate_step1">Abre Ajustes → Opciones de desarrollador → Depuración inalámbrica y actívala</string>
     <string name="gate_step2">Toca “Vincular dispositivo con código de vinculación”</string>
-    <string name="gate_step3">Escribe el código en la notificación de Kestrel</string>
+    <string name="gate_step3">Escribe el código en la notificación de Lanner</string>
     <string name="pairguide_build_number">En Información del teléfono, toca Número de compilación 7 veces</string>
     <string name="pairguide_wireless">Activa la Depuración inalámbrica</string>
     <string name="pairguide_pair">Abre Depuración inalámbrica y toca “Vincular dispositivo con código de vinculación”</string>
@@ -767,8 +767,8 @@
     <string name="gpu_hide_other">Ocultar controladores de otras GPU</string>
     <string name="gpu_show_other">Mostrar controladores de otras GPU</string>
     <string name="gpu_ubwc_title">Compatibilidad con UBWC</string>
-    <string name="gpu_ubwc_hint">Prueba Activado o Desactivado si Steam o Android muestran franjas o parpadeos. Se aplica a ambos controladores después de reiniciar Kestrel.</string>
-    <string name="gpu_ubwc_restart">Reinicia Kestrel para aplicarlo.</string>
+    <string name="gpu_ubwc_hint">Prueba Activado o Desactivado si Steam o Android muestran franjas o parpadeos. Se aplica a ambos controladores después de reiniciar Lanner.</string>
+    <string name="gpu_ubwc_restart">Reinicia Lanner para aplicarlo.</string>
     <string name="gpu_runtime_default">Predeterminado del runtime</string>
     <string name="gpu_auto_by_gpu">Auto - elegido según la GPU</string>
     <string name="load_runtime">Runtime de Linux</string>
@@ -836,7 +836,7 @@
     <string name="unfolded_controls_with_controller_hint">Muestra también estos controles táctiles mientras haya un mando conectado.</string>
     <string name="pip_suspended">Suspendida</string>
     <string name="pip_not_ready">Imagen en imagen estará disponible cuando la sesión esté lista.</string>
-    <string name="pip_permission">Permite imagen en imagen para Kestrel en los ajustes de Android.</string>
+    <string name="pip_permission">Permite imagen en imagen para Lanner en los ajustes de Android.</string>
     <string name="pip_unavailable">Android no pudo abrir imagen en imagen.</string>
     <string name="game_more">Más</string>
     <string name="game_edit_art">Editar imágenes</string>
@@ -848,7 +848,7 @@
     <string name="game_link_copied">Enlace de inicio copiado</string>
     <string name="game_shortcut_unsupported">Este launcher no puede añadir accesos directos. Usa Copiar enlace de inicio.</string>
     <string name="game_link_invalid">Enlace de inicio de juego no válido.</string>
-    <string name="game_link_missing">Este juego ya no está en tu biblioteca de Kestrel.</string>
+    <string name="game_link_missing">Este juego ya no está en tu biblioteca de Lanner.</string>
     <string name="game_link_session_busy">Detén la sesión actual antes de iniciar un juego de Steam.</string>
     <string name="game_link_failed">No se pudo enviar el juego a Steam. Intenta iniciarlo de nuevo.</string>
     <string name="setup_retry_removal">Reintentar eliminación</string>
@@ -929,22 +929,22 @@
     <string name="drivers_recommended_unpublished">Los controladores recomendados no están publicados ahora mismo</string>
     <string name="drivers_downloading_pair">Descargando %1$s %2$s…</string>
     <string name="drivers_updated_to">Actualizado a %1$s %2$s.</string>
-    <string name="drivers_updated_to_restart">Actualizado a %1$s %2$s. El controlador de pantalla se aplica al reiniciar Kestrel.</string>
+    <string name="drivers_updated_to_restart">Actualizado a %1$s %2$s. El controlador de pantalla se aplica al reiniciar Lanner.</string>
     <string name="drivers_auto_waits_for_session">Las actualizaciones de controladores esperan a que termine la sesión.</string>
     <string name="drivers_auto_waits_for_network">%1$s %2$s se descargará cuando desactives los datos móviles y el ahorro de batería.</string>
     <string name="drivers_skipping_bad">%1$s %2$s no inició una sesión aquí, así que Auto se queda con los controladores que sí funcionaron.</string>
     <string name="drivers_rolled_back">%1$s no inició una sesión dos veces, así que Auto volvió a los controladores que funcionaban.</string>
     <string name="drivers_switched_to">Cambiado a %1$s %2$s.</string>
-    <string name="drivers_switched_to_restart">Cambiado a %1$s %2$s. El controlador de pantalla se aplica al reiniciar Kestrel.</string>
+    <string name="drivers_switched_to_restart">Cambiado a %1$s %2$s. El controlador de pantalla se aplica al reiniciar Lanner.</string>
     <string name="drivers_using">Usando %1$s %2$s.</string>
-    <string name="drivers_using_restart">Usando %1$s %2$s. El controlador de pantalla se aplica al reiniciar Kestrel.</string>
+    <string name="drivers_using_restart">Usando %1$s %2$s. El controlador de pantalla se aplica al reiniciar Lanner.</string>
     <string name="drivers_using_quest">Usando el controlador de pantalla Quest incluido y el valor predeterminado del runtime.</string>
-    <string name="drivers_using_quest_restart">Usando el controlador de pantalla Quest incluido y el valor predeterminado del runtime. El controlador de pantalla se aplica tras reiniciar Kestrel.</string>
+    <string name="drivers_using_quest_restart">Usando el controlador de pantalla Quest incluido y el valor predeterminado del runtime. El controlador de pantalla se aplica tras reiniciar Lanner.</string>
     <string name="drivers_not_a_driver">No es un zip de controlador: no es un controlador de AdrenoTools, ni un Turnip -Linux, ni un paquete Android + Linux</string>
     <string name="drivers_import_failed">La importación falló: %1$s</string>
     <string name="drivers_imported_unnamed">Controlador importado</string>
     <string name="drivers_using_bundle">Usando %1$s como controlador de runtime y de pantalla.</string>
-    <string name="drivers_using_bundle_restart">Usando %1$s como controlador de runtime y de pantalla. El controlador de pantalla se aplica al reiniciar Kestrel.</string>
+    <string name="drivers_using_bundle_restart">Usando %1$s como controlador de runtime y de pantalla. El controlador de pantalla se aplica al reiniciar Lanner.</string>
     <string name="drivers_deleted_bundle">%1$s eliminado (ambos controladores)</string>
     <string name="drivers_deleted">%1$s eliminado</string>
     <string name="drivers_release_status">Últimas: %1$s · comprobado %2$s</string>
@@ -1153,7 +1153,7 @@
     <string name="fm_decline">Rechazar</string>
     <string name="fm_drive_not_readable">%1$s está montado, pero ahora mismo no se puede leer</string>
     <string name="fm_drive_access_title">Permitir acceso a %1$s</string>
-    <string name="fm_drive_access_text">Android deja que Kestrel vea esta unidad, pero no que la lea. Activa Acceso a todos los archivos para Kestrel y vuelve.</string>
+    <string name="fm_drive_access_text">Android deja que Lanner vea esta unidad, pero no que la lea. Activa Acceso a todos los archivos para Lanner y vuelve.</string>
     <string name="fm_list_view">Vista de lista</string>
     <string name="fm_grid_view">Vista de cuadrícula</string>
     <string name="fm_search">Buscar</string>
@@ -1275,12 +1275,12 @@
     <string name="bottom_page_chat">Chat y voz</string>
     <string name="bottom_chat_why">Lee y responde el chat de Steam aquí mientras el juego sigue en la pantalla principal. Usa la cuenta con la que se ha iniciado sesión en Steam.</string>
     <string name="bottom_chat_not_signed_in">Steam todavía no tiene una sesión web que compartir, así que inicia sesión aquí una vez.</string>
-    <string name="bottom_chat_stopped">Android cerró la página del chat mientras Kestrel estaba en segundo plano. Se volverá a abrir cuando regreses a Kestrel.</string>
+    <string name="bottom_chat_stopped">Android cerró la página del chat mientras Lanner estaba en segundo plano. Se volverá a abrir cuando regreses a Lanner.</string>
     <string name="bottom_chat_open">Abrir Steam Chat</string>
     <string name="bottom_chat_close">Cerrar chat</string>
     <string name="bottom_chat_mic_on">Micro activado</string>
     <string name="bottom_chat_mic_off">Micro desactivado</string>
-    <string name="bottom_chat_mic_unavailable">El micro está desactivado en este juego. Para hablar, activa Micrófono en los ajustes de Steam de Kestrel (Audio) y vuelve a iniciar el juego.</string>
+    <string name="bottom_chat_mic_unavailable">El micro está desactivado en este juego. Para hablar, activa Micrófono en los ajustes de Steam de Lanner (Audio) y vuelve a iniciar el juego.</string>
     <string name="bottom_chat_volume">Volumen %1$d%%</string>
     <string name="bottom_page_telemetry">Estadísticas del juego</string>
     <string name="bottom_telemetry_battery">Batería</string>
@@ -1330,7 +1330,7 @@
     <string name="adbfix_no_pairing">No hay ninguna vinculación de Depuración inalámbrica guardada</string>
     <string name="adbfix_enter_address">Introduce la dirección IP y el puerto actuales de la Depuración inalámbrica</string>
 
-    <string name="adbpair_timed_out">Se agotó el tiempo de espera de la ventana de vinculación. Inténtalo de nuevo desde Kestrel.</string>
+    <string name="adbpair_timed_out">Se agotó el tiempo de espera de la ventana de vinculación. Inténtalo de nuevo desde Lanner.</string>
     <string name="adbpair_discovery_failed_code">No se pudo buscar la ventana de vinculación (%1$d). Comprueba que el Wi-Fi esté activado.</string>
     <string name="adbpair_discovery_failed">No se pudo buscar la ventana de vinculación: %1$s</string>
     <string name="adbpair_six_digits">Introduce los 6 dígitos del código</string>
@@ -1353,7 +1353,7 @@
     <string name="adbpair_enter_code">Introducir código</string>
     <string name="adbpair_title_working">Preparando Steam</string>
     <string name="adbpair_title_done">Steam está listo</string>
-    <string name="adbpair_done_text">Toca para volver a Kestrel. Ya puedes desactivar la Depuración inalámbrica.</string>
+    <string name="adbpair_done_text">Toca para volver a Lanner. Ya puedes desactivar la Depuración inalámbrica.</string>
     <string name="adbpair_title_failed">Se detuvo la configuración de la Depuración inalámbrica</string>
 
 
@@ -1497,7 +1497,7 @@
     <string name="cmgr_not_component_package">%1$s no es un paquete de componentes de Linux (tipo %2$s)</string>
     <string name="gstore_volume_free">%1$s · %2$s libres</string>
     <string name="mode_storage_auto_short">Automático</string>
-    <string name="main_adb_clip_label">Ajuste de procesos secundarios de Kestrel</string>
+    <string name="main_adb_clip_label">Ajuste de procesos secundarios de Lanner</string>
     <string name="setup_signed_in_offline_unnamed">Sesión iniciada · modo sin conexión</string>
     <string name="setup_signed_in_unnamed">Sesión iniciada</string>
     <string name="driver_tag_bundled">INCLUIDO</string>
@@ -1633,7 +1633,7 @@
     <string name="gpu_display_next">Dibuja la pantalla. Se aplica desde la próxima sesión.</string>
     <string name="gpu_previous_driver">el controlador anterior</string>
     <string name="gpu_restart_banner">Reinicia para cambiar el controlador de pantalla.</string>
-    <string name="gpu_restart_blocked">Detén la sesión en curso y luego reinicia Kestrel para cambiar el controlador de pantalla.</string>
+    <string name="gpu_restart_blocked">Detén la sesión en curso y luego reinicia Lanner para cambiar el controlador de pantalla.</string>
     <string name="gpu_restart_now">Reiniciar ahora</string>
     <string name="gpu_restart_later">Más tarde</string>
     <string name="gpu_auto_title">Auto eligió esta pareja para tu %1$s</string>
@@ -1679,7 +1679,7 @@
     <string name="touch_speed_normal">Normal</string>
     <string name="touch_speed_fast">Rápida</string>
     <string name="touch_edit_layout">Editar disposición</string>
-    <string name="touch_droiddeck_menu">Menú de Kestrel</string>
+    <string name="touch_droiddeck_menu">Menú de Lanner</string>
     <string name="touch_drag_hint">Arrastra controles a la pantalla</string>
     <string name="touch_arrange">Organizar</string>
     <string name="touch_discard">Descartar</string>
@@ -1739,7 +1739,7 @@
     <string name="storage_internal">Almacenamiento interno</string>
     <string name="storage_used_of">%1$s de %2$s usados</string>
     <string name="storage_free">%1$s libres</string>
-    <string name="storage_droiddeck_uses">Kestrel usa %1$s. Medido el %2$s.</string>
+    <string name="storage_droiddeck_uses">Lanner usa %1$s. Medido el %2$s.</string>
     <string name="storage_rescanning">midiendo de nuevo…</string>
     <string name="storage_other_apps">Otras apps de Android</string>
     <string name="storage_safe_now">Se puede liberar ahora</string>
@@ -1754,13 +1754,13 @@
     <string name="storage_tools_unused">%1$s sin usar</string>
     <string name="storage_system">Sistema Linux y cliente de Steam</string>
     <string name="storage_system_hint">Necesario para ejecutar cualquier cosa</string>
-    <string name="storage_app_data">Datos de Kestrel</string>
+    <string name="storage_app_data">Datos de Lanner</string>
     <string name="storage_app_data_hint">Registros de sesiones antiguas %1$s · cachés · controladores</string>
     <string name="storage_legend_games">Juegos</string>
     <string name="storage_legend_data">Datos de juegos</string>
     <string name="storage_legend_tools">Proton y runtimes</string>
     <string name="storage_legend_system">Sistema Linux</string>
-    <string name="storage_legend_app">Kestrel</string>
+    <string name="storage_legend_app">Lanner</string>
     <string name="storage_clean_up_title">Limpiar</string>
     <string name="storage_clean_up_lede">Nada de aquí afecta a tus juegos instalados ni a las descargas en curso.</string>
     <string name="storage_nothing_to_clean">Ahora mismo no hay nada que limpiar.</string>
@@ -1809,8 +1809,8 @@
     <string name="storage_tool_redist">Instaladores de VC++ y DirectX que piden los juegos</string>
     <string name="storage_tool_fex">Ejecuta juegos Linux x86</string>
     <string name="storage_tool_steam">Herramienta de Steam</string>
-    <string name="storage_tool_old_runtime">Kestrel ejecuta juegos sin este runtime</string>
-    <string name="storage_tool_x86_proton">Proton x86, que Kestrel no puede ejecutar</string>
+    <string name="storage_tool_old_runtime">Lanner ejecuta juegos sin este runtime</string>
+    <string name="storage_tool_x86_proton">Proton x86, que Lanner no puede ejecutar</string>
     <string name="storage_tool_custom_default">Predeterminado para todos los juegos</string>
     <string name="storage_tool_custom_unused">Ningún juego lo usa</string>
     <string name="storage_tool_custom_unknown">No se pudieron leer los ajustes de Steam, así que se conserva</string>
@@ -1851,8 +1851,8 @@
         <item quantity="many">%d juegos</item>
         <item quantity="other">%d juegos</item>
     </plurals>
-    <string name="storage_tool_default_proton">Proton predeterminado de Kestrel</string>
-    <string name="storage_tool_proton">Opción Proton 11 de Kestrel</string>
+    <string name="storage_tool_default_proton">Proton predeterminado de Lanner</string>
+    <string name="storage_tool_proton">Opción Proton 11 de Lanner</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">Usado por %d juego</item>
         <item quantity="many">Usado por %d juegos</item>
@@ -1904,24 +1904,24 @@
     <string name="boot_movie_imported_silent">%1$s es ahora el vídeo de arranque, sin sonido</string>
     <string name="boot_movie_too_long">Los vídeos que hay que convertir deben durar %1$d segundos o menos</string>
     <string name="boot_movie_converting">Convirtiendo %1$d %%</string>
-    <string name="boot_movie_converting_started">Convirtiendo %1$s para Steam. Mantén Kestrel abierto.</string>
+    <string name="boot_movie_converting_started">Convirtiendo %1$s para Steam. Mantén Lanner abierto.</string>
     <string name="boot_movie_unsupported">Este dispositivo no puede decodificar ese vídeo.</string>
     <string name="boot_movie_import_failed">No se pudo importar ese vídeo</string>
     <string name="boot_movie_remove_confirm">¿Quitar %1$s?</string>
-    <string name="boot_movie_remove_confirm_body">Esto elimina el vídeo de Kestrel y de la carpeta de vídeos de Steam.</string>
+    <string name="boot_movie_remove_confirm_body">Esto elimina el vídeo de Lanner y de la carpeta de vídeos de Steam.</string>
     <string name="boot_movie_tab_installed">Instalados</string>
     <string name="boot_movie_tab_import">Importar</string>
     <string name="boot_movie_tab_repo">SteamDeckRepo</string>
     <string name="boot_movie_tab_sound">Sonido</string>
     <string name="boot_movie_installed">Vídeos instalados</string>
     <string name="boot_movie_browse">Explorar</string>
-    <string name="boot_movie_source_droiddeck">DroidDeck</string>
+    <string name="boot_movie_source_droiddeck">Lanner</string>
     <string name="boot_movie_source_import">Importado</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">Tienda de puntos</string>
     <string name="boot_movie_report">Informe de películas de arranque</string>
-    <string name="boot_movie_report_hint">Guarda en un archivo de texto lo que Kestrel y Steam saben de las películas de arranque, para adjuntarlo a un informe de error.</string>
+    <string name="boot_movie_report_hint">Guarda en un archivo de texto lo que Lanner y Steam saben de las películas de arranque, para adjuntarlo a un informe de error.</string>
     <string name="boot_movie_report_save">Guardar</string>
     <string name="boot_movie_report_saved">Guardado en %1$s</string>
     <string name="boot_movie_report_failed">No se pudo guardar el informe.</string>
@@ -1957,13 +1957,13 @@
     <string name="setup_group_memory">Memoria</string>
     <string name="setup_clear_cached">Cerrar apps en caché antes de una sesión</string>
     <string name="setup_clear_cached_hint">Al empezar una sesión, cierra las apps que Android mantiene en segundo plano para que el juego tenga más memoria. La depuración inalámbrica debe estar activada.</string>
-    <string name="setup_clear_cached_unpaired">Kestrel debe estar vinculado con la depuración inalámbrica (Vincular, abajo).</string>
+    <string name="setup_clear_cached_unpaired">Lanner debe estar vinculado con la depuración inalámbrica (Vincular, abajo).</string>
     <string name="setup_memory_hud">Indicador de memoria</string>
-    <string name="setup_memory_hud_hint">Memoria y swap en uso, en la pantalla de la sesión. Avanzado lo divide entre el juego, Kestrel, Android y la GPU.</string>
+    <string name="setup_memory_hud_hint">Memoria y swap en uso, en la pantalla de la sesión. Avanzado lo divide entre el juego, Lanner, Android y la GPU.</string>
     <string name="setup_memory_hud_simple">Simple</string>
     <string name="setup_memory_hud_advanced">Avanzado</string>
     <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
-    <string name="memory_hud_split">juego %1$s · Kestrel %2$s · Android %3$s GB</string>
+    <string name="memory_hud_split">juego %1$s · Lanner %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">Apps en segundo plano durante una sesión</string>
     <string name="setup_bg_limit_hint">Mientras una sesión está en marcha, Android mantiene en caché como máximo este número de apps y cierra las demás, para que el juego tenga su memoria. Se restablece al terminar la sesión. La depuración inalámbrica debe estar activada.</string>
@@ -1971,7 +1971,7 @@
     <string name="setup_bg_limit_1">Como máximo 1</string>
     <string name="setup_bg_limit_0">Ninguna</string>
     <string name="setup_adb_pair">Depuración inalámbrica</string>
-    <string name="setup_adb_pair_hint">Vincula Kestrel con la depuración inalámbrica de Android para las opciones de arriba. El límite de procesos secundarios sigue desactivado.</string>
+    <string name="setup_adb_pair_hint">Vincula Lanner con la depuración inalámbrica de Android para las opciones de arriba. El límite de procesos secundarios sigue desactivado.</string>
     <string name="setup_adb_pair_button">Vincular</string>
     <string name="game_tab_about">Acerca de</string>
     <string name="game_resources_browser">Se abre en tu navegador</string>
@@ -2001,8 +2001,8 @@
     <string name="integration_shortcuts_hint">Alt+Tab, la tecla Win y el botón Inicio se quedan en la sesión</string>
     <string name="integration_shortcuts_maybe_restricted">¿Aparece en gris en Android? Información de la aplicación → ⋮ → Permitir ajustes restringidos</string>
     <string name="integration_shortcuts_restricted">Bloqueado por Android · Información de la aplicación → ⋮ → Permitir ajustes restringidos</string>
-    <string name="integration_shortcuts_service">Teclas del sistema de Kestrel</string>
-    <string name="integration_shortcuts_service_description">Mantiene Alt+Tab, la tecla Win y el botón Inicio en una sesión activa de Kestrel en lugar de Android.</string>
+    <string name="integration_shortcuts_service">Teclas del sistema de Lanner</string>
+    <string name="integration_shortcuts_service_description">Mantiene Alt+Tab, la tecla Win y el botón Inicio en una sesión activa de Lanner en lugar de Android.</string>
     <string name="integration_brightness_needed">Activa Brillo en Configuración → Integración con Steam</string>
     <string name="setup_gpu_bridge_off">Puente Mali: desactivado</string>
     <string name="setup_gpu_bridge_on">Puente Mali: activado</string>
