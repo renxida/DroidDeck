@@ -8,7 +8,8 @@ Rows:
   - the newest .wcp with each Kestrel option alone, every pair, every option but one, and all together, at the
     values the phone's experiments use (droiddeck-game-env);
   - every row REPEATS times, to catch hangs that only show now and then;
-  - a long soak of the newest .wcp (defaults, and all options on) when SOAK_SECONDS is set.
+  - a long soak of stock FEX and of the newest .wcp (defaults, and all options on) when SOAK_SECONDS is set,
+    so a soak's stalls have a stock baseline.
 """
 import itertools
 import json
@@ -58,6 +59,7 @@ def main():
         if soak:
             saved = repeats
             repeats = 1
+            add("soak-stock", "stock", "", soak, "stress clr")
             add("soak", newest, "", soak, "stress clr")
             add("soak-all", newest, " ".join(OPTIONS.values()), soak, "stress clr")
             repeats = saved
