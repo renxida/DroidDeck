@@ -68,14 +68,24 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p out
+          adb shell device_config set_sync_disabled_for_tests persistent || true
+          adb shell device_config put activity_manager max_phantom_processes 2147483647 || true
+          adb shell settings put global settings_enable_monitor_phantom_procs false || true
           t0=$(date +%s)
           tools/droiddeckctl start steam 2>&1 | tee out/start.txt
+          sleep 5
+          echo "::group::UI after start"; tools/droiddeckctl ui dump 2>&1 | jq -c '.windows[]?.nodes[]? | select(.text or .tag) | [.tag, .text]' 2>/dev/null | head -60; echo "::endgroup::"
           last=
           while [ $(( $(date +%s) - t0 )) -lt ${{ inputs.start_timeout || 1200 }} ]; do
             st=$(tools/droiddeckctl state 2>/dev/null)
             ph=$(jq -r '.session.phase // "?"' <<<"$st" 2>/dev/null)
             line="$ph $(jq -c '{step:.session.step, status:.session.status, error:.session.error}' <<<"$st" 2>/dev/null)"
             if [ "$line" != "$last" ]; then echo "+$(( $(date +%s) - t0 ))s $line"; last=$line; fi
+            if [ "$ph" = IDLE ] && tools/droiddeckctl ui dump 2>/dev/null | grep -q "Install anyway"; then
+              echo "+$(( $(date +%s) - t0 ))s unsupported-GPU dialog: pressing Install anyway"
+              tools/droiddeckctl ui click --match "Install anyway" >/dev/null 2>&1 || true
+              sleep 3; tools/droiddeckctl start steam >/dev/null 2>&1 || true
+            fi
             echo "$st" > out/state.json
             case $ph in READY|FAILED) break;; esac
             sleep 10
