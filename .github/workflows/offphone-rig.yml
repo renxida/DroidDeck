@@ -12,6 +12,9 @@ on:
         description: seconds to wait for the Steam session to be READY
         required: false
         default: '1200'
+      guest_vulkan:
+        description: "How the guest gets Vulkan: lavapipe or venus"
+        default: lavapipe
       image:
         description: redroid image
         required: false
@@ -75,7 +78,14 @@ jobs:
           # emulator's own Vulkan (SwiftShader), the same path Mali phones take.
           tools/offphone/enable-debug-tools.sh "$(tools/app-id)"
           tools/droiddeckctl access
-          tools/droiddeckctl prefs set session venus true --type bool
+          # CI Android has no PowerVR, Mali or Adreno. guest_vulkan picks how the guest gets Vulkan:
+          # lavapipe (Mesa's CPU driver inside the rootfs) or venus (through the emulator's SwiftShader,
+          # the path Mali phones take; SwiftShader lacks the dma-buf sharing gamescope needs).
+          case "${{ inputs.guest_vulkan || 'lavapipe' }}" in
+            venus) tools/droiddeckctl prefs set session venus true --type bool ;;
+            # The runtime is not installed yet; the session log says whether the manifest was found.
+            lavapipe) tools/droiddeckctl env set "BL_VK_DRIVER=/usr/share/vulkan/icd.d/lvp_icd.aarch64.json" --persistent ;;
+          esac
           t0=$(date +%s)
           tools/droiddeckctl start steam 2>&1 | tee out/start.txt
           sleep 5
@@ -108,6 +118,7 @@ jobs:
           pid=$(adb shell pidof "$pkg" | tr -d '\r')
           adb logcat -d -v time | grep -E "\( *${pid:-NOPID}\)|AgentStart|AgentBridge|LinuxRuntime|ActivityTaskManager|kestrel" | grep -v -E "chatty|JIT allocated|Compiler allocated" | tail -400
           echo "::endgroup::"
+          echo "::group::guest Vulkan drivers"; tools/droiddeckctl native --timeout 60 -- sh -c 'ls -la /usr/share/vulkan/icd.d/' 2>&1 | head -c 4000; echo; echo "::endgroup::"
           d=/data/user/0/$pkg/files/logs
           last=$(adb shell "ls -1d $d/*/ 2>/dev/null | tail -1" | tr -d '\r')
           echo "session dir: ${last:-none}"
