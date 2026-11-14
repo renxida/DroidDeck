@@ -101,6 +101,16 @@ jobs:
           pid=$(adb shell pidof "$pkg" | tr -d '\r')
           adb logcat -d -v time | grep -E "\( *${pid:-NOPID}\)|AgentStart|AgentBridge|LinuxRuntime|ActivityTaskManager|kestrel" | grep -v -E "chatty|JIT allocated|Compiler allocated" | tail -400
           echo "::endgroup::"
+          d=/data/user/0/$pkg/files/logs
+          last=$(adb shell "ls -1d $d/*/ 2>/dev/null | tail -1" | tr -d '\r')
+          echo "session dir: ${last:-none}"
+          if [ -n "$last" ]; then
+            adb shell "ls -la $last"
+            for f in $(adb shell "ls -1 $last" | tr -d '\r'); do
+              case $f in *.log|*.txt|*.json|*.jsonl) ;; *) continue;; esac
+              echo "::group::session $f"; adb shell "tail -c 20000 $last$f"; echo; echo "::endgroup::"
+            done
+          fi
       - name: Collect
         if: always()
         run: |
