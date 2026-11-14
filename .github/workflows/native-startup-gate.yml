@@ -6,7 +6,8 @@ name: Native startup gate (stand-in game through droiddeck-native-godot)
 # (tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot) on the published engine component, the way
 # the phone runs a game. Two self-test rows run older converters and must fail: 7754c57b (before ReadyToRun
 # support; the first phone launch died on it at compose) and d68b35ad (stripped ReadyToRun code but kept its
-# PE layout: .NET refuses the game assembly at load). The soak runs only on schedule or by hand.
+# PE layout: .NET refuses the game assembly at load); a third runs f86b8550 (relabel only: refused at load
+# too, on Godot's load_assembly_and_get_function_pointer path). The soak runs only on schedule or by hand.
 #
 # Reusable: `uses: ./.github/workflows/native-startup-gate.yml` with
 #   component: "pinned" (default: the wrapper's COMPONENT, via --fetch) or a release tag on this repository
@@ -59,6 +60,8 @@ env:
   # launch died on at compose), and the one that stripped ReadyToRun code but kept its layout (refused at load).
   CONVERTER_7754C57B: 7754c57b092fba510674d202cbceedc04d12eb27
   CONVERTER_D68B35AD: d68b35ad304995c2d85d3136f9a35be5401483f0
+  # ...and the one that only relabelled ReadyToRun images (hostfxr cannot load the game assembly on Godot's path).
+  CONVERTER_F86B8550: f86b85501500b90f1b007a05b471c4797e108de8
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_NOLOGO: '1'
 
@@ -131,7 +134,7 @@ jobs:
       matrix:
         row: [r2r-deps-gdext, r2r-deps-nogdext, r2r-nodeps-gdext, r2r-nodeps-nogdext,
               il-deps-gdext, il-deps-nogdext, il-nodeps-gdext, il-nodeps-nogdext,
-              xvfb-opengl3, xvfb-vulkan, selftest-7754c57b, selftest-d68b35ad, probe]
+              xvfb-opengl3, xvfb-vulkan, selftest-7754c57b, selftest-d68b35ad, selftest-f86b8550, probe]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -146,7 +149,7 @@ jobs:
             xvfb-opengl3) variant=il-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver opengl3 --max-fps 30 --quit-after-frames 300" ;;
             xvfb-vulkan) variant=il-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver vulkan --max-fps 30 --quit-after-frames 300" ;;
             selftest-7754c57b) variant=r2r-deps-gdext extra="--expect-fail compose --timeout 120 --old-converter $RUNNER_TEMP/old-converter" ;;
-            selftest-d68b35ad) variant=r2r-deps-gdext extra="--expect-fail load --timeout 120 --old-converter $RUNNER_TEMP/old-converter" ;;
+            selftest-d68b35ad|selftest-f86b8550) variant=r2r-deps-gdext extra="--expect-fail load --timeout 120 --old-converter $RUNNER_TEMP/old-converter" ;;
             probe) variant=il-deps-gdext ;;
           esac
           case $variant in *-nodeps-*) deps=off ;; *) deps=on ;; esac
@@ -164,7 +167,7 @@ jobs:
         if: startsWith(matrix.row, 'selftest-')
         run: |
           set -euo pipefail
-          case ${{ matrix.row }} in *7754c57b) sha=$CONVERTER_7754C57B ;; *) sha=$CONVERTER_D68B35AD ;; esac
+          case ${{ matrix.row }} in *7754c57b) sha=$CONVERTER_7754C57B ;; *d68b35ad) sha=$CONVERTER_D68B35AD ;; *) sha=$CONVERTER_F86B8550 ;; esac
           git fetch --no-tags --depth 1 origin "$sha"
           git show "$sha:$WRAPPER" > "$RUNNER_TEMP/old-converter"
           sed -n '/^def portable_image/,/^def /p' "$RUNNER_TEMP/old-converter" | grep -nE 'raise|pack_into'
