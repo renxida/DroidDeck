@@ -1220,7 +1220,8 @@ def present_pacing(env, fps, layer_dir=None):
     --max-fps and ran at 40-44 fps under a 30 cap, Nov 14), so VK_LAYER_DROIDDECK_vkcount also paces presents to
     the cap: vkQueuePresentKHR returns no sooner than one interval after the last. The app rewrites the rate in
     DROIDDECK_PACE_FILE for the thermal governor and an idle player. Needs the system Vulkan layers; the layer is
-    added (with its reports off) when vk-count did not add it. DROIDDECK_PACE=0 turns it off."""
+    added (with its reports off unless vk-count is on) when vk-count did not add it. system_graphics_launch sets
+    the layers again later, and vk_count puts the layer back for pacing then. DROIDDECK_PACE=0 turns it off."""
     if env.get("DROIDDECK_PACE", "").strip().lower() in ("0", "off", "false", "no"):
         return None
     layers = env.get("VK_INSTANCE_LAYERS")
@@ -1232,7 +1233,8 @@ def present_pacing(env, fps, layer_dir=None):
             return "present pacing: layer not installed"
         env["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount:" + layers
         env["VK_LAYER_PATH"] = layer_dir + (":" + env["VK_LAYER_PATH"] if env.get("VK_LAYER_PATH") else "")
-        env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
+        if not experiment(env, "vk-count"):
+            env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
     env["DROIDDECK_PACE_FPS"] = fps
     if not env.get("DROIDDECK_PACE_FILE") and env.get("BL_LOG"):
         env["DROIDDECK_PACE_FILE"] = os.path.join(os.path.dirname(env["BL_LOG"]), "pace")
@@ -2906,14 +2908,23 @@ def hybris_index(env, layer_dir=HYBRIS_COMPAT_DIR):
 
 def vk_count(env, layer_dir=VKCOUNT_DIR):
     """Experiment vk-count: VK_LAYER_DROIDDECK_vkcount goes first in the game's layers and prints per-frame Vulkan
-    call counts and blocking-call times to stderr every 10 s ("droiddeck-vkcount:" lines in the game's log)."""
-    if not experiment(env, "vk-count"):
+    call counts and blocking-call times to stderr every 10 s ("droiddeck-vkcount:" lines in the game's log).
+    The same layer paces presents when frame_cap set DROIDDECK_PACE_FPS; that runs before these layers are set,
+    so the layer goes back in here for pacing too, with its reports off only when vk-count is off (a pacing
+    launch with vk-count on printed no lines on Nov 14, because pacing had turned the reports off)."""
+    counting = experiment(env, "vk-count")
+    pacing = bool(env.get("DROIDDECK_PACE_FPS", "").strip())
+    if not counting and not pacing:
         return None
     if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_vkcount.so")):
-        return "vk-count: layer not installed at %s" % layer_dir
+        return "%s: layer not installed at %s" % ("vk-count" if counting else "present pacing", layer_dir)
     env["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount:" + env["VK_INSTANCE_LAYERS"]
     env["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
-    return "vk-count: counting Vulkan calls per frame"
+    if counting:
+        env.pop("DROIDDECK_VKCOUNT_SECONDS", None)
+        return "vk-count: counting Vulkan calls per frame"
+    env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
+    return "present pacing: layer loaded, reports off"
 
 
 # winewayland.drv's wayland_process_init gives up, and the driver unloads, unless the compositor offers all of
