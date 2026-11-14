@@ -154,6 +154,8 @@ object AgentRemote {
     private fun run(context: Context, repo: String, token: String, id: String, command: JSONObject): JSONObject {
         val method = command.optString("method")
         val request = command.optJSONObject("request") ?: JSONObject()
+        // A remote driver is a player: no idle frame cap or idle stop while commands come in.
+        if (method != "ping" && method != "state" && method != "logs") com.droiddeck.launcher.session.SessionState.input()
         if (method in SHELL) announce?.invoke(context.getString(R.string.remote_notification_shell,
             java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())))
         return try {

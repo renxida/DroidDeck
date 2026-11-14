@@ -15,7 +15,15 @@
  *            allocated below this layer, so they are an estimate from each image's format and extent.
  * The present, acquire and wait times are time the CPU spent blocked on the GPU or the compositor;
  * the rest of the frame interval is CPU work. Counters are relaxed atomics; nothing is held per call.
- * With DROIDDECK_VKCOUNT_FILE set, the same lines are appended to that file too.
+ * With DROIDDECK_VKCOUNT_FILE set, the same lines are appended to that file too. DROIDDECK_VKCOUNT_SECONDS=0
+ * turns the reports off (the layer is then loaded only to pace frames).
+ *
+ * Frame pacing: with DROIDDECK_PACE_FPS set to a rate, each vkQueuePresentKHR returns no sooner than one
+ * frame interval after the last, so the game starts its next frame (and reads input) after the wait, as a
+ * game's own limiter would. It holds games that set their own frame rate and present mode after start
+ * (Slay the Spire 2 re-applies its saved settings over Godot's --max-fps). DROIDDECK_PACE_FILE names a file
+ * holding the rate in force now; the app rewrites it for the thermal governor and when the player has been
+ * idle, and the layer checks it at most every 100 ms. A rate of 0 there means no pacing until it changes.
  */
 #define _GNU_SOURCE
 #include <vulkan/vk_layer.h>
@@ -25,6 +33,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
 #include <time.h>
 
 #define EXPORT __attribute__((visibility("default")))
@@ -44,7 +54,7 @@ static uint64_t now_ns(void) {
 #define COUNTERS(X) \
     X(frames) X(submits) X(command_buffers) X(draws) X(indirect_draws) X(dispatches) X(pipeline_binds) \
     X(set_binds) X(push_constants) X(passes) X(barriers) X(copies) X(pipelines) X(allocations) \
-    X(submit_ns) X(present_ns) X(acquire_ns) X(fence_ns) X(idle_ns) X(pipeline_ns)
+    X(submit_ns) X(present_ns) X(acquire_ns) X(fence_ns) X(idle_ns) X(pipeline_ns) X(pace_ns)
 enum { 
 #define X(name) C_##name,
     COUNTERS(X)
@@ -99,6 +109,7 @@ static uint64_t live_bytes, host_bytes, peak_bytes, live_allocations, untracked_
 static uint64_t bc_bytes, bc_decoded_bytes, bc_images;
 
 static uint64_t window_ns = 10000000000ull, window_start;
+static int reports_off;
 static FILE *extra;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -117,7 +128,7 @@ static void report(uint64_t now, const char *why) {
     int n = snprintf(line, sizeof line,
         "droiddeck-vkcount: %s %.1fs %llu frames %.1f fps | per frame: %.1f submits %.1f cmdbufs %.0f draws "
         "(%.0f indirect) %.1f dispatches %.0f pipeline-binds %.0f set-binds %.0f push-consts %.1f passes "
-        "%.1f barriers %.1f copies | ms/frame: submit %.2f present %.2f acquire %.2f fence-wait %.2f idle %.2f "
+        "%.1f barriers %.1f copies | ms/frame: submit %.2f present %.2f acquire %.2f fence-wait %.2f idle %.2f pace %.2f "
         "| pipelines %llu in %.0f ms, allocations %llu | memory %.1f MB live (%.1f MB host-visible, peak %.1f MB) "
         "in %llu allocations%s, BC textures %.1f MB -> %.1f MB decoded (%llu images)\n",
         why, seconds, (unsigned long long)snapshot[C_frames], snapshot[C_frames] / (seconds > 0 ? seconds : 1),
@@ -127,7 +138,7 @@ static void report(uint64_t now, const char *why) {
         snapshot[C_push_constants] / frames, snapshot[C_passes] / frames, snapshot[C_barriers] / frames,
         snapshot[C_copies] / frames, snapshot[C_submit_ns] / 1e6 / frames, snapshot[C_present_ns] / 1e6 / frames,
         snapshot[C_acquire_ns] / 1e6 / frames, snapshot[C_fence_ns] / 1e6 / frames, snapshot[C_idle_ns] / 1e6 / frames,
-        (unsigned long long)snapshot[C_pipelines], snapshot[C_pipeline_ns] / 1e6,
+        snapshot[C_pace_ns] / 1e6 / frames, (unsigned long long)snapshot[C_pipelines], snapshot[C_pipeline_ns] / 1e6,
         (unsigned long long)snapshot[C_allocations], mem.live / 1048576.0, mem.host / 1048576.0,
         mem.peak / 1048576.0, (unsigned long long)mem.allocations, mem.untracked ? " (some untracked)" : "",
         mem.bc / 1048576.0, mem.bc_decoded / 1048576.0, (unsigned long long)mem.bc_images);
@@ -141,7 +152,7 @@ static void report(uint64_t now, const char *why) {
 static void frame_done(void) {
     bump(C_frames);
     uint64_t now = now_ns();
-    if (now - __atomic_load_n(&window_start, __ATOMIC_RELAXED) < window_ns) return;
+    if (reports_off || now - __atomic_load_n(&window_start, __ATOMIC_RELAXED) < window_ns) return;
     if (pthread_mutex_trylock(&lock)) return;
     if (now - window_start >= window_ns) report(now, "window");
     pthread_mutex_unlock(&lock);
@@ -267,7 +278,7 @@ static VkResult VKAPI_CALL create_device(VkPhysicalDevice physical, const VkDevi
 static void VKAPI_CALL destroy_device(VkDevice device, const VkAllocationCallbacks *allocator) {
     NEXT(device, DestroyDevice);
     pthread_mutex_lock(&lock);
-    if (__atomic_load_n(&counters[C_frames], __ATOMIC_RELAXED)) report(now_ns(), "final");
+    if (!reports_off && __atomic_load_n(&counters[C_frames], __ATOMIC_RELAXED)) report(now_ns(), "final");
     for (int i = 0; i < MAX_OBJECTS; i++)
         if (devices[i].handle == device) memset(&devices[i], 0, sizeof devices[i]);
     pthread_mutex_unlock(&lock);
@@ -304,11 +315,69 @@ static VkResult VKAPI_CALL queue_submit2_khr(VkQueue queue, uint32_t count, cons
     return submit2(next_, queue, count, submits, fence);
 }
 
+/* ---- frame pacing ---- */
+
+#define PACE_MAX_FPS 240
+#define PACE_CHECK_NS 100000000ull
+static int pace_base, pace_fps;
+static const char *pace_file;
+static uint64_t pace_next_ns, pace_checked_ns;
+static struct timespec pace_mtime;
+static pthread_mutex_t pace_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static int pace_rate(const char *text, int fallback) {
+    char *end;
+    long value = text ? strtol(text, &end, 10) : -1;
+    if (!text || end == text || value < 0 || value > PACE_MAX_FPS) return fallback;
+    return (int)value;
+}
+
+/* The rate in force: the file's when it holds one, else DROIDDECK_PACE_FPS. Called under pace_lock. */
+static int pace_current(uint64_t now) {
+    if (!pace_file || now - pace_checked_ns < PACE_CHECK_NS) return pace_fps;
+    pace_checked_ns = now;
+    struct stat st;
+    if (stat(pace_file, &st)) { pace_fps = pace_base; return pace_fps; }
+    if (st.st_mtim.tv_sec == pace_mtime.tv_sec && st.st_mtim.tv_nsec == pace_mtime.tv_nsec) return pace_fps;
+    FILE *f = fopen(pace_file, "re");
+    if (!f) return pace_fps;
+    char text[16] = {0};
+    size_t n = fread(text, 1, sizeof text - 1, f);
+    fclose(f);
+    text[n] = 0;
+    pace_mtime = st.st_mtim;
+    pace_fps = pace_rate(text, pace_base);
+    return pace_fps;
+}
+
+static void pace(void) {
+    if (!pace_base) return;
+    pthread_mutex_lock(&pace_lock);
+    uint64_t now = now_ns();
+    int fps = pace_current(now);
+    if (fps > 0) {
+        uint64_t interval = 1000000000ull / (uint64_t)fps, start = now;
+        if (pace_next_ns && now < pace_next_ns) {
+            struct timespec until = {(time_t)(pace_next_ns / 1000000000ull), (long)(pace_next_ns % 1000000000ull)};
+            while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &until, NULL) == EINTR) {}
+            start = pace_next_ns;
+            add(C_pace_ns, start - now);
+        } else if (pace_next_ns && now - pace_next_ns < interval) {
+            start = pace_next_ns;  /* a little late: keep the cadence rather than drift */
+        }
+        pace_next_ns = start + interval;
+    } else {
+        pace_next_ns = 0;
+    }
+    pthread_mutex_unlock(&pace_lock);
+}
+
 static VkResult VKAPI_CALL queue_present(VkQueue queue, const VkPresentInfoKHR *info) {
     NEXT(queue, QueuePresentKHR);
     VkResult result;
     TIMED(C_present_ns, next_(queue, info));
     frame_done();
+    pace();
     return result;
 }
 
@@ -621,6 +690,11 @@ EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkN
     if (!negotiate || negotiate->loaderLayerInterfaceVersion < 2) return VK_ERROR_INITIALIZATION_FAILED;
     const char *seconds = getenv("DROIDDECK_VKCOUNT_SECONDS");
     if (seconds && atof(seconds) > 0) window_ns = (uint64_t)(atof(seconds) * 1e9);
+    else if (seconds && !strcmp(seconds, "0")) reports_off = 1;
+    pace_base = pace_rate(getenv("DROIDDECK_PACE_FPS"), 0);
+    pace_fps = pace_base;
+    const char *pace_path = getenv("DROIDDECK_PACE_FILE");
+    if (pace_base && pace_path && *pace_path) pace_file = pace_path;
     const char *file = getenv("DROIDDECK_VKCOUNT_FILE");
     if (file && *file && !extra) extra = fopen(file, "ae");
     negotiate->loaderLayerInterfaceVersion = 2;

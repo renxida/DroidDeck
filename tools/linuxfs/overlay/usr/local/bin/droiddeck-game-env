@@ -1131,6 +1131,9 @@ def frame_cap(command, env):
                 extra.append("--disable-vsync")
             command = command[:3] + args[:cut] + extra + args[cut:]
             ways.append("Godot --max-fps" + (", vsync off" if len(extra) > 2 else ""))
+            paced = present_pacing(env, fps)
+            if paced:
+                ways.append(paced)
     else:
         own = env.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
         if not re.search(r"(?:^|;)\s*dxvk\.maxFrameRate\s*=", own):
@@ -1146,6 +1149,30 @@ def frame_cap(command, env):
         env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"] = CAPPED_IMAGES
         ways.append("%s swapchain images" % CAPPED_IMAGES)
     return command, "frame cap %s fps (%s)" % (fps, ", ".join(ways) or "already set")
+
+
+def present_pacing(env, fps, layer_dir=None):
+    """A game can set its own frame rate and vsync after start (Slay the Spire 2 re-applies its saved settings over
+    --max-fps and ran at 40-44 fps under a 30 cap, Nov 14), so VK_LAYER_DROIDDECK_vkcount also paces presents to
+    the cap: vkQueuePresentKHR returns no sooner than one interval after the last. The app rewrites the rate in
+    DROIDDECK_PACE_FILE for the thermal governor and an idle player. Needs the system Vulkan layers; the layer is
+    added (with its reports off) when vk-count did not add it. DROIDDECK_PACE=0 turns it off."""
+    if env.get("DROIDDECK_PACE", "").strip().lower() in ("0", "off", "false", "no"):
+        return None
+    layers = env.get("VK_INSTANCE_LAYERS")
+    if layers is None:
+        return None
+    layer_dir = layer_dir or VKCOUNT_DIR
+    if "VK_LAYER_DROIDDECK_vkcount" not in layers.split(":"):
+        if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_vkcount.so")):
+            return "present pacing: layer not installed"
+        env["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount:" + layers
+        env["VK_LAYER_PATH"] = layer_dir + (":" + env["VK_LAYER_PATH"] if env.get("VK_LAYER_PATH") else "")
+        env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
+    env["DROIDDECK_PACE_FPS"] = fps
+    if not env.get("DROIDDECK_PACE_FILE") and env.get("BL_LOG"):
+        env["DROIDDECK_PACE_FILE"] = os.path.join(os.path.dirname(env["BL_LOG"]), "pace")
+    return "presents paced"
 
 
 def godot_verbose(command, env):
@@ -1516,6 +1543,9 @@ class CoreWatch:
 WEBHELPER_TRIM = "webhelper-trim"
 WEBHELPER_TRIM_FIRST_S = 60
 WEBHELPER_TRIM_EVERY_S = 120
+# Round 1 moved ~110 MB of the web helper to swap and round 2 a little; rounds 3-24 changed nothing (+-2 MB) and
+# each round costs a few more slow frames (Nov 14, 2 h session).
+WEBHELPER_TRIM_ROUNDS = 2
 WEBHELPER_TRIM_SETTLE_S = 5
 WEBHELPER_TRIM_CALL_S = 5
 WEBHELPER_TRIM_ROUND_S = 30
@@ -1615,12 +1645,13 @@ class SteamDevTools:
 class WebhelperTrim:
     """Experiment webhelper-trim: while the game runs, asks Steam's CEF over DevTools to give memory back (a
     critical memory-pressure notification and a full V8 GC on every page and worker), WEBHELPER_TRIM_FIRST_S after
-    the start and then every WEBHELPER_TRIM_EVERY_S, and prints the steamwebhelper processes' resident and swapped
+    the start and then every WEBHELPER_TRIM_EVERY_S for WEBHELPER_TRIM_ROUNDS rounds, and prints the steamwebhelper processes' resident and swapped
     memory before and WEBHELPER_TRIM_SETTLE_S after each round. The client and its web helper keep running: nothing
     is killed or stopped. When the port is unknown or DevTools does not answer it says why once and stops."""
 
     def __init__(self, app_id="", port=None, devtools=None, usage=None, first=WEBHELPER_TRIM_FIRST_S,
-                 every=WEBHELPER_TRIM_EVERY_S, settle=WEBHELPER_TRIM_SETTLE_S, clock=time.monotonic, wall=time.time):
+                 every=WEBHELPER_TRIM_EVERY_S, settle=WEBHELPER_TRIM_SETTLE_S, clock=time.monotonic, wall=time.time,
+                 rounds=WEBHELPER_TRIM_ROUNDS):
         self.app_id = app_id or "-"
         self.port = port
         self.devtools = devtools or SteamDevTools
@@ -1628,6 +1659,7 @@ class WebhelperTrim:
         self.first, self.every, self.settle = first, every, settle
         self.clock, self.wall = clock, wall
         self.rounds = 0
+        self.max_rounds = rounds
         self.done = threading.Event()
         self.thread = None
         self.client = None
@@ -1652,7 +1684,7 @@ class WebhelperTrim:
             except Exception as error:
                 return self.off("no_client", error)
             while not self.done.is_set():
-                if not self.trim():
+                if not self.trim() or self.rounds >= self.max_rounds:
                     return
                 if self.done.wait(self.every):
                     return

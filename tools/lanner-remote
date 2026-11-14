@@ -4,7 +4,8 @@
   lanner-remote [--repo OWNER/NAME] METHOD [JSON_REQUEST] [--arg ARG] [--wait SECONDS]
 
 Signs the command with the operator key (LANNER_REMOTE_KEY, ECDSA P-256; the app holds only the
-public half), writes remote/inbox/<id>.json with gh, then waits for remote/outbox/<id>.json and prints it; a
+public half), commits remote/inbox/<id>.json to a clone of the repository (LANNER_REMOTE_CLONE) and
+pushes it, then waits for remote/outbox/<id>.json and prints it; a
 "screenshot" answer also saves remote/outbox/<id>.jpg next to the current directory. Methods are the
 agent bridge's (state, stop, launch, input, ui, guest, logs, prefs, env, ...) plus start, screenshot,
 autotest and ping. The phone polls every 30 s, and every 5 s for ten minutes after a command.
@@ -12,6 +13,7 @@ autotest and ping. The phone polls every 30 s, and every 5 s for ten minutes aft
 import argparse, base64, json, os, subprocess, sys, time
 
 KEY = os.environ.get("LANNER_REMOTE_KEY", "/mnt/project-files/.lanner-remote/key.pem")
+CLONE = os.environ.get("LANNER_REMOTE_CLONE", "/home/claude/kestrel-telemetry")
 
 def sign(payload: bytes) -> bytes:
     r = subprocess.run(["openssl", "dgst", "-sha256", "-sign", KEY], input=payload, capture_output=True)
@@ -36,11 +38,21 @@ def main():
     payload = json.dumps({"id": cid, "expires": int((time.time() + a.wait) * 1000),
                           "method": a.method, "arg": a.arg, "request": request}).encode()
     body = {"payload": base64.b64encode(payload).decode(), "sig": base64.b64encode(sign(payload)).decode()}
-    payload = json.dumps({"message": f"lanner remote: {cid}",
-                          "content": base64.b64encode(json.dumps(body).encode()).decode()})
-    code, out, err = gh("-X", "PUT", f"repos/{a.repo}/contents/remote/inbox/{cid}.json", "--input", "-", input=payload)
-    if code:
-        sys.exit(f"could not queue: {err.strip()}")
+    def git(*args):
+        return subprocess.run(["git", "-C", CLONE, *args], capture_output=True, text=True)
+    for attempt in range(4):
+        r = git("pull", "-q", "--rebase")
+        path = os.path.join(CLONE, "remote", "inbox", f"{cid}.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").write(json.dumps(body))
+        git("add", path)
+        git("commit", "-q", "-m", f"lanner remote: {cid}")
+        r = git("push", "-q")
+        if r.returncode == 0:
+            break
+        time.sleep(2 ** attempt)
+    else:
+        sys.exit(f"could not queue: {r.stderr.strip()}")
     print(f"queued {cid}", file=sys.stderr)
     deadline = time.time() + a.wait
     while time.time() < deadline:

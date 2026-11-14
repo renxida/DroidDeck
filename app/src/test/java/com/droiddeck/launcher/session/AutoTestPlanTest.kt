@@ -32,6 +32,9 @@ class AutoTestPlanTest {
         assertEquals("battery 20%", AutoTestPlan.skip(request, idle.copy(battery = 20), none))
         assertEquals("screen is on", AutoTestPlan.skip(request, idle.copy(interactive = true), none))
         assertEquals("a session is running", AutoTestPlan.skip(request, idle.copy(sessionBusy = true), none))
+        assertNull(AutoTestPlan.skip(request, idle.copy(thermal = 1, batteryC = 34.5f), none))
+        assertEquals("phone is warm (thermal status 2)", AutoTestPlan.skip(request, idle.copy(thermal = 2), none))
+        assertEquals("battery at 38 C", AutoTestPlan.skip(request, idle.copy(batteryC = 38.2f), none))
         assertEquals("no test requested", AutoTestPlan.skip(null, idle, none))
     }
 
@@ -62,5 +65,7 @@ class AutoTestPlanTest {
         assertEquals("done", AutoTestPlan.stopReason(300_000L, 240_000L, 240, charging = true))
         assertEquals("unplugged", AutoTestPlan.stopReason(10_000L, 0L, 240, charging = false))
         assertEquals("timeout", AutoTestPlan.stopReason(AutoTestPlan.LIMIT_MS + 240_000L, 0L, 240, charging = true))
+        assertNull(AutoTestPlan.stopReason(60_000L, 0L, 240, charging = true, thermal = 2))
+        assertEquals("hot (thermal status 3)", AutoTestPlan.stopReason(60_000L, 0L, 240, charging = true, thermal = 3))
     }
 }

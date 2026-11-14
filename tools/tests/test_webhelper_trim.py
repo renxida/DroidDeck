@@ -181,6 +181,15 @@ class WebhelperTrimTest(unittest.TestCase):
         self.assertEqual([int(m.group(2)) for m in lines(self.err, LINE)], list(range(1, rounds + 1)))
 
 
+    def test_stops_by_itself_after_the_last_round(self):
+        devtools = FakeDevTools()
+        watch = self.watch(devtools, every=0.01).start()
+        watch.thread.join(5)
+        self.assertFalse(watch.thread.is_alive())
+        self.assertEqual(devtools.lists, MODULE["WEBHELPER_TRIM_ROUNDS"])
+        self.assertEqual([int(m.group(2)) for m in lines(self.err, LINE)], [1, 2])
+        self.assertEqual(lines(self.err, OFF), [])
+
 class LaunchTest(unittest.TestCase):
     def run_start(self, env):
         made = []

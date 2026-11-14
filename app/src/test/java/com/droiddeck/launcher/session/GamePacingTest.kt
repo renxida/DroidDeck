@@ -98,4 +98,22 @@ class GamePacingTest {
         assertEquals(30, GamePacing.vote(30, 60))
         assertEquals(40, GamePacing.vote(60, 40))
     }
+    @Test fun `an idle player gets the idle rate and a long idle ends the session`() {
+        assertEquals(30, GamePacing.paceFps(30, 59_000L))
+        assertEquals(15, GamePacing.paceFps(30, 60_000L))
+        assertEquals(10, GamePacing.paceFps(10, 600_000L))
+        assertEquals(0, GamePacing.paceFps(0, 600_000L))
+        assertEquals(null, GamePacing.idleStop(44 * 60_000L))
+        assertEquals("no input for 45 min", GamePacing.idleStop(45 * 60_000L))
+    }
+
+    @Test fun `the pace file is written whole`() {
+        val dir = java.nio.file.Files.createTempDirectory("pace").toFile()
+        val file = java.io.File(dir, "pace")
+        GamePacing.writePace(file, 30)
+        GamePacing.writePace(file, 15)
+        assertEquals("15", file.readText())
+        assertEquals(listOf("pace"), dir.list()!!.toList())
+        dir.deleteRecursively()
+    }
 }

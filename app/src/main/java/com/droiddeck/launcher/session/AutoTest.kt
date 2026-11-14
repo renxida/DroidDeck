@@ -13,6 +13,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.BatteryManager
+import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
@@ -34,7 +35,9 @@ import org.json.JSONObject
  * game's first frame is up, stops the session and lets the normal telemetry upload carry the report. A
  * test id runs once (two tries if it never reaches the game); repeat_hours > 0 runs it again after that
  * many hours. Nothing runs unless the person granted "Display over other apps", which Android requires
- * to open a screen from the background, and unplugging stops a run.
+ * to open a screen from the background. A warm phone (thermal status moderate or above, or the battery at
+ * 38 C) skips the run; unplugging or severe throttling stops one, and every run ends after menu_seconds
+ * in the game or 15 minutes past that at most.
  */
 object AutoTestPlan {
     data class Request(val id: String, val appId: Int, val menuSeconds: Int, val branch: String, val repeatHours: Int)
@@ -46,11 +49,20 @@ object AutoTestPlan {
         val interactive: Boolean,
         val sessionBusy: Boolean,
         val nowMs: Long,
+        /** PowerManager thermal status (0 none ... 6 shutdown), 0 when unknown. */
+        val thermal: Int = 0,
+        /** Battery temperature, NaN when unknown. */
+        val batteryC: Float = Float.NaN,
     )
 
     data class Record(val id: String?, val attempts: Int, val startedMs: Long, val completed: Boolean)
 
     const val MIN_BATTERY = 30
+    /** PowerManager.THERMAL_STATUS_MODERATE: a run would start already throttled and only heat it further. */
+    const val WARM_STATUS = 2
+    /** PowerManager.THERMAL_STATUS_SEVERE: stop a run that got here. */
+    const val HOT_STATUS = 3
+    const val MAX_BATTERY_C = 38f
     const val MAX_ATTEMPTS = 2
     private val ID = Regex("[A-Za-z0-9._-]{1,64}")
 
@@ -80,6 +92,8 @@ object AutoTestPlan {
         if (!state.overlay) return "needs Display over other apps"
         if (!state.charging) return "not charging"
         if (state.battery in 0 until MIN_BATTERY) return "battery ${state.battery}%"
+        if (state.thermal >= WARM_STATUS) return "phone is warm (thermal status ${state.thermal})"
+        if (state.batteryC >= MAX_BATTERY_C) return "battery at ${state.batteryC.toInt()} C"
         if (state.interactive) return "screen is on"
         if (state.sessionBusy) return "a session is running"
         return null
@@ -90,8 +104,9 @@ object AutoTestPlan {
         else Record(request.id, 1, nowMs, false)
 
     /** What the watcher should do: null keeps waiting, otherwise the reason to stop. */
-    fun stopReason(elapsedMs: Long, gameMs: Long, menuSeconds: Int, charging: Boolean): String? = when {
+    fun stopReason(elapsedMs: Long, gameMs: Long, menuSeconds: Int, charging: Boolean, thermal: Int = 0): String? = when {
         !charging -> "unplugged"
+        thermal >= HOT_STATUS -> "hot (thermal status $thermal)"
         gameMs >= menuSeconds * 1000L -> "done"
         elapsedMs >= LIMIT_MS + menuSeconds * 1000L -> "timeout"
         else -> null
@@ -142,12 +157,17 @@ object AutoTest {
         edit.apply()
     }
 
-    private fun battery(context: Context): Pair<Boolean, Int> {
+    private data class Power(val charging: Boolean, val level: Int, val batteryC: Float, val thermal: Int)
+
+    private fun power(context: Context): Power {
         val manager = context.getSystemService(BatteryManager::class.java)
         val level = manager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
         val sticky = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val plugged = (sticky?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
-        return plugged to level
+        val deci = sticky?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE) ?: Int.MIN_VALUE
+        val thermal = if (Build.VERSION.SDK_INT >= 29)
+            runCatching { context.getSystemService(PowerManager::class.java)?.currentThermalStatus }.getOrNull() ?: 0 else 0
+        return Power(plugged, level, if (deci == Int.MIN_VALUE) Float.NaN else deci / 10f, thermal)
     }
 
     /** Runs on the job's thread: reads the config, decides, and launches. Returns what it did. */
@@ -155,11 +175,13 @@ object AutoTest {
         val app = context.applicationContext
         if (!TelemetryUploadSettings.active(app)) return "telemetry off"
         val request = AutoTestPlan.parse(RemoteConfig.fetchNow(app))
-        val (charging, level) = battery(app)
+        val power = power(app)
         val state = AutoTestPlan.State(
             overlay = Settings.canDrawOverlays(app),
-            charging = charging,
-            battery = level,
+            charging = power.charging,
+            battery = power.level,
+            thermal = power.thermal,
+            batteryC = power.batteryC,
             interactive = app.getSystemService(PowerManager::class.java)?.isInteractive == true,
             sessionBusy = SessionState.running || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
                 SessionState.installing != null || com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isBusy(),
@@ -237,9 +259,13 @@ object AutoTest {
                     gameSince = now
                     SessionEvents.record("autotest.game", mapOf("id" to request.id, "after_ms" to now - start))
                 }
+                // A test run is attended by this watcher, not idle: keep the idle frame cap and idle stop off.
+                SessionState.input()
                 if (stopped == null) {
                     val gameMs = if (gameSince == 0L) 0L else now - gameSince
-                    stopped = AutoTestPlan.stopReason(now - start, gameMs, request.menuSeconds, manual || battery(context).first)
+                    val power = power(context)
+                    stopped = AutoTestPlan.stopReason(now - start, gameMs, request.menuSeconds, manual || power.charging,
+                        power.thermal)
                     if (stopped != null) {
                         SessionEvents.record("autotest.stop", mapOf("id" to request.id, "reason" to stopped,
                             "game_ms" to gameMs, "elapsed_ms" to now - start))
@@ -251,6 +277,9 @@ object AutoTest {
         } catch (_: InterruptedException) {
         } finally {
             runningId = null
+            // Out of time with the session still up (a stop that did not take): stop it again.
+            if (stopped != null && (SessionState.running || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED)))
+                runCatching { SessionService.stop(context) }
             val result = stopped ?: "session ended"
             val record = record(context)
             save(context, record.copy(completed = record.completed || result == "done"), result)

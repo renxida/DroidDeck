@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.util.Log
+import java.io.File
 
 /**
  * The frame cap droiddeck-game-env gave the running game, read from its `DROIDDECK_PACING` line in
@@ -50,6 +51,29 @@ object GamePacing {
         runCatching { SessionEvents.record("pacing.cap", mapOf("app_id" to next?.appId, "cap" to cap, "game_cap" to next?.cap, "why" to why)) }
         GameThreadHints.setCap(if (next?.adpf == true) cap else 0)
         listener?.let { runCatching { it() } }
+    }
+
+    /**
+     * The rate the Vulkan layer paces presents to (the file droiddeck-game-env names in DROIDDECK_PACE_FILE):
+     * the cap in force, held to [IDLE_FPS] once the player has given no input for [IDLE_PACE_MS]. A menu left
+     * on screen burned as much CPU as play and held the phone at severe throttling for two hours while
+     * charging (Nov 14). The next touch puts the full cap back within the layer's 100 ms check.
+     */
+    fun paceFps(cap: Int, idleMs: Long): Int = if (cap > 0 && idleMs >= IDLE_PACE_MS) minOf(cap, IDLE_FPS) else cap
+
+    /** Why to end a session whose game has had no input for [idleMs], or null to keep it. */
+    fun idleStop(idleMs: Long): String? =
+        if (idleMs >= IDLE_STOP_MS) "no input for ${idleMs / 60_000} min" else null
+
+    const val IDLE_PACE_MS = 60_000L
+    const val IDLE_FPS = 15
+    const val IDLE_STOP_MS = 45 * 60_000L
+
+    /** Writes [fps] to [file] whole (a rename), so the layer never reads half a number. */
+    fun writePace(file: File, fps: Int) {
+        val tmp = File(file.parentFile, file.name + ".tmp")
+        tmp.writeText(fps.toString())
+        if (!tmp.renameTo(file)) { file.writeText(fps.toString()); tmp.delete() }
     }
 
     fun parse(text: String): Plan? {

@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 
@@ -64,6 +65,46 @@ class VkCountLayerTest(unittest.TestCase):
                          "BC textures 1.0 MB -> 4.0 MB decoded (1 images)"):
                 self.assertIn(part, line)
             self.assertIn(line, ran.stderr)
+
+    @unittest.skipUnless(LAVAPIPE and Path("/usr/include/vulkan/vulkan.h").is_file(),
+                         "lavapipe (mesa-vulkan-drivers) not installed")
+    def test_paces_presents_to_the_rate_in_force(self):
+        with tempfile.TemporaryDirectory(prefix="droiddeck-vkcount-") as tmp:
+            compiler, include, layer_dir, _ = self.build(tmp)
+            program = Path(tmp) / "vkcount-test"
+            built = subprocess.run([compiler, "-O1", "-I", str(include), str(Path(__file__).with_name("vkcount_layer_test.c")),
+                                    "-lvulkan", "-o", str(program)], capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            pace_file = Path(tmp) / "pace"
+
+            def run(**extra):
+                log = Path(tmp) / "vkcount.log"
+                log.unlink(missing_ok=True)
+                env = dict(os.environ, VK_ICD_FILENAMES=str(LAVAPIPE), VK_LAYER_PATH=str(layer_dir),
+                           VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vkcount", DROIDDECK_VKCOUNT_FILE=str(log),
+                           DROIDDECK_VKCOUNT_SECONDS="3600", NODEVICE_SELECT="1")
+                env.update(extra)
+                start = time.monotonic()
+                ran = subprocess.run([str(program)], env=env, capture_output=True, text=True, timeout=60)
+                took = time.monotonic() - start
+                self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+                return took, log.read_text() if log.exists() else ""
+
+            free, _ = run()
+            paced, line = run(DROIDDECK_PACE_FPS="30")
+            # 60 presents at 30 fps: 59 intervals of 33.3 ms after the first.
+            self.assertGreater(paced - free, 1.6)
+            self.assertRegex(line, r"pace (2\d|3\d)\.\d\d ")
+            pace_file.write_text("120\n")
+            fast, _ = run(DROIDDECK_PACE_FPS="30", DROIDDECK_PACE_FILE=str(pace_file))
+            self.assertLess(fast - free, 1.0)
+            self.assertGreater(fast - free, 0.3)
+            pace_file.write_text("0")
+            off, _ = run(DROIDDECK_PACE_FPS="30", DROIDDECK_PACE_FILE=str(pace_file))
+            self.assertLess(off - free, 0.4)
+            quiet, text = run(DROIDDECK_PACE_FPS="30", DROIDDECK_VKCOUNT_SECONDS="0")
+            self.assertEqual(text, "")
+            self.assertGreater(quiet - free, 1.6)
 
 
 if __name__ == "__main__":

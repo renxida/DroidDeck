@@ -585,7 +585,9 @@ class SessionService : Service() {
             components.add(it)
         }
 
-        GamePacingComponent(listOf(sessionLog, com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this))).let {
+        val paceFile = File(sessionDir, "pace").also { it.delete() }
+        guest.add("DROIDDECK_PACE_FILE=" + paceFile.path)
+        GamePacingComponent(listOf(sessionLog, com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this)), paceFile).let {
             it.attach(this)
             components.add(it)
         }
