@@ -1151,6 +1151,70 @@ def frame_cap(command, env):
     return command, "frame cap %s fps (%s)" % (fps, ", ".join(ways) or "already set")
 
 
+STS2_SETTINGS = "drive_c/users/steamuser/AppData/Roaming/SlayTheSpire2/steam"
+STS2_SCHEMA = 8
+
+
+def sts2_settings_cap(command, env):
+    """Slay the Spire 2 applies Engine.MaxFps and the vsync mode from its own settings.save after Godot reads
+    --max-fps and --disable-vsync (NGame.InitializeGraphicsPreferences), so before each capped launch its
+    fps_limit is set to the cap, and vsync to "off" under one-limiter, in every Steam user's settings.save.
+    Every other key stays as the game wrote it. The file is local only (the game deletes any cloud copy), and the
+    game rewrites it when the player changes a setting, which holds until the next launch. A user folder with no
+    file yet gets a minimal one with the schema version, so the game's loader keeps it."""
+    fps = env.get("DROIDDECK_FPS_CAP", "").strip()
+    if (len(command) <= 2 or not FPS_CAP.fullmatch(fps) or any(a == "--max-fps" for a in command[3:])
+            or Game(command[2], command[3:]).stem != "slaythespire2"):
+        return None
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    root = os.path.join(prefix, "pfx", STS2_SETTINGS) if prefix else ""
+    try:
+        users = [d for d in sorted(os.listdir(root)) if d.isdigit() and os.path.isdir(os.path.join(root, d))]
+    except OSError:
+        return None
+    want = {"fps_limit": int(fps)}
+    if experiment(env, "one-limiter"):
+        want["vsync"] = "off"
+    done = []
+    for user in users:
+        path = os.path.join(root, user, "settings.save")
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except FileNotFoundError:
+            text = None
+        except OSError as error:
+            done.append("unreadable (%s)" % error.strerror)
+            continue
+        if text is None:
+            settings = {"schema_version": STS2_SCHEMA}
+        else:
+            try:
+                settings = json.loads(text)
+            except ValueError:
+                done.append("not JSON, left alone")
+                continue
+            if not isinstance(settings, dict):
+                done.append("not a settings object, left alone")
+                continue
+        if all(settings.get(k) == v for k, v in want.items()):
+            done.append("already set")
+            continue
+        settings.update(want)
+        try:
+            tmp = path + ".droiddeck-tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, path)
+            done.append("written" if text is not None else "created")
+        except OSError as error:
+            done.append("not written (%s)" % error.strerror)
+    if not done:
+        return None
+    return "Slay the Spire 2 settings.save: fps_limit %s%s (%s)" % (
+        fps, ", vsync off" if "vsync" in want else "", ", ".join(done))
+
+
 def present_pacing(env, fps, layer_dir=None):
     """A game can set its own frame rate and vsync after start (Slay the Spire 2 re-applies its saved settings over
     --max-fps and ran at 40-44 fps under a 30 cap, Nov 14), so VK_LAYER_DROIDDECK_vkcount also paces presents to
@@ -3471,6 +3535,9 @@ def main():
     core_plan = cpu_topology(env, command)
     pacing = None
     if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        note = sts2_settings_cap(command, env)
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
         command, note = frame_cap(command, env)
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)

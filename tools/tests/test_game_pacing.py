@@ -147,6 +147,35 @@ class FrameCapTest(unittest.TestCase):
             self.cap([str(self.other)], other)
             self.assertNotIn("DROIDDECK_PACE_FPS", other)
 
+    def test_slay_the_spire_2_settings_save_gets_the_cap_and_keeps_everything_else(self):
+        prefix = Path(self.tmp.name) / "compat"
+        users = prefix / "pfx" / MODULE["STS2_SETTINGS"]
+        (users / "76561198000000001").mkdir(parents=True)
+        (users / "76561198000000002").mkdir()
+        (users / "logs").mkdir()
+        saved = users / "76561198000000001" / "settings.save"
+        saved.write_text(json.dumps({"fps_limit": 60, "language": "eng", "schema_version": 8, "vsync": "adaptive"}))
+        env = {"DROIDDECK_FPS_CAP": "30", "STEAM_COMPAT_DATA_PATH": str(prefix), "DROIDDECK_EXP_ONE_LIMITER": "1"}
+        note = MODULE["sts2_settings_cap"](["/proton", "waitforexitandrun", str(self.godot)], env)
+        self.assertEqual(note, "Slay the Spire 2 settings.save: fps_limit 30, vsync off (written, created)")
+        self.assertEqual(json.loads(saved.read_text()),
+                         {"fps_limit": 30, "language": "eng", "schema_version": 8, "vsync": "off"})
+        self.assertEqual(json.loads((users / "76561198000000002" / "settings.save").read_text()),
+                         {"schema_version": 8, "fps_limit": 30, "vsync": "off"})
+        self.assertFalse((users / "logs" / "settings.save").exists())
+        note = MODULE["sts2_settings_cap"](["/proton", "waitforexitandrun", str(self.godot)], env)
+        self.assertEqual(note, "Slay the Spire 2 settings.save: fps_limit 30, vsync off (already set, already set)")
+        without = dict(env)
+        del without["DROIDDECK_EXP_ONE_LIMITER"]
+        saved.write_text("{not json")
+        note = MODULE["sts2_settings_cap"](["/proton", "waitforexitandrun", str(self.godot)], without)
+        self.assertEqual(note, "Slay the Spire 2 settings.save: fps_limit 30 (not JSON, left alone, already set)")
+        self.assertEqual(saved.read_text(), "{not json")
+        for command, e in ((["/proton", "waitforexitandrun", str(self.godot), "--max-fps", "60"], env),
+                           (["/proton", "waitforexitandrun", str(self.other)], env),
+                           (["/proton", "waitforexitandrun", str(self.godot)], dict(env, DROIDDECK_FPS_CAP="0"))):
+            self.assertIsNone(MODULE["sts2_settings_cap"](command, e))
+
     def test_godot_verbose_logs_resource_loads_ahead_of_user_arguments_only_for_godot(self):
         verbose = MODULE["godot_verbose"]
         env = {"DROIDDECK_EXP_GODOT_VERBOSE": "1"}
