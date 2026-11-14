@@ -148,6 +148,29 @@ struct TransformData {
 	float mix_rotate = 0, mix_x = 0, mix_y = 0, mix_scale_x = 0, mix_scale_y = 0, mix_shear_y = 0;
 };
 
+// Moves bones along a path attachment in the target slot. Modes: position fixed 0 / percent 1;
+// spacing length 0 / fixed 1 / percent 2 / proportional 3; rotate tangent 0 / chain 1 / chain scale 2.
+struct PathData {
+	std::string name;
+	int order = 0;
+	bool skin_required = false;
+	std::vector<int> bones;
+	int target = 0; // slot
+	int position_mode = 1, spacing_mode = 0, rotate_mode = 0;
+	float offset_rotation = 0, position = 0, spacing = 0, mix_rotate = 1, mix_x = 1, mix_y = 1;
+};
+
+// Spring physics on one bone's local transform. mass_inverse is stored as read (1 / mass).
+struct PhysicsData {
+	std::string name;
+	int order = 0;
+	bool skin_required = false;
+	int bone = 0;
+	float x = 0, y = 0, rotate = 0, scale_x = 0, shear_x = 0, limit = 5000;
+	float fps = 60, inertia = 1, strength = 100, damping = 1, mass_inverse = 1, wind = 0, gravity = 0, mix = 1;
+	uint8_t global_flags = 0; // which values follow the skeleton-wide physics timelines
+};
+
 // Keyframes with per-channel values and per-segment curves. Bezier controls are stored in absolute
 // time/value space so loaders for different format versions can share one evaluator.
 struct Curve {
@@ -170,7 +193,8 @@ struct Curve {
 
 enum class TimelineType {
 	Rotate, Translate, TranslateX, TranslateY, Scale, ScaleX, ScaleY, Shear, ShearX, ShearY,
-	Attachment, RGBA, RGB, Alpha, RGBA2, RGB2, Deform, DrawOrder, Event, Ik, Inherit, Transform, Sequence
+	Attachment, RGBA, RGB, Alpha, RGBA2, RGB2, Deform, DrawOrder, Event, Ik, Inherit, Transform, Sequence,
+	PathPosition, PathSpacing, PathMix
 };
 
 struct Timeline {
@@ -204,6 +228,8 @@ struct SkeletonData {
 	std::vector<EventData> events;
 	std::vector<IkData> ik;
 	std::vector<TransformData> transforms;
+	std::vector<PathData> paths;
+	std::vector<PhysicsData> physics;
 	std::vector<Animation> animations;
 	std::vector<std::string> unsupported; // features in the file this core ignores, for logging
 

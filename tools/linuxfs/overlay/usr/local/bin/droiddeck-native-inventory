@@ -40,9 +40,11 @@ SAMPLES = CACHE_DIR / "native-samples.zip"
 SAMPLE_BUDGET = 3 << 20
 SAMPLE_FILE_MAX = 1536 << 10
 HEAD_MAX = 2 << 20
-SAMPLES_VERSION = 4  # 2: bank metadata heads and skeletons with layouts the survey cannot read yet;
+SAMPLES_VERSION = 5  # 2: bank metadata heads and skeletons with layouts the survey cannot read yet;
                      # 3: the smallest scenes using SpineSprite, the bone and slot nodes, and an FMOD emitter
                      # 4: also the smallest skeleton for each stage and kind of read error
+                     # 5: the survey reads path and physics constraints, path attachments and timelines,
+                     #    named skins and deform keys, so the read errors left are new ones
 REPORT_LINE_MAX = 8000
 FOURCC = re.compile(rb"^[A-Za-z0-9 _]{4}$")
 VERSION_TEXT = re.compile(rb"(?<![0-9.])([34])\.(\d)\.(\d{1,3})(?![0-9])")
@@ -347,7 +349,7 @@ def skel_survey(blob):
         flags = r.byte()
         kind = flags & 7
         add("attachment_%d" % kind)
-        if kind in (4, 7):
+        if kind == 7:
             raise ValueError("attachment type %d (layout unknown)" % kind)
         if kind in (0, 2, 3):  # region, mesh and linked mesh: 8 name, 16 path, 32 color, 64 sequence
             if flags & 8:
@@ -384,6 +386,12 @@ def skel_survey(blob):
             skin, parent = r.ref(), r.ref() or ""
             r.skip(8 * nonessential)
             links.append((table, (slot, key), skin, parent))
+        elif kind == 4:  # path: 16 closed, 32 constant speed, 64 weighted; one length per 3 vertices
+            if flags & 8:
+                raise ValueError("path attachment flag 8 (layout unknown)")
+            count = r.count()
+            length = vertices(count, flags & 64)
+            r.skip(4 * (count // 3) + 4 * nonessential)
         elif kind == 5:  # point
             r.skip(12 + 4 * nonessential)
         else:  # 6, clipping: end slot, 16 weighted
@@ -474,15 +482,31 @@ def skel_survey(blob):
             f2 = r.byte()  # 1..64 which of shear offset and 6 mixes follow
             r.skip(4 * bin(f2 & 0x7F).count("1"))
         stage = "path"
-        n = r.count()
-        if n:
-            c["path_constraints"] = n
-            return dict(c, ok=False, stage="path constraints (layout unknown)", at=r.p)
+        paths = r.count()
+        for _ in range(paths):
+            add("path_constraints")
+            r.string()
+            r.varint()
+            if r.byte() & ~1:  # 1 skin required; other bits have not been seen
+                return dict(c, ok=False, stage="path constraint flags (layout unknown)", at=r.p)
+            constraint_bones()
+            r.index(slots, "path target slot")
+            modes = r.byte()  # 1 position mode, 6 spacing mode, 24 rotate mode
+            if modes >> 5 or (modes >> 3) & 3 == 3:
+                return dict(c, ok=False, stage="path constraint modes (layout unknown)", at=r.p)
+            r.skip(20)  # position, spacing, rotate/x/y mixes
         stage = "physics"
-        n = r.count()
-        if n:
-            c["physics_constraints"] = n
-            return dict(c, ok=False, stage="physics constraints (layout unknown)", at=r.p)
+        physics = r.count()
+        for _ in range(physics):
+            add("physics_constraints")
+            r.string()
+            r.varint()
+            r.index(bones, "physics bone")
+            flags = r.byte()  # 1 skin, 2..64 which of x, y, rotate, scale x, shear x, limit follow, 128 mass
+            r.skip(4 * bin(flags & 0x7E).count("1"))
+            r.skip(1 + 12 + 4 * bool(flags & 128) + 8)  # fps, inertia/strength/damping, mass, wind/gravity
+            if r.byte() & 128:  # which values follow the global timelines; 128 mix follows
+                r.skip(4)
 
         skin_names, skin_tables, links = ["default"], [{}], []
         stage = "default skin"
@@ -491,7 +515,7 @@ def skel_survey(blob):
         n = r.count()
         c["skins"] = n + 1
         for _ in range(n):
-            skin_names.append(r.ref() or "")
+            skin_names.append(r.string() or "")  # inline, not through the string table
             r.skip(4 * nonessential)
             for _ in range(r.count()):
                 r.index(bones, "skin bone")
@@ -581,10 +605,16 @@ def skel_survey(blob):
                 r.varint()
                 curves(frames, 6, 24)
             stage = "animations: path timelines"
-            n = r.count()
-            if n:
-                c["path_timelines"] = c.get("path_timelines", 0) + n
-                return dict(c, ok=False, stage="path timelines (layout unknown)", at=r.p)
+            for _ in range(r.count()):
+                r.index(paths, "path")
+                for _ in range(r.count()):
+                    kind, frames = r.byte(), r.count()
+                    if kind > 2:
+                        raise ValueError("path timeline type %d unknown" % kind)
+                    add("path_timelines")
+                    r.varint()
+                    ch = 3 if kind == 2 else 1  # position, spacing, mix (rotate, x, y)
+                    curves(frames, ch, 4 * ch)
             stage = "animations: physics timelines"
             n = r.count()
             if n:
@@ -610,15 +640,17 @@ def skel_survey(blob):
                         r.varint()
                         length = table[(slot, key)]
                         for f in range(frames):
+                            # Time, then (after the first frame) the curve from the previous frame, then a
+                            # count of floats and the offset of the first.
                             r.skip(4)
-                            end = r.varint()
-                            if end:
-                                start = r.varint()
-                                if start > end or end > length:
-                                    raise ValueError("deform %d..%d past %d floats" % (start, end, length))
-                                r.skip(4 * (end - start))
                             if f:
                                 segment(1)
+                            count = r.varint()
+                            if count:
+                                start = r.varint()
+                                if start + count > length:
+                                    raise ValueError("deform %d+%d past %d floats" % (start, count, length))
+                                r.skip(4 * count)
             stage = "animations: draw order"
             n = r.count()
             if n:
