@@ -67,3 +67,19 @@ Everything else (crashes, hangs, regressions, CI breaks, perf drops) is the loop
 - A fix without green CI does not merge. A fix that only hides a signature (deletes the log line,
   widens a timeout without cause) is not a fix.
 - The owner's pinned config choices (native-engine pin) are not reverted by the loop.
+
+## Off-phone gates
+
+- native-startup-gate: jobs inside build.yml (export matrix, gate matrix, soak) that start the native
+  engine off-device on every push. A red gate job is a retest failure for the attempt.
+- offphone-rig.yml: redroid Android 14 on ubuntu-24.04-arm. Inputs apk_run_id (build.yml run; empty
+  means newest green build of ref), ref (default perf/switchboard), scenario (steam-ui,
+  stand-in-game, all), guest_vulkan (lavapipe or venus), image. Runs on workflow_dispatch,
+  workflow_call and pushes to ci/offphone-probe. Each rig (<scenario>) job passes only when the
+  scenario's target stage is reached and prints verdict.json ({scenario, target_stage,
+  stage_reached, ok, seconds_to_each_stage, next_missing_stage, exit{class, suspect, status,
+  signal, detail}}), the app's events.jsonl and session.log, logcat and process samples in its
+  log. steam-ui stops at Steam's sign-in screen and never types anything; stand-in-game uses a
+  stand-in executable, never real game files.
+- A session without API write access can't dispatch the rig; it reads the rig runs that already
+  exist for a build and leaves dispatching to a session that can.

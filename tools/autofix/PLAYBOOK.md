@@ -27,6 +27,7 @@ fixes with no step from the owner, and record everything in the ledger.
   clone each with --depth 1 to /home/claude/<name>, then in the fork:
   `git fetch --depth=300 origin perf/switchboard && git checkout -B switchboard FETCH_HEAD`.
 - `gh api` works for REST even if `gh auth status` says the token is invalid. GraphQL does not.
+  API writes (reruns, workflow_dispatch, branch deletes) are refused here; git push works.
 
 ## 2. Sweep
 
@@ -55,15 +56,18 @@ b. **Root cause.** Read the evidence lines, the zip itself, the suspect commit r
    (`git log -p first_good..first_bad`), and the owner thread's notes. Write the cause in one
    paragraph, with what in the evidence proves it. If you can't name a cause, say what extra
    telemetry would and add that logging as the fix (it is a valid fix).
-c. **Reproduce off-phone** where possible: a failing unit test, the native/FEX startup gate
-   workflows, or the launch rig (see docs/development/autofix-loop.md for current gate names).
+c. **Reproduce off-phone** where possible: a failing unit test, the native startup gate
+   (native-startup-gate jobs inside build.yml, run on every push), or the off-phone launch rig
+   (see "Off-phone gates" in docs/development/autofix-loop.md).
 d. **Fix in parallel.** Start 2 to 4 subagents, each with a different hypothesis, each in its own
    worktree on branch `autofix/<sig>/<k>` from origin/perf/switchboard. Each must: make the
    smallest change that addresses its hypothesis, add or extend a test that fails without it,
    run the Python tests that touch the area locally, push the branch (push builds it in CI).
    Brief each subagent with these hard rules verbatim and tell it not to call mcp__hearthbot__.
 e. **Retest.** Wait for each branch's Build APK run (`gh api repos/renxida/droiddeck/actions/runs?branch=...`)
-   and any gate workflows. Record attempt_result in the ledger.
+   and its native-startup-gate jobs. For a launch-stage item, also read the newest offphone-rig.yml
+   run for that build (its job log prints verdict.json; artifacts can't be downloaded here).
+   Record attempt_result in the ledger.
 f. **Promote** the first attempt that is green and has a regression test. Only the switchboard
    owner (the Fork/UX thread) pushes perf/switchboard: never push or merge there yourself. Write
    a `ready_to_promote` ledger event (sig, branch, sha, one-line summary, files touched) and, if
