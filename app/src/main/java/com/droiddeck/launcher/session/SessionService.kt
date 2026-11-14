@@ -514,6 +514,15 @@ class SessionService : Service() {
         val sessionDir = openSessionFolder()
         Log.i(TAG, "experiments: " + Experiments.line(experiments))
         SessionEvents.record("session.experiments", mapOf("on" to Experiments.line(experiments)))
+        runCatching {
+            // What this launch boots, as the loading screen says it before the guest reports; game.engine follows per game.
+            val words = LaunchInfo.words(this)
+            SessionEvents.record("session.boot", mapOf(
+                "app" to LaunchInfo.appLine(words), "engine_intended" to LaunchInfo.engineLine(this, experiments, words),
+                "commit" to com.droiddeck.launcher.BuildConfig.SOURCE_COMMIT, "commit_time_ms" to com.droiddeck.launcher.BuildConfig.COMMIT_TIME,
+                "branch" to com.droiddeck.launcher.telemetry.BuildInfo.branch(), "steam_branch" to LaunchInfo.steamBranch(),
+            ))
+        }.onFailure { Log.w(TAG, "session.boot", it) }
         SessionEvents.record("session.remote_config", mapOf("applied" to (remoteConfig?.line() ?: "none")))
         com.droiddeck.launcher.telemetry.RemoteConfig.writeSnapshot(this, sessionDir, remoteConfig, experiments)
         val freeingMemory = if (Experiments.FREE_MEMORY in experiments)

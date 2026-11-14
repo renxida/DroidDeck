@@ -7,15 +7,22 @@ import java.io.File
 
 /** Which Steam branch a launch should play; droiddeck-steam-branch applies it before Steam starts. */
 object SteamBranch {
-    const val BETA = "beta"
-    const val STABLE = "public"
+    const val BETA = BootLine.SteamBranchNames.BETA
+    const val STABLE = BootLine.SteamBranchNames.STABLE
     private const val TAG = "SteamBranch"
     private val offeredApps = setOf(2868840)
 
     fun offered(appId: Int): Boolean = appId in offeredApps
 
+    /** The branch the latest launch asked for, for the loading screen: null when that game offers no choice. */
+    class Request(val appId: Int, val branch: String, val at: Long)
+    @Volatile var last: Request? = null
+        private set
+
     fun request(context: Context, appId: Int, branch: String) {
-        if (!offered(appId) || branch !in setOf(BETA, STABLE)) return
+        val chosen = offered(appId) && branch in setOf(BETA, STABLE)
+        last = if (chosen) Request(appId, branch, System.currentTimeMillis()) else null
+        if (!chosen) return
         runCatching { write(File(LinuxRuntime.sessionRoot(context), "steam-branch"), appId, branch) }
             .onFailure { Log.w(TAG, "could not record branch $branch for $appId", it) }
     }

@@ -4344,10 +4344,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** One flavour line per activity, so it holds still through the launch. */
     private val launchFlavor: String by lazy { com.droiddeck.launcher.session.LaunchInfo.flavor(System.nanoTime() / 1000) }
 
-    /** The launch lines, read again as the loading step changes so the FEX line and rotation row show once known. */
+    /** The launch lines, read again as the loading step changes, and when the guest says which engine it started, so the
+     *  FEX line, rotation row and engine line show once known. */
     @androidx.compose.runtime.Composable
     private fun launchLines(step: String): List<String> =
-        androidx.compose.runtime.remember(step) { runCatching { com.droiddeck.launcher.session.LaunchInfo.lines(this) }.getOrDefault(emptyList()) }
+        androidx.compose.runtime.remember(step, com.droiddeck.launcher.session.LaunchInfo.engine) { runCatching { com.droiddeck.launcher.session.LaunchInfo.lines(this) }.getOrDefault(emptyList()) }
 
     private val endListener: (Int) -> Unit = { status -> onSessionEnded(status) }
     private val firstFrameListener = Runnable {
