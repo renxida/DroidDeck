@@ -18,7 +18,7 @@ class NativeSoundBank : public RefCounted {
 	fsb::Container container;
 	fsb::PathTable paths; // only in a strings bank
 	fsb::EventTable events; // only in a bank with events
-	HashMap<int, Ref<AudioStreamOggVorbis>> streams; // made on first use
+	HashMap<int, Ref<AudioStreamOggVorbis>> streams, looping_streams; // made on first use
 	String load_error;
 
 protected:
@@ -33,6 +33,7 @@ public:
 	int find_sound(const String &p_name) const;
 	int get_sound_frames(int p_index) const;
 	Ref<AudioStreamOggVorbis> get_stream(int p_index);
+	Ref<AudioStreamOggVorbis> get_looping_stream(int p_index); // the same sound, set to loop
 
 	// The path table of a strings bank: event:/, bus:/, vca:/, snapshot:/, parameter:/ and bank:/ paths
 	// with their GUIDs (as {xxxxxxxx-...} text).

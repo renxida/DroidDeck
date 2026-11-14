@@ -7,7 +7,11 @@
 // GUIDs written inside the payloads. The parts read here:
 //   EVNT (LIST): EVTB  own GUID, 16 zero bytes, timeline GUID at 32, then arrays holding the event's
 //                      instrument GUIDs and its parameter-sheet GUIDs
-//   TMLN (LIST): TLNB  own GUID, then arrays of instrument placements (GUID, start, length)
+//   TMLN (LIST): TLNB  own GUID, u16, then arrays. An array is u16 tag then either (tag odd) u16 element
+//                      size and tag/2 elements, or (tag even) tag/2 elements each led by its u16 size.
+//                      The first holds instrument placements (GUID, u32 start, u32 length); later
+//                      variable ones hold markers (GUID, u32 position, name) and loop regions, 26 bytes:
+//                      (GUID, u32 start, u16, u32 end). An instrument overlapping a loop region loops.
 //   PMLO (LIST):       a parameter sheet; its chunks name the instruments it switches between
 //   WAIT (LIST): WAIB  own GUID, then the waveform GUID;  INST  f32 volume in dB at byte 16
 //   MUIT (LIST): MUIB  own GUID;  INST as above;  PLST  u32 mode, u32 1, u16 entries*2+1, u16 20,
@@ -47,6 +51,7 @@ struct EventTable {
 	};
 	struct Event {
 		std::vector<Guid> instruments; // all start together
+		std::vector<Guid> looped; // those of them overlapping a timeline loop region
 	};
 	std::unordered_map<Guid, Event, GuidHash> events;
 	std::unordered_map<Guid, Instrument, GuidHash> instruments;
@@ -60,6 +65,7 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 struct Pick {
 	Guid wave{};
 	float volume_db = 0;
+	bool loop = false; // plays until the event stops
 };
 
 // The sounds one start of the event plays: each instrument in turn, a multi instrument choosing one entry

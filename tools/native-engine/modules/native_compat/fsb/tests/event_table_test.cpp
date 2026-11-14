@@ -81,7 +81,8 @@ Bytes bank() {
 		putf(b, 1);
 		return b;
 	};
-	auto tlnb = [](const fsb::Guid &own, const std::vector<fsb::Guid> &refs) {
+	// Instruments at 0..1000; with `loop`, an empty array, then a marker and a loop region over 0..1200.
+	auto tlnb = [](const fsb::Guid &own, const std::vector<fsb::Guid> &refs, bool loop) {
 		Bytes b;
 		putg(b, own);
 		put(b, 1, 2);
@@ -91,6 +92,21 @@ Bytes bank() {
 			putg(b, g);
 			put(b, 0, 4);
 			put(b, 1000, 4);
+		}
+		if (loop) {
+			put(b, 0, 2);
+			put(b, 2 * 2, 2);
+			put(b, 29, 2); // marker "end" at 900
+			putg(b, G(40));
+			put(b, 900, 4);
+			put(b, 3, 2);
+			b.insert(b.end(), { 'e', 'n', 'd', 0, 0, 0, 0 });
+			put(b, 26, 2); // loop region 0..1200
+			putg(b, G(41));
+			put(b, 0, 4);
+			put(b, 0, 2);
+			put(b, 1200, 4);
+			put(b, 1, 2);
 		}
 		return b;
 	};
@@ -126,7 +142,7 @@ Bytes bank() {
 			chunk("BNKI", Bytes(32, 0)),
 			list("EVTS", { list("EVNT", { chunk("EVTB", evtb(E1, T1, { W1 })) }),
 								 list("EVNT", { chunk("EVTB", evtb(E2, T2, { S2 })) }) }),
-			list("TLNS", { list("TMLN", { chunk("TLNB", tlnb(T1, { M1 })) }), list("TMLN", { chunk("TLNB", tlnb(T2, {})) }) }),
+			list("TLNS", { list("TMLN", { chunk("TLNB", tlnb(T1, { M1 }, true)) }), list("TMLN", { chunk("TLNB", tlnb(T2, {}, false)) }) }),
 			list("PMLS", { list("PMLO", { chunk("PMLB", pmlb), chunk("PMIN", sheet_refs) }) }),
 			list("MUIS", { list("MUIT", { chunk("MUIB", muib), chunk("PLST", plst), chunk("INST", inst(-3)) }) }),
 			list("WAIS", { wait(W1, A, -6), wait(W2, B, 0), wait(W3, C, 0) }),
@@ -157,8 +173,8 @@ void test_synthetic() {
 		std::vector<fsb::Pick> p;
 		CHECK(fsb::resolve_event(t, E1, rng, p));
 		CHECK(p.size() == 2);
-		CHECK(p[0].wave == A && p[0].volume_db == -6);
-		CHECK(p[1].volume_db == -3);
+		CHECK(p[0].wave == A && p[0].volume_db == -6 && !p[0].loop);
+		CHECK(p[1].volume_db == -3 && p[1].loop); // M1 sits in T1's loop region
 		got_b += p[1].wave == B;
 		got_c += p[1].wave == C;
 	}
@@ -166,7 +182,7 @@ void test_synthetic() {
 	CHECK(got_b > 800 && got_b < 1200); // weight 1 of 4
 	std::vector<fsb::Pick> p;
 	CHECK(fsb::resolve_event(t, E2, rng, p));
-	CHECK(p.size() == 1 && p[0].wave == A);
+	CHECK(p.size() == 1 && p[0].wave == A && !p[0].loop);
 	p.clear();
 	CHECK(!fsb::resolve_event(t, W1, rng, p) && p.empty());
 
@@ -229,19 +245,20 @@ int main(int argc, char **argv) {
 			printf("%s: FAILED %s\n", argv[i], error.c_str());
 			return 1;
 		}
-		int sounding = 0, picks = 0, missing_wave = 0;
+		int sounding = 0, picks = 0, missing_wave = 0, looping = 0;
 		uint32_t rng = 7;
 		for (const auto &e : t.events) {
 			std::vector<fsb::Pick> p;
 			fsb::resolve_event(t, e.first, rng, p);
 			sounding += !p.empty();
+			looping += !e.second.looped.empty();
 			picks += int(p.size());
 			for (const fsb::Pick &k : p) {
 				missing_wave += !t.waves.count(k.wave);
 			}
 		}
-		printf("%s: events %zu instruments %zu waves %zu sounding %d picks %d picks_without_wave %d\n", argv[i],
-				t.events.size(), t.instruments.size(), t.waves.size(), sounding, picks, missing_wave);
+		printf("%s: events %zu instruments %zu waves %zu sounding %d looping %d picks %d picks_without_wave %d\n",
+				argv[i], t.events.size(), t.instruments.size(), t.waves.size(), sounding, looping, picks, missing_wave);
 	}
 	printf("event table tests OK\n");
 	return 0;

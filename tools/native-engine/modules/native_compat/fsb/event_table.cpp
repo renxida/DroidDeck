@@ -83,6 +83,74 @@ void scan(const uint8_t *p, size_t n, const GuidSet &set, std::vector<Guid> &out
 	}
 }
 
+// Instruments placed inside a loop region of a timeline block (layout in event_table.h).
+void timeline_loops(const uint8_t *p, size_t n, std::vector<Guid> &out) {
+	size_t at = 18;
+	if (n < at + 4) {
+		return;
+	}
+	struct Placement {
+		Guid g;
+		uint32_t start, end;
+	};
+	std::vector<Placement> placed;
+	std::vector<std::pair<uint32_t, uint32_t>> regions;
+	bool first = true;
+	while (at + 2 <= n) {
+		const uint32_t tag = rd16(p + at);
+		at += 2;
+		const size_t count = tag >> 1;
+		if (tag & 1) {
+			if (at + 2 > n) {
+				break;
+			}
+			const size_t size = rd16(p + at);
+			at += 2;
+			if (size == 0 || count > (n - at) / size) {
+				break;
+			}
+			if (first && size >= 24) {
+				for (size_t i = 0; i < count; i++) {
+					const uint8_t *e = p + at + size * i;
+					const uint32_t start = rd32(e + 16), length = rd32(e + 20);
+					placed.push_back({ guid_at(e), start, start + length });
+				}
+			}
+			at += size * count;
+		} else {
+			bool ok = true;
+			for (size_t i = 0; i < count && ok; i++) {
+				if (at + 2 > n) {
+					ok = false;
+					break;
+				}
+				const size_t size = rd16(p + at);
+				at += 2;
+				if (size > n - at) {
+					ok = false;
+					break;
+				}
+				if (size == 26) {
+					regions.emplace_back(rd32(p + at + 16), rd32(p + at + 22));
+				}
+				at += size;
+			}
+			if (!ok) {
+				break;
+			}
+		}
+		first = false;
+	}
+	for (const Placement &pl : placed) {
+		for (const auto &r : regions) {
+			if (pl.start < r.second && r.first < pl.end) { // overlaps the region
+				out.push_back(pl.g);
+				break;
+			}
+		}
+	}
+}
+
 } // namespace
 
 bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::string &error) {
@@ -201,6 +269,9 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 				for (const Chunk &c : tl->second.chunks) {
 					scan(c.body, c.size, instrument_ids, ev.instruments);
 				}
+				if (const Chunk *c = tl->second.find("TLNB")) {
+					timeline_loops(c->body, c->size, ev.looped);
+				}
 			}
 		}
 		// Instruments that only a parameter sheet reaches play when nothing else would.
@@ -231,9 +302,9 @@ uint32_t next(uint32_t &s) {
 	return s;
 }
 
-void pick(const EventTable &t, const Guid &g, float volume_db, uint32_t &rng, int depth, std::vector<Pick> &out) {
+void pick(const EventTable &t, const Guid &g, float volume_db, bool loop, uint32_t &rng, int depth, std::vector<Pick> &out) {
 	if (t.waves.count(g)) {
-		out.push_back({ g, volume_db });
+		out.push_back({ g, volume_db, loop });
 		return;
 	}
 	auto it = t.instruments.find(g);
@@ -243,7 +314,7 @@ void pick(const EventTable &t, const Guid &g, float volume_db, uint32_t &rng, in
 	const EventTable::Instrument &in = it->second;
 	volume_db += in.volume_db;
 	if (!in.multi) {
-		out.push_back({ in.wave, volume_db });
+		out.push_back({ in.wave, volume_db, loop });
 		return;
 	}
 	if (in.playlist.empty()) {
@@ -268,7 +339,7 @@ void pick(const EventTable &t, const Guid &g, float volume_db, uint32_t &rng, in
 	} else {
 		chosen = next(rng) % in.playlist.size();
 	}
-	pick(t, in.playlist[chosen].first, volume_db, rng, depth + 1, out);
+	pick(t, in.playlist[chosen].first, volume_db, loop, rng, depth + 1, out);
 }
 
 } // namespace
@@ -278,8 +349,13 @@ bool resolve_event(const EventTable &table, const Guid &event, uint32_t &rng, st
 	if (it == table.events.end()) {
 		return false;
 	}
-	for (const Guid &g : it->second.instruments) {
-		pick(table, g, 0, rng, 0, out);
+	const EventTable::Event &ev = it->second;
+	for (const Guid &g : ev.instruments) {
+		bool loop = false;
+		for (const Guid &l : ev.looped) {
+			loop = loop || l == g;
+		}
+		pick(table, g, 0, loop, rng, 0, out);
 	}
 	return true;
 }

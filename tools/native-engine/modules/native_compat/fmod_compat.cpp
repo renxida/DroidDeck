@@ -429,6 +429,9 @@ Ref<FmodEventDescription> FmodServer::get_event(const String &p_path) {
 	d.instantiate();
 	d->path = p_path;
 	d->guid = guid_for(p_path);
+	if (d->guid.is_empty() && p_path.begins_with("{")) {
+		d->guid = p_path; // asked for by GUID with no name table entry: the banks may still know it
+	}
 	if (d->guid.is_empty() && missing.size() < 64 && !missing.has(p_path)) {
 		missing.push_back(p_path);
 	}
@@ -485,7 +488,7 @@ int FmodServer::play_event_sounds(const String &p_guid, const String &p_path, fl
 			const Ref<NativeSoundBank> &d = kv.value->data;
 			const int index = d.is_valid() ? d->find_wave(pick.wave) : -1;
 			if (index >= 0) {
-				stream = d->get_stream(index);
+				stream = pick.loop ? d->get_looping_stream(index) : d->get_stream(index);
 				break;
 			}
 		}

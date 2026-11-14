@@ -40,7 +40,7 @@ crash at main-menu asset preload on ARM64 even with full TSO.
 | Godot 4.5.1 engine, linux arm64, .NET (CoreCLR) | godotengine/godot (official linux arm64 mono templates exist) | MIT | free, buildable in CI |
 | .NET 9 runtime linux-arm64 | dotnet/runtime | MIT | free |
 | Skeleton animation (Spine stand-in) | ours, clean-room, `tools/native-engine/modules/native_compat/skel` | MIT | **Cedar chose to write our own** (Nov 13). JSON, binary 4.2 `.skel` (all five sampled game skeletons load and play), atlas, path constraints and physics springs |
-| Audio (FMOD stand-in) | ours, clean-room event player, `native_compat/fsb` and `fmod_compat` | MIT | Vorbis sounds, path table and event metadata read; starting an event plays its sounds (598 of 600 sfx events resolve). Parameters, buses, 3D and looping not mixed yet |
+| Audio (FMOD stand-in) | ours, clean-room event player, `native_compat/fsb` and `fmod_compat` | MIT | Vorbis sounds, path table and event metadata read; starting an event plays its sounds (598 of 600 sfx events resolve), timeline loop regions loop. Parameters, buses, 3D and timeline start offsets not applied yet |
 | Steamworks | stub (ours, MIT) or Valve's libsteam_api arm64 | stub: none | stub is enough to boot (port does it) |
 | Sentry | disable | n/a | trivial |
 

@@ -223,12 +223,27 @@ func event_sound_test() -> bool:
 	var ended = inst.get_playback_state() == 2
 	server.play_one_shot("event:/x")
 	await get_tree().create_timer(0.7).timeout # let it end: a sound still playing at quit reads as a leak
+	# Event GUID 30 has no path and loops: still playing and audible past the tone's 0.5 s, stopped on stop().
+	var looping = server.create_event_instance_with_guid("{0000001e-0000-4000-8000-00000000001e}")
+	looping.start()
+	await get_tree().create_timer(0.8).timeout
+	capture.clear_buffer()
+	await get_tree().create_timer(0.1).timeout
+	var loop_frames = capture.get_buffer(capture.get_frames_available())
+	var loop_sum := 0.0
+	for f in loop_frames:
+		loop_sum += f.x * f.x + f.y * f.y
+	var loop_rms = sqrt(loop_sum / max(1, loop_frames.size() * 2))
+	var still_playing = looping.get_playback_state() == 0
+	looping.stop(1)
+	var loop_ok = still_playing and loop_rms > 0.05 and looping.get_playback_state() == 2
+	await get_tree().create_timer(0.1).timeout
 	var stats = server.get_compat_stats()
 	AudioServer.remove_bus_effect(0, AudioServer.get_bus_effect_count(0) - 1)
-	var ok = bank.get_event_description_count() == 1 and started == 1 and frames.size() > 0 and rms > 0.05 \
-		and playing_mid and ended and stats["sounds_started"] - before == 2
+	var ok = bank.get_event_description_count() == 2 and started == 1 and frames.size() > 0 and rms > 0.05 \
+		and playing_mid and ended and loop_ok and stats["sounds_started"] - before == 3
 	print("SKELTEST event sound started=", started, " frames=", frames.size(), " rms=", rms, " playing_mid=",
-		playing_mid, " ended=", ended, " stats=", stats, " ok=", ok)
+		playing_mid, " ended=", ended, " loop_rms=", loop_rms, " loop_ok=", loop_ok, " stats=", stats, " ok=", ok)
 	return ok
 
 func shot(tag: String) -> void:

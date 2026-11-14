@@ -20,6 +20,7 @@ Error NativeSoundBank::load_bytes(const PackedByteArray &p_bytes) {
 	paths = fsb::PathTable();
 	events = fsb::EventTable();
 	streams.clear();
+	looping_streams.clear();
 	std::string error;
 	// Event metadata is optional: a bank we cannot read it from still serves its sounds by index.
 	if (!fsb::read_event_table(p_bytes.ptr(), p_bytes.size(), events, error)) {
@@ -177,6 +178,20 @@ Ref<AudioStreamOggVorbis> NativeSoundBank::get_stream(int p_index) {
 	stream->set_packet_sequence(sequence);
 	streams[p_index] = stream;
 	return stream;
+}
+
+Ref<AudioStreamOggVorbis> NativeSoundBank::get_looping_stream(int p_index) {
+	if (const Ref<AudioStreamOggVorbis> *have = looping_streams.getptr(p_index)) {
+		return *have;
+	}
+	Ref<AudioStreamOggVorbis> base = get_stream(p_index);
+	if (base.is_null()) {
+		return base;
+	}
+	Ref<AudioStreamOggVorbis> loop = base->duplicate(); // shares the packet data
+	loop->set_loop(true);
+	looping_streams[p_index] = loop;
+	return loop;
 }
 
 void NativeSoundBank::_bind_methods() {
