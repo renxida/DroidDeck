@@ -4,6 +4,7 @@
 #include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/templates/hash_set.h"
+#include "scene/resources/canvas_item_material.h"
 #include "servers/rendering_server.h"
 
 namespace {
@@ -1476,7 +1477,46 @@ void SpineSprite::_follow_children() {
 	}
 }
 
+RID SpineSprite::_blend_item(int p_run, int p_blend) {
+	RenderingServer *rs = RenderingServer::get_singleton();
+	while (blend_items.size() <= p_run) {
+		RID item = rs->canvas_item_create();
+		rs->canvas_item_set_parent(item, get_canvas_item());
+		rs->canvas_item_set_draw_index(item, blend_items.size());
+		blend_items.push_back(item);
+	}
+	RID item = blend_items[p_run];
+	rs->canvas_item_clear(item);
+	if (p_blend == int(skel::BlendMode::Normal)) {
+		rs->canvas_item_set_use_parent_material(item, true);
+		rs->canvas_item_set_material(item, RID());
+	} else {
+		if (blend_materials[p_blend].is_null()) {
+			Ref<CanvasItemMaterial> m;
+			m.instantiate();
+			// The canvas has no screen blend; additive is the nearest.
+			m->set_blend_mode(p_blend == int(skel::BlendMode::Multiply) ? CanvasItemMaterial::BLEND_MODE_MUL : CanvasItemMaterial::BLEND_MODE_ADD);
+			blend_materials[p_blend] = m;
+		}
+		rs->canvas_item_set_use_parent_material(item, false);
+		rs->canvas_item_set_material(item, blend_materials[p_blend]->get_rid());
+	}
+	return item;
+}
+
+void SpineSprite::_free_blend_items() {
+	RenderingServer *rs = RenderingServer::get_singleton();
+	for (const RID &item : blend_items) {
+		rs->free(item);
+	}
+	blend_items.clear();
+}
+
 void SpineSprite::_draw_skeleton() {
+	RenderingServer *rs = RenderingServer::get_singleton();
+	for (const RID &item : blend_items) {
+		rs->canvas_item_clear(item);
+	}
 	if (!skeleton) {
 		return;
 	}
@@ -1484,8 +1524,8 @@ void SpineSprite::_draw_skeleton() {
 	if (skeleton_data_res.is_valid() && skeleton_data_res->get_atlas_res().is_valid()) {
 		pages = &skeleton_data_res->get_atlas_res()->get_page_textures();
 	}
-	RenderingServer *rs = RenderingServer::get_singleton();
 	RID item = get_canvas_item();
+	int run = -1, run_blend = int(skel::BlendMode::Normal);
 	std::vector<float> world;
 	Vector<int> indices;
 	Vector<Point2> points, uvs;
@@ -1507,6 +1547,13 @@ void SpineSprite::_draw_skeleton() {
 				skeleton->color.b * slot.color.b * a->color.b, skeleton->color.a * slot.color.a * a->color.a);
 		if (c.a <= 0) {
 			continue;
+		}
+		int blend = int(slot.data->blend);
+		if (blend != run_blend) {
+			// Once one slot leaves the node's own item, every later slot goes to child items in order.
+			run++;
+			run_blend = blend;
+			item = _blend_item(run, blend);
 		}
 		points.resize(n);
 		uvs.resize(n);
@@ -1561,6 +1608,9 @@ void SpineSprite::_notification(int p_what) {
 			break;
 		case NOTIFICATION_DRAW:
 			_draw_skeleton();
+			break;
+		case NOTIFICATION_PREDELETE:
+			_free_blend_items();
 			break;
 	}
 }

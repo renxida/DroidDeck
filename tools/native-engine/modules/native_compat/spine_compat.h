@@ -16,6 +16,7 @@
 #include "core/templates/hash_map.h"
 #include "scene/2d/node_2d.h"
 #include "scene/resources/texture.h"
+#include "scene/resources/material.h"
 
 #include <memory>
 
@@ -453,6 +454,12 @@ private:
 	Vector<Ref<SpineSlot>> slot_views;
 	HashMap<const skel::TrackEntry *, Ref<SpineTrackEntry>> entry_views;
 	Vector<Ref<SpineSkin>> custom_skins;
+	// Slots that blend other than normally draw into child canvas items, one per run of slots in draw
+	// order, so the order holds across blend changes.
+	Vector<RID> blend_items;
+	Ref<Material> blend_materials[4];
+	RID _blend_item(int p_run, int p_blend);
+	void _free_blend_items();
 
 	void _data_changed();
 	void _rebuild();
