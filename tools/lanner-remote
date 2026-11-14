@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Drive Lanner on the phone through the telemetry repository (Setup > Diagnostics > Remote control).
+
+  lanner-remote [--repo OWNER/NAME] METHOD [JSON_REQUEST] [--arg ARG] [--wait SECONDS]
+
+Writes remote/inbox/<id>.json with gh, then waits for remote/outbox/<id>.json and prints it; a
+"screenshot" answer also saves remote/outbox/<id>.jpg next to the current directory. Methods are the
+agent bridge's (state, stop, launch, input, ui, guest, logs, prefs, env, ...) plus start, screenshot,
+autotest and ping. The phone polls every 30 s, and every 5 s for ten minutes after a command.
+"""
+import argparse, base64, json, subprocess, sys, time
+
+def gh(*args, input=None):
+    r = subprocess.run(["gh", "api", *args], input=input, capture_output=True, text=True)
+    return r.returncode, r.stdout, r.stderr
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--repo", default="renxida/kestrel-telemetry")
+    p.add_argument("method")
+    p.add_argument("request", nargs="?", default="{}")
+    p.add_argument("--arg")
+    p.add_argument("--wait", type=float, default=180)
+    a = p.parse_args()
+    request = json.loads(a.request)
+    cid = time.strftime("%Y%m%d-%H%M%S", time.gmtime()) + "-" + a.method.replace("_", "-")[:20]
+    body = {"method": a.method, "arg": a.arg, "request": request}
+    payload = json.dumps({"message": f"lanner remote: {cid}",
+                          "content": base64.b64encode(json.dumps(body).encode()).decode()})
+    code, out, err = gh("-X", "PUT", f"repos/{a.repo}/contents/remote/inbox/{cid}.json", "--input", "-", input=payload)
+    if code:
+        sys.exit(f"could not queue: {err.strip()}")
+    print(f"queued {cid}", file=sys.stderr)
+    deadline = time.time() + a.wait
+    while time.time() < deadline:
+        time.sleep(3)
+        code, out, _ = gh("-H", "Accept: application/vnd.github.raw+json", f"repos/{a.repo}/contents/remote/outbox/{cid}.json")
+        if code == 0 and out.strip():
+            print(out)
+            if a.method == "screenshot":
+                code, img, _ = gh(f"repos/{a.repo}/contents/remote/outbox/{cid}.jpg", "-q", ".content")
+                if code == 0:
+                    open(f"{cid}.jpg", "wb").write(base64.b64decode(img))
+                    print(f"saved {cid}.jpg", file=sys.stderr)
+            return
+    sys.exit(f"no answer within {a.wait:.0f} s (is Remote control on, and the phone online?)")
+
+if __name__ == "__main__":
+    main()

@@ -39,6 +39,7 @@ class App : Application() {
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
         com.droiddeck.launcher.telemetry.TelemetryUploader.flushPending(this)
         com.droiddeck.launcher.session.AutoTest.schedule(this)
+        com.droiddeck.launcher.agent.AgentRemote.start(this)
     }
 
     private fun prefetchAddonPacks() {

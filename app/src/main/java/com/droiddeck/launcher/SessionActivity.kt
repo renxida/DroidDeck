@@ -4009,6 +4009,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        if (::surfaceView.isInitialized) com.droiddeck.launcher.agent.AgentRemote.capture = { dir, done ->
+            com.droiddeck.launcher.session.SessionScreenshot.capture(window, surfaceView, dir, uiHandler, done)
+        }
         com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
             com.droiddeck.launcher.input.GuestKeys.send(event) { code, down -> sendGuestKey(code, down, 8) }
         }
@@ -4330,6 +4333,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        com.droiddeck.launcher.agent.AgentRemote.capture = null
         if (AgentGuest.readyListener === agentReadyListener) AgentGuest.readyListener = null
         if (com.droiddeck.launcher.session.GamePacing.listener === pacingListener) com.droiddeck.launcher.session.GamePacing.listener = null
         relativeMouseRequests.shutdownNow()
