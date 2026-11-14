@@ -83,7 +83,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "hybris-index-session", "native-engine", "dxvk-arm64ec",
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
-               "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim")
+               "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim", "vk-blocks-64")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -2862,6 +2862,7 @@ def system_graphics_launch(command, env):
 
 
 VKCOUNT_DIR = "/usr/local/lib/droiddeck-vkcount"
+VK_BLOCK_MB = "64"
 DXVK_ARM64EC = "dxvk-arm64ec"
 DXVK_NAMES = ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi")
 
@@ -2911,20 +2912,31 @@ def vk_count(env, layer_dir=VKCOUNT_DIR):
     call counts and blocking-call times to stderr every 10 s ("droiddeck-vkcount:" lines in the game's log).
     The same layer paces presents when frame_cap set DROIDDECK_PACE_FPS; that runs before these layers are set,
     so the layer goes back in here for pacing too, with its reports off only when vk-count is off (a pacing
-    launch with vk-count on printed no lines on Nov 14, because pacing had turned the reports off)."""
+    launch with vk-count on printed no lines on Nov 14, because pacing had turned the reports off).
+    Experiment vk-blocks-64: the layer refuses the game's Vulkan memory allocator blocks over 64 MB, so they
+    stop growing there (Godot's VMA grows them to 256 MB; DROIDDECK_VK_BLOCK_MB)."""
     counting = experiment(env, "vk-count")
     pacing = bool(env.get("DROIDDECK_PACE_FPS", "").strip())
-    if not counting and not pacing:
+    blocks = experiment(env, "vk-blocks-64")
+    if not counting and not pacing and not blocks:
         return None
+    what = "vk-count" if counting else "vk-blocks-64" if blocks else "present pacing"
     if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_vkcount.so")):
-        return "%s: layer not installed at %s" % ("vk-count" if counting else "present pacing", layer_dir)
+        return "%s: layer not installed at %s" % (what, layer_dir)
     env["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount:" + env["VK_INSTANCE_LAYERS"]
     env["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
+    notes = []
+    if blocks:
+        env["DROIDDECK_VK_BLOCK_MB"] = VK_BLOCK_MB
+        notes.append("vk-blocks-64: Vulkan memory blocks capped at %s MB" % VK_BLOCK_MB)
     if counting:
         env.pop("DROIDDECK_VKCOUNT_SECONDS", None)
-        return "vk-count: counting Vulkan calls per frame"
-    env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
-    return "present pacing: layer loaded, reports off"
+        notes.append("vk-count: counting Vulkan calls per frame")
+    else:
+        env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
+        if pacing:
+            notes.append("present pacing: layer loaded, reports off")
+    return "; ".join(notes)
 
 
 # winewayland.drv's wayland_process_init gives up, and the driver unloads, unless the compositor offers all of

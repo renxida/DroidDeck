@@ -17,6 +17,13 @@
  *            object's memory requirement at bind time); live minus bound is allocator slack.
  * The present, acquire and wait times are time the CPU spent blocked on the GPU or the compositor;
  * the rest of the frame interval is CPU work. Counters are relaxed atomics; nothing is held per call.
+ * Block cap (experiment vk-blocks-64): with DROIDDECK_VK_BLOCK_MB set, a plain vkAllocateMemory (no dedicated,
+ * import or export info) whose size is a power of two above the cap and at most 1 GiB fails with
+ * VK_ERROR_OUT_OF_DEVICE_MEMORY. Those are the Vulkan Memory Allocator's new blocks (Godot uses VMA: 256 MiB
+ * preferred, starting at 1/8 and doubling), and VMA answers a failed block by asking again at half the size, so
+ * the game's blocks stop growing at the cap and less of its device memory sits allocated but unused. A real
+ * resource of exactly 128 or 256 MiB would fail too; none of Slay the Spire 2's is that size. The reports
+ * then end with how many such blocks were refused.
  * With DROIDDECK_VKCOUNT_FILE set, the same lines are appended to that file too. DROIDDECK_VKCOUNT_SECONDS=0
  * turns the reports off (the layer is then loaded only to pace frames).
  *
@@ -118,6 +125,19 @@ static void unbind(uint64_t handle) { /* mem_lock held */
     else { bound_buffer_bytes -= gone.bytes; bound_buffers--; }
 }
 
+static uint64_t block_cap, blocks_refused;
+
+/* The allocation is one of VMA's plain blocks over the cap: a power of two above it, at most 1 GiB, with
+ * nothing in pNext but allocate flags or a priority. */
+static int refuse_block(const VkMemoryAllocateInfo *info) {
+    uint64_t size = info->allocationSize;
+    if (!block_cap || size <= block_cap || size > (1ull << 30) || (size & (size - 1))) return 0;
+    for (const VkBaseInStructure *p = info->pNext; p; p = p->pNext)
+        if (p->sType != VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO &&
+            p->sType != VK_STRUCTURE_TYPE_MEMORY_PRIORITY_ALLOCATE_INFO_EXT) return 0;
+    return 1;
+}
+
 static uint64_t window_ns = 10000000000ull, window_start;
 static int reports_off;
 static FILE *extra;
@@ -143,7 +163,7 @@ static void report(uint64_t now, const char *why) {
         "%.1f barriers %.1f copies | ms/frame: submit %.2f present %.2f acquire %.2f fence-wait %.2f idle %.2f pace %.2f "
         "| pipelines %llu in %.0f ms, allocations %llu | memory %.1f MB live (%.1f MB host-visible, peak %.1f MB) "
         "in %llu allocations%s, bound %.1f MB in %llu images and %.1f MB in %llu buffers, "
-        "BC textures %.1f MB -> %.1f MB decoded (%llu images)\n",
+        "BC textures %.1f MB -> %.1f MB decoded (%llu images)",
         why, seconds, (unsigned long long)snapshot[C_frames], snapshot[C_frames] / (seconds > 0 ? seconds : 1),
         snapshot[C_submits] / frames, snapshot[C_command_buffers] / frames,
         (snapshot[C_draws] + snapshot[C_indirect_draws]) / frames, snapshot[C_indirect_draws] / frames,
@@ -157,7 +177,14 @@ static void report(uint64_t now, const char *why) {
         mem.image / 1048576.0, (unsigned long long)mem.images, mem.buffer / 1048576.0, (unsigned long long)mem.buffers,
         mem.bc / 1048576.0, mem.bc_decoded / 1048576.0, (unsigned long long)mem.bc_images);
     (void)counter_names;
-    if (n <= 0) return;
+    if (n <= 0 || n >= (int)sizeof line) return;
+    if (block_cap)
+        n += snprintf(line + n, sizeof line - n, ", blocks capped at %llu MB (%llu bigger refused)",
+                      (unsigned long long)(block_cap >> 20),
+                      (unsigned long long)__atomic_load_n(&blocks_refused, __ATOMIC_RELAXED));
+    if (n >= (int)sizeof line - 1) n = (int)sizeof line - 2;
+    line[n] = '\n';
+    line[n + 1] = 0;
     fputs(line, stderr);
     if (extra) { fputs(line, extra); fflush(extra); }
     window_start = now;
@@ -453,6 +480,10 @@ static VkResult VKAPI_CALL allocate_memory(VkDevice device, const VkMemoryAlloca
                                            const VkAllocationCallbacks *allocator, VkDeviceMemory *memory) {
     NEXT(device, AllocateMemory);
     bump(C_allocations);
+    if (refuse_block(info)) {
+        __atomic_add_fetch(&blocks_refused, 1, __ATOMIC_RELAXED);
+        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+    }
     VkResult result = next_(device, info, allocator, memory);
     if (result != VK_SUCCESS) return result;
     uint64_t bytes = info->allocationSize;
@@ -785,6 +816,8 @@ EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkN
     pace_fps = pace_base;
     const char *pace_path = getenv("DROIDDECK_PACE_FILE");
     if (pace_base && pace_path && *pace_path) pace_file = pace_path;
+    const char *block = getenv("DROIDDECK_VK_BLOCK_MB");
+    if (block && atoi(block) > 0 && atoi(block) < 1024) block_cap = (uint64_t)atoi(block) << 20;
     const char *file = getenv("DROIDDECK_VKCOUNT_FILE");
     if (file && *file && !extra) extra = fopen(file, "ae");
     negotiate->loaderLayerInterfaceVersion = 2;

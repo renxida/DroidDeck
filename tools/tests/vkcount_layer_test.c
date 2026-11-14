@@ -36,6 +36,16 @@ int main(void) {
     mai.allocationSize = 8 << 20;
     VkDeviceMemory mem; CK(vkAllocateMemory(dev, &mai, NULL, &mem));
     vkFreeMemory(dev, gone, NULL);
+    if (getenv("VKCOUNT_TEST_BLOCKS")) { /* run with DROIDDECK_VK_BLOCK_MB=8: a 16 MiB block is refused, 12 MiB is not */
+        mai.allocationSize = 16 << 20;
+        VkDeviceMemory big;
+        if (vkAllocateMemory(dev, &mai, NULL, &big) != VK_ERROR_OUT_OF_DEVICE_MEMORY) { printf("FAIL block not refused\n"); return 1; }
+        mai.allocationSize = 12 << 20;
+        CK(vkAllocateMemory(dev, &mai, NULL, &big));
+        vkFreeMemory(dev, big, NULL);
+        mai.allocationSize = 8 << 20;
+        printf("blocks ok\n");
+    }
     VkImageCreateInfo ii = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .imageType = VK_IMAGE_TYPE_2D,
         .format = VK_FORMAT_BC1_RGBA_UNORM_BLOCK, .extent = {512, 512, 1}, .mipLevels = 10, .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
