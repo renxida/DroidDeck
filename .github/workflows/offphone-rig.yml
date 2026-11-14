@@ -87,7 +87,9 @@ jobs:
               sleep 3; tools/droiddeckctl start steam >/dev/null 2>&1 || true
             fi
             echo "$st" > out/state.json
-            case $ph in READY|FAILED) break;; esac
+            case $ph in READY|FAILED) break;; IDLE|\?) ;; *) seen=1;; esac
+            # The session ran and went back to idle: it ended on its own.
+            if [ -n "${seen:-}" ] && [ "$ph" = IDLE ]; then idle=$(( ${idle:-0} + 1 )); [ $idle -ge 3 ] && { echo "session ended without READY"; break; }; else idle=0; fi
             sleep 10
           done
           echo "::group::final state"; cat out/state.json; echo "::endgroup::"
