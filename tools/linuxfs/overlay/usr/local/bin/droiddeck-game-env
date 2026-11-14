@@ -82,7 +82,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "native-inventory", "free-memory", "hybris-index", "fex-l1",
                "hybris-index-session", "native-engine", "dxvk-arm64ec",
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
-               "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30")
+               "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -1499,6 +1499,198 @@ class CoreWatch:
         self.log(seen, target, "repin", " threads=%d%s" % (pinned, " failed=%d error=%s" % (failed, error) if failed else ""))
 
 
+WEBHELPER_TRIM = "webhelper-trim"
+WEBHELPER_TRIM_FIRST_S = 60
+WEBHELPER_TRIM_EVERY_S = 120
+WEBHELPER_TRIM_SETTLE_S = 5
+WEBHELPER_TRIM_CALL_S = 5
+WEBHELPER_TRIM_ROUND_S = 30
+WEBHELPER_TRIM_TYPES = frozenset({"page", "iframe", "worker", "shared_worker", "service_worker"})
+
+
+def webhelper_cdp_port(environ=None):
+    """The Steam client's DevTools port as droiddeck-session chose it: its agent/cdp-port file under BL_LAUNCH_DIR,
+    else BL_CDP_PORT (both set where it starts the client); None when neither holds a port."""
+    environ = os.environ if environ is None else environ
+    launch_dir = environ.get("BL_LAUNCH_DIR", "")
+    value = ""
+    if launch_dir:
+        try:
+            with open(os.path.join(launch_dir, "agent", "cdp-port"), encoding="ascii", errors="replace") as source:
+                value = source.read(16).strip()
+        except OSError:
+            value = ""
+    if not value.isdigit():
+        value = environ.get("BL_CDP_PORT", "").strip()
+    port = int(value) if value.isdigit() else 0
+    return port if 0 < port < 65536 else None
+
+
+def webhelper_usage(proc="/proc"):
+    """(processes, resident kB, swapped kB) summed over the processes whose command line names steamwebhelper."""
+    count = rss = swap = 0
+    try:
+        entries = os.listdir(proc)
+    except OSError:
+        return 0, 0, 0
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        try:
+            with open("%s/%s/cmdline" % (proc, entry), "rb") as f:
+                if b"steamwebhelper" not in f.read(8192):
+                    continue
+            with open("%s/%s/status" % (proc, entry), "rb") as f:
+                status = f.read().decode("ascii", "replace")
+        except OSError:
+            continue
+        resident = re.search(r"^VmRSS:\s+(\d+)", status, re.M)
+        if not resident:
+            continue
+        swapped = re.search(r"^VmSwap:\s+(\d+)", status, re.M)
+        count += 1
+        rss += int(resident.group(1))
+        swap += int(swapped.group(1)) if swapped else 0
+    return count, rss, swap
+
+
+class SteamDevTools:
+    """droiddeck-steam-compat's DevTools client (http_get, Page), which only ever connects to 127.0.0.1, with
+    every read bounded by WEBHELPER_TRIM_CALL_S."""
+
+    def __init__(self, port, client=None):
+        self.port = port
+        self.client = client or runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-steam-compat"))
+
+    def targets(self):
+        return self.client["http_get"](self.port, "/json/list")
+
+    def trim(self, target):
+        """Memory pressure, then a full GC, on one target; how many of the two it answered."""
+        path = "/" + target["webSocketDebuggerUrl"].split("/", 3)[3]
+        page = self.client["Page"](self.port, path)
+        page.ws.sock.settimeout(WEBHELPER_TRIM_CALL_S)
+        answered = 0
+        try:
+            try:
+                page.call("Memory.simulatePressureNotification", {"level": "critical"}, WEBHELPER_TRIM_CALL_S)
+                answered += 1
+            except Exception:
+                pass
+            enabled = False
+            try:
+                try:
+                    page.call("HeapProfiler.collectGarbage", None, WEBHELPER_TRIM_CALL_S)
+                except RuntimeError:  # an error answer: the domain wants enabling first
+                    page.call("HeapProfiler.enable", None, WEBHELPER_TRIM_CALL_S)
+                    enabled = True
+                    page.call("HeapProfiler.collectGarbage", None, WEBHELPER_TRIM_CALL_S)
+                answered += 1
+            except Exception:
+                pass
+            if enabled:
+                try:
+                    page.call("HeapProfiler.disable", None, WEBHELPER_TRIM_CALL_S)
+                except Exception:
+                    pass
+        finally:
+            page.ws.close()
+        return answered
+
+
+class WebhelperTrim:
+    """Experiment webhelper-trim: while the game runs, asks Steam's CEF over DevTools to give memory back (a
+    critical memory-pressure notification and a full V8 GC on every page and worker), WEBHELPER_TRIM_FIRST_S after
+    the start and then every WEBHELPER_TRIM_EVERY_S, and prints the steamwebhelper processes' resident and swapped
+    memory before and WEBHELPER_TRIM_SETTLE_S after each round. The client and its web helper keep running: nothing
+    is killed or stopped. When the port is unknown or DevTools does not answer it says why once and stops."""
+
+    def __init__(self, app_id="", port=None, devtools=None, usage=None, first=WEBHELPER_TRIM_FIRST_S,
+                 every=WEBHELPER_TRIM_EVERY_S, settle=WEBHELPER_TRIM_SETTLE_S, clock=time.monotonic, wall=time.time):
+        self.app_id = app_id or "-"
+        self.port = port
+        self.devtools = devtools or SteamDevTools
+        self.usage = usage or webhelper_usage
+        self.first, self.every, self.settle = first, every, settle
+        self.clock, self.wall = clock, wall
+        self.rounds = 0
+        self.done = threading.Event()
+        self.thread = None
+        self.client = None
+
+    def start(self):
+        self.thread = threading.Thread(target=self.run, name="webhelper-trim", daemon=True)
+        self.thread.start()
+        return self
+
+    def stop(self):
+        self.done.set()
+
+    def run(self):
+        try:
+            if self.done.wait(self.first):
+                return
+            port = self.port if self.port is not None else webhelper_cdp_port()
+            if not port:
+                return self.off("no_port", "no BL_LAUNCH_DIR/agent/cdp-port or BL_CDP_PORT")
+            try:
+                self.client = self.devtools(port)
+            except Exception as error:
+                return self.off("no_client", error)
+            while not self.done.is_set():
+                if not self.trim():
+                    return
+                if self.done.wait(self.every):
+                    return
+        except Exception as error:  # the watch must never take the launch down
+            self.off("error", error)
+
+    def off(self, reason, error):
+        detail = re.sub(r"[^A-Za-z0-9_.:/-]+", "_", str(error) or type(error).__name__).strip("_")[:120] or "-"
+        print("DROIDDECK_TIMELINE event=game_webhelper_trim_off app_id=%s reason=%s round=%d detail=%s wall_ms=%d" % (
+            self.app_id, reason, self.rounds + 1, detail, int(self.wall() * 1000)), file=sys.stderr, flush=True)
+
+    def trim(self):
+        """One round; False when it stopped the watch."""
+        procs, rss, swap = self.usage()
+        began = self.clock()
+        try:
+            listed = self.client.targets()
+        except Exception as error:
+            self.off("devtools_unreachable", error)
+            return False
+        targets = [t for t in listed if isinstance(t, dict) and t.get("type") in WEBHELPER_TRIM_TYPES
+                   and str(t.get("webSocketDebuggerUrl", "")).count("/") >= 3] if isinstance(listed, list) else []
+        if not targets:
+            self.off("no_targets", "%d listed, none a page or worker" % (len(listed) if isinstance(listed, list) else 0))
+            return False
+        trimmed, failed, error = 0, 0, None
+        for target in targets:
+            if self.done.is_set() or self.clock() - began > WEBHELPER_TRIM_ROUND_S:
+                break
+            try:
+                if self.client.trim(target):
+                    trimmed += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                failed += 1
+                error = e
+        took = self.clock() - began
+        if not trimmed:
+            self.off("cdp_failed", error or "no target answered")
+            return False
+        self.rounds += 1
+        self.done.wait(self.settle)
+        _, rss_after, swap_after = self.usage()
+        print("DROIDDECK_TIMELINE event=game_webhelper_trim app_id=%s round=%d targets=%d trimmed=%d failed=%d procs=%d "
+              "rss_mb_before=%d swap_mb_before=%d rss_mb_after=%d swap_mb_after=%d took_ms=%d next_s=%d wall_ms=%d" % (
+                  self.app_id, self.rounds, len(targets), trimmed, failed, procs, rss // 1024,
+                  swap // 1024, rss_after // 1024, swap_after // 1024, int(took * 1000), self.every,
+                  int(self.wall() * 1000)), file=sys.stderr, flush=True)
+        return True
+
+
 def gl_vsync(env):
     if "vblank_mode" in env or game_id(env) is None:
         return False
@@ -2121,11 +2313,12 @@ EXIT_WATCH_GAMES = frozenset({"2868840"})
 
 def exit_watch(app_id, env, pacing=False):
     """Wait for Proton instead of exec'ing it: DROIDDECK_GAME_EXIT_WATCH=1 or 0, else the per-game default,
-    or when a pacing line was printed, whose cap the app ends at the game_exit line."""
+    or when a pacing line was printed, whose cap the app ends at the game_exit line, or when webhelper-trim needs
+    the launch alive while the game runs."""
     setting = env.get("DROIDDECK_GAME_EXIT_WATCH", "")
     if setting in ("0", "1"):
         return setting == "1"
-    return app_id in EXIT_WATCH_GAMES or pacing
+    return app_id in EXIT_WATCH_GAMES or pacing or experiment(env, WEBHELPER_TRIM)
 
 
 def report_game_exit(app_id, raw_code, seconds):
@@ -2465,6 +2658,7 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
             diagnostic_game_event("game_start", diagnostic_app_id)
         drain = None
         core_watch = CoreWatch(cores, timeline_app_id).start() if cores else None
+        trim = WebhelperTrim(timeline_app_id).start() if timeline_app_id and experiment(launch_env, WEBHELPER_TRIM) else None
         try:
             if explorer:
                 raw_code, started, drain = run_watched(guard)
@@ -2473,6 +2667,8 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
         finally:
             if core_watch:
                 core_watch.stop()
+            if trim:
+                trim.stop()
             if after:
                 try:
                     after()
