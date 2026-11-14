@@ -141,8 +141,16 @@ perturb() { # once, while the start is under way
       # Back the way a person comes back: the launcher icon (an existing task comes to the front).
       adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n "$(launcher)" >/dev/null
       sleep 3; echo "rig: top after return: $(top_activity)"
-      echo "rig: on screen after return: $("$ctl" ui dump 2>/dev/null | jq -r '[.. | objects | .text? // empty | strings | select(length > 0)] | unique | join(" | ")' 2>/dev/null | head -c 600)"
-      rig_event backgrounded ;;
+      local seen_text; seen_text=$("$ctl" ui dump 2>/dev/null | jq -r '[.. | objects | .text? // empty | strings | select(length > 0)] | unique | join(" | ")' 2>/dev/null | head -c 600)
+      echo "rig: on screen after return: $seen_text"
+      rig_event backgrounded
+      # Coming back by the icon during a start lands on the home screen, not the session; a
+      # person then presses Open Steam. Whether that rejoins the running start is the question.
+      if [ "$base" = steam-ui ] && grep -q "Open Steam" <<<"$seen_text"; then
+        rig_event landed_on_home; sleep 5
+        "$ctl" ui click --match "Open Steam" >/dev/null 2>&1 && echo "rig: pressed Open Steam"
+        sleep 3; echo "rig: top after Open Steam: $(top_activity)"
+      fi ;;
   esac
 }
 
