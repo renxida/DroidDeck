@@ -72,6 +72,21 @@ case $gv in
 esac
 [ ${#guest_env[@]} -gt 0 ] && "$ctl" env set "${guest_env[@]}" --persistent >/dev/null
 
+# A phone that runs games has Steam's client installed; Proton's steam.exe loads its
+# steamclient.so even for a game that is not on Steam. So the stand-in runs after Steam has
+# installed itself once (to its sign-in screen, nothing signed in), as on a phone.
+steamclient() { adb shell "find $fs/root/.local/share/Steam -name steamclient.so 2>/dev/null" | tr -d '\r'; }
+if [ "$scenario" = stand-in-game ] && [ -z "$(steamclient)" ]; then
+  echo "rig: Steam's client is not installed yet; starting Steam once to its sign-in screen"
+  "$ctl" start steam >/dev/null 2>&1 || true
+  w0=$(date +%s)
+  while [ $(( $(date +%s) - w0 )) -lt 600 ]; do
+    case $(phase) in READY) [ -n "$(steamclient)" ] && break;; FAILED) break;; esac; sleep 5
+  done
+  echo "rig: Steam warm-up $(( $(date +%s) - w0 ))s, phase $(phase), steamclient: $(steamclient | tr '\n' ' ')"
+  "$ctl" stop >/dev/null 2>&1 || true; wait_idle 120 || true
+fi
+
 before=$(latest_dir)
 t0=$(date +%s)
 case $scenario in
