@@ -50,7 +50,9 @@ as Hangover's stock. The phone's fallback is not affected.
 
 ## Still open
 
-- "SuspendThread failed with error 5" in `clr.exe` showed once (run 43635612966, row 0001, upstream + patch 0001)
-  and not in 28 later runs. 0001 doesn't touch threads, so it is likely upstream or the harness; unexplained.
+- "SuspendThread failed with error 5" in `clr.exe` (CoreCLR's fatal error, then a page fault reading 0x1788) is
+  not Kestrel's. `.github/workflows/fex-clr-suspend.yml`, run 43641325854, 64 runs of 30 s each: Hangover's stock
+  FEX 3/64, upstream ab135df with preserve_all off 0/64, the d13ed5b candidate 1/64. It is rare under every FEX
+  and most common under stock, so it is likely Wine's suspend path or CoreCLR, not chased here.
 - The root cause in FEX or clang (which preserve_all helper, and why) is not chased here; the build flag is enough
   for Kestrel.
