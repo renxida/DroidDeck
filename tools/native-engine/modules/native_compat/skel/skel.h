@@ -283,6 +283,25 @@ struct TransformConstraint {
 	float mix_rotate = 0, mix_x = 0, mix_y = 0, mix_scale_x = 0, mix_scale_y = 0, mix_shear_y = 0;
 };
 
+struct PathConstraint {
+	const PathData *data = nullptr;
+	float position = 0, spacing = 0, mix_rotate = 1, mix_x = 1, mix_y = 1;
+};
+
+// A spring simulation per physics constraint. The bone's tip and origin are each followed by a point
+// that lags behind movement (inertia) and is pulled back by a damped spring; the lag becomes rotation,
+// scale, shear and translation offsets. State persists across frames; Skeleton::update feeds time.
+struct PhysicsConstraint {
+	const PhysicsData *data = nullptr;
+	float inertia = 1, strength = 100, damping = 1, mass_inverse = 1, wind = 0, gravity = 0, mix = 1;
+	bool started = false;
+	float remaining = 0;
+	float origin_x = 0, origin_y = 0; // bone origin at the last step
+	float tip_x = 0, tip_y = 0, tip_vx = 0, tip_vy = 0; // simulated tip (world)
+	float off_x = 0, off_y = 0, off_vx = 0, off_vy = 0; // simulated origin offset (world)
+	void reset() { started = false; }
+};
+
 struct Skeleton {
 	const SkeletonData *data = nullptr;
 	std::vector<Bone> bones;
@@ -290,7 +309,11 @@ struct Skeleton {
 	std::vector<int> draw_order; // slot indices, back to front
 	std::vector<IkConstraint> ik;
 	std::vector<TransformConstraint> transforms;
-	std::vector<std::pair<bool, int>> constraint_order; // (is transform, index), by data order
+	std::vector<PathConstraint> paths;
+	std::vector<PhysicsConstraint> physics;
+	enum ConstraintKind { IK, TRANSFORM, PATH, PHYSICS };
+	std::vector<std::pair<int, int>> constraint_order; // (ConstraintKind, index), by data order
+	float physics_time = 0; // seconds not yet simulated; Skeleton::update adds to it
 	const Skin *skin = nullptr;
 	Color color;
 	float x = 0, y = 0, scale_x = 1, scale_y = 1;
@@ -303,6 +326,9 @@ struct Skeleton {
 	const Attachment *attachment(int slot, const std::string &key) const;
 	bool set_attachment(const std::string &slot, const std::string &key);
 	void update_world_transform();
+	// Advances physics by dt seconds at the next update_world_transform.
+	void update(float dt) { physics_time += dt; }
+	void reset_physics();
 
 	// World-space vertices for a slot's current attachment (x,y pairs). Returns vertex count.
 	int world_vertices(int slot, std::vector<float> &out) const;
@@ -311,9 +337,12 @@ private:
 	void update_bone(Bone &bone);
 	void apply_ik(IkConstraint &ik);
 	void apply_transform(TransformConstraint &t);
+	void apply_path(PathConstraint &p);
+	void apply_physics(PhysicsConstraint &p, float dt);
 	void set_world(Bone &bone, float a, float b, float c, float d, float wx, float wy);
 	void update_after(const std::vector<int> &constrained);
 	std::vector<Bone> pose_; // local values before constraints, restored after the world transform
+	std::vector<float> path_world_, path_points_, path_lengths_; // path constraint scratch
 };
 
 enum class MixBlend {

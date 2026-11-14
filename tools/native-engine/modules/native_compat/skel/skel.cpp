@@ -232,16 +232,33 @@ Skeleton::Skeleton(const SkeletonData *d) : data(d) {
 	ik.resize(d->ik.size());
 	for (size_t i = 0; i < ik.size(); i++) {
 		ik[i].data = &d->ik[i];
-		constraint_order.push_back({ false, int(i) });
+		constraint_order.push_back({ IK, int(i) });
 	}
 	transforms.resize(d->transforms.size());
 	for (size_t i = 0; i < transforms.size(); i++) {
 		transforms[i].data = &d->transforms[i];
-		constraint_order.push_back({ true, int(i) });
+		constraint_order.push_back({ TRANSFORM, int(i) });
 	}
-	auto order_of = [&](const std::pair<bool, int> &c) { return c.first ? d->transforms[c.second].order : d->ik[c.second].order; };
+	paths.resize(d->paths.size());
+	for (size_t i = 0; i < paths.size(); i++) {
+		paths[i].data = &d->paths[i];
+		constraint_order.push_back({ PATH, int(i) });
+	}
+	physics.resize(d->physics.size());
+	for (size_t i = 0; i < physics.size(); i++) {
+		physics[i].data = &d->physics[i];
+		constraint_order.push_back({ PHYSICS, int(i) });
+	}
+	auto order_of = [&](const std::pair<int, int> &c) {
+		switch (c.first) {
+			case IK: return d->ik[c.second].order;
+			case TRANSFORM: return d->transforms[c.second].order;
+			case PATH: return d->paths[c.second].order;
+			default: return d->physics[c.second].order;
+		}
+	};
 	std::stable_sort(constraint_order.begin(), constraint_order.end(),
-			[&](const std::pair<bool, int> &a, const std::pair<bool, int> &b) { return order_of(a) < order_of(b); });
+			[&](const std::pair<int, int> &a, const std::pair<int, int> &b) { return order_of(a) < order_of(b); });
 	setup_pose();
 }
 
@@ -264,6 +281,30 @@ void Skeleton::setup_bones() {
 		t.mix_scale_x = d.mix_scale_x;
 		t.mix_scale_y = d.mix_scale_y;
 		t.mix_shear_y = d.mix_shear_y;
+	}
+	for (auto &p : paths) {
+		const PathData &d = *p.data;
+		p.position = d.position;
+		p.spacing = d.spacing;
+		p.mix_rotate = d.mix_rotate;
+		p.mix_x = d.mix_x;
+		p.mix_y = d.mix_y;
+	}
+	for (auto &p : physics) {
+		const PhysicsData &d = *p.data;
+		p.inertia = d.inertia;
+		p.strength = d.strength;
+		p.damping = d.damping;
+		p.mass_inverse = d.mass_inverse;
+		p.wind = d.wind;
+		p.gravity = d.gravity;
+		p.mix = d.mix;
+	}
+}
+
+void Skeleton::reset_physics() {
+	for (auto &p : physics) {
+		p.reset();
 	}
 }
 
@@ -609,6 +650,257 @@ void Skeleton::apply_transform(TransformConstraint &t) {
 	}
 }
 
+namespace {
+
+// Point and unit tangent on a cubic bezier at s.
+void bezier_at(const float *c, float s, float &x, float &y, float &tx, float &ty) {
+	float u = 1 - s;
+	x = u * u * u * c[0] + 3 * u * u * s * c[2] + 3 * u * s * s * c[4] + s * s * s * c[6];
+	y = u * u * u * c[1] + 3 * u * u * s * c[3] + 3 * u * s * s * c[5] + s * s * s * c[7];
+	tx = 3 * u * u * (c[2] - c[0]) + 6 * u * s * (c[4] - c[2]) + 3 * s * s * (c[6] - c[4]);
+	ty = 3 * u * u * (c[3] - c[1]) + 6 * u * s * (c[5] - c[3]) + 3 * s * s * (c[7] - c[5]);
+	float len = std::hypot(tx, ty);
+	if (len > 1e-9f) {
+		tx /= len;
+		ty /= len;
+	} else {
+		tx = 1;
+		ty = 0;
+	}
+}
+
+// Rotates a bone's world basis by r radians.
+void rotate_basis(float &a, float &b, float &c, float &d, float r) {
+	float cs = std::cos(r), sn = std::sin(r);
+	float na = cs * a - sn * c, nc = sn * a + cs * c;
+	float nb = cs * b - sn * d, nd = sn * b + cs * d;
+	a = na;
+	b = nb;
+	c = nc;
+	d = nd;
+}
+
+} // namespace
+
+// Path vertices are triples (handle in, anchor, handle out). An open path runs anchor to anchor through
+// the handles between them; a closed one also joins the last anchor back to the first. Each curve is
+// sampled into short segments so points can be found by arc length (constant speed along the path).
+void Skeleton::apply_path(PathConstraint &p) {
+	const PathData &d = *p.data;
+	if (d.bones.empty() || (p.mix_rotate <= 0 && p.mix_x <= 0 && p.mix_y <= 0)) {
+		return;
+	}
+	const Attachment *att = slots[d.target].attachment;
+	if (!att || att->type != AttachmentType::Path) {
+		return;
+	}
+	int n = world_vertices(d.target, path_world_);
+	int curves = att->closed ? n / 3 : n / 3 - 1;
+	if (curves < 1) {
+		return;
+	}
+	const int samples = 16;
+	std::vector<float> &pts = path_points_; // per sample: x, y, tangent x, tangent y
+	std::vector<float> &cum = path_lengths_;
+	pts.clear();
+	cum.clear();
+	for (int i = 0; i < curves; i++) {
+		float c[8];
+		for (int k = 0; k < 4; k++) {
+			int v = (3 * i + 1 + k) % n;
+			c[k * 2] = path_world_[v * 2];
+			c[k * 2 + 1] = path_world_[v * 2 + 1];
+		}
+		for (int k = (i == 0 ? 0 : 1); k <= samples; k++) {
+			float x, y, tx, ty;
+			bezier_at(c, float(k) / samples, x, y, tx, ty);
+			if (!cum.empty()) {
+				size_t last = pts.size() - 4;
+				cum.push_back(cum.back() + std::hypot(x - pts[last], y - pts[last + 1]));
+			} else {
+				cum.push_back(0);
+			}
+			pts.insert(pts.end(), { x, y, tx, ty });
+		}
+	}
+	float total = cum.back();
+	if (total < 1e-6f) {
+		return;
+	}
+	// Point and tangent at a distance along the path; an open path extends straight past its ends.
+	auto at = [&](float dist, float &x, float &y, float &tx, float &ty) {
+		if (att->closed) {
+			dist = std::fmod(dist, total);
+			if (dist < 0) {
+				dist += total;
+			}
+		}
+		size_t last = cum.size() - 1;
+		if (dist <= 0 || dist >= total) {
+			size_t i = dist <= 0 ? 0 : last;
+			float over = dist <= 0 ? dist : dist - total;
+			tx = pts[i * 4 + 2];
+			ty = pts[i * 4 + 3];
+			x = pts[i * 4] + tx * over;
+			y = pts[i * 4 + 1] + ty * over;
+			return;
+		}
+		size_t i = size_t(std::upper_bound(cum.begin(), cum.end(), dist) - cum.begin());
+		i = std::max<size_t>(1, std::min(i, last));
+		float seg = cum[i] - cum[i - 1];
+		float s = seg > 1e-9f ? (dist - cum[i - 1]) / seg : 0;
+		const float *a = &pts[(i - 1) * 4], *b = &pts[i * 4];
+		x = a[0] + (b[0] - a[0]) * s;
+		y = a[1] + (b[1] - a[1]) * s;
+		tx = a[2] + (b[2] - a[2]) * s;
+		ty = a[3] + (b[3] - a[3]) * s;
+		float len = std::hypot(tx, ty);
+		if (len > 1e-9f) {
+			tx /= len;
+			ty /= len;
+		}
+	};
+	size_t count = d.bones.size();
+	float bone_sum = 0;
+	for (int bi : d.bones) {
+		bone_sum += bones[bi].data->length * bones[bi].world_scale_x();
+	}
+	auto gap = [&](size_t i) {
+		const Bone &b = bones[d.bones[i]];
+		float len = b.data->length * b.world_scale_x();
+		switch (d.spacing_mode) {
+			case 0: return len + p.spacing; // length
+			case 1: return p.spacing; // fixed
+			case 2: return p.spacing * total; // percent
+			default: return bone_sum > 1e-6f ? len / bone_sum * p.spacing * total : 0.0f; // proportional
+		}
+	};
+	float dist = d.position_mode == 1 ? p.position * total : p.position;
+	for (size_t i = 0; i < count; i++) {
+		Bone &b = bones[d.bones[i]];
+		float x, y, tx, ty;
+		at(dist, x, y, tx, ty);
+		float step = gap(i);
+		float angle = std::atan2(ty, tx);
+		float stretch = 1;
+		if (d.rotate_mode != 0) { // chain: aim at where the next bone starts
+			float nx, ny, ntx, nty;
+			at(dist + step, nx, ny, ntx, nty);
+			float dx = nx - x, dy = ny - y;
+			if (std::hypot(dx, dy) > 1e-6f) {
+				angle = std::atan2(dy, dx);
+			}
+			float len = b.data->length * b.world_scale_x();
+			if (d.rotate_mode == 2 && len > 1e-6f) {
+				stretch = std::hypot(dx, dy) / len;
+			}
+		}
+		angle += d.offset_rotation * DEG;
+		float a = b.a, bb = b.b, c = b.c, dd = b.d;
+		float current = std::atan2(c, a);
+		float r = wrap180((angle - current) / DEG) * DEG * p.mix_rotate;
+		rotate_basis(a, bb, c, dd, r);
+		if (stretch != 1) {
+			float s = 1 + (stretch - 1) * p.mix_rotate;
+			a *= s;
+			c *= s;
+		}
+		float wx = b.world_x + (x - b.world_x) * p.mix_x;
+		float wy = b.world_y + (y - b.world_y) * p.mix_y;
+		set_world(b, a, bb, c, dd, wx, wy);
+		dist += step;
+	}
+}
+
+void Skeleton::apply_physics(PhysicsConstraint &p, float dt) {
+	const PhysicsData &d = *p.data;
+	Bone &b = bones[d.bone];
+	float len = b.data->length > 1e-3f ? b.data->length : 1.0f;
+	float target_x = b.world_x + b.a * len, target_y = b.world_y + b.c * len;
+	if (!p.started) {
+		p.started = true;
+		p.remaining = 0;
+		p.origin_x = b.world_x;
+		p.origin_y = b.world_y;
+		p.tip_x = target_x;
+		p.tip_y = target_y;
+		p.tip_vx = p.tip_vy = p.off_x = p.off_y = p.off_vx = p.off_vy = 0;
+	}
+	float fps = d.fps > 0 ? d.fps : 60;
+	float step = 1 / fps;
+	p.remaining = std::min(p.remaining + std::max(dt, 0.0f), 0.25f);
+	// The bone's movement since the last step, capped by the limit (units per second); a jump larger
+	// than that (a teleport) is mostly absorbed instead of flinging the spring.
+	float mx = b.world_x - p.origin_x, my = b.world_y - p.origin_y;
+	p.origin_x = b.world_x;
+	p.origin_y = b.world_y;
+	float move = std::hypot(mx, my), cap = d.limit * std::max(dt, step);
+	if (move > cap && move > 0) {
+		mx *= cap / move;
+		my *= cap / move;
+	}
+	// Inertia is the share of the movement the simulated points do not follow at once.
+	float follow = 1 - std::min(std::max(p.inertia, 0.0f), 1.0f);
+	// The tip keeps its world place except for the followed share; the origin offset lags the rest.
+	p.tip_x += mx * follow;
+	p.tip_y += my * follow;
+	p.off_x -= mx * (1 - follow);
+	p.off_y -= my * (1 - follow);
+	float k = p.strength * p.mass_inverse;
+	float keep = std::min(std::max(p.damping, 0.0f), 1.0f);
+	while (p.remaining >= step) {
+		p.remaining -= step;
+		float ax = (target_x - p.tip_x) * k + p.wind * p.mass_inverse;
+		float ay = (target_y - p.tip_y) * k - p.gravity * p.mass_inverse;
+		p.tip_vx = (p.tip_vx + ax * step) * keep;
+		p.tip_vy = (p.tip_vy + ay * step) * keep;
+		p.tip_x += p.tip_vx * step;
+		p.tip_y += p.tip_vy * step;
+		float ox = -p.off_x * k + p.wind * p.mass_inverse;
+		float oy = -p.off_y * k - p.gravity * p.mass_inverse;
+		p.off_vx = (p.off_vx + ox * step) * keep;
+		p.off_vy = (p.off_vy + oy * step) * keep;
+		p.off_x += p.off_vx * step;
+		p.off_y += p.off_vy * step;
+	}
+	// Keep the simulated tip within a few bone lengths so a bad frame cannot leave it far away.
+	float reach = std::hypot(target_x - b.world_x, target_y - b.world_y);
+	float far = std::max(reach, 1.0f) * 4;
+	float ex = p.tip_x - target_x, ey = p.tip_y - target_y, e = std::hypot(ex, ey);
+	if (e > far) {
+		p.tip_x = target_x + ex * far / e;
+		p.tip_y = target_y + ey * far / e;
+	}
+	float mix = p.mix;
+	if (mix <= 0) {
+		return;
+	}
+	float a = b.a, bb = b.b, c = b.c, dd = b.d;
+	float sx = p.tip_x - b.world_x, sy = p.tip_y - b.world_y;
+	float tx = target_x - b.world_x, ty = target_y - b.world_y;
+	if (std::hypot(sx, sy) > 1e-6f && reach > 1e-6f) {
+		float r = wrap180((std::atan2(sy, sx) - std::atan2(ty, tx)) / DEG) * DEG;
+		if (d.rotate != 0) {
+			rotate_basis(a, bb, c, dd, r * d.rotate * mix);
+		}
+		if (d.shear_x != 0) { // turns the x axis only
+			float rs = r * d.shear_x * mix, cs = std::cos(rs), sn = std::sin(rs);
+			float na = cs * a - sn * c, nc = sn * a + cs * c;
+			a = na;
+			c = nc;
+		}
+		if (d.scale_x != 0) {
+			float s = 1 + (std::hypot(sx, sy) / reach - 1) * d.scale_x * mix;
+			s = std::max(s, 0.0f);
+			a *= s;
+			c *= s;
+		}
+	}
+	float wx = b.world_x + p.off_x * d.x * mix;
+	float wy = b.world_y + p.off_y * d.y * mix;
+	set_world(b, a, bb, c, dd, wx, wy);
+}
+
 void Skeleton::update_after(const std::vector<int> &constrained) {
 	if (constrained.empty()) {
 		return;
@@ -630,13 +922,28 @@ void Skeleton::update_world_transform() {
 	// Constraints solve by changing local values. Keep the animated pose and put it back afterwards,
 	// so the next frame's keys mix from the pose and not from the constraint output.
 	pose_ = bones;
+	float dt = physics_time;
+	physics_time = 0;
 	for (const auto &c : constraint_order) {
-		if (c.first) {
-			apply_transform(transforms[c.second]);
-			update_after(transforms[c.second].data->bones);
-		} else {
-			apply_ik(ik[c.second]);
-			update_after(ik[c.second].data->bones);
+		switch (c.first) {
+			case TRANSFORM:
+				apply_transform(transforms[c.second]);
+				update_after(transforms[c.second].data->bones);
+				break;
+			case IK:
+				apply_ik(ik[c.second]);
+				update_after(ik[c.second].data->bones);
+				break;
+			case PATH:
+				apply_path(paths[c.second]);
+				update_after(paths[c.second].data->bones);
+				break;
+			default: {
+				PhysicsConstraint &p = physics[c.second];
+				apply_physics(p, dt);
+				update_after({ p.data->bone });
+				break;
+			}
 		}
 	}
 	for (size_t i = 0; i < bones.size(); i++) {
@@ -922,6 +1229,23 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 				mix_value(k.mix_scale_x, d.mix_scale_x, cv.evaluate(time, 3), alpha, blend);
 				mix_value(k.mix_scale_y, d.mix_scale_y, cv.evaluate(time, 4), alpha, blend);
 				mix_value(k.mix_shear_y, d.mix_shear_y, cv.evaluate(time, 5), alpha, blend);
+				break;
+			}
+			case TimelineType::PathPosition: {
+				PathConstraint &k = sk.paths[tl.target];
+				mix_value(k.position, k.data->position, cv.evaluate(time, 0), alpha, blend);
+				break;
+			}
+			case TimelineType::PathSpacing: {
+				PathConstraint &k = sk.paths[tl.target];
+				mix_value(k.spacing, k.data->spacing, cv.evaluate(time, 0), alpha, blend);
+				break;
+			}
+			case TimelineType::PathMix: {
+				PathConstraint &k = sk.paths[tl.target];
+				mix_value(k.mix_rotate, k.data->mix_rotate, cv.evaluate(time, 0), alpha, blend);
+				mix_value(k.mix_x, k.data->mix_x, cv.evaluate(time, 1), alpha, blend);
+				mix_value(k.mix_y, k.data->mix_y, cv.evaluate(time, 2), alpha, blend);
 				break;
 			}
 			case TimelineType::Sequence: {

@@ -377,9 +377,10 @@ static std::vector<uint8_t> synthetic_path_physics() {
 	for (float x : { 0.0f, 0.0f, 100.0f, 100.0f, 100.0f }) w.f(x);
 	w.u8(0);
 	w.v(1); w.s("path");
-	w.v(2);
+	w.v(3);
 	w.bone("root", -1, 0, 0, 0, 0);
-	w.bone("b", 0, 0, 5, 0, 10);
+	w.bone("b", 0, 90, 1, 4, 10); // placed by the path
+	w.bone("c", 0, 0, 0, 10, 10); // swings with physics
 	w.v(1);
 	w.s("s"); w.v(0); w.u32(0xffffffff); w.u32(0xffffffff); w.v(1); w.v(0);
 	w.v(0); w.v(0); // ik, transform
@@ -387,13 +388,13 @@ static std::vector<uint8_t> synthetic_path_physics() {
 	w.s("follow"); w.v(0); w.u8(0); w.v(1); w.v(1); w.v(0); w.u8(1 | 1 << 1 | 1 << 3);
 	for (float x : { 0.25f, 5.0f, 1.0f, 1.0f, 0.5f }) w.f(x);
 	w.v(1); // physics: rotate, limit and mass follow; mix follows the global flags byte
-	w.s("jiggle"); w.v(1); w.v(1); w.u8(8 | 64 | 128); w.f(1); w.f(100);
-	w.u8(30); for (float x : { 0.5f, 80.0f, 0.9f, 2.0f, 0.0f, -10.0f }) w.f(x);
+	w.s("jiggle"); w.v(1); w.v(2); w.u8(8 | 64 | 128); w.f(1); w.f(100);
+	w.u8(30); for (float x : { 0.5f, 80.0f, 0.9f, 2.0f, 3.0f, 0.0f }) w.f(x);
 	w.u8(128); w.f(0.75f);
 	w.v(1); w.v(0); w.v(1); w.v(1); // default skin: slot 0, "path"
-	w.u8(4 | 32); w.v(3); // path attachment, constant speed, 3 unweighted vertices
-	for (float x : { 0.0f, 0.0f, 10.0f, 0.0f, 20.0f, 0.0f }) w.f(x);
-	w.f(10); // one curve length per 3 vertices
+	w.u8(4 | 32); w.v(6); // path attachment, constant speed: a straight 20-unit curve from (0, 0) to (20, 0)
+	for (float x : { -5.0f, 0.0f, 0.0f, 0.0f, 5.0f, 0.0f, 15.0f, 0.0f, 20.0f, 0.0f, 25.0f, 0.0f }) w.f(x);
+	w.f(20); w.f(40); // one curve length per 3 vertices
 	w.v(1); w.s("alt"); w.v(0); for (int i = 0; i < 4; i++) w.v(0); w.v(0); // named skin, inline name
 	w.v(0); // events
 	w.v(1); w.s("go"); w.v(0);
@@ -428,19 +429,20 @@ static void test_binary_path_physics() {
 	NEAR(p.spacing, 10); // fixed: scaled
 	NEAR(p.mix_y, 0.5);
 	const PhysicsData &ph = sd->physics[0];
-	CHECK(ph.bone == 1 && ph.order == 1);
+	CHECK(ph.bone == 2 && ph.order == 1);
 	NEAR(ph.rotate, 1);
 	NEAR(ph.limit, 200);
 	NEAR(ph.fps, 30);
 	NEAR(ph.mass_inverse, 2);
-	NEAR(ph.gravity, -10);
+	NEAR(ph.wind, 3);
+	NEAR(ph.gravity, 0);
 	NEAR(ph.mix, 0.75);
 	CHECK(sd->skins[1]->name == "alt");
 	const Attachment *path = sd->default_skin->find(0, "path");
 	CHECK(path && path->type == AttachmentType::Path && path->constant_speed && !path->closed);
-	CHECK(path && path->lengths.size() == 1 && path->vertex_count == 3);
-	if (path && path->lengths.size() == 1) {
-		NEAR(path->lengths[0], 20);
+	CHECK(path && path->lengths.size() == 2 && path->vertex_count == 6);
+	if (path && path->lengths.size() == 2) {
+		NEAR(path->lengths[0], 40);
 	}
 	const Animation *anim = sd->find_animation("go");
 	CHECK(anim && anim->timelines.size() == 2);
@@ -456,6 +458,43 @@ static void test_binary_path_physics() {
 		}
 	}
 	CHECK(!load_binary(bin.data(), bin.size() - 1, 1, err));
+
+	// At scale 1: the path puts "b" a quarter along (x 5), halfway to y 0 (mix y 0.5) and, chained to the
+	// point 5 further on, pointing along the path.
+	auto one = load_binary(bin.data(), bin.size(), 1, err);
+	CHECK(one != nullptr);
+	if (!one) {
+		return;
+	}
+	Skeleton sk(one.get());
+	sk.update_world_transform();
+	const Bone &b = sk.bones[1];
+	NEAR(b.world_x, 5);
+	NEAR(b.world_y, 2);
+	NEAR(b.world_rotation_x(), 0);
+	NEAR(b.rotation, 90); // the animated pose is kept for the next frame
+	sk.paths[0].position = 0.5f;
+	sk.update_world_transform();
+	NEAR(b.world_x, 10);
+
+	// Physics: at rest the bone stays put; moved up, its tip lags and it turns clockwise, then settles.
+	const Bone &c = sk.bones[2];
+	for (int i = 0; i < 30; i++) {
+		sk.update(1.0f / 30);
+		sk.update_world_transform();
+	}
+	NEAR(c.world_rotation_x(), 0);
+	sk.y += 10;
+	sk.update(1.0f / 30);
+	sk.update_world_transform();
+	float swung = c.world_rotation_x();
+	CHECK(swung < -3);
+	for (int i = 0; i < 300; i++) {
+		sk.update(1.0f / 30);
+		sk.update_world_transform();
+	}
+	CHECK(std::fabs(c.world_rotation_x()) < 1);
+	NEAR(c.world_y, 20);
 }
 
 static void test_binary() {

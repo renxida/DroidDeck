@@ -1032,12 +1032,6 @@ std::unique_ptr<SkeletonData> load_binary(const uint8_t *data, size_t length, fl
 	auto sd = std::make_unique<SkeletonData>();
 	BinaryLoader l{ *sd, Reader{ data, data + length }, scale, false, {}, {}, {}, {} };
 	bool ok = l.header() && l.bones() && l.slots() && l.ik() && l.transforms() && l.paths() && l.physics();
-	if (ok && !sd->paths.empty()) {
-		l.unsupported.push_back("path constraints (loaded, not applied)");
-	}
-	if (ok && !sd->physics.empty()) {
-		l.unsupported.push_back("physics constraints (loaded, not simulated)");
-	}
 	ok = ok && l.skins() && l.events();
 	if (ok) {
 		int n = l.r.count();
