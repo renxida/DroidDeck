@@ -20,6 +20,7 @@ on:
       - 'tools/native-engine/skeltest/**'
       - 'tools/native-engine/bench/**'
       - 'tools/native-engine/stubs/**'
+      - 'tools/native-engine/r2r-check/**'
       - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
       - 'tools/tests/test_native_godot.py'
       - '.github/workflows/native-engine-build.yml'
@@ -46,6 +47,25 @@ jobs:
         run: sh tools/native-engine/modules/native_compat/skel/tests/run_tests.sh
       - name: Host tests for the clean-room FSB5 sound reader
         run: sh tools/native-engine/modules/native_compat/fsb/tests/run_tests.sh
+      - name: A real Windows ReadyToRun assembly, made portable, runs on arm64 .NET
+        # Public Microsoft runtime pack (no game files): its R2R DLLs have IL-only cleared, like a game's
+        # published ones. portable_image must make one load and run here, and the untouched one must not.
+        run: |
+          set -euo pipefail
+          W=$RUNNER_TEMP/r2r && mkdir -p "$W"
+          curl -fsSL -o "$W/rt.nupkg" https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.win-x64/9.0.7/microsoft.netcore.app.runtime.win-x64.9.0.7.nupkg
+          unzip -oq "$W/rt.nupkg" runtimes/win-x64/lib/net9.0/System.Linq.dll -d "$W"
+          python3 - "$W/runtimes/win-x64/lib/net9.0/System.Linq.dll" "$W/System.Linq.dll" <<'PY'
+          import runpy, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          data = open(sys.argv[1], "rb").read()
+          info = ng["pe_info"](data)
+          print("original: machine %#x flags %#x ready_to_run %s" % (info["machine"], info["flags"], info["ready_to_run"]))
+          img, note = ng["portable_image"](data)
+          print("patched:", note)
+          open(sys.argv[2], "wb").write(img)
+          PY
+          dotnet run -c Release --project tools/native-engine/r2r-check -- "$W/System.Linq.dll" "$W/runtimes/win-x64/lib/net9.0/System.Linq.dll"
       - name: Build deps
         run: |
           sudo apt-get update -qq
