@@ -1,0 +1,169 @@
+name: FEX Godot crash bisect (Wine ARM64EC, off-device)
+
+# The Godot 4.5.1 mono stand-in (native-standin-win-x64) runs to MAINLOOP_OK under Hangover's stock FEX but
+# crashed at ~12 s with a page fault inside StandIn.exe under Kestrel-FEXCore-20261114.24 (run 43633745118),
+# and the .NET app once died with "SuspendThread failed with error 5". This builds FEX at
+# tools/fex/arm64ec/FEX_REF with the Kestrel patches up to each one (0000 = upstream alone), the way
+# build-fex-arm64ec.yml does, and runs the stand-in GODOT_RUNS times and the .NET app CLR_RUNS times under each,
+# next to stock FEX and the published .wcp. Nothing here is published.
+
+on:
+  push:
+    branches: ['emu/winetest-bisect*']
+    paths:
+      - '.github/workflows/fex-godot-bisect.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  HANGOVER_TAG: hangover-11.16
+  LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
+  WCP: Kestrel-FEXCore-20261114.24-ab135df09-618bd252.wcp
+  GODOT_RUNS: '6'
+  CLR_RUNS: '2'
+  CLR_SECONDS: '90'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        upto: ['0000', '0001', '0002', '0003', '0004', '0005', '0006', '0007', '0008', '0009']
+    name: build-${{ matrix.upto }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build zstd >/dev/null
+          curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
+          echo "$RUNNER_TEMP/$LLVM_MINGW/bin" >> "$GITHUB_PATH"
+      - name: Recipe with patches up to ${{ matrix.upto }}
+        run: |
+          set -euo pipefail
+          r=recipe/tools/fex/arm64ec
+          mkdir -p "$r/patches"
+          cp tools/fex/arm64ec/build.sh tools/fex/arm64ec/FEX_REF "$r/"
+          for p in tools/fex/arm64ec/patches/*.patch; do
+            n=$(basename "$p" | cut -c1-4)
+            if [ "$n" \< "${{ matrix.upto }}" ] || [ "$n" = "${{ matrix.upto }}" ]; then cp "$p" "$r/patches/"; fi
+          done
+          ls "$r/patches"
+          if ! ls "$r/patches"/*.patch >/dev/null 2>&1; then
+            sed -i 's|for p in "$HERE"/patches/\*.patch; do|for p in $(ls "$HERE"/patches/*.patch 2>/dev/null); do|; s|cat "$HERE"/patches/\*.patch|cat /dev/null|g' "$r/build.sh"
+          fi
+      - name: Build the DLLs
+        run: WORK="$PWD/fex-ec" recipe/tools/fex/arm64ec/build.sh dlls
+      - name: Build the unixlibs (Debian 12)
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/work" -w /work debian:bookworm bash -c '
+            apt-get update -qq && apt-get install -y -qq g++ cmake ninja-build git binutils >/dev/null
+            git config --global --add safe.directory "*"
+            WORK=/work/fex-ec recipe/tools/fex/arm64ec/build.sh unixlib'
+          sudo chown -R "$(id -u):$(id -g)" fex-ec
+          mkdir -p out && cp fex-ec/install/usr/lib/wine/aarch64-windows/libarm64ecfex.dll fex-ec/install/usr/lib/wine/aarch64-unix/libarm64ecfex.so out/
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bisect-fex-${{ matrix.upto }}
+          path: out
+
+  programs:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+          dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o bin/clr -v q
+      - name: Godot stand-in
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/fex/winetest/get-standin.sh bin/standin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bisect-programs
+          path: bin
+
+  run:
+    needs: [build, programs]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        fex: ['stock', 'wcp', '0000', '0001', '0002', '0003', '0004', '0005', '0006', '0007', '0008', '0009']
+    name: run-${{ matrix.fex }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: bisect-programs
+          path: ${{ runner.temp }}/bin
+      - uses: actions/download-artifact@v4
+        if: matrix.fex != 'stock' && matrix.fex != 'wcp'
+        with:
+          name: bisect-fex-${{ matrix.fex }}
+          path: ${{ runner.temp }}/fex
+      - name: Wine (Hangover ARM64EC)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
+      - name: This row's FEX
+        if: matrix.fex != 'stock'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.fex }}" = wcp ]; then
+            gh release download kestrel-fex -R "$GITHUB_REPOSITORY" -p "$WCP" -D "$RUNNER_TEMP/cand"
+            tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/cand/$WCP"
+          else
+            tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/fex"
+          fi
+      - name: Run
+        run: |
+          set -uo pipefail
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
+          export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"; : > "$out/verdicts.txt"
+          for i in $(seq 1 "$GODOT_RUNS"); do
+            HB_RE='^(STANDIN_DEPS|FIRST_FRAME|MAINLOOP_OK)' DONE_RE='^MAINLOOP_OK' OPS_KEY=frames STALL_S=120 \
+              PROG_ARGS="--headless -- --quit-after-frames 600" \
+              tools/fex/winetest/run.sh "godot$i" "$out" 60 "$RUNNER_TEMP/bin/standin/StandIn.exe" > "$out/godot$i.verdict" 2>&1 || true
+            grep '^VERDICT ' "$out/godot$i.verdict" >> "$out/verdicts.txt" || echo "VERDICT godot$i no-verdict 0 0 0" >> "$out/verdicts.txt"
+            # The first crash in full; later ones by their fault line only.
+            if ! grep -q ' done ' "$out/godot$i.verdict"; then
+              if [ ! -f "$out/shown" ]; then cat "$out/godot$i.verdict"; touch "$out/shown"; fi
+              grep -a 'page fault\|Unhandled\|Fatal' "$out/godot$i.err" | head -3 | sed "s/^/godot$i: /"
+            fi
+            wineserver -k || true; sleep 1
+          done
+          for i in $(seq 1 "$CLR_RUNS"); do
+            tools/fex/winetest/run.sh "clr$i" "$out" "$CLR_SECONDS" "$RUNNER_TEMP/bin/clr/clr.exe" > "$out/clr$i.verdict" 2>&1 || true
+            grep '^VERDICT ' "$out/clr$i.verdict" >> "$out/verdicts.txt" || echo "VERDICT clr$i no-verdict 0 0 0" >> "$out/verdicts.txt"
+            grep -a 'Fatal\|Unhandled\|page fault' "$out/clr$i.err" | head -3 | sed "s/^/clr$i: /"
+            wineserver -k || true; sleep 1
+          done
+          echo "== ${{ matrix.fex }}"
+          cat "$out/verdicts.txt"
+          g=$(grep -c 'VERDICT godot[0-9]* done' "$out/verdicts.txt"); c=$(grep -c 'VERDICT clr[0-9]* done' "$out/verdicts.txt")
+          echo "SUMMARY ${{ matrix.fex }} godot $g/$GODOT_RUNS clr $c/$CLR_RUNS" | tee -a "$GITHUB_STEP_SUMMARY"
