@@ -675,9 +675,23 @@ jobs:
     with:
       component: pinned
 
+  offphone-steam-ui:
+    # This run's own APK on arm64 Android in docker (redroid, tools/offphone): install, runtime,
+    # gamescope and the Steam client up to its sign-in screen, where it stops (nothing signs in).
+    # A start that never reaches Steam's UI fails the run, so release-apk does not publish it.
+    needs: build
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/offphone-rig.yml
+    with:
+      apk_run_id: ${{ github.run_id }}
+      scenario: steam-ui
+
   checks:
     name: Compile and test APK
-    needs: [build, python-tests, native-startup-gate]
+    needs: [build, python-tests, native-startup-gate, offphone-steam-ui]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -687,7 +701,10 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           PYTHON_RESULT: ${{ needs.python-tests.result }}
           NATIVE_GATE_RESULT: ${{ needs.native-startup-gate.result }}
-        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success && test "$NATIVE_GATE_RESULT" = success
+          OFFPHONE_RESULT: ${{ needs.offphone-steam-ui.result }}
+        run: >-
+          test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success && test "$NATIVE_GATE_RESULT" = success
+          && test "$OFFPHONE_RESULT" = success
 
   sign:
     needs: [build, checks]

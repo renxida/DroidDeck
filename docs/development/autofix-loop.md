@@ -75,7 +75,9 @@ Everything else (crashes, hangs, regressions, CI breaks, perf drops) is the loop
 - offphone-rig.yml: redroid Android 14 on ubuntu-24.04-arm. Inputs apk_run_id (build.yml run; empty
   means newest green build of ref), ref (default perf/switchboard), scenario (steam-ui,
   stand-in-game, all), guest_vulkan (lavapipe or venus), image. Runs on workflow_dispatch,
-  workflow_call and pushes to ci/offphone-probe. Each rig (<scenario>) job passes only when the
+  workflow_call and pushes to ci/offphone-probe and autofix/**. build.yml calls it with steam-ui
+  on its own APK in every build (job offphone-steam-ui), a required check before release-apk
+  publishes. Each rig (<scenario>) job passes only when the
   scenario's target stage is reached and prints verdict.json ({scenario, target_stage,
   stage_reached, ok, seconds_to_each_stage, next_missing_stage, exit{class, suspect, status,
   signal, detail}}), the app's events.jsonl and session.log, logcat and process samples in its
