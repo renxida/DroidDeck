@@ -108,15 +108,21 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
   - the Windows `deps.json` describes the win-x64 runtime, so the launch folder gets the kit's
     `deps.json` with its app entry renamed to the game and listing the game's assemblies, and the kit's
     `runtimeconfig.json` with the game's runtime switches on top;
-  - a Windows build stamps its IL assemblies AMD64, which arm64 CoreCLR refuses; the launch copy is
-    relabelled ARM64 and nothing else. MEASURED on arm64 .NET 9 (r2r-probe, CI step): a ReadyToRun image
-    (crossgen2 output has IL-only clear and an RTR header, like the game's published DLLs) loads once
-    relabelled, and the runtime ignores its Windows x64 code and JITs the IL; clearing its R2R header or
-    marking it IL-only gets "Bad IL format", and an untouched AMD64 image gets "not compatible with the current
-    process architecture". A true mixed-mode assembly (C++/CLI: vtable fixups, no RTR header) can't run on
-    arm64, so it is left out and logged with the game assemblies that name it; only the game's own assembly
-    being mixed-mode stops the launch. The first phone launch (0aa91a7) stopped at compose because the old
-    check took R2R's missing IL-only mark for mixed mode.
+  - a Windows build stamps its IL assemblies AMD64, which arm64 CoreCLR refuses; an IL-only launch copy is
+    relabelled ARM64 and nothing else. A ReadyToRun image (crossgen2 output: IL-only clear, IL_LIBRARY set, an
+    RTR header, an x64 exception table and base relocations, like the game's published DLLs) is turned back into
+    plain IL: relabelled, R2R header cleared, IL-only set, IL_LIBRARY cleared, exception and relocation
+    directories emptied. MEASURED: .NET on Linux refuses a Windows R2R image, relabelled or not, through the
+    default load context and through hostfxr `load_assembly_and_get_function_pointer`, which is how Godot's
+    exported builds load the game assembly (startup gate run 43630311459: "Failed to get GodotPlugins
+    initialization function pointer", SIGSEGV; arm64-r2r runs 43630745903/43631010173: BadImageFormatException).
+    Each conversion step alone still gets "Bad IL format"; all of them together load and run on both paths
+    (local .NET 8 linux-x64, CI arm64 .NET 9 fxrhost check). Only `AssemblyLoadContext.LoadFromAssemblyPath`
+    took the relabel-only image, which is why the first r2r-probe looked good. An untouched AMD64 image gets
+    "not compatible with the current process architecture". A true mixed-mode assembly (C++/CLI: vtable
+    fixups, no RTR header) can't run on arm64, so it is left out and logged with the game assemblies that name
+    it; only the game's own assembly being mixed-mode stops the launch. The first phone launch (0aa91a7)
+    stopped at compose because the old check took R2R's missing IL-only mark for mixed mode.
 - The pck's `.gdextension` entries (Spine, FMOD, Sentry) have no `linux.arm64` library, so Godot logs an
   error and skips them. Our module will register stand-in classes under the names the game's scenes use.
 - Runs as a normal X11/Wayland client under gamescope (Vulkan via the guest's glibc loader, the same driver

@@ -22,6 +22,9 @@ def pe(managed, machine=0xAA64, r2r=False, ilonly=True, fixups=False, signature=
     struct.pack_into("<H", opt, 0, 0x20B)
     if managed:
         struct.pack_into("<II", opt, 112 + 14 * 8, 0x2008, 0x48)
+    if r2r:  # crossgen2 output also has an x64 exception table and base relocations
+        struct.pack_into("<II", opt, 112 + 3 * 8, 0x21C0, 0x18)
+        struct.pack_into("<II", opt, 112 + 5 * 8, 0x21E0, 0x10)
     coff = struct.pack("<HHIIIHH", machine, 1, 0, 0, 0, len(opt), 0x22)
     head = bytearray(0x80)
     head[:2] = b"MZ"
@@ -107,18 +110,24 @@ class NativeGodotTest(unittest.TestCase):
         with self.assertRaises(NG["MixedMode"]):  # ReadyToRun beside C++/CLI fixups
             NG["portable_image"](pe(True, machine=0x8664, ilonly=False, r2r=True, fixups=True))
 
-    def test_ready_to_run_images_are_only_relabelled(self):
-        # arm64 .NET refuses an R2R image whose R2R header is cleared or that is marked IL-only ("Bad IL
-        # format"), and ignores Windows x64 R2R code, so the only change is the machine label.
+    def test_ready_to_run_images_become_plain_il(self):
+        # .NET on Linux refuses a Windows R2R image on Godot's load path, relabelled or not; with the R2R header
+        # cleared, IL-only set, IL_LIBRARY cleared and the exception and relocation directories emptied it is the
+        # plain IL image it was compiled from (measured: default context and hostfxr component load).
         for ilonly in (False, True):
             src = pe(True, machine=0x8664, ilonly=ilonly, r2r=True)
             img, note = NG["portable_image"](src)
-            before, after = NG["pe_info"](src), NG["pe_info"](img)
-            self.assertEqual(0xAA64, after["machine"])
-            self.assertEqual((before["flags"], before["native_header"]), (after["flags"], after["native_header"]))
-            self.assertIn("ReadyToRun x64 code kept", note)
-            changed = [i for i in range(len(src)) if src[i] != img[i]]
-            self.assertTrue(set(changed) <= {before["machine_at"], before["machine_at"] + 1})
+            after = NG["pe_info"](img)
+            self.assertEqual((0xAA64, 0x1, (0, 0), False), (after["machine"], after["flags"], after["native_header"],
+                                                           after["ready_to_run"]))
+            dirs = after["directories_at"]
+            for entry in (3, 5):
+                self.assertEqual((0, 0), struct.unpack_from("<II", img, dirs + 8 * entry), entry)
+            self.assertEqual((0x2008, 0x48), struct.unpack_from("<II", img, dirs + 8 * 14))  # CLI header kept
+            self.assertEqual(len(src), len(img))
+            self.assertEqual(src[0x200 + 0x100:], img[0x200 + 0x100:])  # IL, metadata and the rest untouched
+            self.assertIn("ReadyToRun x64 code dropped", note)
+            self.assertEqual((None, None), NG["portable_image"](img))  # already portable
 
     def test_compose_leaves_out_mixed_mode_assemblies(self):
         win = self.game / "data_sts2_windows_x86_64"
@@ -137,7 +146,7 @@ class NativeGodotTest(unittest.TestCase):
         self.assertIn("left out Vortice.Native.dll", err.getvalue())
         self.assertIn("named by sts2.dll", err.getvalue())
         self.assertIn("Odd.dll", r["game_assemblies"])
-        self.assertIn("ReadyToRun x64 code kept", r["patched"]["Odd.dll"])
+        self.assertIn("ReadyToRun x64 code dropped", r["patched"]["Odd.dll"])
         deps = json.loads((data / "sts2.deps.json").read_text())
         self.assertNotIn("Vortice.Native.dll", json.dumps(deps))
 

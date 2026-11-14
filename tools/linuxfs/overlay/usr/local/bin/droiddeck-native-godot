@@ -75,6 +75,7 @@ def log(msg):
 
 AMD64, ARM64 = 0x8664, 0xAA64
 ILONLY, IL_LIBRARY = 0x1, 0x4
+EXCEPTION_DIRECTORY, BASE_RELOCATIONS = 3, 5  # PE data directory entries
 READY_TO_RUN = b"RTR\0"  # signature at the start of a ReadyToRun header
 
 
@@ -122,7 +123,7 @@ def pe_info(data):
             if va <= native[0] < va + max(vsize, raw_size):
                 at = native[0] - va + raw
                 r2r = data[at:at + 4] == READY_TO_RUN
-    return {"machine": machine, "machine_at": pe + 4, "flags": flags, "flags_at": cli + 16,
+    return {"machine": machine, "machine_at": pe + 4, "flags": flags, "flags_at": cli + 16, "directories_at": opt + dirs,
             "vtable_fixups": vtable_fixups, "native_header": native, "native_header_at": cli + 64,
             "ready_to_run": r2r}
 
@@ -142,12 +143,18 @@ def portable_image(data):
 
     CoreCLR refuses an assembly whose PE machine is AMD64 on arm64 ("not compatible with the current process
     architecture"). When the code inside is plain IL the machine field is only a label, so it is relabelled
-    ARM64. A ReadyToRun image (crossgen2 output: no IL-only mark, a ManagedNativeHeader with an RTR signature)
-    is relabelled the same way and otherwise left alone: its precompiled code is for Windows x64, so arm64 .NET
-    on Linux rejects that code and JIT-compiles the IL, which is always present. Clearing the R2R header or
-    marking such an image IL-only makes the loader refuse it ("Bad IL format": its PE layout is not an IL-only
-    one); MEASURED on arm64 .NET 9 (r2r-probe). Anything else without the IL-only mark (C++/CLI: vtable fixups,
-    no RTR header) raises MixedMode."""
+    ARM64.
+
+    A ReadyToRun image (crossgen2 output: no IL-only mark, a ManagedNativeHeader with an RTR signature) holds
+    Windows x64 code that .NET on Linux can never use, and .NET on Linux refuses the image itself whenever it is
+    loaded the way Godot loads a game (hostfxr load_assembly_and_get_function_pointer) or through the default
+    load context: BadImageFormatException, relabelled or not. Its IL and metadata are complete, so it is turned
+    into the plain IL image it was compiled from: the R2R header is cleared, the IL-only mark set and the
+    IL_LIBRARY (precompiled) mark cleared, and the two data directories that only the native code used, the x64
+    exception table and the base relocations, are emptied; an IL-only image may have neither. Each step alone
+    still fails ("Bad IL format"); all of them load and run on every path. MEASURED with the same win-x64 R2R
+    library and app on .NET 8 linux-x64 (default context, hostfxr component load) and in CI on arm64 .NET 9.
+    Anything else without the IL-only mark (C++/CLI: vtable fixups, no RTR header) raises MixedMode."""
     info = pe_info(data)
     if info is None or info["machine"] != AMD64:
         return None, None
@@ -156,10 +163,13 @@ def portable_image(data):
         raise MixedMode("mixed-mode (native C++) assembly; it cannot run on arm64")
     out = bytearray(data)
     struct.pack_into("<H", out, info["machine_at"], ARM64)
-    note = "relabelled x64 -> arm64"
-    if info["native_header"] != (0, 0):
-        note += " (ReadyToRun x64 code kept; arm64 .NET ignores it and JITs the IL)"
-    return bytes(out), note
+    if not r2r:
+        return bytes(out), "relabelled x64 -> arm64"
+    struct.pack_into("<I", out, info["flags_at"], (info["flags"] | ILONLY) & ~IL_LIBRARY)
+    struct.pack_into("<II", out, info["native_header_at"], 0, 0)
+    for entry in (EXCEPTION_DIRECTORY, BASE_RELOCATIONS):
+        struct.pack_into("<II", out, info["directories_at"] + 8 * entry, 0, 0)
+    return bytes(out), "relabelled x64 -> arm64, ReadyToRun x64 code dropped (plain IL; arm64 .NET JITs it)"
 
 
 def referenced_by(name, paths):
