@@ -870,6 +870,7 @@ class SessionService : Service() {
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"))
         lastPressureAt = 0L
+        MemoryDetail.begin(this, sessionDir)
         MemoryLog.start(File(sessionDir, "memory.csv"), smaps = Experiments.on(this, Experiments.FEX_SMAPS))
         ThreadLog.start(sessionDir)
         FexStatsLog.start(sessionDir, File(LinuxRuntime.liveDir(this), "shm"),
@@ -1519,6 +1520,7 @@ class SessionService : Service() {
         pendingSteamGameId = null
         pendingSteamGameGeneration = -1
         SessionEvents.record("steam.game_launch_requested", mapOf("gameId" to gameId, "generation" to gen))
+        MemoryDetail.requestSample("game_launch")
         watchGameExit(gameId, gen)
         Log.i(TAG, "queued Steam game $gameId for the running client")
     }
@@ -1952,6 +1954,7 @@ class SessionService : Service() {
                     .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
                 releaseLocks()
                 MemoryLog.stop()
+                MemoryDetail.end()
                 ThreadLog.stop()
                 FexStatsLog.stop()
                 stopLmkWatch()

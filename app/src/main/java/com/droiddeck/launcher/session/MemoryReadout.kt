@@ -269,6 +269,7 @@ object MemoryLog {
                             }
                         }
                     }
+                    MemoryDetail.tick(System.currentTimeMillis(), sample % MemoryDetail.LOG_EVERY == 0L)
                     sample++
                     try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
                 }

@@ -13,8 +13,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Read-only state for the remote "ping" answer and the live status file: the installed build, the Remote control and
  * Debugging tools switches, wireless debugging and the saved Kadb pairing, the Install updates over Wireless debugging
- * switch and whether Wireless debugging answered at its last try, power and thermals. Nothing here changes
- * a setting, and nothing carries a token, address or key.
+ * switch and whether Wireless debugging answered at its last try, power, thermals, and memory (the mem_ and swap_
+ * fields from [com.droiddeck.launcher.session.MemoryDetail]: totals, the estimated System share, the app, proot,
+ * runtime and game split, and the top processes). Nothing here changes a setting, and nothing carries a token,
+ * address or key.
  */
 object DeviceStatus {
     private val registered = AtomicBoolean(false)
@@ -55,6 +57,7 @@ object DeviceStatus {
             out.put("kadb_checked_at", it)
         }
         runCatching { com.droiddeck.launcher.update.KadbInstaller.lastResult(app) }.getOrNull()?.let { out.put("kadb_install_last", it) }
+        runCatching { com.droiddeck.launcher.session.MemoryDetail.headlineNow(app) }.getOrNull()?.forEach { (k, v) -> out.put(k, v) }
         return out
     }
 
