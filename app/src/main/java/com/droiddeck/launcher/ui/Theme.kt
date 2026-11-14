@@ -91,7 +91,7 @@ object Themes {
             LANNER, R.string.theme_lanner, R.string.theme_lanner_detail,
             background = Color(0xFF111619), surface = Color(0xFF182024), surfaceVariant = Color(0xFF1F2A30), line = Color(0xFF2A363D), line2 = Color(0xFF37454D),
             onBackground = Color(0xFFF1EBDD), onSurfaceVariant = Color(0xFF8A979E),
-            primary = Color(0xFFE0703A), primary2 = Color(0xFFC65B28), onPrimary = Color(0xFF1A0C05), signal = Color(0xFFE0703A),
+            primary = Color(0xFFE0703A), primary2 = Color(0xFFCC6230), onPrimary = Color(0xFF1A0C05), signal = Color(0xFFE0703A),
             good = Color(0xFF4CD37F),
         ),
         Palette(

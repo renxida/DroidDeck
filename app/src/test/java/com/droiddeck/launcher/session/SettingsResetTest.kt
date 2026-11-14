@@ -56,7 +56,7 @@ class SettingsResetTest {
 
         assertTrue(SettingsReset.resetAll(app, gameProfiles = false))
 
-        assertEquals("graphite", SessionPrefs.theme(app))
+        assertEquals("lanner", SessionPrefs.theme(app))
         assertEquals(500, SessionPrefs.backDoubleTapMs(app))
         assertFalse(SessionPrefs.unfoldedControlsWithController(app))
         assertTrue(SessionPrefs.noXalia(app))
