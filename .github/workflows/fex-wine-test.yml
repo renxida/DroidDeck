@@ -7,7 +7,8 @@ name: FEX under Wine ARM64EC (hang test, off-device)
 
 on:
   push:
-    branches: ['perf/emu-fex-wine*']
+    # Not a perf/emu-fex* or emu/fex* branch, so a patch change here never publishes a .wcp.
+    branches: ['emu/winetest*']
     paths:
       - 'tools/fex/winetest/**'
       - '.github/workflows/fex-wine-test.yml'
@@ -101,6 +102,8 @@ jobs:
           - {name: up0008-smaps, dll: '0008', env: 'FEX_NAMEWINDOWSMEMORY=5'}
           - {name: up0009, dll: '0009', env: ''}
           - {name: up0009-trim, dll: '0009', env: 'FEX_TRIMIDLETHREADS=5'}
+          - {name: up0009-row8, dll: '0009', env: 'FEX_SAMPLEHZ=250 FEX_NAMEWINDOWSMEMORY=60'}
+          - {name: up0009-all, dll: '0009', env: 'FEX_SAMPLEHZ=250 FEX_NAMEWINDOWSMEMORY=5 FEX_TRIMIDLETHREADS=5'}
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4

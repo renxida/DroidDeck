@@ -53,6 +53,16 @@ dll() { # $1 = arm64ec | wow64
     -DOVERRIDE_VERSION="$(fex_name)"
   ninja -C "$WORK/build_$1" -j "$JOBS"
   DESTDIR="$OUT" ninja -C "$WORK/build_$1" install >/dev/null
+  # The emulator DLL is loaded before kernelbase: anything it imports besides ntdll (and wow64 for WOW64) is
+  # mapped and initialized while the emulator is still loading, and Wine crashes or hangs at process start.
+  local dll=libarm64ecfex.dll allowed='ntdll.dll'
+  [ "$1" = wow64 ] && dll=libwow64fex.dll allowed='ntdll.dll wow64.dll'
+  local imports
+  imports=$(llvm-readobj --coff-imports "$WORK/build_$1/Bin/$dll" | sed -n 's/^ *Name: //p' | sort -u | tr '\n' ' ')
+  echo "$dll imports: $imports"
+  for i in $imports; do
+    case " $allowed " in *" $i "*) ;; *) echo "$dll must not import $i" >&2; exit 1 ;; esac
+  done
 }
 
 unixlib() {
