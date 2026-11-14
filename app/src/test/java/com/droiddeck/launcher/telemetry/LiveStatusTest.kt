@@ -139,6 +139,21 @@ class LiveStatusTest {
         assertTrue(text.contains("pacing: no game frame cap"))
     }
 
+    @Test fun aGameUnderTheCompositorsLabelCountsAsAGame() {
+        val dir = tmp.newFolder("2026-11-13-23-steam")
+        dir.resolve("events.jsonl").writeText("""{"t":$t0,"event":"session.created","sessionId":"s"}""" + "\n")
+        dir.resolve(FrameLogComponent.FILE).writeText("# frames t0_wall_ms=$t0 t0_mono_ns=1 source=gamescope\nt_ms,frametime_us\n" +
+            "# t_ms=2 engine=GAMESCOPE pid=0 steam=0 output=1616x720@60000mHz\n" +
+            "# t_ms=13548 engine=GAMESCOPE pid=8862 steam=1 output=1616x720@120000mHz\n" +
+            (1..50).joinToString("") { "${14_000 + it * 100},100000\n" } +
+            "# t_ms=47714 engine=GAMESCOPE pid=8862 steam=0 output=1616x720@120000mHz\n" +
+            "# t_ms=48716 engine=GAMESCOPE pid=10020 steam=0 output=1616x720@120000mHz\n" +
+            (1..60).joinToString("") { "${700_000 + it * 33},33333\n" })
+        val sample = LiveSampler(dir).sample(t0 + 720_000)
+        assertTrue(sample.gameRunning)
+        assertEquals(60, sample.game.frames)
+    }
+
     @Test fun samplesAGameSession() {
         val dir = session()
         val sampler = LiveSampler(dir)

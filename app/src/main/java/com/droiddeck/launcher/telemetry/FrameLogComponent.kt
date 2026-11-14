@@ -58,6 +58,8 @@ class FrameLogComponent(
         var lastFrameNs = 0L
         var engine = ""
         var steam = false
+        var inFront = false
+        val gameFocus = GameFocus()
         var steamSeen = false
         var gameSeen = false
         var launchedAt = 0L
@@ -82,6 +84,7 @@ class FrameLogComponent(
                         if (name != null) {
                             engine = GameFrameFeed.engineLabel(name)
                             steam = info[4] != 0
+                            inFront = gameFocus.isGame(engine, info[0], steam)
                             exits.focus(info[0], engine, steam, System.currentTimeMillis())
                             if (out.info(now, engine, info[0], steam, info[1], info[2], info[3]) && focusEvents < MAX_FOCUS_EVENTS) {
                                 focusEvents++
@@ -89,7 +92,7 @@ class FrameLogComponent(
                             }
                         }
                         val n = HudFrames.nativePoll(handle, frametimes, times)
-                        GamePhase.inGame = !steam && engine.isNotEmpty() && engine != "none" && engine != "GAMESCOPE"
+                        GamePhase.inGame = inFront
                         if (n > 0) {
                             out.add(frametimes, times, n)
                             lastFrameNs = now
@@ -98,7 +101,7 @@ class FrameLogComponent(
                                 steamSeen = true
                                 SessionEvents.record("steam.ui_first_frame", at = first)
                             }
-                            if (!steam && !gameSeen && name != null && engine != "GAMESCOPE") {
+                            if (inFront && !gameSeen && name != null) {
                                 gameSeen = true
                                 SessionEvents.record("game.first_frame", mapOf("engine" to engine, "pid" to info[0]), at = first)
                             }

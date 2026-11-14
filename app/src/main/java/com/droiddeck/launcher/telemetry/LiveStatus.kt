@@ -202,7 +202,10 @@ internal class LiveSampler(private val dir: File) {
     var startMs: Long = dir.lastModified()
         private set
 
-    private fun focusIsGame() = focusSteam == false && focusEngine != null && focusEngine !in NO_ENGINE
+    private val gameFocus = GameFocus()
+    private var focusGame = false
+
+    private fun focusIsGame() = focusGame
 
     fun sample(nowMs: Long): Sample {
         runCatching { eventsTail.read(::event) }
@@ -250,6 +253,7 @@ internal class LiveSampler(private val dir: File) {
                 focusEngine = m.groupValues[1]
                 focusPid = m.groupValues[2].toIntOrNull() ?: 0
                 focusSteam = m.groupValues[3] == "1"
+                focusGame = gameFocus.isGame(focusEngine, focusPid, focusSteam == true)
             }
             return
         }
@@ -339,7 +343,6 @@ internal class LiveSampler(private val dir: File) {
         private const val EVENTS = 8
         private const val EVENT_CHARS = 200
         private const val PROCESSES = 6
-        private val NO_ENGINE = setOf("none", "GAMESCOPE")
         private val NOTABLE = setOf("game.first_frame", "game.exited", "pacing.cap", "game.experiments",
             "steam.game_launch_requested", "steam.signed_in", "steam.return_after_game", "guest.exited", "session.ready",
             "app.exit", "exit.classified", "memory.lmk_risk", "memory.trim", "memory.freed", "session.paged_out", "session.paged_in")
