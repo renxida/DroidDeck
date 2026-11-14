@@ -367,6 +367,31 @@ second, 0.17% of one core. A phone core at half this runner's speed would make i
 0.02–0.05%. x87 is not why the later fights slow down, and reduced precision would buy almost nothing. The fex-sample
 `x87-module` rows will still say which module issues them, which is cheap to know.
 
+## FEX's own memory (round 13)
+
+The phone's lag tracks memory pressure (hub, a7526bd row 5: 123 to 142 frames over 50 ms a minute while swap was full,
+then 10 to 19), so memory comes before CPU. `tools/fex/bench/mem` runs the frame loop (3000 frames) and the 4-thread
+contended workload under FEX and samples `/proc/<pid>/smaps` every 0.5 s. FEX names its own mappings, so its share is
+exact. MB resident at FEX's peak (run 43568284554):
+
+| workload, config | threads | code buffers | FEX malloc | L2 lookup | L1 lookup | all FEX | guest anon | total time |
+|---|---|---|---|---|---|---|---|---|
+| frames, stock dynamic L1 | 7 | 30.9 | 19.9 | 0.0 | 3.5 | 62.7 | 81.5 | 4812 ms |
+| frames, fex-l1 (fixed 4 MB) | 7 | 31.2 | 18.2 | 0.0 | 10.9 | 67.8 | 81.7 | 3900 ms |
+| frames, fex-l1 + 64 MB first code buffer | 7 | 19.5 | 14.6 | 0.0 | 7.2 | 47.7 | 81.3 | 3460 ms |
+| frames, fixed 1 MB L1, L2 off | 7 | 30.9 | 17.8 | 0.0 | 4.1 | 60.6 | 81.5 | 4840 ms |
+| 4 threads, stock dynamic L1 | 13 | 15.5 | 13.0 | 0.0 | 1.6 | 37.5 | 5.6 | 14.5 ms |
+| 4 threads, fex-l1 | 14 | 18.0 | 15.9 | 0.0 | 15.9 | 60.0 | 5.9 | 12.1 ms |
+
+- The lookup tables are per thread. L2 (64 KB of entries per guest code page a thread runs, up to 128 MB) stayed at 0 MB
+  resident: it only fills on an L1 miss that hits the shared map, and turning it off changed neither memory nor time.
+- fex-l1's fixed 4 MB L1 costs what a thread touches: up to 4 MB on a busy thread, 0.4 to 1 MB on the median one
+  (+14 MB over 14 threads). A fixed 1 MB L1 loses all of fex-l1's speed, so the 4 MB is what buys it.
+- The 64 MB first code buffer *lowers* memory (−12 MB code, −4 MB FEX malloc): without it the first buffer fills, and
+  the old and new buffers live side by side until every thread moves over. It only reserves address space up front.
+- On this stand-in FEX is 48 to 68 MB of a 165 to 186 MB process. The game's 2.5 GB is mostly elsewhere: fex-smaps
+  (smaps.csv) and patch 0008 (NameWindowsMemory) are there to say where on the phone.
+
 ## Ranked next fixes (in FEX)
 
 0. **ReadyToRun for the game's assemblies** (.NET workstream, `dotnet-r2r`): new-content hitches 9.3 → 1.5 ms and
