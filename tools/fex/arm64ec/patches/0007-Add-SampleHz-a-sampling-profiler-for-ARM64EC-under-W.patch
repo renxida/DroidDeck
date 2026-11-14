@@ -1,8 +1,8 @@
-From 008da12ecd4d1e54dabf483262dc04c44d574372 Mon Sep 17 00:00:00 2001
+From ad69315e43900b3426658079e1723a7a902fb016 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 14 Nov 2026 00:52:31 +0000
-Subject: [PATCH 7/8] Add SampleHz, a sampling profiler for ARM64EC under Wine
- (default off)
+Subject: [PATCH 07/10] Add SampleHz, a sampling profiler for ARM64EC under
+ Wine (default off)
 
 Each emulated thread gets a timer on its own CPU time that sends it SIGPROF.
 The unixlib handler records the interrupted PC and the thread's last JIT block
@@ -28,8 +28,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  Source/Windows/ARM64EC/Sampler.h              |  16 +
  Source/Windows/UnixLib/FEXUnixLib.cpp         |  31 ++
  Source/Windows/UnixLib/FEXUnixLib.h           |  48 ++
- Source/Windows/UnixLib/Sampler.h              | 219 ++++++++
- 14 files changed, 980 insertions(+), 46 deletions(-)
+ Source/Windows/UnixLib/Sampler.h              | 225 ++++++++
+ 14 files changed, 986 insertions(+), 46 deletions(-)
  create mode 100644 FEXCore/include/FEXCore/Utils/FloatFallbackHook.h
  create mode 100644 Source/Windows/ARM64EC/Sampler.cpp
  create mode 100644 Source/Windows/ARM64EC/Sampler.h
@@ -1327,10 +1327,10 @@ index e24502f..d1c8212 100644
 +static_assert(sizeof(FEXUnixLib_SamplerRead) == 24);
 diff --git a/Source/Windows/UnixLib/Sampler.h b/Source/Windows/UnixLib/Sampler.h
 new file mode 100644
-index 0000000..22e3ca0
+index 0000000..f125ac5
 --- /dev/null
 +++ b/Source/Windows/UnixLib/Sampler.h
-@@ -0,0 +1,219 @@
+@@ -0,0 +1,225 @@
 +// SPDX-License-Identifier: MIT
 +// Unix side of FEX's sampling profiler: per-thread CPU-time timers deliver SIGPROF to the thread that used the time,
 +// and the handler records the interrupted PC plus the thread's last translated block into a lock-free ring.
@@ -1437,7 +1437,13 @@ index 0000000..22e3ca0
 +    struct sigaction Action {};
 +    Action.sa_sigaction = OnSignal;
 +    Action.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
++    // Block Wine's own asynchronous signals while the handler runs. Without this, Wine's SIGUSR1 (thread suspend)
++    // can land inside this handler, on the signal stack, where Wine can't tell whether the thread was in a syscall
++    // or in emulated code, and it suspends and resumes the thread against the wrong context.
 +    sigemptyset(&Action.sa_mask);
++    for (int Blocked : {SIGINT, SIGHUP, SIGQUIT, SIGTERM, SIGUSR1, SIGUSR2, SIGALRM, SIGIO}) {
++      sigaddset(&Action.sa_mask, Blocked);
++    }
 +    if (sigaction(SIGPROF, &Action, &Previous) != 0) {
 +      munmap(Mem, Bytes);
 +      return false;

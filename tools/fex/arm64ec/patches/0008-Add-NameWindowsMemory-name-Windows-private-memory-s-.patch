@@ -1,7 +1,7 @@
-From 9bb2ed497a7671c17b147e156628c7ae54b019e6 Mon Sep 17 00:00:00 2001
+From 3b8ba7f03c32978eef1b8548988019cf8de6ed4a Mon Sep 17 00:00:00 2001
 From: Kestrel <kestrel@invalid>
 Date: Sat, 14 Nov 2026 06:49:43 +0000
-Subject: [PATCH 8/9] Add NameWindowsMemory: name Windows private memory's
+Subject: [PATCH 08/10] Add NameWindowsMemory: name Windows private memory's
  mappings by owner (default off)
 
 Every NameWindowsMemory seconds a FEX-internal thread walks committed Windows

@@ -1,15 +1,15 @@
-From db16789cf96701535266cc017e4d4b1be32aecad Mon Sep 17 00:00:00 2001
+From 1dbb4bb0f86b3f197d686b389cb89b765fed9ce6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 14 Nov 2026 17:13:12 +0000
-Subject: [PATCH] DIAG ONLY: FEX_SAMPLER_DIAG knockout bits for the sampler
- (never ship)
+Subject: [PATCH 10/10] DIAG ONLY: FEX_SAMPLER_DIAG knockout bits for the
+ sampler (never ship)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  Source/Windows/ARM64EC/Sampler.cpp  | 11 +++++++++--
  Source/Windows/UnixLib/FEXUnixLib.h |  4 +++-
- Source/Windows/UnixLib/Sampler.h    | 16 +++++++++++++---
- 3 files changed, 25 insertions(+), 6 deletions(-)
+ Source/Windows/UnixLib/Sampler.h    | 20 ++++++++++++++++----
+ 3 files changed, 28 insertions(+), 7 deletions(-)
 
 diff --git a/Source/Windows/ARM64EC/Sampler.cpp b/Source/Windows/ARM64EC/Sampler.cpp
 index 4a948d6..50ef60d 100644
@@ -64,7 +64,7 @@ index d1c8212..38179ef 100644
  struct FEXUnixLib_SamplerThread {
    void* Frame;  // SamplerThreadStart: the calling thread's CpuStateFrame.
 diff --git a/Source/Windows/UnixLib/Sampler.h b/Source/Windows/UnixLib/Sampler.h
-index 22e3ca0..872ff3c 100644
+index f125ac5..47b554d 100644
 --- a/Source/Windows/UnixLib/Sampler.h
 +++ b/Source/Windows/UnixLib/Sampler.h
 @@ -8,6 +8,7 @@
@@ -80,12 +80,12 @@ index 22e3ca0..872ff3c 100644
  static uint32_t OffHeader, OffRIP;
  static long IntervalNs;
 +// FEX_SAMPLER_DIAG bits, for finding what slows threads: 1 = create timers but never arm them, 2 = no timers or
-+// handler at all, 4 = no x87 fallback hook, 8 = no drain thread.
++// handler at all, 4 = no x87 fallback hook, 8 = no drain thread, 16 = let Wine's signals nest in the handler.
 +static uint32_t Diag;
  static struct sigaction Previous;
  
  static inline uint64_t Ticks() {
-@@ -101,16 +105,20 @@ static inline bool Start(FEXUnixLib_SamplerStart* Args) {
+@@ -101,6 +105,9 @@ static inline bool Start(FEXUnixLib_SamplerStart* Args) {
      OffRIP = Args->FrameOffsetRIP;
      IntervalNs = 1000000000L / Args->Hz;
      Mask = (1ull << RingLog2) - 1;
@@ -95,7 +95,15 @@ index 22e3ca0..872ff3c 100644
      struct sigaction Action {};
      Action.sa_sigaction = OnSignal;
      Action.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+@@ -109,14 +116,17 @@ static inline bool Start(FEXUnixLib_SamplerStart* Args) {
+     // or in emulated code, and it suspends and resumes the thread against the wrong context.
      sigemptyset(&Action.sa_mask);
+     for (int Blocked : {SIGINT, SIGHUP, SIGQUIT, SIGTERM, SIGUSR1, SIGUSR2, SIGALRM, SIGIO}) {
+-      sigaddset(&Action.sa_mask, Blocked);
++      if (!(Diag & 16)) {
++        sigaddset(&Action.sa_mask, Blocked);
++      }
+     }
 -    if (sigaction(SIGPROF, &Action, &Previous) != 0) {
 +    if (!(Diag & 2) && sigaction(SIGPROF, &Action, &Previous) != 0) {
        munmap(Mem, Bytes);
@@ -107,7 +115,7 @@ index 22e3ca0..872ff3c 100644
    Args->Capacity = uint32_t(Mask + 1);
    Args->Ring = Ring;
    Args->Head = reinterpret_cast<uint64_t*>(&Head);
-@@ -120,7 +128,7 @@ static inline bool Start(FEXUnixLib_SamplerStart* Args) {
+@@ -126,7 +136,7 @@ static inline bool Start(FEXUnixLib_SamplerStart* Args) {
  
  // Runs on the thread to sample: its timer counts that thread's CPU time only.
  static inline ThreadSlot* StartThread(const void* Frame) {
@@ -116,7 +124,7 @@ index 22e3ca0..872ff3c 100644
      return nullptr;
    }
    for (auto& Slot : Slots) {
-@@ -149,7 +157,9 @@ static inline ThreadSlot* StartThread(const void* Frame) {
+@@ -155,7 +165,9 @@ static inline ThreadSlot* StartThread(const void* Frame) {
      Spec.it_interval.tv_nsec = IntervalNs % 1000000000L;
      Spec.it_interval.tv_sec = IntervalNs / 1000000000L;
      Spec.it_value.tv_nsec = 1 + (Slot.TID * 7919L) % IntervalNs;

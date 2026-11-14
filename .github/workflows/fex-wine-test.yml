@@ -110,12 +110,10 @@ jobs:
           - {name: up0009-trim, dll: '0009', env: 'FEX_TRIMIDLETHREADS=5'}
           - {name: up0009-row8, dll: '0009', env: 'FEX_SAMPLEHZ=250 FEX_NAMEWINDOWSMEMORY=60'}
           - {name: up0009-all, dll: '0009', env: 'FEX_SAMPLEHZ=250 FEX_NAMEWINDOWSMEMORY=5 FEX_TRIMIDLETHREADS=5'}
-          - {name: diag0, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=0'}
-          - {name: diag1, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=1'}
-          - {name: diag2, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=2'}
-          - {name: diag4, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=4'}
-          - {name: diag6, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=6'}
-          - {name: diag12, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=12'}
+          - {name: mask-a, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=0'}
+          - {name: mask-b, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=0'}
+          - {name: nomask, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=16'}
+          - {name: nomask-hookoff, dll: '0010', env: 'FEX_SAMPLEHZ=250 FEX_SAMPLER_DIAG=20'}
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
