@@ -82,7 +82,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "native-inventory", "free-memory", "hybris-index", "fex-l1",
                "hybris-index-session", "native-engine", "dxvk-arm64ec",
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
-               "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble")
+               "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -530,9 +530,12 @@ def godot_accessibility(game):
 @fix
 def slay_the_spire_2_pacing(game):
     if game.stem == "slaythespire2" and is_godot(game) and experiment(game.env, "sched"):
-        return ({"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": "60"}, [],
-                "Slay the Spire 2: game threads kept off the little cores, 60 fps cap "
-                "(DROIDDECK_GAME_CPU_BUDGET=all or DROIDDECK_FPS_CAP=0 in the game's environment undoes them)")
+        # fps-30: a steady 30 over a 60 that dips (each frame gets 33 ms, the phone runs cooler and the
+        # thermal governor has nothing to step down).
+        fps = "30" if experiment(game.env, "fps-30") else "60"
+        return ({"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": fps}, [],
+                "Slay the Spire 2: game threads kept off the little cores, %s fps cap "
+                "(DROIDDECK_GAME_CPU_BUDGET=all or DROIDDECK_FPS_CAP=0 in the game's environment undoes them)" % fps)
 
 
 @fix

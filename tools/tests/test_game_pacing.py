@@ -170,6 +170,13 @@ class FrameCapTest(unittest.TestCase):
         self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="slaythespire2", files=set(), env=game.env)))
         self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="brotato", files={"brotato.pck"}, env=game.env)))
 
+    def test_slay_the_spire_2_caps_at_30_under_fps_30(self):
+        game = mock.Mock(stem="slaythespire2", files={"slaythespire2.pck", "godotsharp.dll"},
+                         env={"DROIDDECK_EXP_SCHED": "1", "DROIDDECK_EXP_FPS_30": "1"})
+        env, extra, note = MODULE["slay_the_spire_2_pacing"](game)
+        self.assertEqual(env, {"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": "30"})
+        self.assertIn("30 fps cap", note)
+
     def test_launch_applies_the_cap_and_a_game_profile_can_undo_it(self):
         home = Path(self.tmp.name)
         proton = home / "fake-proton"

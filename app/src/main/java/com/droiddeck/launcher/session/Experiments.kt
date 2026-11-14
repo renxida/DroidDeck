@@ -61,6 +61,8 @@ object Experiments {
     const val DOTNET_R2R_GENERICS = "dotnet-r2r-generics"
     /** As dotnet-r2r-generics, in one version bubble with the game's framework copy: covers more, but crossgen2 calls it unsupported. Wins if both are on. */
     const val DOTNET_R2R_BUBBLE = "dotnet-r2r-bubble"
+    /** Slay the Spire 2 capped at 30 fps instead of 60: steady frames over peak frame rate. */
+    const val FPS_30 = "fps-30"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -96,6 +98,7 @@ object Experiments {
         Switch(FEX_SAMPLE, R.string.exp_fex_sample),
         Switch(DOTNET_R2R_GENERICS, R.string.exp_dotnet_r2r_generics),
         Switch(DOTNET_R2R_BUBBLE, R.string.exp_dotnet_r2r_bubble),
+        Switch(FPS_30, R.string.exp_fps_30),
     )
 
     /** At most one of each group is on. */
@@ -114,7 +117,8 @@ object Experiments {
         DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
         WAYLAND_PRESENT, VK_COUNT,
         NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE,
-        DXVK_ARM64EC, COMPOSITE_TIMING, DOTNET_R2R, FEX_CODE_BUFFER, FEX_SAMPLE, DOTNET_R2R_GENERICS, DOTNET_R2R_BUBBLE)
+        DXVK_ARM64EC, COMPOSITE_TIMING, DOTNET_R2R, FEX_CODE_BUFFER, FEX_SAMPLE, DOTNET_R2R_GENERICS, DOTNET_R2R_BUBBLE,
+        FPS_30)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,

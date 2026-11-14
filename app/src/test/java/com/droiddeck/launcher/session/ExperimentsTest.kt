@@ -66,6 +66,7 @@ class ExperimentsTest {
             "fex-sample" to "DROIDDECK_EXP_FEX_SAMPLE",
             "dotnet-r2r-generics" to "DROIDDECK_EXP_DOTNET_R2R_GENERICS",
             "dotnet-r2r-bubble" to "DROIDDECK_EXP_DOTNET_R2R_BUBBLE",
+            "fps-30" to "DROIDDECK_EXP_FPS_30",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())
