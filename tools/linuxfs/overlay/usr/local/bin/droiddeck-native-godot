@@ -17,12 +17,16 @@ comes within FIRST_FRAME_S of the engine's start (timed after any fetch), or the
 the engine did not start: `run` kills it and exits with DID_NOT_START (86), so the caller can fall back.
 After the first frame the engine's own exit code passes through. Frame-rate lines are thinned to one a minute.
 
-The engine, kit and stubs come as one component (`--component DIR`, or `--fetch` for the pinned release on
+The engine and kit come as one component (`--component DIR`, or `--fetch` for the pinned release on
 the fork, cached under ~/.cache/droiddeck/native/<tag>/):
 
     godot                  the engine
     kit/                   kit.json + the linux-arm64 data folder of a stock C# export
-    stubs/                 libsteam_api64.so (Steamworks.NET stand-in)
+
+Steam: the game's Steamworks.NET talks to the real Steam client in the session through Valve's own linux-arm64
+libsteam_api.so, downloaded on the device from the public Steamworks.NET NuGet package (STEAM_API, sha256
+pinned) and placed as libsteam_api64.so, the name a Windows build asks for. Nothing fakes Steam: an older
+component's stubs/ folder (a no-op Steamworks stand-in) is ignored.
 
 Usage:
   droiddeck-native-godot compose|run --game-dir DIR (--fetch | --component DIR | --kit DIR --engine FILE)
@@ -33,6 +37,7 @@ import ctypes.util
 import hashlib
 import json
 import os
+import re
 import shutil
 import signal
 import struct
@@ -47,6 +52,14 @@ import urllib.request
 COMPONENT = {"tag": "native-engine-38",
              "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-38/native-engine.tar.zst",
              "sha256": "176b8172f7c3efd8f6a49e684014aed9839a4c9c768d40db61c1fc1b086b73c0"}
+# Valve's linux-arm64 Steamworks library, as packaged by Steamworks.NET on nuget.org (Steamworks SDK 1.63+).
+STEAM_API = {"package": "Steamworks.NET.AnyCPU 2026.165.3",
+             "url": "https://api.nuget.org/v3-flatcontainer/steamworks.net.anycpu/2026.165.3/"
+                    "steamworks.net.anycpu.2026.165.3.nupkg",
+             "sha256": "254b06a1d88ee7fe3a47ca107c3ca3fb13b0d81a0cde4b4efd872467d682f2db",
+             "member": "runtimes/linux-arm64/native/libsteam_api.so",
+             "member_sha256": "6010ff5049f0154a270092cb93729f1fc691d28e3b8a6f5fc6f8fcccfbd1e508"}
+STEAM_API_NAMES = ("libsteam_api64.so", "libsteam_api.so")
 DID_NOT_START = 86
 FIRST_FRAME_S = float(os.environ.get("DROIDDECK_NATIVE_FIRST_FRAME_S", "90"))
 FPS_EVERY_S = 60
@@ -277,7 +290,55 @@ def fetch(component=COMPONENT, cache=CACHE, opener=urllib.request.urlopen):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def compose(game_dir, kit, engine, out, exe=None, stubs=None):
+def steam_api(spec=STEAM_API, cache=CACHE, opener=urllib.request.urlopen):
+    """Path of Valve's linux-arm64 libsteam_api.so, downloading and checking it the first time."""
+    folder = os.path.join(cache, "steam-api", spec["member_sha256"][:16])
+    path = os.path.join(folder, "libsteam_api.so")
+    if os.path.isfile(path):
+        return path
+    os.makedirs(cache, exist_ok=True)
+    tmp = tempfile.mkdtemp(dir=cache)
+    try:
+        package = os.path.join(tmp, "package.nupkg")
+        digest = hashlib.sha256()
+        with opener(spec["url"], timeout=60) as source, open(package, "wb") as f:
+            for block in iter(lambda: source.read(1 << 20), b""):
+                digest.update(block)
+                f.write(block)
+        if digest.hexdigest() != spec["sha256"]:
+            raise SystemExit("Steamworks package download did not match its checksum")
+        import zipfile
+        with zipfile.ZipFile(package) as z:
+            data = z.read(spec["member"])
+        if hashlib.sha256(data).hexdigest() != spec["member_sha256"]:
+            raise SystemExit("libsteam_api.so in the Steamworks package did not match its checksum")
+        os.makedirs(folder, exist_ok=True)
+        staged = os.path.join(tmp, "libsteam_api.so")
+        with open(staged, "wb") as f:
+            f.write(data)
+        os.chmod(staged, 0o755)
+        os.replace(staged, path)
+        return path
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+STEAM_ENTRY = re.compile(rb"\0(Steam(?:API|Internal|GameServer)_[A-Za-z0-9_]+)\0")
+
+
+def steam_api_missing(steamworks_dll, library):
+    """Steam flat-API names the game's Steamworks.NET mentions that the library does not export (by name)."""
+    try:
+        with open(steamworks_dll, "rb") as f:
+            wanted = {m.decode() for m in STEAM_ENTRY.findall(f.read())}
+        with open(library, "rb") as f:
+            have = f.read()
+    except OSError:
+        return []
+    return sorted(n for n in wanted if b"\0" + n.encode() + b"\0" not in have)
+
+
+def compose(game_dir, kit, engine, out, exe=None, steam=None):
     game_dir, kit, engine, out = (os.path.abspath(p) for p in (game_dir, kit, engine, out))
     asm, win = windows_data_dir(game_dir)
     data = os.path.join(out, f"data_{asm}_linuxbsd_arm64")
@@ -329,9 +390,16 @@ def compose(game_dir, kit, engine, out, exe=None, stubs=None):
         mixed_refs[name] = users
         log(f"left out {name}: mixed-mode (native x64) assembly; "
             + (f"named by {', '.join(users)}" if users else "no game assembly names it"))
-    if stubs and os.path.isdir(stubs):
-        for name in sorted(os.listdir(stubs)):
-            place(os.path.join(stubs, name), os.path.join(data, name))
+    steam_missing = None
+    if steam:
+        for name in STEAM_API_NAMES:
+            place(os.path.abspath(steam), os.path.join(data, name))
+        sw = next((n for n in taken if n.lower() == "steamworks.net.dll"), None)
+        if sw:
+            steam_missing = steam_api_missing(os.path.join(data, sw), steam)
+            log("Steam: Valve's libsteam_api.so; "
+                + (f"{len(steam_missing)} names the game's Steamworks.NET mentions are not exported "
+                   f"({', '.join(steam_missing[:8])})" if steam_missing else "it exports every name the game's Steamworks.NET mentions"))
     manifest = kit_manifest(kit)
     if manifest.get("deps"):
         with open(os.path.join(kit, manifest["deps"])) as f:
@@ -358,7 +426,8 @@ def compose(game_dir, kit, engine, out, exe=None, stubs=None):
             shutil.copy2(engine, target)
         os.chmod(target, 0o755)
     report = {"assembly": asm, "pack": find_pack(game_dir, exe), "engine": target, "data": data,
-              "game_assemblies": taken, "patched": patched, "mixed_mode": mixed_refs, "skipped": skipped, "kit_files": len(kit_map)}
+              "game_assemblies": taken, "patched": patched, "mixed_mode": mixed_refs, "steam_api": steam,
+              "steam_api_missing": steam_missing, "skipped": skipped, "kit_files": len(kit_map)}
     with open(os.path.join(out, "native-launch.json"), "w") as f:
         json.dump(report, f, indent=1)
     return report
@@ -450,7 +519,7 @@ def main(argv=None):
     ap.add_argument("--component")
     ap.add_argument("--kit")
     ap.add_argument("--engine")
-    ap.add_argument("--stubs")
+    ap.add_argument("--steam-api", help="Valve's linux-arm64 libsteam_api.so (default with --fetch: download it)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--exe")
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -463,13 +532,14 @@ def main(argv=None):
         os.environ.pop("LD_PRELOAD", None)
     component = fetch() if a.fetch else a.component
     if component:
-        kit, engine, stubs = (os.path.join(component, n) for n in ("kit", "godot", "stubs"))
+        kit, engine = (os.path.join(component, n) for n in ("kit", "godot"))
     elif a.kit and a.engine:
-        kit, engine, stubs = a.kit, a.engine, a.stubs
+        kit, engine = a.kit, a.engine
     else:
         ap.error("give --fetch, --component, or --kit and --engine")
     os.makedirs(a.out, exist_ok=True)
-    r = compose(a.game_dir, kit, engine, a.out, a.exe, stubs)
+    steam = a.steam_api or (steam_api() if a.fetch else None)
+    r = compose(a.game_dir, kit, engine, a.out, a.exe, steam)
     log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
         f"{r['kit_files']} kit files, skipped {len(r['skipped'])}"
         + (f" (left out {len(r['mixed_mode'])} mixed-mode: {', '.join(r['mixed_mode'])})" if r["mixed_mode"] else ""))

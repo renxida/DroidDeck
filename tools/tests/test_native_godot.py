@@ -281,16 +281,53 @@ class NativeGodotTest(unittest.TestCase):
             os.chdir(old)
         self.assertTrue(os.path.isabs(r["pack"]) and os.path.isabs(r["engine"]))
 
-    def test_component_layout_and_stubs(self):
+    def test_component_stubs_are_ignored_and_valve_library_is_placed(self):
         comp = self.root / "component"
         (comp / "stubs").mkdir(parents=True)
         (comp / "stubs" / "libsteam_api64.so").write_bytes(b"stub")
         os.rename(self.kit, comp / "kit")
         os.rename(self.engine, comp / "godot")
+        win = self.game / "data_sts2_windows_x86_64"
+        (win / "Steamworks.NET.dll").write_bytes(pe(True) + b"\0SteamAPI_Init\0SteamAPI_ISteamUser_GetSteamID\0SteamAPI_Gone\0")
         out = self.root / "launch"
         self.assertEqual(0, NG["main"](["compose", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
                                         "--exe", "SlayTheSpire2.exe"]))
-        self.assertTrue((out / "data_sts2_linuxbsd_arm64" / "libsteam_api64.so").is_file())
+        self.assertFalse((out / "data_sts2_linuxbsd_arm64" / "libsteam_api64.so").exists())  # the stub is not used
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF\0SteamAPI_Init\0SteamAPI_ISteamUser_GetSteamID\0")
+        err = io.StringIO()
+        with unittest.mock.patch("sys.stderr", err):
+            self.assertEqual(0, NG["main"](["compose", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                            "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)]))
+        data = out / "data_sts2_linuxbsd_arm64"
+        for name in ("libsteam_api64.so", "libsteam_api.so"):
+            self.assertEqual(valve.read_bytes(), (data / name).read_bytes())
+        report = json.loads((out / "native-launch.json").read_text())
+        self.assertEqual(["SteamAPI_Gone"], report["steam_api_missing"])
+        self.assertIn("1 names the game's Steamworks.NET mentions are not exported (SteamAPI_Gone)", err.getvalue())
+
+    def test_steam_api_download_is_checked_and_cached(self):
+        import hashlib, zipfile
+        lib = b"\x7fELF valve"
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("runtimes/linux-arm64/native/libsteam_api.so", lib)
+        pkg = buf.getvalue()
+        spec = {"url": "https://example.invalid/p.nupkg", "sha256": hashlib.sha256(pkg).hexdigest(),
+                "member": "runtimes/linux-arm64/native/libsteam_api.so", "member_sha256": hashlib.sha256(lib).hexdigest()}
+        calls = []
+        def opener(url, timeout):
+            calls.append(url)
+            return io.BytesIO(pkg)
+        cache = self.root / "cache"
+        path = NG["steam_api"](spec, str(cache), opener)
+        self.assertEqual(lib, Path(path).read_bytes())
+        self.assertEqual(path, NG["steam_api"](spec, str(cache), opener))
+        self.assertEqual(1, len(calls))
+        with self.assertRaises(SystemExit):
+            NG["steam_api"](dict(spec, member_sha256="0" * 64), str(self.root / "c2"), opener)
+        with self.assertRaises(SystemExit):
+            NG["steam_api"](dict(spec, sha256="0" * 64), str(self.root / "c3"), opener)
 
     @unittest.skipUnless(shutil.which("zstd"), "zstd not installed")
     def test_fetch_checks_and_caches(self):

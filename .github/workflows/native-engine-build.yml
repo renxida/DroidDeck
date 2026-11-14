@@ -19,7 +19,6 @@ on:
       - 'tools/native-engine/modules/**'
       - 'tools/native-engine/skeltest/**'
       - 'tools/native-engine/bench/**'
-      - 'tools/native-engine/stubs/**'
       - 'tools/native-engine/r2r-check/**'
       - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
       - 'tools/tests/test_native_godot.py'
@@ -66,6 +65,18 @@ jobs:
           open(sys.argv[2], "wb").write(img)
           PY
           dotnet run -c Release --project tools/native-engine/r2r-check -- "$W/System.Linq.dll" "$W/runtimes/win-x64/lib/net9.0/System.Linq.dll"
+      - name: Valve's linux-arm64 libsteam_api.so (what the wrapper fetches) loads and answers on arm64
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ctypes, runpy, tempfile
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          path = ng["steam_api"](cache=tempfile.mkdtemp())
+          lib = ctypes.CDLL(path)
+          for name in ("SteamAPI_InitFlat", "SteamAPI_RestartAppIfNecessary", "SteamAPI_RunCallbacks", "SteamAPI_Shutdown"):
+              getattr(lib, name)
+          print(path, "loads; SteamAPI_IsSteamRunning() =", lib.SteamAPI_IsSteamRunning(), "(no Steam client on the runner)")
+          PY
       - name: Build deps
         run: |
           sudo apt-get update -qq
@@ -136,13 +147,13 @@ jobs:
           timeout 900 "$GODOT" --headless --path . --export-release windows out/windows/NativeBench.exe > export-win.log 2>&1 || echo "export exit $?"
           ls -la out/windows || true
           test -d out/windows/data_NativeBench_windows_x86_64 || { tail -40 export-win.log; exit 1; }
-          # The component: our engine, the kit (the arm64 export's data dir, minus its own app files) and the stubs.
+          # The component: our engine and the kit (the arm64 export's data dir, minus its own app files). No Steam
+          # stand-in: on the device the wrapper fetches Valve's own linux-arm64 libsteam_api.so.
           C=$GITHUB_WORKSPACE/out/component
           rm -rf "$C" && mkdir -p "$C"
           cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono "$C/godot"
           cp -a out/arm64/data_NativeBench_linuxbsd_arm64 "$C/kit"
           python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")], "deps": "NativeBench.deps.json", "runtimeconfig": "NativeBench.runtimeconfig.json"}, open(os.path.join(k,"kit.json"),"w"))' "$C/kit"
-          sh "$GITHUB_WORKSPACE/tools/native-engine/stubs/build.sh" "$C/stubs"
           echo "${GITHUB_SHA}" > "$C/VERSION"
           KIT=$C/kit
           set +e
@@ -223,7 +234,7 @@ jobs:
           set -euo pipefail
           tag="native-engine-${GITHUB_RUN_NUMBER}"
           sha=$(sha256sum out/native-engine.tar.zst | cut -d' ' -f1)
-          printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, Steam stub.\nCommit %s. sha256 %s\nNo game files.\n' \
+          printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, no Steam stand-in.\nCommit %s. sha256 %s\nNo game files.\n' \
             "$(cat out/component/kit/*.runtimeconfig.json | python3 -c 'import json,sys; print([f.get("version") for f in json.load(sys.stdin)["runtimeOptions"].get("includedFrameworks",[])])')" \
             "$GITHUB_SHA" "$sha" > notes.txt
           gh release create "$tag" out/native-engine.tar.zst -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \

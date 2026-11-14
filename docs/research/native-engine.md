@@ -18,7 +18,7 @@ Feasible. A community Android port already runs the game's own files natively on
 - The engine is stock Godot 4.5.1 (`scripts/build-godot.sh`, `scons platform=android arch=arm64
   target=template_release module_mono_enabled=yes`) plus the **Spine** runtime module and an **FMOD**
   GDExtension built for arm64, plus two render patches (pipeline-cache save, canvas ubershaders).
-- Steamworks and Sentry are replaced by no-op C stubs (`src/stubs/steam_stub*.c`, `sentry_stub.c`);
+- (Community port) Steamworks and Sentry are replaced by no-op C stubs (`src/stubs/steam_stub*.c`, `sentry_stub.c`); we don't do this for Steam, see below;
   the Sentry GDExtension has no arm64 build and is disabled by a Harmony patch.
 - So MegaDot's own changes are not required to load and play the game. Known rough edges in that port
   after newer game updates: scrambled card/relic images (issue #64), locale/font black screens
@@ -41,7 +41,7 @@ crash at main-menu asset preload on ARM64 even with full TSO.
 | .NET 9 runtime linux-arm64 | dotnet/runtime | MIT | free |
 | Skeleton animation (Spine stand-in) | ours, clean-room, `tools/native-engine/modules/native_compat/skel` | MIT | **Cedar chose to write our own** (Nov 13). JSON, binary 4.2 `.skel` (all five sampled game skeletons load and play), atlas, path constraints and physics springs |
 | Audio (FMOD stand-in) | ours, clean-room event player, `native_compat/fsb` and `fmod_compat` | MIT | Vorbis sounds, path table and event metadata read; starting an event plays its sounds (598 of 600 sfx events resolve), timeline loop regions loop and timeline places delay. Parameters, buses and 3D not applied yet |
-| Steamworks | stub (ours, MIT) or Valve's libsteam_api arm64 | stub: none | stub is enough to boot (port does it) |
+| Steamworks | Valve's libsteam_api linux-arm64 (SDK 1.63+, fetched on device from the Steamworks.NET NuGet package) | none | no stub: faking Steam bypasses Valve's and the publisher's launch and ownership check |
 | Sentry | disable | n/a | trivial |
 
 Clean-room rule: work from public format notes and the game's own data as read on Cedar's phone. Never
@@ -92,9 +92,10 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
   session log and the game starts on Proton in the same launch. A later exit ends the launch with its code.
 - `droiddeck-native-godot` fetches the pinned component (a release on this repository, sha256-checked,
   cached in `~/.cache/droiddeck/native/<tag>/`): our engine, the kit (the linux-arm64 data folder of a stock
-  4.5.1 C# export: .NET runtime, GodotSharp, GodotPlugins) and a Steamworks stub. It then builds
-  `~/.cache/droiddeck/native/launch/<appid>/` with the engine hardlinked in and
-  `data_<asm>_linuxbsd_arm64/` holding the kit, the stub and the game's managed DLLs (hardlinked; they never
+  4.5.1 C# export: .NET runtime, GodotSharp, GodotPlugins), and Valve's linux-arm64 libsteam_api.so from the
+  Steamworks.NET NuGet package (sha256-pinned; components up to -38 also carry a no-op Steam stub, which is
+  ignored). It then builds `~/.cache/droiddeck/native/launch/<appid>/` with the engine hardlinked in and
+  `data_<asm>_linuxbsd_arm64/` holding the kit, Valve's library (as libsteam_api64.so) and the game's managed DLLs (hardlinked; they never
   leave the phone), and runs `engine --main-pack <game>.pck --print-fps` under a first-frame watchdog: Godot's
   first "Project FPS" line (about 4 s into the main loop) is logged as "first frame"; none within 90 s of the
   engine's start (after the fetch), or an engine exit before one, kills the engine's process group and exits
@@ -118,7 +119,7 @@ copy or read Esoteric's runtimes, the plugin that wraps them, or FMOD's SDK. No 
 - Runs as a normal X11/Wayland client under gamescope (Vulkan via the guest's glibc loader, the same driver
   path winevulkan uses), minus Wine and FEX. INFERRED until a phone run.
 - Expected first-run gaps: no Spine drawing and no audio until the stand-ins match the game's names;
-  Steam features beyond file sync do nothing (stub); Sentry absent.
+  Steam goes through Valve's own linux-arm64 libsteam_api.so to the real arm64 client in the session; Sentry absent.
 
 ## 4. Measurements
 
