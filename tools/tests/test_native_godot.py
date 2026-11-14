@@ -368,6 +368,36 @@ class NativeGodotTest(unittest.TestCase):
         self.assertEqual(["SteamAPI_Gone"], report["steam_api_missing"])
         self.assertIn("1 names the game's Steamworks.NET mentions are not exported (SteamAPI_Gone)", err.getvalue())
 
+    def test_run_does_not_start_when_steam_init_would_miss_an_interface_accessor(self):
+        # The phone run on native-engine-54: the game's Steamworks.NET calls GetISteamGameSearch in SteamAPI.Init,
+        # Valve's linux-arm64 library (SDK 1.64+) has no such export, so the game quit. That is known before launch.
+        comp = self.root / "component"
+        comp.mkdir()
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        win = self.game / "data_sts2_windows_x86_64"
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF\0SteamAPI_Init\0SteamAPI_ISteamClient_GetISteamUser\0")
+        out = self.root / "launch"
+        seen = []
+        real = NG["main"].__globals__["watch"]
+        NG["main"].__globals__["watch"] = lambda cmd, env, **kw: seen.append(cmd) or 0
+        try:
+            for extra, expect_start in ((b"SteamAPI_ISteamFriends_GetUserRestrictions\0", True),
+                                        (b"SteamAPI_ISteamClient_GetISteamGameSearch\0", False)):
+                (win / "Steamworks.NET.dll").write_bytes(
+                    pe(True) + b"\0SteamAPI_Init\0SteamAPI_ISteamClient_GetISteamUser\0" + extra)
+                err = io.StringIO()
+                with unittest.mock.patch("sys.stderr", err):
+                    rc = NG["main"](["run", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                     "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
+                self.assertEqual(0 if expect_start else NG["DID_NOT_START"], rc, extra)
+                self.assertEqual(not expect_start, "lacks SteamAPI_ISteamClient_GetISteamGameSearch" in err.getvalue())
+        finally:
+            NG["main"].__globals__["watch"] = real
+            os.chdir(Path(__file__).resolve().parent)
+        self.assertEqual(1, len(seen))  # only the run whose missing name is not an Init accessor started
+
     def test_run_puts_no_stub_on_any_path_and_valve_library_wins(self):
         # The engine's env and command name no stubs/ path, Steam's x86 overlay preload is dropped, and the engine's
         # data folder holds Valve's library under both names (a component with stubs/ is refused, tested above).

@@ -140,6 +140,31 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  steam-exports:
+    # The pinned Valve linux-arm64 libsteam_api.so still exports the interface accessors recorded for it, and
+    # the wrapper refuses to start a game whose Steamworks.NET needs one it lacks (SDK 1.62-era GameSearch).
+    name: steam library exports
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compare the pinned library's accessors with the recorded list
+        run: |
+          set -euo pipefail
+          lib=$(python3 -c 'import runpy, sys; print(runpy.run_path(sys.argv[1])["steam_api"]())' "$WRAPPER")
+          nm -D --defined-only "$lib" | awk '{print $3}' | grep '^SteamAPI_ISteamClient_GetISteam' | sort > have.txt
+          grep -v '^#' tools/native-engine/standin/steam-api-accessors.txt > want.txt
+          diff -u want.txt have.txt
+          python3 - "$WRAPPER" <<'PY'
+          import runpy, sys
+          ng = runpy.run_path(sys.argv[1])
+          blockers = ng["steam_init_blockers"](["SteamAPI_ISteamClient_GetISteamGameSearch", "SteamAPI_ISteamFriends_GetUserRestrictions"])
+          assert blockers == ["SteamAPI_ISteamClient_GetISteamGameSearch"], blockers
+          print("accessors match; a missing accessor stops the native launch")
+          PY
+
   gate:
     name: gate ${{ matrix.row }}
     needs: export

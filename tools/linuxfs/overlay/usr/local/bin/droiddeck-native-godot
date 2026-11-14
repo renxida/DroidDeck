@@ -337,6 +337,11 @@ def steam_api(spec=STEAM_API, cache=CACHE, opener=urllib.request.urlopen):
 
 
 STEAM_ENTRY = re.compile(rb"\0(Steam(?:API|Internal|GameServer)_[A-Za-z0-9_]+)\0")
+# Steamworks.NET's CSteamAPIContext.Init fetches every interface through these accessors, so one the library lacks
+# is an EntryPointNotFoundException at SteamAPI.Init: the game reports Steam as failed and quits. MEASURED on the
+# phone (native-engine-54, 2026-11-14): Valve's linux-arm64 libraries (SDK 1.64+) lack GetISteamGameSearch and
+# GetISteamMusicRemote, which SDK 1.63 removed and 1.62-era Steamworks.NET still calls.
+STEAM_ACCESSOR = "SteamAPI_ISteamClient_GetISteam"
 
 
 def steam_api_missing(steamworks_dll, library):
@@ -349,6 +354,11 @@ def steam_api_missing(steamworks_dll, library):
     except OSError:
         return []
     return sorted(n for n in wanted if b"\0" + n.encode() + b"\0" not in have)
+
+
+def steam_init_blockers(missing):
+    """The missing names that stop SteamAPI.Init itself: interface accessors (see STEAM_ACCESSOR)."""
+    return [n for n in (missing or []) if n.startswith(STEAM_ACCESSOR)]
 
 
 def compose(game_dir, kit, engine, out, exe=None, steam=None):
@@ -1066,6 +1076,11 @@ def main(argv=None):
         tag = COMPONENT["tag"] if a.fetch else (os.path.basename(os.path.normpath(component)) if component else "custom")
         return 0 if check(a.game_dir, kit, engine, a.out, a.exe, steam, tag, a.name)["result"] == "pass" else 1
     r = compose(a.game_dir, kit, engine, a.out, a.exe, steam)
+    fatal = steam_init_blockers(r.get("steam_api_missing"))
+    if fatal and a.command == "run":
+        log(f"not starting: Steam cannot initialise with this game's Steamworks.NET: the library lacks "
+            f"{', '.join(fatal)}, which its SteamAPI.Init calls (the game would quit on 'Failed to initialize Steam')")
+        return DID_NOT_START
     log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
         f"{r['kit_files']} kit files, skipped {len(r['skipped'])}"
         + (f" (left out {len(r['mixed_mode'])} mixed-mode: {', '.join(r['mixed_mode'])})" if r["mixed_mode"] else ""))
