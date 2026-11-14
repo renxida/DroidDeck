@@ -50,7 +50,7 @@ class GamePacingComponent(private val logs: List<File>) : SessionPart() {
                     governor = plan?.takeIf { it.governor }?.let { GamePacing.Governor(it.cap) }
                     if (plan != null && governor != null) {
                         Log.i(TAG, "thermal governor: ladder ${governor.ladder.joinToString(" → ")} fps, down at headroom " +
-                            "${GamePacing.DOWN_AT} for ${GamePacing.DOWN_MS / 1000} s, up at ${GamePacing.UP_AT} for ${GamePacing.UP_MS / 1000} s")
+                            "${GamePacing.DOWN_AT} for ${GamePacing.DOWN_MS / 1000} s (next step ${GamePacing.SETTLE_MS / 1000} s after the last), up at ${GamePacing.UP_AT} for ${GamePacing.UP_MS / 1000} s")
                     }
                     GamePacing.publish(plan, plan?.cap ?: 0, if (plan == null) "game ended" else "game started")
                 }

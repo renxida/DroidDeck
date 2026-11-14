@@ -423,6 +423,10 @@ class SessionService : Service() {
     private fun runSession(gen: Int) {
         val remoteConfig = com.droiddeck.launcher.telemetry.RemoteConfig.applyCached(this)
         com.droiddeck.launcher.telemetry.RemoteConfig.refreshAsync(this, apply = false)
+        // The experiments are this session's from here on; put the FEX build they pick in place before the guest starts.
+        runCatching { ComponentUpdater.ensureForSession(this) }
+            .onSuccess { Log.i(TAG, "components: $it"); SessionEvents.record("components.fex", mapOf("state" to it)) }
+            .onFailure { Log.w(TAG, "components: FEX for this session", it) }
         SessionPrefs.ensurePowerVrAutoDrivers(this)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }

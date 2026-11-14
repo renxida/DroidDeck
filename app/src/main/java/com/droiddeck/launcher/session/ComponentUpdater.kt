@@ -13,6 +13,8 @@ import org.json.JSONObject
 object ComponentUpdater {
     private const val TAG = "ComponentUpdater"
     private const val CHECK_EVERY_MS = 3_600_000L
+    private const val SESSION_CHECK_EVERY_MS = 600_000L
+    private const val SESSION_CHECKED = "sessionFexCheckedAt"
     private const val BOOTED_KEPT = 200
     private const val HANDED_BACK = "handedBack"
     private const val PINNED_NOTE = "pinnedNote"
@@ -128,6 +130,45 @@ object ComponentUpdater {
             save(context, state)
         }
         notes
+    }
+
+    /**
+     * Run by the session before the guest starts, after the remote config has set this session's
+     * experiments. [ensure] runs only from the front end and never while a session runs, so it put in
+     * place the FEX line of the experiments it saw then: a session whose rotation row turned fex-kestrel
+     * on ran the stock build (Nov 14, a7526bd row 5). This checks the line the session will use, at most
+     * every [SESSION_CHECK_EVERY_MS], downloads its newest build if needed and swaps it into each Proton
+     * that follows Auto. Returns one line for the session log.
+     */
+    fun ensureForSession(context: Context): String = synchronized(lock) {
+        if (!managed(context, "fex")) return "fex: set by hand, left as it is"
+        val protons = runCatching { ComponentsManager.protons(context) }.getOrNull()
+            ?.filter { ComponentUpdates.follows(it) && ComponentsManager.supports(it, "fex") }
+        if (protons.isNullOrEmpty()) return "fex: no Proton follows Auto"
+        val state = load(context)
+        val notes = ArrayList<String>()
+        val wanted = listOf("fex")
+        try {
+            dropRemoved(state, protons)
+            val now = System.currentTimeMillis()
+            val due = now - state.optLong(SESSION_CHECKED) >= SESSION_CHECK_EVERY_MS && !OfflineMode.enabled(context)
+            if (due && check(context, state, protons, wanted, false, notes)) {
+                state.put(SESSION_CHECKED, now)
+                state.put("checkedAt", now)
+            }
+            apply(context, state, protons, wanted, notes)
+        } finally {
+            save(context, state)
+        }
+        val lines = state.optJSONObject("lines")
+        val choices = ComponentsManager.activeChoices(context)
+        val placed = protons.joinToString("; ") { p ->
+            val line = lineOf(context, state, p, "fex")
+            val current = line?.let { lines?.optJSONObject(it.key)?.optString("current") }.orEmpty()
+            "${p.name} ${line?.key ?: "-"} wants ${current.ifEmpty { "original" }}, has ${choices.fileOf(p, "fex") ?: "original"}"
+        }
+        return "fex: $placed" + (if (notes.isEmpty()) "" else " (${notes.joinToString(", ")})") +
+            (state.optString("note").takeIf { it.isNotEmpty() }?.let { " [$it]" } ?: "")
     }
 
     private fun check(

@@ -147,69 +147,6 @@ class R2RTest(unittest.TestCase):
         self.assertIn("game_il_only=0", text)
 
 
-def fake_bubble(command, **kwargs):
-    out = Path(command[command.index("-o") + 1])
-    out.write_bytes(pe(ilonly=False, r2r=True, payload=b"bubble" + Path(command[1]).read_bytes()[-64:]))
-    return subprocess.CompletedProcess(command, 0, b"", None)
-
-
-class BubbleTest(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name)
-        self.cache = R2R["Cache"](self.root / "cache")
-        self.folder = game(self.root / "g", own=("Game.dll", "Lib.dll"))
-        self.originals = {n: (self.folder / n).read_bytes() for n in ("Game.dll", "Lib.dll")}
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def test_every_assembly_is_compiled_in_the_same_bubble(self):
-        run = mock.Mock(side_effect=fake_bubble)
-        compiled, failed = R2R["compile_missing"](self.folder, self.cache, run=run, log=lambda _: None, mode="bubble")
-        self.assertEqual((sorted(compiled), failed), (["Game.dll", "Lib.dll"], []))
-        command = run.call_args[0][0]
-        self.assertEqual(run.call_count, 2)
-        self.assertIn("--inputbubble", command)
-        refs = [command[i + 1] for i, arg in enumerate(command) if arg == "--inputbubbleref"]
-        self.assertIn(str(self.folder.resolve() / "System.Runtime.dll"), refs)
-        self.assertIn(str(self.folder.resolve() / ("Game.dll" if command[1].endswith("Lib.dll") else "Lib.dll")), refs)
-        R2R["compile_missing"](self.folder, self.cache, run=run, log=lambda _: None, mode="bubble")
-        self.assertEqual(run.call_count, 2)
-        self.assertEqual(sorted(R2R["apply"](self.folder, True, self.cache, mode="bubble")[0]), ["Game.dll", "Lib.dll"])
-        self.assertIn(b"bubble", (self.folder / "Game.dll").read_bytes())
-        self.assertIn("(bubble)", R2R["status"](self.folder, self.cache))
-        self.assertIn("--compilebubblegenerics", command)
-
-    def test_generics_mode_uses_plain_references(self):
-        run = mock.Mock(side_effect=fake_bubble)
-        R2R["compile_missing"](self.folder, self.cache, run=run, log=lambda _: None, mode="generics")
-        command = run.call_args[0][0]
-        self.assertNotIn("--inputbubble", command)
-        self.assertNotIn("--inputbubbleref", command)
-        self.assertEqual(command[command.index("--non-local-generics-module") + 1], "*")
-        self.assertEqual(sorted(R2R["apply"](self.folder, True, self.cache, mode="generics")[0]), ["Game.dll", "Lib.dll"])
-        self.assertIn("(generics)", R2R["status"](self.folder, self.cache))
-
-    def test_switching_kinds_puts_the_originals_back_first(self):
-        R2R["compile_missing"](self.folder, self.cache, run=fake_crossgen, log=lambda _: None)
-        R2R["compile_missing"](self.folder, self.cache, run=fake_bubble, log=lambda _: None, mode="bubble")
-        R2R["apply"](self.folder, True, self.cache)
-        self.assertNotIn(b"bubble", (self.folder / "Game.dll").read_bytes())
-        self.assertEqual(sorted(R2R["apply"](self.folder, True, self.cache, mode="bubble")[0]), ["Game.dll", "Lib.dll"])
-        self.assertIn(b"bubble", (self.folder / "Lib.dll").read_bytes())
-        self.assertEqual(sorted(R2R["apply"](self.folder, False, self.cache)[0]), ["Game.dll", "Lib.dll"])
-        for name, data in self.originals.items():
-            self.assertEqual((self.folder / name).read_bytes(), data)
-
-    def test_a_partial_bubble_is_not_swapped_in(self):
-        R2R["compile_missing"](self.folder, self.cache, run=fake_bubble, log=lambda _: None, mode="bubble")
-        (self.folder / "Lib.dll").write_bytes(pe(payload=b"updated"))
-        swapped, missing = R2R["apply"](self.folder, True, self.cache, mode="bubble")
-        self.assertEqual((swapped, sorted(missing)), ([], ["Game.dll", "Lib.dll"]))
-        self.assertEqual((self.folder / "Game.dll").read_bytes(), self.originals["Game.dll"])
-
-
 class GameEnvTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -268,18 +205,6 @@ class GameEnvTest(unittest.TestCase):
         self.assertEqual(notes, ["dotnet-r2r: r2r: swapped in 1 (Game.dll)"])
         self.assertIn("compile", popen.call_args[0][0])
         self.assertIn("dotnet-r2r", GAME_ENV["EXPERIMENTS"])
-        self.assertEqual(run.call_args[0][0][-4:-2], ["--mode", "single"])
-
-    def test_generics_passes_the_mode_to_both_steps(self):
-        (self.root / "coreclr.dll").write_bytes(b"MZ")
-        _, run, popen = self.call(["dotnet-r2r-generics"])
-        self.assertIn("--on", run.call_args[0][0])
-        for command in (run.call_args[0][0], popen.call_args[0][0]):
-            self.assertEqual(command[command.index("--mode") + 1], "generics")
-        _, run, popen = self.call(["dotnet-r2r-generics", "dotnet-r2r-bubble"])
-        for command in (run.call_args[0][0], popen.call_args[0][0]):
-            self.assertEqual(command[command.index("--mode") + 1], "bubble")
-        self.assertIn("compile", popen.call_args[0][0])
 
 
 if __name__ == "__main__":
