@@ -57,7 +57,7 @@ while kill -0 "$runner" 2>/dev/null; do
       done
     } >"$diag" 2>&1
     for pid in $(pids); do kill -KILL "$pid"; done
-    pkill -KILL -f "$base" || true
+    wineserver -k 2>/dev/null || true
     break
   fi
 done
@@ -72,5 +72,9 @@ case $status in
 esac
 echo "$label: $verdict after $((end - start)) s ($(cat "$out/$label.maps" 2>/dev/null | head -1))"
 echo "$label: last heartbeat: $(grep -a '^hb ' "$log" | tail -1)"
-grep -a -i "fex\|Sampler\|NameWindowsMemory\|TrimIdleThreads\|err:" "$err" | tail -15 || true
+grep -a -i "fex\|Sampler\|NameWindowsMemory\|TrimIdleThreads" "$err" | tail -10 || true
+if [ $status = 2 ]; then
+  echo "-- stdout tail"; tail -5 "$log"
+  echo "-- stderr tail (without display noise)"; grep -av 'wgl:\|winediag\|systray\|explorer' "$err" | tail -40
+fi
 exit $status

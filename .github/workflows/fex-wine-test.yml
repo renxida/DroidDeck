@@ -25,7 +25,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fex-wine-test-${{ github.ref }}
+  group: fex-wine-test-${{ github.sha }}
   cancel-in-progress: true
 
 env:
@@ -126,7 +126,7 @@ jobs:
           SECONDS_PER_RUN: ${{ inputs.seconds || '150' }}
         run: |
           set -uo pipefail
-          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mscoree,mshtml=" HODLL64=libarm64ecfex.dll
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh,+loaddll,+process WINEDLLOVERRIDES="mscoree,mshtml=" HODLL64=libarm64ecfex.dll
           # The game's FEX settings (droiddeck-game-env), then this row's options.
           export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
           for kv in ${{ matrix.env }}; do export "$kv"; done
@@ -137,7 +137,7 @@ jobs:
           : > "$out/verdicts.txt"
           for run in stress:stress.exe clr:clr/clr.exe stress2:stress.exe; do
             label=${run%%:*} exe="$RUNNER_TEMP/bin/${run#*:}"
-            "$r" "$label" "$out" "$SECONDS_PER_RUN" "$exe" | tee -a "$out/verdicts.txt"
+            "$r" "$label" "$out" "$SECONDS_PER_RUN" "$exe" | tee -a "$out/verdicts.txt" || true
             wineserver -k || true
             sleep 2
           done
