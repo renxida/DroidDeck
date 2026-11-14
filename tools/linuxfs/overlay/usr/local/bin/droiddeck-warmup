@@ -7,6 +7,7 @@ docs/research/startup-and-warmup.md explains each setting and how to check it on
 import mmap
 import os
 import re
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -19,6 +20,12 @@ FEX_DISK_CACHE_SINCE = 2609
 FEX_DLL = "files/lib/wine/aarch64-windows/libarm64ecfex.dll"
 FEX_VERSION = re.compile(rb"FEX-(\d{4})(?:\.\d+)?(?:-\d+-g[0-9a-f]{6,40})?")
 CACHE_DIR = "droiddeck-fex-cache"
+# DROIDDECK_EXP_FEX_CACHE_KEEP=1: FEX keeps one cache folder per disk-cache format (DiskCache/<hash>/) and deletes
+# every other folder at start. Stock FEX (format 42 in FEX-2611) and Kestrel's (44) differ, so each switch threw
+# the other build's cache away (301.5 MB to 0 on Nov 14). With the switch on, FEX deletes nothing and this keeps
+# the folders of the KEEP_BUILDS builds used last, dropping older ones and any past KEEP_MB in all.
+KEEP_BUILDS = 2
+KEEP_MB = 1536
 SCAN_LIMIT = 5000
 
 # Values for DROIDDECK_DOTNET_WARMUP. A DOTNET_ or COMPlus_ variable already set keeps its value.
@@ -144,6 +151,43 @@ def tree_size(root, limit=SCAN_LIMIT):
     return count, size, False
 
 
+def keep_recent_buckets(root, builds=KEEP_BUILDS, limit_mb=KEEP_MB):
+    """Deletes FEX disk-cache folders (one per cache format and machine) beyond the `builds` used last, and older
+    ones past `limit_mb` in all; the newest always stays. Returns a line for the log, or None."""
+    buckets = []
+    try:
+        entries = [entry for entry in os.scandir(root) if entry.is_dir(follow_symlinks=False)]
+    except OSError:
+        return None
+    for entry in entries:
+        newest = entry.stat(follow_symlinks=False).st_mtime
+        size = 0
+        for top, _, files in os.walk(entry.path):
+            for name in files:
+                try:
+                    info = os.lstat(os.path.join(top, name))
+                except OSError:
+                    continue
+                newest = max(newest, info.st_mtime)
+                size += info.st_size
+        buckets.append((newest, size, entry.name, entry.path))
+    buckets.sort(reverse=True)
+    kept, dropped, total = [], [], 0
+    for index, (_, size, name, path) in enumerate(buckets):
+        if index == 0 or (index < builds and total + size <= limit_mb * 1048576):
+            kept.append("%s %.1f MB" % (name, size / 1048576))
+            total += size
+        else:
+            shutil.rmtree(path, ignore_errors=True)
+            dropped.append("%s %.1f MB" % (name, size / 1048576))
+    if len(buckets) < 2 and not dropped:
+        return None
+    line = "FEX disk cache folders kept: " + ", ".join(kept)
+    if dropped:
+        line += "; deleted: " + ", ".join(dropped)
+    return line
+
+
 def describe(count, size, partial):
     return "%d file%s, %.1f MB%s" % (count, "" if count == 1 else "s", size / 1048576, "+" if partial else "")
 
@@ -178,6 +222,13 @@ def fex_disk_cache(app_id, prefix, proton, env):
             where = None
     else:
         notes.append("the prefix's Z: drive is not /, so FEX keeps its cache in its own folder")
+    if env.get("DROIDDECK_EXP_FEX_CACHE_KEEP") == "1":
+        if "FEX_DISKCACHEPRUNESTALEENTRIES" not in env:
+            chosen["FEX_DISKCACHEPRUNESTALEENTRIES"] = "0"
+        if where is not None and (where / "DiskCache").is_dir():
+            line = keep_recent_buckets(where / "DiskCache")
+            if line:
+                notes.append(line)
     state = "no cache yet"
     if where is not None and (where / "DiskCache").is_dir():
         state = describe(*tree_size(where / "DiskCache"))

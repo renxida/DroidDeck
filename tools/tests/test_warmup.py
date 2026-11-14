@@ -89,6 +89,46 @@ class FexDiskCacheTest(unittest.TestCase):
             _, notes = WARMUP["fex_disk_cache"](STS2, str(tool.prefix), str(tool.proton), {})
             self.assertIn("(FEX-2610, 2 files, 2.0 MB, folder", notes[0])
 
+    def test_cache_keep_stops_fex_pruning_and_keeps_the_last_two_builds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tool = Proton(tmp)
+            cache = tool.prefix / "droiddeck-fex-cache/DiskCache"
+            for age, name in enumerate(("cccccccccccccccc", "bbbbbbbbbbbbbbbb", "aaaaaaaaaaaaaaaa")):
+                (cache / name).mkdir(parents=True)
+                blob = cache / name / "RWCacheDB_1.foz"
+                blob.write_bytes(b"x" * 1048576)
+                then = 1_700_000_000 - age * 3600
+                os.utime(blob, (then, then))
+                os.utime(cache / name, (then, then))
+            env = {"DROIDDECK_EXP_FEX_CACHE_KEEP": "1"}
+            chosen, notes = WARMUP["fex_disk_cache"](STS2, str(tool.prefix), str(tool.proton), env)
+            self.assertEqual("0", chosen["FEX_DISKCACHEPRUNESTALEENTRIES"])
+            self.assertEqual(["bbbbbbbbbbbbbbbb", "cccccccccccccccc"], sorted(p.name for p in cache.iterdir()))
+            self.assertIn("kept: cccccccccccccccc 1.0 MB, bbbbbbbbbbbbbbbb 1.0 MB; deleted: aaaaaaaaaaaaaaaa 1.0 MB", notes[1])
+            self.assertIn("2 files, 2.0 MB", notes[0])
+
+    def test_cache_keep_drops_older_builds_past_the_size_limit_but_never_the_newest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for age, name in enumerate(("new", "old")):
+                (root / name).mkdir()
+                blob = root / name / "db"
+                blob.write_bytes(b"x" * 3 * 1048576)
+                os.utime(blob, (1_700_000_000 - age, 1_700_000_000 - age))
+                os.utime(root / name, (1_700_000_000 - age, 1_700_000_000 - age))
+            line = WARMUP["keep_recent_buckets"](root, 2, 2)
+            self.assertEqual(["new"], [p.name for p in root.iterdir()])
+            self.assertIn("deleted: old 3.0 MB", line)
+
+    def test_without_cache_keep_fex_prunes_as_usual(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tool = Proton(tmp)
+            for name in ("a", "b", "c"):
+                (tool.prefix / "droiddeck-fex-cache/DiskCache" / name).mkdir(parents=True)
+            chosen, _ = WARMUP["fex_disk_cache"](STS2, str(tool.prefix), str(tool.proton), {})
+            self.assertNotIn("FEX_DISKCACHEPRUNESTALEENTRIES", chosen)
+            self.assertEqual(3, len(list((tool.prefix / "droiddeck-fex-cache/DiskCache").iterdir())))
+
     def test_other_games_only_on_request(self):
         with tempfile.TemporaryDirectory() as tmp:
             tool = Proton(tmp)
