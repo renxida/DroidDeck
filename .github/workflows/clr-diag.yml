@@ -43,8 +43,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
       - name: Variants
+        shell: bash
         run: |
-          set -uo pipefail
+          set +e
           export WINEPREFIX="$RUNNER_TEMP/pfx" HODLL64=libarm64ecfex.dll
           v() {
             echo "=== $1"
