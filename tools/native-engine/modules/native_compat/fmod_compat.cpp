@@ -503,10 +503,16 @@ int FmodServer::play_event_sounds(const String &p_guid, const String &p_path, fl
 		player->set_stream(stream);
 		player->set_volume_db(pick.volume_db + Math::linear_to_db(MAX(p_volume, 0.00001f)));
 		player->set_pitch_scale(CLAMP(p_pitch, 0.01f, 16.0f));
-		player->set_autoplay(true);
 		player->connect(SceneStringName(finished), callable_mp(static_cast<Node *>(player), &Node::queue_free));
 		// Deferred: the game may start events while the tree is busy adding or removing nodes.
 		root->call_deferred(SNAME("add_child"), player);
+		if (pick.delay > 0) {
+			// Placed later on the event's timeline. The connection goes when the player does (a stop).
+			Ref<SceneTreeTimer> timer = tree->create_timer(MAX(pick.delay, 0.02f));
+			timer->connect(SNAME("timeout"), callable_mp(player, &AudioStreamPlayer::play).bind(0.0));
+		} else {
+			player->set_autoplay(true);
+		}
 		if (r_players) {
 			r_players->push_back(player->get_instance_id());
 		}

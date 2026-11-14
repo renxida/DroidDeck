@@ -11,7 +11,9 @@
 //                      size and tag/2 elements, or (tag even) tag/2 elements each led by its u16 size.
 //                      The first holds instrument placements (GUID, u32 start, u32 length); later
 //                      variable ones hold markers (GUID, u32 position, name) and loop regions, 26 bytes:
-//                      (GUID, u32 start, u16, u32 end). An instrument overlapping a loop region loops.
+//                      (GUID, u32 start, u16, u32 end). Positions count 48 kHz frames (they match
+//                      the sounds' frame counts). An instrument overlapping a loop region loops; one
+//                      wholly past a loop region never plays while it loops; others start at their place.
 //   PMLO (LIST):       a parameter sheet; its chunks name the instruments it switches between
 //   WAIT (LIST): WAIB  own GUID, then the waveform GUID;  INST  f32 volume in dB at byte 16
 //   MUIT (LIST): MUIB  own GUID;  INST as above;  PLST  u32 mode, u32 1, u16 entries*2+1, u16 20,
@@ -52,7 +54,10 @@ struct EventTable {
 	struct Event {
 		std::vector<Guid> instruments; // all start together
 		std::vector<Guid> looped; // those of them overlapping a timeline loop region
+		std::vector<Guid> unreachable; // placed past a loop region: skipped
+		std::vector<std::pair<Guid, float>> delays; // timeline start, seconds
 	};
+	static constexpr float TIMELINE_RATE = 48000;
 	std::unordered_map<Guid, Event, GuidHash> events;
 	std::unordered_map<Guid, Instrument, GuidHash> instruments;
 	std::unordered_map<Guid, uint32_t, GuidHash> waves; // waveform GUID -> sound index in the FSB5 block
@@ -66,6 +71,7 @@ struct Pick {
 	Guid wave{};
 	float volume_db = 0;
 	bool loop = false; // plays until the event stops
+	float delay = 0; // seconds after the start
 };
 
 // The sounds one start of the event plays: each instrument in turn, a multi instrument choosing one entry

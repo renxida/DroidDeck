@@ -237,14 +237,34 @@ func event_sound_test() -> bool:
 	var still_playing = looping.get_playback_state() == 0
 	looping.stop(1)
 	var loop_ok = still_playing and loop_rms > 0.05 and looping.get_playback_state() == 2
+	# Event GUID 40 places the tone 0.6 s in: silent at 0.3 s, audible at 0.8 s, stopped after 1.2 s.
+	var late = server.create_event_instance_with_guid("{00000028-0000-4000-8000-000000000028}")
+	late.start()
+	await get_tree().create_timer(0.2).timeout
+	capture.clear_buffer()
+	await get_tree().create_timer(0.1).timeout
+	var early_rms = rms_of(capture.get_buffer(capture.get_frames_available()))
+	await get_tree().create_timer(0.4).timeout
+	capture.clear_buffer()
+	await get_tree().create_timer(0.1).timeout
+	var late_rms = rms_of(capture.get_buffer(capture.get_frames_available()))
+	await get_tree().create_timer(0.6).timeout
+	var late_ok = early_rms < 0.01 and late_rms > 0.05 and late.get_playback_state() == 2
 	await get_tree().create_timer(0.1).timeout
 	var stats = server.get_compat_stats()
 	AudioServer.remove_bus_effect(0, AudioServer.get_bus_effect_count(0) - 1)
-	var ok = bank.get_event_description_count() == 2 and started == 1 and frames.size() > 0 and rms > 0.05 \
-		and playing_mid and ended and loop_ok and stats["sounds_started"] - before == 3
+	var ok = bank.get_event_description_count() == 3 and started == 1 and frames.size() > 0 and rms > 0.05 \
+		and playing_mid and ended and loop_ok and late_ok and stats["sounds_started"] - before == 4
 	print("SKELTEST event sound started=", started, " frames=", frames.size(), " rms=", rms, " playing_mid=",
-		playing_mid, " ended=", ended, " loop_rms=", loop_rms, " loop_ok=", loop_ok, " stats=", stats, " ok=", ok)
+		playing_mid, " ended=", ended, " loop_rms=", loop_rms, " loop_ok=", loop_ok, " early_rms=", early_rms, " late_rms=", late_rms,
+		" late_ok=", late_ok, " stats=", stats, " ok=", ok)
 	return ok
+
+func rms_of(frames: PackedVector2Array) -> float:
+	var sum := 0.0
+	for f in frames:
+		sum += f.x * f.x + f.y * f.y
+	return sqrt(sum / max(1, frames.size() * 2))
 
 func shot(tag: String) -> void:
 	await RenderingServer.frame_post_draw

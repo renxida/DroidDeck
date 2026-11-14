@@ -62,9 +62,10 @@ Bytes inst(float volume_db) {
 }
 
 // Events: E1 plays WAIT W1 (-6 dB) directly and, on its timeline T1, MUIT M1 (-3 dB) choosing W2 (weight 1)
-// or W3 (weight 3). E2 has no instruments of its own; its parameter sheet S2 names W1.
+// or W3 (weight 3); T1 has a loop region over M1. E2 has no instruments of its own; its parameter sheet S2
+// names W1. E3's timeline places W2 half a second in. E4's places W1 under a loop region and W3 past it.
 const fsb::Guid E1 = G(1), E2 = G(2), T1 = G(3), T2 = G(4), M1 = G(5), W1 = G(6), W2 = G(7), W3 = G(8), S2 = G(9),
-				A = G(10), B = G(11), C = G(12);
+				A = G(10), B = G(11), C = G(12), E3 = G(13), T3 = G(14), E4 = G(15), T4 = G(16);
 
 Bytes bank() {
 	auto evtb = [](const fsb::Guid &own, const fsb::Guid &tl, const std::vector<fsb::Guid> &refs) {
@@ -81,16 +82,17 @@ Bytes bank() {
 		putf(b, 1);
 		return b;
 	};
-	// Instruments at 0..1000; with `loop`, an empty array, then a marker and a loop region over 0..1200.
-	auto tlnb = [](const fsb::Guid &own, const std::vector<fsb::Guid> &refs, bool loop) {
+	// Instruments 1000 frames long at the given starts; with `loop`, an empty array, then a marker and a loop
+	// region over 0..1200.
+	auto tlnb = [](const fsb::Guid &own, const std::vector<std::pair<fsb::Guid, uint32_t>> &placed, bool loop) {
 		Bytes b;
 		putg(b, own);
 		put(b, 1, 2);
-		put(b, uint32_t(refs.size() * 2 + 1), 2);
+		put(b, uint32_t(placed.size() * 2 + 1), 2);
 		put(b, 24, 2);
-		for (const fsb::Guid &g : refs) {
-			putg(b, g);
-			put(b, 0, 4);
+		for (const auto &pl : placed) {
+			putg(b, pl.first);
+			put(b, pl.second, 4);
 			put(b, 1000, 4);
 		}
 		if (loop) {
@@ -141,8 +143,13 @@ Bytes bank() {
 	Bytes proj = list("PROJ", {
 			chunk("BNKI", Bytes(32, 0)),
 			list("EVTS", { list("EVNT", { chunk("EVTB", evtb(E1, T1, { W1 })) }),
-								 list("EVNT", { chunk("EVTB", evtb(E2, T2, { S2 })) }) }),
-			list("TLNS", { list("TMLN", { chunk("TLNB", tlnb(T1, { M1 }, true)) }), list("TMLN", { chunk("TLNB", tlnb(T2, {}, false)) }) }),
+								 list("EVNT", { chunk("EVTB", evtb(E2, T2, { S2 })) }),
+								 list("EVNT", { chunk("EVTB", evtb(E3, T3, {})) }),
+								 list("EVNT", { chunk("EVTB", evtb(E4, T4, {})) }) }),
+			list("TLNS", { list("TMLN", { chunk("TLNB", tlnb(T1, { { M1, 0 } }, true)) }),
+								 list("TMLN", { chunk("TLNB", tlnb(T2, {}, false)) }),
+								 list("TMLN", { chunk("TLNB", tlnb(T3, { { W2, 24000 } }, false)) }),
+								 list("TMLN", { chunk("TLNB", tlnb(T4, { { W1, 0 }, { W3, 2000 } }, true)) }) }),
 			list("PMLS", { list("PMLO", { chunk("PMLB", pmlb), chunk("PMIN", sheet_refs) }) }),
 			list("MUIS", { list("MUIT", { chunk("MUIB", muib), chunk("PLST", plst), chunk("INST", inst(-3)) }) }),
 			list("WAIS", { wait(W1, A, -6), wait(W2, B, 0), wait(W3, C, 0) }),
@@ -162,7 +169,7 @@ void test_synthetic() {
 	fsb::EventTable t;
 	std::string error;
 	CHECK(fsb::read_event_table(b.data(), b.size(), t, error));
-	CHECK(t.events.size() == 2);
+	CHECK(t.events.size() == 4);
 	CHECK(t.instruments.size() == 4);
 	CHECK(t.waves.size() == 3 && t.waves.at(B) == 7);
 	CHECK(t.instruments.at(M1).multi && t.instruments.at(M1).playlist.size() == 2);
@@ -175,6 +182,7 @@ void test_synthetic() {
 		CHECK(p.size() == 2);
 		CHECK(p[0].wave == A && p[0].volume_db == -6 && !p[0].loop);
 		CHECK(p[1].volume_db == -3 && p[1].loop); // M1 sits in T1's loop region
+		CHECK(p[0].delay == 0 && p[1].delay == 0);
 		got_b += p[1].wave == B;
 		got_c += p[1].wave == C;
 	}
@@ -184,16 +192,22 @@ void test_synthetic() {
 	CHECK(fsb::resolve_event(t, E2, rng, p));
 	CHECK(p.size() == 1 && p[0].wave == A && !p[0].loop);
 	p.clear();
+	CHECK(fsb::resolve_event(t, E3, rng, p));
+	CHECK(p.size() == 1 && p[0].wave == B && !p[0].loop && p[0].delay == 0.5f);
+	p.clear();
+	CHECK(fsb::resolve_event(t, E4, rng, p));
+	CHECK(p.size() == 1 && p[0].wave == A && p[0].loop && p[0].delay == 0); // W3 sits past the loop
+	p.clear();
 	CHECK(!fsb::resolve_event(t, W1, rng, p) && p.empty());
 
 	// Cut off inside the audio block, as a head-only copy is: metadata still reads.
 	fsb::EventTable cut;
 	CHECK(fsb::read_event_table(b.data(), b.size() - 40, cut, error));
-	CHECK(cut.events.size() == 2 && cut.waves.size() == 3);
+	CHECK(cut.events.size() == 4 && cut.waves.size() == 3);
 	// Cut inside the waves list: the waves before the cut remain.
 	const size_t wavs_end = b.size() - 72 - 8;
 	CHECK(fsb::read_event_table(b.data(), wavs_end - 10, cut, error));
-	CHECK(cut.waves.size() == 2 && cut.events.size() == 2);
+	CHECK(cut.waves.size() == 2 && cut.events.size() == 4);
 	// Not a RIFF file.
 	CHECK(!fsb::read_event_table(b.data() + 1, b.size() - 1, cut, error));
 	// Garbage sizes do not crash: flip bytes one at a time.

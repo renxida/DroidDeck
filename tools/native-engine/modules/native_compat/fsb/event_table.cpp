@@ -83,8 +83,9 @@ void scan(const uint8_t *p, size_t n, const GuidSet &set, std::vector<Guid> &out
 	}
 }
 
-// Instruments placed inside a loop region of a timeline block (layout in event_table.h).
-void timeline_loops(const uint8_t *p, size_t n, std::vector<Guid> &out) {
+// Placements and loop regions of a timeline block (layout in event_table.h): which of the event's
+// instruments loop, start late, or sit past a loop region and so never play while it loops.
+void read_timeline(const uint8_t *p, size_t n, EventTable::Event &ev) {
 	size_t at = 18;
 	if (n < at + 4) {
 		return;
@@ -142,11 +143,20 @@ void timeline_loops(const uint8_t *p, size_t n, std::vector<Guid> &out) {
 		first = false;
 	}
 	for (const Placement &pl : placed) {
+		bool loops = false, past = false;
 		for (const auto &r : regions) {
-			if (pl.start < r.second && r.first < pl.end) { // overlaps the region
-				out.push_back(pl.g);
-				break;
-			}
+			loops = loops || (pl.start < r.second && r.first < pl.end); // overlaps the region
+			past = past || (r.first < r.second && r.second <= pl.start);
+		}
+		if (past && !loops) {
+			ev.unreachable.push_back(pl.g);
+			continue;
+		}
+		if (loops) {
+			ev.looped.push_back(pl.g);
+		}
+		if (pl.start > 0) {
+			ev.delays.emplace_back(pl.g, float(pl.start) / EventTable::TIMELINE_RATE);
 		}
 	}
 }
@@ -270,7 +280,7 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 					scan(c.body, c.size, instrument_ids, ev.instruments);
 				}
 				if (const Chunk *c = tl->second.find("TLNB")) {
-					timeline_loops(c->body, c->size, ev.looped);
+					read_timeline(c->body, c->size, ev);
 				}
 			}
 		}
@@ -302,9 +312,10 @@ uint32_t next(uint32_t &s) {
 	return s;
 }
 
-void pick(const EventTable &t, const Guid &g, float volume_db, bool loop, uint32_t &rng, int depth, std::vector<Pick> &out) {
+void pick(const EventTable &t, const Guid &g, float volume_db, bool loop, float delay, uint32_t &rng, int depth,
+		std::vector<Pick> &out) {
 	if (t.waves.count(g)) {
-		out.push_back({ g, volume_db, loop });
+		out.push_back({ g, volume_db, loop, delay });
 		return;
 	}
 	auto it = t.instruments.find(g);
@@ -314,7 +325,7 @@ void pick(const EventTable &t, const Guid &g, float volume_db, bool loop, uint32
 	const EventTable::Instrument &in = it->second;
 	volume_db += in.volume_db;
 	if (!in.multi) {
-		out.push_back({ in.wave, volume_db, loop });
+		out.push_back({ in.wave, volume_db, loop, delay });
 		return;
 	}
 	if (in.playlist.empty()) {
@@ -339,7 +350,7 @@ void pick(const EventTable &t, const Guid &g, float volume_db, bool loop, uint32
 	} else {
 		chosen = next(rng) % in.playlist.size();
 	}
-	pick(t, in.playlist[chosen].first, volume_db, loop, rng, depth + 1, out);
+	pick(t, in.playlist[chosen].first, volume_db, loop, delay, rng, depth + 1, out);
 }
 
 } // namespace
@@ -351,11 +362,20 @@ bool resolve_event(const EventTable &table, const Guid &event, uint32_t &rng, st
 	}
 	const EventTable::Event &ev = it->second;
 	for (const Guid &g : ev.instruments) {
-		bool loop = false;
+		bool loop = false, skip = false;
+		float delay = 0;
 		for (const Guid &l : ev.looped) {
 			loop = loop || l == g;
 		}
-		pick(table, g, 0, loop, rng, 0, out);
+		for (const Guid &u : ev.unreachable) {
+			skip = skip || u == g;
+		}
+		for (const auto &d : ev.delays) {
+			delay = d.first == g ? d.second : delay;
+		}
+		if (!skip) {
+			pick(table, g, 0, loop, delay, rng, 0, out);
+		}
 	}
 	return true;
 }
