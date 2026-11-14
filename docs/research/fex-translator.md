@@ -288,12 +288,35 @@ jump target (sample skid puts a load's stall on the instructions after it), and 
 interface-dispatch stub, jumps to many targets. The patch is kept at `docs/research/patches/fex-indirect-branch-cache.patch`
 and is not in the game's build.
 
+### A larger first code buffer (round 11): a clean win
+
+`code_buffer_full` was 1 in every run: FEX's shared code buffer starts at 16 MB, and when it fills it throws away
+every thread's translated code and starts over in a buffer twice the size (up to 128 MB). Patch 0006 adds
+`InitialCodeBufferMB` (default 0 = stock 16 MB). Run 43530571013, same harness, checksums unchanged:
+
+| config | warm p50 | load frame ms | first run ms | warm total ms | translated ms cold / warm | code buffer full | RSS MB |
+|---|---|---|---|---|---|---|---|
+| b_content | 0.82 | 8.9 | 799 | 3357 | 840 / 457 | 1 | 236 |
+| b_content_cb64 | 0.82 | 6.7 | 680 (−15%) | 3232 (−3.7%) | 714 / 331 (−28%) | 0 | 220 |
+| d_r2r_tc0 | 0.84 | 1.4 | 493 | 3091 | 822 / 445 | 1 | 226 |
+| d_r2r_tc0_cb64 | 0.84 | 1.5 | 449 (−9%) | 2948 (−4.6%) | 680 / 308 (−31%) | 0 | 211 |
+
+Phases harness (with `fex-l1`): total 918 → 876 ms (2.13× → 2.03× native), first JIT 272 → 228 ms, JIT 524 → 391 ms.
+Steady frames don't move (the code is the same once translated); the gain is all retranslation that no longer
+happens, so it lands on loads and new content. Memory goes down, not up: the 64 MB is reserved and touched as
+used, and the stock path ends up holding the old 16 MB plus a fresh 32 MB. A real game translates more code than
+the bench, so the phone may still fill 64 MB once; `code_buffer_full` in `fex.csv` will say.
+
+App: experiment `fex-code-buffer` on `perf/emu-fex` sets `FEX_INITIALCODEBUFFERMB=64`; off by default.
+
 ## Ranked next fixes (in FEX)
 
 0. **ReadyToRun for the game's assemblies** (.NET workstream, `dotnet-r2r`): new-content hitches 9.3 → 1.5 ms and
    first run −40% on the frame loop. The largest measured win for hitches.
 1. **Ship `fex-l1`** (4 MB table with Kestrel's FEX) after the phone confirms lower `cache_miss` and `jit_ms` in
    `fex.csv` with no memory regression in `memory.csv` / `processes.csv`.
+1b. **Ship `fex-code-buffer`** (64 MB first buffer) if the phone's `fex.csv` shows `code_buffer_full` drop and
+   `jit_ms` fall, with no memory regression. Stacks with `fex-l1`.
 2. **Make sure the disk cache actually hits on the phone** (`disk_hit` / `disk_miss` in `fex.csv`).
 3. **Translated-code quality**, now most of the remaining 1.9×. Spread across jitted C#, coreclr and RyuJIT with no
    single hot function (profile above), so it is general codegen work in FEX, not a targeted fix.
