@@ -27,9 +27,10 @@ import sys
 import time
 import zipfile
 
-SCHEMA = 5  # 2: JSON lines, Vorbis setup ids, imported pairing, FSB5 slice; 3: Spine 4.2 binary survey;
+SCHEMA = 6  # 2: JSON lines, Vorbis setup ids, imported pairing, FSB5 slice; 3: Spine 4.2 binary survey;
            # 4: text scene and resource survey, compiled GDScript identifier and string tables
            # 5: the largest files, every font and its import source, and the game's mod, font and locale names
+           # 6: texture formats (.ctex headers): counts, bytes and pixels per data and pixel format
 PREFIX = "DROIDDECK_NATIVE_INVENTORY"
 MAX_LIST = 4000
 MAX_GDEXT_BYTES = 8192
@@ -143,6 +144,46 @@ class Source:
                     return
                 yield done, block
                 done += len(block)
+
+
+CTEX_DATA = {0: "image", 1: "png", 2: "webp", 3: "basis"}
+CTEX_FORMATS = ("L8", "LA8", "R8", "RG8", "RGB8", "RGBA8", "RGBA4444", "RGB565", "RF", "RGF", "RGBF", "RGBAF", "RH",
+                "RGH", "RGBH", "RGBAH", "RGBE9995", "DXT1", "DXT3", "DXT5", "RGTC_R", "RGTC_RG", "BPTC_RGBA",
+                "BPTC_RGBF", "BPTC_RGBFU", "ETC", "ETC2_R11", "ETC2_R11S", "ETC2_RG11", "ETC2_RG11S", "ETC2_RGB8",
+                "ETC2_RGBA8", "ETC2_RGB8A1", "ETC2_RA_AS_RG", "DXT5_RA_AS_RG", "ASTC_4x4", "ASTC_4x4_HDR", "ASTC_8x8",
+                "ASTC_8x8_HDR")
+
+
+def ctex_head(blob):
+    """(logical w, h, data format, stored w, h, mipmaps, pixel format) from a Godot 4 .ctex, or None."""
+    if len(blob) < 52 or blob[:4] != b"GST2":
+        return None
+    lw, lh = struct.unpack("<II", blob[8:16])
+    data, w, h, mips, fmt = struct.unpack("<IHHII", blob[36:52])
+    return lw, lh, data, w, h, mips, fmt
+
+
+def ctex_survey(sources):
+    """Texture formats by kind: files, bytes and top-level pixels, with the largest dimensions seen."""
+    kinds, unread = {}, 0
+    for src in sources:
+        if ext_of(src.name) != ".ctex" or src.encrypted:
+            continue
+        head = ctex_head(src.read(0, 52))
+        if head is None:
+            unread += 1
+            continue
+        lw, lh, data, w, h, mips, fmt = head
+        key = "%s %s%s" % (CTEX_DATA.get(data, str(data)), CTEX_FORMATS[fmt] if fmt < len(CTEX_FORMATS) else fmt,
+                           " mips" if mips else "")
+        k = kinds.setdefault(key, {"files": 0, "bytes": 0, "pixels": 0, "over_1024": 0, "largest": [0, 0]})
+        k["files"] += 1
+        k["bytes"] += src.size
+        k["pixels"] += w * h
+        k["over_1024"] += max(w, h) > 1024
+        if w * h > k["largest"][0] * k["largest"][1]:
+            k["largest"] = [w, h]
+    return {"kinds": dict(sorted(kinds.items(), key=lambda kv: -kv[1]["bytes"])), "unread": unread}
 
 
 def ext_of(name):
@@ -1249,6 +1290,8 @@ def inventory(game_dir):
     report["encrypted_files"] = sum(1 for s in sources if s.encrypted)
     report["big_files"] = [{"name": s.name, "size": s.size} for s in sorted(sources, key=lambda s: -s.size)[:BIG_FILES]]
     report["fonts"] = [{"name": s.name, "size": s.size} for s in sources if ext_of(s.name) in FONT_EXT]
+
+    report["textures"] = ctex_survey(sources)
 
     gdext = []
     for src in sources:
