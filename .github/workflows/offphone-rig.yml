@@ -1,69 +1,129 @@
 name: Off-phone launch rig
 
+# Runs the real APK on an arm64 Android in docker (redroid) on a free GitHub arm64 runner and
+# drives it through the launch path a phone takes: install, runtime, proot, gamescope, the Steam
+# client up to its sign-in screen (never past it), and a stand-in game (our own Godot code, no
+# game files) through Proton and FEX. See tools/offphone/README.md.
+#
+# Every scenario leaves rig-session/ (the app's own session folder), verdict.json
+# ({stage_reached, ok, seconds_to_each_stage}) and the logs; the job fails unless the
+# scenario's target stage was reached.
+
 on:
   push:
     branches: [ci/offphone-probe]
   workflow_dispatch:
     inputs:
-      build_run:
-        description: Build APK run id whose droiddeck-apk to test (default the newest green perf/switchboard build)
+      apk_run_id:
+        description: build.yml run whose droiddeck-apk to test (default the newest green build of ref)
         required: false
-      start_timeout:
-        description: seconds to wait for the Steam session to be READY
+      ref:
+        description: branch whose newest green build.yml APK to test when apk_run_id is empty
         required: false
-        default: '1200'
+        default: perf/switchboard
+      scenario:
+        description: "steam-ui, stand-in-game or all"
+        required: false
+        default: all
       guest_vulkan:
         description: "How the guest gets Vulkan: lavapipe or venus"
+        required: false
         default: lavapipe
       image:
         description: redroid image
         required: false
         default: redroid/redroid:14.0.0_64only-latest
+  workflow_call:
+    inputs:
+      apk_run_id: { type: string, required: false }
+      ref: { type: string, required: false, default: perf/switchboard }
+      scenario: { type: string, required: false, default: all }
+      guest_vulkan: { type: string, required: false, default: lavapipe }
+      image: { type: string, required: false, default: redroid/redroid:14.0.0_64only-latest }
 
 permissions:
   contents: read
   actions: read
 
 jobs:
-  rig:
+  plan:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 60
-    env:
-      ANDROID_SERIAL: 127.0.0.1:5555
-      REDROID_IMAGE: ${{ inputs.image || 'redroid/redroid:14.0.0_64only-latest' }}
+    outputs:
+      apk_run: ${{ steps.apk.outputs.run }}
+      standin_run: ${{ steps.standin.outputs.run }}
+      scenarios: ${{ steps.scenarios.outputs.list }}
     steps:
-      - uses: actions/checkout@v4
       - name: Find the APK build
         id: apk
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          run=${{ inputs.build_run }}
+          run=${{ inputs.apk_run_id }}
+          ref=${{ inputs.ref || 'perf/switchboard' }}
           if [ -z "$run" ]; then
-            run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/runs?branch=perf/switchboard&status=success&per_page=1" --jq '.workflow_runs[0].id')
+            run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/runs?branch=$ref&status=success&per_page=1" --jq '.workflow_runs[0].id')
           fi
+          [ -n "$run" ] && [ "$run" != null ] || { echo "no green build.yml run for $ref"; exit 1; }
           echo "run=$run" >> "$GITHUB_OUTPUT"
-          echo "Testing the APK from build run $run" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK from build run $run" >> "$GITHUB_STEP_SUMMARY"
+      - name: Find the stand-in game build
+        id: standin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The newest native-startup-gate run that still has the stand-in artifact.
+          for run in $(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/native-startup-gate.yml/runs?status=success&per_page=10" --jq '.workflow_runs[].id'); do
+            if gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$run/artifacts" --jq '.artifacts[] | select(.name=="native-standin-win-x64" and .expired==false) | .id' | grep -q .; then
+              echo "run=$run" >> "$GITHUB_OUTPUT"; echo "stand-in from run $run" >> "$GITHUB_STEP_SUMMARY"; break
+            fi
+          done
+      - name: Scenarios
+        id: scenarios
+        run: |
+          case "${{ inputs.scenario || 'all' }}" in
+            all) echo 'list=["steam-ui","stand-in-game"]' >> "$GITHUB_OUTPUT" ;;
+            *) echo "list=[\"${{ inputs.scenario }}\"]" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  rig:
+    needs: plan
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ${{ fromJSON(needs.plan.outputs.scenarios) }}
+    env:
+      ANDROID_SERIAL: 127.0.0.1:5555
+      REDROID_IMAGE: ${{ inputs.image || 'redroid/redroid:14.0.0_64only-latest' }}
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: droiddeck-apk
-          run-id: ${{ steps.apk.outputs.run }}
+          run-id: ${{ needs.plan.outputs.apk_run }}
           github-token: ${{ github.token }}
           path: apk
-      - name: Host tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq adb >/dev/null
-      - name: Build the rig's Vulkan layer
+      - uses: actions/download-artifact@v4
+        if: matrix.scenario == 'stand-in-game' && needs.plan.outputs.standin_run != ''
+        with:
+          name: native-standin-win-x64
+          run-id: ${{ needs.plan.outputs.standin_run }}
+          github-token: ${{ github.token }}
+          path: standin
+      - name: Host tools and the rig's Vulkan layer
         run: |
-          sudo apt-get install -y -q libvulkan-dev mesa-vulkan-drivers >/dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq adb libvulkan-dev mesa-vulkan-drivers >/dev/null
           tools/offphone/cpusync/build.sh cpusync
+          # The layer is checked against the runner's own lavapipe before it goes near the device.
           gcc -O1 -Wall -o cpusync/test tools/offphone/cpusync/test.c -lvulkan
-          sed "s#/usr/local/lib/offphone/#$PWD/cpusync/#" cpusync/VkLayer_offphone_cpu_sync.json > cpusync/local.json
-          mkdir -p cpusync/il && mv cpusync/local.json cpusync/il/
+          mkdir -p cpusync/il
+          sed "s#/usr/local/lib/offphone/#$PWD/cpusync/#" cpusync/VkLayer_offphone_cpu_sync.json > cpusync/il/layer.json
           VK_ICD_FILENAMES=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1) VK_LAYER_PATH=$PWD/cpusync/il \
             VK_INSTANCE_LAYERS=VK_LAYER_OFFPHONE_cpu_sync timeout 60 cpusync/test
       - name: Boot Android
         run: tools/offphone/redroid-up.sh
-      - name: Install and smoke the app
+      - name: Install and open the app
         run: |
           apk=$(ls apk/*.apk | head -1)
           tools/device-smoke.sh --apk "$apk" --no-fold 2>&1 | tee smoke.txt
@@ -72,119 +132,33 @@ jobs:
           adb shell pm grant "$pkg" android.permission.POST_NOTIFICATIONS || true
           adb shell am force-stop "$pkg"
           act=$(adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$pkg" | tr -d '\r' | tail -1)
-          echo "launcher activity: $act"; adb shell am start -W -n "$act" || true
-          sleep 8
-          echo "::group::top activity"; adb shell dumpsys activity activities | grep -m3 -E "topResumedActivity|ResumedActivity"; echo "::endgroup::"
-          echo "::group::app UI"; tools/droiddeckctl ui dump 2>&1 | head -c 6000; echo; echo "::endgroup::"
-      - name: Start the Steam session
-        continue-on-error: true
-        run: |
-          mkdir -p out
-          adb shell device_config set_sync_disabled_for_tests persistent || true
-          adb shell device_config put activity_manager max_phantom_processes 2147483647 || true
-          adb shell settings put global settings_enable_monitor_phantom_procs false || true
-          # CI Android has no PowerVR, Mali or Adreno: route the guest's Vulkan through Venus to the
-          # emulator's own Vulkan (SwiftShader), the same path Mali phones take.
-          tools/offphone/enable-debug-tools.sh "$(tools/app-id)"
-          tools/droiddeckctl access
-          # CI Android has no PowerVR, Mali or Adreno. guest_vulkan picks how the guest gets Vulkan:
-          # lavapipe (Mesa's CPU driver inside the rootfs) or venus (through the emulator's SwiftShader,
-          # the path Mali phones take; SwiftShader lacks the dma-buf sharing gamescope needs).
-          case "${{ inputs.guest_vulkan || 'lavapipe' }}" in
-            venus) tools/droiddeckctl prefs set session venus true --type bool ;;
-            lavapipe)
-              # The runtime installs on the first start; a first, short session puts it in place.
-              fs=/data/user/0/$(tools/app-id)/files/linuxfs
-              if ! adb shell "ls $fs/usr/share/vulkan/icd.d" >/dev/null 2>&1; then
-                echo "warm-up start to install the runtime"
-                tools/droiddeckctl start steam >/dev/null 2>&1 || true
-                for i in $(seq 1 60); do
-                  sleep 5
-                  adb shell "ls $fs/usr/share/vulkan/icd.d" >/dev/null 2>&1 && \
-                    case "$(tools/droiddeckctl state 2>/dev/null | jq -r '.session.phase')" in IDLE|FAILED) true;; *) false;; esac && break
-                done
-                tools/droiddeckctl stop >/dev/null 2>&1 || true
-              fi
-              adb shell "ls -la $fs/usr/share/vulkan/icd.d/"
-              # Ubuntu's manifest names the library bare (libvulkan_lvp.so); BL_VK_DRIVER wants a path,
-              # so write a copy that names it in full.
-              lib=$(adb shell "cd $fs && ls usr/lib/*/libvulkan_lvp.so" | tr -d '\r' | head -1)
-              echo "lavapipe library: ${lib:-not found}"
-              uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
-              adb shell "mkdir -p $fs/usr/local/share/offphone && printf '%s' '{\"file_format_version\":\"1.0.1\",\"ICD\":{\"library_path\":\"/$lib\",\"api_version\":\"1.4.0\"}}' > $fs/usr/local/share/offphone/lvp_icd.json && chown -R $uid:$uid $fs/usr/local/share/offphone && restorecon -R $fs/usr/local/share/offphone"
-              adb shell "cat $fs/usr/local/share/offphone/lvp_icd.json"; echo
-              # Zink will not take a CPU device; GL goes to llvmpipe directly, as the session's own
-              # fallback does on Venus devices without nullDescriptor.
-              [ -n "$lib" ] && tools/droiddeckctl env set "BL_VK_DRIVER=/usr/local/share/offphone/lvp_icd.json" \
-                GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1 --persistent
-              # gamescope also needs sync-file semaphores, which lavapipe lacks: the rig's own layer
-              # (tools/offphone/cpusync) adds them with CPU waits. Never part of the APK.
-              # udmabuf (see redroid-up.sh): the app reaches it like the dma-buf heaps apps may open.
-              adb shell "ls -lZ /dev/udmabuf /dev/dma_heap 2>&1; getenforce"
-              adb shell "chmod 666 /dev/udmabuf && chcon u:object_r:dmabuf_system_heap_device:s0 /dev/udmabuf && ls -lZ /dev/udmabuf" || true
-              adb shell "mkdir -p $fs/usr/local/lib/offphone $fs/usr/local/share/vulkan/implicit_layer.d"
-              adb push cpusync/libVkLayer_offphone_cpu_sync.so $fs/usr/local/lib/offphone/
-              adb push cpusync/VkLayer_offphone_cpu_sync.json $fs/usr/local/share/vulkan/implicit_layer.d/
-              adb shell "chown -R $uid:$uid $fs/usr/local/lib/offphone $fs/usr/local/share/vulkan && chmod 755 $fs/usr/local/lib/offphone/*.so && restorecon -R $fs/usr/local/lib/offphone $fs/usr/local/share/vulkan" ;;
-          esac
-          t0=$(date +%s)
-          tools/droiddeckctl start steam 2>&1 | tee out/start.txt
+          adb shell am start -W -n "$act"
           sleep 5
-          echo "::group::UI after start"; tools/droiddeckctl ui dump 2>&1 | jq -c '.windows[]?.nodes[]? | select(.text or .tag) | [.tag, .text]' 2>/dev/null | head -60; echo "::endgroup::"
-          last=
-          while [ $(( $(date +%s) - t0 )) -lt ${{ inputs.start_timeout || 1200 }} ]; do
-            st=$(tools/droiddeckctl state 2>/dev/null)
-            ph=$(jq -r '.session.phase // "?"' <<<"$st" 2>/dev/null)
-            line="$ph $(jq -c '{step:.session.step, status:.session.status, error:.session.error}' <<<"$st" 2>/dev/null)"
-            if [ "$line" != "$last" ]; then echo "+$(( $(date +%s) - t0 ))s $line"; last=$line; fi
-            if [ "$ph" = IDLE ] && tools/droiddeckctl ui dump 2>/dev/null | grep -q "Install anyway"; then
-              echo "+$(( $(date +%s) - t0 ))s unsupported-GPU dialog: pressing Install anyway"
-              tools/droiddeckctl ui click --match "Install anyway" >/dev/null 2>&1 || true
-              sleep 3; tools/droiddeckctl start steam >/dev/null 2>&1 || true
-            fi
-            echo "$st" > out/state.json
-            case $ph in READY|FAILED) break;; esac
-            # The session ran and went back to idle: it ended on its own.
-            # Idle for a while, before or after running: the session ended on its own (or never started).
-            if [ "$ph" = IDLE ]; then idle=$(( ${idle:-0} + 1 )); [ $idle -ge 6 ] && { echo "session ended without READY"; break; }; else idle=0; fi
-            sleep 10
+          echo "top: $(adb shell dumpsys activity activities | grep -m1 topResumedActivity)"
+      - name: Drive ${{ matrix.scenario }}
+        run: tools/offphone/drive.sh "${{ matrix.scenario }}" out "${{ inputs.guest_vulkan || 'lavapipe' }}" 900 standin
+      - name: Verdict and logs
+        if: always()
+        run: |
+          {
+            echo "### ${{ matrix.scenario }}"
+            echo '```json'; cat out/verdict.json 2>/dev/null || echo '{"ok": false, "stage_reached": null}'; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Printed in full, because the job log is readable where artifacts are not.
+          for f in events.jsonl session.log crash.log graphics-report.txt; do
+            [ -f "out/rig-session/$f" ] || continue
+            echo "::group::session $f"; tail -c 30000 "out/rig-session/$f"; echo; echo "::endgroup::"
           done
-          echo "::group::final state"; cat out/state.json; echo "::endgroup::"
-          [ "$ph" = READY ]
-      - name: Diagnostics
-        if: always()
-        run: |
-          pkg=$(tools/app-id)
-          echo "::group::app UI"; tools/droiddeckctl ui dump 2>&1 | head -c 6000; echo; echo "::endgroup::"
-          echo "::group::logcat (app and errors)"
-          pid=$(adb shell pidof "$pkg" | tr -d '\r')
-          adb logcat -d -v time | grep -E "\( *${pid:-NOPID}\)|AgentStart|AgentBridge|LinuxRuntime|ActivityTaskManager|kestrel" | grep -v -E "chatty|JIT allocated|Compiler allocated" | tail -400
+          echo "::group::logcat (app, errors, SELinux)"
+          adb logcat -d -v time | grep -E "SessionService|AgentStart|AgentBridge|LinuxRuntime|kestrel|avc: *denied| E/| F/" | tail -400
           echo "::endgroup::"
-          echo "::group::SELinux denials"; adb logcat -d | grep -i "avc: *denied" | grep -E "untrusted_app|$pkg" | tail -40; echo "::endgroup::"
-          d=/data/user/0/$pkg/files/logs
-          last=$(adb shell "ls -1d $d/*/ 2>/dev/null | tail -1" | tr -d '\r')
-          echo "session dir: ${last:-none}"
-          if [ -n "$last" ]; then
-            adb shell "ls -la $last"
-            for f in $(adb shell "ls -1 $last" | tr -d '\r'); do
-              case $f in *.log|*.txt|*.json|*.jsonl) ;; *) continue;; esac
-              echo "::group::session $f"; adb shell "tail -c 20000 $last$f"; echo; echo "::endgroup::"
-            done
-          fi
-      - name: Collect
-        if: always()
-        run: |
-          mkdir -p out
-          tools/droiddeckctl state > out/state.json 2>&1 || true
-          tools/droiddeckctl screenshot out/screen.png > /dev/null 2>&1 || adb exec-out screencap -p > out/screen.png || true
-          tools/droiddeckctl logs out/session > out/logs.txt 2>&1 || true
+          adb exec-out screencap -p > out/screen.png 2>/dev/null || true
           adb logcat -d > out/logcat.txt 2>&1 || true
-          adb shell dumpsys meminfo > out/meminfo.txt 2>&1 || true
           docker logs kestrel-android > out/redroid.txt 2>&1 || true
           cp smoke.txt out/ 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: offphone-rig
+          name: rig-${{ matrix.scenario }}
           path: out
-          retention-days: 7
+          retention-days: 14
