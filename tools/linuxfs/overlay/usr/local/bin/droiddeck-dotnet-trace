@@ -25,6 +25,12 @@ GC_START, GC_END, GC_RESTART_END, GC_HEAP_STATS = 1, 2, 3, 4
 GC_RESTART_BEGIN, GC_SUSPEND_END, GC_SUSPEND_BEGIN = 7, 8, 9
 GC_GLOBAL_HEAP_HISTORY = 205
 TC_BACKGROUND_START, TC_BACKGROUND_STOP = 283, 284
+METHOD_LOAD_VERBOSE = 143
+# MethodLoadVerbose flags, and the optimization tier in bits 7-9.
+METHOD_DYNAMIC, METHOD_GENERIC, METHOD_SHARED_GENERIC, METHOD_JITTED = 0x1, 0x2, 0x4, 0x8
+METHOD_R2R_REJECTED = 0x40
+TIERS = {0: "unknown", 1: "minopts", 2: "fullopts", 3: "tier0", 4: "tier1", 5: "tier1_osr", 6: "tier0_instr",
+         7: "tier1_instr"}
 GC_TYPES = {0: "blocking", 1: "background", 2: "foreground"}
 GC_REASONS = {0: "alloc_small", 1: "induced", 2: "lowmem", 3: "empty", 4: "alloc_large", 5: "oos_small",
               6: "oos_large", 7: "induced_noforce", 8: "stress", 9: "lowmem_blocking", 10: "induced_compacting",
@@ -257,6 +263,7 @@ class Summary:
         self.open_gc = self.suspend = self.tier1_start = None
         self.background = {}
         self.tier1_methods, self.tier1_busy_ms = 0, 0.0
+        self.methods = []
 
     def add_all(self, stream, items):
         self.header = stream.header or self.header
@@ -314,6 +321,12 @@ class Summary:
             elif gcs and gcs[-1]["type"] == "background" and "end_ms" not in gcs[-1]:
                 gcs[-1]["bgc_pause_ms"] = gcs[-1].get("bgc_pause_ms", 0) + pause
             self.suspend = None
+        elif e == METHOD_LOAD_VERBOSE:
+            r = Reader(payload)
+            _method, _module, _start, _size, _token, flags = r.unpack("<QQQIII")
+            namespace, name = r.utf16z(), r.utf16z()
+            if flags & METHOD_JITTED:
+                self.methods.append((ms, flags, namespace, name))
         elif e == TC_BACKGROUND_START:
             self.tier1_start = ms
         elif e == TC_BACKGROUND_STOP and self.tier1_start is not None:
@@ -386,10 +399,52 @@ def summary_text(summary):
     return "\n".join(lines) + "\n"
 
 
+def method_kind(flags, namespace):
+    """What kind of JIT compile a method is, for telling what precompiled code could still remove."""
+    if flags & METHOD_DYNAMIC:
+        return "dynamic"
+    if flags & METHOD_R2R_REJECTED:
+        return "r2r_rejected"
+    if "[" in namespace:
+        outer = namespace.split("[", 1)[0]
+        return "generic_framework" if outer.startswith(("System.", "Microsoft.")) else "generic_own"
+    if flags & METHOD_GENERIC:
+        return "generic_method"
+    return "plain"
+
+
+def jit_text(summary, top=40):
+    """dotnet-jit.txt: JIT compiles per minute by tier and kind, then the types with the most compiles."""
+    methods = summary.methods
+    kinds = ("plain", "generic_framework", "generic_own", "generic_method", "dynamic", "r2r_rejected")
+    tiers = sorted({(f >> 7) & 0x7 for _, f, _, _ in methods})
+    lines = ["jitted=%d (MethodLoadVerbose events with the jitted flag)" % len(methods),
+             "minute,jitted," + ",".join(TIERS.get(t, "tier%d" % t) for t in tiers) + "," + ",".join(kinds)]
+    for minute in sorted({int(m[0] // 60000) for m in methods}):
+        mine = [m for m in methods if int(m[0] // 60000) == minute]
+        by_tier = [sum(((f >> 7) & 0x7) == t for _, f, _, _ in mine) for t in tiers]
+        by_kind = [sum(method_kind(f, ns) == k for _, f, ns, _ in mine) for k in kinds]
+        lines.append(",".join(str(v) for v in [minute, len(mine)] + by_tier + by_kind))
+    counts = {}
+    for _, flags, namespace, _ in methods:
+        key = (method_kind(flags, namespace), namespace[:160])
+        tier = TIERS.get((flags >> 7) & 0x7, "?")
+        entry = counts.setdefault(key, {})
+        entry[tier] = entry.get(tier, 0) + 1
+    lines.append("top types: count,kind,tiers,type")
+    for (kind, namespace), tiers_seen in sorted(counts.items(), key=lambda kv: -sum(kv[1].values()))[:top]:
+        lines.append("%d,%s,%s,%s" % (sum(tiers_seen.values()), kind,
+                                      " ".join("%s=%d" % t for t in sorted(tiers_seen.items())), namespace))
+    return "\n".join(lines) + "\n"
+
+
 def write_tables(summary, out_dir):
     out = Path(out_dir)
-    for name, text in (("dotnet-gc.txt", gc_table(summary.gcs)), ("dotnet-counters.txt", counter_table(summary.counters)),
-                       ("dotnet-summary.txt", summary_text(summary))):
+    tables = [("dotnet-gc.txt", gc_table(summary.gcs)), ("dotnet-counters.txt", counter_table(summary.counters)),
+              ("dotnet-summary.txt", summary_text(summary))]
+    if summary.methods:
+        tables.append(("dotnet-jit.txt", jit_text(summary)))
+    for name, text in tables:
         temp = out / (name + ".tmp")
         temp.write_text(text)
         os.replace(temp, out / name)
