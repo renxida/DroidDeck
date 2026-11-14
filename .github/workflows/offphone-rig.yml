@@ -97,9 +97,14 @@ jobs:
                 tools/droiddeckctl stop >/dev/null 2>&1 || true
               fi
               adb shell "ls -la $fs/usr/share/vulkan/icd.d/"
-              icd=$(adb shell "cd $fs/usr/share/vulkan/icd.d && ls lvp_icd*.json" | tr -d '\r' | head -1)
-              echo "lavapipe ICD: ${icd:-not found}"
-              [ -n "$icd" ] && tools/droiddeckctl env set "BL_VK_DRIVER=/usr/share/vulkan/icd.d/$icd" --persistent ;;
+              # Ubuntu's manifest names the library bare (libvulkan_lvp.so); BL_VK_DRIVER wants a path,
+              # so write a copy that names it in full.
+              lib=$(adb shell "cd $fs && ls usr/lib/*/libvulkan_lvp.so" | tr -d '\r' | head -1)
+              echo "lavapipe library: ${lib:-not found}"
+              uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
+              adb shell "mkdir -p $fs/usr/local/share/offphone && printf '%s' '{\"file_format_version\":\"1.0.1\",\"ICD\":{\"library_path\":\"/$lib\",\"api_version\":\"1.4.0\"}}' > $fs/usr/local/share/offphone/lvp_icd.json && chown -R $uid:$uid $fs/usr/local/share/offphone && restorecon -R $fs/usr/local/share/offphone"
+              adb shell "cat $fs/usr/local/share/offphone/lvp_icd.json"; echo
+              [ -n "$lib" ] && tools/droiddeckctl env set "BL_VK_DRIVER=/usr/local/share/offphone/lvp_icd.json" --persistent ;;
           esac
           t0=$(date +%s)
           tools/droiddeckctl start steam 2>&1 | tee out/start.txt
@@ -117,9 +122,10 @@ jobs:
               sleep 3; tools/droiddeckctl start steam >/dev/null 2>&1 || true
             fi
             echo "$st" > out/state.json
-            case $ph in READY|FAILED) break;; IDLE|\?) ;; *) seen=1;; esac
+            case $ph in READY|FAILED) break;; esac
             # The session ran and went back to idle: it ended on its own.
-            if [ -n "${seen:-}" ] && [ "$ph" = IDLE ]; then idle=$(( ${idle:-0} + 1 )); [ $idle -ge 3 ] && { echo "session ended without READY"; break; }; else idle=0; fi
+            # Idle for a while, before or after running: the session ended on its own (or never started).
+            if [ "$ph" = IDLE ]; then idle=$(( ${idle:-0} + 1 )); [ $idle -ge 6 ] && { echo "session ended without READY"; break; }; else idle=0; fi
             sleep 10
           done
           echo "::group::final state"; cat out/state.json; echo "::endgroup::"
