@@ -44,9 +44,9 @@ import time
 import urllib.request
 
 # The published component. Built by .github/workflows/native-engine-build.yml (publish=true).
-COMPONENT = {"tag": "native-engine-20",
-             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-20/native-engine.tar.zst",
-             "sha256": "c84254fca828b3d9be4e859fa32b3e99074d2dc4c090c13fdeeee11ab5b6f609"}
+COMPONENT = {"tag": "native-engine-38",
+             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-38/native-engine.tar.zst",
+             "sha256": "176b8172f7c3efd8f6a49e684014aed9839a4c9c768d40db61c1fc1b086b73c0"}
 DID_NOT_START = 86
 FIRST_FRAME_S = float(os.environ.get("DROIDDECK_NATIVE_FIRST_FRAME_S", "90"))
 FPS_EVERY_S = 60
