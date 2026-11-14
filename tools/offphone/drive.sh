@@ -102,6 +102,7 @@ if [ "$base" = stand-in-game ] && [ -z "$(steamclient)" ]; then
   "$ctl" stop >/dev/null 2>&1 || true; wait_idle 120 || true
 fi
 
+top_activity() { adb shell dumpsys activity activities | grep -m1 topResumedActivity | sed 's/.*{[^ ]* [^ ]* //; s/ t[0-9]*}.*//' | tr -d '\r'; }
 launcher() { adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$pkg" | tr -d '\r' | tail -1; }
 
 if [ "$scenario" = upgrade ]; then
@@ -133,8 +134,12 @@ perturb() { # once, while the start is under way
       rig_event screen_cycled ;;
     steam-ui-background|stand-in-background)
       local away=30; [ "$base" = stand-in-game ] && away=20
-      adb shell input keyevent KEYCODE_HOME; echo "rig: app sent home for ${away}s"; sleep "$away"
-      adb shell am start -n "$(launcher)" >/dev/null
+      adb shell input keyevent KEYCODE_HOME; echo "rig: app sent home for ${away}s"
+      sleep 2; echo "rig: top while away: $(top_activity)"; sleep "$away"
+      # Back the way a person comes back: the launcher icon (an existing task comes to the front).
+      adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n "$(launcher)" >/dev/null
+      sleep 3; echo "rig: top after return: $(top_activity)"
+      echo "rig: on screen after return: $("$ctl" ui dump 2>/dev/null | jq -r '[.. | objects | .text? // empty | strings | select(length > 0)] | unique | join(" | ")' 2>/dev/null | head -c 600)"
       rig_event backgrounded ;;
   esac
 }
@@ -191,6 +196,7 @@ while [ $(( $(date +%s) - t0 )) -lt "$limit" ]; do
   sleep 5
 done
 sample_ps end
+[ -n "$perturbed" ] && echo "rig: at the end: top $(top_activity); on screen: $("$ctl" ui dump 2>/dev/null | jq -r '[.. | objects | .text? // empty | strings | select(length > 0)] | unique | join(" | ")' 2>/dev/null | head -c 600)"
 [ "$base" = steam-ui ] && [ -z "$login" ] && { "$ctl" cdp targets > "$out/cdp-targets.json" 2>&1 || true; }
 echo "rig: DevTools targets:"; jq -c '[.. | objects | select(.title? or .url?) | {title, url}]' "$out/cdp-targets.json" 2>/dev/null | head -c 3000; echo
 

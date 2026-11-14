@@ -197,11 +197,11 @@ jobs:
             echo "::group::session $f"; tail -c 30000 "out/rig-session/$f"; echo; echo "::endgroup::"
           done
           echo "::group::logcat (app, errors, SELinux)"
-          adb logcat -d -v time | grep -E "SessionService|AgentStart|AgentBridge|LinuxRuntime|kestrel|avc: *denied| E/| F/" | tail -400
+          timeout 120 adb logcat -d -v time | grep -E "SessionService|AgentStart|AgentBridge|LinuxRuntime|kestrel|avc: *denied| E/| F/" | tail -400
           echo "::endgroup::"
-          adb exec-out screencap -p > out/screen.png 2>/dev/null || true
-          adb logcat -d > out/logcat.txt 2>&1 || true
-          docker logs kestrel-android > out/redroid.txt 2>&1 || true
+          timeout 60 adb exec-out screencap -p > out/screen.png 2>/dev/null || true
+          timeout 120 adb logcat -d > out/logcat.txt 2>&1 || true
+          timeout 60 docker logs kestrel-android > out/redroid.txt 2>&1 || true
           cp smoke.txt out/ 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
