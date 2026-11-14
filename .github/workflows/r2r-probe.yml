@@ -1,0 +1,30 @@
+name: R2R load probe (which header edits arm64 CoreCLR accepts)
+on:
+  push:
+    branches: [native/r2r-probe]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Probe
+        run: |
+          set -uo pipefail
+          W=$RUNNER_TEMP/p && mkdir -p "$W"
+          curl -fsSL -o "$W/rt.nupkg" https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.win-x64/9.0.7/microsoft.netcore.app.runtime.win-x64.9.0.7.nupkg
+          unzip -oq "$W/rt.nupkg" runtimes/win-x64/lib/net9.0/System.Linq.dll -d "$W"
+          dotnet publish tools/native-engine/r2r-probe/lib -c Release -r win-x64 --self-contained false -o "$W/lib-il" -p:PublishReadyToRun=false
+          dotnet publish tools/native-engine/r2r-probe/lib -c Release -r win-x64 --self-contained false -o "$W/lib-r2r" -p:PublishReadyToRun=true
+          W2=$W/v
+          for f in "$W/runtimes/win-x64/lib/net9.0/System.Linq.dll"; do python3 tools/native-engine/r2r-probe/variants.py tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot "$f" "$W2/linq"; done
+          python3 tools/native-engine/r2r-probe/variants.py tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot "$W/lib-il/ProbeLib.dll" "$W2/il"
+          python3 tools/native-engine/r2r-probe/variants.py tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot "$W/lib-r2r/ProbeLib.dll" "$W2/r2r"
+          dotnet build tools/native-engine/r2r-probe/host -c Release -o "$W/host" > /dev/null
+          for g in linq il r2r; do echo "== $g"; dotnet "$W/host/R2rProbe.dll" $(ls -d "$W2/$g"/*/* | sort); done
+          echo "== uname: $(uname -m)"
