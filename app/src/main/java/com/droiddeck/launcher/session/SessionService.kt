@@ -1960,7 +1960,7 @@ class SessionService : Service() {
                 stopLmkWatch()
                 Experiments.endSession()
                 com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
-                if (status == 0) {
+                if (status == 0 && SessionState.failureCode == null) {
                     SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
                 } else {
                     val code = SessionState.failureCode ?: "GUEST_EXIT"
@@ -2168,7 +2168,10 @@ class SessionService : Service() {
         }
     }
 
-    /** Logs why the guest ended on its own; a kill with a known culprit gets a user-facing explanation. */
+    /**
+     * Logs why the guest ended on its own; a kill with a known culprit, or a start the session log
+     * shows never got going, gets a user-facing explanation.
+     */
     private fun classifyGuestExit(status: Int, gen: Int) {
         if (gen != sessionGen || !SessionState.running) return
         try {
@@ -2179,14 +2182,18 @@ class SessionService : Service() {
                 (device.swapTotalKb > 0 && device.swapFreeKb * 10 < device.swapTotalKb))
             val recent = lastPressureAt > 0 && android.os.SystemClock.elapsedRealtime() - lastPressureAt < PRESSURE_RECENT_MS
             val verdict = ExitCause.ofGuest(status, SessionState.stopRequested, phantom,
-                ExitCause.isXiaomiFamily(Build.MANUFACTURER, Build.BRAND), low || recent)
+                ExitCause.isXiaomiFamily(Build.MANUFACTURER, Build.BRAND), low || recent,
+                SessionLaunchFailure.find(SessionState.logFile))
             Log.i(TAG, ExitCause.line("session", verdict))
             SessionEvents.record("exit.classified", ExitCause.fields("session", verdict))
             val code = ExitCause.failureCode(verdict) ?: return
             val message = when (code) {
                 ExitCause.FAILURE_PHANTOM -> getString(R.string.session_end_phantom_killed,
                     com.droiddeck.launcher.core.PhantomProcessLimit.fixSentence(this))
-                else -> getString(R.string.session_end_vendor_memory_killed)
+                ExitCause.FAILURE_VENDOR -> getString(R.string.session_end_vendor_memory_killed)
+                SessionLaunchFailure.VULKAN_DEVICE_MISSING.name -> getString(R.string.session_end_vulkan_device)
+                SessionLaunchFailure.STEAM_CLIENT_MISSING.name -> getString(R.string.session_end_steam_client_missing)
+                else -> verdict.detail
             }
             synchronized(SessionState) {
                 if (gen == sessionGen && SessionState.failureCode == null) {

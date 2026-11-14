@@ -2113,6 +2113,7 @@
     <string name="session_end_steam_sigill">Steam stopped with an illegal instruction (SIGILL). This can be a CPU instruction compatibility problem or a client crash. Share the logs with your device details.</string>
     <string name="session_end_steam_try_x64">You can try Steam settings → Steam client → x86-64 (experimental). It needs an additional download and may run more slowly.</string>
     <string name="session_end_vulkan_device">The Linux graphics driver could not find a usable Vulkan device. Check that the selected Linux GPU driver supports this GPU.</string>
+    <string name="session_end_steam_client_missing">This game needs the Steam client, which is not installed yet. Open Steam once and let it finish starting (you don\'t need to sign in), then start the game again.</string>
     <string name="exp_group">Experiments</string>
     <string name="exp_hint">Reset to baseline turns them all off, the same as the main build. Game parts apply at the next game launch, Steam parts at the next session.</string>
     <string name="exp_godot_render">Godot: Mobile renderer on PowerVR, pipeline cache saved more often</string>

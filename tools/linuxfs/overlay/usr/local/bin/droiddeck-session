@@ -639,6 +639,8 @@ if [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard
   /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
 fi
 
+# The app reads gamescope's Vulkan errors before this line as a start that never happened.
+echo "== gamescope: the session runs inside the compositor"
 start_agent
 
 case $mode in

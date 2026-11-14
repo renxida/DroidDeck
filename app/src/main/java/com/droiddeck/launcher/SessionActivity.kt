@@ -2226,8 +2226,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return SessionState.failureMessage?.let { EndHint(it) }
     }
 
-    private fun sessionExitHint(status: Int): EndHint? = if (status == 0) presentationFaultHint()
+    private fun sessionExitHint(status: Int): EndHint? = if (status == 0) presentationFaultHint() ?: failedStartHint()
         else runtimeDamageHint() ?: exitCauseHint() ?: sessionEndHint(SessionState.logFile) ?: prootFailureHint()
+
+    /** A guest that exited 0 without ever starting the session (gamescope found no usable Vulkan device). */
+    private fun failedStartHint(): EndHint? {
+        val code = SessionState.failureCode ?: return null
+        if (com.droiddeck.launcher.session.SessionLaunchFailure.entries.none { it.failedStart && it.name == code }) return null
+        val hint = sessionEndHint(SessionState.logFile) ?: SessionState.failureMessage?.let { EndHint(it) } ?: return null
+        return EndHint(hint.text, evenOnSuccess = true, repair = hint.repair)
+    }
 
     private fun sessionEndHint(log: File?): EndHint? {
         presentationFaultHint()?.let { return it }
@@ -2263,6 +2271,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     family != com.droiddeck.launcher.gpu.GpuInfo.Family.POWERVR && !family.mali
                 val message = getString(R.string.session_end_vulkan_device)
                 EndHint(if (adreno) message else "${gpu.name} (${family.label(gpu.name)})\n$message")
+            } else if (launchFailure == com.droiddeck.launcher.session.SessionLaunchFailure.STEAM_CLIENT_MISSING) {
+                EndHint(getString(R.string.session_end_steam_client_missing))
             } else if (fexMissing) {
                 val what = com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_end_program)
                 EndHint(getString(R.string.session_end_fex_missing, what), evenOnSuccess = true)
