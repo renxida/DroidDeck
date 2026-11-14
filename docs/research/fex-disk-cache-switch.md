@@ -9,7 +9,7 @@ FEX files its cache under `DiskCache/<MachineBucketHash>/`, where the hash cover
 (`DiskCache.h`, `FormatVersion`) and the host CPU features. At start, `PruneStaleEntries` deletes every other
 folder in `DiskCache/`. The format version moves often: 30 in FEX-2610, 42 in FEX-2611, 44 in the upstream tip
 Kestrel's FEX is built on. So stock FEX and Kestrel's FEX use different folders on the same phone, and each launch
-on one deletes the other's. On Nov 14 the Kestrel `.22` launch at 15:55 deleted stock's 301.5 MB folder and hung
+on one deletes the other's. The likely Nov 14 sequence (from the times, not a log of the deletes): the Kestrel `.22` launch at 15:55 deleted stock's 301.5 MB folder and hung
 before writing much to its own; when stock FEX came back (`cf59d49`) it found only that near-empty folder, then
 deleted it too. Nothing in the cache was wrong; the switch alone threw it away.
 
