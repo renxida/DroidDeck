@@ -83,6 +83,11 @@ esac
 echo "$label: $verdict after $((end - start)) s ($(cat "$out/$label.maps" 2>/dev/null | head -1))"
 echo "$label: last heartbeat: $(grep -a '^hb ' "$log" | tail -1)"
 grep -a -i "fex\|Sampler\|NameWindowsMemory\|TrimIdleThreads" "$err" | tail -10 || true
+for csv in "$out"/fex-*-samples.csv; do
+  [ -f "$csv" ] || continue
+  echo "$label: sampler meta $(basename "$csv"):"; grep -a ',meta,' "$csv" | cut -d, -f1,7,9 | tr '\n' ' '; echo
+  echo "$label: sampler top rows:"; grep -av ',meta,' "$csv" | head -15
+done
 if [ $status = 2 ]; then
   echo "-- stdout tail"; tail -60 "$log"
   echo "-- stderr tail (without display noise)"; grep -av 'wgl:\|winediag\|systray\|explorer' "$err" | tail -40

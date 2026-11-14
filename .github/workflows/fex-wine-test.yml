@@ -102,6 +102,8 @@ jobs:
           - {name: up0006, dll: '0006', env: ''}
           - {name: up0007, dll: '0007', env: ''}
           - {name: up0007-sample, dll: '0007', env: 'FEX_SAMPLEHZ=250'}
+          - {name: up0007-s25, dll: '0007', env: 'FEX_SAMPLEHZ=25'}
+          - {name: up0007-s100, dll: '0007', env: 'FEX_SAMPLEHZ=100'}
           - {name: up0008, dll: '0008', env: ''}
           - {name: up0008-smaps, dll: '0008', env: 'FEX_NAMEWINDOWSMEMORY=5'}
           - {name: up0009, dll: '0009', env: ''}
