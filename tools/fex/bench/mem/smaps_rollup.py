@@ -27,6 +27,8 @@ def parse(text):
 
 
 def category(path):
+    if path.startswith("[anon:FEXAllocator"):
+        return "fex-malloc"
     if path.startswith("[anon:FEXMem"):
         n = path[len("[anon:FEXMem"):].rstrip("]").lstrip("_").lower()
         return {"jit": "fex-code", "lookup": "fex-lookup-l2", "lookup_l1": "fex-lookup-l1", "": "fex-other"}.get(
@@ -101,7 +103,7 @@ def watch(pid, out, period):
     json.dump({"last": last, "peak": peak}, open(out, "w"))
 
 
-ORDER = ["fex-code", "fex-lookup-l2", "fex-lookup-l1", "fex-blocklinks", "fex-threadstate", "fex-callretstacks", "fex-misc", "fex-other"]
+ORDER = ["fex-code", "fex-malloc", "fex-lookup-l2", "fex-lookup-l1", "fex-blocklinks", "fex-threadstate", "fex-callretstacks", "fex-misc", "fex-other"]
 
 
 def table(args):

@@ -14,6 +14,9 @@ GAME_FEX="FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 FEX_
 CONFIGS=${CONFIGS:-"stock_dynamic_l1|FEX_DYNAMICL1CACHE=1
 fex_l1_4mb|FEX_DYNAMICL1CACHE=0 FEX_L1CACHEENTRIES=262144
 fex_l1_4mb_codebuf64|FEX_DYNAMICL1CACHE=0 FEX_L1CACHEENTRIES=262144 FEX_INITIALCODEBUFFERMB=64
+stock_dynamic_l1_no_l2|FEX_DYNAMICL1CACHE=1 FEX_DISABLEL2CACHE=1
+fex_l1_4mb_no_l2|FEX_DYNAMICL1CACHE=0 FEX_L1CACHEENTRIES=262144 FEX_DISABLEL2CACHE=1
+fex_l1_1mb_no_l2|FEX_DYNAMICL1CACHE=0 FEX_L1CACHEENTRIES=65536 FEX_DISABLEL2CACHE=1
 ${EXTRA_CONFIGS:-}"}
 labels=()
 for workload in frames threads_contended; do
@@ -30,8 +33,9 @@ for workload in frames threads_contended; do
     wp=$!
     wait $pid || echo "  ($name exited $?)" >&2
     wait $wp || true
-    p99=$(awk -F, '$1=="frame_p99_ms"{print $2}' "$txt")
-    labels+=("$workload $name${p99:+ (p99 ${p99} ms)}=$js")
+    p99=$(awk -F, '$1=="frame_p99_ms"{print $2}' "$txt"); tot=$(awk -F, '$1=="total_ms"{print $2}' "$txt")
+    [ "$workload" = threads_contended ] && tot=$(awk -F, '$1=="threads_contended"{print $3}' "$txt")
+    labels+=("$workload $name (p99 ${p99:--} ms, total ${tot:--} ms)=$js")
   done <<< "$CONFIGS"
 done
 python3 "$HERE/smaps_rollup.py" table "${labels[@]}" | tee "$OUT/mem-summary.md"
