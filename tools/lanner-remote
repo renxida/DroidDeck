@@ -8,7 +8,17 @@ public half), commits remote/inbox/<id>.json to a clone of the repository (LANNE
 pushes it, then waits for remote/outbox/<id>.json and prints it; a
 "screenshot" answer also saves remote/outbox/<id>.jpg next to the current directory. Methods are the
 agent bridge's (state, stop, launch, input, ui, guest, logs, prefs, env, ...) plus start, screenshot,
-autotest and ping. The phone polls every 30 s, and every 5 s for ten minutes after a command.
+autotest, layout and ping. The phone polls every 30 s, and every 5 s for ten minutes after a command.
+
+Driving the app by hand:
+  ui '{"op":"dump"}'                                   what is on screen, with bounds
+  ui '{"op":"tap","fx":0.5,"fy":0.5}'                  a finger at a fraction of the screen (or "x","y" in pixels)
+  ui '{"op":"swipe","x":100,"y":800,"x2":100,"y2":200,"ms":300}'
+  ui '{"op":"back"}'
+  ui '{"op":"click","match":"Play"}'                   by text or "tag"
+  screenshot '{"what":"ui"}'                           the app's windows, on-screen controls included
+  input '{"type":"tap","x":960,"y":540}'               into the game (1920 x 1080 space)
+  layout '{"op":"get"}' / '{"op":"set","layout":{...}}' / '{"op":"reset"}'   the Slay the Spire 2 pad
 """
 import argparse, base64, json, os, subprocess, sys, time
 

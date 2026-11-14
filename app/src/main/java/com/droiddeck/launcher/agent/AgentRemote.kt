@@ -44,7 +44,11 @@ import java.net.URL
  * still applies: guest shell, native and cdp commands need Setup > Diagnostics > Debugging tools.
  *
  * Methods beyond the bridge's: "start" ({"appId", "branch"} or {"steamUrl"}) opens a session the way
- * the library does; "screenshot" uploads a picture of the session; "autotest" runs the queued test.
+ * the library does; "screenshot" uploads a picture of the session, or with {"what": "ui"} (or when no
+ * session is showing) of the app's own windows, on-screen controls included; "autotest" runs the queued
+ * test; "layout" gets ({"op": "get", "id"}), replaces ({"op": "set", "layout": {...}}) or resets
+ * ({"op": "reset"}) the Slay the Spire 2 pad or a "remote.*" layout. The bridge's "ui" drives the app by
+ * hand: {"op": "tap"|"swipe", "x"/"fx", "y"/"fy", ...} and {"op": "back"}, never on the Debugging tools switch.
  */
 object AgentRemote {
     private const val TAG = "AgentRemote"
@@ -169,7 +173,9 @@ object AgentRemote {
                     latch.await(30, java.util.concurrent.TimeUnit.SECONDS)
                     JSONObject().put("ok", true).put("message", message)
                 }
-                "screenshot" -> screenshot(context, repo, token, id)
+                "screenshot" -> if (request.optString("what") == "ui") uiShot(repo, token, id)
+                    else screenshot(context, repo, token, id).let { if (it.optBoolean("ok") || request.optString("what") == "session") it else uiShot(repo, token, id) }
+                "layout" -> layout(context, request)
                 else -> {
                     val extras = Bundle().apply { putString(AgentBridgeProvider.EXTRA_REQUEST,
                         Base64.encodeToString(request.toString().toByteArray(Charsets.UTF_8), Base64.NO_WRAP)) }
@@ -210,6 +216,27 @@ object AgentRemote {
         if (!ok || !file.isFile) return err("SCREENSHOT_FAILED", "no picture")
         val code = put(repo, token, "$OUTBOX/$id.jpg", file.readBytes(), "lanner remote: screenshot $id")
         return JSONObject().put("ok", code in 200..201).put("path", "$OUTBOX/$id.jpg").put("bytes", file.length())
+    }
+
+    private fun uiShot(repo: String, token: String, id: String): JSONObject {
+        val bytes = AgentUi.picture()
+        val code = put(repo, token, "$OUTBOX/$id.jpg", bytes, "lanner remote: screenshot $id")
+        return JSONObject().put("ok", code in 200..201).put("what", "ui").put("path", "$OUTBOX/$id.jpg").put("bytes", bytes.size)
+    }
+
+    private fun layout(context: Context, request: JSONObject): JSONObject {
+        val libraries = com.droiddeck.launcher.input.InputLibraries
+        val pad = com.droiddeck.launcher.input.Sts2Pad
+        val stored = when (val op = request.optString("op", "get")) {
+            "get" -> {
+                val wanted = request.optString("id", pad.LAYOUT)
+                libraries.read(context).layouts.firstOrNull { it.id == wanted } ?: return err("NO_SUCH_LAYOUT", "no layout $wanted")
+            }
+            "set" -> libraries.putRemoteLayout(context, request.optJSONObject("layout") ?: return err("INVALID_REQUEST", "give layout"))
+            "reset" -> libraries.putRemoteLayout(context, libraries.encodeLayout(pad.layout()))
+            else -> return err("INVALID_REQUEST", "layout op '$op' is not get, set or reset")
+        }
+        return JSONObject().put("ok", true).put("layout", libraries.encodeLayout(stored))
     }
 
     // ---- GitHub contents API ----

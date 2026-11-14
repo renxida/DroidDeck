@@ -308,18 +308,35 @@ object InputLibraries {
         layout.copy(screen = screen)
     })
 
+    internal fun encodeLayout(layout: SavedInputLayout): JSONObject {
+        val elements = JSONArray()
+        for (e in layout.elements) elements.put(JSONObject().put("id", e.id).put("kind", e.kind.name)
+            .put("control", e.control.id).put("name", e.name).put("x", e.x.toDouble()).put("y", e.y.toDouble())
+            .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
+            .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown))
+        return JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
+            .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
+            .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL)
+    }
+
+    internal fun decodeLayout(layout: JSONObject): SavedInputLayout {
+        val elements = layout.getJSONArray("elements").objects(64).map { e ->
+            InputSurfaceElement(requireNotNull(InputControl.fromId(e.getString("control"))), e.getDouble("x").toFloat(),
+                e.getDouble("y").toFloat(), e.getDouble("width").toFloat(), e.getDouble("height").toFloat(),
+                e.getString("id"), InputElementKind.valueOf(e.getString("kind")), e.getString("name"),
+                e.optBoolean("floating", true), e.optBoolean("hideWhenIdle", false), e.optBoolean("mouseGestures", false), e.optBoolean("toggle", false), e.optInt("icon", 0), e.optString("image", ""),
+                e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false))
+        }
+        return SavedInputLayout(layout.getString("id"), layout.getString("name"), elements, InputLayoutTemplate.valueOf(layout.getString("template")),
+            InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100),
+                layout.optJSONArray("hidden")?.let { hidden -> (0 until hidden.length()).map { InputCommand.valueOf(hidden.getString(it)) }.toSet() }.orEmpty()),
+            InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)), layout.optDouble("aspect", 0.0).toFloat(), layout.optionalString("origin"),
+                layout.optDouble("scale", 1.0).toFloat())
+    }
+
     internal fun encode(library: InputLibrary): String {
         val layouts = JSONArray()
-        for (layout in library.layouts) {
-            val elements = JSONArray()
-            for (e in layout.elements) elements.put(JSONObject().put("id", e.id).put("kind", e.kind.name)
-                .put("control", e.control.id).put("name", e.name).put("x", e.x.toDouble()).put("y", e.y.toDouble())
-                .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
-                .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown))
-            layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
-                .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
-                .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
-        }
+        for (layout in library.layouts) layouts.put(encodeLayout(layout))
         val bindings = JSONArray()
         for (b in library.bindings) {
             val controls = JSONObject(); b.controls.forEach { (c, a) -> controls.put(c.id, InputProfiles.encode(a)) }
@@ -350,20 +367,7 @@ object InputLibraries {
     internal fun decode(raw: String): InputLibrary? = runCatching {
         require(raw.length <= 2_000_000)
         val doc = JSONObject(raw); require(doc.getInt("version") in 2..VERSION)
-        val layouts = doc.getJSONArray("layouts").objects(256).map { layout ->
-            val elements = layout.getJSONArray("elements").objects(64).map { e ->
-                InputSurfaceElement(requireNotNull(InputControl.fromId(e.getString("control"))), e.getDouble("x").toFloat(),
-                    e.getDouble("y").toFloat(), e.getDouble("width").toFloat(), e.getDouble("height").toFloat(),
-                    e.getString("id"), InputElementKind.valueOf(e.getString("kind")), e.getString("name"),
-                    e.optBoolean("floating", true), e.optBoolean("hideWhenIdle", false), e.optBoolean("mouseGestures", false), e.optBoolean("toggle", false), e.optInt("icon", 0), e.optString("image", ""),
-                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false))
-            }
-            SavedInputLayout(layout.getString("id"), layout.getString("name"), elements, InputLayoutTemplate.valueOf(layout.getString("template")),
-                InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100),
-                    layout.optJSONArray("hidden")?.let { hidden -> (0 until hidden.length()).map { InputCommand.valueOf(hidden.getString(it)) }.toSet() }.orEmpty()),
-                InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)), layout.optDouble("aspect", 0.0).toFloat(), layout.optionalString("origin"),
-                    layout.optDouble("scale", 1.0).toFloat())
-        }
+        val layouts = doc.getJSONArray("layouts").objects(256).map(::decodeLayout)
         val bindings = doc.getJSONArray("bindings").objects(512).map { b ->
             val controls = b.getJSONObject("controls").actions(28).mapKeys { requireNotNull(InputControl.fromId(it.key)) }
             val keys = b.getJSONArray("keys").objects(64).map { k -> PhysicalInputBinding(
@@ -400,6 +404,20 @@ object InputLibraries {
     private fun JSONObject.actions(limit: Int): Map<String, InputAction> {
         require(length() <= limit)
         return keys().asSequence().associateWith { requireNotNull(InputProfiles.decode(getJSONObject(it))) }
+    }
+
+    /**
+     * Puts a layout sent from outside the app (remote control, remote config) in the library in place of the one with
+     * its id. Only the Slay the Spire 2 pad and layouts named "remote.*" can be replaced this way, so the person's own
+     * layouts are never overwritten; a "remote.*" layout is only offered, not chosen. Returns the stored layout.
+     */
+    fun putRemoteLayout(context: Context, json: JSONObject): SavedInputLayout {
+        val layout = decodeLayout(json).let { it.copy(elements = it.elements.map(InputSurfaceElement::bounded)) }
+        require(layout.id == Sts2Pad.LAYOUT || layout.id.startsWith("remote.")) { "only ${Sts2Pad.LAYOUT} or remote.* layouts" }
+        require(layout.elements.isNotEmpty() && layout.elements.map { it.id }.distinct().size == layout.elements.size) { "elements need distinct ids" }
+        val stored = if (layout.id == Sts2Pad.LAYOUT) layout.copy(origin = null, screen = InputLayoutScreen.MAIN) else layout
+        update(context) { it.withLayout(stored).validate() }
+        return read(context).layouts.single { it.id == stored.id }
     }
 
     private fun JSONObject.optionalString(key: String): String? = if (isNull(key)) null else getString(key)

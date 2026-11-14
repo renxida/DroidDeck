@@ -16,13 +16,16 @@ import java.net.URL
  *
  *     {"schema": 1,
  *      "experiments": {"on": [ids]} or {"rotate": [[ids], ...], "always": [ids]},
- *      "session": {"<session setting key>": value or null, ...}}
+ *      "session": {"<session setting key>": value or null, ...},
+ *      "input": {"layouts": [<layout as the input library stores it>, ...]}}
  *
  * "rotate" gives each session the next row; the rotation moves on only after a session in which a game
  * ran two minutes or ended abnormally, so a session without a game does not use up a row. "session"
  * writes only keys [SettingsReset] counts as session settings (never telemetry's own), each with the
  * type it already has (a key with no stored value takes only true or false); null removes the key, back to
- * its default. Nothing here runs code: the config only
+ * its default. "input" layouts replace the Slay the Spire 2 pad or add "remote.*" layouts (never the
+ * person's own); they are applied only when the list changes, so an edit made on the device stays until
+ * the next change here. Nothing here runs code: the config only
  * picks values the app already offers. The last good file is kept, so a session offline uses it.
  */
 object RemoteConfig {
@@ -35,12 +38,13 @@ object RemoteConfig {
     private val NEVER = setOf("telemetryAuto", "telemetryOff")
 
     class Applied(val source: String, val row: Int?, val rows: Int, val experiments: Set<String>?,
-                  val session: Map<String, Any?>, val skipped: List<String>) {
+                  val session: Map<String, Any?>, val skipped: List<String>, val layouts: List<String> = emptyList()) {
         fun line(): String = buildString {
             append("remote config: ").append(source)
             if (row != null) append(", rotation row ").append(row + 1).append(" of ").append(rows)
             experiments?.let { append(", experiments ").append(Experiments.line(it)) }
             if (session.isNotEmpty()) append(", settings ").append(session.entries.joinToString(" ") { "${it.key}=${it.value}" })
+            if (layouts.isNotEmpty()) append(", layouts ").append(layouts.joinToString(" "))
             if (skipped.isNotEmpty()) append(", skipped ").append(skipped.joinToString(" "))
         }
     }
@@ -171,7 +175,20 @@ object RemoteConfig {
             }
             edit.commit()
         }
-        return Applied(source, row, rows, experiments, written, skipped).also { Log.i(TAG, it.line()) }
+        val layouts = ArrayList<String>()
+        config.optJSONObject("input")?.optJSONArray("layouts")?.let { list ->
+            val p = prefs(context)
+            val text = list.toString()
+            if (p.getString("layouts", null) != text) {
+                for (i in 0 until minOf(list.length(), 8)) {
+                    val json = list.optJSONObject(i) ?: continue
+                    runCatching { com.droiddeck.launcher.input.InputLibraries.putRemoteLayout(context, json) }
+                        .onSuccess { layouts += it.id }.onFailure { skipped += "layout:" + json.optString("id") }
+                }
+                p.edit().putString("layouts", text).apply()
+            }
+        }
+        return Applied(source, row, rows, experiments, written, skipped, layouts).also { Log.i(TAG, it.line()) }
     }
 
     private fun ids(array: JSONArray?, skipped: MutableList<String>): List<String> =
