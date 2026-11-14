@@ -25,9 +25,13 @@ env:
   GODOT_RUNS: '6'
   CLR_RUNS: '2'
   CLR_SECONDS: '90'
+  # The FEX builds come from this run when set (the build job is then skipped); empty builds them here.
+  BUILDS_RUN: '43634738239'
 
 jobs:
   build:
+    # Skipped while BUILDS_RUN names a run whose builds are reused (job-level if cannot read env).
+    if: false
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 40
     strategy:
@@ -103,6 +107,7 @@ jobs:
 
   run:
     needs: [build, programs]
+    if: always() && needs.programs.result == 'success' && needs.build.result != 'failure'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     strategy:
@@ -123,6 +128,8 @@ jobs:
         with:
           name: bisect-fex-${{ matrix.fex }}
           path: ${{ runner.temp }}/fex
+          run-id: ${{ env.BUILDS_RUN || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Wine (Hangover ARM64EC)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -140,8 +147,10 @@ jobs:
             tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/fex"
           fi
       - name: Run
+        # Not GitHub's default bash -e: a grep that finds nothing must not end the row.
+        shell: bash
         run: |
-          set -uo pipefail
+          set -u
           export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
           export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
           out="$RUNNER_TEMP/out"; mkdir -p "$out"; : > "$out/verdicts.txt"
