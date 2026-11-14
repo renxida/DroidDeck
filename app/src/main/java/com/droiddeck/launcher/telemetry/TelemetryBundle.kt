@@ -31,6 +31,7 @@ object TelemetryBundle {
         RemoteConfig.SETTINGS_FILE, com.droiddeck.launcher.session.SessionScreenshot.FILE)
     /** The Steam client's own logs that time shader pre-caching, downloads and compatibility-tool picks. */
     internal val STEAM_LOGS = listOf("shader_log.txt", "content_log.txt", "compat_log.txt", "bootstrap_log.txt", "console_log.txt")
+    internal const val NATIVE_ENGINE_LOG = "native-engine.log"
     private val SCRUBBED = listOf("events.jsonl", "device.txt", GraphicsReport.FILE)
     @Volatile private var learned = false
 
@@ -161,6 +162,9 @@ object TelemetryBundle {
             f.delete()
         }
         add(File(dir, "crash.log"), "crash.log", EVIDENCE_FILE_BYTES)
+        // The native engine's own log (why it fell back to Proton); game-env writes it beside session.log when the
+        // detailed game logs are off, and into games/<launch>/ (taken below) when they are on.
+        add(File(dir, NATIVE_ENGINE_LOG), NATIVE_ENGINE_LOG, EVIDENCE_FILE_BYTES)
         dir.listFiles { f -> f.isFile && f.name.startsWith(AppExits.TRACE_PREFIX) }?.sortedByDescending { it.lastModified() }?.take(4)
             ?.forEach { add(it, it.name, 256L shl 10) }
         if (x64 != null && x64From >= 0 && x64.length() > x64From) add(x64, "steam-x64.log", X64_LOG_BYTES, x64From)
