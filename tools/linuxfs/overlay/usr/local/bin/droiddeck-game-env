@@ -76,7 +76,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "fex-tso", "fex-fast", "dotnet-trace", "dotnet-gen0", "dotnet-gc-stock", "fex-kestrel", "fex-stats",
                "wayland-present", "vk-count",
                "native-inventory", "free-memory", "fex-l1", "fex-code-buffer",
-               "fex-sample", "fex-smaps")
+               "fex-sample", "fex-smaps", "fex-trim")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -2370,6 +2370,12 @@ def main():
         # Windows private memory's mappings every 60 s so that map can tell heaps, stacks, .NET code and the GC heap
         # apart; other FEX builds ignore FEX_NAMEWINDOWSMEMORY and leave it as one anon bucket.
         env = dict(env, FEX_NAMEWINDOWSMEMORY="60")
+    if experiment(env, "fex-trim"):
+        # A FEX thread gives up an old code buffer only when it next compiles, so threads parked in waits keep every
+        # buffer they used, and an L1 of up to 16 MB each: on the phone about 112 MB of old code and 110 MB of L1, nearly
+        # all in swap. Kestrel's FEX (patch 0009) empties the caches of threads idle for 30 s and moves them to the
+        # newest buffer, so the old ones can be freed. Other FEX builds ignore FEX_TRIMIDLETHREADS.
+        env = dict(env, FEX_TRIMIDLETHREADS="30")
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
