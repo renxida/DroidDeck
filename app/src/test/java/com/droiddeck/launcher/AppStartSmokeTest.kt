@@ -162,11 +162,10 @@ class AppStartSmokeTest {
 
     /**
      * Diagnostics for the Compose tests that later share this sandbox: if its main thread then spins in Compose's idling
-     * loop for half a minute, print what the main thread is doing and every thread running app code or waiting on a lock.
+     * loop for half a minute, print what the main thread is doing and every thread running app or Compose code or blocked on a monitor.
      */
     private fun watchForComposeHangs() {
         val main = Looper.getMainLooper().thread
-        val mx = java.lang.management.ManagementFactory.getThreadMXBean()
         fun spinning() = main.stackTrace.any { it.className.contains("IdlingStrategy") }
         Thread({
             val end = System.currentTimeMillis() + HANG_WATCH_MS
@@ -179,17 +178,15 @@ class AppStartSmokeTest {
                 if (System.currentTimeMillis() - since < 30_000) continue
                 dumps++
                 since = 0L
-                val samples = (1..6).joinToString("\n    --\n") {
+                val samples = (1..8).joinToString("\n    --\n") {
                     Thread.sleep(150)
-                    main.stackTrace.take(45).joinToString("\n") { "      at $it" }
+                    main.stackTrace.take(90).joinToString("\n") { "      at $it" }
                 }
-                val others = mx.dumpAllThreads(true, true).filter { info ->
-                    info.threadId != main.id && (info.threadState == Thread.State.BLOCKED || info.lockOwnerName != null ||
-                        info.stackTrace.any { it.className.startsWith("com.droiddeck") || it.className.startsWith("androidx.compose") })
-                }.joinToString("\n") { info ->
-                    "  \"${info.threadName}\" ${info.threadState}" +
-                        (info.lockName?.let { " on $it" } ?: "") + (info.lockOwnerName?.let { " held by \"$it\"" } ?: "") + "\n" +
-                        info.stackTrace.take(25).joinToString("\n") { "      at $it" }
+                val others = Thread.getAllStackTraces().filter { (t, stack) ->
+                    t !== main && t !== Thread.currentThread() && (t.state == Thread.State.BLOCKED ||
+                        stack.any { it.className.startsWith("com.droiddeck") || it.className.startsWith("androidx.compose") })
+                }.entries.joinToString("\n") { (t, stack) ->
+                    "  \"${t.name}\" ${t.state}\n" + stack.take(25).joinToString("\n") { "      at $it" }
                 }
                 System.err.println("AppStartSmokeTest hang watch: main thread \"${main.name}\" has spun in Compose's idling loop " +
                     "for 30s+.\n  main samples:\n$samples\n  other threads:\n$others")
