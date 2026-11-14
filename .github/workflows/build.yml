@@ -663,9 +663,21 @@ jobs:
       - name: Steam import and game environment tests
         run: bash tools/ci/run-python-tests.sh
 
+  native-startup-gate:
+    # The APK ships droiddeck-native-godot: run it on arm64 against the pinned engine component with a stand-in
+    # C# game (no game files), so a wrapper change that breaks native startup never reaches the phone.
+    needs: source
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/native-startup-gate.yml
+    with:
+      component: pinned
+
   checks:
     name: Compile and test APK
-    needs: [build, python-tests]
+    needs: [build, python-tests, native-startup-gate]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -674,7 +686,8 @@ jobs:
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           PYTHON_RESULT: ${{ needs.python-tests.result }}
-        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success
+          NATIVE_GATE_RESULT: ${{ needs.native-startup-gate.result }}
+        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success && test "$NATIVE_GATE_RESULT" = success
 
   sign:
     needs: [build, checks]
