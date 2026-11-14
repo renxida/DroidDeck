@@ -309,6 +309,49 @@ class NativeGodotTest(unittest.TestCase):
         self.assertEqual(["SteamAPI_Gone"], report["steam_api_missing"])
         self.assertIn("1 names the game's Steamworks.NET mentions are not exported (SteamAPI_Gone)", err.getvalue())
 
+    def test_run_never_loads_the_component_stub_and_valve_library_wins(self):
+        # An older published component (native-engine-38) still carries stubs/libsteam_api64.so. Running with it must
+        # not put stubs/ on any search or preload path, and the engine's data folder must hold Valve's library.
+        comp = self.root / "component"
+        (comp / "stubs").mkdir(parents=True)
+        (comp / "stubs" / "libsteam_api64.so").write_bytes(b"stub")
+        (comp / "stubs" / "libsteam_api.so").write_bytes(b"stub")
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF\0SteamAPI_Init\0")
+        out = self.root / "launch"
+        seen = []
+        real = NG["main"].__globals__["watch"]
+        NG["main"].__globals__["watch"] = lambda cmd, env, **kw: seen.append((list(cmd), dict(env))) or 0
+        before = {k: os.environ.get(k) for k in ("LD_LIBRARY_PATH", "LD_PRELOAD")}
+        os.environ["LD_LIBRARY_PATH"] = "/usr/lib/aarch64-linux-gnu"
+        os.environ["LD_PRELOAD"] = "/root/.steam/bin32/gameoverlayrenderer.so"
+        try:
+            with unittest.mock.patch("sys.stderr", io.StringIO()):
+                rc = NG["main"](["run", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                 "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
+        finally:
+            NG["main"].__globals__["watch"] = real
+            for k, v in before.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            os.chdir(Path(__file__).resolve().parent)
+        self.assertEqual(0, rc)
+        cmd, env = seen[0]
+        for key in ("LD_LIBRARY_PATH", "LD_PRELOAD", "DOTNET_ROOT", "PATH"):
+            self.assertNotIn("stubs", env.get(key, ""), key)
+        self.assertFalse(any("stubs" in a for a in cmd), cmd)
+        self.assertNotIn("gameoverlayrenderer", env.get("LD_PRELOAD", ""))
+        data = out / "data_sts2_linuxbsd_arm64"
+        for name in ("libsteam_api64.so", "libsteam_api.so"):
+            self.assertEqual(valve.read_bytes(), (data / name).read_bytes(), name)
+            self.assertFalse((data / name).is_symlink(), name)
+        hits = [str(p) for p in out.rglob("*") if p.is_file() and p.read_bytes() == b"stub"]
+        self.assertEqual([], hits)
+
     def test_steam_api_download_is_checked_and_cached(self):
         import hashlib, zipfile
         lib = b"\x7fELF valve"
