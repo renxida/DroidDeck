@@ -118,6 +118,11 @@ internal object CrashEvidence {
      * Godot's --verbose log (experiment godot-verbose) names each resource it loads. Lists the distinct paths in the
      * order first loaded, with how often, and a count per extension; null when the log names none.
      */
+    private val ROTATED_GODOT_LOG = Regex("""godot\d{4}-\d{2}-\d{2}T[\d.]+\.log""")
+
+    /** godot2026-11-14T15.33.10.log: a previous run's log that Godot 4 copied aside when the game started. */
+    fun rotatedGodotLog(name: String): Boolean = ROTATED_GODOT_LOG.matches(name)
+
     fun resourceLoads(file: File): String? = runCatching {
         val counts = LinkedHashMap<String, Int>()
         file.bufferedReader(Charsets.UTF_8).useLines { lines ->

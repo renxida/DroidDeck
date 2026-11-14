@@ -52,4 +52,14 @@ class LaunchInfoTest {
         assertEquals(LaunchInfo.flavor(42), LaunchInfo.flavor(42))
         assertTrue(LaunchInfo.FLAVOR.contains(LaunchInfo.flavor(-7)))
     }
+
+    @Test fun memoryShowsFreeAndSwapAndHintsOnlyWhenLow() {
+        val mb = 1024L
+        val full = LaunchInfo.memory(MemoryReadout.Device(12_000 * mb, 2563 * mb, 5781 * mb, 293 * mb))
+        assertEquals("memory 2563 MB free · swap 5488 of 5781 MB used", full[0])
+        assertTrue(full.size == 2 && full[1].contains("closing other apps"))
+        val roomy = LaunchInfo.memory(MemoryReadout.Device(12_000 * mb, 5000 * mb, 5781 * mb, 3000 * mb))
+        assertEquals(1, roomy.size)
+        assertEquals("memory 5000 MB free", LaunchInfo.memory(MemoryReadout.Device(12_000 * mb, 5000 * mb, 0, 0)).single())
+    }
 }

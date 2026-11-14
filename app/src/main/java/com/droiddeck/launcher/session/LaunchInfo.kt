@@ -53,12 +53,30 @@ object LaunchInfo {
         }
         out += "on     " + Experiments.line(on)
         fex?.let { line -> out += "fex    " + line.removePrefix("fex: ").take(160) }
+        runCatching { MemoryReadout.parseMeminfo(java.io.File("/proc/meminfo").readText()) }.getOrNull()?.let { out += memory(it) }
         runCatching {
             val prefs = context.getSharedPreferences("agent_remote", Context.MODE_PRIVATE)
             val last = prefs.getString("last", null)
             if (last != null && System.currentTimeMillis() - prefs.getLong("last_at", 0L) < RECENT_COMMAND_MS)
                 out += "remote " + last
         }
+        return out
+    }
+
+    /** Below this much available memory, or this share of swap left, the game is likely to stall on swap. */
+    private const val LOW_AVAILABLE_MB = 3072L
+    private const val LOW_SWAP_FREE_SHARE = .2
+
+    /**
+     * Memory at launch: what is available and how full swap (zram) already is, plus a hint to close other apps when
+     * little is left (a 14 Nov session started with swap 95% full and froze for seconds at a time). Nothing is closed.
+     */
+    internal fun memory(d: MemoryReadout.Device): List<String> {
+        val mb = 1024L
+        val out = arrayListOf("memory " + "${d.availableKb / mb} MB free" +
+            (if (d.swapTotalKb > 0) " · swap ${d.swapUsedKb / mb} of ${d.swapTotalKb / mb} MB used" else ""))
+        val low = d.availableKb / mb < LOW_AVAILABLE_MB || (d.swapTotalKb > 0 && d.swapFreeKb < d.swapTotalKb * LOW_SWAP_FREE_SHARE)
+        if (low) out += "       low on memory: closing other apps will help"
         return out
     }
 

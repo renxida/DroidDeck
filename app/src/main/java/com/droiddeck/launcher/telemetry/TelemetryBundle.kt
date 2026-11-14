@@ -180,7 +180,10 @@ object TelemetryBundle {
                 }
         var budget = EVIDENCE_BYTES
         val games = runCatching { CrashEvidence.gameLogs(sources.compatdata, sources.sinceMs) }.getOrDefault(emptyList())
-        games.firstNotNullOfOrNull { (name, file) -> CrashEvidence.resourceLoads(file)?.let { name to it } }?.let { (name, text) ->
+        // Only a live log: Godot 4 copies the last run's godot.log to godot<date>.log at start, so the copy is new on disk
+        // but holds the previous session's loads.
+        games.filterNot { CrashEvidence.rotatedGodotLog(it.second.name) }
+            .firstNotNullOfOrNull { (name, file) -> CrashEvidence.resourceLoads(file)?.let { name to it } }?.let { (name, text) ->
             val f = File(scratch, CrashEvidence.RESOURCE_LOADS_FILE).apply { writeText("# from $name\n$text") }
             add(f, CrashEvidence.RESOURCE_LOADS_FILE, Long.MAX_VALUE)
             f.delete()

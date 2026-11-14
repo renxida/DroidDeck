@@ -1,7 +1,9 @@
 package com.droiddeck.launcher.telemetry
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -32,5 +34,11 @@ class CrashEvidenceTest {
         val log = tmp.newFile("godot.log").apply { writeText("Godot Engine v4.5.1\nResource stats VRAM=601.2MB\n") }
         assertNull(CrashEvidence.resourceLoads(log))
         assertNull(CrashEvidence.resourceLoads(tmp.root.resolve("missing.log")))
+    }
+
+    @Test fun aLogGodotCopiedAsideAtStartIsNotTheLiveLog() {
+        assertTrue(CrashEvidence.rotatedGodotLog("godot2026-11-14T15.33.10.log"))
+        assertFalse(CrashEvidence.rotatedGodotLog("godot.log"))
+        assertFalse(CrashEvidence.rotatedGodotLog("Player.log"))
     }
 }
