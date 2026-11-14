@@ -3,6 +3,7 @@ package com.droiddeck.launcher
 import android.content.Intent
 import android.os.Looper
 import androidx.lifecycle.Lifecycle
+import com.droiddeck.launcher.session.LauncherRejoin
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
 import java.util.concurrent.CopyOnWriteArrayList
@@ -10,6 +11,7 @@ import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,6 +31,7 @@ class AppStartSmokeTest {
     @Before fun setUp() {
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
+        LauncherRejoin.lastShown = LauncherRejoin.Screen.NONE
         // App.onCreate's CrashHandler ends in Runtime.halt when nothing is chained behind it, which would kill the test JVM.
         previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
@@ -41,6 +44,7 @@ class AppStartSmokeTest {
         Thread.setDefaultUncaughtExceptionHandler(previousHandler)
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
+        LauncherRejoin.lastShown = LauncherRejoin.Screen.NONE
     }
 
     @Test fun launcherEntryStartsResumesAndPausesWithoutCrashing() {
@@ -61,12 +65,34 @@ class AppStartSmokeTest {
         assertNoUncaughtExceptions()
     }
 
+    // The icon's intent differs from the one that began the task (here a game link, on the rig `am start -n`), so
+    // Android stacks a new front screen over the session that was still starting; it must hand straight back.
+    @Test fun launcherEntryWhileTheSessionStartsGoesBackToIt() {
+        SessionState.phase = SessionPhase.STARTING_STEAM
+        LauncherRejoin.lastShown = LauncherRejoin.Screen.SESSION
+        val launch = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            .setClass(RuntimeEnvironment.getApplication(), FrontEndActivity::class.java)
+        val controller = Robolectric.buildActivity(FrontEndActivity::class.java, launch)
+        val activity = controller.get()
+        shadowOf(activity).setIsTaskRoot(false)
+        try {
+            controller.create()
+            assertTrue(activity.isFinishing)
+            assertEquals(SessionActivity::class.java.name, shadowOf(activity).nextStartedActivity?.component?.className)
+        } finally {
+            runCatching { if (activity.lifecycle.currentState != Lifecycle.State.DESTROYED) controller.destroy() }
+            runCatching { shadowOf(Looper.getMainLooper()).idle() }
+        }
+        assertNoUncaughtExceptions()
+    }
+
     private fun startResumePause(controller: org.robolectric.android.controller.ActivityController<FrontEndActivity>, activity: FrontEndActivity) {
         controller.create().start().postCreate(null).resume().visible()
         activity.onWindowFocusChanged(true)
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(Lifecycle.State.RESUMED, activity.lifecycle.currentState)
         assertFalse(activity.isFinishing)
+        assertEquals(LauncherRejoin.Screen.FRONT, LauncherRejoin.lastShown)
 
         awaitStartupWork()
         shadowOf(Looper.getMainLooper()).idle()
