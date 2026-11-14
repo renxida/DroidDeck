@@ -1,0 +1,256 @@
+name: Native startup gate (stand-in game through droiddeck-native-godot)
+
+# Catches native-path startup failures off the device. A stand-in Godot 4.5.1 C# game
+# (tools/native-engine/standin: our code plus public NuGet packages, never any game file) is exported for
+# Windows x86_64 in several variants, then each is run on an arm64 runner through the wrapper as checked out
+# (tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot) on the published engine component, the way
+# the phone runs a game. A self-test row runs the converter from before ReadyToRun support (7754c57b, the
+# one the first phone launch died on) and must fail. The soak runs only on schedule or by hand.
+#
+# Reusable: `uses: ./.github/workflows/native-startup-gate.yml` with
+#   component: "pinned" (default: the wrapper's COMPONENT, via --fetch) or a release tag on this repository
+#              (e.g. native-engine-40), downloaded from its public release asset and passed as --component.
+#   soak:      true to also run the soak (non-blocking).
+# It consumes the wrapper from the checkout and the published component; no APK, no game files.
+
+on:
+  workflow_call:
+    inputs:
+      component:
+        description: '"pinned" (the wrapper''s COMPONENT) or a native-engine-N release tag on this repository'
+        type: string
+        default: pinned
+      soak:
+        description: Also run the long soak (non-blocking)
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      component:
+        description: '"pinned" or a native-engine-N release tag'
+        type: string
+        default: pinned
+      soak:
+        description: Also run the long soak (non-blocking)
+        type: boolean
+        default: false
+      soak_minutes:
+        description: Soak length in minutes
+        type: string
+        default: '45'
+  schedule:
+    - cron: '17 9 * * 1'  # weekly soak (runs from the default branch)
+  push:
+    branches: [native/startup-gate, perf/emu-native]
+    paths:
+      - 'tools/native-engine/standin/**'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
+      - '.github/workflows/native-startup-gate.yml'
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VER: 4.5.1-stable
+  GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.5.1-stable
+  WRAPPER: tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot
+  OLD_CONVERTER_COMMIT: 7754c57b092fba510674d202cbceedc04d12eb27
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  export:
+    name: export ${{ matrix.variant }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [r2r-deps-gdext, r2r-deps-nogdext, r2r-nodeps-gdext, r2r-nodeps-nogdext,
+                  il-deps-gdext, il-deps-nogdext, il-nodeps-gdext, il-nodeps-nogdext]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - uses: actions/cache@v4
+        id: godot
+        with:
+          path: ~/godot-451
+          key: godot-451-mono-linux-arm64-editor-windows-templates-v1
+      - name: Fetch the Godot 4.5.1 mono editor (linux arm64) and its Windows export templates
+        if: steps.godot.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot-451 && cd ~/godot-451
+          curl -fsSL -o ed.zip "$GODOT_URL/Godot_v${GODOT_VER}_mono_linux_arm64.zip"
+          unzip -q ed.zip && rm ed.zip
+          curl -fsSL -o t.tpz "$GODOT_URL/Godot_v${GODOT_VER}_mono_export_templates.tpz"
+          unzip -q t.tpz 'templates/windows_*x86_64*' 'templates/version.txt' -d tpl && rm t.tpz
+          ls -la tpl/templates
+      - name: Export the stand-in (${{ matrix.variant }})
+        run: |
+          set -euo pipefail
+          ED=$(find ~/godot-451 -name 'Godot_v*_mono_linux.arm64' -type f | head -1)
+          chmod +x "$ED"
+          T=~/.local/share/godot/export_templates/4.5.1.stable.mono
+          mkdir -p "$T" && cp ~/godot-451/tpl/templates/* "$T"/
+          v=${{ matrix.variant }}
+          case $v in r2r-*) r2r=on ;; *) r2r=off ;; esac
+          case $v in *-nodeps-*) deps=off ;; *) deps=on ;; esac
+          case $v in *-nogdext) gdext=missing ;; *) gdext=present ;; esac
+          GODOT=$ED sh tools/native-engine/standin/build.sh "$RUNNER_TEMP/standin" r2r=$r2r deps=$deps gdext=$gdext
+      - uses: actions/upload-artifact@v4
+        with:
+          name: standin-win-x64-${{ matrix.variant }}
+          path: ${{ runner.temp }}/standin
+          if-no-files-found: error
+          retention-days: 14
+
+  gate:
+    name: gate ${{ matrix.row }}
+    needs: export
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        row: [r2r-deps-gdext, r2r-deps-nogdext, r2r-nodeps-gdext, r2r-nodeps-nogdext,
+              il-deps-gdext, il-deps-nogdext, il-nodeps-gdext, il-nodeps-nogdext,
+              xvfb-opengl3, xvfb-vulkan, selftest-old-converter, probe]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Which stand-in and how to run it
+        id: row
+        run: |
+          set -euo pipefail
+          row=${{ matrix.row }}
+          variant=$row prefix= args="--headless --quit-after-frames 300" extra= deps=
+          case $row in
+            xvfb-opengl3) variant=r2r-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver opengl3 --quit-after-frames 300" ;;
+            xvfb-vulkan) variant=r2r-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver vulkan --quit-after-frames 300" ;;
+            selftest-old-converter) variant=r2r-deps-gdext extra="--expect-fail --old-converter $RUNNER_TEMP/old-converter" ;;
+            probe) variant=r2r-deps-gdext ;;
+          esac
+          case $variant in *-nodeps-*) deps=off ;; *) deps=on ;; esac
+          { echo "variant=$variant"; echo "prefix=$prefix"; echo "args=$args"; echo "extra=$extra"; echo "deps=$deps"; } >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: standin-win-x64-${{ steps.row.outputs.variant }}
+          path: ${{ runner.temp }}/standin
+      - name: Runner packages (Xvfb, Mesa)
+        if: startsWith(matrix.row, 'xvfb') || matrix.row == 'probe'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 libglx-mesa0 mesa-vulkan-drivers libvulkan1 vulkan-tools > /dev/null
+      - name: The converter from before ReadyToRun support
+        if: matrix.row == 'selftest-old-converter'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth 1 origin "$OLD_CONVERTER_COMMIT"
+          git show "$OLD_CONVERTER_COMMIT:$WRAPPER" > "$RUNNER_TEMP/old-converter"
+          grep -n 'raise ValueError("mixed-mode' "$RUNNER_TEMP/old-converter"
+      - name: Resolve the engine component
+        id: component
+        env:
+          COMPONENT: ${{ inputs.component || 'pinned' }}
+        run: |
+          set -euo pipefail
+          if [ "$COMPONENT" = pinned ]; then
+            echo "args=--component pinned" >> "$GITHUB_OUTPUT"
+            python3 -c 'import runpy; print("pinned component:", runpy.run_path("'"$WRAPPER"'")["COMPONENT"]["tag"])'
+            exit 0
+          fi
+          case $COMPONENT in native-engine-[0-9]*) ;; *) echo "component must be pinned or native-engine-N"; exit 1 ;; esac
+          C=$RUNNER_TEMP/component && mkdir -p "$C"
+          curl -fsSL -o "$RUNNER_TEMP/c.tar.zst" "https://github.com/$GITHUB_REPOSITORY/releases/download/$COMPONENT/native-engine.tar.zst"
+          zstd -dc "$RUNNER_TEMP/c.tar.zst" | tar -C "$C" -x
+          steam=$(python3 -c 'import runpy, sys; print(runpy.run_path(sys.argv[1])["steam_api"]())' "$WRAPPER")
+          echo "args=--component $C --steam-api $steam" >> "$GITHUB_OUTPUT"
+      - name: Gate
+        if: matrix.row != 'probe'
+        run: |
+          set -euo pipefail
+          eval "set -- ${{ steps.row.outputs.args }}"
+          python3 tools/native-engine/standin/gate.py --wrapper "$WRAPPER" --game-dir "$RUNNER_TEMP/standin" \
+            --work "$RUNNER_TEMP/gate" --name "${{ matrix.row }}" --repeat 3 --deps ${{ steps.row.outputs.deps }} \
+            ${{ steps.component.outputs.args }} --prefix "${{ steps.row.outputs.prefix }}" ${{ steps.row.outputs.extra }} -- "$@"
+      - name: Probe how Godot's frame-rate line reaches the watchdog (informational)
+        if: matrix.row == 'probe'
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          G="python3 tools/native-engine/standin/gate.py --wrapper $WRAPPER --game-dir $RUNNER_TEMP/standin --work $RUNNER_TEMP/gate --deps on ${{ steps.component.outputs.args }}"
+          $G --name probe-headless-300 -- --headless --quit-after-frames 300
+          $G --name probe-headless-maxfps30-300 -- --headless --max-fps 30 --quit-after-frames 300
+          $G --name probe-headless-maxfps30-300-stdbuf --prefix "stdbuf -oL" -- --headless --max-fps 30 --quit-after-frames 300
+          $G --name probe-headless-env-quit --prefix "env STANDIN_QUIT_AFTER_FRAMES=300" -- --headless --max-fps 30
+          $G --name probe-xvfb-gl-maxfps30-300 --prefix "xvfb-run -a -s '-screen 0 1280x720x24'" -- --rendering-driver opengl3 --max-fps 30 --quit-after-frames 300
+          python3 - "$RUNNER_TEMP/gate" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import glob, json, os, sys
+          print("| probe | passed | rc | seconds | FPS lines | first FPS line at | MAINLOOP_OK at | FPS line arrived while running |")
+          print("|---|---|---|---|---|---|---|---|")
+          for p in sorted(glob.glob(os.path.join(sys.argv[1], "probe-*.json"))):
+              s = json.load(open(p)); r = s["runs"][0]
+              print(f"| {s['name']} | {s['passed']} | {r['rc']} | {r['seconds']} | {r['fps_lines']} | {r['timing']['fps_first']} | {r['timing']['MAINLOOP_OK']} | {r['fps_line_arrived_while_running']} |")
+          PY
+      - name: Summary
+        if: always() && matrix.row != 'probe'
+        run: |
+          python3 - "$RUNNER_TEMP/gate/${{ matrix.row }}.json" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY" || true
+          import json, sys
+          s = json.load(open(sys.argv[1]))
+          print(f"### {s['name']}: {'PASS' if s['passed'] else 'FAIL'}" + (" (expected failure)" if s['expect_fail'] else ""))
+          for r in s["runs"]:
+              print(f"- run {r['run']}: {r['verdict']}, rc {r['rc']}, {r['seconds']} s, FPS lines {r['fps_lines']}, "
+                    f"first FPS line {r['timing']['fps_first']} s, MAINLOOP_OK {r['timing']['MAINLOOP_OK']} s, "
+                    f"FPS line arrived while running: {r['fps_line_arrived_while_running']}")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gate-logs-${{ matrix.row }}
+          path: |
+            ${{ runner.temp }}/gate/*.json
+            ${{ runner.temp }}/gate/*.log
+            ${{ runner.temp }}/gate/*-launch/native-launch.json
+          if-no-files-found: warn
+
+  soak:
+    needs: export
+    if: github.event_name == 'schedule' || inputs.soak
+    continue-on-error: true
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: standin-win-x64-r2r-deps-gdext
+          path: ${{ runner.temp }}/standin
+      - name: Runner packages (Xvfb, Mesa, xdotool)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 libglx-mesa0 xdotool > /dev/null
+      - name: Soak under Xvfb with scripted input, sampling RSS and fds
+        env:
+          MINUTES: ${{ inputs.soak_minutes || '45' }}
+        run: |
+          xvfb-run -a -s '-screen 0 1280x720x24' python3 tools/native-engine/standin/soak.py --wrapper "$WRAPPER" \
+            --game-dir "$RUNNER_TEMP/standin" --work "$RUNNER_TEMP/soak" --minutes "$MINUTES" --every 5 --input \
+            -- --rendering-driver opengl3 --max-fps 60
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: soak-samples
+          path: |
+            ${{ runner.temp }}/soak/soak.csv
+            ${{ runner.temp }}/soak/soak.json
+            ${{ runner.temp }}/soak/soak.log
+          if-no-files-found: warn

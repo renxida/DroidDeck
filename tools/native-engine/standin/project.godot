@@ -1,0 +1,14 @@
+; Stand-in game for the native startup gate (.github/workflows/native-startup-gate.yml).
+; Our own code and public NuGet packages only; no game files.
+config_version=5
+
+[application]
+config/name="StandIn"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.5", "C#", "Mobile")
+
+[dotnet]
+project/assembly_name="StandIn"
+
+[rendering]
+renderer/rendering_method="mobile"
