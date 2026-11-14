@@ -58,7 +58,9 @@ jobs:
           pkg=$(tools/app-id)
           adb install -r -g "$apk" >/dev/null
           adb shell pm grant "$pkg" android.permission.POST_NOTIFICATIONS || true
-          adb shell am force-stop "$pkg"; adb shell monkey -p "$pkg" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+          adb shell am force-stop "$pkg"
+          act=$(adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$pkg" | tr -d '\r' | tail -1)
+          echo "launcher activity: $act"; adb shell am start -W -n "$act" || true
           sleep 8
           echo "::group::top activity"; adb shell dumpsys activity activities | grep -m3 -E "topResumedActivity|ResumedActivity"; echo "::endgroup::"
           echo "::group::app UI"; tools/droiddeckctl ui dump 2>&1 | head -c 6000; echo; echo "::endgroup::"
@@ -87,7 +89,7 @@ jobs:
           echo "::group::app UI"; tools/droiddeckctl ui dump 2>&1 | head -c 6000; echo; echo "::endgroup::"
           echo "::group::logcat (app and errors)"
           pid=$(adb shell pidof "$pkg" | tr -d '\r')
-          adb logcat -d -v time | grep -E "${pid:-NOPID}|AgentStart|AgentBridge|LinuxRuntime|Session|droiddeck|kestrel| E/| F/" | grep -v -E "chatty|SurfaceFlinger" | tail -400
+          adb logcat -d -v time | grep -E "\( *${pid:-NOPID}\)|AgentStart|AgentBridge|LinuxRuntime|ActivityTaskManager|kestrel" | grep -v -E "chatty|JIT allocated|Compiler allocated" | tail -400
           echo "::endgroup::"
       - name: Collect
         if: always()
