@@ -25,7 +25,11 @@ APP_STAGES = [
 ]
 SCENARIOS = {
     "steam-ui": ["start_requested", "guest_started", "steam_starting", "steam_ui", "login_screen"],
-    "stand-in-game": ["start_requested", "guest_started", "standin_first_frame", "standin_mainloop_ok"],
+    # The stand-in's own stdout markers (FIRST_FRAME, MAINLOOP_OK) do not survive Proton's steam.exe
+    # (.NET's Console has no handle there), so the app's own frame log is the evidence: the game's
+    # Vulkan frames as gamescope presented them, then a clean exit of the guest.
+    "stand-in-game": ["start_requested", "guest_started", "standin_first_frame", "standin_frames",
+                      "standin_exit_clean"],
     # runtime_ready and proton_ready only fire when something was installed, so they are not required.
 }
 
@@ -46,11 +50,37 @@ def read_jsonl(path):
     return out
 
 
+MIN_FRAMES = 100  # the stand-in quits after 300 frames at 30 fps; presented frames can be fewer
+
+
+def game_frames(path):
+    """(wall ms of the game's first Vulkan frame, Vulkan frames presented) from frames.csv."""
+    if not os.path.isfile(path):
+        return None, 0
+    t0, engine, first, count = None, None, None, 0
+    for line in open(path, encoding="utf-8", errors="replace"):
+        line = line.strip()
+        m = re.search(r"t0_wall_ms=(\d+)", line)
+        if m:
+            t0 = int(m.group(1))
+        m = re.match(r"# t_ms=\d+ engine=(\S+)", line)
+        if m:
+            engine = m.group(1)
+            continue
+        m = re.match(r"(\d+),\d+$", line)
+        if m and engine == "VULKAN":
+            count += 1
+            if first is None and t0 is not None:
+                first = t0 + int(m.group(1))
+    return first, count
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--session-dir", required=True)
     ap.add_argument("--scenario", choices=sorted(SCENARIOS), required=True)
     ap.add_argument("--rig-events")
+    ap.add_argument("--extra-logs", help="more folders whose logs may hold the stand-in's markers")
     ap.add_argument("--out", default="verdict.json")
     a = ap.parse_args()
 
@@ -71,12 +101,31 @@ def main():
             seen[name] = e["t"]
 
     # The stand-in prints its own markers; the session log carries the guest's stdout.
-    log = os.path.join(a.session_dir, "session.log")
-    if os.path.isfile(log):
+    # Under Proton the game's stdout can land in Proton's own log (games/*/steam-*.log) instead.
+    logs = [os.path.join(a.session_dir, "session.log")]
+    for folder in (os.path.join(a.session_dir, "games"), a.extra_logs):
+        if folder and os.path.isdir(folder):
+            for root, _, files in os.walk(folder):
+                logs += [os.path.join(root, f) for f in files if f.endswith((".log", ".txt"))]
+    for log in logs:
+        if not os.path.isfile(log):
+            continue
         text = open(log, encoding="utf-8", errors="replace").read()
         for stage, pattern in (("standin_first_frame", r"^FIRST_FRAME"), ("standin_mainloop_ok", r"^MAINLOOP_OK")):
             if stage not in seen and re.search(pattern, text, re.M):
                 seen[stage] = None  # present, time unknown from the log alone
+
+    frames = None
+    if a.scenario == "stand-in-game":
+        first, frames = game_frames(os.path.join(a.session_dir, "frames.csv"))
+        if first is not None:
+            seen["standin_first_frame"] = first
+            if frames >= MIN_FRAMES:
+                seen["standin_frames"] = first
+        done = next((e for e in events if e.get("event") == "guest.exited"), None)
+        last = [e for e in events if e.get("event") == "exit.classified"]
+        if "standin_frames" in seen and done and done.get("status") == 0 and last and last[-1].get("class") == "clean":
+            seen["standin_exit_clean"] = done["t"]
 
     order = SCENARIOS[a.scenario]
     reached = None
@@ -100,6 +149,7 @@ def main():
         "other_stages": {s: seconds[s] for s in seconds if s not in order},
         "exit": {k: last_exit.get(k) for k in ("class", "suspect", "status", "signal", "detail")} if last_exit else None,
         "next_missing_stage": next((s for s in order if s not in seen), None),
+        "game_vulkan_frames": frames,
     }
     with open(a.out, "w") as f:
         json.dump(verdict, f, indent=2)
