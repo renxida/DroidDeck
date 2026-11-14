@@ -478,6 +478,29 @@ class NativeGodotTest(unittest.TestCase):
         env = NG["engine_env"]({"DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "1"}, "/icu", system_icu="")
         self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU", env)
 
+    def test_engine_env_prefers_the_guest_icu_and_gives_it_a_real_locale(self):
+        env = NG["engine_env"]({"LANG": "C", "LC_ALL": "C"}, "/icu", system_icu="/usr/lib/libicuuc.so.78")
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU", env)
+        self.assertNotIn("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", env)
+        self.assertNotIn("LC_ALL", env)
+        self.assertEqual("en_US.UTF-8", env["LANG"])
+        env = NG["engine_env"]({"LANG": "fr_FR.UTF-8"}, None, system_icu="/usr/lib/libicuuc.so.78")
+        self.assertEqual("fr_FR.UTF-8", env["LANG"])
+        env = NG["engine_env"]({}, "/icu", system_icu="")
+        self.assertEqual("en_US.UTF-8", env["LANG"])
+        env = NG["engine_env"]({}, None, system_icu="")
+        self.assertNotIn("LANG", env)
+
+    def test_guest_icu_is_found_by_file_with_all_three_libraries(self):
+        lib = self.root / "lib"
+        lib.mkdir()
+        self.assertIsNone(NG["guest_icu"]((str(lib),)))
+        for name in ("libicuuc.so.78", "libicuuc.so.78.3", "libicui18n.so.78", "libicuuc.so.80"):
+            (lib / name).write_bytes(b"")
+        self.assertIsNone(NG["guest_icu"]((str(lib),)))
+        (lib / "libicudata.so.78").write_bytes(b"")
+        self.assertEqual(str(lib / "libicuuc.so.78"), NG["guest_icu"]((str(self.root / "none"), str(lib))))
+
     def test_steam_api_download_is_checked_and_cached(self):
         import hashlib, zipfile
         lib = b"\x7fELF valve"

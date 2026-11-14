@@ -67,7 +67,7 @@ STEAM_API = {"package": "Steamworks.NET.AnyCPU 2026.165.3",
              "member": "runtimes/linux-arm64/native/libsteam_api.so",
              "member_sha256": "6010ff5049f0154a270092cb93729f1fc691d28e3b8a6f5fc6f8fcccfbd1e508"}
 STEAM_API_NAMES = ("libsteam_api64.so", "libsteam_api.so")
-# Microsoft's own ICU build for .NET (app-local ICU), as packaged on nuget.org. The guest has no ICU, and in
+# Microsoft's own ICU build for .NET (app-local ICU), as packaged on nuget.org, for a guest without ICU. In
 # invariant mode the game's `new CultureInfo(name)` throws (MEASURED on the phone, native-engine-54: its loc setup
 # and error dialog both died on CultureNotFoundException).
 ICU = {"package": "Microsoft.ICU.ICU4C.Runtime.linux-arm64 72.1.0.3",
@@ -878,15 +878,48 @@ def without_x86_preloads(env):
     return env
 
 
+GUEST_LIB_DIRS = ("/usr/lib", "/usr/lib64", "/usr/lib/aarch64-linux-gnu", "/lib/aarch64-linux-gnu")
+C_LOCALES = ("", "C", "POSIX", "C.UTF-8", "C.utf8")
+
+
+def guest_icu(dirs=GUEST_LIB_DIRS):
+    """The guest's own ICU as the soname .NET dlopens (libicuuc.so.<major>), or None. Looked for by file, not with
+    ctypes.util.find_library, which needs ldconfig or gcc and finds nothing in the guest's proot. All three of
+    libicuuc, libicui18n and libicudata must be there for the same major."""
+    import glob
+    for d in dirs:
+        majors = sorted((int(m.group(1)) for m in (re.fullmatch(r"libicuuc\.so\.(\d+)", os.path.basename(p))
+                                                    for p in glob.glob(os.path.join(d, "libicuuc.so.*"))) if m),
+                        reverse=True)
+        for major in majors:
+            if all(os.path.exists(os.path.join(d, f"lib{n}.so.{major}")) for n in ("icuuc", "icui18n", "icudata")):
+                return os.path.join(d, f"libicuuc.so.{major}")
+    return None
+
+
 def engine_env(env, icu=None, system_icu=None):
-    """.NET needs ICU unless told to run culture-invariant, and the guest has none. With icu (icu_libs()'s folder)
-    it loads Microsoft's ICU from there (app-local ICU); without it, it runs culture-invariant, where the game
-    cannot create a CultureInfo by name."""
+    """.NET needs ICU unless told to run culture-invariant, where the game's `new CultureInfo(name)` throws. The
+    guest's own ICU comes first (system_icu, default guest_icu()): .NET finds it by soname and it costs nothing.
+    Without it, icu (icu_libs()'s folder) gives .NET Microsoft's ICU (app-local ICU); without either, .NET runs
+    culture-invariant. With a real ICU, a C or unset locale becomes en_US.UTF-8, or .NET's current culture would
+    be the invariant one."""
     env = without_x86_preloads(env)
-    if system_icu is None:
-        system_icu = ctypes.util.find_library("icuuc")
-    if "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" in env or "DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU" in env or system_icu:
+    if "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" in env or "DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU" in env:
         return env
+    if system_icu is None:
+        system_icu = guest_icu()
+    if system_icu:
+        pass
+    elif icu:
+        env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] = ICU["version"]
+        env["LD_LIBRARY_PATH"] = icu + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
+    else:
+        env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1"
+        return env
+    if env.get("LC_ALL", "") in C_LOCALES and env.get("LANG", "") in C_LOCALES:
+        env.pop("LC_ALL", None)
+        env["LANG"] = "en_US.UTF-8"
+    return env
     if icu:
         env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] = ICU["version"]
         env["LD_LIBRARY_PATH"] = icu + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
@@ -1150,15 +1183,19 @@ def main(argv=None):
     cmd = [r["engine"], "--main-pack", r["pack"], "--print-fps"] + rest
     log("run " + " ".join(cmd))
     os.chdir(os.path.abspath(a.game_dir))
-    icu = a.icu
-    if icu is None and a.fetch:
-        try:
-            icu = icu_libs()
-        except (Exception, SystemExit) as error:
-            log(f"ICU unavailable ({error}); .NET runs culture-invariant")
-    if icu:
-        log(f"ICU: {ICU['package']} from {icu} (app-local)")
-    return watch(line_buffered(cmd), engine_env(os.environ, icu), forward_signals=True,
+    icu, system_icu = a.icu, guest_icu()
+    if system_icu and icu is None:
+        log(f"ICU: the guest's {system_icu}")
+    else:
+        system_icu = ""
+        if icu is None and a.fetch:
+            try:
+                icu = icu_libs()
+            except (Exception, SystemExit) as error:
+                log(f"ICU unavailable ({error}); .NET runs culture-invariant")
+        if icu:
+            log(f"ICU: {ICU['package']} from {icu} (app-local)")
+    return watch(line_buffered(cmd), engine_env(os.environ, icu, system_icu), forward_signals=True,
                  on_first_frame=r2r_after_first_frame(r))
 
 
