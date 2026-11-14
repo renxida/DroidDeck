@@ -262,7 +262,7 @@ func event_sound_test() -> bool:
 		and playing_mid and ended and loop_ok and late_ok and stats["sounds_started"] - before == 4
 	print("SKELTEST event sound started=", started, " frames=", frames.size(), " rms=", rms, " playing_mid=",
 		playing_mid, " ended=", ended, " loop_rms=", loop_rms, " loop_ok=", loop_ok, " early_rms=", early_rms, " late_rms=", late_rms,
-		" late_ok=", late_ok, " stats=", stats, " perf=", perf_ok, " ok=", ok)
+		" late_ok=", late_ok, " stats=", stats, " ok=", ok)
 	return ok
 
 func rms_of(frames: PackedVector2Array) -> float:
