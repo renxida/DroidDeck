@@ -46,16 +46,19 @@ jobs:
           DROIDDECK_R2R_CACHE="$T/cache" python3 "$TOOL" status "$T/out/r2r" 2>&1 | tee "$T/out/status.txt"
           grep -q "swapped_in=1: r2r-check.dll" "$T/out/status.txt"
           ls -la "$T/out/jit/r2r-check.dll" "$T/out/r2r/r2r-check.dll"
-          # The same program compiled as one version bubble with the framework copy it ships.
-          cp -a "$T/out/jit" "$T/out/bubble"
-          start=$(date +%s.%N)
-          DROIDDECK_R2R_CACHE="$T/cache3" python3 "$TOOL" compile "$T/out/bubble" --bubble
-          echo "bubble_compile_s=$(echo "$(date +%s.%N) - $start" | bc)"
-          DROIDDECK_R2R_CACHE="$T/cache3" python3 "$TOOL" apply "$T/out/bubble" --on --bubble
-          DROIDDECK_R2R_CACHE="$T/cache3" python3 "$TOOL" status "$T/out/bubble" 2>&1 | tee "$T/out/bubble-status.txt"
-          grep -q "swapped_in=1: r2r-check.dll (bubble)" "$T/out/bubble-status.txt"
-          ls -la "$T/out/bubble/r2r-check.dll"
+          # The same program with the framework's generics over its types precompiled too, both ways.
+          for mode in generics bubble; do
+            cp -a "$T/out/jit" "$T/out/$mode"
+            start=$(date +%s.%N)
+            DROIDDECK_R2R_CACHE="$T/cache-$mode" python3 "$TOOL" compile "$T/out/$mode" --mode $mode
+            echo "${mode}_compile_s=$(echo "$(date +%s.%N) - $start" | bc)"
+            DROIDDECK_R2R_CACHE="$T/cache-$mode" python3 "$TOOL" apply "$T/out/$mode" --on --mode $mode
+            DROIDDECK_R2R_CACHE="$T/cache-$mode" python3 "$TOOL" status "$T/out/$mode" 2>&1 | tee "$T/out/$mode-status.txt"
+            grep -q "swapped_in=1: r2r-check.dll ($mode)" "$T/out/$mode-status.txt"
+            ls -la "$T/out/$mode/r2r-check.dll"
+          done
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: r2r-check
           path: ${{ runner.temp }}/out
@@ -77,7 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "label,own_first_jit,own_tier1_rejit,all_jit,other_first_jit,json_first_jit" > counts.csv
-          for build in jit r2r bubble; do
+          for build in jit r2r generics bubble; do
             for tc in 1 0; do
               label="$build-tc$tc"
               DOTNET_TieredCompilation=$tc DOTNET_TieredPGO=0 DOTNET_JitDisasmSummary=1 DOTNET_JitStdOutFile="$PWD/$label.jit.txt" \
@@ -100,10 +103,11 @@ jobs:
           jit, r2r = int(rows["jit-tc1"]["own_first_jit"]), int(rows["r2r-tc1"]["own_first_jit"])
           print("own methods JIT'd at first call: jit %d, r2r %d" % (jit, r2r))
           assert jit >= 30 and r2r * 4 <= jit, "precompiled code was not used"
-          for label in ("jit-tc1", "r2r-tc1", "bubble-tc1"):
+          for label in ("jit-tc1", "r2r-tc1", "generics-tc1", "bubble-tc1"):
               print("%s: framework methods JIT'd at first call %s, System.Text.Json %s" % (
                   label, rows[label]["other_first_jit"], rows[label]["json_first_jit"]))
-          assert int(rows["bubble-tc1"]["own_first_jit"]) <= r2r, "the bubble image covers less of the program"
+          for mode in ("generics", "bubble"):
+              assert int(rows[mode + "-tc1"]["own_first_jit"]) <= r2r, mode + " covers less of the program"
           PY
           { echo '### ReadyToRun from the arm64 crossgen2 on Windows x64'; echo '```'; cat counts.csv times.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

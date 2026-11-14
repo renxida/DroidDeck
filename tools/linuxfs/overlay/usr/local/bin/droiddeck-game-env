@@ -82,7 +82,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "native-inventory", "free-memory", "hybris-index", "fex-l1",
                "hybris-index-session", "native-engine", "dxvk-arm64ec",
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
-               "fex-sample", "dotnet-r2r-bubble")
+               "fex-sample", "dotnet-r2r-generics")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -2810,13 +2810,17 @@ def dotnet_folder(exe):
     return None
 
 
+# Which of droiddeck-dotnet-r2r's wider modes dotnet-r2r-generics uses.
+DOTNET_R2R_WIDE_MODE = "generics"
+
+
 def dotnet_r2r(command, env, run=subprocess.run, popen=subprocess.Popen):
     """Notes for the session log. For a .NET game, droiddeck-dotnet-r2r writes to dotnet-r2r.txt in the log
     folder which of its assemblies ship precompiled. Under dotnet-r2r, the game's own IL-only assemblies are
     swapped for x64 ReadyToRun images compiled on the phone before the game starts, and what is not compiled
     yet is compiled in the background for the next launch. With the switch off, every swapped file is put
-    back. dotnet-r2r-bubble does the same with one version bubble over the game and the framework copy it
-    ships, so the framework's generics over the game's types are precompiled as well."""
+    back. dotnet-r2r-generics does the same and also precompiles the framework's generics over the game's
+    types into the game's images (droiddeck-dotnet-r2r --mode, DOTNET_R2R_WIDE_MODE)."""
     if len(command) < 3 or command[1] != "waitforexitandrun":
         return []
     folder = dotnet_folder(command[2])
@@ -2826,9 +2830,9 @@ def dotnet_r2r(command, env, run=subprocess.run, popen=subprocess.Popen):
     log = ["--log", str(Path(log_dir) / "dotnet-r2r.txt")] if log_dir else []
     tool = [sys.executable, DOTNET_R2R]
     notes = []
-    bubble = experiment(env, "dotnet-r2r-bubble")
-    on = bubble or experiment(env, "dotnet-r2r")
-    mode = ["--bubble"] if bubble else []
+    wide = experiment(env, "dotnet-r2r-generics")
+    on = wide or experiment(env, "dotnet-r2r")
+    mode = ["--mode", DOTNET_R2R_WIDE_MODE if wide else "single"]
     if on or os.path.exists(DOTNET_R2R_MANIFEST):
         try:
             result = run(tool + ["apply", folder, "--on" if on else "--off"] + mode + log, stdin=subprocess.DEVNULL,
