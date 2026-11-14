@@ -176,7 +176,7 @@ jobs:
       - name: Prefix
         run: |
           set -euo pipefail
-          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all WINEDLLOVERRIDES="mscoree,mshtml="
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all WINEDLLOVERRIDES="mshtml="
           wineboot -i >/dev/null 2>&1 || true
           wine reg add 'HKLM\Software\Microsoft\Wow64\amd64' /ve /d libarm64ecfex.dll /f
           wineserver -w
@@ -185,7 +185,7 @@ jobs:
           SECONDS_PER_RUN: ${{ inputs.seconds || '150' }}
         run: |
           set -uo pipefail
-          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh,+loaddll,+process WINEDLLOVERRIDES="mscoree,mshtml=" HODLL64=libarm64ecfex.dll
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh,+loaddll,+process WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
           # The game's FEX settings (droiddeck-game-env), then this row's options.
           export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
           for kv in ${{ matrix.env }}; do export "$kv"; done

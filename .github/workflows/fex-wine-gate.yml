@@ -159,7 +159,7 @@ jobs:
           SECONDS_PER_RUN: ${{ inputs.seconds || '120' }}
         run: |
           set -uo pipefail
-          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mscoree,mshtml=" HODLL64=libarm64ecfex.dll
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mshtml=" HODLL64=libarm64ecfex.dll
           # The game's FEX settings (droiddeck-game-env). No experiment options: the gate tests the defaults.
           export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
           chmod -R +x "$RUNNER_TEMP/bin" || true
