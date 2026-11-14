@@ -368,10 +368,12 @@ class StickDeadZoneTest {
                 view.measure(android.view.View.MeasureSpec.makeMeasureSpec(1200, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(800, android.view.View.MeasureSpec.EXACTLY))
                 view.layout(0, 0, 1200, 800)
                 val control = elements.first { it.control.id == id }
-                val left = (control.x * 1200).toInt()
-                val top = (control.y * 800).toInt()
-                val height = (control.height * 800).toInt()
-                val x = left + if (id == "ls") (control.width * 1200).toInt() - height / 2f else height / 2f
+                // The view puts each edge at the nearest pixel (InputSurfaceView.edge), so the stick's centre is found the same way.
+                val left = kotlin.math.round(control.x * 1200).toInt()
+                val right = kotlin.math.round((control.x + control.width) * 1200).toInt()
+                val top = kotlin.math.round(control.y * 800).toInt()
+                val height = kotlin.math.round((control.y + control.height) * 800).toInt() - top
+                val x = if (id == "ls") right - height / 2f else left + height / 2f
                 val y = top + height / 2f
                 val down = MotionEvent.obtain(1000, 1000, MotionEvent.ACTION_DOWN, x, y, 0)
                 try { assertTrue(view.dispatchTouchEvent(down)) } finally { down.recycle() }

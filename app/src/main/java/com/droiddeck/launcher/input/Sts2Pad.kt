@@ -212,10 +212,11 @@ internal object Sts2Pad {
             InputControl.B to Box(right + rightW * 3f / 4f, rowY(1), rightW / 2f, row))
         else listOf(InputControl.B to Box(right + rightW / 2f, rowY(1), rightW, row))
         return listOf(
+            // Same order as the circles (DPAD), so a pad placed in a narrow strip lists its buttons as a fresh one does.
             InputControl.UP to Box(bar / 2f, rowY(0), bar, row),
-            InputControl.LEFT to Box(bar / 4f, rowY(1), bar / 2f, row),
             InputControl.RIGHT to Box(bar * 3f / 4f, rowY(1), bar / 2f, row),
             InputControl.DOWN to Box(bar / 2f, rowY(2), bar, row),
+            InputControl.LEFT to Box(bar / 4f, rowY(1), bar / 2f, row),
             InputControl.Y to Box(right + rightW / 2f, rowY(0), rightW, row)) + face +
             (InputControl.A to Box(right + rightW / 2f, rowY(2), rightW, row))
     }
