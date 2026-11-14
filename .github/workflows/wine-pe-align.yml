@@ -1,0 +1,63 @@
+name: Wine copies unaligned PE sections (off-device)
+
+# A Godot export with its .pck embedded keeps the pack in a PE section at a 512-byte file offset. Wine maps a
+# section from the file only at a page-aligned offset and otherwise reads it into anonymous memory at load. This
+# builds a stand-in (a 256 MB .pck section after the code), runs it under Hangover's Wine on an arm64 runner as
+# built and as realigned by tools/wine/pe-align/realign.py, and prints how each section is mapped and what it costs.
+# No game files: the stand-in's pack is random bytes.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['emu/winetest-pe*']
+
+permissions:
+  contents: read
+
+env:
+  HANGOVER_TAG: hangover-11.16
+  LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
+
+jobs:
+  pe-align:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Wine (Hangover ARM64EC)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
+      - name: Stand-in exes
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
+          mkdir -p "$RUNNER_TEMP/pe"
+          head -c 268435456 /dev/urandom > "$RUNNER_TEMP/blob.bin"
+          for arch in x86_64 aarch64; do
+            "$RUNNER_TEMP/$LLVM_MINGW/bin/$arch-w64-mingw32-clang" -O2 -s -DPCK_BLOB="\"$RUNNER_TEMP/blob.bin\"" \
+              -o "$RUNNER_TEMP/pe/big-$arch.exe" tools/wine/pe-align/big.c
+            printf 'GDPC' >> "$RUNNER_TEMP/pe/big-$arch.exe"
+            python3 -I tools/wine/pe-align/realign.py "$RUNNER_TEMP/pe/big-$arch.exe" "$RUNNER_TEMP/pe/big4k-$arch.exe"
+          done
+          for f in "$RUNNER_TEMP"/pe/*.exe; do
+            echo "== $(basename "$f") $(stat -c %s "$f") bytes"
+            "$RUNNER_TEMP/$LLVM_MINGW/bin/llvm-readobj" --file-headers --sections "$f" | grep -E 'FileAlignment|Name: |PointerToRawData' | paste -s -d' ' | sed 's/ *Name:/\n  /g'
+            echo
+          done
+      - name: Mapping
+        run: |
+          set -uo pipefail
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all HODLL64=libarm64ecfex.dll
+          sync; echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null || true
+          for arch in x86_64 aarch64; do
+            for name in big big4k; do
+              tools/wine/pe-align/check.sh "$name-$arch" "$RUNNER_TEMP/pe/$name-$arch.exe"
+              sync; echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null || true
+            done
+          done
+          echo "-- reading every page of the section"
+          for name in big big4k; do tools/wine/pe-align/check.sh "$name-x86_64 touched" "$RUNNER_TEMP/pe/$name-x86_64.exe" touch; done
