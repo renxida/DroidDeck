@@ -468,6 +468,16 @@ def die_with_parent():
         pass
 
 
+def line_buffered(cmd, which=shutil.which):
+    """The engine's command run under coreutils' stdbuf -oL -eL when the guest has it. A release Godot flushes
+    stdout only at exit or every ~4 KB (application/run/flush_stdout_on_print is off outside debug builds, and an
+    override.cfg beside the engine is not read with --main-pack), so through a pipe its first "Project FPS:" line
+    reached watch() only when the engine quit: a quiet game would be killed as "did not start". MEASURED in the
+    startup gate (run 43632484157, arm64): FPS line at 30.4 s for a 30 s run, at 4.1 s under stdbuf -oL."""
+    stdbuf = which("stdbuf")
+    return [stdbuf, "-oL", "-eL"] + list(cmd) if stdbuf else list(cmd)
+
+
 def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.monotonic, forward_signals=False):
     """Runs the engine in its own process group, passing its output through; returns its exit code, or
     DID_NOT_START if no frame-rate line came within first_frame_s or before it exited. With forward_signals,
@@ -561,7 +571,7 @@ def main(argv=None):
     cmd = [r["engine"], "--main-pack", r["pack"], "--print-fps"] + rest
     log("run " + " ".join(cmd))
     os.chdir(os.path.abspath(a.game_dir))
-    return watch(cmd, engine_env(os.environ), forward_signals=True)
+    return watch(line_buffered(cmd), engine_env(os.environ), forward_signals=True)
 
 
 if __name__ == "__main__":
