@@ -70,9 +70,37 @@ jobs:
           mkdir -p rootfs/bench/jit rootfs/bench/r2r && cp bench-bin/* rootfs/bench/ && cp bench-bin/* rootfs/bench/jit/
           cp bench-r2r-x64/* rootfs/bench/r2r/
           ls rootfs/opt/dotnet/shared/Microsoft.NETCore.App
+      - name: What x87 instructions cost under FEX (full vs reduced precision)
+        env:
+          FEX_BIN: ${{ github.workspace }}/fex-linux/Bin
+        run: |
+          set -euo pipefail
+          clang --target=x86_64-linux-gnu -O2 -ffreestanding -nostdlib -static -fno-pic -fuse-ld=lld \
+            -o x87cost tools/fex/bench/x87/x87cost.c
+          {
+            echo "### x87 cost under FEX (ns, warm, median of 3)"
+            for p in 0 1; do
+              for r in 1 2 3; do
+                FEX_X87REDUCEDPRECISION=$p FEX_SILENTLOG=1 "$FEX_BIN/FEX" ./x87cost | sed "s/^/x87,precision_reduced=$p,run=$r,/"
+              done
+            done
+          } | tee x87.txt
+          python3 - x87.txt <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import sys, statistics, collections
+          rows = collections.defaultdict(list)
+          for line in open(sys.argv[1]):
+              f = line.strip().split(",")
+              if len(f) == 7 and f[0] == "x87" and f[3] != "op":
+                  rows[(f[3], f[1])].append(float(f[4]))
+          ops = list(dict.fromkeys(k[0] for k in rows))
+          print("| loop | full x87 precision ns | reduced precision ns |\n|---|---|---|")
+          for o in ops:
+              print("| %s | %.1f | %.1f |" % (o, statistics.median(rows[(o, "precision_reduced=0")]), statistics.median(rows[(o, "precision_reduced=1")])))
+          PY
       - name: Run
-        # A push whose commit message has [blockmix-only] runs just the instruction-mix step, for iterating on it.
-        if: ${{ !contains(github.event.head_commit.message, '[blockmix-only]') }}
+        # A push whose commit message has [blockmix-only] runs just the instruction-mix step, for iterating on it;
+        # [x87-only] runs just the x87 step.
+        if: ${{ !contains(github.event.head_commit.message, '[blockmix-only]') && !contains(github.event.head_commit.message, '[x87-only]') }}
         env:
           BENCH_DLL: ${{ github.workspace }}/bench-bin/Bench.dll
           FEX_BIN: ${{ github.workspace }}/fex-linux/Bin
@@ -85,8 +113,9 @@ jobs:
           ROUNDS=2 tools/fex/bench/run.sh
           cat bench-out/summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Frame loop, every approach (code caches, ReadyToRun, ordering, regions, huge pages)
-        # A push whose commit message has [blockmix-only] runs just the instruction-mix step, for iterating on it.
-        if: ${{ !contains(github.event.head_commit.message, '[blockmix-only]') }}
+        # A push whose commit message has [blockmix-only] runs just the instruction-mix step, for iterating on it;
+        # [x87-only] runs just the x87 step.
+        if: ${{ !contains(github.event.head_commit.message, '[blockmix-only]') && !contains(github.event.head_commit.message, '[x87-only]') }}
         env:
           JIT_DLL: ${{ github.workspace }}/bench-bin/Bench.dll
           R2R_DLL: ${{ github.workspace }}/bench-r2r-arm64/Bench.dll
@@ -100,8 +129,9 @@ jobs:
           tools/fex/bench/cache-bench.sh
           cat bench-out/frames-summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Profile where FEX's time goes (warm disk cache, and fresh)
-        # A push whose commit message has [blockmix-only] runs just the instruction-mix step, for iterating on it.
-        if: ${{ !contains(github.event.head_commit.message, '[blockmix-only]') }}
+        # A push whose commit message has [blockmix-only] runs just the instruction-mix step, for iterating on it;
+        # [x87-only] runs just the x87 step.
+        if: ${{ !contains(github.event.head_commit.message, '[blockmix-only]') && !contains(github.event.head_commit.message, '[x87-only]') }}
         env:
           FEX_BIN: ${{ github.workspace }}/fex-linux/Bin
           ROOTFS: ${{ github.workspace }}/rootfs
@@ -117,6 +147,7 @@ jobs:
           CONFIG=fex_l1_256k ARGS="600 frames" EXTRA="FEX_DISKCACHE=0 FEX_LIBRARYJITNAMING=1" tools/fex/bench/profile.sh
           CONFIG=fex_l1_256k ARGS="600 frames" EXTRA="FEX_DISKCACHE=0 FEX_BLOCKJITNAMING=1" tools/fex/bench/profile.sh
       - name: Instruction mix of the hottest translated blocks (flags, ordering, vector, spills)
+        if: ${{ !contains(github.event.head_commit.message, '[x87-only]') }}
         env:
           ROOTFS: ${{ github.workspace }}/rootfs
           OUT: ${{ github.workspace }}/bench-out
