@@ -69,7 +69,8 @@ def main(argv=None):
     ap.add_argument("--wrapper", required=True)
     ap.add_argument("--game-dir", required=True)
     ap.add_argument("--work", required=True)
-    ap.add_argument("--component", default="pinned")
+    ap.add_argument("--component", default="pinned", help="pinned (--fetch) or a component folder")
+    ap.add_argument("--steam-api", help="with a component folder: Valve's libsteam_api.so to place")
     ap.add_argument("--exe", default="StandIn.exe")
     ap.add_argument("--minutes", type=float, default=45)
     ap.add_argument("--every", type=float, default=5)
@@ -79,6 +80,8 @@ def main(argv=None):
     a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
     os.makedirs(a.work, exist_ok=True)
     src = ["--fetch"] if a.component == "pinned" else ["--component", a.component]
+    if a.steam_api:
+        src += ["--steam-api", a.steam_api]
     cmd = [sys.executable, os.path.abspath(a.wrapper), "run"] + src + [
         "--game-dir", os.path.abspath(a.game_dir), "--exe", a.exe, "--out", os.path.join(a.work, "launch"), "--"] + engine_args
     log = open(os.path.join(a.work, "soak.log"), "w")
