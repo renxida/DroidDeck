@@ -1,0 +1,154 @@
+name: FEX nightly soak (Wine ARM64EC, off-device)
+
+# Not a gate: nothing waits on it. Each night it runs stock FEX and the newest Kestrel .wcps under Hangover's
+# Wine (ARM64EC) on arm64 runners, then the newest .wcp with every Kestrel option alone, in pairs, all but one
+# and all together, each row three times to catch hangs that show only now and then, plus a 45 min soak.
+# Rows (tools/fex/winetest/nightly-plan.py) and verdicts are the fast gate's (fex-wine-gate.yml); a hang dumps
+# every thread. The summary compares each row with stock FEX.
+
+on:
+  schedule:
+    - cron: '17 10 * * *' # 02:17 Pacific
+  workflow_dispatch:
+    inputs:
+      repeats:
+        required: false
+        default: '3'
+      seconds:
+        required: false
+        default: '120'
+      soak_seconds:
+        required: false
+        default: '2700'
+      wcps:
+        description: 'How many of the newest .wcps to compare with stock'
+        required: false
+        default: '3'
+  push:
+    branches: ['emu/winetest-nightly*']
+
+permissions:
+  contents: read
+
+env:
+  HANGOVER_TAG: hangover-11.16
+  LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # A push (to try this workflow) runs each row once, two .wcps and a 10 min soak.
+          REPEATS: ${{ inputs.repeats || (github.event_name == 'push' && '1') || '3' }}
+          SECONDS_PER_RUN: ${{ inputs.seconds || '120' }}
+          SOAK_SECONDS: ${{ inputs.soak_seconds || (github.event_name == 'push' && '600') || '2700' }}
+          N: ${{ inputs.wcps || (github.event_name == 'push' && '2') || '3' }}
+        run: |
+          set -euo pipefail
+          mapfile -t w < <(gh api "repos/$GITHUB_REPOSITORY/releases/tags/kestrel-fex" --jq '.assets[].name' | grep '\.wcp$' | sort -V | tail -"$N" | tac)
+          echo "wcps: ${w[*]}"
+          echo "matrix=$(python3 tools/fex/winetest/nightly-plan.py "${w[@]}")" >> "$GITHUB_OUTPUT"
+
+  programs:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
+          mkdir -p bin
+          "$RUNNER_TEMP/$LLVM_MINGW/bin/x86_64-w64-mingw32-clang" -O2 -Wall -static -o bin/stress.exe tools/fex/winetest/stress.c
+          dotnet publish tools/fex/winetest/clr/clr.csproj -c Release -r win-x64 --self-contained true -o bin/clr -v q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nightly-programs
+          path: bin
+
+  run:
+    needs: [plan, programs]
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: nightly-programs
+          path: ${{ runner.temp }}/bin
+      - name: Wine (Hangover ARM64EC)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: WINEPREFIX="$RUNNER_TEMP/pfx" tools/fex/winetest/setup-hangover.sh "$HANGOVER_TAG" "$RUNNER_TEMP/w"
+      - name: This row's FEX
+        if: matrix.wcp != 'stock'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download kestrel-fex -R "$GITHUB_REPOSITORY" -p "${{ matrix.wcp }}" -D "$RUNNER_TEMP/cand"
+          tools/fex/winetest/install-fex.sh "$RUNNER_TEMP/w" "$RUNNER_TEMP/cand/${{ matrix.wcp }}"
+      - name: Run
+        run: |
+          set -uo pipefail
+          export WINEPREFIX="$RUNNER_TEMP/pfx" WINEDEBUG=-all,err+seh WINEDLLOVERRIDES="mscoree,mshtml=" HODLL64=libarm64ecfex.dll
+          export FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 FEX_HALFBARRIERTSOENABLED=1 FEX_X87REDUCEDPRECISION=0
+          for kv in ${{ matrix.env }}; do export "$kv"; done
+          env | grep '^FEX_' | sort
+          chmod -R +x "$RUNNER_TEMP/bin" || true
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          : > "$out/verdicts.txt"
+          for label in ${{ matrix.programs }}; do
+            case $label in clr*) exe=clr/clr.exe ;; *) exe=stress.exe ;; esac
+            tools/fex/winetest/run.sh "$label" "$out" "${{ matrix.seconds }}" "$RUNNER_TEMP/bin/$exe" | tee "$out/$label.verdict" || true
+            grep '^VERDICT ' "$out/$label.verdict" >> "$out/verdicts.txt" || echo "VERDICT $label no-verdict 0 0 0" >> "$out/verdicts.txt"
+            wineserver -k || true
+            sleep 2
+          done
+          for f in "$out"/*.hang.txt; do [ -f "$f" ] && { echo "== $f"; head -700 "$f"; }; done
+          sed "s/^/${{ matrix.group }} ${{ matrix.seconds }} /" "$out/verdicts.txt" > "$RUNNER_TEMP/v-${{ matrix.id }}.txt"
+          cat "$RUNNER_TEMP/v-${{ matrix.id }}.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-v-${{ matrix.id }}
+          path: ${{ runner.temp }}/v-${{ matrix.id }}.txt
+
+  summary:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: nightly-v-*
+          merge-multiple: true
+          path: v
+      - name: Summary
+        shell: bash
+        run: python3 tools/fex/winetest/nightly-summary.py v | tee -a "$GITHUB_STEP_SUMMARY"
