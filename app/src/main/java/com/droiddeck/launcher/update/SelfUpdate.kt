@@ -32,8 +32,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Keeps the app on the fork's newest "latest" build. A CI build of [TRACK_BRANCH] checks when the front screen
  * resumes with no session, at most every 30 minutes; the signed remote "update" command checks at any time.
  * A download never installs by itself: the install starts on the resumed front screen with no session, and the
- * system asks the person to confirm. An APK is installed only when its package is ours, its signing certificates
- * equal ours exactly and it is newer ([SelfUpdateRules.notNewerReason]); anything else is deleted.
+ * system asks the person to confirm. The one exception is opt-in: with Setup > Diagnostics > Install updates over
+ * Wireless debugging on, [installUnattended] installs while the phone is idle on the charger ([KadbInstaller]).
+ * An APK is installed only when its package is ours, its signing certificates equal ours exactly and it is newer
+ * ([SelfUpdateRules.notNewerReason]); anything else is deleted.
  */
 object SelfUpdate {
     private const val TAG = "SelfUpdate"
@@ -219,6 +221,51 @@ object SelfUpdate {
         }, "self-update-install").start()
     }
 
+    /**
+     * With nobody at the phone (the charging-and-idle test job, or the remote "update" command away from the front
+     * screen): check when due, then hand the staged update to the backends that install without a prompt
+     * ([UpdateInstaller.unattended]). Does nothing unless such a backend is switched on, and never during a session.
+     * Runs on the calling (background) thread; true when a backend took the update.
+     */
+    fun installUnattended(context: Context, check: Boolean = true): Boolean {
+        val app = context.applicationContext
+        val backends = installers.filter { runCatching { it.unattended(app) }.getOrDefault(false) }
+        if (backends.isEmpty() || sessionActive()) return false
+        if (check && tracksRelease() && SelfUpdateRules.checkDue(System.currentTimeMillis(), prefs(app).getLong(LAST_CHECK, 0L), sessionActive()))
+            runCheck(app)
+        if (installing || sessionActive() || !busy.compareAndSet(false, true)) return false
+        val file = try { checker(app).stagedReady() } finally { busy.set(false) }
+        if (file == null) return false
+        installing = true
+        for (installer in backends) {
+            val taken = runCatching { installer.install(app, file) { unattendedResult(app, installer.name, it) } }
+                .onFailure { Log.w(TAG, "${installer.name} failed: ${it.message}") }.getOrDefault(false)
+            if (taken) {
+                Log.i(TAG, "installing unattended with ${installer.name}")
+                return true
+            }
+        }
+        installing = false
+        return false
+    }
+
+    /**
+     * An unattended backend's result. Its failure is not the person declining, so the front screen still offers the
+     * system's prompt for this build by itself.
+     */
+    private fun unattendedResult(app: Context, backend: String, result: UpdateInstaller.Result) {
+        if (result is UpdateInstaller.Result.Success || result is UpdateInstaller.Result.NeedsConfirmation) {
+            installResult(app, result)
+            return
+        }
+        val why = if (result is UpdateInstaller.Result.Failed) result.message else "cancelled"
+        Log.i(TAG, "$backend did not install: $why")
+        main.post {
+            installing = false
+            prefs(app).edit().putString(LAST_OUTCOME, "$backend: $why").apply()
+        }
+    }
+
     /** Where every installer's result ends up. */
     internal fun installResult(app: Context, result: UpdateInstaller.Result) {
         main.post {
@@ -275,7 +322,11 @@ object SelfUpdate {
         val outcome = runCheck(app)
             ?: return JSONObject().put("ok", false).put("error", JSONObject().put("code", "BUSY").put("message", "a check is running"))
         if (outcome is UpdateCheck.Outcome.Ready) main.post {
-            if (frontResumed) startInstall(app, byPerson = false) else if (!sessionActive()) notifyReady(app)
+            if (frontResumed) startInstall(app, byPerson = false)
+            else if (!sessionActive()) Thread({
+                installUnattended(app, check = false)
+                if (!sessionActive() && File(dir(app), UpdateCheck.APK).isFile) notifyReady(app)
+            }, "self-update-unattended").start()
         }
         return JSONObject().put("ok", outcome !is UpdateCheck.Outcome.Failed)
             .put("outcome", outcome.line())
