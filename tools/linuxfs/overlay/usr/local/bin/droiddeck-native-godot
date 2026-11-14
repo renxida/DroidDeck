@@ -28,9 +28,16 @@ libsteam_api.so, downloaded on the device from the public Steamworks.NET NuGet p
 pinned) and placed as libsteam_api64.so, the name a Windows build asks for. Nothing fakes Steam: an older
 component that carries a stubs/ folder (a no-op Steamworks stand-in, up to native-engine-38) is refused.
 
+`check` is a dry run for the phone, off the launch path: it composes into --out, checks the launch folder is
+one the engine can start (the game's assembly there, every game assembly loadable-shaped, deps.json and
+runtimeconfig.json written, the engine in place) and records pass/fail with the component tag and a fingerprint
+of the game's data folder (names, sizes, mtimes) in ~/.cache/droiddeck/native/check/<name>.json, logging one
+"check pass|fail" line. Exit 0 on pass, 1 on fail. droiddeck-game-env skips the native path while a fresh
+result for the same game files, component and converter says fail.
+
 Usage:
-  droiddeck-native-godot compose|run --game-dir DIR (--fetch | --component DIR | --kit DIR --engine FILE)
-                                     --out DIR [--exe NAME] [-- ENGINE ARGS...]
+  droiddeck-native-godot compose|run|check --game-dir DIR (--fetch | --component DIR | --kit DIR --engine FILE)
+                                           --out DIR [--exe NAME] [--name NAME] [-- ENGINE ARGS...]
 """
 import argparse
 import ctypes.util
@@ -558,8 +565,8 @@ def check_name(game_dir, name=None):
     return name or windows_data_dir(game_dir)[0]
 
 
-def check_path(game_dir, name=None, check_dir=CHECK_DIR):
-    return os.path.join(check_dir, check_name(game_dir, name) + ".json")
+def check_path(game_dir, name=None, check_dir=None):
+    return os.path.join(check_dir or CHECK_DIR, check_name(game_dir, name) + ".json")
 
 
 def loadable_shape(path):
@@ -578,7 +585,7 @@ def loadable_shape(path):
     return None
 
 
-def check(game_dir, kit, engine, out, exe=None, steam=None, component_tag=None, name=None, check_dir=CHECK_DIR):
+def check(game_dir, kit, engine, out, exe=None, steam=None, component_tag=None, name=None, check_dir=None):
     """Composes the launch folder and checks it is one the engine can start: the game's own assembly is there,
     every game assembly is loadable-shaped, deps.json and runtimeconfig.json are written, the engine is in
     place. Writes the verdict, the component tag and the game's fingerprint to <check_dir>/<name>.json. Left-out
@@ -623,6 +630,7 @@ def check(game_dir, kit, engine, out, exe=None, steam=None, component_tag=None, 
     if report:
         result.update(game_assemblies=len(report["game_assemblies"]), patched=len(report["patched"]),
                       left_out=report["mixed_mode"])
+    check_dir = check_dir or CHECK_DIR
     os.makedirs(check_dir, exist_ok=True)
     path = os.path.join(check_dir, name + ".json")
     tmp = path + ".tmp"
@@ -637,7 +645,7 @@ def check(game_dir, kit, engine, out, exe=None, steam=None, component_tag=None, 
     return result
 
 
-def fresh_check(game_dir, component_tag=None, name=None, check_dir=CHECK_DIR):
+def fresh_check(game_dir, component_tag=None, name=None, check_dir=None):
     """The stored check result for this game if it still applies (same game files, component and converter),
     else None."""
     component_tag = component_tag or COMPONENT["tag"]

@@ -457,6 +457,76 @@ class NativeGodotTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             NG["fetch"]({"tag": "", "url": "", "sha256": ""}, str(cache), opener)
 
+    def run_check(self, *extra):
+        out, checks = self.root / "check-launch", self.root / "checks"
+        g = NG["main"].__globals__
+        old = g["CHECK_DIR"]
+        g["CHECK_DIR"] = str(checks)
+        err = io.StringIO()
+        try:
+            with unittest.mock.patch("sys.stderr", err):
+                rc = NG["main"](["check", "--game-dir", str(self.game), "--kit", str(self.kit), "--engine", str(self.engine),
+                                 "--out", str(out), "--exe", "SlayTheSpire2.exe"] + list(extra))
+        finally:
+            g["CHECK_DIR"] = old
+        path = checks / "sts2.json"
+        return rc, (json.loads(path.read_text()) if path.exists() else None), err.getvalue(), checks
+
+    def test_check_passes_and_records_the_game_s_fingerprint(self):
+        # A ReadyToRun image without the IL-only mark is relabelled and kept: loadable-shaped.
+        (self.game / "data_sts2_windows_x86_64" / "Sentry.dll").write_bytes(pe(True, machine=0x8664, ilonly=False, r2r=True))
+        rc, result, err, checks = self.run_check()
+        self.assertEqual(0, rc)
+        self.assertEqual("pass", result["result"])
+        self.assertEqual("custom", result["component"])
+        self.assertEqual([], result["rejected"])
+        self.assertEqual(64, len(result["fingerprint"]))
+        self.assertIn("droiddeck-native-godot: check pass sts2", err)
+        fresh = NG["fresh_check"](str(self.game), "custom", check_dir=str(checks))
+        self.assertEqual("pass", fresh["result"])
+        self.assertIsNone(NG["fresh_check"](str(self.game), "native-engine-other", check_dir=str(checks)))
+        # A game update (a managed file changes) makes the result stale.
+        (self.game / "data_sts2_windows_x86_64" / "sts2.dll").write_bytes(pe(True) + b"\0update")
+        self.assertIsNone(NG["fresh_check"](str(self.game), "custom", check_dir=str(checks)))
+
+    def test_check_fails_when_the_game_itself_is_mixed_mode(self):
+        (self.game / "data_sts2_windows_x86_64" / "sts2.dll").write_bytes(
+            pe(True, machine=0x8664, ilonly=False, fixups=True))
+        rc, result, err, checks = self.run_check("--name", "sts2")
+        self.assertEqual(1, rc)
+        self.assertEqual("fail", result["result"])
+        self.assertEqual(["sts2.dll"], result["rejected"])
+        self.assertIn("mixed-mode", result["reasons"][0])
+        self.assertIn("droiddeck-native-godot: check fail sts2", err)
+        self.assertEqual("fail", NG["fresh_check"](str(self.game), "custom", check_dir=str(checks))["result"])
+
+    def test_check_left_out_helpers_do_not_fail_it(self):
+        (self.game / "data_sts2_windows_x86_64" / "Helper.Native.dll").write_bytes(
+            pe(True, machine=0x8664, ilonly=False, fixups=True))
+        rc, result, _, _ = self.run_check()
+        self.assertEqual((0, "pass"), (rc, result["result"]))
+        self.assertIn("Helper.Native.dll", result["left_out"])
+
+    def test_check_fails_on_an_assembly_the_converter_left_unloadable(self):
+        real = NG["main"].__globals__["portable_image"]
+        NG["main"].__globals__["portable_image"] = lambda data: (data, "untouched")  # a broken converter
+        try:
+            rc, result, _, _ = self.run_check()
+        finally:
+            NG["main"].__globals__["portable_image"] = real
+        self.assertEqual((1, "fail"), (rc, result["result"]))
+        self.assertEqual(["0Harmony.dll"], result["rejected"])
+        self.assertIn("still labelled x64", " ".join(result["reasons"]))
+
+    def test_loadable_shape(self):
+        p = self.root / "a.dll"
+        for image, why in ((pe(True), None), (pe(True, machine=0x14C), None),
+                           (pe(True, ilonly=False, r2r=True), None), (pe(True, machine=0x8664), "still labelled x64"),
+                           (pe(True, ilonly=False, fixups=True), "mixed-mode"), (pe(False), "not a .NET assembly")):
+            p.write_bytes(image)
+            got = NG["loadable_shape"](str(p))
+            self.assertTrue(got is None if why is None else why in got, (why, got))
+
     def test_embedded_pack(self):
         (self.game / "SlayTheSpire2.pck").unlink()
         self.assertTrue(NG["find_pack"](str(self.game), "SlayTheSpire2.exe").endswith("SlayTheSpire2.exe"))
