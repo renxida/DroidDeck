@@ -2758,8 +2758,9 @@ def game_logs(command, env, app_id, now=None):
 
 
 DOTNET_TRACE = "/usr/local/bin/droiddeck-dotnet-trace"
-# GC (0x1), JIT (0x10, verbose for method names) and GC heap-history (0x400000000) events, plus runtime counters.
-DOTNET_TRACE_PROVIDERS = ("Microsoft-Windows-DotNETRuntime:0x400000011:5,"
+# GC (0x1), loader (0x8, module loads), JIT (0x10, verbose for method names and code sizes) and GC heap-history
+# (0x400000000) events, plus runtime counters.
+DOTNET_TRACE_PROVIDERS = ("Microsoft-Windows-DotNETRuntime:0x400000019:5,"
                           "System.Runtime:0:4:EventCounterIntervalSec=1")
 DOTNET_TRACE_EVERY_S = 60
 

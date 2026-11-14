@@ -103,8 +103,8 @@ def sample_trace():
     return w.end()
 
 
-def method_load(at_ms, flags, tier, namespace, name):
-    payload = struct.pack("<QQQIII", 1, 2, 3, 64, 0x06000001, flags | (tier << 7)) + utf16z(namespace) + utf16z(name) + \
+def method_load(at_ms, flags, tier, namespace, name, size=64):
+    payload = struct.pack("<QQQIII", 1, 2, 3, size, 0x06000001, flags | (tier << 7)) + utf16z(namespace) + utf16z(name) + \
         utf16z("void ()") + struct.pack("<HQ", 0, 0)
     return (143, ms(at_ms), payload)
 
@@ -133,6 +133,51 @@ class JitTest(unittest.TestCase):
         self.assertEqual("0,3,1,2,0,1,1,0,0,1,0", lines[2])
         self.assertEqual("1,1,0,0,1,1,0,0,0,0,0", lines[3])
         self.assertIn("2,plain,tier0=1 tier1=1,MegaCrit.Sts2.Card", lines)
+
+
+def module_load(at_ms, module, flags, il_path, native_path=""):
+    payload = struct.pack("<QQII", module, 7, flags, 0) + utf16z(il_path) + utf16z(native_path) + struct.pack("<H", 0)
+    return (152, ms(at_ms), payload)
+
+
+class ClrMemoryTest(unittest.TestCase):
+    def test_jit_code_precompiled_code_and_module_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "game"
+            game.mkdir()
+            (game / "Sts2.dll").write_bytes(b"x" * (3 << 20))
+            (game / "System.Text.Json.dll").write_bytes(b"x" * (1 << 20))
+            z = lambda path: "Z:" + str(path).replace("/", "\\")
+            w = Writer()
+            w.metadata([(143, "Microsoft-Windows-DotNETRuntime", 143, "", None),
+                        (152, "Microsoft-Windows-DotNETRuntime", 152, "", None)])
+            w.block("EventBlock", [
+                module_load(1, 10, 0x8, z(game / "Sts2.dll")),
+                module_load(2, 11, 0x8 | 0x20, z(game / "System.Text.Json.dll")),
+                module_load(3, 12, 0x4, ""),
+                module_load(4, 13, 0x8 | 0x20, z(game / "missing.dll")),
+                method_load(10, 0x8, 3, "MegaCrit.Sts2.Card", "Play", size=1 << 20),
+                method_load(20, 0x8, 4, "MegaCrit.Sts2.Card", "Play", size=1 << 19),
+                method_load(30, 0x0, 5, "System.Text.Json.JsonSerializer", "Serialize", size=1 << 18),
+            ])
+            path = Path(tmp) / "dotnet-1.nettrace"
+            path.write_bytes(w.end())
+            summary = TRACE["summarise"](path)
+            line = TRACE["summary_text"](summary).splitlines()[-1]
+        fields = dict(part.split("=") for part in line.split()[1:])
+        self.assertTrue(line.startswith("clr_memory: "))
+        self.assertEqual("1.50", fields["jit_code_mb"])
+        self.assertEqual("1.00", fields["jit_tier0_mb"])
+        self.assertEqual("0.50", fields["jit_tier1_mb"])
+        self.assertEqual(("1", "0.25"), (fields["r2r_methods_used"], fields["r2r_code_used_mb"]))
+        self.assertEqual(("3", "2", "2"), (fields["modules"], fields["r2r_modules"], fields["modules_sized"]))
+        self.assertEqual(("4.00", "1.00"), (fields["module_files_mb"], fields["r2r_module_files_mb"]))
+        self.assertEqual("?", fields["gc_committed_max_mb"])
+
+    def test_wine_paths(self):
+        self.assertEqual("/home/a/b.dll", TRACE["unix_path"]("Z:\\home\\a\\b.dll"))
+        self.assertEqual("/pfx/dosdevices/c:/windows/x.dll", TRACE["unix_path"]("C:\\windows\\x.dll", "/pfx"))
+        self.assertIsNone(TRACE["unix_path"]("C:\\windows\\x.dll", ""))
 
 
 class ParseTest(unittest.TestCase):
@@ -242,7 +287,7 @@ class GameEnvTest(unittest.TestCase):
             self.assertEqual("1", result["DOTNET_EventPipeOutputStreaming"])
             self.assertEqual("0", result["DOTNET_EventPipeRundown"])
             self.assertEqual("Z:" + str(logs).replace("/", "\\") + "\\dotnet-{pid}.nettrace", result["DOTNET_EventPipeOutputPath"])
-            self.assertTrue(result["DOTNET_EventPipeConfig"].startswith("Microsoft-Windows-DotNETRuntime:0x400000011:5,"))
+            self.assertTrue(result["DOTNET_EventPipeConfig"].startswith("Microsoft-Windows-DotNETRuntime:0x400000019:5,"))
             self.assertEqual([str(logs), "--watch", "60", "--pid", str(os.getpid())], started[0][2:])
             self.assertIn("dotnet-trace:", note)
             without_folder = dict(env)

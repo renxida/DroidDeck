@@ -23,7 +23,7 @@ for name in default shipped phone-gen0 dotnet-gen0 dotnet-gc-stock; do
   dir="$out/$name"; rm -rf "$dir"; mkdir -p "$dir"
   env ${configs[$name]} DOTNET_EnableEventPipe=1 DOTNET_EventPipeOutputStreaming=1 DOTNET_EventPipeRundown=0 \
     DOTNET_EventPipeOutputPath="$dir/dotnet-{pid}.nettrace" \
-    DOTNET_EventPipeConfig='Microsoft-Windows-DotNETRuntime:0x400000011:5,System.Runtime:0:4:EventCounterIntervalSec=1' \
+    DOTNET_EventPipeConfig='Microsoft-Windows-DotNETRuntime:0x400000019:5,System.Runtime:0:4:EventCounterIntervalSec=1' \
     dotnet "$out/bin/gc-bench.dll" --seconds "$seconds" > "$dir/result.json"
   python3 "$trace" "$dir"/dotnet-*.nettrace "$dir" 2> "$dir/parse.txt"
   python3 - "$name" "$dir" >> "$out/summary.md" <<'PY'

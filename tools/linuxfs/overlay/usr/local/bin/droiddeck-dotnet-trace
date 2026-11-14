@@ -9,7 +9,8 @@ game's exit. Telemetry uploads .txt files from the game's log folder, so the tab
                        thread suspension time, heap sizes after it.
   dotnet-counters.txt  one row per second: the System.Runtime counters (time in GC and JIT, allocation
                        rate, methods jitted, thread pool, lock contention, working set...).
-  dotnet-summary.txt   totals per minute of the trace.
+  dotnet-summary.txt   totals per minute of the trace, then a clr_memory line: what the runtime itself holds
+                       beside the GC heap (JIT code, precompiled code used, modules and their file sizes).
 
 The trace may still be growing, so a truncated last block is ignored.
 """
@@ -26,6 +27,9 @@ GC_RESTART_BEGIN, GC_SUSPEND_END, GC_SUSPEND_BEGIN = 7, 8, 9
 GC_GLOBAL_HEAP_HISTORY = 205
 TC_BACKGROUND_START, TC_BACKGROUND_STOP = 283, 284
 METHOD_LOAD_VERBOSE = 143
+MODULE_LOAD = 152
+# ModuleLoad flags.
+MODULE_DYNAMIC, MODULE_R2R = 0x4, 0x20
 # MethodLoadVerbose flags, and the optimization tier in bits 7-9.
 METHOD_DYNAMIC, METHOD_GENERIC, METHOD_SHARED_GENERIC, METHOD_JITTED = 0x1, 0x2, 0x4, 0x8
 METHOD_R2R_REJECTED = 0x40
@@ -264,6 +268,9 @@ class Summary:
         self.background = {}
         self.tier1_methods, self.tier1_busy_ms = 0, 0.0
         self.methods = []
+        # JIT code bytes by tier, precompiled (ReadyToRun) methods first used and their code bytes, and the
+        # modules loaded: id -> (flags, IL path, native path).
+        self.jit_bytes, self.r2r_methods, self.r2r_bytes, self.modules = {}, 0, 0, {}
 
     def add_all(self, stream, items):
         self.header = stream.header or self.header
@@ -323,10 +330,19 @@ class Summary:
             self.suspend = None
         elif e == METHOD_LOAD_VERBOSE:
             r = Reader(payload)
-            _method, _module, _start, _size, _token, flags = r.unpack("<QQQIII")
+            _method, _module, _start, size, _token, flags = r.unpack("<QQQIII")
             namespace, name = r.utf16z(), r.utf16z()
             if flags & METHOD_JITTED:
                 self.methods.append((ms, flags, namespace, name))
+                tier = TIERS.get((flags >> 7) & 0x7, "unknown")
+                self.jit_bytes[tier] = self.jit_bytes.get(tier, 0) + size
+            else:
+                self.r2r_methods += 1
+                self.r2r_bytes += size
+        elif e == MODULE_LOAD:
+            r = Reader(payload)
+            module, _assembly, flags, _reserved = r.unpack("<QQII")
+            self.modules[module] = (flags, r.utf16z(), r.utf16z())
         elif e == TC_BACKGROUND_START:
             self.tier1_start = ms
         elif e == TC_BACKGROUND_STOP and self.tier1_start is not None:
@@ -396,7 +412,57 @@ def summary_text(summary):
             float(max(pauses or [0])), float(sum(suspends)), float(max(suspends or [0])),
             float(sum(tgc) / len(tgc)) if tgc else None, float(jit), float(alloc), methods,
             float(heap[-1]) if heap else None)))
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines) + "\n" + clr_memory_text(summary)
+
+
+def unix_path(path, prefix=None):
+    """A Wine path as the Linux side sees it: Z: is /, other drives are under the prefix's dosdevices."""
+    if len(path) < 3 or path[1] != ":":
+        return None
+    rest = path[2:].replace("\\", "/")
+    drive = path[0].lower()
+    if drive == "z":
+        return rest
+    prefix = prefix or os.environ.get("WINEPREFIX")
+    return os.path.join(prefix, "dosdevices", drive + ":") + rest if prefix else None
+
+
+def file_mb(path, prefix=None):
+    unix = unix_path(path, prefix) if path else None
+    try:
+        return os.path.getsize(unix) / 2**20 if unix else None
+    except OSError:
+        return None
+
+
+def counter_max(counters, name):
+    values = [row[name] for row in counters.values() if row.get(name) is not None]
+    return float(max(values)) if values else None
+
+
+def clr_memory_text(summary, prefix=None):
+    """One line on what the runtime holds besides the GC heap. JIT code stays in the code heap for the life of
+    the process (tier-0 code too, after tier 1 replaces it); precompiled code and the modules' files are mapped
+    from disk, so they can be dropped and read back rather than swapped. Loader heaps (type and method
+    tables, stubs) and thread stacks have no events, so they are not here."""
+    modules = [m for m in summary.modules.values() if not m[0] & MODULE_DYNAMIC]
+    sizes = [(m[0], file_mb(m[2] or m[1], prefix)) for m in modules]
+    known = [mb for _, mb in sizes if mb is not None]
+    r2r = [mb for flags, mb in sizes if mb is not None and flags & MODULE_R2R]
+    jit = summary.jit_bytes
+    parts = [("gc_committed_max_mb", counter_max(summary.counters, "gc-committed")),
+             ("gc_heap_max_mb", counter_max(summary.counters, "gc-heap-size")),
+             ("working_set_max_mb", counter_max(summary.counters, "working-set")),
+             ("jit_code_mb", sum(jit.values()) / 2**20),
+             ("jit_tier0_mb", jit.get("tier0", 0) / 2**20),
+             ("jit_tier1_mb", (jit.get("tier1", 0) + jit.get("tier1_osr", 0)) / 2**20),
+             ("r2r_methods_used", summary.r2r_methods), ("r2r_code_used_mb", summary.r2r_bytes / 2**20),
+             ("modules", len(modules)), ("r2r_modules", sum(bool(m[0] & MODULE_R2R) for m in modules)),
+             ("module_files_mb", float(sum(known)) if known else None),
+             ("r2r_module_files_mb", float(sum(r2r)) if r2r else None),
+             ("modules_sized", len(known)),
+             ("threadpool_threads_max", counter_max(summary.counters, "threadpool-thread-count"))]
+    return "clr_memory: " + " ".join("%s=%s" % (k, fmt(v) if v is not None else "?") for k, v in parts) + "\n"
 
 
 def method_kind(flags, namespace):
