@@ -84,7 +84,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
                "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
-               "fex-cache-keep")
+               "fex-cache-keep", "pe-align")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -3291,6 +3291,21 @@ def load_warmup():
         return None
 
 
+def pe_aligned_launch(command):
+    """Runs the game from a copy of its .exe whose sections Wine can map from the file (droiddeck-warmup,
+    pe_aligned_exe), when the original has a large section it would copy into memory."""
+    warmup = load_warmup()
+    if warmup is None:
+        return command
+    try:
+        exe, line = warmup["pe_aligned_exe"](command[2])
+    except Exception as error:  # optional: a fault here must not stop the game
+        exe, line = None, "aligned copy skipped (%s)" % error
+    if line:
+        print("droiddeck-game-env: warmup: " + line, file=sys.stderr)
+    return command[:2] + [exe] + command[3:] if exe else command
+
+
 def warmup_launch(command, env, app_id, phases):
     """FEX disk cache, .NET tiering profile and launch-prep timing (droiddeck-warmup)."""
     warmup = load_warmup()
@@ -3587,6 +3602,9 @@ def main():
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)
     watch = bool(waiting and app_id and exit_watch(app_id, env, bool(pacing)))
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun" and experiment(env, "pe-align"):
+        # Last, so everything above sees the game's own folder.
+        command = pe_aligned_launch(command)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if waiting and experiment(env, "free-memory"):
