@@ -153,3 +153,65 @@ What this underestimates on the phone: the phone stack also runs Wine, ARM64EC t
 proot, which the native path drops entirely, and Spine and FMOD are C++ that FEX translates
 too. What it overestimates: cloud Neoverse cores are not the Pixel 10's, and the stand-in is
 not the game. GPU and present cost are unchanged by this path (headless here).
+
+## 5. Experiment `native-r2r` (off by default): linux-arm64 ReadyToRun for the game's assemblies
+
+A Windows build's precompiled code is for Windows x64, so on the native path arm64 CoreCLR JITs every
+game method: startup time and early-session hitches. With `DROIDDECK_EXP_NATIVE_R2R=1`,
+`droiddeck-native-godot` regenerates ReadyToRun code for linux-arm64 with crossgen2, on the phone, in the
+background, and uses it from the next launch on.
+
+- **Compose**: for each composed game DLL, the IL crossgen2 would compile is worked out (pristine IL from
+  droiddeck-dotnet-r2r's `~/.cache/droiddeck-r2r/manifest.json` when that tool swapped its own win-x64 image
+  in, else the game's file) and hashed. If `~/.cache/droiddeck/native/r2r/<tag>/<sha256>.dll` is there with its
+  `.json` record (size matches, RTR header, machine 0xD11D = ARM64 XOR the Linux value 0x7B79), it is hardlinked
+  into the launch folder instead of the relabelled copy. Log: `native-r2r: N of M game assemblies from the
+  linux-arm64 ReadyToRun cache (<tag>); K to compile after the first frame`.
+- **Background compile**: at the watchdog's "first frame", one detached job (own session, `nice` 10, flock on
+  `compile.lock`, 2 crossgen2 threads) compiles the missing ones: `crossgen2 IN -o OUT --targetos linux
+  --targetarch arm64 -O --parallelism 2 -r <every other managed DLL of the launch folder>` (the kit's framework,
+  GodotSharp, the game's other assemblies; hardlinked into the job's scratch folder first so a new launch can
+  rebuild the launch folder meanwhile). Output is cached only after exit 0, an RTR header and machine 0xD11D.
+  One line per job in `compile.log`: `native-r2r <tag>: compiled X of Y (A MB IL -> B MB) in S s; failed: name
+  (exit N: Error ...)`. Old tags are deleted after a successful compile. Any failure: the game stays on the JIT.
+- **Input**: crossgen2's input is a scratch copy with the R2R header cleared and IL-only set
+  (`crossgen2_input`); the launch folder never holds it, as the runtime refuses that layout.
+- **Tag**: `linux-arm64-single__fx<kit's Microsoft.NETCore.App version>[-<component VERSION>]__cg<crossgen2
+  --version>`. The kit and crossgen2 majors must both be 9.
+
+MEASURED on `ubuntu-24.04-arm` (workflow `native-r2r.yml`, runs 43630745903 and 43631010173, .NET 9.0.23, crossgen2 9.0.23
+linux-arm64): a public net9 library + host published win-x64 with ReadyToRun, composed by the wrapper, compiled
+by its background job after a stand-in engine's first frame, swapped in by the next compose, run on arm64 .NET
+(300 dungeons, same output every way):
+
+| Build | own methods JIT'd at first call | own Tier1 rejits | all first-time JITs | wall ms (median of 7) |
+|---|---|---|---|---|
+| IL (same code, published without ReadyToRun) | 119 | 97 | 286 | 476-496 |
+| our linux-arm64 ReadyToRun | **0** | 48 | 162 | 439-445 |
+| same, `DOTNET_ReadyToRun=0` | 119 | 109 | 1195 | 530-535 |
+
+The bench's Windows export on the pinned engine (native-engine-38 via `--fetch`, run 43631010173): its one
+game assembly (`NativeBench.dll`, IL, 16 KB) was compiled in under a second; methods of `Main` JIT'd at
+first call 46 -> 13; first frame unchanged (215-227 ms either way, FIRST_FRAME_MS), as the stand-in's own
+code is too small to matter next to engine start. The game's 17 modules are where it should show.
+
+Also seen there: crossgen2 accepted both the relabelled win-x64 R2R image and the scratch copy as input (both
+gave a 0xD11D image); without `libclrjit_universal_arm64_arm64.so` beside it, crossgen2 fails ("Unable to load
+shared library 'clrjit_universal_arm64_arm64'"). A win-x64 ReadyToRun image that is only relabelled ARM64 was
+refused when loaded the normal way (listed for the default load context, as the game's are via deps.json):
+`BadImageFormatException` both as the main assembly and as a dependency of an IL host.
+
+### What the phone needs outside this branch
+
+1. `tools/dotnet-r2r/fetch-crossgen2.sh` (perf/emu-dotnet-generics, then main): add
+   `"tools/libclrjit_universal_arm64_%s.so" % host` to `wanted` (2.9 MB, same package and pinned sha).
+2. `SessionFiles.kt`: ship it beside the others:
+   `"usr/local/lib/droiddeck-crossgen2/libclrjit_universal_arm64_arm64.so" to "usr/local/lib/droiddeck-crossgen2/libclrjit_universal_arm64_arm64.so"`.
+   Until then the wrapper logs `cannot compile the other K: crossgen2 lacks libclrjit_universal_arm64_arm64.so`
+   and runs on the JIT.
+3. `droiddeck-game-env`: add `"native-r2r"` to `EXPERIMENTS` (game-level; `native_engine()` already passes the
+   environment, so `DROIDDECK_EXP_NATIVE_R2R` reaches the wrapper). `Experiments.kt`: `const val NATIVE_R2R =
+   "native-r2r"`, a `Switch(NATIVE_R2R, R.string.exp_native_r2r)` next to `NATIVE_ENGINE`, and the string.
+   It only does anything with `native-engine` on.
+4. Optional: `DROIDDECK_CROSSGEN2` defaults to `/usr/local/lib/droiddeck-crossgen2` (folder or binary), which is
+   where build.yml puts it.

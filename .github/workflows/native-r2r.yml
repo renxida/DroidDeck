@@ -144,7 +144,7 @@ jobs:
               print(f"{name}: machine {info['machine']:#x} corflags {info['flags']:#x} ready_to_run {info['ready_to_run']} size {len(data)}")
               assert ng["is_linux_arm64_r2r"](data)
           PY
-      - name: Run on arm64 .NET and count JIT compiles (stripped IL / our ReadyToRun / ours with ReadyToRun off)
+      - name: Run on arm64 .NET and count JIT compiles (IL / our ReadyToRun / ours with ReadyToRun off)
         run: |
           set -euo pipefail
           T=$RUNNER_TEMP
@@ -208,7 +208,7 @@ jobs:
           import csv
           rows = {r["label"]: {k: int(v) for k, v in r.items() if k != "label"} for r in csv.DictReader(open("counts.csv"))}
           il, r2r, off = rows["il"]["own_first"], rows["r2r"]["own_first"], rows["r2r-off"]["own_first"]
-          print(f"own methods JIT'd at first call: stripped IL {il}, our linux-arm64 ReadyToRun {r2r}, same with DOTNET_ReadyToRun=0 {off}")
+          print(f"own methods JIT'd at first call: IL {il}, our linux-arm64 ReadyToRun {r2r}, same with DOTNET_ReadyToRun=0 {off}")
           assert il >= 50, "too few methods to tell"
           assert r2r * 4 <= il, "the ReadyToRun code was not used"
           assert off * 10 >= il * 9, "with ReadyToRun off the JIT should compile them all again"
