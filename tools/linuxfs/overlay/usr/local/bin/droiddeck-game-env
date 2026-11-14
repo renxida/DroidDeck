@@ -82,7 +82,8 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "native-inventory", "free-memory", "hybris-index", "fex-l1",
                "hybris-index-session", "native-engine", "dxvk-arm64ec",
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
-               "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim")
+               "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
+               "fex-smaps")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -3340,6 +3341,11 @@ def main():
         # minute writes the busiest thread's top 200 guest locations to /dev/shm/fex-<pid>-samples.csv; the app
         # copies them to fex-samples.csv. About 0.1% of a sampled thread. Other FEX builds ignore FEX_SAMPLEHZ.
         env = dict(env, FEX_SAMPLEHZ="250")
+    if experiment(env, "fex-smaps"):
+        # The app maps the game process's memory by owner once a minute (smaps.csv). Kestrel's FEX (patch 0008) names
+        # Windows private memory's mappings every 60 s so that map can tell heaps, stacks, .NET code and the GC heap
+        # apart; other FEX builds ignore FEX_NAMEWINDOWSMEMORY and leave it as one anon bucket.
+        env = dict(env, FEX_NAMEWINDOWSMEMORY="60")
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"

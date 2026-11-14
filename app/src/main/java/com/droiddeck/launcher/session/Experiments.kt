@@ -65,6 +65,7 @@ object Experiments {
     const val FPS_30 = "fps-30"
     /** While a game runs, ask steamwebhelper over DevTools to free memory every few minutes; logs before/after. */
     const val WEBHELPER_TRIM = "webhelper-trim"
+    const val FEX_SMAPS = "fex-smaps"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -102,6 +103,7 @@ object Experiments {
         Switch(DOTNET_R2R_BUBBLE, R.string.exp_dotnet_r2r_bubble),
         Switch(FPS_30, R.string.exp_fps_30),
         Switch(WEBHELPER_TRIM, R.string.exp_webhelper_trim),
+        Switch(FEX_SMAPS, R.string.exp_fex_smaps),
     )
 
     /** At most one of each group is on. */
@@ -121,7 +123,7 @@ object Experiments {
         WAYLAND_PRESENT, VK_COUNT,
         NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE,
         DXVK_ARM64EC, COMPOSITE_TIMING, DOTNET_R2R, FEX_CODE_BUFFER, FEX_SAMPLE, DOTNET_R2R_GENERICS, DOTNET_R2R_BUBBLE,
-        FPS_30, WEBHELPER_TRIM)
+        FPS_30, WEBHELPER_TRIM, FEX_SMAPS)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,

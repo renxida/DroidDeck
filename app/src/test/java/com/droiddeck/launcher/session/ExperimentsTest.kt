@@ -68,6 +68,7 @@ class ExperimentsTest {
             "dotnet-r2r-bubble" to "DROIDDECK_EXP_DOTNET_R2R_BUBBLE",
             "fps-30" to "DROIDDECK_EXP_FPS_30",
             "webhelper-trim" to "DROIDDECK_EXP_WEBHELPER_TRIM",
+            "fex-smaps" to "DROIDDECK_EXP_FEX_SMAPS",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())
