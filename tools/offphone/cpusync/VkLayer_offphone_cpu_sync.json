@@ -1,0 +1,17 @@
+{
+    "file_format_version": "1.0.0",
+    "layer": {
+        "name": "VK_LAYER_OFFPHONE_cpu_sync",
+        "type": "GLOBAL",
+        "library_path": "/usr/local/lib/offphone/libVkLayer_offphone_cpu_sync.so",
+        "api_version": "1.3.0",
+        "implementation_version": "1",
+        "description": "Test rig only: sync-file semaphores emulated with CPU waits for CPU Vulkan drivers",
+        "functions": {
+            "vkNegotiateLoaderLayerInterfaceVersion": "vkNegotiateLoaderLayerInterfaceVersion"
+        },
+        "disable_environment": {
+            "OFFPHONE_CPU_SYNC_DISABLE": "1"
+        }
+    }
+}

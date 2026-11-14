@@ -52,6 +52,15 @@ jobs:
           path: apk
       - name: Host tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq adb >/dev/null
+      - name: Build the rig's Vulkan layer
+        run: |
+          sudo apt-get install -y -q libvulkan-dev mesa-vulkan-drivers >/dev/null
+          tools/offphone/cpusync/build.sh cpusync
+          gcc -O1 -Wall -o cpusync/test tools/offphone/cpusync/test.c -lvulkan
+          sed "s#/usr/local/lib/offphone/#$PWD/cpusync/#" cpusync/VkLayer_offphone_cpu_sync.json > cpusync/local.json
+          mkdir -p cpusync/il && mv cpusync/local.json cpusync/il/
+          VK_ICD_FILENAMES=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1) VK_LAYER_PATH=$PWD/cpusync/il \
+            VK_INSTANCE_LAYERS=VK_LAYER_OFFPHONE_cpu_sync timeout 60 cpusync/test
       - name: Boot Android
         run: tools/offphone/redroid-up.sh
       - name: Install and smoke the app
@@ -104,7 +113,13 @@ jobs:
               uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
               adb shell "mkdir -p $fs/usr/local/share/offphone && printf '%s' '{\"file_format_version\":\"1.0.1\",\"ICD\":{\"library_path\":\"/$lib\",\"api_version\":\"1.4.0\"}}' > $fs/usr/local/share/offphone/lvp_icd.json && chown -R $uid:$uid $fs/usr/local/share/offphone && restorecon -R $fs/usr/local/share/offphone"
               adb shell "cat $fs/usr/local/share/offphone/lvp_icd.json"; echo
-              [ -n "$lib" ] && tools/droiddeckctl env set "BL_VK_DRIVER=/usr/local/share/offphone/lvp_icd.json" --persistent ;;
+              [ -n "$lib" ] && tools/droiddeckctl env set "BL_VK_DRIVER=/usr/local/share/offphone/lvp_icd.json" --persistent
+              # gamescope also needs sync-file semaphores, which lavapipe lacks: the rig's own layer
+              # (tools/offphone/cpusync) adds them with CPU waits. Never part of the APK.
+              adb shell "mkdir -p $fs/usr/local/lib/offphone $fs/usr/local/share/vulkan/implicit_layer.d"
+              adb push cpusync/libVkLayer_offphone_cpu_sync.so $fs/usr/local/lib/offphone/
+              adb push cpusync/VkLayer_offphone_cpu_sync.json $fs/usr/local/share/vulkan/implicit_layer.d/
+              adb shell "chown -R $uid:$uid $fs/usr/local/lib/offphone $fs/usr/local/share/vulkan && chmod 755 $fs/usr/local/lib/offphone/*.so && restorecon -R $fs/usr/local/lib/offphone $fs/usr/local/share/vulkan" ;;
           esac
           t0=$(date +%s)
           tools/droiddeckctl start steam 2>&1 | tee out/start.txt
