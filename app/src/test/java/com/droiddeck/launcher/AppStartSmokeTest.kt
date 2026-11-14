@@ -48,7 +48,20 @@ class AppStartSmokeTest {
             .setClass(RuntimeEnvironment.getApplication(), FrontEndActivity::class.java)
         val controller = Robolectric.buildActivity(FrontEndActivity::class.java, launch)
         val activity = controller.get()
+        try {
+            startResumePause(controller, activity)
+        } finally {
+            // A failure part way must not leave the launcher's handlers posting on the shared main looper, or every
+            // later Compose test in this JVM times out waiting for idle.
+            runCatching { if (activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) controller.pause() }
+            runCatching { if (activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) controller.stop() }
+            runCatching { if (activity.lifecycle.currentState != Lifecycle.State.DESTROYED) controller.destroy() }
+            runCatching { shadowOf(Looper.getMainLooper()).idle() }
+        }
+        assertNoUncaughtExceptions()
+    }
 
+    private fun startResumePause(controller: org.robolectric.android.controller.ActivityController<FrontEndActivity>, activity: FrontEndActivity) {
         controller.create().start().postCreate(null).resume().visible()
         activity.onWindowFocusChanged(true)
         shadowOf(Looper.getMainLooper()).idle()
@@ -62,9 +75,6 @@ class AppStartSmokeTest {
 
         controller.pause()
         assertEquals(Lifecycle.State.STARTED, activity.lifecycle.currentState)
-        controller.stop().destroy()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertNoUncaughtExceptions()
     }
 
     private fun assertNoUncaughtExceptions() {

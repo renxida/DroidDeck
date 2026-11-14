@@ -1547,7 +1547,7 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
-        val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
+        val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) runCatching { display?.displayId }.getOrNull() ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
         dualScreenMode = SessionPrefs.dualScreenMode(this)
         secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
         dualScreenDevice = com.droiddeck.launcher.input.DualScreen.anyDisplay(displayManager, ownDisplayId) != null
