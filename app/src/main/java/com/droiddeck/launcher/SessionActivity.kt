@@ -4036,6 +4036,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 Log.w(TAG, "ignoring agent start while session phase is ${SessionState.phase}")
                 return
             }
+            // A stopped screen (phone locked, or a failed session left behind) recreates only once it shows
+            // again, so a remote start has to bring it over the lock screen first.
+            if (intent.getBooleanExtra(SessionService.EXTRA_REMOTE, false)) showOverLockScreen("remote.start")
             setIntent(intent)
             recreate()
             return
