@@ -62,7 +62,7 @@ LIB_INIT = ["SteamUtils011", "SteamNetworkingUtils004", "STEAMAPPS_INTERFACE_VER
             "STEAMUSERSTATS_INTERFACE_VERSION013", "SteamUser023", "STEAMVIDEO_INTERFACE_V007"]
 
 
-def double_source(serve_old, init_mode=0):
+def double_source(serve_old, init_mode=0, typed_null=False):
     """C for the test double: each interface is a distinct static object; old versions are served only when
     serve_old. Valve's own accessors go through FindOrCreateUserInterface with their version, as a real one may,
     so the bridge's reentrancy guard is exercised."""
@@ -77,9 +77,12 @@ def double_source(serve_old, init_mode=0):
            "static void seen(const char *v) { strncpy(last_version, v, sizeof last_version - 1); }",
            "void *SteamAPI_ISteamClient_GetISteamGenericInterface(void *s, int32_t u, int32_t p, const char *v)"
            " { generic_calls++; seen(v); return serve_old ? obj(v) : 0; }"]
+    # typed_null: the client's typed accessors answer nothing, whatever the version (a guess at the Nov 15 phone).
     for iface, own in OWN.items():
-        out.append("void *SteamAPI_ISteamClient_GetISteam%s(void *s, int32_t u, int32_t p, const char *v)"
-                   " { seen(v); return (serve_old || num(v) == %d) ? obj(v) : 0; }" % (iface, own))
+        args = "void *s, int32_t p, const char *v" if iface == "Utils" else "void *s, int32_t u, int32_t p, const char *v"
+        out.append("void *SteamAPI_ISteamClient_GetISteam%s(%s)"
+                   " { seen(v); return (%d || !(serve_old || num(v) == %d)) ? 0 : obj(v); }"
+                   % (iface, args, int(typed_null), own))
     out.append("void *SteamInternal_FindOrCreateUserInterface(int32_t u, const char *v) { seen(v);"
                " int own = !strncmp(v, \"OWN_\", 4); %s return (serve_old || own) ? obj(v) : 0; }"
                % " ".join('if (!strncmp(v, "%s", %d) && num(v) == %d) own = 1;' % (p, len(p), k)
@@ -109,10 +112,10 @@ def double_source(serve_old, init_mode=0):
 
 @unittest.skipUnless(shutil.which("gcc"), "gcc required")
 class SteamBridgeTest(unittest.TestCase):
-    def build(self, serve_old, init_mode=0):
+    def build(self, serve_old, init_mode=0, typed_null=False):
         d = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d)
-        (d / "double.c").write_text(double_source(serve_old, init_mode))
+        (d / "double.c").write_text(double_source(serve_old, init_mode, typed_null))
         subprocess.run(["gcc", "-shared", "-fPIC", "-o", str(d / "libsteam_api.so"), str(d / "double.c")], check=True)
         subprocess.run(["gcc", "-O2", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared", "-fvisibility=hidden",
                         "-o", str(d / "libsteam_api64.so"), str(BRIDGE), "-Wl,-rpath,$ORIGIN", "-Wl,--no-as-needed",
@@ -125,6 +128,9 @@ class SteamBridgeTest(unittest.TestCase):
     def fetch(self, lib, iface, version):
         f = getattr(lib, "SteamAPI_ISteamClient_GetISteam" + iface)
         f.restype = ctypes.c_void_p
+        if iface == "Utils":  # GetISteamUtils takes no user: (self, pipe, version)
+            f.argtypes = [ctypes.c_void_p, ctypes.c_int32, ctypes.c_char_p]
+            return f(None, 1, version.encode())
         f.argtypes = [ctypes.c_void_p, ctypes.c_int32, ctypes.c_int32, ctypes.c_char_p]
         return f(None, 1, 1, version.encode())
 
@@ -177,6 +183,19 @@ class SteamBridgeTest(unittest.TestCase):
         self.assertEqual(before + 1, calls.value)
         self.assertEqual(b"SteamMatchGameSearch001", (ctypes.c_char * 128).in_dll(valve, "last_version").value)
         self.assertTrue(p)
+
+    def test_a_shared_version_the_client_answers_null_gets_the_librarys_own(self):
+        bridge, valve = self.build(serve_old=False, typed_null=True)
+        for iface, version in GAME.items():
+            with self.subTest(iface=iface):
+                self.assertTrue(self.fetch(bridge, iface, version), version)
+        self.assertEqual(self.own(valve, "SteamAPI_SteamNetworking_v006"),
+                         self.fetch(bridge, "Networking", "SteamNetworking006"))
+
+    def test_utils_reads_its_version_from_the_third_argument(self):
+        bridge, valve = self.build(serve_old=True)
+        self.assertTrue(self.fetch(bridge, "Utils", "SteamUtils011"))
+        self.assertEqual(b"SteamUtils011", (ctypes.c_char * 128).in_dll(valve, "last_version").value)
 
     def init(self, lib, versions):
         f = lib.SteamInternal_SteamAPI_Init

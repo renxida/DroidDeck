@@ -18,6 +18,9 @@
  *  - It differs: the game gets the interface Valve's own accessor for the library's version returns
  *    (SteamAPI_SteamFriends_v018() and so on), i.e. the real client's interface in exactly the layout the
  *    library's flat functions expect. If that comes back NULL, the game's own request is passed on instead.
+ *  - The client answers NULL for a version the library shares (Nov 15: the game's init stopped right after
+ *    STEAMAPPS): the library's own accessor, then the client's generic interface for that version.
+ *  - GetISteamUtils takes no user argument (self, pipe, version); it has its own function.
  *  - GameSearch and MusicRemote (no accessor, and no flat functions left in the library, so the game can make no
  *    call on them): Valve's GetISteamGenericInterface with the game's version; if the client serves none, a
  *    placeholder pointer, so Steamworks.NET's null check passes. Nothing can be called through it.
@@ -113,24 +116,49 @@ static void *real(const char *name)
     return f;
 }
 
+static void *forward(const char *accessor, void *self, int32_t user, int32_t pipe, const char *version)
+{
+    client_get_fn f = (client_get_fn)real(accessor);
+    return f ? f(self, user, pipe, version) : 0;
+}
+
+static void *own_now(own_fn own)
+{
+    depth++;
+    void *p = own();
+    depth--;
+    return p;
+}
+
+/*
+ * One fetch, logged once per accessor whatever the outcome (Nov 15: the game's init failed right after
+ * STEAMAPPS with no word from the bridge, so every fetch is now named, NULLs included). In order:
+ *  - version differs from the library's: the library's own accessor (the layout its flat functions expect);
+ *  - the client, asked exactly as the game asked;
+ *  - same version but the client said nothing: the library's own accessor, then the generic interface
+ *    (the probe shows the client serving every version the game names through it).
+ */
 static void *serve(const char *accessor, int *told, long own_number, own_fn own, const char *own_name,
                    void *self, int32_t user, int32_t pipe, const char *version)
 {
-    if (depth == 0 && version_number(version) != own_number) {
-        depth++;
-        void *p = own();
-        depth--;
-        if (p) {
-            if (!*told) {
-                *told = 1;
-                say(version ? version : "(no version)", " asked for; serving the library's ", own_name);
-            }
-            return p;
-        }
-        say(own_name, " returned nothing; passing on ", version ? version : "(no version)");
+    if (depth > 0)
+        return forward(accessor, self, user, pipe, version);
+    int same = version_number(version) == own_number;
+    const char *how = own_name;
+    void *p = same ? 0 : own_now(own);
+    if (!p && (p = forward(accessor, self, user, pipe, version)))
+        how = "the client's, as asked";
+    if (!p && same && (p = own_now(own)))
+        how = own_name;
+    if (!p && same && (p = SteamAPI_ISteamClient_GetISteamGenericInterface(self, user, pipe, version)))
+        how = "the client's generic interface";
+    if (!*told || !p) {
+        *told = 1;
+        say(version ? version : "(no version)",
+            p ? ": serving " : ": NULL from the library, the client and the generic interface; tried ",
+            p ? how : own_name);
     }
-    client_get_fn f = (client_get_fn)real(accessor);
-    return f ? f(self, user, pipe, version) : 0;
+    return p;
 }
 
 #define ACCESSOR(Iface, number, own)                                                                      \
@@ -144,7 +172,28 @@ static void *serve(const char *accessor, int *told, long own_number, own_fn own,
 
 ACCESSOR(User, 23, SteamAPI_SteamUser_v023)
 ACCESSOR(Friends, 18, SteamAPI_SteamFriends_v018)
-ACCESSOR(Utils, 11, SteamAPI_SteamUtils_v011)
+/* GetISteamUtils takes no user: (self, pipe, version). */
+EXPORT void *SteamAPI_ISteamClient_GetISteamUtils(void *self, int32_t pipe, const char *version)
+{
+    typedef void *(*utils_fn)(void *self, int32_t pipe, const char *version);
+    static int told;
+    utils_fn f = (utils_fn)real("SteamAPI_ISteamClient_GetISteamUtils");
+    if (depth > 0)
+        return f ? f(self, pipe, version) : 0;
+    int same = version_number(version) == 11;
+    void *p = same ? 0 : own_now(SteamAPI_SteamUtils_v011);
+    const char *how = "SteamAPI_SteamUtils_v011";
+    if (!p && f && (p = f(self, pipe, version)))
+        how = "the client's, as asked";
+    if (!p && same && (p = own_now(SteamAPI_SteamUtils_v011)))
+        how = "SteamAPI_SteamUtils_v011";
+    if (!told || !p) {
+        told = 1;
+        say(version ? version : "(no version)",
+            p ? ": serving " : ": NULL from the library and the client; tried ", p ? how : "SteamAPI_SteamUtils_v011");
+    }
+    return p;
+}
 ACCESSOR(Matchmaking, 9, SteamAPI_SteamMatchmaking_v009)
 ACCESSOR(MatchmakingServers, 3, SteamAPI_SteamMatchmakingServers_v003)
 ACCESSOR(UserStats, 13, SteamAPI_SteamUserStats_v013)
