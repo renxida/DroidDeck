@@ -404,6 +404,59 @@ class NativeGodotTest(unittest.TestCase):
             os.chdir(Path(__file__).resolve().parent)
         self.assertEqual(2, len(seen))  # the run whose missing name is not an Init accessor, and the opted-out one
 
+    def test_bridge_sits_in_front_of_valve_library_and_the_probe_decides(self):
+        # With the component's steam-bridge/libsteam_api64.so, Valve's library is placed as libsteam_api.so and the
+        # bridge (which needs it) as libsteam_api64.so, the name the game loads. The bridge's two accessors count
+        # as exported; the game starts unless the real client says it does not serve the versions asked for.
+        comp = self.root / "component"
+        comp.mkdir()
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        (comp / "steam-bridge").mkdir()
+        (comp / "steam-bridge" / "libsteam_api64.so").write_bytes(
+            b"\x7fELF bridge\0SteamAPI_ISteamClient_GetISteamGameSearch\0SteamAPI_ISteamClient_GetISteamMusicRemote\0")
+        win = self.game / "data_sts2_windows_x86_64"
+        (win / "Steamworks.NET.dll").write_bytes(
+            pe(True) + b"\0SteamAPI_Init\0\0SteamAPI_ISteamClient_GetISteamGameSearch\0"
+            b"\0SteamAPI_ISteamClient_GetISteamMusicRemote\0" + "SteamMatchGameSearch001\0SteamInput006".encode("utf-16-le"))
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF valve\0SteamAPI_Init\0SteamAPI_ISteamClient_GetISteamGenericInterface\0")
+        out = self.root / "launch"
+        seen, asked = [], []
+        g = NG["main"].__globals__
+        real_watch, real_probe = g["watch"], g["steam_probe"]
+        g["watch"] = lambda cmd, env, **kw: seen.append(cmd) or 0
+        args = ["run", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)]
+        try:
+            for served, expect in ((True, 0), (False, NG["DID_NOT_START"]), (None, 0)):
+                def probe(library, cwd, env, versions=(), **kw):
+                    asked.append(list(versions))
+                    if served is None:
+                        return {"unknown": "no arm64 steamclient.so found"}
+                    return {"init": 0, "client": True, "versions": {v: served for v in versions}, "wall_seconds": 0.1}
+                g["steam_probe"] = probe
+                err = io.StringIO()
+                with unittest.mock.patch("sys.stderr", err):
+                    rc = NG["main"](args)
+                self.assertEqual(expect, rc, err.getvalue())
+                data = out / "data_sts2_linuxbsd_arm64"
+                self.assertIn(b"bridge", (data / "libsteam_api64.so").read_bytes())
+                self.assertIn(b"valve", (data / "libsteam_api.so").read_bytes())
+                if expect == 0:
+                    self.assertIn("Steam bridge: forwarding GameSearch, MusicRemote to the real client", err.getvalue())
+                else:
+                    self.assertIn("does not serve SteamMatchGameSearch001, SteamInput006", err.getvalue())
+            self.assertEqual([["SteamMatchGameSearch001", "SteamInput006"]] * 3, asked)
+            with unittest.mock.patch("sys.stderr", io.StringIO()):
+                rc = NG["main"](args[:1] + ["--no-steam-bridge"] + args[1:])
+            self.assertEqual(NG["DID_NOT_START"], rc)  # Valve's library alone: the accessors are missing
+            self.assertIn(b"valve", (out / "data_sts2_linuxbsd_arm64" / "libsteam_api64.so").read_bytes())
+        finally:
+            g["watch"], g["steam_probe"] = real_watch, real_probe
+            os.chdir(Path(__file__).resolve().parent)
+        self.assertEqual(2, len(seen))
+
     def test_steam_probe_asks_once_per_steamclient_and_treats_errors_as_unknown(self):
         import subprocess
         home = self.root / "home"

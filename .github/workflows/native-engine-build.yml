@@ -25,6 +25,7 @@ on:
       - '.github/workflows/native-engine-build.yml'
       - '.github/workflows/native-startup-gate.yml'  # the gate this build must pass before it may publish
       - 'tools/native-engine/standin/**'
+      - 'tools/native-engine/steam-bridge/**'
 
 permissions:
   contents: write  # only the publish job uses it
@@ -250,6 +251,27 @@ jobs:
           grep -q "SKELTEST fmod .* ok=true" skel.log
           grep -q "SKELTEST spine .* ok=true" skel.log
           python3 check.py out
+      - name: Steam bridge (Cedar-approved) built, checked and put in the component (Valve's library is not)
+        run: |
+          set -euo pipefail
+          valve=$(python3 -c 'import runpy, sys, tempfile; print(runpy.run_path(sys.argv[1])["steam_api"](cache=tempfile.mkdtemp()))' \
+            tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot)
+          sh tools/native-engine/steam-bridge/build.sh "$valve" out/component/steam-bridge
+          T=$(mktemp -d) && cp out/component/steam-bridge/libsteam_api64.so "$T/" && cp "$valve" "$T/libsteam_api.so"
+          python3 - "$T/libsteam_api64.so" <<'PY'
+          import ctypes, sys
+          lib = ctypes.CDLL(sys.argv[1])  # what .NET does for "steam_api64": dlopen, then dlsym on that handle
+          for name in ("SteamAPI_ISteamClient_GetISteamGameSearch", "SteamAPI_ISteamClient_GetISteamMusicRemote",
+                       "SteamAPI_InitFlat", "SteamAPI_ISteamClient_GetISteamUser", "SteamAPI_ISteamApps_BIsSubscribedApp",
+                       "SteamAPI_ISteamUser_GetAuthSessionTicket", "SteamAPI_RestartAppIfNecessary", "SteamAPI_Shutdown"):
+              getattr(lib, name)
+          err = ctypes.create_string_buffer(1024)
+          rc = lib.SteamAPI_InitFlat(err)
+          print("bridge resolves its two accessors and Valve's names through its dependency; InitFlat =", rc, err.value.decode())
+          assert rc != 0  # no Steam client on the runner: Valve's library says so, nothing here answers for it
+          PY
+          ls -la out/component/steam-bridge
+          test "$(ls out/component/steam-bridge)" = libsteam_api64.so
       - name: Pack the component
         run: |
           set -euo pipefail
