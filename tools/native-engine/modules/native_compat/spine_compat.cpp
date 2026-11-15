@@ -1300,6 +1300,40 @@ void SpineSprite::set_preview_skin(const String &p) {
 	}
 }
 
+void SpineSprite::set_normal_material(const Ref<Material> &p) {
+	normal_material = p;
+	queue_redraw();
+}
+
+void SpineSprite::set_additive_material(const Ref<Material> &p) {
+	additive_material = p;
+	queue_redraw();
+}
+
+void SpineSprite::set_multiply_material(const Ref<Material> &p) {
+	multiply_material = p;
+	queue_redraw();
+}
+
+void SpineSprite::set_screen_material(const Ref<Material> &p) {
+	screen_material = p;
+	queue_redraw();
+}
+
+Ref<Material> SpineSprite::_custom_material(int p_blend) const {
+	switch (skel::BlendMode(p_blend)) {
+		case skel::BlendMode::Normal:
+			return normal_material;
+		case skel::BlendMode::Additive:
+			return additive_material;
+		case skel::BlendMode::Multiply:
+			return multiply_material;
+		case skel::BlendMode::Screen:
+			return screen_material;
+	}
+	return Ref<Material>();
+}
+
 Ref<SpineSkeleton> SpineSprite::get_skeleton() {
 	if (!skeleton) {
 		return Ref<SpineSkeleton>();
@@ -1519,7 +1553,11 @@ RID SpineSprite::_blend_item(int p_run, int p_blend) {
 	}
 	RID item = blend_items[p_run];
 	rs->canvas_item_clear(item);
-	if (p_blend == int(skel::BlendMode::Normal)) {
+	const Ref<Material> custom = _custom_material(p_blend);
+	if (custom.is_valid()) {
+		rs->canvas_item_set_use_parent_material(item, false);
+		rs->canvas_item_set_material(item, custom->get_rid());
+	} else if (p_blend == int(skel::BlendMode::Normal)) {
 		rs->canvas_item_set_use_parent_material(item, true);
 		rs->canvas_item_set_material(item, RID());
 	} else {
@@ -1558,6 +1596,11 @@ void SpineSprite::_draw_skeleton() {
 	}
 	RID item = get_canvas_item();
 	int run = -1, run_blend = int(skel::BlendMode::Normal);
+	if (normal_material.is_valid()) {
+		// A normal-blend material of its own: normal slots draw in a child item that carries it.
+		run = 0;
+		item = _blend_item(0, run_blend);
+	}
 	std::vector<float> world;
 	Vector<int> indices;
 	Vector<Point2> points, uvs;
@@ -1651,7 +1694,7 @@ void SpineSprite::_notification(int p_what) {
 bool SpineSprite::_set(const StringName &p_name, const Variant &p_value) {
 	// Debug and material settings the plugin's editor saves: keep them so scenes load and save cleanly.
 	String n = p_name;
-	if (n.begins_with("debug_") || n.ends_with("_material") || n.begins_with("preview_") || n == "normal_material") {
+	if (n.begins_with("debug_") || n.ends_with("_material") || n.begins_with("preview_")) {
 		extra[p_name] = p_value;
 		return true;
 	}
@@ -1673,6 +1716,14 @@ void SpineSprite::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_update_mode"), &SpineSprite::get_update_mode);
 	ClassDB::bind_method(D_METHOD("set_preview_skin", "skin"), &SpineSprite::set_preview_skin);
 	ClassDB::bind_method(D_METHOD("get_preview_skin"), &SpineSprite::get_preview_skin);
+	ClassDB::bind_method(D_METHOD("set_normal_material", "material"), &SpineSprite::set_normal_material);
+	ClassDB::bind_method(D_METHOD("get_normal_material"), &SpineSprite::get_normal_material);
+	ClassDB::bind_method(D_METHOD("set_additive_material", "material"), &SpineSprite::set_additive_material);
+	ClassDB::bind_method(D_METHOD("get_additive_material"), &SpineSprite::get_additive_material);
+	ClassDB::bind_method(D_METHOD("set_multiply_material", "material"), &SpineSprite::set_multiply_material);
+	ClassDB::bind_method(D_METHOD("get_multiply_material"), &SpineSprite::get_multiply_material);
+	ClassDB::bind_method(D_METHOD("set_screen_material", "material"), &SpineSprite::set_screen_material);
+	ClassDB::bind_method(D_METHOD("get_screen_material"), &SpineSprite::get_screen_material);
 	ClassDB::bind_method(D_METHOD("set_preview_animation", "animation"), &SpineSprite::set_preview_animation);
 	ClassDB::bind_method(D_METHOD("get_preview_animation"), &SpineSprite::get_preview_animation);
 	ClassDB::bind_method(D_METHOD("set_preview_frame", "frame"), &SpineSprite::set_preview_frame);
@@ -1692,6 +1743,10 @@ void SpineSprite::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "skeleton_data_res", PROPERTY_HINT_RESOURCE_TYPE, "SpineSkeletonDataResource"), "set_skeleton_data_res", "get_skeleton_data_res");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "update_mode", PROPERTY_HINT_ENUM, "Process,Physics,Manual"), "set_update_mode", "get_update_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "preview_skin"), "set_preview_skin", "get_preview_skin");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "normal_material", PROPERTY_HINT_RESOURCE_TYPE, "Material"), "set_normal_material", "get_normal_material");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "additive_material", PROPERTY_HINT_RESOURCE_TYPE, "Material"), "set_additive_material", "get_additive_material");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "multiply_material", PROPERTY_HINT_RESOURCE_TYPE, "Material"), "set_multiply_material", "get_multiply_material");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "screen_material", PROPERTY_HINT_RESOURCE_TYPE, "Material"), "set_screen_material", "get_screen_material");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "preview_animation"), "set_preview_animation", "get_preview_animation");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "preview_frame"), "set_preview_frame", "get_preview_frame");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "preview_time"), "set_preview_time", "get_preview_time");

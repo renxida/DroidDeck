@@ -468,6 +468,9 @@ private:
 	// order, so the order holds across blend changes.
 	Vector<RID> blend_items;
 	Ref<Material> blend_materials[4];
+	// Materials the scene or game sets per blend mode; each one replaces the default for that blend.
+	Ref<Material> normal_material, additive_material, multiply_material, screen_material;
+	Ref<Material> _custom_material(int p_blend) const;
 	RID _blend_item(int p_run, int p_blend);
 	void _free_blend_items();
 
@@ -490,6 +493,14 @@ public:
 	UpdateMode get_update_mode() const { return update_mode; }
 	void set_preview_skin(const String &p);
 	String get_preview_skin() const { return preview_skin; }
+	void set_normal_material(const Ref<Material> &p);
+	Ref<Material> get_normal_material() const { return normal_material; }
+	void set_additive_material(const Ref<Material> &p);
+	Ref<Material> get_additive_material() const { return additive_material; }
+	void set_multiply_material(const Ref<Material> &p);
+	Ref<Material> get_multiply_material() const { return multiply_material; }
+	void set_screen_material(const Ref<Material> &p);
+	Ref<Material> get_screen_material() const { return screen_material; }
 	void set_preview_animation(const String &p) { preview_animation = p; }
 	String get_preview_animation() const { return preview_animation; }
 	void set_preview_frame(bool p) { preview_frame = p; }

@@ -409,8 +409,9 @@ Ref<FmodBank> FmodServer::load_bank(const String &p_path, int p_flag) {
 		bank->path = strings_path;
 	}
 	banks[p_path] = bank;
-	print_line(vformat("native_compat: fmod bank loaded %s file_bytes=%d resident_bytes=%d", p_path.get_file(),
-			err == OK ? FileAccess::get_size(p_path) : 0, data->get_resident_bytes()));
+	// Audio streams from the file per sound, so resident bytes start at 0; the counts say what the bank holds.
+	print_line(vformat("native_compat: fmod bank %s %s sounds=%d events=%d paths=%d resident_bytes=%d", err == OK ? "loaded" : "FAILED",
+			p_path.get_file(), data->get_sound_count(), data->get_event_count(), data->get_path_count(), data->get_resident_bytes()));
 	return bank;
 }
 
