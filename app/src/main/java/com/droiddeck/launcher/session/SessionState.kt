@@ -49,6 +49,12 @@ object SessionState {
     @Volatile
     var stopRequested = false
 
+    /** Set when Stop is tapped on the session notification: the session screen closes at once, as the
+     *  drawer's Stop does, instead of showing the game until teardown ends (Cedar, Nov 15: "nothing seems
+     *  to happen"). */
+    @Volatile
+    var closeScreenForStop = false
+
     @Volatile
     var running = false
     @Volatile

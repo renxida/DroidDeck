@@ -6,6 +6,7 @@
     <string name="session_notification">Steam is running</string>
     <string name="session_notification_downloads">Steam download active</string>
     <string name="session_notification_paused">Session paused - tap Resume when ready</string>
+    <string name="session_notification_stopping">Stopping the session…</string>
     <string name="resume_session">Resume</string>
     <string name="suspend_now">Suspend now</string>
     <string name="stop_session">Stop session</string>

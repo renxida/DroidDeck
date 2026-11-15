@@ -97,6 +97,8 @@ class SessionService : Service() {
     private var screenOn = true
     private var sessionDisplayId = Display.DEFAULT_DISPLAY
     private var manualPauseRequested = false
+    @Volatile
+    private var stopFromNotification = false
     private var manualHold = false
     private var steamSleepToken: String? = null
     private var nativeSleepToken: String? = null
@@ -231,8 +233,22 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_STOP -> {
-                Log.i(TAG, "stop requested from the notification")
-                stopSession(0)
+                Log.i(TAG, "stop requested from the notification (running=${SessionState.running}, phase=${SessionState.phase})")
+                // Teardown (asking Steam to exit, stopping the guest) takes several seconds; show at once that
+                // the tap landed: the notification turns to "Stopping", the session screen closes, a toast says so.
+                if (!stopFromNotification) {
+                    stopFromNotification = true
+                    SessionState.closeScreenForStop = true
+                    refreshNotification()
+                    Toast.makeText(this, R.string.session_notification_stopping, Toast.LENGTH_SHORT).show()
+                }
+                if (SessionState.running) {
+                    stopSession(0)
+                } else {
+                    // Still starting: the same as the drawer's Stop before the guest runs.
+                    SessionState.stopRequested = true
+                    SessionState.installCancellation?.cancel()
+                }
                 return START_NOT_STICKY
             }
             ACTION_PIP_BEGIN -> {
@@ -324,6 +340,8 @@ class SessionService : Service() {
         activityDisplayId = intent?.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, sessionDisplayId) ?: sessionDisplayId
         screenOn = readScreenOn()
         manualPauseRequested = false
+        stopFromNotification = false
+        SessionState.closeScreenForStop = false
         suspendDownloadNow = false
         runOnDownloadMonitor { steamDownloadMonitor.reset() }
         downloadActive = false
@@ -2315,6 +2333,7 @@ class SessionService : Service() {
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(
                 when {
+                    stopFromNotification -> R.string.session_notification_stopping
                     SessionState.suspended -> R.string.session_notification_paused
                     downloadsKeepAwake() -> R.string.session_notification_downloads
                     else -> R.string.session_notification
@@ -2322,7 +2341,9 @@ class SessionService : Service() {
             ))
             .setContentIntent(open)
             .apply {
-                if (SessionState.suspended) {
+                if (stopFromNotification) {
+                    // stopping: no actions left to tap
+                } else if (SessionState.suspended) {
                     addAction(Notification.Action.Builder(null, getString(R.string.resume_session), resume).build())
                 } else if (downloadsKeepAwake()) {
                     val suspend = PendingIntent.getService(
@@ -2333,7 +2354,7 @@ class SessionService : Service() {
                     addAction(Notification.Action.Builder(null, getString(R.string.suspend_now), suspend).build())
                 }
             }
-            .addAction(Notification.Action.Builder(null, getString(R.string.stop_session), stop).build())
+            .apply { if (!stopFromNotification) addAction(Notification.Action.Builder(null, getString(R.string.stop_session), stop).build()) }
             .setOngoing(true)
             .setShowWhen(false)
             .apply { if (Build.VERSION.SDK_INT >= 31) setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE) }

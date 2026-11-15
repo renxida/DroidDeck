@@ -2084,6 +2084,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun run() {
                 if (!watching) return
                 if (::pip.isInitialized) pip.refresh()
+                if (SessionState.closeScreenForStop) {
+                    // Stop tapped on the notification: close now, as the drawer's Stop does.
+                    SessionState.closeScreenForStop = false
+                    Log.i(TAG, "closing the session screen: stop from the notification")
+                    finish()
+                    return
+                }
                 if (SessionState.stopRequested && !SessionState.running && !installingRuntime &&
                     SessionState.phase != SessionPhase.STOPPING) {
                     SessionState.stopRequested = false
