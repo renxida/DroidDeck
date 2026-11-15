@@ -21,6 +21,7 @@ nm -D --defined-only "$out/libsteam_api64.so" | awk '{print $3}' | grep -v '^_' 
         echo "SteamAPI_ISteamClient_GetISteam$i"
     done
     echo SteamInternal_FindOrCreateUserInterface
+    echo SteamInternal_SteamAPI_Init
 } | sort > "$tmp/want"
 diff -u "$tmp/want" "$tmp/defined"
 # Each library-version accessor it serves is one Valve's library exports (the link above also fails otherwise).

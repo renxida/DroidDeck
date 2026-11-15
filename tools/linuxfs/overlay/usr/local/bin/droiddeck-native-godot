@@ -481,7 +481,7 @@ def steam_versions(steamworks_dll):
 # invented variables); handles and the client interface only, then SteamAPI_Shutdown; once per steamclient.so.
 STEAM_PROBE_VERSIONS = ("SteamMatchGameSearch001", "STEAMMUSICREMOTE_INTERFACE_VERSION001", "SteamInput006",
                         "STEAMREMOTEPLAY_INTERFACE_VERSION003")
-STEAM_PROBE_TIMEOUT_S = 15
+STEAM_PROBE_TIMEOUT_S = 30
 STEAM_PROBE_CHILD = r"""
 import ctypes, json, sys, time
 t0 = time.monotonic()
@@ -507,6 +507,19 @@ if init == 0:
             out["versions"][v] = bool(client) and bool(get(client, user, pipe, v.encode()))
     finally:
         lib.SteamAPI_Shutdown()
+    # Which of these versions does Valve's init itself refuse? (Steamworks.NET hands init its whole list; one
+    # refused entry fails the game's init with FailedGeneric and no message.) One init and shutdown per version.
+    init = lib.SteamInternal_SteamAPI_Init
+    init.restype = ctypes.c_int
+    init.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    out["init_each"] = {}
+    for v in sys.argv[2:]:
+        if time.monotonic() - t0 > 20:
+            break
+        r = init(v.encode() + b"\0\0", err)
+        out["init_each"][v] = r
+        if r == 0:
+            lib.SteamAPI_Shutdown()
 out["seconds"] = round(time.monotonic() - t0, 3)
 print("STEAMPROBE " + json.dumps(out), flush=True)
 """
@@ -552,7 +565,7 @@ def steam_probe(library, cwd, env, cache=CACHE, clients=None, timeout=STEAM_PROB
     for path in clients:
         with open(path, "rb") as f:
             digest.update(hashlib.sha256(f.read()).digest())
-    digest.update("\0".join(versions).encode())
+    digest.update(b"probe-2\0" + "\0".join(versions).encode())  # probe-2: also init per version
     key = digest.hexdigest()
     path = os.path.join(cache, "steam-probe", key + ".json")
     try:
@@ -591,7 +604,11 @@ def steam_probe_line(result):
     null = [v for v, ok in versions.items() if not ok]
     served = f"{len(versions) - len(null)} of {len(versions)} interface versions non-null" + (
         f" (null: {', '.join(null)})" if null else "")
-    return (f"Steam probe: {served}; client {'non-null' if result.get('client') else 'null'}; "
+    each = result.get("init_each") or {}
+    refused = [f"{v} ({r})" for v, r in each.items() if r != 0]
+    init = (f"; Valve's init refuses {', '.join(refused)} of {len(each)} checked one by one" if refused
+            else f"; Valve's init takes each of {len(each)} one by one" if each else "")
+    return (f"Steam probe: {served}; client {'non-null' if result.get('client') else 'null'}{init}; "
             f"{result.get('wall_seconds')} s" + (" (cached)" if result.get("cached") else ""))
 
 

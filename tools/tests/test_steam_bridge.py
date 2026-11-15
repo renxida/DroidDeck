@@ -42,7 +42,27 @@ OWN_NAMES = {"SteamNetworkingSockets": "SteamAPI_SteamNetworkingSockets_SteamAPI
              "STEAMTIMELINE_INTERFACE_V": "SteamAPI_SteamTimeline_v004"}
 
 
-def double_source(serve_old):
+# The list Steamworks.NET 2024.8.0's SteamAPI.InitEx hands Valve's SteamInternal_SteamAPI_Init, in its order.
+GAME_INIT = ["SteamUtils010", "SteamNetworkingUtils004", "STEAMAPPS_INTERFACE_VERSION008", "SteamFriends017",
+             "SteamMatchGameSearch001", "STEAMHTMLSURFACE_INTERFACE_VERSION_005", "STEAMHTTP_INTERFACE_VERSION003",
+             "SteamInput006", "STEAMINVENTORY_INTERFACE_V003", "SteamMatchMakingServers002", "SteamMatchMaking009",
+             "STEAMMUSICREMOTE_INTERFACE_VERSION001", "STEAMMUSIC_INTERFACE_VERSION001", "SteamNetworkingMessages002",
+             "SteamNetworkingSockets012", "SteamNetworking006", "STEAMPARENTALSETTINGS_INTERFACE_VERSION001",
+             "SteamParties002", "STEAMREMOTEPLAY_INTERFACE_VERSION002", "STEAMREMOTESTORAGE_INTERFACE_VERSION016",
+             "STEAMSCREENSHOTS_INTERFACE_VERSION003", "STEAMUGC_INTERFACE_VERSION020",
+             "STEAMUSERSTATS_INTERFACE_VERSION012", "SteamUser023", "STEAMVIDEO_INTERFACE_V007"]
+# What the library is built for, for each of those (None: the library has no such interface).
+LIB_INIT = ["SteamUtils011", "SteamNetworkingUtils004", "STEAMAPPS_INTERFACE_VERSION009", "SteamFriends018", None,
+            "STEAMHTMLSURFACE_INTERFACE_VERSION_005", "STEAMHTTP_INTERFACE_VERSION003", "SteamInput007",
+            "STEAMINVENTORY_INTERFACE_V003", "SteamMatchMakingServers003", "SteamMatchMaking009", None,
+            "STEAMMUSIC_INTERFACE_VERSION001", "SteamNetworkingMessages002", "SteamNetworkingSockets013",
+            "SteamNetworking006", "STEAMPARENTALSETTINGS_INTERFACE_VERSION001", "SteamParties002",
+            "STEAMREMOTEPLAY_INTERFACE_VERSION004", "STEAMREMOTESTORAGE_INTERFACE_VERSION016",
+            "STEAMSCREENSHOTS_INTERFACE_VERSION003", "STEAMUGC_INTERFACE_VERSION021",
+            "STEAMUSERSTATS_INTERFACE_VERSION013", "SteamUser023", "STEAMVIDEO_INTERFACE_V007"]
+
+
+def double_source(serve_old, init_mode=0):
     """C for the test double: each interface is a distinct static object; old versions are served only when
     serve_old. Valve's own accessors go through FindOrCreateUserInterface with their version, as a real one may,
     so the bridge's reentrancy guard is exercised."""
@@ -71,15 +91,28 @@ def double_source(serve_old):
     for prefix, name in OWN_NAMES.items():
         out.append('void *%s(void) { return SteamInternal_FindOrCreateUserInterface(1, "%s%03d"); }'
                    % (name, prefix, OWN_USER[prefix]))
+    # Init: mode 0 takes any list; 1 takes a list only if every entry is one the library knows (the phone's
+    # case as read on Nov 15); 2 takes none, only Valve's own list (InitFlat, sent as "FLAT").
+    lib = [v for v in LIB_INIT if v]
+    out += ["static int init_mode = %d;" % init_mode,
+            "char last_list[4096]; int init_calls;",
+            "static const char *lib[] = {%s};" % ", ".join('"%s"' % v for v in lib),
+            "int SteamInternal_SteamAPI_Init(const char *l, char *m) { init_calls++; last_list[0] = 0;"
+            " int ok = 1; for (const char *v = l; *v; v += strlen(v) + 1) {"
+            " strcat(last_list, v); strcat(last_list, \" \"); int known = !strcmp(v, \"FLAT\");"
+            " for (unsigned i = 0; i < sizeof lib / sizeof *lib; i++) known |= !strcmp(v, lib[i]);"
+            " if (init_mode == 2 ? strcmp(v, \"FLAT\") != 0 : (init_mode == 1 && !known)) ok = 0; }"
+            " if (!ok) { strcpy(m, \"refused\"); return 1; } m[0] = 0; return 0; }",
+            "int SteamAPI_InitFlat(char *m) { return SteamInternal_SteamAPI_Init(\"FLAT\\0\", m); }"]
     return "\n".join(out) + "\n"
 
 
 @unittest.skipUnless(shutil.which("gcc"), "gcc required")
 class SteamBridgeTest(unittest.TestCase):
-    def build(self, serve_old):
+    def build(self, serve_old, init_mode=0):
         d = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d)
-        (d / "double.c").write_text(double_source(serve_old))
+        (d / "double.c").write_text(double_source(serve_old, init_mode))
         subprocess.run(["gcc", "-shared", "-fPIC", "-o", str(d / "libsteam_api.so"), str(d / "double.c")], check=True)
         subprocess.run(["gcc", "-O2", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared", "-fvisibility=hidden",
                         "-o", str(d / "libsteam_api64.so"), str(BRIDGE), "-Wl,-rpath,$ORIGIN", "-Wl,--no-as-needed",
@@ -144,6 +177,32 @@ class SteamBridgeTest(unittest.TestCase):
         self.assertEqual(before + 1, calls.value)
         self.assertEqual(b"SteamMatchGameSearch001", (ctypes.c_char * 128).in_dll(valve, "last_version").value)
         self.assertTrue(p)
+
+    def init(self, lib, versions):
+        f = lib.SteamInternal_SteamAPI_Init
+        f.restype = ctypes.c_int
+        f.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+        message = ctypes.create_string_buffer(1024)
+        return f(b"\0".join(v.encode() for v in versions) + b"\0\0", message), message.value
+
+    def test_init_passes_the_games_list_on_unchanged_when_steam_takes_it(self):
+        bridge, valve = self.build(serve_old=False, init_mode=0)
+        self.assertEqual((0, b""), self.init(bridge, GAME_INIT))
+        self.assertEqual(1, ctypes.c_int.in_dll(valve, "init_calls").value)
+        self.assertEqual(" ".join(GAME_INIT) + " ", (ctypes.c_char * 4096).in_dll(valve, "last_list").value.decode())
+
+    def test_init_retries_with_the_librarys_versions_when_the_games_list_is_refused(self):
+        bridge, valve = self.build(serve_old=False, init_mode=1)
+        self.assertEqual(0, self.init(bridge, GAME_INIT)[0])
+        self.assertEqual(2, ctypes.c_int.in_dll(valve, "init_calls").value)
+        self.assertEqual(" ".join(v for v in LIB_INIT if v) + " ",
+                         (ctypes.c_char * 4096).in_dll(valve, "last_list").value.decode())
+
+    def test_init_falls_back_to_valves_own_list(self):
+        bridge, valve = self.build(serve_old=False, init_mode=2)
+        self.assertEqual(0, self.init(bridge, GAME_INIT)[0])
+        self.assertEqual(3, ctypes.c_int.in_dll(valve, "init_calls").value)  # game's, rewritten, InitFlat (no loop)
+        self.assertEqual("FLAT ", (ctypes.c_char * 4096).in_dll(valve, "last_list").value.decode())
 
 
 if __name__ == "__main__":

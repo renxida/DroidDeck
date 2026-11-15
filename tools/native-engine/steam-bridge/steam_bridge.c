@@ -236,3 +236,112 @@ EXPORT void *SteamAPI_ISteamClient_GetISteamMusicRemote(void *self, int32_t user
     static int told;
     return dropped(&told, "MusicRemote", self, user, pipe, version);
 }
+
+/*
+ * SteamAPI init. Steamworks.NET's InitEx hands Valve's SteamInternal_SteamAPI_Init the list of interface
+ * versions it will use, and Valve's init checks them against the client. On the phone (Nov 15) the game's list
+ * failed (FailedGeneric, no message) while Valve's own InitFlat, which checks the library's own list, succeeded
+ * in the same session. So, in order, stopping at the first that works:
+ *   1. the game's list, unchanged;
+ *   2. the same list with each older version replaced by the library's (the versions this bridge serves) and
+ *      GameSearch and MusicRemote left out (the library has no interface for either);
+ *   3. Valve's own SteamAPI_InitFlat.
+ * Each is Valve's own init against the real client; the result of the last one tried is what the game sees.
+ */
+typedef int (*init_fn)(const char *versions, char *message);
+int SteamAPI_InitFlat(char *message);
+
+static const struct {
+    const char *prefix;
+    long number;
+} library_versions[] = {
+    {"SteamUtils", 11}, {"SteamFriends", 18}, {"STEAMAPPS_INTERFACE_VERSION", 9},
+    {"STEAMUSERSTATS_INTERFACE_VERSION", 13}, {"STEAMUGC_INTERFACE_VERSION", 21}, {"SteamInput", 7},
+    {"STEAMREMOTEPLAY_INTERFACE_VERSION", 4}, {"SteamMatchMakingServers", 3}, {"SteamNetworkingSockets", 13},
+    {"STEAMTIMELINE_INTERFACE_V", 4}, {"SteamUser", 23}, {"SteamMatchMaking", 9}, {"SteamNetworking", 6},
+    {"STEAMREMOTESTORAGE_INTERFACE_VERSION", 16}, {"STEAMSCREENSHOTS_INTERFACE_VERSION", 3},
+    {"STEAMHTTP_INTERFACE_VERSION", 3}, {"STEAMMUSIC_INTERFACE_VERSION", 1}, {"STEAMHTMLSURFACE_INTERFACE_VERSION_", 5},
+    {"STEAMINVENTORY_INTERFACE_V", 3}, {"STEAMVIDEO_INTERFACE_V", 7}, {"STEAMPARENTALSETTINGS_INTERFACE_VERSION", 1},
+    {"SteamParties", 2}, {"SteamNetworkingMessages", 2}, {"SteamNetworkingUtils", 4},
+};
+static const char *const library_lacks[] = {"SteamMatchGameSearch", "STEAMMUSICREMOTE_INTERFACE_VERSION"};
+
+static int prefix_is(const char *v, size_t n, const char *prefix)
+{
+    return strlen(prefix) == n && strncmp(v, prefix, n) == 0;
+}
+
+/* The game's list rewritten into out (same layout: entries each ended by NUL, a final NUL). 0 if it won't fit. */
+static size_t rewrite_versions(const char *in, char *out, size_t cap)
+{
+    size_t used = 0;
+    for (const char *v = in; *v; v += strlen(v) + 1) {
+        size_t len = strlen(v), n = version_prefix(v);
+        int skip = 0;
+        for (unsigned i = 0; i < sizeof library_lacks / sizeof *library_lacks; i++)
+            skip |= prefix_is(v, n, library_lacks[i]);
+        if (skip)
+            continue;
+        if (used + len + 2 > cap)
+            return 0;
+        memcpy(out + used, v, len + 1);
+        for (unsigned i = 0; i < sizeof library_versions / sizeof *library_versions; i++) {
+            if (!prefix_is(v, n, library_versions[i].prefix) || n == len)
+                continue;
+            long x = library_versions[i].number;
+            for (size_t d = len; d > n; d--, x /= 10)  /* same width, zero-padded */
+                out[used + d - 1] = (char)('0' + x % 10);
+            break;
+        }
+        used += len + 1;
+    }
+    out[used] = 0;
+    return used + 1;
+}
+
+static void say_result(const char *what, int result, const char *message)
+{
+    char digits[12];
+    int i = sizeof digits - 1;
+    unsigned r = result < 0 ? 0u - (unsigned)result : (unsigned)result;
+    digits[i] = 0;
+    do
+        digits[--i] = (char)('0' + r % 10);
+    while ((r /= 10) && i > 1);
+    if (result < 0)
+        digits[--i] = '-';
+    say(what, &digits[i], "");
+    if (message && *message)
+        say("  Valve's message: ", message, "");
+}
+
+EXPORT int SteamInternal_SteamAPI_Init(const char *versions, char *message)
+{
+    static init_fn next;
+    if (!next)
+        next = (init_fn)real("SteamInternal_SteamAPI_Init");
+    if (!next)
+        return 1;
+    if (depth > 0)  /* Valve's InitFlat below may come back through here */
+        return next(versions, message);
+    int result = next(versions, message);
+    if (result == 0 || !versions)
+        return result;
+    say_result("SteamAPI init with the game's interface list: result ", result, message);
+    static char rewritten[4096];
+    if (rewrite_versions(versions, rewritten, sizeof rewritten)) {
+        if (message)
+            message[0] = 0;
+        result = next(rewritten, message);
+        say_result("SteamAPI init with the library's interface versions: result ", result, message);
+        if (result == 0)
+            return 0;
+    }
+    if (message)
+        message[0] = 0;
+    depth++;
+    result = SteamAPI_InitFlat(message);
+    depth--;
+    say_result("SteamAPI init with Valve's own list (InitFlat): result ", result, message);
+    return result;
+}
