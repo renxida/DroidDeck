@@ -6,7 +6,7 @@ import org.json.JSONObject
 
 enum class InputElementKind(val control: InputControl) {
     BUTTON(InputControl.A), STICK(InputControl.LS), TRACKPAD(InputControl.LEFT_PAD),
-    DPAD(InputControl.LS), TRIGGER(InputControl.LT);
+    DPAD(InputControl.LS), TRIGGER(InputControl.LT), SWIPE(InputControl.LS);
 
     companion object {
         fun from(control: InputControl) = when {

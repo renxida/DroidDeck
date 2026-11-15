@@ -352,6 +352,7 @@ private fun InputElementKind.label() = when (this) {
     InputElementKind.TRACKPAD -> R.string.input_element_trackpad
     InputElementKind.DPAD -> R.string.input_element_dpad
     InputElementKind.TRIGGER -> R.string.input_element_trigger
+    InputElementKind.SWIPE -> R.string.input_element_swipe
 }
 
 private class SurfaceEditorPresentation(private val host: ComponentActivity, display: Display, private val transparent: Boolean, private val content: @Composable () -> Unit) : Presentation(host, display) {

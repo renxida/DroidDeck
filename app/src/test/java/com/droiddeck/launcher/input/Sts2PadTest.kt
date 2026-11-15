@@ -44,17 +44,16 @@ class Sts2PadTest {
         }
     }
 
-    @Test fun theThumbsHoldOnlyTheDpadOnTheLeftAndABYOnTheRight() {
+    @Test fun theSwipePadIsOnTheLeftAndXBYAOnTheRight() {
         for (s in screens) {
             val elements = elements(s)
-            val thumbs = elements.filter { it.id in Sts2Pad.THUMB_IDS }
-            val dpad = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
-            val face = setOf(InputControl.A, InputControl.B, InputControl.X, InputControl.Y)
-            assertEquals(dpad + face, thumbs.map { it.control }.toSet())
-            for (e in thumbs) {
-                val centre = box(e, s).cx
-                if (e.control in dpad) assertTrue("$s ${e.id}", centre < s.width / 2f) else assertTrue("$s ${e.id}", centre > s.width / 2f)
-            }
+            val swipe = elements.single { it.id == Sts2Pad.SWIPE }
+            assertEquals(InputElementKind.SWIPE, swipe.kind)
+            assertTrue("$s", box(swipe, s).cx < s.width / 2f)
+            val face = elements.filter { it.id in Sts2Pad.FACE_IDS }
+            assertEquals(setOf(InputControl.A, InputControl.B, InputControl.X, InputControl.Y), face.map { it.control }.toSet())
+            for (e in face) assertTrue("$s ${e.id}", box(e, s).cx > s.width / 2f)
+            assertTrue(elements.none { it.id in Sts2Pad.DPAD_IDS || it.kind == InputElementKind.DPAD })
             assertTrue(elements.none { it.kind == InputElementKind.STICK || it.kind == InputElementKind.TRACKPAD })
         }
     }
@@ -64,15 +63,19 @@ class Sts2PadTest {
             val elements = elements(s)
             // Tiles meet edge to edge, so a rounding sliver of overlap does not count.
             fun inner(e: InputSurfaceElement) = box(e, s).let { GamepadGeometry.Box(it.cx, it.cy, it.width - 1f, it.height - 1f) }
-            for ((i, a) in elements.withIndex()) for (b in elements.drop(i + 1))
+            for ((i, a) in elements.withIndex()) for (b in elements.drop(i + 1)) {
+                // The swipe pad lies under the buttons on the game's icons it meets (the draw pile); they come after it, so they are hit first.
+                if (a.id == Sts2Pad.SWIPE && b.id in Sts2Pad.HUD_IDS) continue
                 assertFalse("$s ${a.id} overlaps ${b.id}", inner(a).overlaps(inner(b)))
+            }
+            assertEquals(Sts2Pad.SWIPE, elements.first().id)
             val corner = 64 * s.density
             val toggle = GamepadGeometry.Box(corner / 2f, corner / 2f, corner, corner)
             for (e in elements) assertFalse("$s ${e.id}", box(e, s).overlaps(toggle))
         }
     }
 
-    @Test fun onAPixel10TheHudButtonsSitOnTheGameIconsAndTheThumbsInTheBlackBars() {
+    @Test fun onAPixel10TheHudButtonsSitOnTheGameIconsAndTheThumbsWhereTheMockupPutsThem() {
         val s = Screen(2424, 1080, 2.625f)
         val elements = elements(s).associateBy { it.id }
         // Centres of the game's icons on a Pixel 10 screenshot (combat, death screen), in screen pixels.
@@ -83,74 +86,58 @@ class Sts2PadTest {
             assertEquals(id, at.first, b.cx, 20f)
             assertEquals(id, at.second, b.cy, 20f)
         }
-        // The thumbs rest where a thumb lies on a held phone: the line between Left | Right (X | B) about 17 mm in from each
-        // side, past the black bars (about 15 mm), so the thumb does not pull back to reach them.
-        val mm = 2.625f * 160f / 25.4f
-        for ((id, edge) in listOf("legacy:left" to { b: GamepadGeometry.Box -> b.right }, "legacy:b" to { b: GamepadGeometry.Box -> 2424 - b.left }))
-            assertEquals(id, 17f, edge(box(elements.getValue(id), s)) / mm, 1f)
-        for (id in listOf("legacy:up", "legacy:down", "legacy:y", "legacy:a"))
-            assertEquals(id, 30f, box(elements.getValue(id), s).width / mm, 2f)
+        // left, top, right, bottom in screen pixels
+        val mockup = mapOf(Sts2Pad.SWIPE to listOf(0f, 330f, 620f, 1080f),
+            "legacy:x" to listOf(1904f, 90f, 2144f, 370f), "legacy:b" to listOf(2144f, 90f, 2424f, 370f),
+            "legacy:y" to listOf(1904f, 370f, 2144f, 720f), "legacy:a" to listOf(2144f, 370f, 2424f, 720f))
+        for ((id, edges) in mockup) {
+            val b = box(elements.getValue(id), s)
+            assertEquals(id, edges, listOf(b.left, b.top, b.right, b.bottom).map { kotlin.math.round(it) })
+        }
+        assertTrue(box(elements.getValue("legacy:a"), s).bottom < box(elements.getValue(Sts2Pad.END_TURN), s).top)
         assertTrue(box(elements.getValue("builtin:keyboard"), s).right < (2424 - 1080 * 16f / 9f) / 2f)
     }
 
-    @Test fun theThumbsSitInTheMiddleOfTheEmptyStripsWithinReach() {
-        for (s in screens.filter { it.width > it.height * 16f / 9f }) {
-            val elements = elements(s).associateBy { it.id }
-            val strip = (s.width - s.height * 16f / 9f) / 2f
-            val dpad = listOf("legacy:up", "legacy:right", "legacy:down", "legacy:left").map { box(elements.getValue(it), s) }
-            val face = listOf("legacy:y", "legacy:x", "legacy:b", "legacy:a").map { box(elements.getValue(it), s) }
-            for (cluster in listOf(dpad, face)) {
-                val cy = cluster.map { it.cy }.average().toFloat()
-                assertTrue("$s $cy", cy in s.height * .35f..s.height * .62f)
+    @Test fun xBYAAreBigSeeThroughTilesWithNoGapsBetweenThemOrTheScreensEdge() {
+        for (s in screens) {
+            val e = elements(s).associateBy { it.id }
+            fun b(id: String) = box(e.getValue("legacy:$id"), s)
+            val tolerance = 1f
+            assertEquals("$s", s.width.toFloat(), b("b").right, tolerance)
+            assertEquals("$s", s.width.toFloat(), b("a").right, tolerance)
+            assertEquals("$s", b("x").right, b("b").left, tolerance)
+            assertEquals("$s", b("y").right, b("a").left, tolerance)
+            assertEquals("$s", b("x").left, b("y").left, tolerance)
+            assertEquals("$s", b("x").bottom, b("y").top, tolerance)
+            assertEquals("$s", b("b").bottom, b("a").top, tolerance)
+            assertEquals("$s", b("x").top, b("b").top, tolerance)
+            assertEquals("$s", b("y").bottom, b("a").bottom, tolerance)
+            for (id in listOf("x", "b", "y", "a")) {
+                assertEquals("$s $id", InputButtonShape.RECTANGLE, e.getValue("legacy:$id").buttonShape)
+                e.getValue("legacy:$id").opacity.let { assertTrue("$s $id $it", it >= .4f && it < 1f) }
+                assertTrue("$s $id", b(id).width >= 84 * s.density - tolerance)
+                assertTrue("$s $id", b(id).height >= 72 * s.density - tolerance)
             }
-            assertEquals("$s", dpad.map { it.cy }.average(), face.map { it.cy }.average(), 1.0)
-            val reach = maxOf(strip, 110 * s.density) + 84 * s.density
-            assertTrue("$s", dpad.map { it.cx }.average() < reach && face.map { it.cx }.average() > s.width - reach)
+            // Below the game's icons at the top and above its buttons at the bottom (End Turn among them) wherever they meet the grid.
+            val hud = Sts2Pad.HUD_IDS.map { box(e.getValue(it), s) }.filter { it.right > b("x").left }
+            for (h in hud) if (h.cy < s.height / 2f) assertTrue("$s", b("x").top >= h.bottom) else assertTrue("$s", b("y").bottom <= h.top)
         }
     }
 
-    @Test fun inWideStripsTheThumbsAreBigSeeThroughTilesWithNoGapsReachingUnderTheThumbs() {
-        val wide = screens.filter { (it.width - it.height * 16f / 9f) / 2f >= 56 * it.density }
-        assertTrue(Screen(2424, 1080, 2.625f) in wide)
-        for (s in wide) {
+    @Test fun theSwipePadIsAFaintZoneFromTheLeftEdgeToTheBottomBelowTheKeyboardKey() {
+        for (s in screens) {
             val e = elements(s).associateBy { it.id }
-            fun b(id: String) = box(e.getValue("legacy:$id"), s)
-            val strip = (s.width - s.height * 16f / 9f) / 2f
-            val split = maxOf(strip, 110 * s.density)
-            val reach = split + 84 * s.density
-            for (id in Sts2Pad.THUMB_IDS) {
-                assertEquals("$s $id", InputButtonShape.RECTANGLE, e.getValue(id).buttonShape)
-                e.getValue(id).opacity.let { assertTrue("$s $id $it", it >= .4f && it < 1f) }
-            }
-            val tolerance = 1f
-            // Left: Up, then Left | Right, then Down, from the screen's edge to past the picture's, split under the thumb.
-            for (id in listOf("up", "down")) { assertEquals("$s $id", 0f, b(id).left, tolerance); assertEquals("$s $id", reach, b(id).right, tolerance) }
-            assertEquals("$s", 0f, b("left").left, tolerance)
-            assertEquals("$s", split, b("left").right, tolerance)
-            assertEquals("$s", b("left").right, b("right").left, tolerance)
-            assertEquals("$s", reach, b("right").right, tolerance)
-            assertEquals("$s", b("up").bottom, b("left").top, tolerance)
-            assertEquals("$s", b("up").bottom, b("right").top, tolerance)
-            assertEquals("$s", b("left").bottom, b("down").top, tolerance)
-            // Right: Y, then X | B, then A, mirrored.
-            for (id in listOf("y", "a")) { assertEquals("$s $id", s.width - reach, b(id).left, tolerance); assertEquals("$s $id", s.width.toFloat(), b(id).right, tolerance) }
-            assertEquals("$s", s.width - reach, b("x").left, tolerance)
-            assertEquals("$s", b("x").right, b("b").left, tolerance)
-            assertEquals("$s", s.width - split, b("b").left, tolerance)
-            assertEquals("$s", s.width.toFloat(), b("b").right, tolerance)
-            for (id in listOf("x", "b")) { assertEquals("$s $id", b("y").bottom, b(id).top, tolerance); assertEquals("$s $id", b(id).bottom, b("a").top, tolerance) }
-            // Big: every row at least 48 dp tall, every cell at least 84 dp wide.
-            for (id in listOf("up", "left", "right", "down", "y", "x", "b", "a")) {
-                assertTrue("$s $id", b(id).height >= 48 * s.density - tolerance)
-                assertTrue("$s $id", b(id).width >= 84 * s.density - tolerance)
-            }
-            assertEquals("$s", b("up").top, b("y").top, tolerance)
+            val zone = e.getValue(Sts2Pad.SWIPE)
+            val b = box(zone, s)
+            assertEquals("$s", 0f, b.left, 1f)
+            assertEquals("$s", s.height.toFloat(), b.bottom, 1f)
+            assertTrue("$s", b.top >= box(e.getValue("builtin:keyboard"), s).bottom)
+            assertTrue("$s", b.width >= 150 * s.density - 1f || b.width >= s.width * .3f - 1f)
+            assertTrue("$s", b.height >= 150 * s.density - 1f)
+            assertTrue("$s", zone.opacity < .7f && zone.opacity >= .2f)
+            assertEquals(InputButtonShape.ROUNDED, zone.buttonShape)
+            assertEquals("Swipe", zone.name)
         }
-        for (s in screens.filter { it.width <= it.height * 16f / 9f })
-            for (id in Sts2Pad.THUMB_IDS) {
-                assertEquals("$s $id", InputButtonShape.CIRCLE, elements(s).single { it.id == id }.buttonShape)
-                assertEquals("$s $id", 1f, elements(s).single { it.id == id }.opacity)
-            }
     }
 
     /** Where the pad put the d-pad and A / B / Y before they were raised (stock pad at 2424 × 1080, density 2.625). */
@@ -159,64 +146,125 @@ class Sts2PadTest {
         "legacy:down" to floatArrayOf(.05414604f, .7583333f), "legacy:left" to floatArrayOf(.0043316833f, .64652777f),
         "legacy:y" to floatArrayOf(.89820546f, .5347222f), "legacy:b" to floatArrayOf(.9480198f, .64652777f), "legacy:a" to floatArrayOf(.89820546f, .7583333f))
 
-    private fun lowPad(): SavedInputLayout = Sts2Pad.layout().let { pad ->
+    private val classicThumbs = Sts2Pad.DPAD_IDS + Sts2Pad.FACE_IDS
+
+    private fun lowPad(): SavedInputLayout = Sts2Pad.classic().let { pad ->
         pad.copy(elements = pad.elements.map { e -> lowThumbs[e.id]?.let { e.copy(x = it[0], y = it[1], width = .047648516f, height = .10694444f) } ?: e })
     }
 
     @Test fun aPadSavedWithTheThumbsLowGetsThemRaisedButAThumbThePersonMovedStays() {
-        assertEquals(Sts2Pad.layout(), Sts2Pad.raiseThumbs(lowPad()))
+        assertEquals(Sts2Pad.classic(), Sts2Pad.raiseThumbs(lowPad()))
         val moved = lowPad().let { pad -> pad.copy(elements = pad.elements.map { if (it.id == "legacy:a") it.copy(x = .5f, y = .5f) else it }) }
         val raised = Sts2Pad.raiseThumbs(moved)
         assertEquals(listOf(.5f, .5f), raised.elements.single { it.id == "legacy:a" }.let { listOf(it.x, it.y) })
-        assertEquals(Sts2Pad.layout().elements.filterNot { it.id == "legacy:a" }, raised.elements.filterNot { it.id == "legacy:a" })
-        val pad = Sts2Pad.layout()
-        assertSame(pad, Sts2Pad.raiseThumbs(pad))
+        assertEquals(Sts2Pad.classic().elements.filterNot { it.id == "legacy:a" }, raised.elements.filterNot { it.id == "legacy:a" })
+        for (pad in listOf(Sts2Pad.classic(), Sts2Pad.layout())) assertSame(pad, Sts2Pad.raiseThumbs(pad))
         val other = InputLibraries.read(context).layouts.first { it.id == InputLibraries.OVERLAY }
         assertSame(other, Sts2Pad.raiseThumbs(other))
     }
 
     /** A stock pad as an earlier version saved it: its thumbs where, and as, that version put them (X only if it had one). */
-    private fun earlierPad(stock: List<InputSurfaceElement>): SavedInputLayout = Sts2Pad.layout().let { pad ->
+    private fun earlierPad(stock: List<InputSurfaceElement>): SavedInputLayout = Sts2Pad.classic().let { pad ->
         val before = stock.associateBy { it.id }
-        pad.copy(elements = pad.elements.mapNotNull { e -> if (e.id in Sts2Pad.THUMB_IDS) before[e.id]?.let {
+        pad.copy(elements = pad.elements.mapNotNull { e -> if (e.id in classicThumbs) before[e.id]?.let {
             e.copy(x = it.x, y = it.y, width = it.width, height = it.height, buttonShape = it.buttonShape, opacity = it.opacity) } else e })
     }
 
     @Test fun everyEarlierPadGetsTheTilesAndAnXOnce() {
-        for ((i, stock) in Sts2Pad.earlier().withIndex()) {
+        val earlier = Sts2Pad.earlier()
+        assertEquals(Sts2Pad.classic().elements, earlier.last())
+        for ((i, stock) in earlier.withIndex()) {
             val pad = earlierPad(stock)
-            assertEquals("$i", i == Sts2Pad.earlier().lastIndex, pad.elements.any { it.id == "legacy:x" })
-            assertTrue("$i", pad.elements.filter { it.id in Sts2Pad.THUMB_IDS }.all { it.opacity == 1f })
-            assertEquals("$i", Sts2Pad.layout(), Sts2Pad.raiseThumbs(pad))
+            assertEquals("$i", i >= earlier.size - 2, pad.elements.any { it.id == "legacy:x" })
+            if (i < earlier.lastIndex) assertTrue("$i", pad.elements.filter { it.id in classicThumbs }.all { it.opacity == 1f })
+            assertEquals("$i", Sts2Pad.classic(), Sts2Pad.raiseThumbs(pad))
         }
-        val removed = Sts2Pad.layout().let { it.copy(elements = it.elements.filterNot { e -> e.id == "legacy:y" }) }
+        val removed = Sts2Pad.classic().let { it.copy(elements = it.elements.filterNot { e -> e.id == "legacy:y" }) }
         assertEquals(removed.elements.map { it.id }.toSet(), Sts2Pad.raiseThumbs(removed).elements.map { it.id }.toSet())
     }
 
     @Test fun aPadSavedWithTheRaisedCirclesGetsTheTilesButAMovedOrReshapedThumbStays() {
         val circles = earlierPad(Sts2Pad.earlier()[1])
-        assertTrue(circles.elements.filter { it.id in Sts2Pad.THUMB_IDS }.all { it.buttonShape == InputButtonShape.CIRCLE })
-        assertEquals(Sts2Pad.layout(), Sts2Pad.raiseThumbs(circles))
-        assertEquals(Sts2Pad.layout(), Sts2Pad.raiseThumbs(earlierPad(Sts2Pad.earlier().first())))
-        assertTrue(Sts2Pad.earlier().dropLast(1).all { stock -> stock.none { it.id == "legacy:x" } })
+        assertTrue(circles.elements.filter { it.id in classicThumbs }.all { it.buttonShape == InputButtonShape.CIRCLE })
+        assertEquals(Sts2Pad.classic(), Sts2Pad.raiseThumbs(circles))
+        assertEquals(Sts2Pad.classic(), Sts2Pad.raiseThumbs(earlierPad(Sts2Pad.earlier().first())))
+        assertTrue(Sts2Pad.earlier().dropLast(2).all { stock -> stock.none { it.id == "legacy:x" } })
         val moved = circles.copy(elements = circles.elements.map { if (it.id == "legacy:a") it.copy(x = .5f, y = .5f) else it })
         val tiled = Sts2Pad.raiseThumbs(moved)
         assertEquals(InputButtonShape.CIRCLE, tiled.elements.single { it.id == "legacy:a" }.buttonShape)
         assertEquals(listOf(.5f, .5f), tiled.elements.single { it.id == "legacy:a" }.let { listOf(it.x, it.y) })
-        assertEquals(Sts2Pad.layout().elements.filterNot { it.id == "legacy:a" }, tiled.elements.filterNot { it.id == "legacy:a" })
+        assertEquals(Sts2Pad.classic().elements.filterNot { it.id == "legacy:a" }, tiled.elements.filterNot { it.id == "legacy:a" })
     }
 
-    @Test fun versionSixteenToEighteenLibrariesGetTheirUntouchedPadOnTheWideTilesWithAnXOnce() {
-        for ((version, stock) in listOf(16 to Sts2Pad.earlier()[1], 17 to Sts2Pad.earlier()[2], 18 to Sts2Pad.earlier()[3])) {
+    @Test fun versionSixteenToNineteenLibrariesGetTheSwipePadInPlaceOfTheirUntouchedDpad() {
+        for ((version, stock) in listOf(16 to Sts2Pad.earlier()[1], 17 to Sts2Pad.earlier()[2], 18 to Sts2Pad.earlier()[3], 19 to Sts2Pad.earlier()[4])) {
             reset()
             val fresh = InputLibraries.read(context)
             val old = fresh.withLayout(earlierPad(stock))
             prefs.edit().putString("library", JSONObject(InputLibraries.encode(old)).put("version", version).toString()).commit()
             val upgraded = InputLibraries.read(context)
             assertEquals("$version", Sts2Pad.layout(), upgraded.layouts.single { it.id == Sts2Pad.LAYOUT })
+            assertTrue("$version", upgraded.layouts.none { it.id == Sts2Pad.CLASSIC } && upgraded.bindings.none { it.id == Sts2Pad.CLASSIC_BINDINGS })
+            assertEquals("$version", Sts2Pad.bindings(), upgraded.preset(Sts2Pad.BINDINGS))
             assertEquals(old.profiles, upgraded.profiles)
             assertEquals(upgraded, InputLibraries.read(context))
         }
+    }
+
+    @Test fun aPadWhoseDpadThePersonEditedGetsTheSwipePadAndKeepsTheirPadAsTheClassicChoice() {
+        val classic = Sts2Pad.classic()
+        val endTurn = classic.elements.single { it.id == Sts2Pad.END_TURN }
+        val edited = classic.copy(elements = classic.elements.map { when (it.id) {
+            "legacy:up" -> it.copy(y = it.y - .05f)
+            "legacy:a" -> it.copy(buttonShape = InputButtonShape.CIRCLE)
+            Sts2Pad.END_TURN -> it.copy(x = .6f)
+            else -> it
+        } })
+        val fresh = InputLibraries.read(context)
+        val remapped = Sts2Pad.bindings().copy(elements = Sts2Pad.bindings().elements - Sts2Pad.SWIPE + (Sts2Pad.END_TURN to InputAction.Native(InputControl.A)))
+        val old = fresh.withLayout(edited).withPreset(remapped).validate()
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(old)).put("version", 19).toString()).commit()
+        val upgraded = InputLibraries.read(context)
+
+        // The swipe pad replaces the d-pad and the tiles; the End Turn the person moved stays where they put it.
+        val pad = upgraded.layouts.single { it.id == Sts2Pad.LAYOUT }
+        assertEquals(Sts2Pad.layout().elements.map { if (it.id == Sts2Pad.END_TURN) endTurn.copy(x = .6f) else it }, pad.elements)
+        assertEquals(InputAction.Native(), upgraded.preset(Sts2Pad.BINDINGS).elements[Sts2Pad.SWIPE])
+        assertEquals(InputAction.Native(InputControl.A), upgraded.preset(Sts2Pad.BINDINGS).elements[Sts2Pad.END_TURN])
+        assertEquals(Sts2Pad.LAYOUT, Sts2Pad.forGame(upgraded, Sts2Pad.APP_ID).activeLayout(InputRole.PRIMARY)?.id)
+
+        // Their pad is kept whole, with its bindings, and can be chosen as the primary layout again.
+        val kept = upgraded.layouts.single { it.id == Sts2Pad.CLASSIC }
+        assertEquals(edited.elements, kept.elements)
+        assertTrue(Sts2Pad.owns(kept) && kept.supports(InputRole.PRIMARY))
+        val keptBindings = upgraded.preset(Sts2Pad.CLASSIC_BINDINGS)
+        assertEquals(Sts2Pad.CLASSIC, keptBindings.layoutId)
+        assertEquals(remapped.elements, keptBindings.elements)
+        val chosen = Sts2Pad.forGame(upgraded.selectPart(InputRole.PRIMARY, Sts2Pad.CLASSIC_BINDINGS).validate(), Sts2Pad.APP_ID)
+        assertEquals(Sts2Pad.CLASSIC, chosen.activeLayout(InputRole.PRIMARY)?.id)
+        assertEquals(InputAction.Native(), chosen.compileActive().elementAction(InputRole.PRIMARY, "legacy:up", InputControl.UP))
+        assertEquals(classic.elements, InputLibraries.defaultPositions(context, upgraded, kept))
+
+        assertEquals(old.profiles, upgraded.profiles)
+        assertEquals(upgraded, InputLibraries.read(context))
+    }
+
+    @Test fun aPadWithADpadButtonRemovedCountsAsEdited() {
+        val classic = Sts2Pad.classic()
+        val removed = classic.copy(elements = classic.elements.filterNot { it.id == "legacy:x" })
+        val upgraded = Sts2Pad.withSwipe(InputLibraries.read(context).withLayout(removed).validate())
+        assertEquals(Sts2Pad.layout(), upgraded.layouts.single { it.id == Sts2Pad.LAYOUT })
+        assertEquals(removed.elements, upgraded.layouts.single { it.id == Sts2Pad.CLASSIC }.elements)
+        assertSame(upgraded, Sts2Pad.withSwipe(upgraded))
+    }
+
+    @Test fun aSwipePadSentWithoutItsBindingStillPressesTheDpad() {
+        val bare = Sts2Pad.layout().copy(elements = Sts2Pad.layout().elements.filterNot { it.id == Sts2Pad.SWIPE })
+        InputLibraries.putRemoteLayout(context, InputLibraries.encodeLayout(bare))
+        assertNull(InputLibraries.read(context).preset(Sts2Pad.BINDINGS).elements[Sts2Pad.SWIPE])
+        InputLibraries.putRemoteLayout(context, InputLibraries.encodeLayout(Sts2Pad.layout()))
+        val profile = Sts2Pad.forGame(InputLibraries.read(context), Sts2Pad.APP_ID).compileActive()
+        assertEquals(InputAction.Native(), profile.elementAction(InputRole.PRIMARY, Sts2Pad.SWIPE, InputControl.LS))
     }
 
     @Test fun xSendsTheControllersXSoThePotionsOpen() {
@@ -231,11 +279,11 @@ class Sts2PadTest {
         val placed = OnScreenLayout.elements(context, rounded, 2424, 1080, Rect()).associateBy { it.id }
         assertEquals(InputButtonShape.ROUNDED, placed.getValue("legacy:b").buttonShape)
         val narrow = OnScreenLayout.elements(context, layout, 1920, 1080, Rect()).associateBy { it.id }
-        assertEquals(InputButtonShape.CIRCLE, narrow.getValue("legacy:a").buttonShape)
+        assertEquals(InputButtonShape.RECTANGLE, narrow.getValue("legacy:a").buttonShape)
         assertEquals(Sts2Pad.elements(1920, 1080, density), OnScreenLayout.elements(context, layout, 1920, 1080, Rect()))
     }
 
-    @Test fun versionFifteenLibrariesGetTheirUntouchedPadRaisedOnce() {
+    @Test fun versionFifteenLibrariesGetTheSwipePadInPlaceOfTheirUntouchedLowDpadOnce() {
         val fresh = InputLibraries.read(context)
         val old = fresh.withLayout(lowPad())
         prefs.edit().putString("library", JSONObject(InputLibraries.encode(old)).put("version", 15).toString()).commit()
@@ -258,7 +306,8 @@ class Sts2PadTest {
         val profile = sts2.compileActive()
         assertEquals(InputAction.Native(InputControl.Y), profile.elementAction(InputRole.PRIMARY, Sts2Pad.END_TURN, InputControl.A))
         assertEquals(InputAction.Command(InputCommand.KEYBOARD), profile.elementAction(InputRole.PRIMARY, "builtin:keyboard", InputControl.A))
-        for (control in listOf(InputControl.LT, InputControl.RT, InputControl.RB, InputControl.LB, InputControl.SELECT, InputControl.START, InputControl.UP, InputControl.A))
+        assertEquals(InputAction.Native(), profile.elementAction(InputRole.PRIMARY, Sts2Pad.SWIPE, InputControl.LS))
+        for (control in listOf(InputControl.LT, InputControl.RT, InputControl.RB, InputControl.LB, InputControl.SELECT, InputControl.START, InputControl.X, InputControl.A))
             assertEquals(InputAction.Native(), profile.elementAction(InputRole.PRIMARY, "legacy:${control.id}", control))
 
         for (game in listOf(null, "1145360")) assertEquals(InputLibraries.OVERLAY, Sts2Pad.forGame(library, game).activeLayout(InputRole.PRIMARY)?.id)
