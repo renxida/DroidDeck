@@ -63,6 +63,35 @@ import urllib.request
 COMPONENT = {"tag": "native-engine-65",
              "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-65/native-engine.tar.zst",
              "sha256": "409dce6fc579032ca1c744f3832bf359705b8b6dd73739bf9f1165c4dd824daa"}
+# The component layout this wrapper understands. A release declares its own in component.json; CI's resolver
+# (tools/native-engine/resolve_component.py) only pins releases whose api matches.
+COMPONENT_API = 1
+# The build writes the newest gated engine release it found here (next to this file in the guest:
+# /usr/local/share/droiddeck/native-engine.json), so a published engine reaches the app with no one copying its
+# tag. COMPONENT above is the fallback when the file is missing or unusable.
+PIN_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "share", "droiddeck",
+                        "native-engine.json")
+COMPONENT_URL = re.compile(r"https://github\.com/renxida/DroidDeck/releases/download/(native-engine-\d+)/native-engine\.tar\.zst")
+
+
+def pinned_component(path=PIN_FILE, fallback=None):
+    """The component the build pinned in PIN_FILE, or fallback (COMPONENT) when there is none or it is unusable."""
+    fallback = COMPONENT if fallback is None else fallback
+    try:
+        with open(path, encoding="utf-8") as f:
+            pin = json.load(f)
+    except (OSError, ValueError):
+        return fallback
+    if not isinstance(pin, dict):
+        return fallback
+    url = COMPONENT_URL.fullmatch(str(pin.get("url", "")))
+    if (pin.get("api") != COMPONENT_API or not url or url.group(1) != pin.get("tag")
+            or not re.fullmatch(r"[0-9a-f]{64}", str(pin.get("sha256", "")))):
+        return fallback
+    return {"tag": pin["tag"], "url": pin["url"], "sha256": pin["sha256"]}
+
+
+COMPONENT = pinned_component()
 # Valve's linux-arm64 Steamworks library, as packaged by Steamworks.NET on nuget.org (Steamworks SDK 1.63+).
 STEAM_API = {"package": "Steamworks.NET.AnyCPU 2026.165.3",
              "url": "https://api.nuget.org/v3-flatcontainer/steamworks.net.anycpu/2026.165.3/"

@@ -1095,3 +1095,66 @@ class GameEnvHookTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EnginePinTest(unittest.TestCase):
+    """The app build embeds the newest gated engine release; nobody copies its tag (Nov 15: -65 was published and
+    the app still pinned -54, so the phone skipped the native engine at the Steam gap)."""
+    SHA = "a" * 64
+    URL = "https://github.com/renxida/DroidDeck/releases/download/native-engine-70/native-engine.tar.zst"
+    RESOLVE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "native-engine/resolve_component.py"))
+
+    def pin(self, **over):
+        pin = {"tag": "native-engine-70", "url": self.URL, "sha256": self.SHA, "api": NG["COMPONENT_API"]}
+        pin.update(over)
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(pin, f)
+        self.addCleanup(os.remove, f.name)
+        return f.name
+
+    def test_the_wrapper_takes_the_build_pin_and_falls_back_to_its_own(self):
+        fallback = {"tag": "native-engine-1", "url": "u", "sha256": "s"}
+        self.assertEqual(NG["pinned_component"](self.pin(), fallback),
+                         {"tag": "native-engine-70", "url": self.URL, "sha256": self.SHA})
+        for bad in ({"api": NG["COMPONENT_API"] + 1}, {"tag": "native-engine-71"}, {"sha256": "x"},
+                    {"url": "https://example.com/native-engine-70/native-engine.tar.zst"}):
+            self.assertIs(NG["pinned_component"](self.pin(**bad), fallback), fallback, bad)
+        self.assertIs(NG["pinned_component"]("/nonexistent/native-engine.json", fallback), fallback)
+
+    def release(self, n, manifest=True, gate="passed", api=None, digest=None, draft=False):
+        tag = f"native-engine-{n}"
+        sha = hashlib.sha256(tag.encode()).hexdigest()
+        assets = [{"name": "native-engine.tar.zst", "digest": "sha256:" + (digest or sha),
+                   "browser_download_url": f"https://github.com/renxida/DroidDeck/releases/download/{tag}/native-engine.tar.zst"}]
+        if manifest:
+            assets.append({"name": "component.json", "browser_download_url": "m:" + tag,
+                           "_body": {"tag": tag, "sha256": sha, "gate": gate,
+                                     "api": NG["COMPONENT_API"] if api is None else api}})
+        return {"tag_name": tag, "draft": draft, "assets": assets}
+
+    def resolve(self, listing, want=None):
+        bodies = {a["browser_download_url"]: a.get("_body") for r in listing or [] for a in r["assets"]}
+        committed = {"tag": "native-engine-65", "url": "c", "sha256": "c" * 64}
+        return self.RESOLVE["resolve"](committed, NG["COMPONENT_API"], listing, lambda url, token=None: bodies[url],
+                                       want=want)
+
+    def test_the_newest_gated_compatible_release_wins(self):
+        pin, source, skipped = self.resolve([self.release(80, gate="failed"), self.release(79, api=99),
+                                             self.release(78, digest="b" * 64), self.release(77, draft=True),
+                                             self.release(76, manifest=False), self.release(70), self.release(66)])
+        self.assertEqual((pin["tag"], source), ("native-engine-70", "release"))
+        self.assertEqual(len(skipped), 5)
+
+    def test_the_committed_pin_stands_when_nothing_newer_qualifies(self):
+        pin, source, _ = self.resolve([self.release(64), self.release(70, manifest=False)])
+        self.assertEqual((pin["tag"], source), ("native-engine-65", "committed"))
+        pin, source, _ = self.resolve(None)
+        self.assertEqual((pin["tag"], source), ("native-engine-65", "committed (releases unreadable)"))
+
+    def test_an_exact_tag_is_that_release_or_an_error(self):
+        self.assertEqual(self.resolve([self.release(70), self.release(66)], want="native-engine-66")[0]["tag"],
+                         "native-engine-66")
+        self.assertEqual(self.resolve([self.release(65, manifest=False)], want="native-engine-65")[0]["tag"],
+                         "native-engine-65")
+        with self.assertRaises(SystemExit):
+            self.resolve([self.release(70, gate="failed")], want="native-engine-70")

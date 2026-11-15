@@ -26,6 +26,7 @@ on:
       - '.github/workflows/native-startup-gate.yml'  # the gate this build must pass before it may publish
       - 'tools/native-engine/standin/**'
       - 'tools/native-engine/steam-bridge/**'
+      - 'tools/native-engine/resolve_component.py'
 
 permissions:
   contents: write  # only the publish job uses it
@@ -316,7 +317,13 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      actions: write  # starts the app build that picks this release up
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: native-engine-component
@@ -332,6 +339,23 @@ jobs:
           printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, no Steam stand-in.\nCommit %s. sha256 %s\nNo game files.\n' \
             "$(cat out/component/kit/*.runtimeconfig.json | python3 -c 'import json,sys; print([f.get("version") for f in json.load(sys.stdin)["runtimeOptions"].get("includedFrameworks",[])])')" \
             "$GITHUB_SHA" "$sha" > notes.txt
-          gh release create "$tag" out/native-engine.tar.zst -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          # component.json is how app builds find this release (tools/native-engine/resolve_component.py): only a
+          # release that says it passed this run's gate, with the component layout the wrapper takes, is embedded.
+          python3 - "$tag" "$sha" > component.json <<'PY'
+          import json, os, runpy, sys
+          api = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")["COMPONENT_API"]
+          print(json.dumps({"tag": sys.argv[1], "sha256": sys.argv[2], "api": api, "gate": "passed",
+                            "gate_run": int(os.environ["GITHUB_RUN_ID"]), "source_sha": os.environ["GITHUB_SHA"]}, indent=1))
+          PY
+          gh release create "$tag" out/native-engine.tar.zst component.json -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "$tag" --notes-file notes.txt --prerelease
           echo "COMPONENT tag=$tag sha256=$sha url=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Start the app build that embeds it
+        # Build APK on perf/switchboard resolves the newest gated engine release (this one), runs every gate on
+        # the APK, and release-apk puts it on "latest" only if all pass. The one human step stays this dispatch.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run build.yml -R "$GITHUB_REPOSITORY" --ref perf/switchboard
+          echo "Started Build APK on perf/switchboard to embed native-engine-${GITHUB_RUN_NUMBER}" | tee -a "$GITHUB_STEP_SUMMARY"

@@ -3,7 +3,7 @@
 
     gate.py --wrapper PATH --game-dir DIR --work DIR [--component pinned|DIR] [--deps on|off]
             [--repeat N] [--prefix CMD] [--old-converter FILE] [--expect-fail compose|load] [--allow-buffered-fps]
-            [--name NAME] -- ENGINE ARGS...
+            [--name NAME] [--steam-preflight] -- ENGINE ARGS...
 
 A run passes when: the wrapper exits 0, it logged "first frame", stdout has FIRST_FRAME and MAINLOOP_OK, the
 deps line matches --deps, Godot's first "Project FPS" line (the wrapper's watchdog signal) reaches the
@@ -98,6 +98,9 @@ def judge(rc, lines, deps):
         reasons.append("deps on but none loaded")
     elif deps == "off" and int(m.group(1)) != 0:
         reasons.append("deps off but some loaded")
+    refused = re.search(r"not starting:.*", text)
+    if refused:
+        reasons.append("wrapper refused to start (" + refused.group(0)[:160] + ")")
     found = [label for label, pat in BAD if pat.search(text)]
     reasons += [f"log shows {label}" for label in found]
     if reasons and STEAM.search(text):
@@ -133,6 +136,9 @@ def main(argv=None):
                     help="do not fail when Godot's first FPS line reaches the wrapper only as the engine exits "
                          "(stdout buffered: on the phone the 90 s watchdog would then kill a long-running game)")
     ap.add_argument("--name", default="gate")
+    ap.add_argument("--steam-preflight", action="store_true",
+                    help="leave the wrapper's Steam preflight on, as on the phone: the stand-in bundles a Steamworks.NET "
+                         "of the game's era, so a component that cannot serve its accessors is refused")
     a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
     os.makedirs(a.work, exist_ok=True)
     wrapper = os.path.abspath(a.wrapper)
@@ -146,9 +152,10 @@ def main(argv=None):
     runs, ok = [], True
     for i in range(a.repeat):
         out = os.path.join(a.work, f"{a.name}-launch")
-        # The stand-in bundles Steamworks.NET only as a dependency and never calls SteamAPI.Init, so the wrapper's
-        # Steam preflight (which refuses the real game while Valve's arm64 library lacks an accessor) is off here.
-        cmd = shlex.split(a.prefix) + head + ["run", "--no-steam-preflight"] + src + [
+        # The stand-in bundles Steamworks.NET only as a dependency and never calls SteamAPI.Init, so most rows turn
+        # the wrapper's Steam preflight off; the --steam-preflight row keeps it on, as the phone does.
+        preflight = [] if a.steam_preflight else ["--no-steam-preflight"]
+        cmd = shlex.split(a.prefix) + head + ["run"] + preflight + src + [
             "--game-dir", os.path.abspath(a.game_dir), "--exe", a.exe, "--out", out, "--"] + engine_args
         log_path = os.path.join(a.work, f"{a.name}-{i + 1}.log")
         rc, lines, took = run_once(cmd, log_path, a.timeout)

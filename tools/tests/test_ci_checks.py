@@ -52,7 +52,8 @@ class CiChecksTest(unittest.TestCase):
             self.assertEqual(jobs[name]['needs'], 'source')
         self.assertEqual(set(jobs['components']['needs']), {'source', 'components-runner'})
         self.assertEqual(jobs['build-runner']['needs'], ['components'])
-        self.assertEqual(set(jobs['build']['needs']), {'source', 'components', 'build-runner'})
+        self.assertEqual(jobs['engine']['needs'], 'source')
+        self.assertEqual(set(jobs['build']['needs']), {'source', 'components', 'build-runner', 'engine'})
 
     def test_dependency_update_errors_block_installation(self):
         with tempfile.TemporaryDirectory() as directory:
