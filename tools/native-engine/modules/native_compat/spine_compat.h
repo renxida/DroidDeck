@@ -479,6 +479,22 @@ private:
 	void _draw_skeleton();
 	void _emit_pending();
 	void _follow_children();
+	// Calls f on each node under the sprite down to any depth, not below a nested SpineSprite (which updates
+	// its own); DROIDDECK_NATIVE_SPINE_DEEP_NODES=0 keeps to direct children.
+	template <typename F>
+	static void _walk_bone_slot_nodes(Node *p_node, const F &f) {
+		static const bool deep = [] {
+			const char *v = getenv("DROIDDECK_NATIVE_SPINE_DEEP_NODES");
+			return !(v && v[0] == '0');
+		}();
+		for (int i = 0; i < p_node->get_child_count(); i++) {
+			Node *c = p_node->get_child(i);
+			f(c);
+			if (deep && c->get_child_count() > 0 && !Object::cast_to<SpineSprite>(c)) {
+				_walk_bone_slot_nodes(c, f);
+			}
+		}
+	}
 
 protected:
 	static void _bind_methods();

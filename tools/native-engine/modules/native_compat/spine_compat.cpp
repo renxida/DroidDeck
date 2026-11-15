@@ -1,6 +1,8 @@
 // Clean-room code for DroidDeck/Kestrel: written from scratch; no third-party runtime source consulted.
 #include "spine_compat.h"
 
+#include "skel/clip.h"
+
 #include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/os/os.h"
@@ -41,7 +43,7 @@ namespace {
 struct FrameSplit {
 	uint64_t window_start_usec = 0;
 	uint64_t last_frame = UINT64_MAX;
-	int64_t frames = 0, sprite_updates = 0, slots = 0, vertices = 0, batches = 0;
+	int64_t frames = 0, sprite_updates = 0, slots = 0, vertices = 0, batches = 0, clipped = 0;
 	uint64_t update_usec = 0, signal_usec = 0, draw_usec = 0;
 	double process_sec = 0, physics_sec = 0;
 	uint64_t thread_cpu_start_nsec = 0;
@@ -86,10 +88,10 @@ struct FrameSplit {
 			// "main thread busy" is CPU time the main thread used over wall time: near 100% means it never waits.
 			print_line(vformat("native_compat: frame split %.1fs %d frames %.1f fps | per frame: process peak %.2f ms, physics peak %.2f ms, "
 							   "spine update %.2f ms (signals %.2f ms), spine draw %.2f ms, main thread cpu %.2f ms (busy %.0f%%) | "
-							   "%.1f sprites %.0f slots %.0f vertices %.0f batches | main thread on cpu %s",
+							   "%.1f sprites %.0f slots %.0f vertices %.0f batches %.1f clipped slots | main thread on cpu %s",
 					wall_ms / 1e3, frames, f * 1e3 / wall_ms, process_sec * 1e3 / f, physics_sec * 1e3 / f, double(update_usec) / 1e3 / f,
 					double(signal_usec) / 1e3 / f, double(draw_usec) / 1e3 / f, cpu_ms / f, 100.0 * cpu_ms / wall_ms,
-					double(sprite_updates) / f, double(slots) / f, double(vertices) / f, double(batches) / f, cpu_spread()));
+					double(sprite_updates) / f, double(slots) / f, double(vertices) / f, double(batches) / f, double(clipped) / f, cpu_spread()));
 			*this = FrameSplit();
 			last_frame = frame;
 			window_start_usec = now;
@@ -1615,11 +1617,11 @@ void SpineSprite::update_skeleton(float p_delta) {
 	s0 = os->get_ticks_usec();
 	emit_signal(SNAME("before_world_transforms_change"), this);
 	signals += os->get_ticks_usec() - s0;
-	for (int i = 0; i < get_child_count(); i++) {
-		if (SpineBoneNode *bn = Object::cast_to<SpineBoneNode>(get_child(i))) {
+	_walk_bone_slot_nodes(this, [this](Node *n) {
+		if (SpineBoneNode *bn = Object::cast_to<SpineBoneNode>(n)) {
 			bn->drive(this);
 		}
-	}
+	});
 	skeleton->update_world_transform();
 	s0 = os->get_ticks_usec();
 	emit_signal(SNAME("world_transforms_changed"), this);
@@ -1635,14 +1637,13 @@ void SpineSprite::update_skeleton(float p_delta) {
 }
 
 void SpineSprite::_follow_children() {
-	for (int i = 0; i < get_child_count(); i++) {
-		Node *c = get_child(i);
-		if (SpineBoneNode *bn = Object::cast_to<SpineBoneNode>(c)) {
+	_walk_bone_slot_nodes(this, [this](Node *n) {
+		if (SpineBoneNode *bn = Object::cast_to<SpineBoneNode>(n)) {
 			bn->follow(this);
-		} else if (SpineSlotNode *sn = Object::cast_to<SpineSlotNode>(c)) {
+		} else if (SpineSlotNode *sn = Object::cast_to<SpineSlotNode>(n)) {
 			sn->follow(this);
 		}
-	}
+	});
 }
 
 RID SpineSprite::_blend_item(int p_run, int p_blend) {
@@ -1728,25 +1729,42 @@ void SpineSprite::_draw_skeleton() {
 			v.resize(MAX(need, v.size() * 2));
 		}
 	};
-	for (int slot_index : skeleton->draw_order) {
+	// Clipping: a clipping attachment masks the slots after it up to its end slot (DROIDDECK_NATIVE_SPINE_CLIP=0
+	// turns it off).
+	static const bool clip_enabled = [] {
+		const char *v = getenv("DROIDDECK_NATIVE_SPINE_CLIP");
+		return !(v && v[0] == '0');
+	}();
+	skel::Clipper clipper;
+	int clip_end = -1;
+	std::vector<skel::ClipVertex> clip_in, clip_out;
+	std::vector<int> clip_in_ix, clip_out_ix;
+	auto draw_slot = [&](int slot_index) {
 		const skel::Slot &slot = skeleton->slots[slot_index];
 		const skel::Attachment *a = slot.drawn();
 		if (!a || !skeleton->bones[slot.data->bone].active) {
-			continue;
+			return;
+		}
+		if (a->type == skel::AttachmentType::Clipping) {
+			if (clip_enabled && !clipper.active() && skeleton->world_vertices(slot_index, world) >= 3) {
+				clipper.begin(world.data(), int(world.size() / 2));
+				clip_end = a->end_slot;
+			}
+			return;
 		}
 		if (a->type != skel::AttachmentType::Region && a->type != skel::AttachmentType::Mesh) {
-			continue;
+			return;
 		}
 		int n = skeleton->world_vertices(slot_index, world);
 		if (n == 0) {
-			continue;
+			return;
 		}
 		frame_split.slots++;
 		frame_split.vertices += n;
 		Color c(skeleton->color.r * slot.color.r * a->color.r, skeleton->color.g * slot.color.g * a->color.g,
 				skeleton->color.b * slot.color.b * a->color.b, skeleton->color.a * slot.color.a * a->color.a);
 		if (c.a <= 0) {
-			continue;
+			return;
 		}
 		RID tex;
 		if (pages && a->page >= 0 && a->page < pages->size() && (*pages)[a->page].is_valid()) {
@@ -1764,6 +1782,55 @@ void SpineSprite::_draw_skeleton() {
 		}
 		batch_tex = tex;
 		const bool region = a->type == skel::AttachmentType::Region;
+		if (clipper.active()) {
+			// Clip in skeleton space, then emit the visible pieces.
+			clip_in.resize(n);
+			const std::vector<float> &src = a->page_uvs.empty() ? a->uvs : a->page_uvs;
+			for (int i = 0; i < n; i++) {
+				clip_in[i].x = world[i * 2];
+				clip_in[i].y = world[i * 2 + 1];
+				if (region) {
+					clip_in[i].u = a->region_uv[i * 2];
+					clip_in[i].v = a->region_uv[i * 2 + 1];
+				} else {
+					clip_in[i].u = size_t(i * 2 + 1) < src.size() ? src[i * 2] : 0;
+					clip_in[i].v = size_t(i * 2 + 1) < src.size() ? src[i * 2 + 1] : 0;
+				}
+			}
+			static const int quad_ix[6] = { 0, 1, 2, 2, 3, 0 };
+			const int *ix = region ? quad_ix : nullptr;
+			if (!region) {
+				clip_in_ix.assign(a->triangles.begin(), a->triangles.end());
+				ix = clip_in_ix.data();
+			}
+			clip_out.clear();
+			clip_out_ix.clear();
+			clipper.clip(clip_in, ix, region ? 6 : int(a->triangles.size()), clip_out, clip_out_ix);
+			const int m = int(clip_out.size()), mt = int(clip_out_ix.size());
+			if (m == 0) {
+				return;
+			}
+			grow(points, vcount + m);
+			grow(uvs, vcount + m);
+			grow(colors, vcount + m);
+			grow(indices, icount + mt);
+			Point2 *pw = points.ptrw() + vcount;
+			Point2 *uw = uvs.ptrw() + vcount;
+			Color *cw = colors.ptrw() + vcount;
+			int *iw = indices.ptrw() + icount;
+			for (int i = 0; i < m; i++) {
+				pw[i] = to_canvas(clip_out[i].x, clip_out[i].y);
+				uw[i] = Point2(clip_out[i].u, clip_out[i].v);
+				cw[i] = c;
+			}
+			for (int i = 0; i < mt; i++) {
+				iw[i] = vcount + clip_out_ix[i];
+			}
+			vcount += m;
+			icount += mt;
+			frame_split.clipped++;
+			return;
+		}
 		const int tris = region ? 6 : int(a->triangles.size());
 		grow(points, vcount + n);
 		grow(uvs, vcount + n);
@@ -1796,7 +1863,14 @@ void SpineSprite::_draw_skeleton() {
 		}
 		vcount += n;
 		icount += tris;
+	};
+	for (int slot_index : skeleton->draw_order) {
+		draw_slot(slot_index);
+		if (clipper.active() && slot_index == clip_end) {
+			clipper.end();
+		}
 	}
+	clipper.end();
 	flush();
 }
 
@@ -1907,6 +1981,18 @@ void SpineSprite::_bind_methods() {
 
 // ============================================================================================ child nodes
 
+namespace {
+// A bone or slot node directly under its sprite takes the bone's transform as its own; one deeper in the tree
+// (under another node of the sprite's) is placed at the same spot in global terms.
+void place_under_sprite(Node2D *p_node, SpineSprite *p_sprite, const Transform2D &p_in_sprite) {
+	if (p_node->get_parent() == p_sprite) {
+		p_node->set_transform(p_in_sprite);
+	} else if (p_node->is_inside_tree()) {
+		p_node->set_global_transform(p_sprite->get_global_transform() * p_in_sprite);
+	}
+}
+} // namespace
+
 void SpineBoneNode::follow(SpineSprite *p_sprite) {
 	if (!enabled || bone_mode != BONE_MODE_FOLLOW || !p_sprite->core_skeleton()) {
 		return;
@@ -1915,7 +2001,7 @@ void SpineBoneNode::follow(SpineSprite *p_sprite) {
 	if (i < 0) {
 		return;
 	}
-	set_transform(p_sprite->bone_canvas_transform(i));
+	place_under_sprite(this, p_sprite, p_sprite->bone_canvas_transform(i));
 }
 
 void SpineBoneNode::drive(SpineSprite *p_sprite) {
@@ -1947,7 +2033,7 @@ void SpineSlotNode::follow(SpineSprite *p_sprite) {
 	if (i < 0) {
 		return;
 	}
-	set_transform(p_sprite->bone_canvas_transform(p_sprite->core_data()->slots[i].bone));
+	place_under_sprite(this, p_sprite, p_sprite->bone_canvas_transform(p_sprite->core_data()->slots[i].bone));
 }
 
 void SpineSlotNode::_bind_methods() {
