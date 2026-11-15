@@ -172,7 +172,10 @@ case $base in
     adb push "$standin/." "$fs/root/standin/" >/dev/null
     uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
     adb shell "chown -R $uid:$uid $fs/root/standin && restorecon -R $fs/root/standin"
-    "$ctl" run /usr/local/bin/droiddeck-proton-run -- "/root/standin/$exe" --quit-after-frames 300 --max-fps 30 ;;
+    # In stand-in-background the game must still be running when the rig comes back (READY at
+    # about 12 s, 20 s away), so it runs about three times longer there.
+    frames=300; [ "$scenario" = stand-in-background ] && frames=1200
+    "$ctl" run /usr/local/bin/droiddeck-proton-run -- "/root/standin/$exe" --quit-after-frames $frames --max-fps 30 ;;
 esac
 
 last=; idle=0; login=; next_ps=60
