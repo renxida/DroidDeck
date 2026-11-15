@@ -4,12 +4,18 @@
 #include "core/config/engine.h"
 #include "core/io/file_access.h"
 #include "core/math/math_funcs.h"
+#include "core/os/os.h"
 #include "core/object/object.h"
 #include "core/string/print_string.h"
 #include "scene/audio/audio_stream_player.h"
 #include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
 #include "scene/scene_string_names.h"
+
+#include "fsb/timeline_player.h"
+
+#include <cstdlib>
+#include <memory>
 
 FmodServer *FmodServer::singleton = nullptr;
 
@@ -42,18 +48,175 @@ float level_db(float p_linear) {
 
 } // namespace
 
+// An event playing on a timeline: the player, and the sink through which it plays sounds as this event's
+// audio players (so volume, pitch and pause reach them as they reach any other).
+struct EventTimeline : public fsb::TimelineSink {
+	FmodEvent *event;
+	Vector<Ref<NativeSoundBank>> keep; // the banks stay loaded while the timeline reads their tables
+	std::unique_ptr<fsb::TimelinePlayer> player;
+	HashMap<uint64_t, ObjectID> handles;
+	uint64_t next_handle = 1;
+
+	explicit EventTimeline(FmodEvent *p_event) :
+			event(p_event) {}
+
+	uint64_t play(const fsb::Guid &p_wave, float p_volume_db, bool p_loop, double p_offset) override {
+		FmodServer *s = FmodServer::get_singleton();
+		SceneTree *tree = SceneTree::get_singleton();
+		Window *root = tree ? tree->get_root() : nullptr;
+		if (!s || !root) {
+			return 0;
+		}
+		Ref<AudioStreamOggVorbis> stream = s->stream_for_wave(p_wave, p_loop);
+		if (stream.is_null()) {
+			s->sounds_without_wave++;
+			log("no loaded bank has waveform " + std::string(fsb::guid_text(p_wave)));
+			return 0;
+		}
+		const double length = stream->get_length();
+		if (length > 0) {
+			if (p_loop) {
+				p_offset = Math::fmod(p_offset, length);
+			} else if (p_offset >= length) {
+				return 0; // placed earlier and already over
+			}
+		}
+		AudioStreamPlayer *ap = memnew(AudioStreamPlayer);
+		ap->set_stream(stream);
+		ap->set_volume_db(p_volume_db + level_db(event->volume));
+		ap->set_pitch_scale(CLAMP(event->pitch, 0.01f, 16.0f));
+		ap->connect(SceneStringName(finished), callable_mp(static_cast<Node *>(ap), &Node::queue_free));
+		// Deferred, in order: added to the tree, then started at its place on the timeline.
+		root->call_deferred(SNAME("add_child"), ap);
+		ap->call_deferred(SNAME("play"), p_offset);
+		event->players.push_back(ap->get_instance_id());
+		event->player_db.push_back(p_volume_db);
+		s->sounds_started++;
+		const uint64_t h = next_handle++;
+		handles[h] = ap->get_instance_id();
+		return h;
+	}
+
+	void stop(uint64_t p_handle) override {
+		const ObjectID *id = handles.getptr(p_handle);
+		if (!id) {
+			return;
+		}
+		const ObjectID oid = *id;
+		handles.erase(p_handle);
+		if (AudioStreamPlayer *ap = player_of(oid)) {
+			ap->stop();
+			ap->queue_free();
+		}
+		const int i = event->players.find(oid);
+		if (i >= 0) {
+			event->players.remove_at(i);
+			event->player_db.remove_at(i);
+		}
+	}
+
+	bool playing(uint64_t p_handle) override {
+		const ObjectID *id = handles.getptr(p_handle);
+		return id && player_of(*id) != nullptr;
+	}
+
+	float param(const fsb::EventTable &p_table, const fsb::Guid &p_param) override {
+		auto it = p_table.params.find(p_param);
+		if (it == p_table.params.end()) {
+			return 0;
+		}
+		const String name = String::utf8(it->second.name.c_str());
+		if (const float *v = event->parameters.getptr(name)) {
+			return *v;
+		}
+		if (FmodServer *s = FmodServer::get_singleton()) {
+			if (const float *v = s->globals.getptr(name)) {
+				return *v;
+			}
+		}
+		return it->second.value;
+	}
+
+	const fsb::EventTable *table_for(const fsb::Guid &p_event) override {
+		for (const Ref<NativeSoundBank> &b : keep) {
+			if (b->get_event_table().events.count(p_event)) {
+				return &b->get_event_table();
+			}
+		}
+		return nullptr;
+	}
+
+	void log(const std::string &p_line) override {
+		FmodServer *s = FmodServer::get_singleton();
+		if (s && s->timeline_logs < 300) {
+			s->timeline_logs++;
+			print_line(vformat("native_compat: fmod timeline %s: %s", event->path, String::utf8(p_line.c_str())));
+		}
+	}
+};
+
+FmodEvent::~FmodEvent() {
+	if (timeline) {
+		// No stop of players here: an event freed while playing leaves its sounds to finish (the server keeps
+		// timeline events referenced until they stop, so this is only a released one-shot's end).
+		delete timeline;
+		timeline = nullptr;
+	}
+}
+
 void FmodEvent::start() {
 	if (released) {
 		return;
 	}
 	stop(IMMEDIATE); // a restart drops what the last start still plays
-	if (FmodServer *s = FmodServer::get_singleton()) {
-		s->play_event_sounds(guid, path, volume, pitch, &players, &player_db);
-	}
 	state = PLAYING;
+	if (FmodServer *s = FmodServer::get_singleton()) {
+		if (!s->start_timeline(this)) {
+			s->play_event_sounds(guid, path, volume, pitch, &players, &player_db);
+		}
+	}
+}
+
+void FmodEvent::advance_timeline(double p_seconds) {
+	if (timeline && timeline->player) {
+		timeline->player->advance(p_seconds * CLAMP(pitch, 0.01f, 16.0f), *timeline);
+	}
+}
+
+bool FmodEvent::timeline_finished() {
+	return !timeline || !timeline->player || timeline->player->finished(*timeline);
+}
+
+int FmodEvent::get_timeline_position() const {
+	return timeline && timeline->player ? int(timeline->player->position() * 1000.0) : 0;
+}
+
+void FmodEvent::set_parameter_by_name(const String &p_name, float p_value) {
+	parameters[p_name] = p_value;
+	if (FmodServer *s = FmodServer::get_singleton()) {
+		s->log_parameter(path, p_name, p_value, String());
+	}
+}
+
+void FmodEvent::set_parameter_by_name_with_label(const String &p_name, const String &p_label, bool p_ignore_seek) {
+	FmodServer *s = FmodServer::get_singleton();
+	float v = 0;
+	if (s && s->label_value(p_name, p_label, v)) {
+		parameters[p_name] = v;
+		s->log_parameter(path, p_name, v, p_label);
+	} else if (s) {
+		s->log_parameter(path, p_name, -1, p_label + " (unknown label)");
+	}
 }
 
 void FmodEvent::stop(int p_mode) {
+	if (timeline) {
+		if (timeline->player) {
+			timeline->player->stop(*timeline);
+		}
+		delete timeline;
+		timeline = nullptr;
+	}
 	for (const ObjectID &id : players) {
 		if (AudioStreamPlayer *p = player_of(id)) {
 			p->stop();
@@ -105,6 +268,9 @@ void FmodEvent::set_pitch(float p_v) {
 
 // An event that started sounds has stopped once its players have all finished (each frees itself then).
 int FmodEvent::get_playback_state() {
+	if (timeline) {
+		return state; // the server's tick stops it when its timeline ends
+	}
 	if (state == PLAYING && !players.is_empty()) {
 		bool any = false;
 		for (const ObjectID &id : players) {
@@ -393,7 +559,164 @@ void FmodServer::update() {
 }
 
 void FmodServer::shutdown() {
+	for (const Ref<FmodEvent> &e : timelines) {
+		e->stop(FmodEvent::IMMEDIATE);
+	}
+	timelines.clear();
 	live.clear();
+}
+
+void FmodServer::tick() {
+	const uint64_t now = OS::get_singleton()->get_ticks_usec();
+	double dt = last_tick_usec ? double(now - last_tick_usec) / 1000000.0 : 0.0;
+	last_tick_usec = now;
+	dt = CLAMP(dt, 0.0, 0.25); // a long hitch moves the music on a little, not a long way
+	for (int i = timelines.size() - 1; i >= 0; i--) {
+		Ref<FmodEvent> e = timelines[i];
+		if (!e->timeline || e->state == FmodEvent::STOPPED) {
+			timelines.remove_at(i);
+			continue;
+		}
+		if (!e->paused && dt > 0) {
+			e->advance_timeline(dt);
+		}
+		if (e->timeline_finished()) {
+			e->stop(FmodEvent::IMMEDIATE);
+			timelines.remove_at(i);
+		}
+	}
+}
+
+Vector<Ref<NativeSoundBank>> FmodServer::all_bank_data() const {
+	Vector<Ref<NativeSoundBank>> out;
+	for (const KeyValue<String, Ref<FmodBank>> &kv : banks) {
+		if (kv.value->data.is_valid()) {
+			out.push_back(kv.value->data);
+		}
+	}
+	return out;
+}
+
+Ref<NativeSoundBank> FmodServer::bank_with_event(const fsb::Guid &p_event) const {
+	for (const KeyValue<String, Ref<FmodBank>> &kv : banks) {
+		const Ref<NativeSoundBank> &d = kv.value->data;
+		if (d.is_valid() && d->get_event_table().events.count(p_event)) {
+			return d;
+		}
+	}
+	return Ref<NativeSoundBank>();
+}
+
+Ref<NativeSoundBank> FmodServer::bank_with_dynamic_event(const fsb::Guid &p_event) const {
+	Ref<NativeSoundBank> d = bank_with_event(p_event);
+	if (d.is_valid() && d->get_event_table().events.at(p_event).dynamic) {
+		return d;
+	}
+	return Ref<NativeSoundBank>();
+}
+
+Ref<AudioStreamOggVorbis> FmodServer::stream_for_wave(const fsb::Guid &p_wave, bool p_loop) {
+	for (const KeyValue<String, Ref<FmodBank>> &kv : banks) {
+		const Ref<NativeSoundBank> &d = kv.value->data;
+		const int index = d.is_valid() ? d->find_wave(p_wave) : -1;
+		if (index >= 0) {
+			return p_loop ? d->get_looping_stream(index) : d->get_stream(index);
+		}
+	}
+	return Ref<AudioStreamOggVorbis>();
+}
+
+bool FmodServer::label_value(const String &p_name, const String &p_label, float &r_value) const {
+	const CharString name = p_name.utf8(), label = p_label.utf8();
+	for (const KeyValue<String, Ref<FmodBank>> &kv : banks) {
+		const Ref<NativeSoundBank> &d = kv.value->data;
+		if (d.is_null()) {
+			continue;
+		}
+		for (const auto &pv : d->get_event_table().params) {
+			if (pv.second.name != name.get_data()) {
+				continue;
+			}
+			for (size_t i = 0; i < pv.second.labels.size(); i++) {
+				if (pv.second.labels[i] == label.get_data()) {
+					r_value = float(i);
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+void FmodServer::log_parameter(const String &p_scope, const String &p_name, float p_value, const String &p_label) {
+	const String key = p_scope + "|" + p_name + "|" + rtos(p_value) + "|" + p_label;
+	if (parameter_logs >= 120 || parameters_logged.has(key)) {
+		return;
+	}
+	parameter_logs++;
+	parameters_logged.insert(key);
+	print_line(vformat("native_compat: fmod parameter %s %s = %.2f%s", p_scope, p_name, p_value,
+			p_label.is_empty() ? String() : " (" + p_label + ")"));
+}
+
+void FmodServer::set_global_parameter_by_name(const String &p_name, float p_value) {
+	globals[p_name] = p_value;
+	log_parameter("global", p_name, p_value, String());
+}
+
+void FmodServer::set_global_parameter_by_name_with_label(const String &p_name, const String &p_label) {
+	float v = 0;
+	if (label_value(p_name, p_label, v)) {
+		globals[p_name] = v;
+		log_parameter("global", p_name, v, p_label);
+	} else {
+		log_parameter("global", p_name, -1, p_label + " (unknown label)");
+	}
+}
+
+bool FmodServer::start_timeline(FmodEvent *p_event) {
+	// Experiment switch: DROIDDECK_NATIVE_FMOD_TIMELINE=0 goes back to starting every event's sounds at once.
+	static const bool enabled = [] {
+		const char *v = getenv("DROIDDECK_NATIVE_FMOD_TIMELINE");
+		return !(v && v[0] == '0');
+	}();
+	fsb::Guid g;
+	if (!enabled) {
+		return false;
+	}
+	if (p_event->guid.is_empty() || !fsb::parse_guid_text(p_event->guid.utf8().get_data(), g)) {
+		return false;
+	}
+	Ref<NativeSoundBank> d = bank_with_dynamic_event(g);
+	if (d.is_null()) {
+		return false;
+	}
+	starts++;
+	EventTimeline *t = new EventTimeline(p_event);
+	t->keep = all_bank_data();
+	t->player.reset(new fsb::TimelinePlayer(d->get_event_table(), g, 0, rng = rng * 1664525u + 1013904223u));
+	p_event->timeline = t;
+	t->player->start(*t);
+	Ref<FmodEvent> held(p_event);
+	if (!timelines.has(held)) {
+		timelines.push_back(held);
+	}
+	if (!ticking) {
+		if (SceneTree *tree = SceneTree::get_singleton()) {
+			tree->connect(SNAME("process_frame"), callable_mp(this, &FmodServer::tick));
+			ticking = true;
+			last_tick_usec = OS::get_singleton()->get_ticks_usec();
+		}
+	}
+	const String name = p_event->path.is_empty() ? p_event->guid : p_event->path;
+	if (described.size() < 400 && !described.has(name)) {
+		described.insert(name);
+		const fsb::EventTable::Event &ev = d->get_event_table().events.at(g);
+		print_line(vformat("native_compat: fmod timeline start %s placements=%d transitions=%d length=%.1fs players=%d",
+				name, int(ev.placements.size()), int(ev.transitions.size()), ev.length / fsb::EventTable::TIMELINE_RATE,
+				p_event->players.size()));
+	}
+	return true;
 }
 
 Ref<FmodBank> FmodServer::load_bank(const String &p_path, int p_flag) {
@@ -481,6 +804,14 @@ Ref<FmodEvent> FmodServer::create_event_instance_with_guid(const String &p_guid)
 void FmodServer::play_one_shot(const String &p_path) {
 	Ref<FmodEventDescription> d = get_event(p_path);
 	one_shots++;
+	fsb::Guid g;
+	if (!d->guid.is_empty() && fsb::parse_guid_text(d->guid.utf8().get_data(), g) && bank_with_dynamic_event(g).is_valid()) {
+		// A one-shot on a timeline plays as a released instance, kept by the tick until its timeline ends.
+		Ref<FmodEvent> e = create_event_instance(p_path);
+		e->start();
+		e->release();
+		return;
+	}
 	play_event_sounds(d->guid, p_path, 1, 1, nullptr, nullptr);
 }
 

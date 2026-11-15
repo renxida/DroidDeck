@@ -2,7 +2,9 @@
 // (its Windows library has no linux-arm64 build), so the game's audio code finds them on our engine.
 // Written from the plugin's public API reference (method and property names only) and the game's own
 // bank files; no FMOD or plugin code. Starting an event plays the sounds its bank metadata names (see
-// fsb/event_table.h) through Godot audio players; parameters, buses and VCAs are tracked but not mixed yet.
+// fsb/event_table.h) through Godot audio players. Events that change over time (music, ambience) run on a
+// timeline player (fsb/timeline_player.h) that follows their parameters; buses and VCAs are tracked but not
+// mixed yet.
 #pragma once
 
 #include "core/templates/hash_set.h"
@@ -16,6 +18,7 @@
 #include "scene/3d/node_3d.h"
 
 class FmodEventDescription;
+struct EventTimeline;
 
 class FmodParameterDescription : public RefCounted {
 	GDCLASS(FmodParameterDescription, RefCounted);
@@ -64,18 +67,22 @@ public:
 	// The audio players this start made, and the level (dB) each was set at before the event volume.
 	Vector<ObjectID> players;
 	Vector<float> player_db;
+	EventTimeline *timeline = nullptr; // set while a timeline plays the event
 
+	~FmodEvent();
 	void start();
+	void advance_timeline(double p_seconds); // ours: moves the event's timeline on
+	bool timeline_finished();
 	void stop(int p_mode);
 	void set_paused(bool p_paused);
 	bool get_paused() const { return paused; }
 	void release() { released = true; }
 	void event_key_off() {}
-	void set_parameter_by_name(const String &p_name, float p_value) { parameters[p_name] = p_value; }
+	void set_parameter_by_name(const String &p_name, float p_value);
 	float get_parameter_by_name(const String &p_name) const;
 	void set_parameter_by_id(int64_t p_id, float p_value) { parameters[itos(p_id)] = p_value; }
 	float get_parameter_by_id(int64_t p_id) const { return get_parameter_by_name(itos(p_id)); }
-	void set_parameter_by_name_with_label(const String &p_name, const String &p_label, bool p_ignore_seek) {}
+	void set_parameter_by_name_with_label(const String &p_name, const String &p_label, bool p_ignore_seek);
 	void set_2d_attributes(const Transform2D &p_t) { transform_2d = p_t; }
 	void set_3d_attributes(const Transform3D &p_t) { transform_3d = p_t; }
 	void set_node_attributes(Node *p_node);
@@ -85,7 +92,7 @@ public:
 	void set_volume(float p_v);
 	float get_pitch() const { return pitch; }
 	void set_pitch(float p_v);
-	int get_timeline_position() const { return 0; }
+	int get_timeline_position() const;
 	void set_timeline_position(int p_ms) {}
 	String get_guid() const { return guid; }
 	String get_path() const { return path; }
@@ -220,6 +227,10 @@ class FmodServer : public Object {
 	PackedStringArray missing; // event paths asked for that no loaded name table knows (first 64)
 	PackedStringArray silent; // events started that no loaded bank gives a sound (first 64)
 	HashSet<String> described; // events whose first start has been logged (diagnostics)
+	Vector<Ref<FmodEvent>> timelines; // events playing on a timeline, ticked each frame
+	uint64_t last_tick_usec = 0;
+	bool ticking = false;
+	void tick();
 
 	String guid_for(const String &p_path) const;
 	String path_for(const String &p_guid) const;
@@ -256,9 +267,9 @@ public:
 	Array get_all_event_descriptions() const;
 	Array get_all_buses() const;
 	Array get_all_vca() const;
-	void set_global_parameter_by_name(const String &p_name, float p_value) { globals[p_name] = p_value; }
+	void set_global_parameter_by_name(const String &p_name, float p_value);
 	float get_global_parameter_by_name(const String &p_name) const;
-	void set_global_parameter_by_name_with_label(const String &p_name, const String &p_label) {}
+	void set_global_parameter_by_name_with_label(const String &p_name, const String &p_label);
 	void set_global_parameter_by_id(int64_t p_id, float p_value) { globals[itos(p_id)] = p_value; }
 	float get_global_parameter_by_id(int64_t p_id) const { return get_global_parameter_by_name(itos(p_id)); }
 	void mute_all_events() {}
@@ -273,11 +284,24 @@ public:
 	friend class FmodEventDescription;
 	friend class FmodBank;
 	friend class FmodBus;
+	friend struct EventTimeline;
 	int64_t count_instances(const String &p_path) const;
 	// Plays the sounds one start of the event (by GUID text) gives, each in its own audio player added to the
 	// scene root. Returns how many started; their ids and levels go to r_players and r_db when given.
 	int play_event_sounds(const String &p_guid, const String &p_path, float p_volume, float p_pitch,
 			Vector<ObjectID> *r_players, Vector<float> *r_db);
+	// Timeline support. The bank holding an event that needs the timeline player (null: none or not loaded),
+	// the bank holding any event, a waveform's stream from whichever bank has it, a parameter label's value.
+	Ref<NativeSoundBank> bank_with_dynamic_event(const fsb::Guid &p_event) const;
+	Ref<NativeSoundBank> bank_with_event(const fsb::Guid &p_event) const;
+	Ref<AudioStreamOggVorbis> stream_for_wave(const fsb::Guid &p_wave, bool p_loop);
+	bool label_value(const String &p_name, const String &p_label, float &r_value) const;
+	bool start_timeline(FmodEvent *p_event);
+	void log_parameter(const String &p_scope, const String &p_name, float p_value, const String &p_label);
+	int timeline_logs = 0;
+	int parameter_logs = 0;
+	HashSet<String> parameters_logged;
+	Vector<Ref<NativeSoundBank>> all_bank_data() const;
 };
 
 class FmodEventEmitter2D : public Node2D {
