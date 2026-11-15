@@ -471,7 +471,7 @@ private:
 	// Materials the scene or game sets per blend mode; each one replaces the default for that blend.
 	Ref<Material> normal_material, additive_material, multiply_material, screen_material;
 	Ref<Material> _custom_material(int p_blend) const;
-	RID _blend_item(int p_run, int p_blend);
+	RID _blend_item(int p_run, int p_blend, int p_draw_index, const Ref<Material> &p_override = Ref<Material>());
 	void _free_blend_items();
 
 	void _data_changed();
@@ -593,6 +593,8 @@ public:
 	Ref<Material> get_multiply_material() const { return multiply_material; }
 	void set_screen_material(const Ref<Material> &p) { screen_material = p; }
 	Ref<Material> get_screen_material() const { return screen_material; }
+	// The material set here for a blend mode (empty if none): it draws the slot's own attachment.
+	Ref<Material> material_for(int p_blend) const;
 	void follow(SpineSprite *p_sprite);
 };
 

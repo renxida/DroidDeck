@@ -43,7 +43,7 @@ namespace {
 struct FrameSplit {
 	uint64_t window_start_usec = 0;
 	uint64_t last_frame = UINT64_MAX;
-	int64_t frames = 0, sprite_updates = 0, slots = 0, vertices = 0, batches = 0, clipped = 0;
+	int64_t frames = 0, sprite_updates = 0, slots = 0, vertices = 0, batches = 0, clipped = 0, slot_node_inserts = 0;
 	uint64_t update_usec = 0, signal_usec = 0, draw_usec = 0;
 	double process_sec = 0, physics_sec = 0;
 	uint64_t thread_cpu_start_nsec = 0;
@@ -88,10 +88,10 @@ struct FrameSplit {
 			// "main thread busy" is CPU time the main thread used over wall time: near 100% means it never waits.
 			print_line(vformat("native_compat: frame split %.1fs %d frames %.1f fps | per frame: process peak %.2f ms, physics peak %.2f ms, "
 							   "spine update %.2f ms (signals %.2f ms), spine draw %.2f ms, main thread cpu %.2f ms (busy %.0f%%) | "
-							   "%.1f sprites %.0f slots %.0f vertices %.0f batches %.1f clipped slots | main thread on cpu %s",
+							   "%.1f sprites %.0f slots %.0f vertices %.0f batches %.1f clipped slots %.1f slot node inserts | main thread on cpu %s",
 					wall_ms / 1e3, frames, f * 1e3 / wall_ms, process_sec * 1e3 / f, physics_sec * 1e3 / f, double(update_usec) / 1e3 / f,
 					double(signal_usec) / 1e3 / f, double(draw_usec) / 1e3 / f, cpu_ms / f, 100.0 * cpu_ms / wall_ms,
-					double(sprite_updates) / f, double(slots) / f, double(vertices) / f, double(batches) / f, double(clipped) / f, cpu_spread()));
+					double(sprite_updates) / f, double(slots) / f, double(vertices) / f, double(batches) / f, double(clipped) / f, double(slot_node_inserts) / f, cpu_spread()));
 			*this = FrameSplit();
 			last_frame = frame;
 			window_start_usec = now;
@@ -1646,17 +1646,17 @@ void SpineSprite::_follow_children() {
 	});
 }
 
-RID SpineSprite::_blend_item(int p_run, int p_blend) {
+RID SpineSprite::_blend_item(int p_run, int p_blend, int p_draw_index, const Ref<Material> &p_override) {
 	RenderingServer *rs = RenderingServer::get_singleton();
 	while (blend_items.size() <= p_run) {
 		RID item = rs->canvas_item_create();
 		rs->canvas_item_set_parent(item, get_canvas_item());
-		rs->canvas_item_set_draw_index(item, blend_items.size());
 		blend_items.push_back(item);
 	}
 	RID item = blend_items[p_run];
 	rs->canvas_item_clear(item);
-	const Ref<Material> custom = _custom_material(p_blend);
+	rs->canvas_item_set_draw_index(item, p_draw_index);
+	const Ref<Material> custom = p_override.is_valid() ? p_override : _custom_material(p_blend);
 	if (custom.is_valid()) {
 		rs->canvas_item_set_use_parent_material(item, false);
 		rs->canvas_item_set_material(item, custom->get_rid());
@@ -1697,12 +1697,35 @@ void SpineSprite::_draw_skeleton() {
 	if (skeleton_data_res.is_valid() && skeleton_data_res->get_atlas_res().is_valid()) {
 		pages = &skeleton_data_res->get_atlas_res()->get_page_textures();
 	}
+	// Slot nodes (DROIDDECK_NATIVE_SPINE_SLOT_ORDER=0 turns this off): the children of a slot node that is a
+	// direct child of the sprite draw right after that slot, in the skeleton's draw order, and a material set on
+	// the slot node draws that slot's own attachment. Every child canvas item of the sprite (the runs below, slot
+	// nodes, other children) gets its own draw index, so none ties with another: the canvas sorts children by
+	// index and leaves ties in no set order. Other children draw after the whole skeleton.
+	static const bool order_enabled = [] {
+		const char *v = getenv("DROIDDECK_NATIVE_SPINE_SLOT_ORDER");
+		return !(v && v[0] == '0');
+	}();
+	std::vector<std::vector<SpineSlotNode *>> slot_nodes;
+	if (order_enabled) {
+		slot_nodes.resize(skeleton->slots.size());
+		for (int i = 0; i < get_child_count(); i++) {
+			if (SpineSlotNode *sn = Object::cast_to<SpineSlotNode>(get_child(i))) {
+				const int s = data->find_slot(to_std(sn->get_slot_name()));
+				if (s >= 0 && s < int(slot_nodes.size())) {
+					slot_nodes[s].push_back(sn);
+				}
+			}
+		}
+	}
+	int order = 0; // next draw index among the sprite's child items
 	RID item = get_canvas_item();
 	int run = -1, run_blend = int(skel::BlendMode::Normal);
+	Ref<Material> run_material; // a slot node's material on the current run
 	if (normal_material.is_valid()) {
 		// A normal-blend material of its own: normal slots draw in a child item that carries it.
 		run = 0;
-		item = _blend_item(0, run_blend);
+		item = _blend_item(0, run_blend, order_enabled ? order++ : 0);
 	}
 	// Slots that share a canvas item and a texture page go out as one triangle array: each array the canvas
 	// gets is a polygon with buffers of its own, made and freed every frame, so one per slot cost most of the
@@ -1771,12 +1794,22 @@ void SpineSprite::_draw_skeleton() {
 			tex = (*pages)[a->page]->get_rid();
 		}
 		int blend = int(slot.data->blend);
-		if (blend != run_blend) {
+		Ref<Material> slot_material;
+		if (order_enabled) {
+			for (SpineSlotNode *sn : slot_nodes[slot_index]) {
+				Ref<Material> m = sn->material_for(blend);
+				if (m.is_valid()) {
+					slot_material = m;
+				}
+			}
+		}
+		if (blend != run_blend || slot_material != run_material) {
 			flush();
 			// Once one slot leaves the node's own item, every later slot goes to child items in order.
 			run++;
 			run_blend = blend;
-			item = _blend_item(run, blend);
+			run_material = slot_material;
+			item = _blend_item(run, blend, order_enabled ? order++ : run, slot_material);
 		} else if (tex != batch_tex) {
 			flush();
 		}
@@ -1869,9 +1902,36 @@ void SpineSprite::_draw_skeleton() {
 		if (clipper.active() && slot_index == clip_end) {
 			clipper.end();
 		}
+		if (order_enabled && !slot_nodes[slot_index].empty()) {
+			// The slot node's children go here; the slots after it start a new item above them.
+			flush();
+			for (SpineSlotNode *sn : slot_nodes[slot_index]) {
+				rs->canvas_item_set_draw_index(sn->get_canvas_item(), order++);
+				frame_split.slot_node_inserts++;
+			}
+			run++;
+			item = _blend_item(run, run_blend, order++, run_material);
+		}
 	}
 	clipper.end();
 	flush();
+	if (order_enabled) {
+		const int base = order;
+		for (int i = 0; i < get_child_count(); i++) {
+			CanvasItem *ci = Object::cast_to<CanvasItem>(get_child(i));
+			if (!ci || ci->is_set_as_top_level()) {
+				continue;
+			}
+			SpineSlotNode *sn = Object::cast_to<SpineSlotNode>(ci);
+			if (sn) {
+				const int s = data->find_slot(to_std(sn->get_slot_name()));
+				if (s >= 0 && s < int(slot_nodes.size())) {
+					continue; // placed in the draw order above
+				}
+			}
+			rs->canvas_item_set_draw_index(ci->get_canvas_item(), base + i);
+		}
+	}
 }
 
 void SpineSprite::_notification(int p_what) {
@@ -2023,6 +2083,20 @@ void SpineBoneNode::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "enabled"), "set_enabled", "get_enabled");
 	BIND_ENUM_CONSTANT(BONE_MODE_FOLLOW);
 	BIND_ENUM_CONSTANT(BONE_MODE_DRIVE);
+}
+
+Ref<Material> SpineSlotNode::material_for(int p_blend) const {
+	switch (skel::BlendMode(p_blend)) {
+		case skel::BlendMode::Normal:
+			return normal_material;
+		case skel::BlendMode::Additive:
+			return additive_material;
+		case skel::BlendMode::Multiply:
+			return multiply_material;
+		case skel::BlendMode::Screen:
+			return screen_material;
+	}
+	return Ref<Material>();
 }
 
 void SpineSlotNode::follow(SpineSprite *p_sprite) {
