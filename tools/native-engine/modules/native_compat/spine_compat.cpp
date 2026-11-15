@@ -41,7 +41,7 @@ namespace {
 struct FrameSplit {
 	uint64_t window_start_usec = 0;
 	uint64_t last_frame = UINT64_MAX;
-	int64_t frames = 0, sprite_updates = 0, slots = 0, vertices = 0;
+	int64_t frames = 0, sprite_updates = 0, slots = 0, vertices = 0, batches = 0;
 	uint64_t update_usec = 0, signal_usec = 0, draw_usec = 0;
 	double process_sec = 0, physics_sec = 0;
 	uint64_t thread_cpu_start_nsec = 0;
@@ -84,12 +84,12 @@ struct FrameSplit {
 			const uint64_t cpu_now = thread_cpu_nsec();
 			const double cpu_ms = double(cpu_now - thread_cpu_start_nsec) / 1e6;
 			// "main thread busy" is CPU time the main thread used over wall time: near 100% means it never waits.
-			print_line(vformat("native_compat: frame split %.1fs %d frames %.1f fps | per frame: process %.2f ms, physics %.2f ms, "
+			print_line(vformat("native_compat: frame split %.1fs %d frames %.1f fps | per frame: process peak %.2f ms, physics peak %.2f ms, "
 							   "spine update %.2f ms (signals %.2f ms), spine draw %.2f ms, main thread cpu %.2f ms (busy %.0f%%) | "
-							   "%.1f sprites %.0f slots %.0f vertices | main thread on cpu %s",
+							   "%.1f sprites %.0f slots %.0f vertices %.0f batches | main thread on cpu %s",
 					wall_ms / 1e3, frames, f * 1e3 / wall_ms, process_sec * 1e3 / f, physics_sec * 1e3 / f, double(update_usec) / 1e3 / f,
 					double(signal_usec) / 1e3 / f, double(draw_usec) / 1e3 / f, cpu_ms / f, 100.0 * cpu_ms / wall_ms,
-					double(sprite_updates) / f, double(slots) / f, double(vertices) / f, cpu_spread()));
+					double(sprite_updates) / f, double(slots) / f, double(vertices) / f, double(batches) / f, cpu_spread()));
 			*this = FrameSplit();
 			last_frame = frame;
 			window_start_usec = now;
@@ -102,7 +102,8 @@ struct FrameSplit {
 			on_cpu[cpu]++;
 		}
 #endif
-		// The monitors hold the previous frame's times, which is fine over a window.
+		// The engine's process and physics monitors hold the slowest step of the last second, not each frame's,
+		// so these come out as an average of per-second peaks.
 		process_sec += Performance::get_singleton()->get_monitor(Performance::TIME_PROCESS);
 		physics_sec += Performance::get_singleton()->get_monitor(Performance::TIME_PHYSICS_PROCESS);
 	}
@@ -1702,10 +1703,31 @@ void SpineSprite::_draw_skeleton() {
 		run = 0;
 		item = _blend_item(0, run_blend);
 	}
+	// Slots that share a canvas item and a texture page go out as one triangle array: each array the canvas
+	// gets is a polygon with buffers of its own, made and freed every frame, so one per slot cost most of the
+	// draw time on the phone.
 	std::vector<float> world;
 	Vector<int> indices;
 	Vector<Point2> points, uvs;
 	Vector<Color> colors;
+	int vcount = 0, icount = 0;
+	RID batch_tex;
+	auto flush = [&]() {
+		if (icount > 0) {
+			indices.resize(icount);
+			points.resize(vcount);
+			uvs.resize(vcount);
+			colors.resize(vcount);
+			rs->canvas_item_add_triangle_array(item, indices, points, colors, uvs, Vector<int>(), Vector<float>(), batch_tex);
+			frame_split.batches++;
+		}
+		vcount = icount = 0;
+	};
+	auto grow = [](auto &v, int need) {
+		if (v.size() < need) {
+			v.resize(MAX(need, v.size() * 2));
+		}
+	};
 	for (int slot_index : skeleton->draw_order) {
 		const skel::Slot &slot = skeleton->slots[slot_index];
 		const skel::Attachment *a = slot.drawn();
@@ -1726,50 +1748,56 @@ void SpineSprite::_draw_skeleton() {
 		if (c.a <= 0) {
 			continue;
 		}
-		int blend = int(slot.data->blend);
-		if (blend != run_blend) {
-			// Once one slot leaves the node's own item, every later slot goes to child items in order.
-			run++;
-			run_blend = blend;
-			item = _blend_item(run, blend);
-		}
-		points.resize(n);
-		uvs.resize(n);
-		colors.resize(n);
-		Point2 *pw = points.ptrw();
-		Point2 *uw = uvs.ptrw();
-		Color *cw = colors.ptrw();
-		for (int i = 0; i < n; i++) {
-			pw[i] = to_canvas(world[i * 2], world[i * 2 + 1]);
-			cw[i] = c;
-		}
-		if (a->type == skel::AttachmentType::Region) {
-			for (int i = 0; i < 4; i++) {
-				uw[i] = Point2(a->region_uv[i * 2], a->region_uv[i * 2 + 1]);
-			}
-			indices.resize(6);
-			int *iw = indices.ptrw();
-			const int quad[6] = { 0, 1, 2, 2, 3, 0 };
-			for (int i = 0; i < 6; i++) {
-				iw[i] = quad[i];
-			}
-		} else {
-			const std::vector<float> &src = a->page_uvs.empty() ? a->uvs : a->page_uvs;
-			for (int i = 0; i < n && size_t(i * 2 + 1) < src.size(); i++) {
-				uw[i] = Point2(src[i * 2], src[i * 2 + 1]);
-			}
-			indices.resize(int(a->triangles.size()));
-			int *iw = indices.ptrw();
-			for (size_t i = 0; i < a->triangles.size(); i++) {
-				iw[i] = a->triangles[i];
-			}
-		}
 		RID tex;
 		if (pages && a->page >= 0 && a->page < pages->size() && (*pages)[a->page].is_valid()) {
 			tex = (*pages)[a->page]->get_rid();
 		}
-		rs->canvas_item_add_triangle_array(item, indices, points, colors, uvs, Vector<int>(), Vector<float>(), tex);
+		int blend = int(slot.data->blend);
+		if (blend != run_blend) {
+			flush();
+			// Once one slot leaves the node's own item, every later slot goes to child items in order.
+			run++;
+			run_blend = blend;
+			item = _blend_item(run, blend);
+		} else if (tex != batch_tex) {
+			flush();
+		}
+		batch_tex = tex;
+		const bool region = a->type == skel::AttachmentType::Region;
+		const int tris = region ? 6 : int(a->triangles.size());
+		grow(points, vcount + n);
+		grow(uvs, vcount + n);
+		grow(colors, vcount + n);
+		grow(indices, icount + tris);
+		Point2 *pw = points.ptrw() + vcount;
+		Point2 *uw = uvs.ptrw() + vcount;
+		Color *cw = colors.ptrw() + vcount;
+		int *iw = indices.ptrw() + icount;
+		for (int i = 0; i < n; i++) {
+			pw[i] = to_canvas(world[i * 2], world[i * 2 + 1]);
+			cw[i] = c;
+		}
+		if (region) {
+			for (int i = 0; i < 4; i++) {
+				uw[i] = Point2(a->region_uv[i * 2], a->region_uv[i * 2 + 1]);
+			}
+			const int quad[6] = { 0, 1, 2, 2, 3, 0 };
+			for (int i = 0; i < 6; i++) {
+				iw[i] = vcount + quad[i];
+			}
+		} else {
+			const std::vector<float> &src = a->page_uvs.empty() ? a->uvs : a->page_uvs;
+			for (int i = 0; i < n; i++) {
+				uw[i] = size_t(i * 2 + 1) < src.size() ? Point2(src[i * 2], src[i * 2 + 1]) : Point2();
+			}
+			for (int i = 0; i < tris; i++) {
+				iw[i] = vcount + a->triangles[i];
+			}
+		}
+		vcount += n;
+		icount += tris;
 	}
+	flush();
 }
 
 void SpineSprite::_notification(int p_what) {
