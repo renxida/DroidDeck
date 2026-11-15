@@ -256,6 +256,12 @@ bool read_path_table(const uint8_t *data, size_t length, PathTable &out, std::st
 		error = "no path table (STDT) in the file";
 		return false;
 	}
+	// Banks other than the strings bank carry an STDT chunk too, with no table in it.
+	if (size < 4) {
+		out = PathTable();
+		error = "no path table (STDT) in the file";
+		return false;
+	}
 	return parse_path_table(data + body, size, out, error);
 }
 

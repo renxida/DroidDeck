@@ -123,6 +123,13 @@ void synthetic() {
 			}
 		}
 	}
+	// An audio bank's empty STDT chunk reads as no path table, not a broken one.
+	for (size_t n = 0; n < 4; n++) {
+		const std::vector<uint8_t> e = bank(std::vector<uint8_t>(n, 0));
+		fsb::PathTable u;
+		CHECK(!fsb::read_path_table(e.data(), e.size(), u, error) && error == "no path table (STDT) in the file");
+		CHECK(u.paths.empty());
+	}
 	// Truncations fail.
 	for (size_t n = 0; n < good.size(); n++) {
 		fsb::PathTable u;

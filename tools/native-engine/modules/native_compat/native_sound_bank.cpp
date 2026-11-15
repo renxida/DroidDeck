@@ -65,19 +65,28 @@ Error NativeSoundBank::parse(const uint8_t *p_data, size_t p_size, uint64_t p_fi
 		events = fsb::EventTable();
 	}
 	error.clear();
-	// A strings bank has a path table and no audio; other banks have audio and no path table.
+	// A strings bank has a path table and no audio; other banks have audio and an empty or no path table.
 	const bool has_paths = fsb::read_path_table(p_data, p_size, paths, error);
+	String path_error;
 	if (!has_paths) {
 		paths = fsb::PathTable();
 		if (error != "no path table (STDT) in the file") {
-			load_error = String::utf8(error.c_str());
-			return ERR_FILE_CORRUPT;
+			path_error = String::utf8(error.c_str());
 		}
 	}
 	size_t at = 0;
 	if (!fsb::find_fsb5(p_data, p_size, at)) {
+		// No audio: the path table is all this bank has, so a bad one fails it.
+		if (!path_error.is_empty()) {
+			load_error = path_error;
+			return ERR_FILE_CORRUPT;
+		}
 		load_error = has_paths ? String() : String("no FSB5 block or path table in the file");
 		return has_paths ? OK : ERR_FILE_UNRECOGNIZED;
+	}
+	// A bank with audio keeps it whatever its path table says; the strings bank names its events.
+	if (!path_error.is_empty()) {
+		WARN_PRINT("native_compat: sound bank path table ignored: " + path_error);
 	}
 	fsb::Container parsed;
 	if (!fsb::parse_fsb5(p_data + at, p_size - at, parsed, error, p_file_length ? size_t(p_file_length - at) : 0)) {
