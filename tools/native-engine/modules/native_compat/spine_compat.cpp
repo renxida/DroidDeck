@@ -3,6 +3,8 @@
 
 #include "core/io/file_access.h"
 #include "core/io/json.h"
+#include "core/os/os.h"
+#include "main/performance.h"
 #include "core/templates/hash_set.h"
 #include "scene/resources/canvas_item_material.h"
 #include "servers/rendering_server.h"
@@ -26,6 +28,49 @@ inline Vector2 to_canvas(float x, float y) {
 } // namespace
 
 SpineCompatStats spine_compat_stats;
+
+namespace {
+
+// Where a frame's main-thread time goes, logged every 10 s while skeletons animate, so a play session shows
+// how much of a slow frame is ours (skeleton update and draw) and how much is the game's own process step.
+struct FrameSplit {
+	uint64_t window_start_usec = 0;
+	uint64_t last_frame = UINT64_MAX;
+	int64_t frames = 0, sprite_updates = 0, slots = 0, vertices = 0;
+	uint64_t update_usec = 0, signal_usec = 0, draw_usec = 0;
+	double process_sec = 0, physics_sec = 0;
+
+	void begin_frame() {
+		const uint64_t frame = Engine::get_singleton()->get_process_frames();
+		if (frame == last_frame) {
+			return;
+		}
+		last_frame = frame;
+		const uint64_t now = OS::get_singleton()->get_ticks_usec();
+		if (window_start_usec == 0) {
+			window_start_usec = now;
+		}
+		if (frames > 0 && now - window_start_usec >= 10000000) {
+			const double f = double(frames);
+			print_line(vformat("native_compat: frame split %.1fs %d frames %.1f fps | per frame: process %.2f ms, physics %.2f ms, "
+							   "spine update %.2f ms (signals %.2f ms), spine draw %.2f ms | %.1f sprites %.0f slots %.0f vertices",
+					double(now - window_start_usec) / 1e6, frames, f * 1e6 / double(now - window_start_usec), process_sec * 1e3 / f,
+					physics_sec * 1e3 / f, double(update_usec) / 1e3 / f, double(signal_usec) / 1e3 / f, double(draw_usec) / 1e3 / f,
+					double(sprite_updates) / f, double(slots) / f, double(vertices) / f));
+			*this = FrameSplit();
+			last_frame = frame;
+			window_start_usec = now;
+		}
+		frames++;
+		// The monitors hold the previous frame's times, which is fine over a window.
+		process_sec += Performance::get_singleton()->get_monitor(Performance::TIME_PROCESS);
+		physics_sec += Performance::get_singleton()->get_monitor(Performance::TIME_PHYSICS_PROCESS);
+	}
+};
+
+FrameSplit frame_split;
+
+} // namespace
 
 namespace {
 
@@ -1514,22 +1559,38 @@ void SpineSprite::update_skeleton(float p_delta) {
 	if (!skeleton || !state) {
 		return;
 	}
+	frame_split.begin_frame();
+	OS *os = OS::get_singleton();
+	const uint64_t t0 = os->get_ticks_usec();
+	uint64_t signals = 0, s0 = t0;
 	emit_signal(SNAME("before_animation_state_update"), this);
+	signals += os->get_ticks_usec() - s0;
 	state->update(p_delta * time_scale);
+	s0 = os->get_ticks_usec();
 	emit_signal(SNAME("before_animation_state_apply"), this);
+	signals += os->get_ticks_usec() - s0;
 	state->apply(*skeleton);
 	skeleton->update(p_delta * time_scale); // physics time
+	s0 = os->get_ticks_usec();
 	emit_signal(SNAME("before_world_transforms_change"), this);
+	signals += os->get_ticks_usec() - s0;
 	for (int i = 0; i < get_child_count(); i++) {
 		if (SpineBoneNode *bn = Object::cast_to<SpineBoneNode>(get_child(i))) {
 			bn->drive(this);
 		}
 	}
 	skeleton->update_world_transform();
+	s0 = os->get_ticks_usec();
 	emit_signal(SNAME("world_transforms_changed"), this);
+	signals += os->get_ticks_usec() - s0;
 	_follow_children();
+	s0 = os->get_ticks_usec();
 	_emit_pending();
+	signals += os->get_ticks_usec() - s0;
 	queue_redraw();
+	frame_split.sprite_updates++;
+	frame_split.signal_usec += signals;
+	frame_split.update_usec += os->get_ticks_usec() - t0;
 }
 
 void SpineSprite::_follow_children() {
@@ -1618,6 +1679,8 @@ void SpineSprite::_draw_skeleton() {
 		if (n == 0) {
 			continue;
 		}
+		frame_split.slots++;
+		frame_split.vertices += n;
 		Color c(skeleton->color.r * slot.color.r * a->color.r, skeleton->color.g * slot.color.g * a->color.g,
 				skeleton->color.b * slot.color.b * a->color.b, skeleton->color.a * slot.color.a * a->color.a);
 		if (c.a <= 0) {
@@ -1682,9 +1745,11 @@ void SpineSprite::_notification(int p_what) {
 		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS:
 			update_skeleton(float(get_physics_process_delta_time()));
 			break;
-		case NOTIFICATION_DRAW:
+		case NOTIFICATION_DRAW: {
+			const uint64_t t0 = OS::get_singleton()->get_ticks_usec();
 			_draw_skeleton();
-			break;
+			frame_split.draw_usec += OS::get_singleton()->get_ticks_usec() - t0;
+		} break;
 		case NOTIFICATION_PREDELETE:
 			_free_blend_items();
 			break;
