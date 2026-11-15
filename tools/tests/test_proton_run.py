@@ -115,7 +115,9 @@ class ProtonRunTest(Temp):
             self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/droiddeck-proton %verb%"\n}\n')
             self.write("Steam/%s/droiddeck-proton" % folder, b"#!/bin/sh\n", 0o755)
         self.write("Steam/config/config.vdf", CONFIG)
-        patcher = mock.patch.dict(RUN, {"EXTRA_LIBRARIES": (), "SYSTEM_TOOLS": (), "STATE": str(self.tmp / "state.json")})
+        self.write("Steam/linuxarm64/steamclient.so", b"\x7fELF\x02\x01\x01")
+        patcher = mock.patch.dict(RUN, {"EXTRA_LIBRARIES": (), "SYSTEM_TOOLS": (), "STATE": str(self.tmp / "state.json"),
+                                        "HOME": str(self.tmp / "home")})
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -301,13 +303,39 @@ class ProtonRunTest(Temp):
         self.assertEqual(env["SteamAppId"], "413150")
         self.assertTrue((self.root / "steamapps/compatdata/413150").is_dir())
 
-    def run_main(self, argv):
+    def run_main(self, argv, said=None):
         calls, dirs = [], []
         with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
                 mock.patch.object(RUN["os"], "execve", lambda *a: calls.append(a)), \
-                mock.patch.object(RUN["os"], "chdir", dirs.append), mock.patch.dict(RUN, {"say": lambda message: None}):
+                mock.patch.object(RUN["os"], "chdir", dirs.append), \
+                mock.patch.dict(RUN, {"say": said.append if said is not None else lambda message: None}):
             code = RUN["main"](argv)
         return code, calls, dirs
+
+    def test_without_steams_client_library_the_launch_stops_with_a_reason(self):
+        program = str(self.game("413150", "Stardew Valley", "Stardew Valley.exe"))
+        (self.root / "linuxarm64/steamclient.so").unlink()
+        said = []
+        code, calls, _ = self.run_main([program], said)
+        self.assertEqual(code, 69)
+        self.assertEqual(calls, [])
+        self.assertTrue(said[-1].startswith(RUN["STEAM_CLIENT_MISSING"] + " (no steamclient.so); open Steam once"))
+
+    def test_a_file_that_is_not_a_library_does_not_count_as_steams_client(self):
+        program = str(self.game("413150", "Stardew Valley", "Stardew Valley.exe"))
+        self.write("Steam/linuxarm64/steamclient.so", b"")
+        self.assertEqual(self.run_main([program])[0], 69)
+
+    def test_steams_client_library_is_found_where_proton_looks_for_it(self):
+        program = str(self.game("413150", "Stardew Valley", "Stardew Valley.exe"))
+        (self.root / "linuxarm64/steamclient.so").unlink()
+        for place in ("home/.steam/sdkarm64", "home/.steam/sdk64", "Steam/linux64", "Steam/ubuntu12_64"):
+            with self.subTest(place):
+                library = self.write(place + "/steamclient.so", b"\x7fELF")
+                code, calls, _ = self.run_main([program])
+                self.assertIsNone(code)
+                self.assertEqual(len(calls), 1)
+                library.unlink()
 
     def test_without_steam_a_steam_game_starts_its_default_windows_launch(self):
         info = {"common": {"type": "Game", "oslist": "windows,linux"}, "config": {"launch": {

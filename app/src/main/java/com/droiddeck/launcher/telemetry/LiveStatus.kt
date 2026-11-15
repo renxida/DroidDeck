@@ -343,7 +343,7 @@ internal class LiveSampler(private val dir: File) {
         private const val EVENTS = 8
         private const val EVENT_CHARS = 200
         private const val PROCESSES = 6
-        private val NOTABLE = setOf("game.first_frame", "game.exited", "pacing.cap", "game.experiments",
+        private val NOTABLE = setOf("game.first_frame", "game.exited", "pacing.cap", "game.experiments", "game.engine",
             "steam.game_launch_requested", "steam.signed_in", "steam.return_after_game", "guest.exited", "session.ready",
             "app.exit", "exit.classified", "memory.lmk_risk", "memory.trim", "memory.freed", "session.paged_out", "session.paged_in")
         private val NOTABLE_WORDS = listOf("fail", "error", "crash", "abnormal")

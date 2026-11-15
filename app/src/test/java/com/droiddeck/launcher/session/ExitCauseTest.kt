@@ -17,7 +17,8 @@ class ExitCauseTest {
         phantom: PhantomProcessStatus = PhantomProcessStatus.DISABLED,
         xiaomi: Boolean = false,
         pressure: Boolean = false,
-    ) = ExitCause.ofGuest(status, stop, phantom, xiaomi, pressure)
+        launch: SessionLaunchFailure? = null,
+    ) = ExitCause.ofGuest(status, stop, phantom, xiaomi, pressure, launch)
 
     @Test fun waitForStatusesAboveOneHundredTwentyEightAreSignals() {
         assertEquals(9, ExitCause.signalOf(137))
@@ -33,6 +34,34 @@ class ExitCauseTest {
         assertEquals(ExitCause.Kind.EXIT_CODE, code.kind)
         assertNull(code.signal)
         assertNull(ExitCause.failureCode(code))
+    }
+
+    @Test fun aGuestThatExitedZeroWithoutAVulkanDeviceFailedToStart() {
+        val verdict = guest(0, launch = SessionLaunchFailure.VULKAN_DEVICE_MISSING)
+        assertEquals(ExitCause.Kind.FAILED_START, verdict.kind)
+        assertEquals(ExitCause.Suspect.GPU_OR_NATIVE, verdict.suspect)
+        assertEquals(0, verdict.status)
+        assertEquals("VULKAN_DEVICE_MISSING", ExitCause.failureCode(verdict))
+        assertTrue(ExitCause.line("session", verdict), ExitCause.line("session", verdict).contains("class=failed_start"))
+    }
+
+    @Test fun protonWithoutTheSteamClientIsAFailedStartWithItsOwnCode() {
+        val verdict = guest(69, launch = SessionLaunchFailure.STEAM_CLIENT_MISSING)
+        assertEquals(ExitCause.Kind.FAILED_START, verdict.kind)
+        assertEquals(ExitCause.Suspect.GUEST, verdict.suspect)
+        assertEquals("STEAM_CLIENT_MISSING", ExitCause.failureCode(verdict))
+    }
+
+    @Test fun aCleanExitWithoutLogEvidenceStaysClean() {
+        assertEquals(ExitCause.Kind.CLEAN, guest(0, launch = null).kind)
+        assertEquals(ExitCause.Kind.CLEAN, guest(0, launch = SessionLaunchFailure.STEAM_ILLEGAL_INSTRUCTION).kind)
+        assertEquals(ExitCause.Kind.CRASH_SIGNAL, guest(132, launch = SessionLaunchFailure.STEAM_ILLEGAL_INSTRUCTION).kind)
+    }
+
+    @Test fun aSignalKeepsItsClassWhateverTheLogSays() {
+        val verdict = guest(137, phantom = PhantomProcessStatus.ENABLED, launch = SessionLaunchFailure.VULKAN_DEVICE_MISSING)
+        assertEquals(ExitCause.Kind.KILLED, verdict.kind)
+        assertEquals(ExitCause.FAILURE_PHANTOM, ExitCause.failureCode(verdict))
     }
 
     @Test fun sigkillWithTheChildProcessLimitOnBlamesThePhantomProcessKiller() {

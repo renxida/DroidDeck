@@ -265,18 +265,26 @@ trap 'bl_stopping=1; collect_steam_logs 2>/dev/null || true' TERM INT HUP
 if [ -n "${BL_VK_DRIVER:-}" ]; then
   bl_icd_lib=$(sed -n 's/.*"library_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BL_VK_DRIVER" 2>/dev/null | head -1)
   bl_icd_lib=$(printf '%s' "$bl_icd_lib" | sed 's|\\/|/|g')
+  # As the Vulkan loader reads library_path: absolute; with a slash, relative to the manifest; a bare name
+  # (Ubuntu's lvp_icd.json) is found by the dynamic linker, so it is left to the loader.
+  bl_icd_named=
   case $bl_icd_lib in
     /*) ;;
-    ?*) bl_icd_lib="$(dirname "$BL_VK_DRIVER")/$bl_icd_lib" ;;
+    */*) bl_icd_lib="$(dirname "$BL_VK_DRIVER")/$bl_icd_lib" ;;
+    ?*) bl_icd_named=1 ;;
   esac
-  if [ -r "$BL_VK_DRIVER" ] && [ -n "$bl_icd_lib" ] && [ -r "$bl_icd_lib" ]; then
+  if [ -r "$BL_VK_DRIVER" ] && [ -n "$bl_icd_named" ]; then
+    export VK_DRIVER_FILES="$BL_VK_DRIVER"
+    export VK_ICD_FILENAMES="$BL_VK_DRIVER"
+    echo "== vulkan driver: imported $bl_icd_lib by name, found by the loader (via $BL_VK_DRIVER)"
+  elif [ -r "$BL_VK_DRIVER" ] && [ -n "$bl_icd_lib" ] && [ -r "$bl_icd_lib" ]; then
     export VK_DRIVER_FILES="$BL_VK_DRIVER"
     export VK_ICD_FILENAMES="$BL_VK_DRIVER"
     echo "== vulkan driver: imported $bl_icd_lib (via $BL_VK_DRIVER)"
   else
     echo "== vulkan driver: IGNORING $BL_VK_DRIVER (manifest or ${bl_icd_lib:-library} unreadable); using the runtime's own"
   fi
-  unset bl_icd_lib
+  unset bl_icd_lib bl_icd_named
 fi
 bl_webhelper_layout() {
   if [ -n "${BL_VKBRIDGE_WEBHELPER_ARGS:-}" ]; then
@@ -639,6 +647,8 @@ if [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard
   /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
 fi
 
+# The app reads gamescope's Vulkan errors before this line as a start that never happened.
+echo "== gamescope: the session runs inside the compositor"
 start_agent
 
 case $mode in

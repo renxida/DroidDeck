@@ -8,7 +8,9 @@ public half), commits remote/inbox/<id>.json to a clone of the repository (LANNE
 pushes it, then waits for remote/outbox/<id>.json and prints it; a
 "screenshot" answer also saves remote/outbox/<id>.jpg next to the current directory. Methods are the
 agent bridge's (state, stop, launch, input, ui, guest, logs, prefs, env, ...) plus start, screenshot,
-autotest, layout and ping. The phone polls every 30 s, and every 5 s for ten minutes after a command.
+autotest, layout, update and ping. The phone polls every 30 s, and every 5 s for ten minutes after a command.
+"ping" answers read-only status (build commit, switches, power, thermals); "update" makes the phone check the
+fork's latest APK and download it now (it still installs only after the system's confirmation on the front screen).
 
 Driving the app by hand:
   ui '{"op":"dump"}'                                   what is on screen, with bounds

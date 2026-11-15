@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import collections
 import errno
 import hashlib
 import json
@@ -83,7 +84,8 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "hybris-index-session", "native-engine", "dxvk-arm64ec",
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
-               "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim")
+               "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
+               "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -1220,7 +1222,8 @@ def present_pacing(env, fps, layer_dir=None):
     --max-fps and ran at 40-44 fps under a 30 cap, Nov 14), so VK_LAYER_DROIDDECK_vkcount also paces presents to
     the cap: vkQueuePresentKHR returns no sooner than one interval after the last. The app rewrites the rate in
     DROIDDECK_PACE_FILE for the thermal governor and an idle player. Needs the system Vulkan layers; the layer is
-    added (with its reports off) when vk-count did not add it. DROIDDECK_PACE=0 turns it off."""
+    added (with its reports off unless vk-count is on) when vk-count did not add it. system_graphics_launch sets
+    the layers again later, and vk_count puts the layer back for pacing then. DROIDDECK_PACE=0 turns it off."""
     if env.get("DROIDDECK_PACE", "").strip().lower() in ("0", "off", "false", "no"):
         return None
     layers = env.get("VK_INSTANCE_LAYERS")
@@ -1232,7 +1235,8 @@ def present_pacing(env, fps, layer_dir=None):
             return "present pacing: layer not installed"
         env["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount:" + layers
         env["VK_LAYER_PATH"] = layer_dir + (":" + env["VK_LAYER_PATH"] if env.get("VK_LAYER_PATH") else "")
-        env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
+        if not experiment(env, "vk-count"):
+            env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
     env["DROIDDECK_PACE_FPS"] = fps
     if not env.get("DROIDDECK_PACE_FILE") and env.get("BL_LOG"):
         env["DROIDDECK_PACE_FILE"] = os.path.join(os.path.dirname(env["BL_LOG"]), "pace")
@@ -1710,12 +1714,13 @@ class WebhelperTrim:
     """Experiment webhelper-trim: while the game runs, asks Steam's CEF over DevTools to give memory back (a
     critical memory-pressure notification and a full V8 GC on every page and worker), WEBHELPER_TRIM_FIRST_S after
     the start and then every WEBHELPER_TRIM_EVERY_S for WEBHELPER_TRIM_ROUNDS rounds, and prints the steamwebhelper processes' resident and swapped
-    memory before and WEBHELPER_TRIM_SETTLE_S after each round. The client and its web helper keep running: nothing
-    is killed or stopped. When the port is unknown or DevTools does not answer it says why once and stops."""
+    memory before and WEBHELPER_TRIM_SETTLE_S after each round. When the port is unknown or DevTools does not answer
+    it says why once and stops trimming. Then, when a stopper (WebhelperStop) was given and the game still runs, the
+    stopper asks the web helper to exit so the client starts a fresh one. The game is never touched."""
 
     def __init__(self, app_id="", port=None, devtools=None, usage=None, first=WEBHELPER_TRIM_FIRST_S,
                  every=WEBHELPER_TRIM_EVERY_S, settle=WEBHELPER_TRIM_SETTLE_S, clock=time.monotonic, wall=time.time,
-                 rounds=WEBHELPER_TRIM_ROUNDS):
+                 rounds=WEBHELPER_TRIM_ROUNDS, stopper=None):
         self.app_id = app_id or "-"
         self.port = port
         self.devtools = devtools or SteamDevTools
@@ -1724,6 +1729,7 @@ class WebhelperTrim:
         self.clock, self.wall = clock, wall
         self.rounds = 0
         self.max_rounds = rounds
+        self.stopper = stopper
         self.done = threading.Event()
         self.thread = None
         self.client = None
@@ -1735,25 +1741,35 @@ class WebhelperTrim:
 
     def stop(self):
         self.done.set()
+        if self.stopper is not None:
+            try:
+                self.stopper.finish()
+            except Exception:
+                pass
 
     def run(self):
         try:
             if self.done.wait(self.first):
                 return
-            port = self.port if self.port is not None else webhelper_cdp_port()
-            if not port:
-                return self.off("no_port", "no BL_LAUNCH_DIR/agent/cdp-port or BL_CDP_PORT")
-            try:
-                self.client = self.devtools(port)
-            except Exception as error:
-                return self.off("no_client", error)
-            while not self.done.is_set():
-                if not self.trim() or self.rounds >= self.max_rounds:
-                    return
-                if self.done.wait(self.every):
-                    return
+            self.trim_rounds()
         except Exception as error:  # the watch must never take the launch down
             self.off("error", error)
+        if self.stopper is not None and not self.done.is_set():
+            self.stopper.run(self.done)
+
+    def trim_rounds(self):
+        port = self.port if self.port is not None else webhelper_cdp_port()
+        if not port:
+            return self.off("no_port", "no BL_LAUNCH_DIR/agent/cdp-port or BL_CDP_PORT")
+        try:
+            self.client = self.devtools(port)
+        except Exception as error:
+            return self.off("no_client", error)
+        while not self.done.is_set():
+            if not self.trim() or self.rounds >= self.max_rounds:
+                return
+            if self.done.wait(self.every):
+                return
 
     def off(self, reason, error):
         detail = re.sub(r"[^A-Za-z0-9_.:/-]+", "_", str(error) or type(error).__name__).strip("_")[:120] or "-"
@@ -1799,6 +1815,169 @@ class WebhelperTrim:
                   swap // 1024, rss_after // 1024, swap_after // 1024, int(took * 1000), self.every,
                   int(self.wall() * 1000)), file=sys.stderr, flush=True)
         return True
+
+
+# After both trim rounds Slay the Spire 2 still saw steamwebhelper at ~616 MB resident with zram full and frames
+# stalling for seconds; trimming cannot give back what the live UI holds, ending the helper does.
+WEBHELPER_STOP_AFTER_S = 30
+WEBHELPER_STOP_MIN_MB = 256
+WEBHELPER_STOP_GRACE_S = 15
+WEBHELPER_STOP_POLL_S = 5
+WEBHELPER_STOP_SETTLE_S = 30
+WEBHELPER_LAUNCHERS = frozenset({b"FEX", b"FEXInterpreter"})
+
+
+# pid and start time (clock ticks since boot, to tell a reused pid), whether it is CEF's browser process (no --type=),
+# resident and swapped kB.
+WebProc = collections.namedtuple("WebProc", "pid start browser rss swap")
+
+
+def web_key(process):
+    return process.pid, process.start
+
+
+def webhelper_processes(proc="/proc"):
+    """The live processes whose program is steamwebhelper (argv[0], or argv[1] under FEX); not steamwebhelper.sh,
+    the client, the game or anything that only mentions the name in its arguments."""
+    found = []
+    try:
+        entries = os.listdir(proc)
+    except OSError:
+        return found
+    for entry in entries:
+        if not entry.isdigit() or int(entry) <= 1 or int(entry) == os.getpid():
+            continue
+        try:
+            with open("%s/%s/cmdline" % (proc, entry), "rb") as f:
+                args = f.read(16384).split(b"\0")
+            program = args[0]
+            if os.path.basename(program) in WEBHELPER_LAUNCHERS and len(args) > 1:
+                program = args[1]
+            if os.path.basename(program) != b"steamwebhelper":
+                continue
+            with open("%s/%s/stat" % (proc, entry), "rb") as f:
+                fields = f.read().rsplit(b")", 1)[1].split()
+            if fields[0] in (b"Z", b"X") or len(fields) < 20:
+                continue
+            with open("%s/%s/status" % (proc, entry), "rb") as f:
+                status = f.read().decode("ascii", "replace")
+        except (OSError, IndexError):
+            continue
+        resident = re.search(r"^VmRSS:\s+(\d+)", status, re.M)
+        swapped = re.search(r"^VmSwap:\s+(\d+)", status, re.M)
+        browser = not any(a.startswith(b"--type=") for a in args[1:])
+        found.append(WebProc(int(entry), int(fields[19]), browser, int(resident.group(1)) if resident else 0,
+                             int(swapped.group(1)) if swapped else 0))
+    return found
+
+
+class WebhelperStop:
+    """webhelper-trim's last step, once per launch: WEBHELPER_STOP_AFTER_S after the trim rounds, if the game still
+    runs and the web helper holds at least WEBHELPER_STOP_MIN_MB (resident plus swapped), CEF's browser process gets
+    SIGTERM and shuts its children down; the Steam client starts the helper again on its own. A child left behind by
+    a browser that is gone after WEBHELPER_STOP_GRACE_S gets SIGKILL; a browser that is still running is left alone.
+    Only processes whose program is steamwebhelper are signalled, each checked by pid and start time. It prints one
+    game_webhelper_stop line (or game_webhelper_stop_skipped), then one game_webhelper_back line when a new helper
+    has run WEBHELPER_STOP_SETTLE_S, or at the game's exit with how many are back by then."""
+
+    def __init__(self, app_id="", procs=None, kill=None, clock=time.monotonic, wall=time.time,
+                 after=WEBHELPER_STOP_AFTER_S, min_mb=WEBHELPER_STOP_MIN_MB, grace=WEBHELPER_STOP_GRACE_S,
+                 poll=WEBHELPER_STOP_POLL_S, settle=WEBHELPER_STOP_SETTLE_S):
+        self.app_id = app_id or "-"
+        self.procs = procs or webhelper_processes
+        self.kill = kill or os.kill
+        self.clock, self.wall = clock, wall
+        self.after, self.min_mb, self.grace, self.poll, self.settle = after, min_mb, grace, poll, settle
+        self.stopped = None
+        self.stopped_at = None
+        self.reported = False
+        self.lock = threading.Lock()
+
+    def say(self, event, fields):
+        print("DROIDDECK_TIMELINE event=%s app_id=%s %s wall_ms=%d" % (event, self.app_id, fields, int(self.wall() * 1000)),
+              file=sys.stderr, flush=True)
+
+    def signal(self, target, signum, current):
+        """Signals target only while a process with its pid and start time is still listed in current."""
+        if target.pid <= 1 or target.pid == os.getpid() or web_key(target) not in {web_key(p) for p in current}:
+            return False
+        try:
+            self.kill(target.pid, signum)
+            return True
+        except OSError:
+            return False
+
+    def run(self, done):
+        try:
+            self.stop_once(done)
+        except Exception as error:  # the watch must never take the launch down
+            detail = re.sub(r"[^A-Za-z0-9_.:/-]+", "_", str(error) or type(error).__name__).strip("_")[:120] or "-"
+            self.say("game_webhelper_stop_skipped", "reason=error detail=%s" % detail)
+
+    def stop_once(self, done):
+        if done.wait(self.after):
+            return
+        before = self.procs()
+        rss, swap = sum(p.rss for p in before), sum(p.swap for p in before)
+        browsers = [p for p in before if p.browser]
+        reason = ("no_helper" if not before else "no_browser" if not browsers
+                  else "small" if rss + swap < self.min_mb * 1024 else None)
+        if reason or done.is_set():
+            self.say("game_webhelper_stop_skipped", "reason=%s procs=%d rss_mb=%d swap_mb=%d" % (
+                reason or "game_exited", len(before), rss // 1024, swap // 1024))
+            return
+        began = self.clock()
+        with self.lock:
+            if done.is_set():
+                return
+            self.stopped = {web_key(p) for p in before}
+            self.stopped_at = began
+            termed = sum(self.signal(b, signal.SIGTERM, before) for b in browsers)
+        browser_keys = {web_key(b) for b in browsers}
+        while self.clock() - began < self.grace and not done.is_set():
+            if not any(web_key(p) in browser_keys for p in self.procs()):
+                break
+            done.wait(0.25)
+        now = self.procs()
+        left = [p for p in now if web_key(p) in self.stopped]
+        killed = 0
+        if left and not any(web_key(p) in browser_keys for p in left) and not done.is_set():
+            killed = sum(self.signal(p, signal.SIGKILL, now) for p in left)
+            now = self.procs()
+            left = [p for p in now if web_key(p) in self.stopped]
+        browser_left = sum(1 for p in left if web_key(p) in browser_keys)
+        self.say("game_webhelper_stop", "procs=%d browsers=%d termed=%d left=%d browser_left=%d killed=%d "
+                 "rss_mb_before=%d swap_mb_before=%d rss_mb_after=%d swap_mb_after=%d took_ms=%d" % (
+                     len(before), len(browsers), termed, len(left), browser_left, killed, rss // 1024, swap // 1024,
+                     sum(p.rss for p in now) // 1024, sum(p.swap for p in now) // 1024,
+                     int((self.clock() - began) * 1000)))
+        if browser_left:
+            with self.lock:
+                self.reported = True
+            return
+        while not done.is_set():
+            if self.new_helpers():
+                done.wait(self.settle)
+                self.back(game_running=not done.is_set())
+                return
+            done.wait(self.poll)
+
+    def new_helpers(self):
+        return [p for p in self.procs() if web_key(p) not in (self.stopped or ())]
+
+    def back(self, game_running):
+        with self.lock:
+            if self.stopped_at is None or self.reported:
+                return
+            self.reported = True
+            fresh = self.new_helpers()
+            self.say("game_webhelper_back", "procs=%d rss_mb=%d swap_mb=%d after_s=%d game_running=%d" % (
+                len(fresh), sum(p.rss for p in fresh) // 1024, sum(p.swap for p in fresh) // 1024,
+                int(self.clock() - self.stopped_at), 1 if game_running else 0))
+
+    def finish(self):
+        """At the game's exit: says how many web helper processes are back if it stopped them and has not said so."""
+        self.back(game_running=False)
 
 
 def gl_vsync(env):
@@ -2747,7 +2926,8 @@ def run_watched(guard):
     return raw_code, guard.started, drain
 
 
-def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False, cores=None):
+def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeline_app_id=None, watch=False, cores=None,
+          native_skipped=None):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     proton = launch[0] if len(launch) > 1 and launch[1] in ("waitforexitandrun", "run") else None
@@ -2756,7 +2936,11 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
     explorer = bool(waited and timeline_app_id and explorer_watch_wanted(launch, launch_env))
     if explorer:
         launch_env = with_winediag(launch_env)
-    record_final_env(launch, launch_env, proton)
+    fex = record_final_env(launch, launch_env, proton)
+    if timeline_app_id and proton:
+        if fex is None:
+            fex = fex_build(proton)
+        print(engine_line("proton", fex_name(fex), native_skipped), file=sys.stderr, flush=True)
     started = time.monotonic()
     if waited:
         if explorer:
@@ -2768,7 +2952,8 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
             diagnostic_game_event("game_start", diagnostic_app_id)
         drain = None
         core_watch = CoreWatch(cores, timeline_app_id).start() if cores else None
-        trim = WebhelperTrim(timeline_app_id).start() if timeline_app_id and experiment(launch_env, WEBHELPER_TRIM) else None
+        trim = (WebhelperTrim(timeline_app_id, stopper=WebhelperStop(timeline_app_id)).start()
+                if timeline_app_id and experiment(launch_env, WEBHELPER_TRIM) else None)
         try:
             if explorer:
                 raw_code, started, drain = run_watched(guard)
@@ -2892,6 +3077,7 @@ def system_graphics_launch(command, env):
 
 
 VKCOUNT_DIR = "/usr/local/lib/droiddeck-vkcount"
+VK_BLOCK_MB = "64"
 DXVK_ARM64EC = "dxvk-arm64ec"
 DXVK_NAMES = ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi")
 
@@ -2938,14 +3124,34 @@ def hybris_index(env, layer_dir=HYBRIS_COMPAT_DIR):
 
 def vk_count(env, layer_dir=VKCOUNT_DIR):
     """Experiment vk-count: VK_LAYER_DROIDDECK_vkcount goes first in the game's layers and prints per-frame Vulkan
-    call counts and blocking-call times to stderr every 10 s ("droiddeck-vkcount:" lines in the game's log)."""
-    if not experiment(env, "vk-count"):
+    call counts and blocking-call times to stderr every 10 s ("droiddeck-vkcount:" lines in the game's log).
+    The same layer paces presents when frame_cap set DROIDDECK_PACE_FPS; that runs before these layers are set,
+    so the layer goes back in here for pacing too, with its reports off only when vk-count is off (a pacing
+    launch with vk-count on printed no lines on Nov 14, because pacing had turned the reports off).
+    Experiment vk-blocks-64: the layer refuses the game's Vulkan memory allocator blocks over 64 MB, so they
+    stop growing there (Godot's VMA grows them to 256 MB; DROIDDECK_VK_BLOCK_MB)."""
+    counting = experiment(env, "vk-count")
+    pacing = bool(env.get("DROIDDECK_PACE_FPS", "").strip())
+    blocks = experiment(env, "vk-blocks-64")
+    if not counting and not pacing and not blocks:
         return None
+    what = "vk-count" if counting else "vk-blocks-64" if blocks else "present pacing"
     if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_vkcount.so")):
-        return "vk-count: layer not installed at %s" % layer_dir
+        return "%s: layer not installed at %s" % (what, layer_dir)
     env["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount:" + env["VK_INSTANCE_LAYERS"]
     env["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
-    return "vk-count: counting Vulkan calls per frame"
+    notes = []
+    if blocks:
+        env["DROIDDECK_VK_BLOCK_MB"] = VK_BLOCK_MB
+        notes.append("vk-blocks-64: Vulkan memory blocks capped at %s MB" % VK_BLOCK_MB)
+    if counting:
+        env.pop("DROIDDECK_VKCOUNT_SECONDS", None)
+        notes.append("vk-count: counting Vulkan calls per frame")
+    else:
+        env["DROIDDECK_VKCOUNT_SECONDS"] = "0"
+        if pacing:
+            notes.append("present pacing: layer loaded, reports off")
+    return "; ".join(notes)
 
 
 # winewayland.drv's wayland_process_init gives up, and the driver unloads, unless the compositor offers all of
@@ -3236,7 +3442,8 @@ def godot_logs(env):
 
 def texture_pack(exe, env, run=subprocess.run):
     """Under tex-astc (or tex-half), the Godot game's textures are re-encoded to ASTC inside its own pack
-    (droiddeck-texpack: appended, switched on at a launch, undone with the experiment off). Synchronous only for the
+    (droiddeck-texpack: appended, switched on at a launch, parked with the experiment off: original textures, the
+    build kept for when the experiment is back). Synchronous only for the
     header switch; the conversion itself runs in the background and is used from the next launch."""
     want = experiment(env, "tex-astc") or experiment(env, "tex-half")
     if not want:
@@ -3246,7 +3453,7 @@ def texture_pack(exe, env, run=subprocess.run):
         except OSError:
             return []
     folder = os.path.dirname(os.path.abspath(exe))
-    cmd = [sys.executable, TEXPACK, "prepare" if want else "revert", "--game-dir", folder]
+    cmd = [sys.executable, TEXPACK, "prepare" if want else "park", "--game-dir", folder]
     if want:
         if experiment(env, "tex-half"):
             cmd += ["--half-above", str(TEX_HALF_ABOVE)]
@@ -3275,15 +3482,60 @@ NATIVE_CHECK_LATER = ('while kill -0 "$1" 2>/dev/null; do sleep 15; done; scratc
                       '"$@" > "$scratch.log" 2>&1; rm -rf "$scratch"')
 
 
+def load_native_godot():
+    """droiddeck-native-godot's module globals, or {} when it is missing or broken."""
+    try:
+        return runpy.run_path(NATIVE_GODOT)
+    except Exception:
+        return {}
+
+
+# The app reads this line from session.log and shows which engine and build this launch boots, on the loading
+# screen and the corner card, and records it in the session's events (session/BootLine.kt parses it; keep them in
+# step, tools/tests/test_boot_line.py checks both). One line when the native engine starts, one when Proton starts.
+ENGINE_LINE = "droiddeck-game-env: engine: "
+# What droiddeck-native-godot logs when it will not start a game whose Steamworks.NET calls accessors Valve's
+# linux-arm64 library lacks.
+NATIVE_STEAM_GAP = "not starting: Steam cannot initialise"
+
+
+def engine_line(path, build, skipped=None):
+    """'native <component tag>' or 'proton <FEX version name>', and why the native engine was skipped, if it was."""
+    build = re.sub(r"\s+", "-", (build or "").strip()) or "unknown"
+    return ENGINE_LINE + path + " " + build + ("; native skipped: " + skipped if skipped else "")
+
+
+def fex_name(fex):
+    """The FEX version name in a fex_build() line ("fex: FEX-Kestrel-... N bytes sha256 ..."), or None."""
+    match = re.match(r"fex: (FEX-\S+) ", fex or "")
+    return match.group(1) if match else None
+
+
+def native_skip_reason(notes):
+    """A few words on why native_engine() went on to Proton, from its notes, or None if it never tried."""
+    last = notes[-1] if notes else ""
+    if not last.startswith("native-engine: "):
+        return None
+    if "last check of these game files failed" in last:
+        return "last check failed"
+    if "not a Godot C# game" in last:
+        return "not a Godot C# game"
+    if "could not start" in last:
+        return "could not start"
+    if "no first frame" in last:
+        return "Steam library gap" if any(NATIVE_STEAM_GAP in note for note in notes) else "no first frame"
+    match = re.search(r"exited with (-?\d+)", last)
+    return "exited with %s" % match.group(1) if match else None
+
+
 def native_check(folder, exe, name, env, popen=subprocess.Popen, ng=None):
     """(note to skip the native path with, or None; notes). Consults droiddeck-native-godot's last `check` of these
     game files with this component and converter: a failure skips native up front. With no such result, a check
     is scheduled for after this session (detached, nice 19) so the next launch knows."""
     if ng is None:
-        try:
-            ng = runpy.run_path(NATIVE_GODOT)
-        except Exception:  # not installed, or broken: the run itself still guards the launch
-            return None, []
+        ng = load_native_godot()
+    if not ng:  # not installed, or broken: the run itself still guards the launch
+        return None, []
     try:
         result = ng["fresh_check"](folder, name=name)
     except Exception:
@@ -3318,6 +3570,8 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
         managed = []
     if len(managed) != 1:
         return None, ["native-engine: not a Godot C# game; Proton"]
+    if ng is None:
+        ng = load_native_godot()
     skip, checked = native_check(folder, os.path.basename(exe), game_id(env) or "game", env, popen=popen, ng=ng)
     if skip:
         return None, checked + [skip]
@@ -3333,6 +3587,7 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
         except OSError:
             log, path = None, None
     env, vulkan_notes = native_vulkan_env(env)
+    print(engine_line("native", (ng.get("COMPONENT") or {}).get("tag") if ng else None), file=sys.stderr, flush=True)
     began = clock()
     try:
         rc = run(args, env=env, stdin=subprocess.DEVNULL, stdout=log or None, stderr=subprocess.STDOUT if log else None).returncode
@@ -3362,6 +3617,26 @@ def load_warmup():
     except Exception as error:  # optional settings: a fault here must not stop the game
         print("droiddeck-game-env: warmup: settings skipped (%s)" % error, file=sys.stderr)
         return None
+
+
+def pe_aligned_launch(command, align):
+    """Logs a large game .exe's sections (headers only) and, with pe-align on, runs the game from a copy of the
+    .exe whose sections Wine can map from the file (droiddeck-warmup, pe_aligned_exe)."""
+    warmup = load_warmup()
+    if warmup is None:
+        return command
+    exe, lines = None, []
+    try:
+        lines = warmup["pe_section_lines"](command[2])
+        if align:
+            exe, line = warmup["pe_aligned_exe"](command[2])
+            if line:
+                lines.append(line)
+    except Exception as error:  # optional: a fault here must not stop the game
+        lines.append("exe sections or aligned copy skipped (%s)" % error)
+    for line in lines:
+        print("droiddeck-game-env: warmup: " + line, file=sys.stderr)
+    return command[:2] + [exe] + command[3:] if exe else command
 
 
 def warmup_launch(command, env, app_id, phases):
@@ -3401,10 +3676,11 @@ def fex_build(proton):
 
 def record_final_env(launch, env, proton=None):
     """Appends what the game is really started with to launch.txt: the launch above is written
-    before later steps change the Vulkan layers, WINEDEBUG and the .NET settings."""
+    before later steps change the Vulkan layers, WINEDEBUG and the .NET settings. Returns the fex_build() line it
+    wrote, or None when there is no log folder."""
     folder = env.get("DROIDDECK_GAME_LOG_DIR")
     if not folder:
-        return
+        return None
     lines = ["== final environment (%s)" % " ".join(launch[:2])]
     fex = fex_build(proton)
     if fex:
@@ -3415,6 +3691,7 @@ def record_final_env(launch, env, proton=None):
             out.write("\n".join(lines) + "\n")
     except OSError:
         pass
+    return fex
 
 
 def exec_proton(command, env):
@@ -3491,6 +3768,7 @@ def main():
         digest = None
     diagnostic_app_id = app_id if waiting and os.environ.get("DROIDDECK_ENHANCED_DIAGNOSTICS") == "1" else None
     dirt_prefix = None
+    native_skipped = None
     if app_id:
         gl_default = gl_vsync(env)
         if waiting:
@@ -3518,6 +3796,7 @@ def main():
                         print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
                     if native_rc is not None:
                         return native_rc
+                    native_skipped = native_skip_reason(native_notes)
             if not gl_default:
                 fixes.pop("vblank_mode", None)
             for note in notes:
@@ -3660,6 +3939,9 @@ def main():
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)
     watch = bool(waiting and app_id and exit_watch(app_id, env, bool(pacing)))
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        # Last, so everything above sees the game's own folder.
+        command = pe_aligned_launch(command, experiment(env, "pe-align"))
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if waiting and experiment(env, "free-memory"):
@@ -3671,13 +3953,15 @@ def main():
     core_plan = core_plan if waiting and app_id else None
     if launch[0] != command[0]:
         try:
-            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan)
+            return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan,
+                         native_skipped)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     try:
-        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan)
+        return start(launch, launch_env, digest, after, diagnostic_app_id, app_id if waiting else None, watch, core_plan,
+                     native_skipped)
     except OSError:
         if after:
             try:

@@ -49,6 +49,9 @@ import java.net.URL
  * test; "layout" gets ({"op": "get", "id"}), replaces ({"op": "set", "layout": {...}}) or resets
  * ({"op": "reset"}) the Slay the Spire 2 pad or a "remote.*" layout. The bridge's "ui" drives the app by
  * hand: {"op": "tap"|"swipe", "x"/"fx", "y"/"fy", ...} and {"op": "back"}, never on the Debugging tools switch.
+ * "update" checks the fork's latest APK now and downloads it; it installs only through the same checks and the
+ * system's confirmation on the front screen, or, with Install updates over Wireless debugging on and the phone idle
+ * on the charger, over Wireless debugging with no prompt. "ping" answers the read-only [com.droiddeck.launcher.telemetry.DeviceStatus].
  */
 object AgentRemote {
     private const val TAG = "AgentRemote"
@@ -160,12 +163,13 @@ object AgentRemote {
         val method = command.optString("method")
         val request = command.optJSONObject("request") ?: JSONObject()
         // A remote driver is a player: no idle frame cap or idle stop while commands come in.
-        if (method != "ping" && method != "state" && method != "logs") com.droiddeck.launcher.session.SessionState.input()
+        if (method != "ping" && method != "state" && method != "logs" && method != "update") com.droiddeck.launcher.session.SessionState.input()
         if (method in SHELL) announce?.invoke(context.getString(R.string.remote_notification_shell,
             java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())))
         return try {
             when (method) {
-                "ping" -> JSONObject().put("ok", true).put("version", com.droiddeck.launcher.BuildConfig.VERSION_NAME)
+                "ping" -> com.droiddeck.launcher.telemetry.DeviceStatus.json(context).put("ok", true)
+                "update" -> com.droiddeck.launcher.update.SelfUpdate.remoteUpdate(context)
                 "start" -> startSession(context, request)
                 "autotest" -> {
                     val latch = java.util.concurrent.CountDownLatch(1)

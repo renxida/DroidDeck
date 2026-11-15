@@ -9,6 +9,7 @@ import com.droiddeck.launcher.core.PhantomProcessStatus
 object ExitCause {
     enum class Kind(val tag: String) {
         CLEAN("clean"),
+        FAILED_START("failed_start"),
         EXIT_CODE("exit_code"),
         KILLED("sigkill"),
         TERMINATED("sigterm"),
@@ -38,7 +39,14 @@ object ExitCause {
         UNKNOWN("unknown"),
     }
 
-    data class Verdict(val kind: Kind, val suspect: Suspect, val status: Int?, val signal: Int?, val detail: String)
+    data class Verdict(
+        val kind: Kind,
+        val suspect: Suspect,
+        val status: Int?,
+        val signal: Int?,
+        val detail: String,
+        val launch: SessionLaunchFailure? = null,
+    )
 
     // ApplicationExitInfo.REASON_* values (API 30+, FREEZER API 33); kept numeric so this stays host-testable.
     const val REASON_EXIT_SELF = 1
@@ -68,7 +76,9 @@ object ExitCause {
 
     /**
      * The session's guest (proot) ended while the app itself lived on. [pressureRecent] is true when
-     * Android sent a memory trim or MemAvailable was low shortly before.
+     * Android sent a memory trim or MemAvailable was low shortly before. [launch] is what the session
+     * log says stopped it ([SessionLaunchFailure.find]); a start that never got going is a failure
+     * even when the guest exited 0, but a signal keeps its own class.
      */
     fun ofGuest(
         status: Int,
@@ -76,9 +86,14 @@ object ExitCause {
         phantom: PhantomProcessStatus,
         xiaomi: Boolean,
         pressureRecent: Boolean,
+        launch: SessionLaunchFailure? = null,
     ): Verdict {
-        if (status == 0) return Verdict(Kind.CLEAN, Suspect.NONE, 0, null, "the guest exited normally")
         val signal = signalOf(status)
+        if (launch != null && launch.failedStart && signal == null) {
+            val suspect = if (launch == SessionLaunchFailure.VULKAN_DEVICE_MISSING) Suspect.GPU_OR_NATIVE else Suspect.GUEST
+            return Verdict(Kind.FAILED_START, suspect, status, null, launch.detail, launch)
+        }
+        if (status == 0) return Verdict(Kind.CLEAN, Suspect.NONE, 0, null, "the guest exited normally")
         if (signal == null) {
             return Verdict(Kind.EXIT_CODE, Suspect.GUEST, status, null,
                 if (stopRequested) "exit code $status after a requested stop" else "the guest's own exit code $status; see session.log")
@@ -150,6 +165,7 @@ object ExitCause {
 
     /** The session failure code that gets a user-facing explanation, if any. */
     fun failureCode(verdict: Verdict): String? = when {
+        verdict.kind == Kind.FAILED_START -> verdict.launch?.name
         verdict.kind != Kind.KILLED -> null
         verdict.suspect == Suspect.PHANTOM_PROCESS_KILLER -> FAILURE_PHANTOM
         verdict.suspect == Suspect.VENDOR_MEMORY_WATCHDOG -> FAILURE_VENDOR

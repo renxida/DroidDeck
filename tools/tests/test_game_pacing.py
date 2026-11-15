@@ -139,6 +139,10 @@ class FrameCapTest(unittest.TestCase):
             self.cap([str(self.godot)], counted)
             self.assertNotIn("DROIDDECK_VKCOUNT_SECONDS", counted)
             self.assertEqual(counted["DROIDDECK_PACE_FILE"], "/x/pace")
+            # vk-count adds its layer later, in system_graphics_launch: pacing must not turn its reports off
+            early = dict(env, DROIDDECK_EXP_VK_COUNT="1")
+            self.cap([str(self.godot)], early)
+            self.assertNotIn("DROIDDECK_VKCOUNT_SECONDS", early)
             off = dict(env, DROIDDECK_PACE="0")
             _, note = self.cap([str(self.godot)], off)
             self.assertNotIn("DROIDDECK_PACE_FPS", off)

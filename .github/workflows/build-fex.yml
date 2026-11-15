@@ -19,6 +19,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # Pinned (Nov 14, 2026), so the base image can't change under a build. pacman -Syu in build-in-arch.sh
+  # still installs today's packages: Arch Linux ARM keeps no dated archive, so the compilers float, and the
+  # build log prints their versions first.
+  ARCH_IMAGE: menci/archlinuxarm:base-devel@sha256:8ca63dd2ecdac607d433223ddf7293647533bae8c4068e877094f0acdf698e49
+
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
@@ -33,7 +39,7 @@ jobs:
           FEX_THUNKS: ${{ inputs.thunks == 'true' && '1' || '0' }}
         run: |
           set -euo pipefail
-          docker run --rm -e FEX_EXTRA_CXXFLAGS="$FEX_EXTRA_CXXFLAGS" -e FEX_THUNKS="$FEX_THUNKS" -v "$PWD:/work" -w /work menci/archlinuxarm:base-devel bash tools/fex/build-in-arch.sh
+          docker run --rm -e FEX_EXTRA_CXXFLAGS="$FEX_EXTRA_CXXFLAGS" -e FEX_THUNKS="$FEX_THUNKS" -v "$PWD:/work" -w /work "$ARCH_IMAGE" bash tools/fex/build-in-arch.sh
           sudo chown -R "$(id -u):$(id -g)" .
       - uses: actions/upload-artifact@v4
         with:

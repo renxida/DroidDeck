@@ -100,6 +100,20 @@ class TelemetryUploadTest {
         }
     }
 
+    @Test fun theUploadBundleCarriesTheMemoryDetail() {
+        val dir = session()
+        val row = "{\"t\":1762941600000,\"kind\":\"prelaunch\",\"meminfo\":{\"MemTotal\":15612844}}"
+        dir.resolve(com.droiddeck.launcher.session.MemoryDetail.FILE).writeText(row + "\n")
+        dir.resolve(com.droiddeck.launcher.session.MemoryDetail.PRELAUNCH_FILE).writeText("# Lanner memory before launch\nram: total 15246\n")
+        val upload = File(tmp.root, "upload.zip")
+        assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint"))
+        ZipFile(upload).use { archive ->
+            assertEquals(row, archive.getInputStream(archive.getEntry(com.droiddeck.launcher.session.MemoryDetail.FILE)).bufferedReader().readLines().single())
+            assertTrue(archive.getInputStream(archive.getEntry(com.droiddeck.launcher.session.MemoryDetail.PRELAUNCH_FILE)).bufferedReader().readText()
+                .contains("ram: total 15246"))
+        }
+    }
+
     @Test fun theUploadBundleCarriesCrashEvidenceNewestFirst() {
         val dir = session()
         dir.resolve("session.log").appendText("droiddeck-fex: SIGILL at 0x00007f0000001000 (si_code 01), offset 0x00001000\n" +

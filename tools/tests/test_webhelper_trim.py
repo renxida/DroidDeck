@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import runpy
+import signal
 import socket
 import struct
 import sys
@@ -195,8 +196,8 @@ class LaunchTest(unittest.TestCase):
         made = []
 
         class Fake:
-            def __init__(self, app_id):
-                made.append([app_id, "made"])
+            def __init__(self, app_id, stopper=None):
+                made.append([app_id, "made", type(stopper).__name__])
 
             def start(self):
                 made[-1].append("started")
@@ -218,7 +219,7 @@ class LaunchTest(unittest.TestCase):
 
     def test_on_it_runs_while_the_game_runs_and_stops_when_it_exits(self):
         env = dict(os.environ, DROIDDECK_EXP_WEBHELPER_TRIM="1")
-        self.assertEqual(self.run_start(env), [["42", "made", "started", "stopped"]])
+        self.assertEqual(self.run_start(env), [["42", "made", "WebhelperStop", "started", "stopped"]])
 
     def test_on_it_makes_the_launch_wait_unless_the_exit_watch_is_switched_off(self):
         watch = MODULE["exit_watch"]
@@ -374,6 +375,198 @@ class SteamDevToolsTest(unittest.TestCase):
             watch.thread.join(10)
         self.assertEqual([m.group(2) for m in lines(err, OFF)], ["devtools_unreachable"])
         self.assertEqual(lines(err, LINE), [])
+
+
+STOP = re.compile(r"DROIDDECK_TIMELINE event=game_webhelper_stop app_id=(\S+) procs=(\d+) browsers=(\d+) termed=(\d+) "
+                  r"left=(\d+) browser_left=(\d+) killed=(\d+) rss_mb_before=(\d+) swap_mb_before=(\d+) "
+                  r"rss_mb_after=(\d+) swap_mb_after=(\d+) took_ms=(\d+) wall_ms=(\d+)$")
+SKIPPED = re.compile(r"DROIDDECK_TIMELINE event=game_webhelper_stop_skipped app_id=(\S+) reason=(\S+) (.*) wall_ms=(\d+)$")
+BACK = re.compile(r"DROIDDECK_TIMELINE event=game_webhelper_back app_id=(\S+) procs=(\d+) rss_mb=(\d+) swap_mb=(\d+) "
+                  r"after_s=(\d+) game_running=(\d) wall_ms=(\d+)$")
+
+
+class FakeTree:
+    """The web helper's processes as webhelper_processes lists them. SIGTERM to a browser ends it and its children
+    unless it ignores SIGTERM; children can be left behind; the client can start a new helper on its own."""
+
+    def __init__(self, procs, ignore_term=False, orphans=(), respawn=None):
+        self.procs = list(procs)
+        self.ignore_term = ignore_term
+        self.orphans = set(orphans)
+        self.respawn = respawn
+        self.signals = []
+
+    def __call__(self):
+        return list(self.procs)
+
+    def kill(self, pid, signum):
+        self.signals.append((pid, signum))
+        if signum == signal.SIGTERM and not self.ignore_term:
+            self.procs = [p for p in self.procs if p.pid in self.orphans]
+            if self.respawn:
+                self.procs += self.respawn
+        elif signum == signal.SIGKILL:
+            self.procs = [p for p in self.procs if p.pid != pid]
+
+
+def web(pid, browser=False, rss_mb=100, swap_mb=50, start=None):
+    return MODULE["WebProc"](pid, start if start is not None else pid * 10, browser, rss_mb * 1024, swap_mb * 1024)
+
+
+HELPER = [web(200, browser=True, rss_mb=150, swap_mb=60), web(201, rss_mb=300, swap_mb=40), web(202, rss_mb=166, swap_mb=0)]
+
+
+class WebhelperStopTest(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(sys, "stderr", new_callable=io.StringIO)
+        self.err = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def run_stop(self, tree, done=None, min_mb=256, grace=0.2, settle=0):
+        done = done or threading.Event()
+        stop = MODULE["WebhelperStop"](APP, procs=tree, kill=tree.kill, after=0, min_mb=min_mb, grace=grace,
+                                       poll=0.01, settle=settle)
+        worker = threading.Thread(target=stop.run, args=(done,), daemon=True)
+        worker.start()
+        return stop, done, worker
+
+    def test_terms_only_the_browser_and_reports_the_fresh_helper(self):
+        fresh = [web(300, browser=True, rss_mb=90, swap_mb=0), web(301, rss_mb=110, swap_mb=0)]
+        tree = FakeTree(HELPER, respawn=fresh)
+        stop, done, worker = self.run_stop(tree)
+        worker.join(5)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(tree.signals, [(200, signal.SIGTERM)])
+        (line,) = lines(self.err, STOP)
+        self.assertEqual(line.group(2, 3, 4, 5, 6, 7), ("3", "1", "1", "0", "0", "0"))
+        self.assertEqual(line.group(8, 9), ("616", "100"))
+        (back,) = lines(self.err, BACK)
+        self.assertEqual(back.group(2, 3, 4, 6), ("2", "200", "0", "1"))
+        stop.finish()
+        self.assertEqual(len(lines(self.err, BACK)), 1)
+
+    def test_children_left_by_a_gone_browser_are_killed(self):
+        tree = FakeTree(HELPER, orphans={202})
+        stop, done, worker = self.run_stop(tree)
+        self.assertTrue(wait_for(lambda: lines(self.err, STOP)))
+        self.assertEqual(tree.signals, [(200, signal.SIGTERM), (202, signal.SIGKILL)])
+        self.assertEqual(lines(self.err, STOP)[0].group(5, 7), ("0", "1"))
+        done.set()
+        stop.finish()
+        worker.join(5)
+        (back,) = lines(self.err, BACK)
+        self.assertEqual(back.group(2, 6), ("0", "0"))
+
+    def test_a_browser_that_ignores_sigterm_is_left_alone(self):
+        tree = FakeTree(HELPER, ignore_term=True)
+        stop, done, worker = self.run_stop(tree, grace=0.1)
+        worker.join(5)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(tree.signals, [(200, signal.SIGTERM)])
+        self.assertEqual(lines(self.err, STOP)[0].group(5, 6, 7), ("3", "1", "0"))
+        stop.finish()
+        self.assertEqual(lines(self.err, BACK), [])
+
+    def test_a_small_helper_or_none_is_not_touched(self):
+        for procs, reason in (([web(200, browser=True, rss_mb=100, swap_mb=100)], "small"), ([], "no_helper"),
+                              ([web(201, rss_mb=900)], "no_browser")):
+            self.err.truncate(0)
+            self.err.seek(0)
+            tree = FakeTree(procs)
+            stop, done, worker = self.run_stop(tree)
+            worker.join(5)
+            stop.finish()
+            self.assertEqual(tree.signals, [])
+            self.assertEqual([m.group(2) for m in lines(self.err, SKIPPED)], [reason])
+            self.assertEqual(lines(self.err, STOP) + lines(self.err, BACK), [])
+
+    def test_nothing_is_signalled_once_the_game_has_exited(self):
+        tree = FakeTree(HELPER)
+        done = threading.Event()
+        done.set()
+        stop = MODULE["WebhelperStop"](APP, procs=tree, kill=tree.kill, after=0)
+        stop.run(done)
+        stop.finish()
+        self.assertEqual(tree.signals, [])
+        self.assertEqual(self.err.getvalue(), "")
+
+    def test_a_reused_pid_is_never_signalled(self):
+        stop = MODULE["WebhelperStop"](APP, kill=lambda *a: self.fail("signalled %r" % (a,)))
+        self.assertFalse(stop.signal(web(200, browser=True), signal.SIGTERM, [web(200, browser=True, start=1)]))
+        self.assertFalse(stop.signal(web(os.getpid(), browser=True), signal.SIGTERM, [web(os.getpid(), browser=True)]))
+        self.assertFalse(stop.signal(web(1, browser=True), signal.SIGTERM, [web(1, browser=True)]))
+
+    def test_a_failing_listing_never_leaves_the_watch(self):
+        def broken():
+            raise ValueError("bad /proc")
+        stop = MODULE["WebhelperStop"](APP, procs=broken, kill=lambda *a: self.fail("signalled"), after=0)
+        stop.run(threading.Event())
+        self.assertEqual([m.group(2) for m in lines(self.err, SKIPPED)], ["error"])
+
+
+class TrimThenStopTest(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(sys, "stderr", new_callable=io.StringIO)
+        self.err = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_the_stop_follows_the_trim_rounds_and_also_runs_without_devtools(self):
+        for devtools, port in ((FakeDevTools(), 8080), (FakeDevTools(unreachable=ConnectionRefusedError(111, "x")), 8080)):
+            self.err.truncate(0)
+            self.err.seek(0)
+            tree = FakeTree(HELPER, respawn=[web(300, browser=True)])
+            stopper = MODULE["WebhelperStop"](APP, procs=tree, kill=tree.kill, after=0, grace=0.2, poll=0.01, settle=0)
+            watch = MODULE["WebhelperTrim"](APP, port=port, devtools=devtools, usage=Usage((3, 0, 0)), first=0,
+                                            every=0.01, settle=0, stopper=stopper).start()
+            watch.thread.join(5)
+            self.assertFalse(watch.thread.is_alive())
+            self.assertEqual(tree.signals, [(200, signal.SIGTERM)])
+            self.assertEqual(len(lines(self.err, STOP)), 1)
+            self.assertEqual(len(lines(self.err, BACK)), 1)
+            watch.stop()
+            self.assertEqual(len(lines(self.err, BACK)), 1)
+
+    def test_a_game_that_exits_during_the_trim_rounds_stops_nothing(self):
+        tree = FakeTree(HELPER)
+        stopper = MODULE["WebhelperStop"](APP, procs=tree, kill=tree.kill, after=0)
+        watch = MODULE["WebhelperTrim"](APP, port=8080, devtools=FakeDevTools(), usage=Usage((3, 0, 0)), first=0,
+                                        every=30, settle=0, stopper=stopper).start()
+        self.assertTrue(wait_for(lambda: lines(self.err, LINE)))
+        watch.stop()
+        watch.thread.join(5)
+        self.assertFalse(watch.thread.is_alive())
+        self.assertEqual(tree.signals, [])
+        self.assertEqual(lines(self.err, STOP) + lines(self.err, BACK) + lines(self.err, SKIPPED), [])
+
+
+class WebhelperProcessesTest(unittest.TestCase):
+    def test_lists_only_steamwebhelper_programs_with_their_start_time_and_role(self):
+        def stat(pid, state, start):
+            return "%s (weird) name) %s 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 20 0 30 0 %d 0 0\n" % (pid, state, start)
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = Path(tmp)
+            entries = (
+                ("10", b"/s/steamrtarm64/steamwebhelper\0-lang=en\0", "S", 500, "VmRSS:\t  100000 kB\nVmSwap:\t  300000 kB\n"),
+                ("11", b"/s/steamrtarm64/steamwebhelper\0--type=renderer\0", "S", 501, "VmRSS:\t   50000 kB\n"),
+                ("12", b"FEXInterpreter\0/s/steamrt64/steamwebhelper\0--type=gpu-process\0", "S", 502, "VmRSS:\t 1024 kB\n"),
+                ("13", b"/s/steamrtarm64/steam\0-gamepadui\0", "S", 503, "VmRSS:\t  400000 kB\n"),
+                ("14", b"/s/steamrtarm64/steamwebhelper\0", "Z", 504, ""),
+                ("15", b"/bin/bash\0/s/steamrtarm64/steamwebhelper.sh\0", "S", 505, "VmRSS:\t 10 kB\n"),
+                ("16", b"/g/SlayTheSpire2\0--steamwebhelper\0", "S", 506, "VmRSS:\t 9000000 kB\n"),
+                ("17", b"/s/steamrtarm64/steamwebhelper.sh\0", "S", 507, "VmRSS:\t 10 kB\n"),
+                (str(os.getpid()), b"/x/steamwebhelper\0", "S", 508, "VmRSS:\t 1 kB\n"),
+                ("self", b"/x/steamwebhelper\0", "S", 509, "VmRSS:\t 1 kB\n"),
+            )
+            for pid, cmdline, state, start, status in entries:
+                (proc / pid).mkdir()
+                (proc / pid / "cmdline").write_bytes(cmdline)
+                (proc / pid / "stat").write_text(stat(pid, state, start))
+                (proc / pid / "status").write_text(status)
+            found = sorted(MODULE["webhelper_processes"](str(proc)))
+            WebProc = MODULE["WebProc"]
+            self.assertEqual(found, [WebProc(10, 500, True, 100000, 300000), WebProc(11, 501, False, 50000, 0),
+                                     WebProc(12, 502, False, 1024, 0)])
+            self.assertEqual(MODULE["webhelper_processes"](str(proc / "missing")), [])
 
 
 if __name__ == "__main__":

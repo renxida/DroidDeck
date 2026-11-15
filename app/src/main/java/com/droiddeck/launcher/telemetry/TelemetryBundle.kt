@@ -28,11 +28,11 @@ object TelemetryBundle {
     private const val STEAM_LOG_BYTES = 256L shl 10
     internal const val POWER_SUMMARY = "power-summary.txt"
     private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log", PowerRow.FILE, "memory.csv", "processes.csv", com.droiddeck.launcher.session.ThreadLog.FILE, com.droiddeck.launcher.session.FexStatsLog.FILE, com.droiddeck.launcher.session.FexStatsLog.SAMPLES_FILE, com.droiddeck.launcher.session.SmapsRollup.FILE,
-        RemoteConfig.SETTINGS_FILE, com.droiddeck.launcher.session.SessionScreenshot.FILE)
+        com.droiddeck.launcher.session.MemoryDetail.FILE, RemoteConfig.SETTINGS_FILE, com.droiddeck.launcher.session.SessionScreenshot.FILE)
     /** The Steam client's own logs that time shader pre-caching, downloads and compatibility-tool picks. */
     internal val STEAM_LOGS = listOf("shader_log.txt", "content_log.txt", "compat_log.txt", "bootstrap_log.txt", "console_log.txt")
     internal const val NATIVE_ENGINE_LOG = "native-engine.log"
-    private val SCRUBBED = listOf("events.jsonl", "device.txt", GraphicsReport.FILE)
+    private val SCRUBBED = listOf("events.jsonl", "device.txt", GraphicsReport.FILE, com.droiddeck.launcher.session.MemoryDetail.PRELAUNCH_FILE)
     @Volatile private var learned = false
 
     /** Where the evidence comes from: [x64LogFrom] is the x86_64 Steam log's length at the session start (-1: unknown). */

@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.session.LaunchInfo
 import com.droiddeck.launcher.session.LoadingState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -263,19 +264,29 @@ private fun CancelHint(onCancel: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** This launch's mode, build and remote settings, in small monospace lines (see [com.droiddeck.launcher.session.LaunchInfo]). */
+/**
+ * This launch's engine and build (the first [LaunchInfo.BOOT_LINES] lines, a little larger and brighter so they read at
+ * a glance), then its remote settings and the rest in small monospace lines (see [com.droiddeck.launcher.session.LaunchInfo]).
+ */
 @Composable
 fun LaunchInfoBlock(lines: List<String>, modifier: Modifier = Modifier) {
-    Text(
-        lines.joinToString("\n"), fontSize = 11.sp, lineHeight = 14.sp, fontFamily = FontFamily.Monospace,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f), maxLines = 12, overflow = TextOverflow.Ellipsis,
-        modifier = modifier.widthIn(max = 600.dp),
-    )
+    val ink = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.widthIn(max = 600.dp)) {
+        Text(
+            lines.take(LaunchInfo.BOOT_LINES).joinToString("\n"), fontSize = 13.sp, lineHeight = 18.sp,
+            color = ink.copy(alpha = 0.95f), textAlign = TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis,
+        )
+        if (lines.size > LaunchInfo.BOOT_LINES) Text(
+            lines.drop(LaunchInfo.BOOT_LINES).joinToString("\n"), fontSize = 11.sp, lineHeight = 14.sp, fontFamily = FontFamily.Monospace,
+            color = ink.copy(alpha = 0.75f), maxLines = 10, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
 }
 
 /**
  * The same lines as a small card over the game, top left, while it starts after the loading screen is gone. Touches
- * pass through it. [lines] is read again each second so the FEX line and rotation row show once they are known.
+ * pass through it. [lines] is read again each second so the engine line, FEX line and rotation row show once known.
  */
 @Composable
 fun LaunchStrip(lines: () -> List<String>, flavor: String, visible: () -> Boolean) {
@@ -297,8 +308,12 @@ fun LaunchStrip(lines: () -> List<String>, flavor: String, visible: () -> Boolea
                 color = Color(0xFF3DDC84).copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Text(
-                shown.second.joinToString("\n"), fontSize = 10.sp, lineHeight = 13.sp, fontFamily = FontFamily.Monospace,
-                color = Color.White.copy(alpha = 0.8f), maxLines = 10, overflow = TextOverflow.Ellipsis,
+                shown.second.take(LaunchInfo.BOOT_LINES).joinToString("\n"), fontSize = 12.sp, lineHeight = 15.sp,
+                color = Color.White.copy(alpha = 0.95f), maxLines = 4, overflow = TextOverflow.Ellipsis,
+            )
+            if (shown.second.size > LaunchInfo.BOOT_LINES) Text(
+                shown.second.drop(LaunchInfo.BOOT_LINES).joinToString("\n"), fontSize = 10.sp, lineHeight = 13.sp,
+                fontFamily = FontFamily.Monospace, color = Color.White.copy(alpha = 0.8f), maxLines = 8, overflow = TextOverflow.Ellipsis,
             )
         }
     }

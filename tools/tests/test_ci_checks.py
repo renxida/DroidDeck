@@ -115,15 +115,37 @@ class CiChecksTest(unittest.TestCase):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
         gate = jobs['checks']
         self.assertEqual(gate['name'], 'Compile and test APK')
-        self.assertEqual(set(gate['needs']), {'build', 'python-tests'})
+        self.assertEqual(set(gate['needs']), {'build', 'python-tests', 'native-startup-gate', 'offphone-steam-ui'})
         self.assertIn('!cancelled()', gate['if'])
-        for build, python in itertools.product(('success', 'failure', 'cancelled', 'skipped'), repeat=2):
-            with self.subTest(build=build, python=python):
+        self.assertEqual(jobs['native-startup-gate']['uses'], './.github/workflows/native-startup-gate.yml')
+        for build, python, native, offphone in itertools.product(('success', 'failure', 'cancelled', 'skipped'), repeat=4):
+            with self.subTest(build=build, python=python, native=native, offphone=offphone):
                 result = subprocess.run(
                     ['bash', '-c', gate['steps'][0]['run']],
-                    env=dict(os.environ, BUILD_RESULT=build, PYTHON_RESULT=python),
+                    env=dict(os.environ, BUILD_RESULT=build, PYTHON_RESULT=python, NATIVE_GATE_RESULT=native,
+                             OFFPHONE_RESULT=offphone),
                     capture_output=True)
-                self.assertEqual(result.returncode == 0, build == python == 'success')
+                self.assertEqual(result.returncode == 0, build == python == native == offphone == 'success')
         for publisher in ('sign', 'packs'):
             self.assertIn('checks', jobs[publisher]['needs'])
+
+    def test_the_off_phone_rig_tests_this_runs_own_apk_before_publish(self):
+        jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
+        rig = jobs['offphone-steam-ui']
+        self.assertEqual(rig['uses'], './.github/workflows/offphone-rig.yml')
+        self.assertEqual(rig['needs'], 'build')
+        self.assertEqual(rig['with'], {'apk_run_id': '${{ github.run_id }}', 'scenario': 'steam-ui'})
+        self.assertNotIn('cancelled()', rig['if'])
+        self.assertTrue(any(step.get('with', {}).get('name') == 'droiddeck-apk'
+                            for step in jobs['build']['steps'] if step.get('uses') == 'actions/upload-artifact@v4'))
+        workflow = yaml.safe_load((ROOT / '.github/workflows/offphone-rig.yml').read_text())
+        called = workflow[True]['workflow_call']['inputs']
+        self.assertTrue({'apk_run_id', 'scenario'} <= set(called))
+        download = next(step for step in workflow['jobs']['rig']['steps']
+                        if step.get('with', {}).get('name') == 'droiddeck-apk')['with']
+        self.assertEqual(download['run-id'], '${{ needs.plan.outputs.apk_run }}')
+        self.assertEqual(download['github-token'],
+                         "${{ needs.plan.outputs.apk_run != github.run_id && github.token || '' }}")
+        plan = workflow['jobs']['plan']['steps'][0]['run']
+        self.assertIn('[ -n "$run" ] || case', plan)
 

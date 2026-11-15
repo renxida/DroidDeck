@@ -47,7 +47,10 @@ class SessionPipController(
         return builder.build()
     }
 
-    fun enter() {
+    /** The session's own picture-in-picture button: the player chose to float the game over the library. */
+    fun enter() = enterNow(chosen = true)
+
+    private fun enterNow(chosen: Boolean) {
         if (!eligible()) {
             Toast.makeText(activity, R.string.pip_not_ready, Toast.LENGTH_SHORT).show()
             return
@@ -59,6 +62,7 @@ class SessionPipController(
             return
         }
         prepare()
+        LauncherRejoin.pipChosen = chosen
         val entered = runCatching { activity.enterPictureInPictureMode(params(bounds())) }.getOrDefault(false)
         if (!entered) {
             restore()
@@ -68,7 +72,9 @@ class SessionPipController(
 
     fun leaving() {
         if (!automatic() || !allowed()) return
-        if (Build.VERSION.SDK_INT < 31) enter() else prepare()
+        // Leaving the app floats the game; the launcher icon brings it back full screen (LauncherRejoin).
+        LauncherRejoin.pipChosen = false
+        if (Build.VERSION.SDK_INT < 31) enterNow(chosen = false) else prepare()
     }
 
     private fun prepare() {
@@ -92,6 +98,7 @@ class SessionPipController(
     private fun restore() {
         val needsRestore = transitioning || visit
         transitioning = false
+        if (!activity.isInPictureInPictureMode) LauncherRejoin.pipChosen = false
         if (visit) {
             SessionState.pipActive = false
             visit = false

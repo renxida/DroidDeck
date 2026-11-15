@@ -151,6 +151,7 @@ object SessionFiles {
             "usr/local/lib/droiddeck-crossgen2/crossgen2" to "usr/local/lib/droiddeck-crossgen2/crossgen2",
             "usr/local/lib/droiddeck-crossgen2/libclrjit_win_x64_arm64.so" to "usr/local/lib/droiddeck-crossgen2/libclrjit_win_x64_arm64.so",
             "usr/local/lib/droiddeck-crossgen2/libjitinterface_arm64.so" to "usr/local/lib/droiddeck-crossgen2/libjitinterface_arm64.so",
+            "usr/local/lib/droiddeck-crossgen2/libclrjit_universal_arm64_arm64.so" to "usr/local/lib/droiddeck-crossgen2/libclrjit_universal_arm64_arm64.so",
             "usr/local/lib/droiddeck-crossgen2/LICENSE.TXT" to "usr/local/lib/droiddeck-crossgen2/LICENSE.TXT",
         ) + mangoapp + xclipse.map { it to it } + vkcount.map { it to it } + hybrisCompat.map { it to it } + maliCompat + msitools.map { it to it } + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')

@@ -1483,6 +1483,16 @@
 
     <string name="loadstate_starting">Starting the session…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d elapsed · still working</string>
+    <!-- The loading screen's boot lines (session/BootLine.kt): the engine this launch starts with its build, and the app build. -->
+    <string name="boot_app">Lanner %1$s</string>
+    <string name="boot_native_intended">Native engine, Proton if it does not start</string>
+    <string name="boot_native">Native engine (%1$s)</string>
+    <string name="boot_proton_kestrel">Proton + Kestrel FEX</string>
+    <string name="boot_proton_stock">Proton + stock FEX</string>
+    <string name="boot_proton">Proton + FEX (%1$s)</string>
+    <string name="boot_native_skipped">Native engine skipped (%1$s) → %2$s</string>
+    <string name="boot_branch_beta">beta</string>
+    <string name="boot_branch_stable">stable</string>
     <string name="loadstate_steam_update">Downloading the Steam client update · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Applying the Steam client update…</string>
     <string name="loadstate_steam_client">Downloading the Steam client · %1$s</string>
@@ -2113,6 +2123,7 @@
     <string name="session_end_steam_sigill">Steam stopped with an illegal instruction (SIGILL). This can be a CPU instruction compatibility problem or a client crash. Share the logs with your device details.</string>
     <string name="session_end_steam_try_x64">You can try Steam settings → Steam client → x86-64 (experimental). It needs an additional download and may run more slowly.</string>
     <string name="session_end_vulkan_device">The Linux graphics driver could not find a usable Vulkan device. Check that the selected Linux GPU driver supports this GPU.</string>
+    <string name="session_end_steam_client_missing">This game needs the Steam client, which is not installed yet. Open Steam once and let it finish starting (you don\'t need to sign in), then start the game again.</string>
     <string name="exp_group">Experiments</string>
     <string name="exp_hint">Reset to baseline turns them all off, the same as the main build. Game parts apply at the next game launch, Steam parts at the next session.</string>
     <string name="exp_godot_render">Godot: Mobile renderer on PowerVR, pipeline cache saved more often</string>
@@ -2143,13 +2154,17 @@
     <string name="exp_native_engine">Godot C# games: run on Lanner\'s own ARM engine without Wine or x86 translation; falls back to Proton if it does not start</string>
     <string name="exp_dotnet_r2r_bubble">.NET games: precompile the most, compiling the game together with its own copy of .NET (an unsupported compiler mode; bigger files, longer first compile)</string>
     <string name="exp_fps_30">Slay the Spire 2: cap at a steady 30 fps instead of 60 (cooler, fewer dips)</string>
-    <string name="exp_webhelper_trim">While a game runs, ask Steam\'s built-in browser to free memory every few minutes</string>
+    <string name="exp_webhelper_trim">While a game runs, ask Steam\'s built-in browser to free memory, then restart it once so a fresh, smaller one takes its place</string>
     <string name="exp_dotnet_r2r_generics">.NET games: as above, and also precompile the .NET library code the game uses with its own types (JSON loading, async), which the plain switch leaves to the JIT</string>
     <string name="exp_dotnet_r2r">.NET games: precompile the game\'s own code to x86 once, in the background, so it JITs less each launch; turning it off puts the original files back</string>
     <string name="exp_tex_astc">Godot games: re-encode textures to the phone\'s own GPU format (much less graphics memory); undone when off</string>
     <string name="exp_tex_half">Godot games: as above, and store textures over 1024 px at half resolution</string>
     <string name="exp_godot_verbose">Godot games: log every file the game loads, to see which fonts and textures it uses</string>
+    <string name="exp_pe_align">Memory: run games from a copy of the .exe that Wine maps instead of copying (uses disk space)</string>
+    <string name="exp_fex_cache_keep">Startup: keep FEX\'s translated code when switching FEX builds</string>
     <string name="exp_fex_trim">Memory: idle game threads give back FEX\'s cached code and lookups</string>
+    <string name="exp_native_r2r">Godot C# games on Lanner\'s engine: after the first frame, compile the game\'s code ahead of time for ARM and use it from the next launch (needs the native engine)</string>
+    <string name="exp_vk_blocks_64">Graphics memory: the game\'s Vulkan memory grows in 64 MB blocks, not 256 MB</string>
     <string name="exp_fex_smaps">Memory: map where the game\'s memory goes, by owner, once a minute</string>
     <string name="exp_fex_sample">FEX: sample where game threads spend their time (Kestrel\'s FEX)</string>
     <string name="exp_fex_code_buffer">FEX: larger first code buffer, so translated code isn\'t thrown away once it fills</string>
@@ -2237,8 +2252,19 @@
     <string name="remote_channel">Remote control</string>
     <string name="remote_notification">Lanner remote control is on</string>
     <string name="remote_notification_shell">Ran a shell command at %1$s</string>
+    <string name="self_update_channel">App updates</string>
+    <string name="self_update_notification">Lanner update ready</string>
+    <string name="self_update_notification_text">Tap to open Lanner and install it</string>
+    <string name="self_update_downloading">Downloading update · %1$d%%</string>
+    <string name="self_update_ready">Update ready</string>
+    <string name="self_update_install">Install</string>
+    <string name="self_update_installing">Installing update…</string>
+    <string name="self_update_needs_permission">Allow Lanner to install updates</string>
+    <string name="self_update_settings">Settings</string>
     <string name="remote_control">Remote control</string>
     <string name="remote_control_hint">Takes commands from the remote folder of your telemetry repository: start a game, send input, take a screenshot, read logs. Shell commands also need Debugging tools.</string>
+    <string name="kadb_install">Install updates over Wireless debugging</string>
+    <string name="kadb_install_hint">When the phone is idle on the charger, installs new builds without a prompt, using the Wireless debugging pairing. Needs Wireless debugging on.</string>
     <string name="autotest_run_now">Queued test run</string>
     <string name="autotest_run_now_hint">Starts the test run from your telemetry config now, instead of waiting for the phone to charge while idle.</string>
     <string name="autotest_run_now_button">Run now</string>

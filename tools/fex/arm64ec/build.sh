@@ -45,14 +45,31 @@ fetch() {
 dll() { # $1 = arm64ec | wow64
   local triple=arm64ec
   [ "$1" = wow64 ] && triple=aarch64
+  # preserve_all stays off. FEX PR #6094 (FEX-2611) turned it on for mingw when clang >= 22.1; with llvm-mingw
+  # 20261104 (clang 23.1.5) that build crashes the Godot 4.5.1 mono stand-in ~10 s in, every run, with a page
+  # fault inside the game (docs/research/fex-godot-crash.md). Pre-setting the check's result skips the check.
   cmake -S "$SRC" -B "$WORK/build_$1" -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_TOOLCHAIN_FILE=Data/CMake/toolchain_mingw.cmake -DMINGW_TRIPLE=${triple}-w64-mingw32 \
     -DCMAKE_INSTALL_LIBDIR=/usr/lib/wine/aarch64-windows -DCMAKE_INSTALL_PREFIX=/usr \
     -DENABLE_LTO=False -DENABLE_ASSERTIONS=False -DENABLE_JEMALLOC_GLIBC_ALLOC=False \
     -DBUILD_TESTING=False -DTUNE_ARCH=generic -DTUNE_CPU=none -DRANGES_NATIVE=OFF \
+    -DHAS_CLANG_PRESERVE_ALL=FALSE \
     -DOVERRIDE_VERSION="$(fex_name)"
+  if ! grep -q 'FEX_HAS_PRESERVE_ALL_ATTR=0' "$WORK/build_$1/build.ninja"; then
+    echo "preserve_all is not off in the $1 build; it must stay off" >&2; exit 1
+  fi
   ninja -C "$WORK/build_$1" -j "$JOBS"
   DESTDIR="$OUT" ninja -C "$WORK/build_$1" install >/dev/null
+  # The emulator DLL is loaded before kernelbase: anything it imports besides ntdll (and wow64 for WOW64) is
+  # mapped and initialized while the emulator is still loading, and Wine crashes or hangs at process start.
+  local dll=libarm64ecfex.dll allowed='ntdll.dll'
+  [ "$1" = wow64 ] && dll=libwow64fex.dll allowed='ntdll.dll wow64.dll'
+  local imports
+  imports=$(llvm-readobj --coff-imports "$WORK/build_$1/Bin/$dll" | sed -n 's/^ *Name: //p' | sort -u | tr '\n' ' ')
+  echo "$dll imports: $imports"
+  for i in $imports; do
+    case " $allowed " in *" $i "*) ;; *) echo "$dll must not import $i" >&2; exit 1 ;; esac
+  done
 }
 
 unixlib() {

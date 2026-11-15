@@ -81,6 +81,10 @@ class SessionService : Service() {
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var gameKeptAwake = false
+    private var gameExitKeptAwake = false
+    /** elapsedRealtime of the last game.exited; see [SessionSuspendPolicy.GAME_EXIT_AWAKE_MS]. */
+    private var lastGameExitAt = -1L
+    private val gameExitSettled = Runnable { updateSuspendPolicy() }
     private var steamDownloadsInBackground = false
     private var activityVisible = true
     private var activityDisplayId = Display.DEFAULT_DISPLAY
@@ -514,6 +518,15 @@ class SessionService : Service() {
         val sessionDir = openSessionFolder()
         Log.i(TAG, "experiments: " + Experiments.line(experiments))
         SessionEvents.record("session.experiments", mapOf("on" to Experiments.line(experiments)))
+        runCatching {
+            // What this launch boots, as the loading screen says it before the guest reports; game.engine follows per game.
+            val words = LaunchInfo.words(this)
+            SessionEvents.record("session.boot", mapOf(
+                "app" to LaunchInfo.appLine(words), "engine_intended" to LaunchInfo.engineLine(this, experiments, words),
+                "commit" to com.droiddeck.launcher.BuildConfig.SOURCE_COMMIT, "commit_time_ms" to com.droiddeck.launcher.BuildConfig.COMMIT_TIME,
+                "branch" to com.droiddeck.launcher.telemetry.BuildInfo.branch(), "steam_branch" to LaunchInfo.steamBranch(),
+            ))
+        }.onFailure { Log.w(TAG, "session.boot", it) }
         SessionEvents.record("session.remote_config", mapOf("applied" to (remoteConfig?.line() ?: "none")))
         com.droiddeck.launcher.telemetry.RemoteConfig.writeSnapshot(this, sessionDir, remoteConfig, experiments)
         val freeingMemory = if (Experiments.FREE_MEMORY in experiments)
@@ -577,6 +590,7 @@ class SessionService : Service() {
             listOf(File(sessionDir, "session.log"), com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this)),
             onGamePlayed = { com.droiddeck.launcher.telemetry.RemoteConfig.markPlayed(this) },
         ) { exit ->
+            noteGameExited()
             com.droiddeck.launcher.telemetry.RemoteConfig.gameExited(this, exit)
             if (exit.abnormal) com.droiddeck.launcher.telemetry.TelemetryUploader.uploadNow(this, sessionDir)
         }.let {
@@ -870,6 +884,7 @@ class SessionService : Service() {
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"))
         lastPressureAt = 0L
+        MemoryDetail.begin(this, sessionDir)
         MemoryLog.start(File(sessionDir, "memory.csv"), smaps = Experiments.on(this, Experiments.FEX_SMAPS))
         ThreadLog.start(sessionDir)
         FexStatsLog.start(sessionDir, File(LinuxRuntime.liveDir(this), "shm"),
@@ -1519,6 +1534,7 @@ class SessionService : Service() {
         pendingSteamGameId = null
         pendingSteamGameGeneration = -1
         SessionEvents.record("steam.game_launch_requested", mapOf("gameId" to gameId, "generation" to gen))
+        MemoryDetail.requestSample("game_launch")
         watchGameExit(gameId, gen)
         Log.i(TAG, "queued Steam game $gameId for the running client")
     }
@@ -1740,9 +1756,23 @@ class SessionService : Service() {
         syncWatcher = watcher
     }
 
+    /** From the frame log's thread: keep the guest awake while the game's processes finish exiting, and thaw it if it froze meanwhile. */
+    private fun noteGameExited() {
+        mainHandler.post {
+            if (!SessionState.running) return@post
+            lastGameExitAt = android.os.SystemClock.elapsedRealtime()
+            mainHandler.removeCallbacks(gameExitSettled)
+            mainHandler.postDelayed(gameExitSettled, SessionSuspendPolicy.GAME_EXIT_AWAKE_MS)
+            updateSuspendPolicy()
+        }
+    }
+
     private fun updateSuspendPolicy() {
         if (!SessionState.running) return
         val hidden = !hasVisibleSurface
+        val gameExiting = SessionSuspendPolicy.gameExiting(android.os.SystemClock.elapsedRealtime(), lastGameExitAt)
+        if (gameExiting && hidden && !gameExitKeptAwake) SessionEvents.record("session.suspend_skipped", mapOf("reason" to "game_exiting"))
+        gameExitKeptAwake = gameExiting && hidden
         val downloadsBlockingSuspend = downloadsKeepAwake() && hidden && !suspendDownloadNow
         val steamMode = SessionState.mode == MODE_STEAM
         val gameKeepsAwake = SessionSuspendPolicy.gameKeepsAwake(
@@ -1760,7 +1790,7 @@ class SessionService : Service() {
         val steamPause = SessionSuspendPolicy.steamPause(
             policy = suspendPolicy, steamMode = steamMode, hidden = hidden, manualHold = manualHold,
             downloadsBlockingSuspend = downloadsBlockingSuspend, gameKeepsAwake = gameKeepsAwake,
-            manualPauseRequested = manualPauseRequested,
+            manualPauseRequested = manualPauseRequested, gameExiting = gameExiting,
         )
         if (!steamPause) {
             completeNativeSleep()
@@ -1773,7 +1803,7 @@ class SessionService : Service() {
             policy = suspendPolicy, hidden = hidden, manualHold = manualHold,
             downloadsBlockingSuspend = downloadsBlockingSuspend, gameKeepsAwake = gameKeepsAwake,
             manualPauseRequested = manualPauseRequested, prepared = prepared, nativeSleepReady = nativeSleepReady,
-            steamSleepRequested = steamSleepToken != null,
+            steamSleepRequested = steamSleepToken != null, gameExiting = gameExiting,
         )
         val quietRumble = !screenOn || shouldSuspend || SessionState.suspended
         components.forEach { (it as? RumbleComponent)?.quiet(quietRumble) }
@@ -1952,12 +1982,13 @@ class SessionService : Service() {
                     .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
                 releaseLocks()
                 MemoryLog.stop()
+                MemoryDetail.end()
                 ThreadLog.stop()
                 FexStatsLog.stop()
                 stopLmkWatch()
                 Experiments.endSession()
                 com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
-                if (status == 0) {
+                if (status == 0 && SessionState.failureCode == null) {
                     SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
                 } else {
                     val code = SessionState.failureCode ?: "GUEST_EXIT"
@@ -2165,7 +2196,10 @@ class SessionService : Service() {
         }
     }
 
-    /** Logs why the guest ended on its own; a kill with a known culprit gets a user-facing explanation. */
+    /**
+     * Logs why the guest ended on its own; a kill with a known culprit, or a start the session log
+     * shows never got going, gets a user-facing explanation.
+     */
     private fun classifyGuestExit(status: Int, gen: Int) {
         if (gen != sessionGen || !SessionState.running) return
         try {
@@ -2176,14 +2210,18 @@ class SessionService : Service() {
                 (device.swapTotalKb > 0 && device.swapFreeKb * 10 < device.swapTotalKb))
             val recent = lastPressureAt > 0 && android.os.SystemClock.elapsedRealtime() - lastPressureAt < PRESSURE_RECENT_MS
             val verdict = ExitCause.ofGuest(status, SessionState.stopRequested, phantom,
-                ExitCause.isXiaomiFamily(Build.MANUFACTURER, Build.BRAND), low || recent)
+                ExitCause.isXiaomiFamily(Build.MANUFACTURER, Build.BRAND), low || recent,
+                SessionLaunchFailure.find(SessionState.logFile))
             Log.i(TAG, ExitCause.line("session", verdict))
             SessionEvents.record("exit.classified", ExitCause.fields("session", verdict))
             val code = ExitCause.failureCode(verdict) ?: return
             val message = when (code) {
                 ExitCause.FAILURE_PHANTOM -> getString(R.string.session_end_phantom_killed,
                     com.droiddeck.launcher.core.PhantomProcessLimit.fixSentence(this))
-                else -> getString(R.string.session_end_vendor_memory_killed)
+                ExitCause.FAILURE_VENDOR -> getString(R.string.session_end_vendor_memory_killed)
+                SessionLaunchFailure.VULKAN_DEVICE_MISSING.name -> getString(R.string.session_end_vulkan_device)
+                SessionLaunchFailure.STEAM_CLIENT_MISSING.name -> getString(R.string.session_end_steam_client_missing)
+                else -> verdict.detail
             }
             synchronized(SessionState) {
                 if (gen == sessionGen && SessionState.failureCode == null) {

@@ -7,6 +7,7 @@ docs/research/startup-and-warmup.md explains each setting and how to check it on
 import mmap
 import os
 import re
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -19,6 +20,12 @@ FEX_DISK_CACHE_SINCE = 2609
 FEX_DLL = "files/lib/wine/aarch64-windows/libarm64ecfex.dll"
 FEX_VERSION = re.compile(rb"FEX-(\d{4})(?:\.\d+)?(?:-\d+-g[0-9a-f]{6,40})?")
 CACHE_DIR = "droiddeck-fex-cache"
+# DROIDDECK_EXP_FEX_CACHE_KEEP=1: FEX keeps one cache folder per disk-cache format (DiskCache/<hash>/) and deletes
+# every other folder at start. Stock FEX (format 42 in FEX-2611) and Kestrel's (44) differ, so each switch threw
+# the other build's cache away (301.5 MB to 0 on Nov 14). With the switch on, FEX deletes nothing and this keeps
+# the folders of the KEEP_BUILDS builds used last, dropping older ones and any past KEEP_MB in all.
+KEEP_BUILDS = 2
+KEEP_MB = 1536
 SCAN_LIMIT = 5000
 
 # Values for DROIDDECK_DOTNET_WARMUP. A DOTNET_ or COMPlus_ variable already set keeps its value.
@@ -144,6 +151,43 @@ def tree_size(root, limit=SCAN_LIMIT):
     return count, size, False
 
 
+def keep_recent_buckets(root, builds=KEEP_BUILDS, limit_mb=KEEP_MB):
+    """Deletes FEX disk-cache folders (one per cache format and machine) beyond the `builds` used last, and older
+    ones past `limit_mb` in all; the newest always stays. Returns a line for the log, or None."""
+    buckets = []
+    try:
+        entries = [entry for entry in os.scandir(root) if entry.is_dir(follow_symlinks=False)]
+    except OSError:
+        return None
+    for entry in entries:
+        newest = entry.stat(follow_symlinks=False).st_mtime
+        size = 0
+        for top, _, files in os.walk(entry.path):
+            for name in files:
+                try:
+                    info = os.lstat(os.path.join(top, name))
+                except OSError:
+                    continue
+                newest = max(newest, info.st_mtime)
+                size += info.st_size
+        buckets.append((newest, size, entry.name, entry.path))
+    buckets.sort(reverse=True)
+    kept, dropped, total = [], [], 0
+    for index, (_, size, name, path) in enumerate(buckets):
+        if index == 0 or (index < builds and total + size <= limit_mb * 1048576):
+            kept.append("%s %.1f MB" % (name, size / 1048576))
+            total += size
+        else:
+            shutil.rmtree(path, ignore_errors=True)
+            dropped.append("%s %.1f MB" % (name, size / 1048576))
+    if len(buckets) < 2 and not dropped:
+        return None
+    line = "FEX disk cache folders kept: " + ", ".join(kept)
+    if dropped:
+        line += "; deleted: " + ", ".join(dropped)
+    return line
+
+
 def describe(count, size, partial):
     return "%d file%s, %.1f MB%s" % (count, "" if count == 1 else "s", size / 1048576, "+" if partial else "")
 
@@ -178,12 +222,250 @@ def fex_disk_cache(app_id, prefix, proton, env):
             where = None
     else:
         notes.append("the prefix's Z: drive is not /, so FEX keeps its cache in its own folder")
+    if env.get("DROIDDECK_EXP_FEX_CACHE_KEEP") == "1":
+        if "FEX_DISKCACHEPRUNESTALEENTRIES" not in env:
+            chosen["FEX_DISKCACHEPRUNESTALEENTRIES"] = "0"
+        if where is not None and (where / "DiskCache").is_dir():
+            line = keep_recent_buckets(where / "DiskCache")
+            if line:
+                notes.append(line)
     state = "no cache yet"
     if where is not None and (where / "DiskCache").is_dir():
         state = describe(*tree_size(where / "DiskCache"))
     notes.insert(0, "FEX disk cache on for app %s (%s, %s%s)" % (
         app_id, version or "FEX version not found", state, ", folder " + str(where) if where is not None else ""))
     return chosen, notes
+
+
+# DROIDDECK_EXP_PE_ALIGN=1: Wine maps an .exe's section straight from the file only when the section starts at a
+# multiple of 4096 bytes in the file; otherwise it reads the whole section into anonymous memory at load
+# (dlls/ntdll/unix/virtual.c, map_file_into_view). Godot exports with the .pck embedded put the pack in a section
+# at a 512-byte offset, so Wine copies hundreds of MB that Godot never reads through memory (it reads the pack
+# through the file), and the copy ends up in swap. With the switch on, the game runs from a copy of its .exe with
+# every section at a 4096-byte offset (made once, remade when the original changes); then the section is
+# file-backed. docs/research/wine-pe-section-copy.md.
+PE_PAGE = 0x1000
+PE_ALIGN_MIN_BYTES = 64 << 20
+PE_ALIGN_DIR = ".droiddeck-aligned"
+
+
+def _up(value, align=PE_PAGE):
+    return (value + align - 1) & ~(align - 1)
+
+
+def pe_layout(path):
+    """Header facts of a PE file: (header bytes, size of headers, sections as (header offset, raw offset, raw
+    size, rva, virtual size)), the file offsets of the COFF symbol table, certificate table and debug directory
+    entries' data pointers, or None if it is not a PE file."""
+    import struct
+    with open(path, "rb") as f:
+        head = f.read(4096)
+        if head[:2] != b"MZ" or len(head) < 0x40:
+            return None
+        pe = struct.unpack_from("<I", head, 0x3C)[0]
+        f.seek(0)
+        head = f.read(max(4096, pe + 4096))
+        if head[pe:pe + 4] != b"PE\0\0":
+            return None
+        count = struct.unpack_from("<H", head, pe + 6)[0]
+        opt_size = struct.unpack_from("<H", head, pe + 20)[0]
+        opt = pe + 24
+        size_of_headers = struct.unpack_from("<I", head, opt + 60)[0]
+        f.seek(0)
+        head = f.read(max(size_of_headers, opt + opt_size + 40 * count))
+    return head, pe, opt, opt_size, count
+
+
+def pe_needs_align(path, min_bytes=PE_ALIGN_MIN_BYTES):
+    """True when the file is at least min_bytes and a section of 1 MB or more starts at a file offset Wine cannot
+    map."""
+    import struct
+    try:
+        if os.path.getsize(path) < min_bytes:
+            return False
+        layout = pe_layout(path)
+    except OSError:
+        return False
+    if layout is None:
+        return False
+    head, pe, opt, opt_size, count = layout
+    for i in range(count):
+        raw_size, raw_ptr = struct.unpack_from("<II", head, opt + opt_size + 40 * i + 16)
+        if raw_size >= 1 << 20 and raw_ptr % PE_PAGE:
+            return True
+    return False
+
+
+def pe_section_lines(path, min_bytes=PE_ALIGN_MIN_BYTES):
+    """One log line per section of a large .exe, from its headers only: name, file offset, size, offset modulo
+    4096 and whether it is the last section in the file. Empty for files under min_bytes or not PE."""
+    import struct
+    try:
+        size = os.path.getsize(path)
+        if size < min_bytes:
+            return []
+        layout = pe_layout(path)
+    except OSError:
+        return []
+    if layout is None:
+        return []
+    head, pe, opt, opt_size, count = layout
+    rows = []
+    for i in range(count):
+        at = opt + opt_size + 40 * i
+        name = head[at:at + 8].rstrip(b"\0").decode("ascii", "replace")
+        raw_size, raw_ptr = struct.unpack_from("<II", head, at + 16)
+        rows.append((raw_ptr, raw_size, name))
+    last = max((r for r in rows if r[0] and r[1]), default=None)
+    file_align = struct.unpack_from("<I", head, opt + 36)[0]
+    lines = ["%s: %.0f MB, %d sections, FileAlignment %#x" % (os.path.basename(path), size / 1048576, count, file_align)]
+    for raw_ptr, raw_size, name in rows:
+        lines.append("%s section %s: offset %#x size %d (%.1f MB) offset%%4096 %d%s" % (
+            os.path.basename(path), name or "?", raw_ptr, raw_size, raw_size / 1048576, raw_ptr % PE_PAGE,
+            " last" if (raw_ptr, raw_size, name) == last else ""))
+    return lines
+
+
+def pe_align_copy(src, dst):
+    """Writes a copy of the PE file src to dst with every section at a 4096-byte file offset, reading the file
+    in pieces. Section sizes stay; the gaps before sections grow. The last section and whatever follows it
+    (Godot's pck trailer, which Godot finds from the end of the file; a symbol table; a signature) stay together
+    at the end, and file offsets that point into moved data (symbol table, certificate table, debug directory
+    data) move with it. The checksum is cleared."""
+    import struct
+    head, pe, opt, opt_size, count = pe_layout(src)
+    total = os.path.getsize(src)
+    magic = struct.unpack_from("<H", head, opt)[0]
+    dirs_at = opt + (112 if magic == 0x20B else 96)
+    entries = struct.unpack_from("<I", head, dirs_at - 4)[0]
+    sections_at = opt + opt_size
+    old_headers = struct.unpack_from("<I", head, opt + 60)[0]
+    out = bytearray(head[:old_headers])
+    out += b"\0" * (_up(old_headers) - len(out))
+    struct.pack_into("<I", out, opt + 60, len(out))
+    struct.pack_into("<I", out, opt + 36, PE_PAGE)
+    struct.pack_into("<I", out, opt + 64, 0)
+    sections = []
+    for i in range(count):
+        at = sections_at + 40 * i
+        vsize, rva, raw_size, raw_ptr = struct.unpack_from("<IIII", head, at + 8)
+        sections.append((at, raw_ptr, raw_size, rva, vsize))
+    moves = []  # (old start, old end, new start)
+    position, end = len(out), old_headers
+    for at, raw_ptr, raw_size, _, _ in sorted(sections, key=lambda s: s[1]):
+        if not raw_ptr or not raw_size:
+            continue
+        if raw_ptr < end or raw_ptr + raw_size > total:
+            raise ValueError("sections overlap or run past the end of the file")
+        position = _up(position)
+        struct.pack_into("<I", out, at + 20, position)
+        moves.append((raw_ptr, raw_ptr + raw_size, position))
+        position += raw_size
+        end = raw_ptr + raw_size
+    moves.append((end, total, position))
+
+    def new_offset(old):
+        for start, stop, to in moves:
+            if start <= old < stop or old == stop == total:
+                return to + old - start
+        return old
+
+    def rva_to_offset(rva):
+        for _, raw_ptr, raw_size, va, vsize in sections:
+            if va <= rva < va + max(vsize, raw_size) and rva - va < raw_size:
+                return raw_ptr + rva - va
+        return None
+
+    patches = {}  # new file offset -> 4-byte value, for offsets past the headers
+    symbols = struct.unpack_from("<I", head, pe + 12)[0]
+    if symbols:
+        struct.pack_into("<I", out, pe + 12, new_offset(symbols))
+    if entries > 4:
+        cert_at, cert_size = struct.unpack_from("<II", head, dirs_at + 32)
+        if cert_size:
+            struct.pack_into("<I", out, dirs_at + 32, new_offset(cert_at))
+    with open(src, "rb") as f:
+        if entries > 6:
+            debug_rva, debug_size = struct.unpack_from("<II", head, dirs_at + 48)
+            debug_at = rva_to_offset(debug_rva) if debug_size else None
+            if debug_at is not None:
+                f.seek(debug_at)
+                table = f.read(debug_size)
+                for i in range(len(table) // 28):
+                    old = struct.unpack_from("<I", table, 28 * i + 24)[0]
+                    if old:
+                        patches[new_offset(debug_at + 28 * i + 24)] = new_offset(old)
+        tmp = dst + ".tmp"
+        with open(tmp, "wb") as w:
+            w.write(out)
+            for start, stop, to in moves:
+                w.seek(to)
+                f.seek(start)
+                left = stop - start
+                while left:
+                    chunk = f.read(min(left, 8 << 20))
+                    if not chunk:
+                        raise ValueError("file shorter than its headers say")
+                    w.write(chunk)
+                    left -= len(chunk)
+            for at, value in patches.items():
+                w.seek(at)
+                w.write(struct.pack("<I", value))
+            w.truncate(position + total - end)
+        os.replace(tmp, dst)
+
+
+def pe_aligned_exe(exe, min_bytes=PE_ALIGN_MIN_BYTES):
+    """The path to launch instead of exe, made or remade as needed, and a line for the log; (None, line or None)
+    when the original stays. The copy keeps the original's name, in a folder PE_ALIGN_DIR beside it that links to
+    everything else in the game's folder, so the game finds its data and DLLs and its process keeps its name."""
+    if not pe_needs_align(exe, min_bytes):
+        return None, None
+    folder, name = os.path.split(os.path.abspath(exe))
+    where = os.path.join(folder, PE_ALIGN_DIR)
+    copy, stamp_path = os.path.join(where, name), os.path.join(where, name + ".src")
+    info = os.stat(exe)
+    stamp = "%d %d\n" % (info.st_size, info.st_mtime_ns)
+    try:
+        os.makedirs(where, exist_ok=True)
+        link_siblings(folder, where, name)
+        with open(stamp_path) as f:
+            same = f.read() == stamp
+        if same and os.path.getsize(copy) >= info.st_size:
+            return copy, "aligned copy of %s in use (%.0f MB)" % (name, info.st_size / 1048576)
+    except OSError:
+        pass
+    try:
+        free = os.statvfs(folder)
+        if free.f_bavail * free.f_frsize < info.st_size + (512 << 20):
+            return None, "aligned copy of %s not made: too little free space" % name
+        started = time.monotonic()
+        pe_align_copy(exe, copy)
+        with open(stamp_path, "w") as f:
+            f.write(stamp)
+    except (OSError, ValueError) as error:
+        for path in (copy + ".tmp", stamp_path):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        return None, "aligned copy of %s not made (%s)" % (name, error)
+    return copy, "aligned copy of %s made in %.1f s (%.0f MB)" % (name, time.monotonic() - started, info.st_size / 1048576)
+
+
+def link_siblings(folder, where, name):
+    """Links every entry of folder but name and where itself into where, and drops links whose target is gone."""
+    keep = {name, name + ".src", name + ".tmp"}
+    for entry in os.listdir(folder):
+        if entry in (name, PE_ALIGN_DIR):
+            continue
+        link = os.path.join(where, entry)
+        keep.add(entry)
+        if not os.path.lexists(link):
+            os.symlink(os.path.join("..", entry), link)
+    for entry in os.listdir(where):
+        if entry not in keep and os.path.islink(os.path.join(where, entry)):
+            os.unlink(os.path.join(where, entry))
 
 
 GODOT_PIPELINES = ("*/vulkan/pipelines.*.cache", "Godot/app_userdata/*/vulkan/pipelines.*.cache")
