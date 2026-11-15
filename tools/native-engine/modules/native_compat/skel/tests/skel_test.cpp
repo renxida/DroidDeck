@@ -355,8 +355,8 @@ static std::vector<uint8_t> synthetic_binary() {
 	for (float x : { 0.25f, 0.0f, 0.75f, 90.0f }) w.f(x); // rotate 0 -> 90, eased symmetric bezier
 	w.u8(1); w.v(2); w.v(0); w.f(0); w.f(0); w.f(0); w.f(1); w.f(10); w.f(20); w.u8(1); // translate, stepped
 	w.v(1); w.v(0); w.v(2); w.v(0); // ik timeline
-	w.u8(1 | 8 | 64); w.f(0); // bend positive, mix 1, stepped
-	w.u8(4 | 16); w.f(1); w.f(0.25f); // stretch, bend negative, mix 0.25
+	w.u8(1 | 8); w.f(0); // mix 1, bend positive
+	w.u8(1 | 2 | 32 | 64); w.f(1); w.f(0.25f); // mix 0.25, stretch, bend negative; stepped from the frame before
 	w.v(1); w.v(0); w.v(1); w.v(0); w.f(0); for (float x : { 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }) w.f(x);
 	w.v(0); w.v(0); // path, physics timelines
 	w.v(1); w.v(0); w.v(2); w.v(1); w.v(1); w.v(3); w.u8(0); w.v(2); w.v(0); // deform on "mesh"
@@ -401,7 +401,10 @@ static std::vector<uint8_t> synthetic_path_physics() {
 	w.v(0); w.v(0); w.v(0); w.v(0); // slot, bone, ik, transform timelines
 	w.v(1); w.v(0); w.v(1); w.u8(0); w.v(2); w.v(0); // path position: 0 -> 1 over 1 s
 	w.f(0); w.f(0.25f); w.f(1); w.f(0.75f); w.u8(0);
-	w.v(0); // physics timelines
+	// Physics: every constraint's mix (target 0) 1 -> 0, then constraint 0's type-5 setting (read, skipped).
+	w.v(2);
+	w.v(0); w.v(1); w.u8(7); w.v(2); w.v(0); w.f(0); w.f(1); w.f(1); w.f(0); w.u8(0);
+	w.v(1); w.v(1); w.u8(5); w.v(1); w.v(0); w.f(0); w.f(-2);
 	w.v(1); w.v(0); w.v(1); w.v(0); w.v(1); w.v(1); w.u8(0); w.v(2); w.v(0); // deform on "path"
 	w.f(0); w.v(0);
 	w.f(1); w.u8(1); w.v(2); w.v(4); w.f(7); w.f(8); // stepped, 2 floats from offset 4
@@ -445,12 +448,15 @@ static void test_binary_path_physics() {
 		NEAR(path->lengths[0], 40);
 	}
 	const Animation *anim = sd->find_animation("go");
-	CHECK(anim && anim->timelines.size() == 2);
-	if (anim && anim->timelines.size() == 2) {
+	CHECK(anim && anim->timelines.size() == 3);
+	if (anim && anim->timelines.size() == 3) {
 		const Timeline &pos = anim->timelines[0];
 		CHECK(pos.type == TimelineType::PathPosition);
 		NEAR(pos.curve.evaluate(0.5f, 0), 0.5);
-		const Timeline &def = anim->timelines[1];
+		const Timeline &mix = anim->timelines[1];
+		CHECK(mix.type == TimelineType::PhysicsMix && mix.target == -1);
+		NEAR(mix.curve.evaluate(0.5f, 0), 0.5);
+		const Timeline &def = anim->timelines[2];
 		CHECK(def.type == TimelineType::Deform && def.deforms.size() == 2 && def.curve.kinds[0] == Curve::STEPPED);
 		if (def.deforms.size() == 2 && def.deforms[1].size() == 6) {
 			NEAR(def.deforms[1][4], 14);

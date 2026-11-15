@@ -194,12 +194,12 @@ struct Curve {
 enum class TimelineType {
 	Rotate, Translate, TranslateX, TranslateY, Scale, ScaleX, ScaleY, Shear, ShearX, ShearY,
 	Attachment, RGBA, RGB, Alpha, RGBA2, RGB2, Deform, DrawOrder, Event, Ik, Inherit, Transform, Sequence,
-	PathPosition, PathSpacing, PathMix
+	PathPosition, PathSpacing, PathMix, PhysicsMix
 };
 
 struct Timeline {
 	TimelineType type = TimelineType::Rotate;
-	int target = 0; // bone, slot or constraint index
+	int target = 0; // bone, slot or constraint index (physics: -1 for every constraint)
 	Curve curve;
 	std::vector<std::string> names; // attachment timeline: key per frame ("" for none)
 	const Attachment *attachment = nullptr; // deform target

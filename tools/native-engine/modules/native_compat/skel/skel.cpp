@@ -1248,6 +1248,16 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 				mix_value(k.mix_y, k.data->mix_y, cv.evaluate(time, 2), alpha, blend);
 				break;
 			}
+			case TimelineType::PhysicsMix: {
+				const float v = cv.evaluate(time, 0);
+				for (size_t i = 0; i < sk.physics.size(); i++) {
+					if (tl.target < 0 || int(i) == tl.target) {
+						PhysicsConstraint &p = sk.physics[i];
+						mix_value(p.mix, p.data->mix, v, alpha, blend);
+					}
+				}
+				break;
+			}
 			case TimelineType::Sequence: {
 				Slot &s = sk.slots[tl.target];
 				if (!s.attachment || s.attachment->timeline_attachment != tl.attachment || !s.attachment->has_sequence) {

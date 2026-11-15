@@ -10,7 +10,7 @@
 // attachments, events, and every animation section those files use, including path timelines and
 // deform keys (time, then the curve from the previous key, then a count of floats and their offset).
 // Bounding box, point and clipping attachments follow the same pattern but have not been seen yet.
-// Physics timelines have not been seen and fail the load.
+// Physics timelines: the mix is applied; the other settings are read and skipped.
 #include "skel.h"
 
 #include <algorithm>
@@ -116,8 +116,8 @@ struct BinaryLoader {
 	struct PendingLink {
 		Attachment *mesh;
 		int slot;
-		std::string parent, skin;
-		bool skin_null;
+		std::string parent;
+		uint32_t skin; // index into the skins, the default skin first
 		bool deform;
 	};
 	std::vector<PendingLink> links;
@@ -270,12 +270,12 @@ struct BinaryLoader {
 			k.target = index(int(sd.bones.size()), "ik target");
 			uint8_t f = r.byte();
 			// 1 skin required, 2 bend positive, 4 compress, 8 stretch, 16 uniform,
-			// 32 mix is 1, 64 mix value follows, 128 softness follows.
+			// 32 mix is not 0, 64 its value follows (else 1; without 32 the bit means nothing), 128 softness follows.
 			k.bend_positive = f & 2;
 			k.compress = f & 4;
 			k.stretch = f & 8;
 			k.uniform = f & 16;
-			k.mix = (f & 64) ? r.f32() : (f & 32) ? 1.0f : 0.0f;
+			k.mix = (f & 32) ? ((f & 64) ? r.f32() : 1.0f) : 0.0f;
 			k.softness = (f & 128) ? r.f32() * scale : 0.0f;
 			if (k.bones.empty() || k.bones.size() > 2) {
 				return fail("ik " + k.name + ": needs one or two bones");
@@ -335,15 +335,18 @@ struct BinaryLoader {
 			constraint_bones(d.bones);
 			d.target = index(int(sd.slots.size()), "path target slot");
 			uint8_t f = r.byte();
-			// Bit 0 position mode, bits 1-2 spacing mode, bits 3-4 rotate mode (see PathData).
+			// Bit 0 position mode, bits 1-2 spacing mode, bits 3-4 rotate mode (see PathData), bit 7 the
+			// offset rotation follows (seen as 180 on constraints that run their bones backwards).
 			d.position_mode = f & 1;
 			d.spacing_mode = (f >> 1) & 3;
 			d.rotate_mode = (f >> 3) & 3;
-			if (d.rotate_mode > 2 || (f >> 5)) {
+			if (d.rotate_mode > 2 || (f & 0x60)) {
 				return fail("path " + d.name + ": modes " + std::to_string(f) + " layout unknown");
 			}
-			// Five values follow: position, spacing, then the rotate, x and y mixes. The offset
-			// rotation was not among them in the one file seen, so it stays 0 (see LAYOUT notes).
+			if (f & 0x80) {
+				d.offset_rotation = r.f32();
+			}
+			// Then position, spacing, and the rotate, x and y mixes.
 			d.position = r.f32();
 			if (d.position_mode == 0) {
 				d.position *= scale;
@@ -499,8 +502,9 @@ struct BinaryLoader {
 			case 3: { // linked mesh
 				a->type = AttachmentType::Mesh;
 				common(*a, f, key);
-				PendingLink link{ a.get(), slot, {}, {}, false, bool(f & 128) };
-				link.skin_null = !ref(link.skin);
+				// The parent's skin goes by its index (the default skin is 0), its key through the string table.
+				PendingLink link{ a.get(), slot, {}, 0, bool(f & 128) };
+				link.skin = r.varint();
 				ref(link.parent);
 				if (nonessential) {
 					a->width = r.f32() * scale;
@@ -614,7 +618,7 @@ struct BinaryLoader {
 			sd.skins.push_back(std::move(s));
 		}
 		for (const PendingLink &l : links) {
-			const Skin *from = l.skin_null ? sd.default_skin : sd.find_skin(l.skin);
+			const Skin *from = l.skin < sd.skins.size() ? sd.skins[l.skin].get() : nullptr;
 			const Attachment *parent = from ? from->find(l.slot, l.parent) : nullptr;
 			if (!parent) {
 				return fail("linked mesh " + l.mesh->name + ": parent " + l.parent + " not found");
@@ -809,22 +813,24 @@ struct BinaryLoader {
 			tl.curve.channels = 2;
 			const float scales[2] = { 1.0f, scale };
 			for (int f = 0; f < frames && ok(); f++) {
-				// 1 bend positive, 2 compress, 4 stretch, 8 mix is 1, 16 mix follows, 32 softness follows,
-				// 64 stepped, 128 bezier. The bit order follows the constraint's own flags.
+				// 1 mix is not 0, 2 its value follows (else 1), 4 softness follows, 8 bend positive,
+				// 16 compress, 32 stretch, 64 stepped, 128 bezier (curve bits are for the segment ending here).
 				uint8_t fl = r.byte();
 				float t = r.f32();
 				float v[2];
-				v[0] = (fl & 16) ? r.f32() : (fl & 8) ? 1.0f : 0.0f;
-				v[1] = (fl & 32) ? r.f32() * scale : 0.0f;
+				v[0] = (fl & 1) ? ((fl & 2) ? r.f32() : 1.0f) : 0.0f;
+				v[1] = (fl & 4) ? r.f32() * scale : 0.0f;
 				tl.curve.add(t, v, Curve::LINEAR);
-				tl.flags.push_back(fl & 7);
-				if (f + 1 < frames) {
+				// Kept in the constraint's own order: 1 bend positive, 2 compress, 4 stretch.
+				tl.flags.push_back(uint8_t((fl >> 3) & 7));
+				// A frame's curve bits and curve describe the segment that ends at it, as for the other timelines.
+				if (f > 0) {
 					if (fl & 64) {
-						tl.curve.kinds[f] = Curve::STEPPED;
+						tl.curve.kinds[f - 1] = Curve::STEPPED;
 					} else if (fl & 128) {
 						for (int ch = 0; ch < 2; ch++) {
 							float cx1 = r.f32(), cy1 = r.f32(), cx2 = r.f32(), cy2 = r.f32();
-							tl.curve.set_bezier(f, ch, cx1, cy1 * scales[ch], cx2, cy2 * scales[ch]);
+							tl.curve.set_bezier(f - 1, ch, cx1, cy1 * scales[ch], cx2, cy2 * scales[ch]);
 						}
 					}
 				}
@@ -873,8 +879,33 @@ struct BinaryLoader {
 				keep(std::move(tl));
 			}
 		}
-		if (r.count() != 0) {
-			return fail(where + "physics constraint timelines (layout unknown)");
+		// Physics constraints: per constraint (its index plus one; 0 is every constraint), timelines of one
+		// value each, framed like the others. Seen: type 7 the mix (0 or 1 keys), 0 and 5 other settings
+		// (0 stays in 0..1, 5 goes negative); only the mix is applied.
+		n = r.count();
+		for (int i = 0; i < n && ok(); i++) {
+			const uint32_t target = r.varint();
+			if (target > sd.physics.size()) {
+				return fail(where + "bad physics index " + std::to_string(target));
+			}
+			int timelines = r.count();
+			for (int k = 0; k < timelines && ok(); k++) {
+				int type = r.byte();
+				int frames = r.count();
+				r.varint(); // bezier count
+				if (type > 7) {
+					return fail(where + "physics timeline type " + std::to_string(type) + " unknown");
+				}
+				Timeline tl;
+				tl.type = TimelineType::PhysicsMix;
+				tl.target = int(target) - 1;
+				float_frames(tl, frames, 1, 1.0f);
+				if (type == 7) {
+					keep(std::move(tl));
+				} else {
+					unsupported.push_back("physics setting timelines other than mix");
+				}
+			}
 		}
 
 		// Attachment timelines: deform and sequence, per skin, slot and attachment.
