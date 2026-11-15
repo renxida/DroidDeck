@@ -57,4 +57,26 @@ class AgentRemoteTest {
         assertEquals("bad signature", AgentRemote.unseal(tampered, "c1", 1000, pub).second)
         assertEquals("no signature", AgentRemote.unseal(JSONObject().put("payload", "e30="), "c1", 1000, pub).second)
     }
+
+    @Test
+    fun remoteStartAsksTheSessionToShowOverTheLockScreen() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        val run = AgentRemote::class.java.getDeclaredMethod("startSession", android.content.Context::class.java, JSONObject::class.java)
+        run.isAccessible = true
+        run.invoke(AgentRemote, app, JSONObject().put("appId", 2868840))
+        val started = org.robolectric.Shadows.shadowOf(app).nextStartedActivity
+        assertEquals(com.droiddeck.launcher.session.SessionService.ACTION_AGENT_START, started.action)
+        org.junit.Assert.assertTrue(started.getBooleanExtra(com.droiddeck.launcher.session.SessionService.EXTRA_REMOTE, false))
+    }
+
+    @Test
+    fun wakeWithoutASessionDoesNothing() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        com.droiddeck.launcher.session.SessionState.running = false
+        val wake = AgentRemote::class.java.getDeclaredMethod("wake", android.content.Context::class.java)
+        wake.isAccessible = true
+        val result = wake.invoke(AgentRemote, app) as JSONObject
+        assertEquals(false, result.optBoolean("ok"))
+        assertNull(org.robolectric.Shadows.shadowOf(app).nextStartedActivity)
+    }
 }

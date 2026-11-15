@@ -2473,6 +2473,10 @@ class SessionService : Service() {
         private const val ACTION_PIP_BEGIN = "com.droiddeck.launcher.PIP_BEGIN"
         const val ACTION_LAUNCH_GAME = "com.droiddeck.launcher.LAUNCH_STEAM_GAME"
         const val ACTION_AGENT_START = "com.droiddeck.launcher.AGENT_START"
+        /** A signed remote command wants the running session's screen on, over the lock screen (see AgentRemote.wake). */
+        const val ACTION_REMOTE_WAKE = "com.droiddeck.launcher.REMOTE_WAKE"
+        /** On an agent start: it came from a signed remote command, so show over the lock screen and turn the screen on. */
+        const val EXTRA_REMOTE = "com.droiddeck.launcher.REMOTE"
         private const val ACTION_MIC_CHANGED = "com.droiddeck.launcher.MIC_CHANGED"
         private const val ACTION_SUSPEND_POLICY_CHANGED = "com.droiddeck.launcher.SUSPEND_POLICY_CHANGED"
         private const val ACTION_ACTIVITY_VISIBLE = "com.droiddeck.launcher.ACTIVITY_VISIBLE"

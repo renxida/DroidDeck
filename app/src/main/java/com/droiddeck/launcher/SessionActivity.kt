@@ -608,20 +608,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (intent.action == SessionService.ACTION_AGENT_START) {
             SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
+            // A signed remote start: the operator can't unlock the phone, so the session shows over the
+            // lock screen and turns the screen on, or it renders unseen and screenshots come back empty.
+            if (intent.getBooleanExtra(SessionService.EXTRA_REMOTE, false)) showOverLockScreen("remote.start")
         }
+        if (intent.action == SessionService.ACTION_REMOTE_WAKE) showOverLockScreen("remote.wake")
         intent.getStringExtra(com.droiddeck.launcher.session.AutoTest.EXTRA_ID)?.let { id ->
             // Unattended test run: the phone is charging with the screen off, so wake it, show over the
             // lock screen, and keep it as dim as it goes.
             val manual = intent.getBooleanExtra(com.droiddeck.launcher.session.AutoTest.EXTRA_MANUAL, false)
             SessionEvents.record("autotest.start", mapOf("id" to id, "manual" to manual))
             if (manual) return@let
-            if (android.os.Build.VERSION.SDK_INT >= 27) {
-                setShowWhenLocked(true)
-                setTurnScreenOn(true)
-            } else {
-                @Suppress("DEPRECATION")
-                window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
-            }
+            showOverLockScreen(null)
             window.attributes = window.attributes.apply { screenBrightness = 0.01f }
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -4015,8 +4013,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onStop()
     }
 
+    /** Shows this screen over the lock screen and turns the screen on (unattended runs and signed remote commands only). */
+    private fun showOverLockScreen(event: String?) {
+        if (android.os.Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        }
+        event?.let { SessionEvents.record(it, emptyMap()) }
+    }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        if (intent.action == SessionService.ACTION_REMOTE_WAKE) {
+            showOverLockScreen("remote.wake")
+            return
+        }
         if (intent.action == SessionService.ACTION_AGENT_START) {
             if (SessionState.running || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
                 Log.w(TAG, "ignoring agent start while session phase is ${SessionState.phase}")

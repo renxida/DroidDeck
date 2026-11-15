@@ -45,13 +45,15 @@ import java.net.URL
  *
  * Methods beyond the bridge's: "start" ({"appId", "branch"} or {"steamUrl"}) opens a session the way
  * the library does; "screenshot" uploads a picture of the session, or with {"what": "ui"} (or when no
- * session is showing) of the app's own windows, on-screen controls included; "autotest" runs the queued
+ * session is showing) of the app's own windows, on-screen controls included (with the phone locked or its screen
+ * off it first wakes the session over the lock screen, as "wake" does); "autotest" runs the queued
  * test; "layout" gets ({"op": "get", "id"}), replaces ({"op": "set", "layout": {...}}) or resets
  * ({"op": "reset"}) the Slay the Spire 2 pad or a "remote.*" layout. The bridge's "ui" drives the app by
  * hand: {"op": "tap"|"swipe", "x"/"fx", "y"/"fy", ...} and {"op": "back"}, never on the Debugging tools switch.
  * "update" checks the fork's latest APK now and downloads it; it installs only through the same checks and the
  * system's confirmation on the front screen, or, with Install updates over Wireless debugging on and the phone idle
- * on the charger, over Wireless debugging with no prompt. "ping" answers the read-only [com.droiddeck.launcher.telemetry.DeviceStatus].
+ * on the charger, over Wireless debugging with no prompt. "wake" turns the screen on and shows the running session over
+ * the lock screen ("start" does that too), so it renders and can be pictured without unlocking. "ping" answers the read-only [com.droiddeck.launcher.telemetry.DeviceStatus].
  */
 object AgentRemote {
     private const val TAG = "AgentRemote"
@@ -171,6 +173,7 @@ object AgentRemote {
                 "ping" -> com.droiddeck.launcher.telemetry.DeviceStatus.json(context).put("ok", true)
                 "update" -> com.droiddeck.launcher.update.SelfUpdate.remoteUpdate(context)
                 "start" -> startSession(context, request)
+                "wake" -> wake(context)
                 "autotest" -> {
                     val latch = java.util.concurrent.CountDownLatch(1)
                     var message = ""
@@ -204,12 +207,35 @@ object AgentRemote {
             .setAction(SessionService.ACTION_AGENT_START)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
+            .putExtra(SessionService.EXTRA_REMOTE, true)
         url?.let { intent.putExtra(SessionService.EXTRA_STEAM_URL, it) }
         context.startActivity(intent)
         return JSONObject().put("ok", true).put("steamUrl", url)
     }
 
+    /** Whether the screen is off or the lock screen is up, so the session's surface is not drawn. */
+    private fun hidden(context: Context): Boolean {
+        val power = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        return !power.isInteractive || keyguard.isKeyguardLocked
+    }
+
+    /** Brings the running session to the front over the lock screen with the screen on. */
+    private fun wake(context: Context): JSONObject {
+        if (!com.droiddeck.launcher.session.SessionState.running) return err("NO_SESSION", "no session is running")
+        val wasHidden = hidden(context)
+        context.startActivity(Intent(context, SessionActivity::class.java)
+            .setAction(SessionService.ACTION_REMOTE_WAKE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        val power = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        val until = System.currentTimeMillis() + 5_000
+        while (!power.isInteractive && System.currentTimeMillis() < until) Thread.sleep(100)
+        if (wasHidden) Thread.sleep(1_500) // the surface draws again a moment after the screen comes on
+        return JSONObject().put("ok", power.isInteractive).put("wasHidden", wasHidden).put("interactive", power.isInteractive)
+    }
+
     private fun screenshot(context: Context, repo: String, token: String, id: String): JSONObject {
+        if (com.droiddeck.launcher.session.SessionState.running && hidden(context)) wake(context)
         val take = capture ?: return err("NO_SESSION_SCREEN", "the session screen is not showing")
         val dir = File(context.cacheDir, "remote-shot").apply { mkdirs() }
         File(dir, com.droiddeck.launcher.session.SessionScreenshot.FILE).delete()
