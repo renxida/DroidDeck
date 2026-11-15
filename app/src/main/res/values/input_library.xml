@@ -27,6 +27,7 @@
     <string name="input_element_stick">Stick</string>
     <string name="input_element_trackpad">Trackpad</string>
     <string name="input_element_dpad">D-pad</string>
+    <string name="input_element_swipe">Swipe pad</string>
     <string name="input_element_trigger">Trigger</string>
     <string name="input_editor_done">Done</string>
     <string name="input_editor_undo">Undo</string>

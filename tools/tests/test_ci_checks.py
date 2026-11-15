@@ -134,7 +134,7 @@ class CiChecksTest(unittest.TestCase):
         rig = jobs['offphone-steam-ui']
         self.assertEqual(rig['uses'], './.github/workflows/offphone-rig.yml')
         self.assertEqual(rig['needs'], 'build')
-        self.assertEqual(rig['with'], {'apk_run_id': '${{ github.run_id }}', 'scenario': 'steam-ui'})
+        self.assertEqual(rig['with'], {'apk_run_id': '${{ github.run_id }}', 'scenario': 'all'})  # steam-ui and stand-in-game
         self.assertNotIn('cancelled()', rig['if'])
         self.assertTrue(any(step.get('with', {}).get('name') == 'droiddeck-apk'
                             for step in jobs['build']['steps'] if step.get('uses') == 'actions/upload-artifact@v4'))

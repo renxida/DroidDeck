@@ -100,4 +100,45 @@ class InputSurfaceViewTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test fun aFlickOnTheSwipePadPressesItsDirectionAsItCrossesTheThresholdThenLetsGo() {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+        val activity = controller.get()
+        val keys = mutableListOf<String>()
+        val bridge = PadBridge(activity.cacheDir)
+        val router = InputRouter(object : InputOutput {
+            override fun key(code: Int, down: Boolean) { keys += "$code $down" }
+            override fun button(code: Int, down: Boolean) {}
+            override fun pointer(dx: Float, dy: Float) {}
+            override fun scroll(steps: Int) {}
+            override fun command(command: InputCommand) {}
+            override fun requestMotion() {}
+        })
+        bridge.setInputRouter(router)
+        bridge.setInputProfile(InputProfile("test", elements = mapOf(InputRole.SECONDARY to mapOf("swipe" to InputAction.Directions(103, 106, 108, 105)))))
+        val panel = InputSurfaceView(activity, bridge,
+            listOf(InputSurfaceElement(InputControl.LS, 0f, 0f, .5f, 1f, "swipe", InputElementKind.SWIPE, "Swipe")))
+        activity.setContentView(panel)
+        panel.measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+        panel.layout(0, 0, 1200, 600)
+        val millimetre = activity.resources.displayMetrics.density * 160f / 25.4f
+        val start = android.os.SystemClock.uptimeMillis()
+        fun touch(action: Int, at: Long, y: Float) = MotionEvent.obtain(start, start + at, action, 300f, y, 0).also {
+            try { panel.dispatchTouchEvent(it) } finally { it.recycle() }
+        }
+        try {
+            assertTrue(panel.takesTouchAt(300f, 300f))
+            touch(MotionEvent.ACTION_DOWN, 0, 300f)
+            touch(MotionEvent.ACTION_MOVE, 16, 300f - 2 * millimetre)
+            assertTrue(keys.isEmpty())
+            touch(MotionEvent.ACTION_MOVE, 32, 300f - 5 * millimetre)
+            assertEquals(listOf("103 true"), keys)
+            touch(MotionEvent.ACTION_UP, 40, 300f - 5 * millimetre)
+            assertEquals(listOf("103 true"), keys)
+            shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(SwipePadDetector.PRESS_MS + 100))
+            assertEquals(listOf("103 true", "103 false"), keys)
+            shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(2_000))
+            assertEquals(2, keys.size)
+        } finally { bridge.stop(); controller.pause().stop().destroy() }
+    }
 }

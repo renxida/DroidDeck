@@ -140,17 +140,24 @@ perturb() { # once, while the start is under way
       sleep 2; echo "rig: top while away: $(top_activity)"; sleep "$away"
       # Back the way a person comes back: the launcher icon (an existing task comes to the front).
       adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n "$(launcher)" >/dev/null
-      sleep 3; echo "rig: top after return: $(top_activity)"
+      local top i; for i in 1 2 3 4 5; do sleep 2; top=$(top_activity); case $top in *SessionActivity*) break;; esac; done
+      echo "rig: top after return: $top"
       local seen_text; seen_text=$("$ctl" ui dump 2>/dev/null | jq -r '[.. | objects | .text? // empty | strings | select(length > 0)] | unique | join(" | ")' 2>/dev/null | head -c 600)
       echo "rig: on screen after return: $seen_text"
       rig_event backgrounded
-      # Coming back by the icon during a start lands on the home screen, not the session; a
-      # person then presses Open Steam. Whether that rejoins the running start is the question.
-      if [ "$base" = steam-ui ] && grep -q "Open Steam" <<<"$seen_text"; then
-        rig_event landed_on_home; sleep 5
-        "$ctl" ui click --match "Open Steam" >/dev/null 2>&1 && echo "rig: pressed Open Steam"
-        sleep 3; echo "rig: top after Open Steam: $(top_activity)"
-      fi ;;
+      # The icon should bring the running session back. When it lands on the home screen
+      # instead, that is the bug this scenario exists for: the run fails (returned_to_session is
+      # missing), but the rig presses Open Steam the way a person would, so the rest of the
+      # launch is still measured and the log shows whether the session survived.
+      case $top in
+        *SessionActivity*) rig_event returned_to_session ;;
+        *)
+          rig_event landed_on_home
+          if grep -q "Open Steam" <<<"$seen_text"; then
+            sleep 2; "$ctl" ui click --match "Open Steam" >/dev/null 2>&1 && echo "rig: pressed Open Steam"
+            sleep 3; echo "rig: top after Open Steam: $(top_activity)"
+          fi ;;
+      esac ;;
   esac
 }
 
@@ -165,7 +172,10 @@ case $base in
     adb push "$standin/." "$fs/root/standin/" >/dev/null
     uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
     adb shell "chown -R $uid:$uid $fs/root/standin && restorecon -R $fs/root/standin"
-    "$ctl" run /usr/local/bin/droiddeck-proton-run -- "/root/standin/$exe" --quit-after-frames 300 --max-fps 30 ;;
+    # In stand-in-background the game must still be running when the rig comes back (READY at
+    # about 12 s, 20 s away), so it runs about three times longer there.
+    frames=300; [ "$scenario" = stand-in-background ] && frames=1200
+    "$ctl" run /usr/local/bin/droiddeck-proton-run -- "/root/standin/$exe" --quit-after-frames $frames --max-fps 30 ;;
 esac
 
 last=; idle=0; login=; next_ps=60

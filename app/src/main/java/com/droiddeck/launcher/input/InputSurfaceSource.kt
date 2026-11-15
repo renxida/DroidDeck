@@ -61,7 +61,7 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
         if (toPad || nativePad) writePad(this, target) { state ->
             state.clear()
             if (toPad) {
-                if (element.kind == InputElementKind.DPAD) {
+                if (element.kind == InputElementKind.DPAD || element.kind == InputElementKind.SWIPE) {
                     state.up = y < -.5f; state.down = y > .5f; state.left = x < -.5f; state.right = x > .5f
                 } else state.add(target, x, y)
             }

@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 19
+    private const val VERSION = 20
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -36,6 +36,8 @@ object InputLibraries {
         if (version < 15) library = withSts2Pad(library)
         if (version < 16) library = raiseGamepadThumbs(context, library)
         if (version < 19) library = library.copy(layouts = library.layouts.map(Sts2Pad::raiseThumbs))
+        if (version < 20) library = runCatching { Sts2Pad.withSwipe(library) }
+            .onFailure { android.util.Log.e("InputLibraries", "Could not put the swipe pad on the Slay the Spire 2 pad; keeping it as it was", it) }.getOrDefault(library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -143,6 +145,7 @@ object InputLibraries {
 
     fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): List<InputSurfaceElement>? {
         val origin = layout.origin ?: layout.id
+        if (layout.id == Sts2Pad.CLASSIC) return Sts2Pad.classic().elements
         if (origin == Sts2Pad.LAYOUT) return Sts2Pad.layout().elements
         InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements }
         if (origin == OVERLAY || origin.startsWith("migrated.layout.")) {
@@ -416,7 +419,7 @@ object InputLibraries {
         require(layout.id == Sts2Pad.LAYOUT || layout.id.startsWith("remote.")) { "only ${Sts2Pad.LAYOUT} or remote.* layouts" }
         require(layout.elements.isNotEmpty() && layout.elements.map { it.id }.distinct().size == layout.elements.size) { "elements need distinct ids" }
         val stored = if (layout.id == Sts2Pad.LAYOUT) layout.copy(origin = null, screen = InputLayoutScreen.MAIN) else layout
-        update(context) { it.withLayout(stored).validate() }
+        update(context) { Sts2Pad.withDefaultBindings(it.withLayout(stored)).validate() }
         return read(context).layouts.single { it.id == stored.id }
     }
 

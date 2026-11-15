@@ -6,15 +6,21 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The on-screen pad for Slay the Spire 2: a d-pad and A / B / Y beside the game's 16:9 picture, and faint buttons on the
- * game's own draw, discard and exhaust piles, End Turn and map / deck / settings icons, each sending the controller button
- * the game binds to that action.
+ * The on-screen pad for Slay the Spire 2: a swipe pad on the left (each flick presses the d-pad once) and big X / B / Y / A
+ * on the right, and faint buttons on the game's own draw, discard and exhaust piles, End Turn and map / deck / settings
+ * icons, each sending the controller button the game binds to that action. Before the swipe pad it had a d-pad of tiles,
+ * kept here as the classic pad to recognise and upgrade layouts saved then.
  */
 internal object Sts2Pad {
     const val APP_ID = "2868840"
     const val LAYOUT = "builtin.sts2"
     const val BINDINGS = "preset.sts2"
     const val END_TURN = "sts2:end-turn"
+    const val SWIPE = "sts2:swipe"
+    /** Where a pad the person had edited goes when the swipe pad replaces it, with its bindings, so it can be chosen again. */
+    const val CLASSIC = "builtin.sts2.classic"
+    const val CLASSIC_BINDINGS = "preset.sts2.classic"
+    private const val CLASSIC_NAME = "Slay the Spire 2, classic d-pad"
     private const val KEYBOARD = "builtin:keyboard"
 
     private const val PICTURE_ASPECT = 16f / 9f
@@ -50,6 +56,20 @@ internal object Sts2Pad {
     /** Narrowest strip, and shortest row, the d-pad and A / B / Y are tiled in; below either they are circles. */
     private const val MIN_STRIP_DP = 56f
     private const val MIN_ROW_DP = 48f
+    /**
+     * The swipe pad and the X / B / Y / A grid as drawn on a Pixel 10 (2424 × 1080 px at density 2.625): the pad from the left
+     * edge to 620 px and from 330 px down to the bottom; the grid's columns 240 px (X, Y) and 280 px (B, A) wide at the right
+     * edge, rows from 90 px down, 280 px (X, B) and 350 px (Y, A) tall, ending above End Turn.
+     */
+    private const val ZONE_WIDTH_DP = 620f / REFERENCE_DENSITY
+    private const val ZONE_HEIGHT_DP = (1080f - 330f) / REFERENCE_DENSITY
+    private const val ZONE_MAX_SHARE = .3f
+    private const val ZONE_OPACITY = .5f
+    private const val INNER_DP = 240f / REFERENCE_DENSITY
+    private const val OUTER_DP = 280f / REFERENCE_DENSITY
+    private const val GRID_TOP_DP = 90f / REFERENCE_DENSITY
+    private const val TOP_ROW_DP = 280f / REFERENCE_DENSITY
+    private const val LOW_ROW_DP = 350f / REFERENCE_DENSITY
 
     /** Centre as a fraction of the game's picture and size as a fraction of its height, measured on the game's combat and death screens (v0.107). */
     private class Spot(val id: String, val control: InputControl, val x: Float, val y: Float, val width: Float, val height: Float = width,
@@ -66,31 +86,80 @@ internal object Sts2Pad {
     )
     private val DPAD = listOf(InputControl.UP to (0f to -1f), InputControl.RIGHT to (1f to 0f), InputControl.DOWN to (0f to 1f), InputControl.LEFT to (-1f to 0f))
     private val FACE = listOf(InputControl.Y to (0f to -1f), InputControl.X to (-1f to 0f), InputControl.B to (1f to 0f), InputControl.A to (0f to 1f))
-    val THUMB_IDS = (DPAD + FACE).map { "legacy:${it.first.id}" }.toSet()
+    val DPAD_IDS = DPAD.map { "legacy:${it.first.id}" }.toSet()
+    val FACE_IDS = FACE.map { "legacy:${it.first.id}" }.toSet()
+    /** The thumb controls of the swipe pad; the classic pad had [DPAD_IDS] in place of [SWIPE]. */
+    val THUMB_IDS = FACE_IDS + SWIPE
+    private val CLASSIC_THUMB_IDS = DPAD_IDS + FACE_IDS
     val HUD_IDS = HUD.map { it.id }.toSet()
 
     private val stock by lazy { elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY) }
+    private val classicStock by lazy { classicElements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY) }
     /**
      * Where earlier pads put the d-pad and A / B / Y: low circles near the piles, then raised circles, then tiles only as
      * wide as the strip beside the picture (first without X, then with it). Kept to recognise a pad saved untouched from then.
      */
     private val earlierStocks by lazy { listOf(
-        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, raised = false, tiled = false, x = false),
-        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, tiled = false, x = false),
-        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, x = false, wide = false),
-        elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, wide = false)) }
+        classicElements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, raised = false, tiled = false, x = false),
+        classicElements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, tiled = false, x = false),
+        classicElements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, x = false, wide = false),
+        classicElements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, wide = false)) }
     private val X_ID = "legacy:${InputControl.X.id}"
 
-    /** The earlier stock pads, oldest first, for tests of the upgrade. */
-    internal fun earlier(): List<List<InputSurfaceElement>> = earlierStocks
+    /** The stock pads before the swipe pad, oldest first and the classic d-pad tiles last, for tests of the upgrade. */
+    internal fun earlier(): List<List<InputSurfaceElement>> = earlierStocks + listOf(classicStock)
 
     fun owns(layout: SavedInputLayout?) = layout != null && (layout.origin ?: layout.id) == LAYOUT
 
     fun layout() = SavedInputLayout(LAYOUT, "Slay the Spire 2", stock, screen = InputLayoutScreen.MAIN,
         aspect = REFERENCE_WIDTH.toFloat() / REFERENCE_HEIGHT)
 
+    /** The pad as it was before the swipe pad: the d-pad and X / B / Y / A as tiles. */
+    fun classic() = layout().copy(elements = classicStock)
+
     fun bindings() = SavedInputBindings(BINDINGS, "Slay the Spire 2", false, LAYOUT, elements = mapOf(
-        END_TURN to InputAction.Native(InputControl.Y), KEYBOARD to InputAction.Command(InputCommand.KEYBOARD)))
+        SWIPE to InputAction.Native(), END_TURN to InputAction.Native(InputControl.Y), KEYBOARD to InputAction.Command(InputCommand.KEYBOARD)))
+
+    /**
+     * Puts the swipe pad and the X / B / Y / A grid in place of the d-pad and face tiles of the saved pad, keeping every other
+     * button as it is. A pad whose thumbs the person had moved, reshaped or removed is kept first as [CLASSIC], with its
+     * bindings as [CLASSIC_BINDINGS], so it can still be chosen as the primary layout. A pad that already has the swipe pad,
+     * or none at all, is left alone.
+     */
+    fun withSwipe(library: InputLibrary): InputLibrary {
+        val layout = library.layouts.firstOrNull { it.id == LAYOUT } ?: return library
+        if (layout.elements.any { it.id == SWIPE }) return library
+        var result = library
+        val preset = library.bindings.firstOrNull { it.id == BINDINGS && it.layoutId == LAYOUT }
+        if (edited(layout) && library.layouts.none { it.id == CLASSIC }) {
+            result = result.withLayout(layout.copy(id = CLASSIC, name = CLASSIC_NAME, origin = LAYOUT))
+            if (preset != null && result.bindings.none { it.id == CLASSIC_BINDINGS })
+                result = result.withPreset(preset.copy(id = CLASSIC_BINDINGS, name = CLASSIC_NAME, layoutId = CLASSIC))
+        }
+        val others = layout.elements.filterNot { it.id in CLASSIC_THUMB_IDS }
+        result = result.withLayout(layout.copy(elements = stock.filter { it.id in THUMB_IDS } + others))
+        return withDefaultBindings(result).validate()
+    }
+
+    /** Gives each stock button of the pad that has no action in the pad's bindings, such as the swipe pad, its stock action. */
+    fun withDefaultBindings(library: InputLibrary): InputLibrary {
+        val layout = library.layouts.firstOrNull { it.id == LAYOUT } ?: return library
+        val preset = library.bindings.firstOrNull { it.id == BINDINGS && it.layoutId == LAYOUT } ?: return library
+        val missing = bindings().elements.filter { (id, action) -> id !in preset.elements && layout.elements.any { it.id == id && action.validFor(it) } }
+        return if (missing.isEmpty()) library else library.withPreset(preset.copy(elements = preset.elements + missing))
+    }
+
+    /** True when a thumb of the classic pad is not where, or as, an earlier stock pad put it, or is missing. */
+    private fun edited(layout: SavedInputLayout): Boolean {
+        val thumbs = layout.elements.filter { it.id in CLASSIC_THUMB_IDS }
+        if (thumbs.map { it.id }.toSet() != CLASSIC_THUMB_IDS) return true
+        val stocks = (earlierStocks + listOf(classicStock)).map { it.associateBy { e -> e.id } }
+        return thumbs.any { e -> stocks.none { stock -> stock[e.id]?.let { s -> same(s, e) && s.buttonShape == e.buttonShape &&
+            s.opacity == e.opacity && s.name == e.name && s.showLabel == e.showLabel && s.icon == e.icon && s.image == e.image } == true } }
+    }
+
+    private fun same(a: InputSurfaceElement, b: InputSurfaceElement) = abs(a.x - b.x) <= TOLERANCE && abs(a.y - b.y) <= TOLERANCE &&
+        abs(a.width - b.width) <= TOLERANCE && abs(a.height - b.height) <= TOLERANCE
 
     /** Uses this pad while the game is in front, unless the person chose a primary layout or gave the profile a layout other than the gamepad. */
     fun forGame(library: InputLibrary, game: String?): InputLibrary {
@@ -120,18 +189,17 @@ internal object Sts2Pad {
     }
 
     /**
-     * Moves the d-pad and A / B / Y (and X) of a saved pad that still has them where an earlier pad put them (low circles,
-     * raised circles, strip-wide tiles) to the gapless tiles they are now, shape and opacity included, and adds X where missing
-     * (the game opens the potions with it); buttons the person moved, and every other button, are left as they are.
+     * Moves the d-pad and A / B / Y (and X) of a saved classic pad that still has them where an earlier pad put them (low
+     * circles, raised circles, strip-wide tiles) to the classic pad's gapless tiles, shape and opacity included, and adds X
+     * where missing (the game opens the potions with it); buttons the person moved, and every other button, are left as they
+     * are. [withSwipe] then replaces the tiles.
      */
     fun raiseThumbs(layout: SavedInputLayout): SavedInputLayout {
-        if (!owns(layout)) return layout
+        if (!owns(layout) || layout.elements.any { it.id == SWIPE }) return layout
         val earlier = earlierStocks.map { it.associateBy { e -> e.id } }
-        val now = stock.associateBy { it.id }
-        fun same(a: InputSurfaceElement, b: InputSurfaceElement) = abs(a.x - b.x) <= TOLERANCE && abs(a.y - b.y) <= TOLERANCE &&
-            abs(a.width - b.width) <= TOLERANCE && abs(a.height - b.height) <= TOLERANCE
+        val now = classicStock.associateBy { it.id }
         val moved = layout.elements.map { e ->
-            if (e.id !in THUMB_IDS || earlier.none { before -> before[e.id]?.let { same(it, e) } == true }) return@map e
+            if (e.id !in CLASSIC_THUMB_IDS || earlier.none { before -> before[e.id]?.let { same(it, e) } == true }) return@map e
             now.getValue(e.id).let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height, buttonShape = it.buttonShape,
                 opacity = it.opacity) }
         }
@@ -142,27 +210,73 @@ internal object Sts2Pad {
         return if (elements == layout.elements) layout else layout.copy(elements = elements)
     }
 
-    fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0): List<InputSurfaceElement> =
-        elements(width, height, density, top, bottom, raised = true, tiled = true)
+    private fun hud(w: Float, h: Float): List<Pair<Spot, Box>> {
+        val pictureW = min(w, h * PICTURE_ASPECT)
+        val pictureH = min(h, w / PICTURE_ASPECT)
+        val pictureX = (w - pictureW) / 2f
+        val pictureY = (h - pictureH) / 2f
+        return HUD.map { s -> s to Box(pictureX + s.x * pictureW, pictureY + s.y * pictureH, s.width * pictureH, s.height * pictureH) }
+    }
 
-    private fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0, raised: Boolean = true,
+    private fun keyboardBox(density: Float, top: Int) = (KEYBOARD_RADIUS_DP * density).let { r -> Box(KEYBOARD_X_DP * density, top + KEYBOARD_Y_DP * density, 2 * r, 2 * r) }
+
+    private fun element(w: Float, h: Float, control: InputControl, b: Box, id: String = "legacy:${control.id}", name: String = control.label,
+        shape: InputButtonShape = InputButtonShape.CIRCLE, opacity: Float = 1f, icon: Int = 0,
+        kind: InputElementKind = InputElementKind.from(control)) =
+        InputSurfaceElement(control, b.left / w, b.top / h, b.width / w, b.height / h, id, kind, name = name, floating = false,
+            icon = icon, opacity = opacity, buttonShape = shape).bounded()
+
+    /**
+     * The swipe pad from the left edge, below the keyboard key, to the bottom; X | B over Y | A from the right edge, below the
+     * game's top icons and above its lower buttons (End Turn among them), the rows shrinking together when the space between
+     * is short; then the buttons on the game's own icons (over the swipe pad where they meet it, as the draw pile does) and
+     * the keyboard key.
+     */
+    fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0): List<InputSurfaceElement> {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val hud = hud(w, h)
+        val edge = EDGE_DP * density
+        val keyboardBox = keyboardBox(density, top)
+        val zoneBottom = h - bottom
+        val zoneTop = max(keyboardBox.bottom + GAP_DP * density, zoneBottom - ZONE_HEIGHT_DP * density).coerceAtMost(zoneBottom - MIN_ROW_DP * density)
+        val zoneWidth = min(ZONE_WIDTH_DP * density, w * ZONE_MAX_SHARE)
+        val zone = Box(zoneWidth / 2f, (zoneTop + zoneBottom) / 2f, zoneWidth, zoneBottom - zoneTop)
+        val inner = INNER_DP * density
+        val outer = OUTER_DP * density
+        val gridLeft = w - inner - outer
+        fun over(b: Box) = b.left < w && gridLeft < b.right
+        val ceiling = maxOf(top + GRID_TOP_DP * density, hud.map { it.second }.filter { it.cy < h / 2f && over(it) }.maxOfOrNull { it.bottom + edge } ?: 0f)
+        val floor = minOf(h - bottom - edge, hud.map { it.second }.filter { it.cy > h / 2f && over(it) }.minOfOrNull { it.top - edge } ?: h)
+        val fit = min(1f, (floor - ceiling) / ((TOP_ROW_DP + LOW_ROW_DP) * density))
+        val topRow = TOP_ROW_DP * density * fit
+        val lowRow = LOW_ROW_DP * density * fit
+        val grid = listOf(
+            InputControl.X to Box(gridLeft + inner / 2f, ceiling + topRow / 2f, inner, topRow),
+            InputControl.B to Box(w - outer / 2f, ceiling + topRow / 2f, outer, topRow),
+            InputControl.Y to Box(gridLeft + inner / 2f, ceiling + topRow + lowRow / 2f, inner, lowRow),
+            InputControl.A to Box(w - outer / 2f, ceiling + topRow + lowRow / 2f, outer, lowRow))
+        return listOf(element(w, h, InputControl.LS, zone, SWIPE, "Swipe", InputButtonShape.ROUNDED, ZONE_OPACITY, kind = InputElementKind.SWIPE)) +
+            grid.map { (control, b) -> element(w, h, control, b, shape = InputButtonShape.RECTANGLE, opacity = TILE_OPACITY) } +
+            hud.map { (s, b) -> element(w, h, s.control, b, s.id, s.name, s.shape, HUD_OPACITY) } +
+            element(w, h, InputControl.A, keyboardBox, KEYBOARD, "Keyboard", icon = InputButtonIcons.KEYBOARD)
+    }
+
+    private fun classicElements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0, raised: Boolean = true,
         tiled: Boolean = true, x: Boolean = true, wide: Boolean = true): List<InputSurfaceElement> {
         val face = if (x) FACE else FACE.filterNot { it.first == InputControl.X }
         val w = width.toFloat()
         val h = height.toFloat()
         val pictureW = min(w, h * PICTURE_ASPECT)
-        val pictureH = min(h, w / PICTURE_ASPECT)
         val pictureX = (w - pictureW) / 2f
-        val pictureY = (h - pictureH) / 2f
-        val hud = HUD.map { s -> s to Box(pictureX + s.x * pictureW, pictureY + s.y * pictureH, s.width * pictureH, s.height * pictureH) }
+        val hud = hud(w, h)
         val reach = (SPREAD_DP + RADIUS_DP) * density
         val scale = min(1f, (h - top - bottom) * CLUSTER_SHARE / (2 * reach))
         val radius = RADIUS_DP * density * scale
         val spread = SPREAD_DP * density * scale
         val edge = EDGE_DP * density
         val gap = GAP_DP * density
-        val keyboardR = KEYBOARD_RADIUS_DP * density
-        val keyboardBox = Box(KEYBOARD_X_DP * density, top + KEYBOARD_Y_DP * density, 2 * keyboardR, 2 * keyboardR)
+        val keyboardBox = keyboardBox(density, top)
         // The bars beside the picture are empty, so the clusters sit high in them, within the thumbs' reach: below the keyboard
         // key and the game's top icons, and above the piles at the bottom, which win when a short screen leaves no room for both.
         fun beside(b: Box, x: Float) = b.left < x + radius + gap && x - radius - gap < b.right
@@ -198,13 +312,9 @@ internal object Sts2Pad {
         val thumbs = tiles ?: (cluster(DPAD, leftX) + cluster(face, rightX))
         val thumbShape = if (tiles != null) InputButtonShape.RECTANGLE else InputButtonShape.CIRCLE
         val thumbOpacity = if (tiles != null && wide) TILE_OPACITY else 1f
-        fun element(control: InputControl, b: Box, id: String = "legacy:${control.id}", name: String = control.label,
-            shape: InputButtonShape = InputButtonShape.CIRCLE, opacity: Float = 1f, icon: Int = 0) =
-            InputSurfaceElement(control, b.left / w, b.top / h, b.width / w, b.height / h, id, name = name, floating = false,
-                icon = icon, opacity = opacity, buttonShape = shape).bounded()
-        val keyboard = element(InputControl.A, keyboardBox, KEYBOARD, "Keyboard", icon = InputButtonIcons.KEYBOARD)
-        return thumbs.map { (control, b) -> element(control, b, shape = thumbShape, opacity = thumbOpacity) } +
-            hud.map { (s, b) -> element(s.control, b, s.id, s.name, s.shape, HUD_OPACITY) } + keyboard
+        val keyboard = element(w, h, InputControl.A, keyboardBox, KEYBOARD, "Keyboard", icon = InputButtonIcons.KEYBOARD)
+        return thumbs.map { (control, b) -> element(w, h, control, b, shape = thumbShape, opacity = thumbOpacity) } +
+            hud.map { (s, b) -> element(w, h, s.control, b, s.id, s.name, s.shape, HUD_OPACITY) } + keyboard
     }
 
     /**

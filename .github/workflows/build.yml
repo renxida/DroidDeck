@@ -677,8 +677,9 @@ jobs:
 
   offphone-steam-ui:
     # This run's own APK on arm64 Android in docker (redroid, tools/offphone): install, runtime,
-    # gamescope and the Steam client up to its sign-in screen, where it stops (nothing signs in).
-    # A start that never reaches Steam's UI fails the run, so release-apk does not publish it.
+    # gamescope and the Steam client up to its sign-in screen, where it stops (nothing signs in);
+    # and the stand-in game (our own Godot code, no game files) through Proton and FEX to a clean
+    # exit. Either failing fails the run, so release-apk does not publish it.
     needs: build
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     permissions:
@@ -687,7 +688,7 @@ jobs:
     uses: ./.github/workflows/offphone-rig.yml
     with:
       apk_run_id: ${{ github.run_id }}
-      scenario: steam-ui
+      scenario: all
 
   checks:
     name: Compile and test APK
