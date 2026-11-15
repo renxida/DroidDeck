@@ -10,8 +10,8 @@ about the phone's own GPU driver, heat or memory should show up here first.
 | `steam-ui` | `login_screen` | install, runtime install, proot, PulseAudio, the Wayland compositor, gamescope, Xwayland, the Steam client download and start, its UI's first frame, its sign-in screen (read through DevTools; nothing signs in) |
 | `stand-in-game` | `standin_exit_clean` | the stand-in Godot game (`tools/native-engine/standin`, our own code, no game files) through `droiddeck-proton-run`, Proton (with Steam's client installed, as on a phone) and FEX, judged by the app's own `frames.csv`: its first Vulkan frame, at least 100 presented frames, then a clean exit (it quits after 300) |
 | `steam-ui-screen-cycle` | `login_screen` | `steam-ui` with the screen turned off and on three times during Steam's start; the UI must still appear within 180 s |
-| `steam-ui-background` | `login_screen` | `steam-ui` with the app sent home for 30 s during Steam's start, then reopened from its launcher icon; if that lands on the home screen, the rig logs `landed_on_home` and presses Open Steam. Fails if the app restarts the session |
-| `stand-in-background` | `standin_exit_clean` | `stand-in-game` with the app sent home for 20 s once Steam is ready |
+| `steam-ui-background` | `login_screen` | `steam-ui` with the app sent home for 30 s during Steam's start, then reopened from its launcher icon, which must bring the running session back (`returned_to_session`). Landing on the home screen instead is logged as `landed_on_home` and fails the run; the rig still presses Open Steam so the rest is measured. Also fails if the app restarts the session |
+| `stand-in-background` | `standin_exit_clean` | `stand-in-game` with the app sent home for 20 s once Steam is ready, then the same return-by-icon check |
 | `upgrade` | `login_screen` | the latest release's `kestrel.apk` installed first, then the APK under test over it (`adb install -r`); a setting and the installed runtime must survive, then `steam-ui` |
 
 Outputs per scenario (artifact `rig-<scenario>`, and printed to the job log):
