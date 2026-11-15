@@ -297,16 +297,20 @@ in the game's launch options leaves the renderer alone; a `--rendering-method`
 gets only the Vulkan driver added. The arguments go before a `--` in the launch
 options, where Godot still reads them.
 
-DroidDeck also writes `override.cfg` next to the game's `.exe`, so Godot saves
-its Vulkan pipeline cache every 0.5 MiB instead of every 3 MiB. A game killed
-without quitting then keeps most of its compiled pipelines. A game's own
-`override.cfg` is left as it is, and `off` removes DroidDeck's.
+DroidDeck also writes `override.cfg` next to the game's `.exe` (and so next to
+its `.pck`, where the native engine reads it too), so Godot saves its Vulkan
+pipeline cache after each new pipeline instead of every 3 MiB. This happens
+with or without the `godot-render` experiment. A game killed without quitting
+then keeps its compiled pipelines; on a PowerVR phone one new pipeline takes
+about a second, so a lost cache means seconds-long hitches the next time each
+card or effect first appears. A game's own `override.cfg` is left as it is,
+and `off` removes DroidDeck's.
 
 The launch log shows what was chosen and what the last run used:
 
 ```
 droiddeck-game-env: Godot 4.5.1 (project: forward_plus on d3d12): mobile on Vulkan (DROIDDECK_GODOT_RENDERER=auto)
-droiddeck-game-env: Godot: pipeline cache saved every 0.5 MiB (override.cfg)
+droiddeck-game-env: Godot: pipeline cache saved after each new pipeline (override.cfg)
 droiddeck-game-env: Godot pipeline cache in <prefix>/drive_c/users/steamuser/AppData/Roaming/<user dir>: pipelines.mobile.<device>.cache 1.20 MiB
 droiddeck-game-env: Godot last run: Vulkan 1.3.x - Forward Mobile - Using Device #0: ...
 ```

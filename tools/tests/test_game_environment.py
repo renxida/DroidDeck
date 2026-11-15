@@ -3414,9 +3414,9 @@ class GodotRendererTest(unittest.TestCase):
         exe = self.game(godot_pack(STS2_SETTINGS))
         override = Path(exe).with_name("override.cfg")
         game = MODULE["Game"](exe, [], GODOT_RENDER)
-        self.assertEqual(MODULE["godot_override"](game), "Godot: pipeline cache saved every 0.5 MiB (override.cfg)")
+        self.assertEqual(MODULE["godot_override"](game), "Godot: pipeline cache saved after each new pipeline (override.cfg)")
         text = override.read_text()
-        self.assertIn("[rendering]\n\nrendering_device/pipeline_cache/save_chunk_size_mb=0.5\n", text)
+        self.assertIn("[rendering]\n\nrendering_device/pipeline_cache/save_chunk_size_mb=0.0\n", text)
         self.assertTrue(text.startswith("; ") and "\nconfig_version=5\n" in text)
         stamp = override.stat().st_mtime_ns
         MODULE["godot_override"](game)
@@ -3425,8 +3425,11 @@ class GodotRendererTest(unittest.TestCase):
         off = MODULE["Game"](exe, [], dict(GODOT_RENDER, DROIDDECK_GODOT_RENDERER="off"))
         self.assertEqual(MODULE["godot_override"](off), "Godot: DroidDeck's override.cfg removed")
         self.assertFalse(override.exists())
-        MODULE["godot_override"](game)
-        self.assertEqual(MODULE["godot_override"](MODULE["Game"](exe, [], {})), "Godot: DroidDeck's override.cfg removed")
+        # Kept without the godot-render experiment too: the cache matters on every path, native included.
+        self.assertEqual(MODULE["godot_override"](MODULE["Game"](exe, [], {})),
+                         "Godot: pipeline cache saved after each new pipeline (override.cfg)")
+        self.assertTrue(override.exists())
+        MODULE["godot_override"](off)
         self.assertFalse(override.exists())
         override.write_text("[display]\nwindow/vsync/vsync_mode=0\n")
         self.assertIn("own override.cfg left as is", MODULE["godot_override"](game))
@@ -3463,7 +3466,7 @@ class GodotRendererTest(unittest.TestCase):
         self.assertEqual(started[0][3:], ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan", "--", "--mod"])
         self.assertIn("droiddeck-game-env: Godot 4.5.1 (project: forward_plus on d3d12): forward_plus on Vulkan "
                       "(DROIDDECK_GODOT_RENDERER=forward_plus)\n", err.getvalue())
-        self.assertIn("droiddeck-game-env: Godot: pipeline cache saved every 0.5 MiB (override.cfg)\n", err.getvalue())
+        self.assertIn("droiddeck-game-env: Godot: pipeline cache saved after each new pipeline (override.cfg)\n", err.getvalue())
         self.assertIn("/SlayTheSpire2: none yet\n", err.getvalue())
         self.assertTrue(Path(exe).with_name("override.cfg").is_file())
 
