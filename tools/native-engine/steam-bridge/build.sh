@@ -27,10 +27,10 @@ diff -u "$tmp/want" "$tmp/defined"
 grep -o 'SteamAPI_Steam[A-Za-z]*_v[0-9]*' "$here/steam_bridge.c" | sort -u > "$tmp/own"
 nm -D --defined-only "$tmp/libsteam_api.so" | awk '{print $3}' | sort > "$tmp/valve"
 comm -23 "$tmp/own" "$tmp/valve" | { ! grep .; }
-# Valve's library first (DT_NEEDED), then only the C library.
+# Valve's library first (DT_NEEDED), then only the C library and its loader.
 readelf -d "$out/libsteam_api64.so" | grep NEEDED
 readelf -d "$out/libsteam_api64.so" | grep NEEDED | sed -n 1p | grep -q '\[libsteam_api.so\]'
-test -z "$(readelf -d "$out/libsteam_api64.so" | grep NEEDED | grep -vE '\[(libsteam_api\.so|libc\.so\.6|libdl\.so\.2)\]')"
+test -z "$(readelf -d "$out/libsteam_api64.so" | grep NEEDED | grep -vE '\[(libsteam_api\.so|libc\.so\.6|libdl\.so\.2|ld-linux-aarch64\.so\.1)\]')"
 readelf -d "$out/libsteam_api64.so" | grep -E 'RUNPATH|RPATH' | grep -q 'ORIGIN'
 objdump -T "$out/libsteam_api64.so" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 | sed 's/^/newest glibc symbol version: /'
 echo "steam bridge: $out/libsteam_api64.so"
