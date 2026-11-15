@@ -816,7 +816,7 @@ def with_args(command, extra):
 GODOT_OVERRIDE = (
     "; Written by DroidDeck: Godot saves its Vulkan pipeline cache in small steps, so pipelines compiled\n"
     "; before the game is closed without quitting are kept. DROIDDECK_GODOT_RENDERER=off removes this file.\n"
-    "config_version=5\n\n[rendering]\n\nrendering_device/pipeline_cache/save_chunk_size_mb=0.5\n"
+    "config_version=5\n\n[rendering]\n\nrendering_device/pipeline_cache/save_chunk_size_mb=0.0\n"
 )
 
 
@@ -838,10 +838,11 @@ def godot_override(game):
         except OSError as error:
             return "Godot: override.cfg unreadable (%s); left as is" % error
     ours = text is not None and text.startswith(GODOT_OVERRIDE.split("\n", 1)[0])
-    if not experiment(game.env, "godot-render"):
-        version = None
-    else:
-        version = game.godot().get("version")
+    # Not tied to the godot-render experiment: a session usually ends with the game killed, never a clean exit,
+    # so without this every pipeline compiled since the last 3 MiB step is compiled again next time. MEASURED on a
+    # PowerVR D-Series phone, native engine (session 2026-11-15-04): a first play of a card compiled 5 and 7
+    # pipelines in 6.4 s and 9.1 s; the cache file was last written a day earlier.
+    version = game.godot().get("version")
     if godot_renderer_choice(game) == "off" or not version or version[0] != 4:
         if ours:
             try:
@@ -866,7 +867,7 @@ def godot_override(game):
                 except OSError:
                     pass
             return "Godot: override.cfg not written (%s); pipeline cache saved at Godot's 3 MiB steps" % error
-    return "Godot: pipeline cache saved every 0.5 MiB (override.cfg)"
+    return "Godot: pipeline cache saved after each new pipeline (override.cfg)"
 
 
 def godot_safe_name(name, paths=False):
