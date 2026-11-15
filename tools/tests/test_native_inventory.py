@@ -186,8 +186,8 @@ def spine42_loader_sample(deform_start=2, deform_end=4, named_skin=False):
     w.u8(0); w.v(2, 1); w.f(0, 0, 1, 90); w.u8(2); w.f(0.25, 0, 0.75, 90)
     w.u8(1); w.v(2, 0); w.f(0, 0, 0, 1, 10, 20); w.u8(1)
     w.v(1, 0, 2, 0)
-    w.u8(1 | 8 | 64); w.f(0)
-    w.u8(4 | 16); w.f(1, 0.25)
+    w.u8(1 | 8); w.f(0)  # mix 1, bend positive
+    w.u8(1 | 2 | 32 | 64); w.f(1, 0.25)  # mix 0.25, stretch; stepped from the key before
     w.v(1, 0, 1, 0); w.f(0, 0.5, 0, 0, 0, 0, 0)
     w.v(0, 0)  # path, physics timelines
     w.v(2 if named_skin else 1)

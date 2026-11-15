@@ -42,11 +42,12 @@ SAMPLES = CACHE_DIR / "native-samples.zip"
 SAMPLE_BUDGET = 3 << 20
 SAMPLE_FILE_MAX = 1536 << 10
 HEAD_MAX = 2 << 20
-SAMPLES_VERSION = 5  # 2: bank metadata heads and skeletons with layouts the survey cannot read yet;
+SAMPLES_VERSION = 6  # 2: bank metadata heads and skeletons with layouts the survey cannot read yet;
                      # 3: the smallest scenes using SpineSprite, the bone and slot nodes, and an FMOD emitter
                      # 4: also the smallest skeleton for each stage and kind of read error
                      # 5: the survey reads path and physics constraints, path attachments and timelines,
                      #    named skins and deform keys, so the read errors left are new ones
+                     # 6: IK flags, physics timelines, linked-mesh skin indexes and path offset rotation read
 REPORT_LINE_MAX = 8000
 FOURCC = re.compile(rb"^[A-Za-z0-9 _]{4}$")
 VERSION_TEXT = re.compile(rb"(?<![0-9.])([34])\.(\d)\.(\d{1,3})(?![0-9])")
@@ -430,8 +431,8 @@ def skel_survey(blob):
                 for _ in range(r.count()):
                     r.varint()
                 r.skip(8)
-        elif kind == 3:  # linked mesh: its skin (none means the default skin) and parent mesh
-            skin, parent = r.ref(), r.ref() or ""
+        elif kind == 3:  # linked mesh: its skin by index (0 is the default skin) and parent mesh
+            skin, parent = r.varint(), r.ref() or ""
             r.skip(8 * nonessential)
             links.append((table, (slot, key), skin, parent))
         elif kind == 4:  # path: 16 closed, 32 constant speed, 64 weighted; one length per 3 vertices
@@ -509,8 +510,8 @@ def skel_survey(blob):
             r.varint()
             n = constraint_bones()
             r.index(bones, "ik target")
-            flags = r.byte()  # 64 mix follows, 128 softness follows
-            r.skip(4 * bool(flags & 64) + 4 * bool(flags & 128))
+            flags = r.byte()  # 32 mix not 0, 64 (with 32) its value follows, 128 softness follows
+            r.skip(4 * bool(flags & 32 and flags & 64) + 4 * bool(flags & 128))
             if not 1 <= n <= 2:
                 raise ValueError("ik with %d bones" % n)
         stage = "transform"
@@ -540,9 +541,9 @@ def skel_survey(blob):
             constraint_bones()
             r.index(slots, "path target slot")
             modes = r.byte()  # 1 position mode, 6 spacing mode, 24 rotate mode
-            if modes >> 5 or (modes >> 3) & 3 == 3:
+            if modes & 0x60 or (modes >> 3) & 3 == 3:
                 return dict(c, ok=False, stage="path constraint modes (layout unknown)", at=r.p)
-            r.skip(20)  # position, spacing, rotate/x/y mixes
+            r.skip(20 + 4 * bool(modes & 0x80))  # [offset rotation], position, spacing, rotate/x/y mixes
         stage = "physics"
         physics = r.count()
         for _ in range(physics):
@@ -575,8 +576,7 @@ def skel_survey(blob):
         stage = "linked meshes"
         for table, at, skin, parent in links:
             # Resolved in file order, each taking its parent's vertices as they stand (as the loader does).
-            source = skin_tables[0] if skin is None else next(
-                (t for name, t in zip(skin_names, skin_tables) if name == skin), None)
+            source = skin_tables[skin] if skin < len(skin_tables) else None
             if source is None or (at[0], parent) not in source:
                 raise ValueError("linked mesh %s: parent %s not found" % (at[1], parent))
             table[at] = source[(at[0], parent)]
@@ -635,11 +635,11 @@ def skel_survey(blob):
                 frames = r.count()
                 r.varint()
                 for f in range(frames):
-                    # Flags first: 16 mix follows, 32 softness follows, then the curve to the next frame:
-                    # 64 stepped, else 128 bezier (2 channels).
+                    # Flags first: 1 mix not 0, 2 its value follows, 4 softness follows; then the curve of the
+                    # segment ending at this frame: 64 stepped, else 128 bezier (2 channels).
                     flags = r.byte()
-                    r.skip(4 + 4 * bool(flags & 16) + 4 * bool(flags & 32))
-                    if f + 1 < frames:
+                    r.skip(4 + 4 * bool(flags & 1 and flags & 2) + 4 * bool(flags & 4))
+                    if f > 0:
                         if flags & 64:
                             add("stepped_segments")
                         elif flags & 128:
@@ -664,10 +664,16 @@ def skel_survey(blob):
                     ch = 3 if kind == 2 else 1  # position, spacing, mix (rotate, x, y)
                     curves(frames, ch, 4 * ch)
             stage = "animations: physics timelines"
-            n = r.count()
-            if n:
-                c["physics_timelines"] = c.get("physics_timelines", 0) + n
-                return dict(c, ok=False, stage="physics timelines (layout unknown)", at=r.p)
+            for _ in range(r.count()):
+                if r.varint() > physics:  # constraint index + 1; 0 is every constraint
+                    raise ValueError("bad physics timeline index")
+                for _ in range(r.count()):
+                    kind, frames = r.byte(), r.count()
+                    if kind > 7:
+                        raise ValueError("physics timeline type %d unknown" % kind)
+                    add("physics_timelines")
+                    r.varint()
+                    curves(frames, 1, 4)
             stage = "animations: attachment timelines"
             for _ in range(r.count()):
                 table = skin_tables[r.index(len(skin_tables), "skin")]
