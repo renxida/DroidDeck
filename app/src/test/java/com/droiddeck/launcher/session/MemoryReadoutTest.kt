@@ -45,6 +45,7 @@ class MemoryReadoutTest {
         assertTrue(MemoryReadout.inWinePrefix("WINEPREFIX=/x".toByteArray()))
         assertFalse(MemoryReadout.inWinePrefix(env("HOME=/root", "STEAM_COMPAT_DATA_PATH=/x", "MY_WINEPREFIX=/y")))
         assertFalse(MemoryReadout.inWinePrefix(ByteArray(0)))
+        assertTrue(MemoryReadout.inWinePrefix(env("HOME=/root", "DROIDDECK_NATIVE_GAME=1")))  // the native engine
     }
 
     @Test fun androidIsWhatIsLeftOfTheMemoryInUse() {

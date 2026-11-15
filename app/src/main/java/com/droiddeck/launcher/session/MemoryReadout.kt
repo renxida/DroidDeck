@@ -71,12 +71,16 @@ internal object MemoryReadout {
     fun processName(status: String): String =
         Regex("""(?m)^Name:\s+(\S+)""").find(status)?.groupValues?.get(1)?.replace(',', '_') ?: ""
 
+    /** A game process: one under Wine (WINEPREFIX), or the native engine, which droiddeck-native-godot marks with
+     *  DROIDDECK_NATIVE_GAME (it has no Wine prefix, so its memory, swap and faults were counted as DroidDeck's). */
     fun inWinePrefix(environ: ByteArray): Boolean {
         var start = 0
-        val key = "WINEPREFIX=".toByteArray()
+        val keys = listOf("WINEPREFIX=".toByteArray(), "DROIDDECK_NATIVE_GAME=".toByteArray())
         for (i in 0..environ.size) {
             if (i == environ.size || environ[i] == 0.toByte()) {
-                if (i - start >= key.size && (key.indices).all { environ[start + it] == key[it] }) return true
+                for (key in keys) {
+                    if (i - start >= key.size && (key.indices).all { environ[start + it] == key[it] }) return true
+                }
                 start = i + 1
             }
         }

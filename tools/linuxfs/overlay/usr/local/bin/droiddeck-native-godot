@@ -1551,7 +1551,9 @@ def main(argv=None):
                 log(f"ICU unavailable ({error}); .NET runs culture-invariant")
         if icu:
             log(f"ICU: {ICU['package']} from {icu} (app-local)")
-    return watch(line_buffered(cmd), engine_env(os.environ, icu, system_icu), forward_signals=True,
+    env = dict(engine_env(os.environ, icu, system_icu))
+    env["DROIDDECK_NATIVE_GAME"] = "1"  # the app's telemetry counts this process (memory, swap, faults) as the game's
+    return watch(line_buffered(cmd), env, forward_signals=True,
                  on_first_frame=r2r_after_first_frame(r),
                  on_steam_failed=(lambda line, kind="steam": remember_steam_refusal(refusal, line, kind=kind))
                  if refusal else None)
