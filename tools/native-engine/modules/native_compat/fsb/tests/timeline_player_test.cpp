@@ -48,6 +48,7 @@ struct Sink : TimelineSink {
 		auto v = values.find(it->second.name);
 		return v == values.end() ? it->second.value : v->second;
 	}
+	void set_param(const EventTable &t, const Guid &p, float v) override { values[t.params.at(p).name] = v; }
 	const EventTable *nested_table = nullptr;
 	const EventTable *table_for(const Guid &) override { return nested_table; }
 	int count(const Guid &w) const {
@@ -91,12 +92,18 @@ int main() {
 	t.instruments[G(21)] = b;
 	t.instruments[G(22)] = c;
 	t.instruments[G(23)] = n;
+	EventTable::Instrument cmd;
+	cmd.command = true;
+	cmd.command_param = section;
+	cmd.command_value = 1.5f;
+	t.instruments[G(25)] = cmd;
 	// Main event: calm 0..10 s (loop region 2..4), fight 10..20 s (loop region 12..14).
 	EventTable::Event e;
 	e.placements.push_back({ G(20), 0, 10 * R });
 	e.placements.push_back({ G(21), 10 * R, 10 * R });
 	e.placements.push_back({ G(22), 0, 20 * R });
 	e.placements.push_back({ G(23), 0, 20 * R });
+	e.placements.push_back({ G(25), 13 * R, R / 2 }); // in the fight loop: sets Section to 1.5
 	EventTable::Transition loop1, loop2, to_fight, start_fight;
 	loop1.kind = EventTable::Transition::LOOP_END;
 	loop1.start = loop1.end = 4 * R;
@@ -152,6 +159,8 @@ int main() {
 		CHECK(s.count(G(13)) == 1); // the nested event went on through the jump
 		s.run(p, 10);
 		CHECK(p.position() >= 12 && p.position() < 14);
+		CHECK(s.values["Section"] == 1.5f); // the command in the fight loop ran
+		CHECK(s.count(G(11)) == 1);
 		CHECK(!p.finished(s));
 		p.stop(s);
 		int still = 0;

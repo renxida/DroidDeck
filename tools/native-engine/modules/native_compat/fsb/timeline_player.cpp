@@ -57,7 +57,10 @@ void TimelinePlayer::start_voice(size_t i, TimelineSink &sink) {
 	Voice v;
 	v.placement = i;
 	Pick p;
-	if (in.scatter) {
+	if (in.command) {
+		v.keep = true; // fires once as the playhead enters it, not again on each jump while inside
+		sink.set_param(table, in.command_param, in.command_value);
+	} else if (in.scatter) {
 		v.keep = true;
 		v.next_spawn = random(0, std::max(in.spawn_min, 0.5f));
 	} else if (pick_wave(table, pl.instrument, rng, p)) {

@@ -137,6 +137,22 @@ struct EventTimeline : public fsb::TimelineSink {
 		return it->second.value;
 	}
 
+	void set_param(const fsb::EventTable &p_table, const fsb::Guid &p_param, float p_value) override {
+		auto it = p_table.params.find(p_param);
+		FmodServer *s = FmodServer::get_singleton();
+		if (it == p_table.params.end() || !s) {
+			return;
+		}
+		// Set where the game keeps it: on this event if set there, else as a global if set so, else here.
+		const String name = String::utf8(it->second.name.c_str());
+		if (!event->parameters.has(name) && s->globals.has(name)) {
+			s->globals[name] = p_value;
+		} else {
+			event->parameters[name] = p_value;
+		}
+		s->log_parameter(event->path + " (command)", name, p_value, String());
+	}
+
 	const fsb::EventTable *table_for(const fsb::Guid &p_event) override {
 		for (const Ref<NativeSoundBank> &b : keep) {
 			if (b->get_event_table().events.count(p_event)) {

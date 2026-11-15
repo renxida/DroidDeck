@@ -21,6 +21,12 @@ public:
 	virtual bool playing(uint64_t handle) = 0;
 	// The current value of a parameter of `table`.
 	virtual float param(const EventTable &table, const Guid &param) = 0;
+	// A command instrument sets a parameter of `table`.
+	virtual void set_param(const EventTable &table, const Guid &param, float value) {
+		(void)table;
+		(void)param;
+		(void)value;
+	}
 	// The table holding a nested event that is not in the playing event's own bank (nullptr: none).
 	virtual const EventTable *table_for(const Guid &event) {
 		(void)event;

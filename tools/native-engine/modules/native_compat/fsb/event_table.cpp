@@ -360,11 +360,12 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 	for (const auto &kv : objects) {
 		const Object &o = kv.second;
 		const bool wait = memcmp(o.type, "WAIT", 4) == 0, muit = memcmp(o.type, "MUIT", 4) == 0,
-				   evit = memcmp(o.type, "EVIT", 4) == 0, spit = memcmp(o.type, "SPIT", 4) == 0;
+				   evit = memcmp(o.type, "EVIT", 4) == 0, spit = memcmp(o.type, "SPIT", 4) == 0,
+				   cmdi = memcmp(o.type, "CMDI", 4) == 0;
 		if (memcmp(o.type, "PMLO", 4) == 0) {
 			sheet_ids.insert(kv.first);
 		}
-		if (!wait && !muit && !evit && !spit) {
+		if (!wait && !muit && !evit && !spit && !cmdi) {
 			continue;
 		}
 		EventTable::Instrument in;
@@ -374,7 +375,16 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 			in.loop = c->size >= 28 && rd32(c->body + 24) == 0xffffffffu;
 			read_condition_block(c->body, c->size, 126, param_ids, in.conditions);
 		}
-		if (wait) {
+		if (cmdi) {
+			// Only the kind seen in the game's banks: 2, set a parameter to a value.
+			const Chunk *c = o.find("CMDB");
+			if (!c || c->size < 40 || rd32(c->body + 16) != 2 || !param_ids.count(guid_at(c->body + 20))) {
+				continue;
+			}
+			in.command = true;
+			in.command_param = guid_at(c->body + 20);
+			in.command_value = rdf(c->body + 36);
+		} else if (wait) {
 			const Chunk *c = o.find("WAIB");
 			if (!c || c->size < 32) {
 				continue;
@@ -472,7 +482,8 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 					}
 					ev.placements.push_back({ pl.g, pl.start, pl.end - pl.start });
 					ev.length = pl.end > ev.length ? pl.end : ev.length;
-					ev.dynamic = ev.dynamic || !in->second.conditions.empty() || in->second.nested || in->second.scatter;
+					ev.dynamic = ev.dynamic || !in->second.conditions.empty() || in->second.nested || in->second.scatter ||
+							in->second.command;
 				}
 				ev.dynamic = ev.dynamic || !ev.transitions.empty();
 			}
@@ -524,6 +535,9 @@ void pick(const EventTable &t, const Guid &g, float volume_db, bool loop, float 
 		return;
 	}
 	const EventTable::Instrument &in = it->second;
+	if (in.command) {
+		return; // the timeline player runs commands
+	}
 	volume_db += in.volume_db;
 	loop = loop || in.loop;
 	if (in.nested) {

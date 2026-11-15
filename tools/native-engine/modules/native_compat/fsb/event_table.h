@@ -36,6 +36,7 @@
 //   INST:              byte 16 f32 volume dB; byte 24 u32 0xffffffff when the instrument loops; from byte 126
 //                      a condition block (u32 byte count, entries) that triggers the instrument.
 //   EVIT (LIST): EVIB  own GUID, the nested event's GUID: plays that event as an instrument
+//   CMDI (LIST): CMDB  own GUID, u32 kind (2: set a parameter), parameter GUID, f32 value at byte 36
 //   SPIT (LIST): SPIB  own GUID, u32, u32, f32 min and max seconds between spawns; PLST as for MUIT
 //   PARM (LIST): PRMB  own GUID, u32 flags, u32, u16 n, name (n bytes), f32 min, f32 max, f32 default, then
 //                      the labels as a variable array of (u16 n, n chars).
@@ -78,6 +79,9 @@ struct EventTable {
 		Guid event{};
 		bool scatter = false; // SPIT: plays a playlist entry every spawn_min..spawn_max seconds
 		float spawn_min = 0, spawn_max = 0;
+		bool command = false; // CMDI: sets parameter `command_param` to `command_value` when reached
+		Guid command_param{};
+		float command_value = 0;
 	};
 	struct Placement {
 		Guid instrument{};
