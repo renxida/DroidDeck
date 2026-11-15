@@ -35,26 +35,54 @@ object LaunchInfo {
     private const val RECENT_COMMAND_MS = 30 * 60_000L
     private const val AFTER_GAME_MS = 45_000L
     private const val NO_GAME_MS = 180_000L
+    /** With the game's window in front but no frame of it seen, the card goes this long after. */
+    const val GAME_FOCUS_SHOWN_MS = 20_000L
 
     /** When the loading screen gave way to the first frame this session (0 before), and when the game itself started. */
     @Volatile private var firstFrameAt = 0L
     @Volatile private var gameAt = 0L
     @Volatile private var engineAt = 0L
     @Volatile private var sessionAt = 0L
+    /** The current launch's first game frame and when its window first came to the front (0 before). */
+    @Volatile private var gameFrameAt = 0L
+    @Volatile private var gameFocusAt = 0L
 
     /** A new session: forget the last one's FEX and engine lines and corner card. */
     fun reset(now: Long = System.currentTimeMillis()) {
         fex = null; engine = null; firstFrameAt = 0L; gameAt = 0L; engineAt = 0L; sessionAt = now
+        gameFrameAt = 0L; gameFocusAt = 0L
     }
 
-    /** droiddeck-game-env's engine line arrived (read off the UI thread by FrameLogComponent). */
-    fun engineStarted(started: BootLine.Engine, now: Long) { engine = started; engineAt = now }
+    /** droiddeck-game-env's engine line arrived (read off the UI thread by FrameLogComponent): a new launch, whose game
+     *  has drawn nothing yet. */
+    fun engineStarted(started: BootLine.Engine, now: Long) {
+        engine = started; engineAt = now; gameFrameAt = 0L; gameFocusAt = 0L
+    }
 
     fun firstFrame(now: Long) { if (firstFrameAt == 0L) firstFrameAt = now }
 
+    /** The game (any engine, native or Proton) presented a frame at [at]. FrameLogComponent calls this on every poll that
+     *  brings game frames, whether or not an activity is showing; frames from before this session or launch are left
+     *  out, since the frame ring outlives both. */
+    fun gameFrame(at: Long) {
+        if (gameFrameAt == 0L && at >= sessionAt && at >= engineAt) gameFrameAt = at
+    }
+
+    /** Whether the session has drawn past its loading screen: the compositor's first frame, or the game's own. */
+    fun sessionDrawn(firstFrameSeen: Boolean): Boolean = firstFrameSeen || gameFrameAt != 0L
+
+    /** The game's window is in front (polled with [gameFrame]). */
+    fun gameFocused(now: Long) {
+        if (gameFocusAt == 0L && now >= sessionAt) gameFocusAt = now
+    }
+
     /** The corner card shows from the first frame until 45 s after the game starts, or 3 min if no game starts, and for
-     *  a minute after each engine line (a game started later in the same session). */
+     *  a minute after each engine line (a game started later in the same session). It goes as soon as the game draws,
+     *  and [GAME_FOCUS_SHOWN_MS] after the game's window comes to the front even if no frame of it is seen. State only,
+     *  so a screen that attaches after the game drew reads it as gone. */
     fun cornerVisible(now: Long, gameRunning: Boolean): Boolean {
+        if (gameFrameAt != 0L) return false
+        if (gameFocusAt != 0L && now - gameFocusAt >= GAME_FOCUS_SHOWN_MS) return false
         if (engineAt != 0L && now - engineAt in 0 until ENGINE_SHOWN_MS) return true
         if (firstFrameAt == 0L) return false
         if (gameRunning && gameAt == 0L) gameAt = now

@@ -93,8 +93,10 @@ class FrameLogComponent(
                         }
                         val n = HudFrames.nativePoll(handle, frametimes, times)
                         GamePhase.inGame = inFront
+                        if (inFront) com.droiddeck.launcher.session.LaunchInfo.gameFocused(System.currentTimeMillis())
                         if (n > 0) {
                             out.add(frametimes, times, n)
+                            if (inFront) com.droiddeck.launcher.session.LaunchInfo.gameFrame(wall((0 until n).maxOf { times[it] }))
                             lastFrameNs = now
                             val first = wall(times[0])
                             if (steam && !steamSeen) {

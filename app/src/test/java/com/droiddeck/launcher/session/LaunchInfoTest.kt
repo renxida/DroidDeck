@@ -67,6 +67,59 @@ class LaunchInfoTest {
     }
 
     @Test
+    fun theNativeEngineHidesTheCornerCardOnTheGamesFirstFrame() {
+        LaunchInfo.reset(0L)
+        LaunchInfo.firstFrame(1_000L)
+        LaunchInfo.engineStarted(BootLine.Engine(BootLine.Path.NATIVE, "native-engine-73"), 5_000L)
+        assertTrue(LaunchInfo.cornerVisible(10_000L, gameRunning = false))
+        LaunchInfo.gameFocused(11_000L)
+        assertTrue(LaunchInfo.cornerVisible(12_000L, gameRunning = false))
+        LaunchInfo.gameFrame(12_500L)
+        assertFalse(LaunchInfo.cornerVisible(13_000L, gameRunning = false))
+        assertFalse(LaunchInfo.cornerVisible(30_000L, gameRunning = false))
+    }
+
+    @Test
+    fun aGameThatDrewWhileNoScreenWasShowingLeavesNoCardOnAttach() {
+        LaunchInfo.reset(1_000L)
+        LaunchInfo.engineStarted(BootLine.Engine(BootLine.Path.NATIVE, "native-engine-73"), 20_000L)
+        LaunchInfo.gameFocused(40_000L)
+        LaunchInfo.gameFrame(41_000L)
+        assertTrue(LaunchInfo.sessionDrawn(firstFrameSeen = false))
+        LaunchInfo.firstFrame(300_000L)
+        assertFalse(LaunchInfo.cornerVisible(300_000L, gameRunning = false))
+        assertFalse(LaunchInfo.cornerVisible(301_000L, gameRunning = false))
+    }
+
+    @Test
+    fun framesFromBeforeThisSessionOrLaunchDoNotCount() {
+        LaunchInfo.reset(100_000L)
+        LaunchInfo.gameFrame(50_000L)
+        assertFalse(LaunchInfo.sessionDrawn(firstFrameSeen = false))
+        LaunchInfo.firstFrame(110_000L)
+        assertTrue(LaunchInfo.cornerVisible(120_000L, gameRunning = false))
+        LaunchInfo.gameFrame(121_000L)
+        assertFalse(LaunchInfo.cornerVisible(122_000L, gameRunning = false))
+        LaunchInfo.engineStarted(BootLine.Engine(BootLine.Path.PROTON, "FEX-x"), 600_000L)
+        LaunchInfo.gameFrame(599_000L)
+        assertTrue(LaunchInfo.cornerVisible(601_000L, gameRunning = true))
+        LaunchInfo.gameFrame(605_000L)
+        assertFalse(LaunchInfo.cornerVisible(606_000L, gameRunning = true))
+    }
+
+    @Test
+    fun theCornerCardGoesABoundedTimeAfterTheGameWindowComesToTheFrontWithoutAFrame() {
+        LaunchInfo.reset(0L)
+        LaunchInfo.firstFrame(1_000L)
+        LaunchInfo.engineStarted(BootLine.Engine(BootLine.Path.NATIVE, "native-engine-73"), 2_000L)
+        LaunchInfo.gameFocused(10_000L)
+        LaunchInfo.gameFocused(25_000L)
+        assertTrue(LaunchInfo.cornerVisible(10_000L + LaunchInfo.GAME_FOCUS_SHOWN_MS - 1, gameRunning = false))
+        assertFalse(LaunchInfo.cornerVisible(10_000L + LaunchInfo.GAME_FOCUS_SHOWN_MS, gameRunning = false))
+        assertFalse(LaunchInfo.cornerVisible(50_000L, gameRunning = true))
+    }
+
+    @Test
     fun flavourIsStableForASeed() {
         assertEquals(LaunchInfo.flavor(42), LaunchInfo.flavor(42))
         assertTrue(LaunchInfo.FLAVOR.contains(LaunchInfo.flavor(-7)))

@@ -730,11 +730,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hud.onPresentingWindowChanged = {
             if (FrameGen.engine(this) != FrameGen.ENGINE_OFF) CompositorHost.rearmFrameGen { applyFrameGen() }
         }
-        if (SessionState.running && SessionState.firstFrameSeen) {
-            loading.visible = false
-            hud.start()
-            memoryHud.start()
-        }
+        syncLoadingWithSession()
         readPrefs()
 
         sessionOverlay = createSessionOverlay()
@@ -4053,6 +4049,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         applyFollowOrientation(resources.configuration)
         if (runtimeRemovalBlocked) return
         if (!SessionState.suspended) pausedFrame = null
+        syncLoadingWithSession()
         if (::memoryHud.isInitialized && SessionState.running && SessionState.firstFrameSeen) memoryHud.refresh()
         if (intent?.action == SessionService.ACTION_RESUME) {
             intent.action = null
@@ -4356,6 +4353,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     @androidx.compose.runtime.Composable
     private fun launchLines(step: String): List<String> =
         androidx.compose.runtime.remember(step, com.droiddeck.launcher.session.LaunchInfo.engine) { runCatching { com.droiddeck.launcher.session.LaunchInfo.lines(this) }.getOrDefault(emptyList()) }
+
+    /** The first-frame callback fires once, and only to an activity listening then, so attach and resume read the state. */
+    private fun syncLoadingWithSession() {
+        if (!::loading.isInitialized || !::hud.isInitialized || !::memoryHud.isInitialized) return
+        if (!loading.visible || loading.ended || !SessionState.running) return
+        if (!com.droiddeck.launcher.session.LaunchInfo.sessionDrawn(SessionState.firstFrameSeen)) return
+        loading.visible = false
+        hud.start()
+        memoryHud.start()
+    }
 
     private val endListener: (Int) -> Unit = { status -> onSessionEnded(status) }
     private val firstFrameListener = Runnable {
