@@ -5,6 +5,11 @@
 #include "core/io/json.h"
 #include "core/os/os.h"
 #include "main/performance.h"
+
+#ifdef __linux__
+#include <sched.h>
+#include <time.h>
+#endif
 #include "core/templates/hash_set.h"
 #include "scene/resources/canvas_item_material.h"
 #include "servers/rendering_server.h"
@@ -39,6 +44,28 @@ struct FrameSplit {
 	int64_t frames = 0, sprite_updates = 0, slots = 0, vertices = 0;
 	uint64_t update_usec = 0, signal_usec = 0, draw_usec = 0;
 	double process_sec = 0, physics_sec = 0;
+	uint64_t thread_cpu_start_nsec = 0;
+	int64_t on_cpu[16] = {}; // frames that began with the main thread on each CPU
+
+	static uint64_t thread_cpu_nsec() {
+#ifdef __linux__
+		timespec ts;
+		if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0) {
+			return uint64_t(ts.tv_sec) * 1000000000ull + uint64_t(ts.tv_nsec);
+		}
+#endif
+		return 0;
+	}
+
+	String cpu_spread() const {
+		String s;
+		for (int i = 0; i < 16; i++) {
+			if (on_cpu[i]) {
+				s += (s.is_empty() ? "" : " ") + itos(i) + ":" + itos(on_cpu[i]);
+			}
+		}
+		return s.is_empty() ? String("?") : s;
+	}
 
 	void begin_frame() {
 		const uint64_t frame = Engine::get_singleton()->get_process_frames();
@@ -49,19 +76,32 @@ struct FrameSplit {
 		const uint64_t now = OS::get_singleton()->get_ticks_usec();
 		if (window_start_usec == 0) {
 			window_start_usec = now;
+			thread_cpu_start_nsec = thread_cpu_nsec();
 		}
 		if (frames > 0 && now - window_start_usec >= 10000000) {
 			const double f = double(frames);
+			const double wall_ms = double(now - window_start_usec) / 1e3;
+			const uint64_t cpu_now = thread_cpu_nsec();
+			const double cpu_ms = double(cpu_now - thread_cpu_start_nsec) / 1e6;
+			// "main thread busy" is CPU time the main thread used over wall time: near 100% means it never waits.
 			print_line(vformat("native_compat: frame split %.1fs %d frames %.1f fps | per frame: process %.2f ms, physics %.2f ms, "
-							   "spine update %.2f ms (signals %.2f ms), spine draw %.2f ms | %.1f sprites %.0f slots %.0f vertices",
-					double(now - window_start_usec) / 1e6, frames, f * 1e6 / double(now - window_start_usec), process_sec * 1e3 / f,
-					physics_sec * 1e3 / f, double(update_usec) / 1e3 / f, double(signal_usec) / 1e3 / f, double(draw_usec) / 1e3 / f,
-					double(sprite_updates) / f, double(slots) / f, double(vertices) / f));
+							   "spine update %.2f ms (signals %.2f ms), spine draw %.2f ms, main thread cpu %.2f ms (busy %.0f%%) | "
+							   "%.1f sprites %.0f slots %.0f vertices | main thread on cpu %s",
+					wall_ms / 1e3, frames, f * 1e3 / wall_ms, process_sec * 1e3 / f, physics_sec * 1e3 / f, double(update_usec) / 1e3 / f,
+					double(signal_usec) / 1e3 / f, double(draw_usec) / 1e3 / f, cpu_ms / f, 100.0 * cpu_ms / wall_ms,
+					double(sprite_updates) / f, double(slots) / f, double(vertices) / f, cpu_spread()));
 			*this = FrameSplit();
 			last_frame = frame;
 			window_start_usec = now;
+			thread_cpu_start_nsec = cpu_now;
 		}
 		frames++;
+#ifdef __linux__
+		const int cpu = sched_getcpu();
+		if (cpu >= 0 && cpu < 16) {
+			on_cpu[cpu]++;
+		}
+#endif
 		// The monitors hold the previous frame's times, which is fine over a window.
 		process_sec += Performance::get_singleton()->get_monitor(Performance::TIME_PROCESS);
 		physics_sec += Performance::get_singleton()->get_monitor(Performance::TIME_PHYSICS_PROCESS);

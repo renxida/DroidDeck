@@ -14,13 +14,108 @@
 #include "core/string/print_string.h"
 #include "core/variant/variant.h"
 
+#ifdef __linux__
+#include <errno.h>
+#include <sched.h>
+#include <stdlib.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+
 static Ref<SpineResourceLoader> spine_loader;
+
+#ifdef __linux__
+// Opt-in scheduling hints for the main thread, which runs the game and the renderer. On the phone the CPU
+// governor kept the big cores near their lowest clock while combat ran CPU-bound, so the wrapper can ask for:
+//   DROIDDECK_NATIVE_MAIN_CPUS=5-7      pin the main thread (threads it starts later inherit the set)
+//   DROIDDECK_NATIVE_UCLAMP_MIN=512     a utilization floor (0..1024) so the governor clocks its core up
+// Each is applied once at startup and logged; unset means untouched.
+static bool parse_cpu_list(const char *p_list, cpu_set_t &r_set) {
+	CPU_ZERO(&r_set);
+	const char *p = p_list;
+	bool any = false;
+	while (*p) {
+		char *end = nullptr;
+		long a = strtol(p, &end, 10);
+		if (end == p || a < 0 || a >= CPU_SETSIZE) {
+			return false;
+		}
+		long b = a;
+		p = end;
+		if (*p == '-') {
+			p++;
+			b = strtol(p, &end, 10);
+			if (end == p || b < a || b >= CPU_SETSIZE) {
+				return false;
+			}
+			p = end;
+		}
+		for (long i = a; i <= b; i++) {
+			CPU_SET(int(i), &r_set);
+			any = true;
+		}
+		if (*p == ',') {
+			p++;
+		} else if (*p) {
+			return false;
+		}
+	}
+	return any;
+}
+
+struct SchedAttrUclamp { // the kernel's struct sched_attr, through sched_util_max
+	uint32_t size;
+	uint32_t sched_policy;
+	uint64_t sched_flags;
+	int32_t sched_nice;
+	uint32_t sched_priority;
+	uint64_t sched_runtime, sched_deadline, sched_period;
+	uint32_t sched_util_min, sched_util_max;
+};
+
+static void apply_main_thread_hints() {
+	if (const char *cpus = getenv("DROIDDECK_NATIVE_MAIN_CPUS")) {
+		cpu_set_t set;
+		if (!parse_cpu_list(cpus, set)) {
+			print_line(vformat("native_compat: sched main thread cpus '%s' not understood; left as is", cpus));
+		} else if (sched_setaffinity(0, sizeof(set), &set) != 0) {
+			print_line(vformat("native_compat: sched main thread cpus %s refused (errno %d)", cpus, errno));
+		} else {
+			print_line(vformat("native_compat: sched main thread pinned to cpus %s", cpus));
+		}
+	}
+	if (const char *floor = getenv("DROIDDECK_NATIVE_UCLAMP_MIN")) {
+		const long v = strtol(floor, nullptr, 10);
+		if (v < 0 || v > 1024) {
+			print_line(vformat("native_compat: sched uclamp min '%s' out of range 0..1024; left as is", floor));
+		} else {
+#ifdef SYS_sched_setattr
+			SchedAttrUclamp attr = {};
+			attr.size = sizeof(attr);
+			// SCHED_FLAG_KEEP_POLICY | SCHED_FLAG_KEEP_PARAMS | SCHED_FLAG_UTIL_CLAMP_MIN
+			attr.sched_flags = 0x08 | 0x10 | 0x20;
+			attr.sched_util_min = uint32_t(v);
+			if (syscall(SYS_sched_setattr, 0, &attr, 0) != 0) {
+				print_line(vformat("native_compat: sched uclamp min %d refused (errno %d)", int(v), errno));
+			} else {
+				print_line(vformat("native_compat: sched main thread uclamp min %d", int(v)));
+			}
+#else
+			print_line("native_compat: sched uclamp min not available in this build");
+#endif
+		}
+	}
+}
+#endif
 static FmodServer *fmod_server = nullptr;
 
 void initialize_native_compat_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+#ifdef __linux__
+	apply_main_thread_hints();
+#endif
 	GDREGISTER_CLASS(NativeSkeleton2D);
 	GDREGISTER_CLASS(NativeSoundBank);
 
