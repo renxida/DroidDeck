@@ -72,6 +72,9 @@ jobs:
                 sleep 30
               done
               [ -n "$run" ] || { echo "no finished build.yml run for ${{ github.sha }}"; exit 1; } ;;
+            push:ci/offphone-probe)
+              # tools/offphone/probe-apk-run on this branch, when present, names the build run to test.
+              run=$(gh api "repos/${GITHUB_REPOSITORY}/contents/tools/offphone/probe-apk-run?ref=${{ github.sha }}" --jq .content 2>/dev/null | base64 -d 2>/dev/null | tr -dc 0-9) || true ;;
           esac
           if [ -z "$run" ]; then
             run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/runs?branch=$ref&status=success&per_page=1" --jq '.workflow_runs[0].id')
