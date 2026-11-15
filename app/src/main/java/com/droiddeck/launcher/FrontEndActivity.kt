@@ -794,8 +794,9 @@ class FrontEndActivity : ComponentActivity() {
 
     /**
      * The launcher icon opened a fresh front screen on top of a session the player had been watching start or run
-     * (see [com.droiddeck.launcher.session.LauncherRejoin]): go back to that session the way "Open Steam" does.
-     * Skips this activity's own start gating, which waits out installs that the live session itself is doing.
+     * (see [com.droiddeck.launcher.session.LauncherRejoin]): go back to that session the way "Open Steam" does, which
+     * also brings it out of picture-in-picture. Skips this activity's own start gating, which waits out installs that
+     * the live session itself is doing.
      */
     private fun rejoinLiveSession(request: Intent): Boolean {
         if (!com.droiddeck.launcher.session.LauncherRejoin.shouldRejoin(request.action, request.categories)) return false
@@ -1457,6 +1458,12 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     override fun onResume() {
+        // Before super.onResume: that records this screen as the last one shown.
+        if (com.droiddeck.launcher.session.LauncherRejoin.shouldExpandPip()) {
+            Log.i("MainActivity", "front screen came forward while the session floats: back to the session")
+            super.startActivity(Intent(this, SessionActivity::class.java))
+            overridePendingTransition(0, 0)
+        }
         super.onResume()
         if (!SessionState.running) com.droiddeck.launcher.telemetry.RemoteConfig.refreshAsync(this)
         com.droiddeck.launcher.update.SelfUpdate.onFrontResumed(this)

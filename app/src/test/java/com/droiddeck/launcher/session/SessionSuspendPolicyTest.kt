@@ -71,6 +71,49 @@ class SessionSuspendPolicyTest {
         assertEquals(false, SessionSuspendPolicy.manualPauseRequested(SessionPrefs.SUSPEND_AUTO, true, false, false, false, false))
     }
 
+    @Test fun gameExitWindowRunsFromGameExitedForThirtySeconds() {
+        val exit = 100_000L
+        assertFalse(SessionSuspendPolicy.gameExiting(exit, -1L))
+        assertTrue(SessionSuspendPolicy.gameExiting(exit, exit))
+        assertTrue(SessionSuspendPolicy.gameExiting(exit + SessionSuspendPolicy.GAME_EXIT_AWAKE_MS - 1, exit))
+        assertFalse(SessionSuspendPolicy.gameExiting(exit + SessionSuspendPolicy.GAME_EXIT_AWAKE_MS, exit))
+        assertFalse(SessionSuspendPolicy.gameExiting(exit - 1, exit))
+    }
+
+    // Off-phone rig, stand-in-background: hidden under the manual policy, the session froze the guest just after
+    // game.exited, so the guest never finished exiting and the session sat SUSPENDED until the timeout.
+    @Test fun aGameThatJustExitedKeepsTheGuestAwakeWhateverAsksToSuspend() {
+        for (policy in PAUSING + SessionPrefs.SUSPEND_NEVER) for (steamMode in listOf(true, false)) {
+            val label = "$policy steam=$steamMode"
+            assertFalse(label, suspends(policy, gameRunning = false, steamMode = steamMode, gameExiting = true))
+            assertFalse(label, suspends(policy, gameRunning = false, steamMode = steamMode, pauseRequested = true, gameExiting = true))
+            assertFalse(label, suspends(policy, gameRunning = false, steamMode = steamMode, manualHold = true, gameExiting = true))
+            assertFalse(label, suspends(policy, gameRunning = false, steamMode = steamMode, steamSleep = true, gameExiting = true))
+        }
+    }
+
+    @Test fun aSessionThatFrozeAsTheGameExitedIsThawed() {
+        for (policy in PAUSING) {
+            assertFalse(policy, suspends(policy, gameRunning = false, suspended = true, pauseRequested = true, gameExiting = true))
+        }
+    }
+
+    @Test fun steamIsNotAskedToSleepWhileTheGameExits() {
+        for (policy in PAUSING) {
+            assertFalse(policy, SessionSuspendPolicy.steamPause(policy, true, true, false, false, false, true, gameExiting = true))
+            assertFalse(policy, SessionSuspendPolicy.steamPause(policy, true, true, true, false, false, true, gameExiting = true))
+        }
+    }
+
+    @Test fun anIdleHiddenSessionSuspendsOnceTheExitWindowPasses() {
+        val exit = 5_000L
+        val after = !SessionSuspendPolicy.gameExiting(exit + SessionSuspendPolicy.GAME_EXIT_AWAKE_MS, exit)
+        for (policy in PAUSING) assertTrue(policy, suspends(policy, gameRunning = false, gameExiting = !after))
+        for (policy in listOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_MANUAL)) {
+            assertTrue(policy, suspends(policy, gameRunning = false, steamMode = false, gameExiting = !after))
+        }
+    }
+
     /** Runs the decisions in the order SessionService.updateSuspendPolicy does, with native sleep already granted. */
     private fun suspends(
         policy: String,
@@ -82,15 +125,17 @@ class SessionSuspendPolicyTest {
         downloads: Boolean = false,
         pauseRequested: Boolean = false,
         steamSleep: Boolean = false,
+        gameExiting: Boolean = false,
     ): Boolean {
         val awake = SessionSuspendPolicy.gameKeepsAwake(hidden, manualHold, suspended, steamMode) { gameRunning }
         val requested = SessionSuspendPolicy.manualPauseRequested(policy, hidden, suspended, downloads, awake, pauseRequested)
-        val pause = SessionSuspendPolicy.steamPause(policy, steamMode, hidden, manualHold, downloads, awake, requested)
+        val pause = SessionSuspendPolicy.steamPause(policy, steamMode, hidden, manualHold, downloads, awake, requested, gameExiting)
         // SessionService ends native sleep whenever Steam need not pause, which clears nativeSleepReady.
         val nativeSleepReady = pause
         return SessionSuspendPolicy.shouldSuspend(
             policy, hidden, manualHold, downloads, awake, requested,
             prepared = !steamMode || nativeSleepReady, nativeSleepReady = nativeSleepReady, steamSleepRequested = steamSleep,
+            gameExiting = gameExiting,
         )
     }
 
