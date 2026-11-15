@@ -5,6 +5,8 @@
 // fsb/event_table.h) through Godot audio players; parameters, buses and VCAs are tracked but not mixed yet.
 #pragma once
 
+#include "core/templates/hash_set.h"
+
 #include "native_sound_bank.h"
 
 #include "core/object/object.h"
@@ -217,6 +219,7 @@ class FmodServer : public Object {
 	uint32_t rng = 0x2545f491u;
 	PackedStringArray missing; // event paths asked for that no loaded name table knows (first 64)
 	PackedStringArray silent; // events started that no loaded bank gives a sound (first 64)
+	HashSet<String> described; // events whose first start has been logged (diagnostics)
 
 	String guid_for(const String &p_path) const;
 	String path_for(const String &p_guid) const;

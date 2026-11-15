@@ -2,6 +2,7 @@
 #include "event_table.h"
 
 #include <cstring>
+#include <map>
 #include <unordered_set>
 
 namespace fsb {
@@ -163,6 +164,39 @@ void read_timeline(const uint8_t *p, size_t n, EventTable::Event &ev) {
 
 } // namespace
 
+// Diagnostics: the types of the objects an event reaches through GUID references (a few levels deep), so a
+// silent event's log line says which kinds of object it uses.
+static std::string reach_types(const std::unordered_map<Guid, Object, GuidHash> &objects, const GuidSet &all, const Guid &root) {
+	GuidSet seen{ root };
+	std::vector<Guid> level{ root };
+	std::map<std::string, int> counts;
+	for (int depth = 0; depth < 4 && !level.empty() && seen.size() < 512; depth++) {
+		std::vector<Guid> next_level;
+		for (const Guid &g : level) {
+			auto it = objects.find(g);
+			if (it == objects.end()) {
+				continue;
+			}
+			std::vector<Guid> found;
+			for (const Chunk &c : it->second.chunks) {
+				scan(c.body, c.size, all, found);
+			}
+			for (const Guid &f : found) {
+				if (seen.insert(f).second) {
+					next_level.push_back(f);
+					counts[std::string(objects.at(f).type, 4)]++;
+				}
+			}
+		}
+		level = std::move(next_level);
+	}
+	std::string s;
+	for (const auto &kv : counts) {
+		s += (s.empty() ? "" : " ") + kv.first + ":" + std::to_string(kv.second);
+	}
+	return s;
+}
+
 bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::string &error) {
 	out = EventTable();
 	if (length < 12 || memcmp(data, "RIFF", 4) != 0) {
@@ -223,7 +257,10 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 		out = EventTable();
 		return false;
 	}
-	GuidSet instrument_ids, sheet_ids;
+	GuidSet instrument_ids, sheet_ids, all_ids;
+	for (const auto &kv : objects) {
+		all_ids.insert(kv.first);
+	}
 	for (const auto &kv : objects) {
 		const Object &o = kv.second;
 		const bool wait = memcmp(o.type, "WAIT", 4) == 0, muit = memcmp(o.type, "MUIT", 4) == 0;
@@ -294,7 +331,15 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 				}
 			}
 		}
+		ev.refs = reach_types(objects, all_ids, kv.first);
 		out.events.emplace(kv.first, std::move(ev));
+	}
+	std::map<std::string, int> counts;
+	for (const auto &kv : objects) {
+		counts[std::string(kv.second.type, 4)]++;
+	}
+	for (const auto &kv : counts) {
+		out.object_types += (out.object_types.empty() ? "" : " ") + kv.first + ":" + std::to_string(kv.second);
 	}
 	return true;
 }

@@ -56,11 +56,13 @@ struct EventTable {
 		std::vector<Guid> looped; // those of them overlapping a timeline loop region
 		std::vector<Guid> unreachable; // placed past a loop region: skipped
 		std::vector<std::pair<Guid, float>> delays; // timeline start, seconds
+		std::string refs; // diagnostics: types of the objects reachable from the event, as "TYPE:count ..."
 	};
 	static constexpr float TIMELINE_RATE = 48000;
 	std::unordered_map<Guid, Event, GuidHash> events;
 	std::unordered_map<Guid, Instrument, GuidHash> instruments;
 	std::unordered_map<Guid, uint32_t, GuidHash> waves; // waveform GUID -> sound index in the FSB5 block
+	std::string object_types; // diagnostics: the bank's object types, as "TYPE:count ..."
 };
 
 // Reads the object lists of a whole bank file. A file without PROJ objects (a strings bank) gives an

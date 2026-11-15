@@ -65,7 +65,14 @@ void FmodEvent::stop(int p_mode) {
 	state = STOPPED;
 }
 
+// Diagnostics: the first few pauses and near-silent volumes, which could hide an event that did start.
+static int quiet_logs = 0;
+
 void FmodEvent::set_paused(bool p_paused) {
+	if (p_paused && !paused && quiet_logs < 40) {
+		quiet_logs++;
+		print_line(vformat("native_compat: fmod event %s paused (players=%d)", path, players.size()));
+	}
 	paused = p_paused;
 	for (const ObjectID &id : players) {
 		if (AudioStreamPlayer *p = player_of(id)) {
@@ -75,6 +82,10 @@ void FmodEvent::set_paused(bool p_paused) {
 }
 
 void FmodEvent::set_volume(float p_v) {
+	if (p_v < 0.05f && volume >= 0.05f && quiet_logs < 40) {
+		quiet_logs++;
+		print_line(vformat("native_compat: fmod event %s volume %.3f (players=%d)", path, p_v, players.size()));
+	}
 	volume = p_v;
 	for (int i = 0; i < players.size(); i++) {
 		if (AudioStreamPlayer *p = player_of(players[i])) {
@@ -412,6 +423,9 @@ Ref<FmodBank> FmodServer::load_bank(const String &p_path, int p_flag) {
 	// Audio streams from the file per sound, so resident bytes start at 0; the counts say what the bank holds.
 	print_line(vformat("native_compat: fmod bank %s %s sounds=%d events=%d paths=%d resident_bytes=%d", err == OK ? "loaded" : "FAILED",
 			p_path.get_file(), data->get_sound_count(), data->get_event_count(), data->get_path_count(), data->get_resident_bytes()));
+	if (err == OK && !data->get_event_table().object_types.empty()) {
+		print_line("native_compat: fmod bank " + p_path.get_file() + " objects " + String::utf8(data->get_event_table().object_types.c_str()));
+	}
 	return bank;
 }
 
@@ -477,15 +491,20 @@ int FmodServer::play_event_sounds(const String &p_guid, const String &p_path, fl
 	SceneTree *tree = SceneTree::get_singleton();
 	Window *root = tree ? tree->get_root() : nullptr;
 	std::vector<fsb::Pick> picks;
+	String found_in;
+	const fsb::EventTable::Event *found_event = nullptr;
 	if (!p_guid.is_empty() && fsb::parse_guid_text(p_guid.utf8().get_data(), g)) {
 		for (const KeyValue<String, Ref<FmodBank>> &kv : banks) {
 			const Ref<NativeSoundBank> &d = kv.value->data;
 			if (d.is_valid() && fsb::resolve_event(d->get_event_table(), g, rng, picks)) {
+				found_in = kv.key.get_file();
+				auto it = d->get_event_table().events.find(g);
+				found_event = it == d->get_event_table().events.end() ? nullptr : &it->second;
 				break;
 			}
 		}
 	}
-	int started = 0;
+	int started = 0, missing_waves = 0, looping = 0;
 	for (const fsb::Pick &pick : picks) {
 		Ref<AudioStreamOggVorbis> stream;
 		for (const KeyValue<String, Ref<FmodBank>> &kv : banks) {
@@ -498,8 +517,10 @@ int FmodServer::play_event_sounds(const String &p_guid, const String &p_path, fl
 		}
 		if (stream.is_null()) {
 			sounds_without_wave++;
+			missing_waves++;
 			continue;
 		}
+		looping += pick.loop ? 1 : 0;
 		if (!root) {
 			continue;
 		}
@@ -526,9 +547,17 @@ int FmodServer::play_event_sounds(const String &p_guid, const String &p_path, fl
 		started++;
 	}
 	sounds_started += started;
+	// Diagnostics: the first start of each distinct event says what was found and what played.
+	const String name = p_path.is_empty() ? p_guid : p_path;
+	if (described.size() < 400 && !described.has(name)) {
+		described.insert(name);
+		print_line(vformat("native_compat: fmod event %s bank=%s instruments=%d looped=%d unreachable=%d picks=%d looping=%d missing_waves=%d started=%d volume=%.2f refs=[%s]",
+				name, found_in.is_empty() ? String("none") : found_in, found_event ? int(found_event->instruments.size()) : -1,
+				found_event ? int(found_event->looped.size()) : -1, found_event ? int(found_event->unreachable.size()) : -1, int(picks.size()), looping,
+				missing_waves, started, p_volume, found_event ? String::utf8(found_event->refs.c_str()) : String()));
+	}
 	if (started == 0) {
 		starts_without_sound++;
-		const String name = p_path.is_empty() ? p_guid : p_path;
 		if (silent.size() < 64 && !silent.has(name)) {
 			silent.push_back(name);
 		}
