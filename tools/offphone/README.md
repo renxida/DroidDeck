@@ -11,7 +11,7 @@ about the phone's own GPU driver, heat or memory should show up here first.
 | `stand-in-game` | `standin_exit_clean` | the stand-in Godot game (`tools/native-engine/standin`, our own code, no game files) through `droiddeck-proton-run`, Proton (with Steam's client installed, as on a phone) and FEX, judged by the app's own `frames.csv`: its first Vulkan frame, at least 100 presented frames, then a clean exit (it quits after 300) |
 | `steam-ui-screen-cycle` | `login_screen` | `steam-ui` with the screen turned off and on three times during Steam's start; the UI must still appear within 180 s |
 | `steam-ui-background` | `login_screen` | `steam-ui` with the app sent home for 30 s during Steam's start, then reopened from its launcher icon, which must bring the running session back (`returned_to_session`). Landing on the home screen instead is logged as `landed_on_home` and fails the run; the rig still presses Open Steam so the rest is measured. Also fails if the app restarts the session |
-| `stand-in-background` | `standin_exit_clean` | `stand-in-game` with the app sent home for 20 s once Steam is ready, then the same return-by-icon check |
+| `stand-in-background` | `standin_exit_clean` | `stand-in-game` with the app sent home for 20 s once Steam is ready, then the same return-by-icon check; the game runs 1200 frames here so it is still running when the rig comes back |
 | `upgrade` | `login_screen` | the latest release's `kestrel.apk` installed first, then the APK under test over it (`adb install -r`); a setting and the installed runtime must survive, then `steam-ui` |
 
 Outputs per scenario (artifact `rig-<scenario>`, and printed to the job log):
@@ -52,3 +52,9 @@ Steam session. The rig stops at the sign-in screen. No real game files are used.
 
 On any arm64 Linux with docker and root: `tools/offphone/redroid-up.sh`, install the APK, build
 `cpusync/` (`tools/offphone/cpusync/build.sh cpusync`), then `tools/offphone/drive.sh steam-ui out`.
+
+## Testing a particular build
+
+On `ci/offphone-probe`, a file `tools/offphone/probe-apk-run` holding a build.yml run id pins the
+APK under test; without it a push tests the newest green `perf/switchboard` build. A push to
+`autofix/**` tests that commit's own build.
