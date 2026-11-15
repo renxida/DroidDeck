@@ -258,6 +258,11 @@ jobs:
           valve=$(python3 -c 'import runpy, sys, tempfile; print(runpy.run_path(sys.argv[1])["steam_api"](cache=tempfile.mkdtemp()))' \
             tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot)
           sh tools/native-engine/steam-bridge/build.sh "$valve" out/component/steam-bridge
+          # The bridge now links the C library (dlsym): it must not need a newer glibc than the engine itself.
+          newest() { objdump -T "$1" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1; }
+          b=$(newest out/component/steam-bridge/libsteam_api64.so) e=$(newest ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono)
+          echo "glibc: bridge needs $b, engine needs $e"
+          test "$(printf '%s\n%s\n' "$b" "$e" | sort -V | tail -1)" = "$e"
           T=$(mktemp -d) && cp out/component/steam-bridge/libsteam_api64.so "$T/" && cp "$valve" "$T/libsteam_api.so"
           python3 - "$T/libsteam_api64.so" <<'PY'
           import ctypes, sys

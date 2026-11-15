@@ -477,7 +477,8 @@ class NativeGodotTest(unittest.TestCase):
         args = ["run", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
                 "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)]
         try:
-            for served, expect in ((True, 0), (False, NG["DID_NOT_START"]), (None, 0)):
+            # Unserved versions no longer stop it: the bridge hands the game the library's own (Nov 15 fix).
+            for served, expect in ((True, 0), (False, 0), (None, 0)):
                 def probe(library, cwd, env, versions=(), **kw):
                     asked.append(list(versions))
                     if served is None:
@@ -491,10 +492,10 @@ class NativeGodotTest(unittest.TestCase):
                 data = out / "data_sts2_linuxbsd_arm64"
                 self.assertIn(b"bridge", (data / "libsteam_api64.so").read_bytes())
                 self.assertIn(b"valve", (data / "libsteam_api.so").read_bytes())
-                if expect == 0:
-                    self.assertIn("Steam bridge: forwarding GameSearch, MusicRemote to the real client", err.getvalue())
-                else:
-                    self.assertIn("does not serve SteamMatchGameSearch001, SteamInput006", err.getvalue())
+                self.assertIn("Steam bridge: forwarding GameSearch, MusicRemote to the real client", err.getvalue())
+                if served is False:
+                    self.assertIn("does not serve SteamMatchGameSearch001, SteamInput006; the bridge hands the game "
+                                  "the library's own", err.getvalue())
             self.assertEqual([["SteamMatchGameSearch001", "SteamInput006"]] * 3, asked)
             with unittest.mock.patch("sys.stderr", io.StringIO()):
                 rc = NG["main"](args[:1] + ["--no-steam-bridge"] + args[1:])
@@ -503,7 +504,7 @@ class NativeGodotTest(unittest.TestCase):
         finally:
             g["watch"], g["steam_probe"] = real_watch, real_probe
             os.chdir(Path(__file__).resolve().parent)
-        self.assertEqual(2, len(seen))
+        self.assertEqual(3, len(seen))
 
     def test_steam_probe_asks_once_per_steamclient_and_treats_errors_as_unknown(self):
         import subprocess

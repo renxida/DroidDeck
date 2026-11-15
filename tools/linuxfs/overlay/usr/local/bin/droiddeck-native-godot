@@ -27,9 +27,12 @@ Steam: the game's Steamworks.NET talks to the real Steam client in the session t
 libsteam_api.so, downloaded on the device from the public Steamworks.NET NuGet package (STEAM_API, sha256
 pinned) and placed as libsteam_api64.so, the name a Windows build asks for. A component with
 steam-bridge/libsteam_api64.so (Cedar approved it, 2026-11-15) puts that bridge there instead and Valve's library
-beside it as libsteam_api.so: the bridge defines only GetISteamGameSearch and GetISteamMusicRemote, the two
-accessors Valve's arm64 library dropped, and passes each call unchanged to Valve's GetISteamGenericInterface;
-everything else resolves in Valve's library. Nothing fakes Steam: an older component that carries a stubs/
+beside it as libsteam_api.so: the bridge defines the interface accessors Steamworks.NET calls at SteamAPI.Init.
+A version the game asks for that Valve's library shares goes through unchanged; an older one gets the real
+client's interface in the library's own version (the layout its flat functions use; Cedar, 2026-11-15, on the
+game's "Steam failed to initialize": "Don't ask just do"); GameSearch and MusicRemote, whose accessors and
+functions Valve dropped, go to GetISteamGenericInterface, with a placeholder if the client serves neither.
+Init, the user, ownership, licences and tickets all resolve in Valve's library. Nothing fakes Steam: an older component that carries a stubs/
 folder (a no-op Steamworks stand-in, up to native-engine-38) is refused.
 
 `check` is a dry run for the phone, off the launch path: it composes into --out, checks the launch folder is
@@ -661,8 +664,8 @@ def compose(game_dir, kit, engine, out, exe=None, steam=None, bridge=None):
         if sw:
             steam_missing = steam_api_missing(os.path.join(data, sw), [steam, bridge] if bridge else steam)
             steam_wants = steam_versions(os.path.join(data, sw))
-            log(("Steam: the bridge (GetISteamGameSearch and GetISteamMusicRemote, passed unchanged to the real "
-                 "client) in front of Valve's libsteam_api.so; " if bridge else "Steam: Valve's libsteam_api.so; ")
+            log(("Steam: the bridge (interface accessors: shared versions unchanged, older ones get the library's own; "
+                 "GameSearch and MusicRemote to the client) in front of Valve's libsteam_api.so; " if bridge else "Steam: Valve's libsteam_api.so; ")
                 + (f"{len(steam_missing)} names the game's Steamworks.NET mentions are not exported "
                    f"({', '.join(steam_missing[:8])})" if steam_missing else "it exports every name the game's Steamworks.NET mentions"))
     manifest = kit_manifest(kit)
@@ -1442,12 +1445,16 @@ def main(argv=None):
         probe = steam_probe(r["steam_api"], os.path.abspath(a.game_dir), dict(os.environ), versions=r["steam_versions"])
         log(steam_probe_line(probe))
         refused = [v for v, ok in (probe.get("versions") or {}).items() if not ok]
-        if probe.get("init") == 0 and refused:
+        if probe.get("init") == 0 and refused and r.get("steam_bridge"):
+            log(f"Steam bridge: the client does not serve {', '.join(refused)}; the bridge hands the game the "
+                "library's own versions of those instead")
+        elif probe.get("init") == 0 and refused:
             log(f"not starting: the Steam client does not serve {', '.join(refused)}, which this game's "
                 "SteamAPI.Init asks for (it would quit on 'Failed to initialize Steam')")
             return DID_NOT_START
     if bridged and a.command == "run" and not a.no_steam_preflight:
-        log(f"Steam bridge: forwarding {', '.join(n.split('GetISteam')[1] for n in bridged)} to the real client")
+        log(f"Steam bridge: forwarding {', '.join(n.split('GetISteam')[1] for n in bridged)} to the real client; "
+            "interface versions older than Valve's library get the library's own (its log lines: 'steam-bridge:')")
     log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
         f"{r['kit_files']} kit files, skipped {len(r['skipped'])}"
         + (f" (left out {len(r['mixed_mode'])} mixed-mode: {', '.join(r['mixed_mode'])})" if r["mixed_mode"] else ""))
