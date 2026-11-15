@@ -13,8 +13,10 @@ cp "$valve" "$tmp/libsteam_api.so"
 gcc -O2 -Wall -Wextra -Werror -fPIC -shared -fvisibility=hidden -o "$out/libsteam_api64.so" "$here/steam_bridge.c" \
     -Wl,-soname,libsteam_api64.so -Wl,-rpath,'$ORIGIN' -Wl,--no-as-needed "$tmp/libsteam_api.so" -Wl,--as-needed -ldl \
     -Wl,-z,defs
-# It defines the 22 ISteamClient accessors Steamworks.NET calls at init and FindOrCreateUserInterface, nothing else.
+# It defines the 22 ISteamClient accessors Steamworks.NET calls at init, FindOrCreateUserInterface and the init
+# itself (all in front of Valve's), and the flat functions Valve's library dropped. Nothing else.
 nm -D --defined-only "$out/libsteam_api64.so" | awk '{print $3}' | grep -v '^_' | sort > "$tmp/defined"
+nm -D --defined-only "$tmp/libsteam_api.so" | awk '{print $3}' | sort > "$tmp/valve"
 {
     for i in User Friends Utils Matchmaking MatchmakingServers UserStats Apps Networking RemoteStorage Screenshots \
              HTTP UGC Music HTMLSurface Inventory Video ParentalSettings Input Parties RemotePlay GameSearch MusicRemote; do
@@ -22,11 +24,18 @@ nm -D --defined-only "$out/libsteam_api64.so" | awk '{print $3}' | grep -v '^_' 
     done
     echo SteamInternal_FindOrCreateUserInterface
     echo SteamInternal_SteamAPI_Init
-} | sort > "$tmp/want"
-diff -u "$tmp/want" "$tmp/defined"
+} | sort > "$tmp/intercepted"
+comm -23 "$tmp/intercepted" "$tmp/defined" | sed 's/^/the bridge lacks /' | { ! grep .; }
+sort -u "$here/steamworks-net-entrypoints.txt" > "$tmp/entry"
+comm -23 "$tmp/entry" "$tmp/valve" | sort -u - "$tmp/intercepted" > "$tmp/allowed"
+comm -23 "$tmp/defined" "$tmp/allowed" | sed 's/^/the bridge defines, unasked: /' | { ! grep .; }
+# The gate for the next EntryPointNotFoundException: every P/Invoke name in the game's Steamworks.NET resolves
+# in the bridge or in Valve's library.
+sort -u "$tmp/defined" "$tmp/valve" > "$tmp/resolvable"
+comm -23 "$tmp/entry" "$tmp/resolvable" | sed 's/^/unresolved Steamworks.NET entry point: /' | { ! grep .; }
+echo "steam bridge: all $(wc -l < "$tmp/entry") Steamworks.NET entry points resolve ($(comm -12 "$tmp/entry" "$tmp/defined" | wc -l) in the bridge)"
 # Each library-version accessor it serves is one Valve's library exports (the link above also fails otherwise).
 grep -o 'SteamAPI_Steam[A-Za-z]*_v[0-9]*' "$here/steam_bridge.c" | sort -u > "$tmp/own"
-nm -D --defined-only "$tmp/libsteam_api.so" | awk '{print $3}' | sort > "$tmp/valve"
 comm -23 "$tmp/own" "$tmp/valve" | { ! grep .; }
 # Valve's library first (DT_NEEDED), then only the C library and its loader.
 readelf -d "$out/libsteam_api64.so" | grep NEEDED

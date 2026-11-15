@@ -106,7 +106,16 @@ def double_source(serve_old, init_mode=0, typed_null=False):
             " for (unsigned i = 0; i < sizeof lib / sizeof *lib; i++) known |= !strcmp(v, lib[i]);"
             " if (init_mode == 2 ? strcmp(v, \"FLAT\") != 0 : (init_mode == 1 && !known)) ok = 0; }"
             " if (!ok) { strcpy(m, \"refused\"); return 1; } m[0] = 0; return 0; }",
-            "int SteamAPI_InitFlat(char *m) { return SteamInternal_SteamAPI_Init(\"FLAT\\0\", m); }"]
+            "int SteamAPI_InitFlat(char *m) { return SteamInternal_SteamAPI_Init(\"FLAT\\0\", m); }",
+            # The library's newer names the bridge forwards dropped ones to; each records its call.
+            "char forwarded[128];",
+            "void SteamAPI_ISteamTimeline_ClearTimelineTooltip(void *s, float d) { strcpy(forwarded, \"ClearTimelineTooltip\"); }",
+            "void SteamAPI_ISteamTimeline_SetTimelineTooltip(void *s, const char *t, float d) { strcpy(forwarded, t); }",
+            "uint64_t SteamAPI_ISteamTimeline_AddInstantaneousTimelineEvent(void *s, const char *t, const char *d,"
+            " const char *i, uint32_t p, float o, int c) { strcpy(forwarded, \"instant:\"); strcat(forwarded, t); return 1; }",
+            "uint64_t SteamAPI_ISteamTimeline_AddRangeTimelineEvent(void *s, const char *t, const char *d,"
+            " const char *i, uint32_t p, float o, float n, int c) { strcpy(forwarded, \"range:\"); strcat(forwarded, t); return 2; }",
+            "void SteamAPI_ReleaseCurrentThreadMemory(void) { strcpy(forwarded, \"ReleaseCurrentThreadMemory\"); }"]
     return "\n".join(out) + "\n"
 
 
@@ -196,6 +205,33 @@ class SteamBridgeTest(unittest.TestCase):
         bridge, valve = self.build(serve_old=True)
         self.assertTrue(self.fetch(bridge, "Utils", "SteamUtils011"))
         self.assertEqual(b"SteamUtils011", (ctypes.c_char * 128).in_dll(valve, "last_version").value)
+
+    def test_dropped_flat_functions_answer_or_forward(self):
+        bridge, valve = self.build(serve_old=False)
+        fwd = (ctypes.c_char * 128).in_dll(valve, "forwarded")
+        deck = bridge.SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck
+        deck.restype, deck.argtypes = ctypes.c_bool, [ctypes.c_void_p]
+        self.assertFalse(deck(None))
+        search = bridge.SteamAPI_ISteamGameSearch_SearchForGameSolo
+        search.restype = ctypes.c_int
+        self.assertEqual(9, search(None, 1, 4))  # k_EGameSearchErrorCode_Failed_Unknown_Error
+        clear = bridge.SteamAPI_ISteamTimeline_ClearTimelineStateDescription
+        clear.argtypes = [ctypes.c_void_p, ctypes.c_float]
+        clear(None, 0.0)
+        self.assertEqual(b"ClearTimelineTooltip", fwd.value)
+        tip = bridge.SteamAPI_ISteamTimeline_SetTimelineStateDescription
+        tip.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_float]
+        tip(None, b"boss", 0.0)
+        self.assertEqual(b"boss", fwd.value)
+        add = bridge.SteamAPI_ISteamTimeline_AddTimelineEvent
+        add.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint32,
+                        ctypes.c_float, ctypes.c_float, ctypes.c_int]
+        add(None, b"icon", b"won", b"desc", 0, 0.0, 0.0, 0)
+        self.assertEqual(b"instant:won", fwd.value)
+        add(None, b"icon", b"fight", b"desc", 0, 0.0, 5.0, 0)
+        self.assertEqual(b"range:fight", fwd.value)
+        bridge.SteamGameServer_ReleaseCurrentThreadMemory()
+        self.assertEqual(b"ReleaseCurrentThreadMemory", fwd.value)
 
     def init(self, lib, versions):
         f = lib.SteamInternal_SteamAPI_Init

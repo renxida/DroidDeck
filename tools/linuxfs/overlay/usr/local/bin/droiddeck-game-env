@@ -3501,6 +3501,9 @@ NATIVE_STEAM_GAP = "not starting: Steam cannot initialise"
 # does not serve an interface version the game's Steamworks.NET fetches.
 NATIVE_STEAM_INIT = "not starting: Steam did not initialise in the native engine"
 NATIVE_STEAM_UNSERVED = "not starting: the Steam client does not serve"
+# ... when the game reported a failed start in the native engine (its "Encountered error on game startup", or an
+# EntryPointNotFoundException in steam_api64): stopped, remembered, and started on Proton.
+NATIVE_GAME_FAILED = "not starting: the game failed at startup in the native engine"
 
 
 def engine_line(path, build, skipped=None):
@@ -3533,6 +3536,8 @@ def native_skip_reason(notes):
             return "Steam init failed"
         if any(NATIVE_STEAM_UNSERVED in note for note in notes):
             return "Steam interface missing"
+        if any(NATIVE_GAME_FAILED in note for note in notes):
+            return "game startup failed"
         return "no first frame"
     match = re.search(r"exited with (-?\d+)", last)
     return "exited with %s" % match.group(1) if match else None

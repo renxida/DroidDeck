@@ -78,7 +78,8 @@ class BootLineMarkerTest(unittest.TestCase):
 
 
     def test_a_failed_steam_init_and_an_unserved_interface_are_named(self):
-        for const, reason in (("NATIVE_STEAM_INIT", "Steam init failed"), ("NATIVE_STEAM_UNSERVED", "Steam interface missing")):
+        for const, reason in (("NATIVE_STEAM_INIT", "Steam init failed"), ("NATIVE_STEAM_UNSERVED", "Steam interface missing"),
+                              ("NATIVE_GAME_FAILED", "game startup failed")):
             words = self.env[const]
             self.assertIn(words, NATIVE_GODOT)
             notes = ["native-engine log: droiddeck-native-godot: %s (...); Proton" % words,

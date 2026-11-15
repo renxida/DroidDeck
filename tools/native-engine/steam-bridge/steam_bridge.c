@@ -394,3 +394,189 @@ EXPORT int SteamInternal_SteamAPI_Init(const char *versions, char *message)
     say_result("SteamAPI init with Valve's own list (InitFlat): result ", result, message);
     return result;
 }
+
+/*
+ * Flat functions the game's Steamworks.NET (2024.8.0) binds that Valve's linux-arm64 library no longer exports
+ * (Nov 15: the first native run past SteamAPI init quit on EntryPointNotFoundException for
+ * SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck). .NET resolves a P/Invoke when it is first called, so each of
+ * these is a crash the moment the game touches it. build.sh fails if any name in steamworks-net-entrypoints.txt
+ * is neither here nor in Valve's library, so the next one is caught before a phone sees it.
+ *
+ * Where Valve's library has the same call under its newer name, it is forwarded. Otherwise the answer is the
+ * one a Steam client gives when the feature is absent or not in use: false, the failure code, 0 or NULL. None of
+ * these says anything about the account, ownership, licences, DLC, tickets or auth.
+ */
+typedef int bool_t; /* returned in w0; Steamworks.NET reads the low byte (MarshalAs I1) */
+
+void SteamAPI_ISteamTimeline_ClearTimelineTooltip(void *self, float time_delta);
+void SteamAPI_ISteamTimeline_SetTimelineTooltip(void *self, const char *description, float time_delta);
+uint64_t SteamAPI_ISteamTimeline_AddInstantaneousTimelineEvent(void *self, const char *title, const char *description,
+                                                               const char *icon, uint32_t priority, float start_offset,
+                                                               int clip);
+uint64_t SteamAPI_ISteamTimeline_AddRangeTimelineEvent(void *self, const char *title, const char *description,
+                                                       const char *icon, uint32_t priority, float start_offset,
+                                                       float duration, int clip);
+void SteamAPI_ReleaseCurrentThreadMemory(void);
+
+/* ISteamUtils: this is not a Steam Deck (a phone running the game natively). */
+EXPORT bool_t SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck(void *self) { (void)self; return 0; }
+
+/* ISteamUserStats::RequestCurrentStats was removed in SDK 1.61: Steam requests the current user's stats itself
+ * when the game starts and posts UserStatsReceived_t, so the request is already made. */
+EXPORT bool_t SteamAPI_ISteamUserStats_RequestCurrentStats(void *self) { (void)self; return 1; }
+
+/* ISteamFriends::GetUserRestrictions was removed; k_nUserRestrictionUnknown (1): not known. */
+EXPORT uint32_t SteamAPI_ISteamFriends_GetUserRestrictions(void *self) { (void)self; return 1; }
+
+/* ISteamTimeline v001's ClearTimelineStateDescription is v004's ClearTimelineTooltip (same arguments). The game
+ * gets the library's v004 interface from the bridge, so the call goes to the matching function. */
+EXPORT void SteamAPI_ISteamTimeline_ClearTimelineStateDescription(void *self, float time_delta)
+{
+    SteamAPI_ISteamTimeline_ClearTimelineTooltip(self, time_delta);
+}
+
+/* v001's SetTimelineStateDescription is v004's SetTimelineTooltip (same arguments). */
+EXPORT void SteamAPI_ISteamTimeline_SetTimelineStateDescription(void *self, const char *description, float time_delta)
+{
+    SteamAPI_ISteamTimeline_SetTimelineTooltip(self, description, time_delta);
+}
+
+/* v001's AddTimelineEvent (icon first) is v004's AddInstantaneousTimelineEvent, or AddRangeTimelineEvent when it
+ * has a duration (title first). Argument names from Steamworks.NET (MIT) for both versions. */
+EXPORT void SteamAPI_ISteamTimeline_AddTimelineEvent(void *self, const char *icon, const char *title,
+                                                     const char *description, uint32_t priority, float start_offset,
+                                                     float duration, int clip)
+{
+    if (duration > 0)
+        SteamAPI_ISteamTimeline_AddRangeTimelineEvent(self, title, description, icon, priority, start_offset, duration,
+                                                      clip);
+    else
+        SteamAPI_ISteamTimeline_AddInstantaneousTimelineEvent(self, title, description, icon, priority, start_offset,
+                                                              clip);
+}
+
+/* The game-server side's thread-memory release is the library's one function for every thread. */
+EXPORT void SteamGameServer_ReleaseCurrentThreadMemory(void) { SteamAPI_ReleaseCurrentThreadMemory(); }
+
+/* No game server runs in this process (the game never calls SteamGameServer_Init natively): no client. */
+EXPORT void *SteamGameServerClient(void) { return 0; }
+
+/* ISteamFriends::SetPersonaName was removed from the SDK: no call made (k_uAPICallInvalid). */
+EXPORT uint64_t SteamAPI_ISteamFriends_SetPersonaName(void *self, const char *name) { (void)self, (void)name; return 0; }
+
+/* ISteamRemotePlay::BStartRemotePlayTogether is gone from the library: no session is started. */
+EXPORT bool_t SteamAPI_ISteamRemotePlay_BStartRemotePlayTogether(void *self, bool_t show_overlay)
+{
+    (void)self, (void)show_overlay;
+    return 0;
+}
+
+/* SteamNetworkingIdentity's Stadia ID (Stadia is gone): none. */
+EXPORT uint64_t SteamAPI_SteamNetworkingIdentity_GetStadiaID(void *identity) { (void)identity; return 0; }
+EXPORT void SteamAPI_SteamNetworkingIdentity_SetStadiaID(void *identity, uint64_t id) { (void)identity, (void)id; }
+
+/* Custom P2P signaling objects the game would implement itself; the library no longer wraps them. */
+EXPORT bool_t SteamAPI_ISteamNetworkingConnectionSignaling_SendSignal(void *self, uint32_t conn, void *info,
+                                                                      const void *msg, int size)
+{
+    (void)self, (void)conn, (void)info, (void)msg, (void)size;
+    return 0;
+}
+EXPORT void SteamAPI_ISteamNetworkingConnectionSignaling_Release(void *self) { (void)self; }
+EXPORT void *SteamAPI_ISteamNetworkingSignalingRecvContext_OnConnectRequest(void *self, uint32_t conn, void *identity,
+                                                                            int virtual_port)
+{
+    (void)self, (void)conn, (void)identity, (void)virtual_port;
+    return 0; /* NULL: the connection is not accepted */
+}
+EXPORT void SteamAPI_ISteamNetworkingSignalingRecvContext_SendRejectionSignal(void *self, void *identity,
+                                                                              const void *msg, int size)
+{
+    (void)self, (void)identity, (void)msg, (void)size;
+}
+
+/* ISteamGameSearch: matchmaking the library dropped. k_EGameSearchErrorCode_Failed_Unknown_Error (9). */
+#define GAMESEARCH_FAILED 9
+EXPORT int SteamAPI_ISteamGameSearch_SearchForGameWithLobby(void *self, uint64_t lobby, int min, int max)
+{
+    (void)self, (void)lobby, (void)min, (void)max;
+    return GAMESEARCH_FAILED;
+}
+EXPORT int SteamAPI_ISteamGameSearch_SearchForGameSolo(void *self, int min, int max)
+{
+    (void)self, (void)min, (void)max;
+    return GAMESEARCH_FAILED;
+}
+EXPORT int SteamAPI_ISteamGameSearch_RetrieveConnectionDetails(void *self, uint64_t host, char *out, int size)
+{
+    (void)self, (void)host;
+    if (out && size > 0)
+        out[0] = 0;
+    return GAMESEARCH_FAILED;
+}
+EXPORT int SteamAPI_ISteamGameSearch_AddGameSearchParams(void *self, const char *key, const char *values)
+{
+    (void)self, (void)key, (void)values;
+    return GAMESEARCH_FAILED;
+}
+EXPORT int SteamAPI_ISteamGameSearch_AcceptGame(void *self) { (void)self; return GAMESEARCH_FAILED; }
+EXPORT int SteamAPI_ISteamGameSearch_DeclineGame(void *self) { (void)self; return GAMESEARCH_FAILED; }
+EXPORT int SteamAPI_ISteamGameSearch_RequestPlayersForGame(void *self, int min, int max, int max_team)
+{
+    (void)self, (void)min, (void)max, (void)max_team;
+    return GAMESEARCH_FAILED;
+}
+EXPORT int SteamAPI_ISteamGameSearch_EndGameSearch(void *self) { (void)self; return GAMESEARCH_FAILED; }
+EXPORT int SteamAPI_ISteamGameSearch_SetGameHostParams(void *self, const char *key, const char *value)
+{
+    (void)self, (void)key, (void)value;
+    return GAMESEARCH_FAILED;
+}
+EXPORT int SteamAPI_ISteamGameSearch_SetConnectionDetails(void *self, const char *details, int size)
+{
+    (void)self, (void)details, (void)size;
+    return GAMESEARCH_FAILED;
+}
+EXPORT int SteamAPI_ISteamGameSearch_HostConfirmGameStart(void *self, uint64_t game) { (void)self, (void)game; return GAMESEARCH_FAILED; }
+EXPORT int SteamAPI_ISteamGameSearch_CancelRequestPlayersForGame(void *self) { (void)self; return GAMESEARCH_FAILED; }
+EXPORT int SteamAPI_ISteamGameSearch_SubmitPlayerResult(void *self, uint64_t game, uint64_t player, int result)
+{
+    (void)self, (void)game, (void)player, (void)result;
+    return GAMESEARCH_FAILED;
+}
+EXPORT int SteamAPI_ISteamGameSearch_EndGame(void *self, uint64_t game) { (void)self, (void)game; return GAMESEARCH_FAILED; }
+
+/* ISteamMusicRemote: the library dropped it; every call reports failure (false). */
+#define MUSIC_REMOTE_FALSE(name, ...) EXPORT bool_t SteamAPI_ISteamMusicRemote_##name(void *self, ##__VA_ARGS__)
+MUSIC_REMOTE_FALSE(RegisterSteamMusicRemote, const char *n) { (void)self, (void)n; return 0; }
+MUSIC_REMOTE_FALSE(BIsCurrentMusicRemote) { (void)self; return 0; }
+MUSIC_REMOTE_FALSE(BActivationSuccess, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(SetDisplayName, const char *n) { (void)self, (void)n; return 0; }
+MUSIC_REMOTE_FALSE(SetPNGIcon_64x64, const void *b, uint32_t n) { (void)self, (void)b, (void)n; return 0; }
+MUSIC_REMOTE_FALSE(EnableShuffled, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(EnableLooped, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(EnableQueue, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(EnablePlaylists, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(UpdatePlaybackStatus, int s) { (void)self, (void)s; return 0; }
+MUSIC_REMOTE_FALSE(UpdateVolume, float v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(CurrentEntryWillChange) { (void)self; return 0; }
+MUSIC_REMOTE_FALSE(CurrentEntryIsAvailable, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(UpdateCurrentEntryText, const char *t) { (void)self, (void)t; return 0; }
+MUSIC_REMOTE_FALSE(UpdateCurrentEntryElapsedSeconds, int s) { (void)self, (void)s; return 0; }
+MUSIC_REMOTE_FALSE(UpdateCurrentEntryCoverArt, const void *b, uint32_t n) { (void)self, (void)b, (void)n; return 0; }
+MUSIC_REMOTE_FALSE(CurrentEntryDidChange) { (void)self; return 0; }
+MUSIC_REMOTE_FALSE(QueueWillChange) { (void)self; return 0; }
+MUSIC_REMOTE_FALSE(ResetQueueEntries) { (void)self; return 0; }
+MUSIC_REMOTE_FALSE(SetQueueEntry, int id, int pos, const char *t) { (void)self, (void)id, (void)pos, (void)t; return 0; }
+MUSIC_REMOTE_FALSE(QueueDidChange) { (void)self; return 0; }
+MUSIC_REMOTE_FALSE(SetCurrentPlaylistEntry, int id) { (void)self, (void)id; return 0; }
+MUSIC_REMOTE_FALSE(DeregisterSteamMusicRemote) { (void)self; return 0; }
+MUSIC_REMOTE_FALSE(EnablePlayPrevious, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(EnablePlayNext, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(UpdateShuffled, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(UpdateLooped, bool_t v) { (void)self, (void)v; return 0; }
+MUSIC_REMOTE_FALSE(SetCurrentQueueEntry, int id) { (void)self, (void)id; return 0; }
+MUSIC_REMOTE_FALSE(PlaylistWillChange) { (void)self; return 0; }
+MUSIC_REMOTE_FALSE(ResetPlaylistEntries) { (void)self; return 0; }
+MUSIC_REMOTE_FALSE(SetPlaylistEntry, int id, int pos, const char *t) { (void)self, (void)id, (void)pos, (void)t; return 0; }
+MUSIC_REMOTE_FALSE(PlaylistDidChange) { (void)self; return 0; }

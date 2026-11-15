@@ -274,6 +274,48 @@ class NativeGodotTest(unittest.TestCase):
         self.assertIn("FailedGeneric", seen[0])
         self.assertIn(NG["NATIVE_STEAM_INIT"], err.getvalue())
 
+    def test_watch_stops_a_game_that_failed_at_startup_natively_so_it_starts_on_proton(self):
+        # Nov 15, native-engine-73: Steam initialised, then Slay the Spire 2 called a flat function the library
+        # lacked, logged its startup error and showed a box. The Sentry plugin's own EntryPointNotFoundException
+        # (in 'sentry-godot', earlier in the same log) is harmless and must not stop it.
+        seen = []
+        err = io.StringIO()
+        with unittest.mock.patch("sys.stderr", err):
+            rc = NG["watch"](self.fake_engine(
+                "print(\"System.EntryPointNotFoundException: Unable to find an entry point named "
+                "'csharp_interop_is_main_thread' in shared library 'sentry-godot'.\", flush=True)\n"
+                "print('Project FPS: 60 (16.67 mspf)', flush=True)\n"
+                "print(\"System.EntryPointNotFoundException: Unable to find an entry point named "
+                "'SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck' in shared library 'steam_api64'.\", flush=True)\n"
+                "print('[ERROR] Encountered error on game startup!', flush=True)\ntime.sleep(60)"),
+                dict(os.environ), first_frame_s=30, out=io.StringIO(),
+                on_steam_failed=lambda line, kind="steam": seen.append((kind, line)))
+        self.assertEqual(NG["DID_NOT_START"], rc)
+        self.assertEqual(1, len(seen))
+        self.assertEqual("game", seen[0][0])
+        self.assertIn("IsSteamRunningOnSteamDeck", seen[0][1])
+        self.assertIn(NG["NATIVE_GAME_FAILED"], err.getvalue())
+        # The Sentry line alone runs on.
+        rc, _, _ = self.run_watch(
+            "print(\"System.EntryPointNotFoundException: Unable to find an entry point named "
+            "'csharp_interop_is_main_thread' in shared library 'sentry-godot'.\", flush=True)\n"
+            "print('Project FPS: 60 (16.67 mspf)', flush=True)\nsys.exit(0)")
+        self.assertEqual(0, rc)
+
+    def test_a_remembered_startup_failure_says_which_kind(self):
+        path = str(self.root / "refused" / "x.json")
+        NG["remember_steam_refusal"](path, "Encountered error on game startup!", kind="game")
+        self.assertEqual("game", json.loads(Path(path).read_text())["kind"])
+
+    def test_steam_names_next_to_each_other_are_all_found(self):
+        # The scan once consumed the NUL between two names and skipped every second one (664 of 949 found), so a
+        # missing name could hide behind its neighbour and reach the phone.
+        dll = self.root / "sw.dll"
+        dll.write_bytes(b"\0SteamAPI_Init\0SteamAPI_A\0SteamAPI_B\0SteamClient\0SteamAPI_CheckCallbackRegistered_t\0")
+        lib = self.root / "lib.so"
+        lib.write_bytes(b"\0SteamAPI_Init\0")
+        self.assertEqual(["SteamAPI_A", "SteamAPI_B", "SteamClient"], NG["steam_api_missing"](str(dll), str(lib)))
+
     def test_a_failed_native_steam_init_is_remembered_per_engine_client_and_game(self):
         client = self.root / "steamclient.so"
         client.write_bytes(b"client")
@@ -505,6 +547,39 @@ class NativeGodotTest(unittest.TestCase):
             g["watch"], g["steam_probe"] = real_watch, real_probe
             os.chdir(Path(__file__).resolve().parent)
         self.assertEqual(3, len(seen))
+
+    def test_with_the_bridge_a_name_neither_library_has_sends_the_game_to_proton(self):
+        # .NET binds each P/Invoke when it is first called, so any name left unresolved is a crash mid-game.
+        comp = self.root / "component"
+        comp.mkdir()
+        os.rename(self.kit, comp / "kit")
+        os.rename(self.engine, comp / "godot")
+        (comp / "steam-bridge").mkdir()
+        (comp / "steam-bridge" / "libsteam_api64.so").write_bytes(
+            b"\x7fELF bridge\0SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck\0")
+        win = self.game / "data_sts2_windows_x86_64"
+        valve = self.root / "libsteam_api.so"
+        valve.write_bytes(b"\x7fELF valve\0SteamAPI_Init\0")
+        out = self.root / "launch"
+        g = NG["main"].__globals__
+        real_watch, real_probe = g["watch"], g["steam_probe"]
+        g["watch"] = lambda cmd, env, **kw: 0
+        g["steam_probe"] = lambda *a, **kw: {"unknown": "test"}
+        try:
+            for tail, expect in ((b"", 0), (b"SteamAPI_ISteamNew_Thing\0", NG["DID_NOT_START"])):
+                (win / "Steamworks.NET.dll").write_bytes(
+                    pe(True) + b"\0SteamAPI_Init\0SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck\0" + tail)
+                err = io.StringIO()
+                with unittest.mock.patch("sys.stderr", err):
+                    rc = NG["main"](["run", "--game-dir", str(self.game), "--component", str(comp), "--out", str(out),
+                                     "--exe", "SlayTheSpire2.exe", "--steam-api", str(valve)])
+                self.assertEqual(expect, rc, err.getvalue())
+                if expect:
+                    self.assertIn(NG["NATIVE_STEAM_INIT"].split(" did")[0] + " cannot initialise every call", err.getvalue())
+                    self.assertIn("SteamAPI_ISteamNew_Thing", err.getvalue())
+        finally:
+            g["watch"], g["steam_probe"] = real_watch, real_probe
+            os.chdir(Path(__file__).resolve().parent)
 
     def test_steam_probe_asks_once_per_steamclient_and_treats_errors_as_unknown(self):
         import subprocess
