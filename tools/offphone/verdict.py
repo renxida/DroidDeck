@@ -35,8 +35,11 @@ SCENARIOS = {
 STEAM = ["start_requested", "guest_started", "steam_starting", "steam_ui", "login_screen"]
 SCENARIOS.update({
     "steam-ui-screen-cycle": STEAM[:3] + ["screen_cycled"] + STEAM[3:],
-    "steam-ui-background": STEAM[:3] + ["backgrounded"] + STEAM[3:],
-    "stand-in-background": SCENARIOS["stand-in-game"][:2] + ["backgrounded"] + SCENARIOS["stand-in-game"][2:],
+    # The launcher icon must bring the running session back (returned_to_session); landing on the
+    # home screen instead is logged as landed_on_home and fails the run.
+    "steam-ui-background": STEAM[:3] + ["backgrounded", "returned_to_session"] + STEAM[3:],
+    "stand-in-background": SCENARIOS["stand-in-game"][:2] + ["backgrounded", "returned_to_session"]
+                           + SCENARIOS["stand-in-game"][2:],
     "upgrade": ["upgrade_installed", "settings_kept", "runtime_kept"] + STEAM,
 })
 # Seconds after the start request by which a stage must have happened. CI's Steam UI takes about
