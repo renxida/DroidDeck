@@ -8,6 +8,9 @@
 // "--steam-init" (or STANDIN_STEAM_INIT=1): Steamworks.NET's own SteamAPI.InitEx, the call Slay the Spire 2
 // makes, against whatever libsteam_api the launch put beside the game. Nothing in it is faked; it keeps running. Lines go straight to stdout through .NET's
 // Console (unbuffered), not Godot's print, so a reader sees each one as it happens.
+//   stdout "STANDIN_COMPAT ok n=<N>", "STANDIN_COMPAT none" or "STANDIN_COMPAT failed <class> <message>"   in _Ready:
+// the engine's compat classes (SpineSprite, FmodServer, ...) handed to C#, which, like the game's GodotSharp, has no
+// wrapper of its own for them (the phone's Nov 15 "Wrapper class not found for type: SpineSprite").
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -82,8 +85,45 @@ public partial class Main : Node2D
             .ToList();
         Say($"STANDIN_DEPS loaded={loaded.Count} " + (loaded.Count > 0 ? string.Join(", ", loaded) : "none")
             + $" arch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
+        Compat();
         if (Flag("--steam-init", "STANDIN_STEAM_INIT"))
             SteamInit();
+    }
+
+    void Compat()
+    {
+        int n = 0;
+        string at = "";
+        try
+        {
+            foreach (var name in new[] { "SpineSprite", "SpineSkeletonDataResource", "SpineAnimationState",
+                                         "SpineBoneNode", "FmodEventEmitter2D", "NativeSkeleton2D" })
+            {
+                at = name;
+                if (!ClassDB.ClassExists(name) || !ClassDB.CanInstantiate(name))
+                    continue;
+                var obj = ClassDB.Instantiate(name).AsGodotObject();
+                if (obj is Node node)
+                {
+                    node.Name = "Compat" + name;
+                    AddChild(node);
+                    var back = GetNode<Node>("Compat" + name);  // a fresh lookup hands C# the object again
+                    back.QueueFree();
+                }
+                n++;
+            }
+            at = "FmodServer";
+            if (Engine.HasSingleton("FmodServer"))
+            {
+                Engine.GetSingleton("FmodServer").GetClass();
+                n++;
+            }
+            Say(n > 0 ? $"STANDIN_COMPAT ok n={n}" : "STANDIN_COMPAT none");
+        }
+        catch (Exception e)
+        {
+            Say($"STANDIN_COMPAT failed {at} {e.GetType().Name} {e.Message}");
+        }
     }
 
     public override void _Input(InputEvent e)

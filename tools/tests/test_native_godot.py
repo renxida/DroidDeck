@@ -1216,6 +1216,39 @@ class GameEnvHookTest(unittest.TestCase):
         self.assertEqual((None, []), (rc, calls))
 
 
+
+class CompatClassesInCSharpTest(unittest.TestCase):
+    """The engine build lists every native_compat class in csharp_script.cpp's ignored_types (the phone's Nov 15
+    "Wrapper class not found for type: SpineSprite"), and the gate fails a stand-in that could not take them."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_every_registered_class_is_listed_once_and_the_line_must_exist(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/csharp_compat_classes.py"))
+        names = mod["compat_classes"](
+            (self.ROOT / "tools/native-engine/modules/native_compat/register_types.cpp").read_text())
+        for want in ("SpineSprite", "SpineAnimationState", "FmodServer", "NativeSkeleton2D"):
+            self.assertIn(want, names)
+        out = mod["patch"]("x\nconst Vector<String> ignored_types = {};\ny\n", names)
+        self.assertIn('"SpineSprite"', out)
+        self.assertNotIn("ignored_types = {};", out)
+        with self.assertRaises(SystemExit):
+            mod["patch"]("const Vector<String> ignored_types = { \"X\" };\n", names)
+        with self.assertRaises(SystemExit):
+            mod["patch"]("const Vector<String> ignored_types = {};\n", [])
+
+    def test_gate_fails_a_stand_in_whose_csharp_could_not_take_the_compat_classes(self):
+        gate = runpy.run_path(str(self.ROOT / "tools/native-engine/standin/gate.py"))
+        base = ["droiddeck-native-godot: first frame after 1.0 s", "STANDIN_DEPS loaded=0 none", "FIRST_FRAME",
+                "MAINLOOP_OK frames=5"]
+        ok, *_ = gate["judge"](0, [(0.0, s) for s in base + ["STANDIN_COMPAT ok n=6"]], "off")
+        self.assertEqual([], ok)
+        bad, *_ = gate["judge"](0, [(0.0, s) for s in base + [
+            "STANDIN_COMPAT failed SpineSprite InvalidOperationException Wrapper class not found for type: SpineSprite"]],
+            "off")
+        self.assertEqual(1, len(bad))
+        self.assertIn("SpineSprite InvalidOperationException", bad[0])
+
 if __name__ == "__main__":
     unittest.main()
 

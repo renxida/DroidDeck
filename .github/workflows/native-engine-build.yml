@@ -121,10 +121,12 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch "$GODOT_VER" https://github.com/godotengine/godot.git ~/godot-src
           cd ~/godot-src && git log -1 --oneline
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/csharp_compat_classes.py" ~/godot-src \
+            "$GITHUB_WORKSPACE/tools/native-engine/modules/native_compat/register_types.cpp"
       - uses: actions/cache@v4
         with:
           path: ~/scons-cache
-          key: scons-451-linux-arm64-mono-tr-${{ hashFiles('tools/native-engine/modules/**') }}
+          key: scons-451-linux-arm64-mono-tr-${{ hashFiles('tools/native-engine/modules/**', 'tools/native-engine/patches/**') }}
           restore-keys: scons-451-linux-arm64-mono-tr-
       - name: Build template_release (mono, arm64) with custom modules
         timeout-minutes: 150

@@ -98,6 +98,9 @@ def judge(rc, lines, deps):
         reasons.append("deps on but none loaded")
     elif deps == "off" and int(m.group(1)) != 0:
         reasons.append("deps off but some loaded")
+    compat = re.search(r"^STANDIN_COMPAT failed .*", text, re.M)
+    if compat:
+        reasons.append("C# could not take the engine's compat classes (" + compat.group(0)[22:160] + ")")
     refused = re.search(r"not starting:.*", text)
     if refused:
         reasons.append("wrapper refused to start (" + refused.group(0)[:160] + ")")
@@ -184,7 +187,7 @@ def main(argv=None):
               f"first FPS line at {runs[-1]['timing']['fps_first']} s, MAINLOOP_OK at {runs[-1]['timing']['MAINLOOP_OK']} s)",
               flush=True)
         for t, line in lines:
-            if re.match(r"(Vulkan|OpenGL( ES)?) [0-9.]+|droiddeck-native-godot: (first frame|composed|Steam)|STANDIN_DEPS", line):
+            if re.match(r"(Vulkan|OpenGL( ES)?) [0-9.]+|droiddeck-native-godot: (first frame|composed|Steam)|STANDIN_DEPS|STANDIN_COMPAT", line):
                 print(f"    [{t:8.3f}] {line[:240]}")
         if not passed:
             for t, line in lines[-60:]:
