@@ -352,10 +352,15 @@ jobs:
           echo "COMPONENT tag=$tag sha256=$sha url=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Start the app build that embeds it
         # Build APK on perf/switchboard resolves the newest gated engine release (this one), runs every gate on
-        # the APK, and release-apk puts it on "latest" only if all pass. The one human step stays this dispatch.
+        # the APK, and release-apk puts it on "latest" only if all pass. Only once perf/switchboard's build
+        # resolves engine releases (it has the resolver); before that a rebuild there would not pick this up.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if ! gh api "repos/$GITHUB_REPOSITORY/contents/tools/native-engine/resolve_component.py?ref=perf/switchboard" --silent 2>/dev/null; then
+            echo "::warning::perf/switchboard does not resolve engine releases yet; not starting its app build" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           gh workflow run build.yml -R "$GITHUB_REPOSITORY" --ref perf/switchboard
           echo "Started Build APK on perf/switchboard to embed native-engine-${GITHUB_RUN_NUMBER}" | tee -a "$GITHUB_STEP_SUMMARY"
