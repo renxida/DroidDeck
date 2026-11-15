@@ -256,6 +256,53 @@ class NativeGodotTest(unittest.TestCase):
         self.assertEqual(3, rc)
         self.assertEqual(["booting", "Project FPS: 60 (16.67 mspf)", "bye"], out.splitlines())  # second FPS line thinned
 
+    def test_watch_stops_a_game_whose_steam_init_failed_so_it_starts_on_proton(self):
+        # Slay the Spire 2 natively: Steam's init failed, then its error box would wait for the player.
+        seen = []
+        out = io.StringIO()
+        err = io.StringIO()
+        began = time.monotonic()
+        with unittest.mock.patch("sys.stderr", err):
+            rc = NG["watch"](self.fake_engine(
+                "print('[INFO] Steamworks: attempting initialization...', flush=True)\n"
+                "print('[ERROR] Steamworks initialization failed! Result: k_ESteamAPIInitResult_FailedGeneric, message: ', flush=True)\n"
+                "print('Project FPS: 60 (16.67 mspf)', flush=True)\ntime.sleep(60)"),
+                dict(os.environ), first_frame_s=30, out=out, on_steam_failed=seen.append)
+        self.assertEqual(NG["DID_NOT_START"], rc)
+        self.assertLess(time.monotonic() - began, 20)
+        self.assertEqual(1, len(seen))
+        self.assertIn("FailedGeneric", seen[0])
+        self.assertIn(NG["NATIVE_STEAM_INIT"], err.getvalue())
+
+    def test_a_failed_native_steam_init_is_remembered_per_engine_client_and_game(self):
+        client = self.root / "steamclient.so"
+        client.write_bytes(b"client")
+        win = self.game / "data_sts2_windows_x86_64"
+        win.mkdir(parents=True, exist_ok=True)
+        (win / "sts2.dll").write_bytes(b"game")
+        cache = str(self.root / "refused")
+        path = NG["steam_refusal_path"]("native-engine-67", str(self.game), clients=[str(client)], cache_dir=cache)
+        NG["remember_steam_refusal"](path, "Steamworks initialization failed!")
+        self.assertTrue(os.path.exists(path))
+        self.assertEqual(path, NG["steam_refusal_path"]("native-engine-67", str(self.game), clients=[str(client)],
+                                                        cache_dir=cache))
+        self.assertNotEqual(path, NG["steam_refusal_path"]("native-engine-68", str(self.game), clients=[str(client)],
+                                                           cache_dir=cache))
+        client.write_bytes(b"client updated")
+        self.assertNotEqual(path, NG["steam_refusal_path"]("native-engine-67", str(self.game), clients=[str(client)],
+                                                           cache_dir=cache))
+
+    def test_steam_versions_are_every_client_interface_the_steamworks_net_names(self):
+        dll = self.root / "Steamworks.NET.dll"
+        heap = b""
+        for v in ("SteamUtils010", "SteamClient021", "STEAMHTMLSURFACE_INTERFACE_VERSION_005", "SteamGameServer015",
+                  "STEAMTIMELINE_INTERFACE_V001", "SteamUser023", "STEAMAPPTICKET_INTERFACE_VERSION001",
+                  "SteamUtils010", "[Steamworks.NET] Failed"):
+            heap += bytes([2 * len(v) + 1]) + v.encode("utf-16-le") + b"\0"
+        dll.write_bytes(b"MZ\0" + heap)  # strings at even offsets, as utf-16 reads them
+        self.assertEqual(["SteamUtils010", "STEAMHTMLSURFACE_INTERFACE_VERSION_005", "STEAMTIMELINE_INTERFACE_V001",
+                          "SteamUser023"], NG["steam_versions"](str(dll)))
+
     def test_watch_clean_exit_after_a_first_frame(self):
         rc, _, _ = self.run_watch("print('Project FPS: 60 (16.67 mspf)')")
         self.assertEqual(0, rc)
@@ -418,7 +465,8 @@ class NativeGodotTest(unittest.TestCase):
         win = self.game / "data_sts2_windows_x86_64"
         (win / "Steamworks.NET.dll").write_bytes(
             pe(True) + b"\0SteamAPI_Init\0\0SteamAPI_ISteamClient_GetISteamGameSearch\0"
-            b"\0SteamAPI_ISteamClient_GetISteamMusicRemote\0" + "SteamMatchGameSearch001\0SteamInput006".encode("utf-16-le"))
+            b"\0SteamAPI_ISteamClient_GetISteamMusicRemote\0" + b"\x01\x2f"  # a #US heap entry's terminal and length bytes
+            + "SteamMatchGameSearch001\0SteamInput006".encode("utf-16-le"))
         valve = self.root / "libsteam_api.so"
         valve.write_bytes(b"\x7fELF valve\0SteamAPI_Init\0SteamAPI_ISteamClient_GetISteamGenericInterface\0")
         out = self.root / "launch"
@@ -484,8 +532,7 @@ class NativeGodotTest(unittest.TestCase):
         self.assertTrue(first["versions"]["SteamMatchGameSearch001"])
         self.assertFalse(first["versions"]["SteamInput006"])
         line = NG["steam_probe_line"](first)
-        self.assertIn("SteamMatchGameSearch001 non-null", line)
-        self.assertIn("SteamInput006 null", line)
+        self.assertIn("3 of 4 interface versions non-null (null: SteamInput006)", line)
         again = NG["steam_probe"]("/lib/libsteam_api.so", "/game", env, cache, [str(client)], runner=runner)
         self.assertTrue(again["cached"])
         self.assertEqual(1, len(calls))

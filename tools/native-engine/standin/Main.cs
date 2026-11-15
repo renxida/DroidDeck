@@ -3,7 +3,10 @@
 //   stdout "FIRST_FRAME"                                    on the first _Process
 //   stdout "MAINLOOP_OK frames=<N>"                         after N frames; then it quits with exit code 0
 // N comes from "--quit-after-frames N" (user args after "--", or engine args), else the environment variable
-// STANDIN_QUIT_AFTER_FRAMES; with neither it runs until closed. Lines go straight to stdout through .NET's
+// STANDIN_QUIT_AFTER_FRAMES; with neither it runs until closed.
+//   stdout "STANDIN_STEAM_INIT ok" or "STANDIN_STEAM_INIT failed <result> <message>"   in _Ready, only with
+// "--steam-init" (or STANDIN_STEAM_INIT=1): Steamworks.NET's own SteamAPI.InitEx, the call Slay the Spire 2
+// makes, against whatever libsteam_api the launch put beside the game. Nothing in it is faked; it keeps running. Lines go straight to stdout through .NET's
 // Console (unbuffered), not Godot's print, so a reader sees each one as it happens.
 using System;
 using System.Collections.Generic;
@@ -21,6 +24,33 @@ public partial class Main : Node2D
     {
         Console.Out.WriteLine(line);
         Console.Out.Flush();
+    }
+
+    static bool Flag(string name, string env)
+    {
+        foreach (var args in new[] { OS.GetCmdlineUserArgs(), OS.GetCmdlineArgs() })
+            if (args.Contains(name))
+                return true;
+        return System.Environment.GetEnvironmentVariable(env) == "1";
+    }
+
+    static void SteamInit()
+    {
+#if STANDIN_DEPS
+        try
+        {
+            var result = Steamworks.SteamAPI.InitEx(out string message);
+            Say(result == Steamworks.ESteamAPIInitResult.k_ESteamAPIInitResult_OK
+                ? "STANDIN_STEAM_INIT ok"
+                : $"STANDIN_STEAM_INIT failed {result} {message}");
+        }
+        catch (Exception e)
+        {
+            Say($"STANDIN_STEAM_INIT failed {e.GetType().Name} {e.Message}");
+        }
+#else
+        Say("STANDIN_STEAM_INIT failed this stand-in was built without Steamworks.NET");
+#endif
     }
 
     static long QuitAfter()
@@ -52,6 +82,8 @@ public partial class Main : Node2D
             .ToList();
         Say($"STANDIN_DEPS loaded={loaded.Count} " + (loaded.Count > 0 ? string.Join(", ", loaded) : "none")
             + $" arch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
+        if (Flag("--steam-init", "STANDIN_STEAM_INIT"))
+            SteamInit();
     }
 
     public override void _Input(InputEvent e)
@@ -83,7 +115,7 @@ static class Deps
 {
     // Touch one managed type (and run a little managed code) from each package, so each assembly loads and
     // JIT-compiles from the launch folder. Nothing here P/Invokes a native Windows library, and Steam is only a
-    // value type: no SteamAPI_Init.
+    // value type here (SteamInit above is the one opt-in call).
     public static HashSet<string> Touch()
     {
         var names = new HashSet<string>(StringComparer.Ordinal);

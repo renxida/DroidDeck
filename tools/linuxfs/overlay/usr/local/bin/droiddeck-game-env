@@ -3497,6 +3497,10 @@ ENGINE_LINE = "droiddeck-game-env: engine: "
 # What droiddeck-native-godot logs when it will not start a game whose Steamworks.NET calls accessors Valve's
 # linux-arm64 library lacks.
 NATIVE_STEAM_GAP = "not starting: Steam cannot initialise"
+# ... when the game's own Steam init failed natively (it is stopped and starts on Proton), or the client said it
+# does not serve an interface version the game's Steamworks.NET fetches.
+NATIVE_STEAM_INIT = "not starting: Steam did not initialise in the native engine"
+NATIVE_STEAM_UNSERVED = "not starting: the Steam client does not serve"
 
 
 def engine_line(path, build, skipped=None):
@@ -3523,7 +3527,13 @@ def native_skip_reason(notes):
     if "could not start" in last:
         return "could not start"
     if "no first frame" in last:
-        return "Steam library gap" if any(NATIVE_STEAM_GAP in note for note in notes) else "no first frame"
+        if any(NATIVE_STEAM_GAP in note for note in notes):
+            return "Steam library gap"
+        if any(NATIVE_STEAM_INIT in note for note in notes):
+            return "Steam init failed"
+        if any(NATIVE_STEAM_UNSERVED in note for note in notes):
+            return "Steam interface missing"
+        return "no first frame"
     match = re.search(r"exited with (-?\d+)", last)
     return "exited with %s" % match.group(1) if match else None
 

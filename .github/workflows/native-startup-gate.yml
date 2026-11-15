@@ -265,7 +265,8 @@ jobs:
         row: [r2r-deps-gdext, r2r-deps-nogdext, r2r-nodeps-gdext, r2r-nodeps-nogdext,
               il-deps-gdext, il-deps-nogdext, il-nodeps-gdext, il-nodeps-nogdext,
               xvfb-opengl3, xvfb-vulkan, selftest-7754c57b, selftest-d68b35ad, selftest-f86b8550, probe,
-              steam-preflight, game-env-native, game-env-selftest-54]
+              steam-preflight, game-env-native, game-env-selftest-54,
+              game-env-steam-init]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -351,10 +352,21 @@ jobs:
             echo "This gate checks a component artifact before it is published; the app build's own gate runs this row on the pin it embeds."
             exit 0
           fi
-          expect=; [ "${{ matrix.row }}" = game-env-selftest-54 ] && expect="--expect-skip"
+          # game-env-steam-init: the stand-in calls Steamworks.NET's SteamAPI.InitEx, as Slay the Spire 2 does,
+          # against Valve's real libsteam_api behind the bridge. CI has no Steam client, so the real check fails,
+          # and the launch must stop the native engine and go on to Proton (the phone's Nov 15 "Steam Error!" box).
+          set -- --headless --max-fps 30 --quit-after-frames 300
+          case ${{ matrix.row }} in
+            game-env-selftest-54) expect=("--expect-skip" "Steam library gap") ;;
+            game-env-steam-init) expect=("--expect-skip" "Steam init failed"); set -- "$@" --steam-init ;;
+            *) expect=() ;;
+          esac
           python3 tools/native-engine/standin/decide.py --game-env "$GAME_ENV" --wrapper "$WRAPPER" \
-            --game-dir "$RUNNER_TEMP/standin" --work "$RUNNER_TEMP/gate/${{ matrix.row }}" ${expect:+"$expect" "Steam library gap"} \
-            -- --headless --max-fps 30 --quit-after-frames 300
+            --game-dir "$RUNNER_TEMP/standin" --work "$RUNNER_TEMP/gate/${{ matrix.row }}" "${expect[@]}" -- "$@"
+          if [ "${{ matrix.row }}" = game-env-steam-init ]; then
+            grep -m1 '^STANDIN_STEAM_INIT failed' "$RUNNER_TEMP/gate/${{ matrix.row }}/native-engine.log" \
+              || { echo "the stand-in never reported its SteamAPI.InitEx result"; exit 1; }
+          fi
       - name: Probe how Godot's frame-rate line reaches the watchdog (informational)
         if: matrix.row == 'probe'
         continue-on-error: true

@@ -447,23 +447,29 @@ def steam_api_missing(steamworks_dll, library):
 STEAM_BRIDGE = "steam-bridge/libsteam_api64.so"
 STEAM_BRIDGED = {"SteamAPI_ISteamClient_GetISteamGameSearch": "SteamMatchGameSearch",
                  "SteamAPI_ISteamClient_GetISteamMusicRemote": "STEAMMUSICREMOTE_INTERFACE_VERSION"}
-STEAM_VERSION = re.compile(r"(SteamMatchGameSearch|STEAMMUSICREMOTE_INTERFACE_VERSION|SteamInput|"
-                           r"STEAMREMOTEPLAY_INTERFACE_VERSION)(\d{3})")
+# Every interface version constant in a Steamworks.NET (UTF-16 string literals such as SteamUser023,
+# STEAMTIMELINE_INTERFACE_V001, STEAMHTMLSURFACE_INTERFACE_VERSION_005). Its SteamAPI.InitEx fetches each client
+# interface after Steam's own init succeeds and reports a bare FailedGeneric if any comes back null (Slay the
+# Spire 2's "Steam failed to initialize" with empty details), so the probe asks the client for all of them.
+STEAM_VERSION = re.compile(r"(?<![A-Za-z0-9_])((?:Steam|STEAM)[A-Za-z]*?(?:_INTERFACE_VERSION_?|_INTERFACE_V)?)(\d{3})"
+                           r"(?![A-Za-z0-9_])")
+# Not client interfaces a game's SteamAPI.InitEx fetches: the client itself and the game-server side.
+STEAM_NOT_CLIENT = re.compile(r"SteamClient\d|SteamGameServer|STEAMAPPTICKET_")
 
 
 def steam_versions(steamworks_dll):
-    """The interface versions (of the families the probe asks about) that the game's Steamworks.NET asks for:
-    its version constants are UTF-16 string literals."""
+    """The client interface versions the game's Steamworks.NET asks Steam for, in the order its constants appear."""
     try:
         with open(steamworks_dll, "rb") as f:
             text = f.read().decode("utf-16-le", "replace")
     except OSError:
         return []
-    found = {}
+    found = []
     for m in STEAM_VERSION.finditer(text):
-        found.setdefault(m.group(1), m.group(0))
-    return [found[k] for k in ("SteamMatchGameSearch", "STEAMMUSICREMOTE_INTERFACE_VERSION", "SteamInput",
-                               "STEAMREMOTEPLAY_INTERFACE_VERSION") if k in found]
+        v = m.group(0)
+        if v not in found and not STEAM_NOT_CLIENT.match(v):
+            found.append(v)
+    return found
 
 
 # Read-only probe for the forwarding question: does the phone's arm64 steamclient still serve the interface
@@ -578,7 +584,10 @@ def steam_probe_line(result):
         return f"Steam probe: unknown ({result['unknown']})"
     if result.get("init") != 0:
         return f"Steam probe: SteamAPI_InitFlat returned {result['init']} ({result.get('init_message', '')}), {result.get('wall_seconds')} s"
-    served = ", ".join(f"{v} {'non-null' if ok else 'null'}" for v, ok in result["versions"].items())
+    versions = result.get("versions") or {}
+    null = [v for v, ok in versions.items() if not ok]
+    served = f"{len(versions) - len(null)} of {len(versions)} interface versions non-null" + (
+        f" (null: {', '.join(null)})" if null else "")
     return (f"Steam probe: {served}; client {'non-null' if result.get('client') else 'null'}; "
             f"{result.get('wall_seconds')} s" + (" (cached)" if result.get("cached") else ""))
 
@@ -1130,10 +1139,18 @@ def line_buffered(cmd, which=shutil.which):
     return [stdbuf, "-oL", "-eL"] + list(cmd) if stdbuf else list(cmd)
 
 
+# A game's own words for "SteamAPI.Init failed" (it then shows an error and quits). Natively that leaves the
+# player at an error box; on Proton the same game, Steam and account work, so the wrapper stops the engine and
+# the launch goes on to Proton (droiddeck-game-env) instead. Slay the Spire 2, then the stand-in's own line.
+STEAM_INIT_FAILED = re.compile(r"Steamworks initialization failed|^STANDIN_STEAM_INIT failed", re.M)
+NATIVE_STEAM_INIT = "not starting: Steam did not initialise in the native engine"
+
+
 def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.monotonic, forward_signals=False,
-          on_first_frame=None):
+          on_first_frame=None, steam_failed=STEAM_INIT_FAILED, on_steam_failed=None):
     """Runs the engine in its own process group, passing its output through; returns its exit code, or
-    DID_NOT_START if no frame-rate line came within first_frame_s or before it exited. With forward_signals,
+    DID_NOT_START if no frame-rate line came within first_frame_s or before it exited, or if the game said its
+    Steam init failed (steam_failed; then on_steam_failed(line) is called). With forward_signals,
     SIGTERM/SIGINT/SIGHUP to this wrapper stop the engine too. on_first_frame, if given, is called once at the
     first frame (its errors are logged, never raised)."""
     proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -1159,8 +1176,21 @@ def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.mono
         for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
             signal.signal(sig, lambda n, f: (kill(), sys.exit(128 + n)))
     last_fps = None
+    steam_line = None
     for raw in proc.stdout:
         line = raw.decode("utf-8", "replace")
+        if steam_line is None and steam_failed is not None and steam_failed.search(line):
+            steam_line = line.strip()
+            out.write(line)
+            out.flush()
+            log(f"{NATIVE_STEAM_INIT} ({steam_line[:160]}); stopping it so the game starts on Proton")
+            if on_steam_failed:
+                try:
+                    on_steam_failed(steam_line)
+                except Exception as error:
+                    log(f"after the Steam failure: {type(error).__name__}: {error}")
+            kill()
+            continue
         if line.startswith("Project FPS:"):
             now = clock()
             if not seen.is_set():
@@ -1178,6 +1208,9 @@ def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.mono
         out.flush()
     proc.stdout.close()
     rc = proc.wait()
+    if steam_line is not None:  # again, last: the caller reads only the log's tail
+        log(f"{NATIVE_STEAM_INIT} (engine stopped with {rc}); Proton")
+        return DID_NOT_START
     if timed_out.is_set():
         return DID_NOT_START
     if not seen.is_set():
@@ -1202,6 +1235,31 @@ def game_fingerprint(game_dir):
         if os.path.isfile(os.path.join(win, name)):
             digest.update(f"{name}\0{st.st_size}\0{st.st_mtime_ns}\n".encode())
     return digest.hexdigest()
+
+
+STEAM_REFUSED_DIR = os.path.join(CACHE, "steam-refused")
+
+
+def steam_refusal_path(tag, game_dir, env=None, clients=None, cache_dir=None):
+    """Where a failed native Steam init is remembered: per engine component, arm64 steamclient.so contents and game
+    files, so a new engine, Steam client update or game update tries the native engine again."""
+    clients = arm64_steamclients(env=env) if clients is None else clients
+    digest = hashlib.sha256(tag.encode() + b"\0")
+    for path in clients:
+        try:
+            with open(path, "rb") as f:
+                digest.update(hashlib.sha256(f.read()).digest())
+        except OSError:
+            pass
+    digest.update(game_fingerprint(game_dir).encode())
+    return os.path.join(cache_dir or STEAM_REFUSED_DIR, digest.hexdigest() + ".json")
+
+
+def remember_steam_refusal(path, line, clock=time.time):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w") as f:
+        json.dump({"line": line[:300], "at": int(clock())}, f)
+    os.replace(path + ".tmp", path)
 
 
 def tool_fingerprint():
@@ -1367,17 +1425,28 @@ def main(argv=None):
             f"{', '.join(fatal)}, which its SteamAPI.Init calls (the game would quit on 'Failed to initialize Steam')")
         return DID_NOT_START
     bridged = sorted(set(STEAM_BRIDGED) & set(steam_api_missing_without_bridge(r)))
-    if bridged and a.command == "run" and not a.no_steam_preflight:
-        # The bridge only helps if the real client serves the versions the game asks for; if it answers that it
-        # does not, Steam init would fail natively, so the game goes to Proton instead.
-        wants = r.get("steam_versions") or list(STEAM_PROBE_VERSIONS)
-        probe = steam_probe(r["steam_api"], os.path.abspath(a.game_dir), dict(os.environ), versions=wants)
+    refusal = None
+    if r.get("steam_versions") and a.command == "run" and not a.no_steam_preflight:
+        tag = COMPONENT["tag"] if a.fetch else (os.path.basename(os.path.normpath(component)) if component else "custom")
+        try:
+            refusal = steam_refusal_path(tag, a.game_dir, env=dict(os.environ))
+            with open(refusal) as f:
+                last = json.load(f)
+            log(f"{NATIVE_STEAM_INIT} last time with this engine, Steam client and game ({last.get('line', '')[:160]}); "
+                "Proton")
+            return DID_NOT_START
+        except (OSError, ValueError):
+            pass
+        # Steamworks.NET's SteamAPI.InitEx fetches every client interface it knows once Steam's own init succeeds,
+        # and fails if the client serves any of them as null; a client that answers so goes to Proton instead.
+        probe = steam_probe(r["steam_api"], os.path.abspath(a.game_dir), dict(os.environ), versions=r["steam_versions"])
         log(steam_probe_line(probe))
         refused = [v for v, ok in (probe.get("versions") or {}).items() if not ok]
         if probe.get("init") == 0 and refused:
             log(f"not starting: the Steam client does not serve {', '.join(refused)}, which this game's "
                 "SteamAPI.Init asks for (it would quit on 'Failed to initialize Steam')")
             return DID_NOT_START
+    if bridged and a.command == "run" and not a.no_steam_preflight:
         log(f"Steam bridge: forwarding {', '.join(n.split('GetISteam')[1] for n in bridged)} to the real client")
     log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
         f"{r['kit_files']} kit files, skipped {len(r['skipped'])}"
@@ -1401,7 +1470,8 @@ def main(argv=None):
         if icu:
             log(f"ICU: {ICU['package']} from {icu} (app-local)")
     return watch(line_buffered(cmd), engine_env(os.environ, icu, system_icu), forward_signals=True,
-                 on_first_frame=r2r_after_first_frame(r))
+                 on_first_frame=r2r_after_first_frame(r),
+                 on_steam_failed=(lambda line: remember_steam_refusal(refusal, line)) if refusal else None)
 
 
 if __name__ == "__main__":
