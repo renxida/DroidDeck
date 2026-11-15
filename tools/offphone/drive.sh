@@ -179,8 +179,19 @@ case $base in
     # In stand-in-background the game must still be running when the rig comes back (READY at
     # about 12 s, 20 s away), so it runs about three times longer there.
     frames=300; [ "$scenario" = stand-in-background ] && frames=1200
-    # The experiment switch for this launch only (the next session's environment).
-    [ "$scenario" = stand-in-native ] && "$ctl" env set DROIDDECK_EXP_NATIVE_ENGINE=1 >/dev/null
+    # The native-engine switch as Settings > Experiments sets it for a game launch: game-env strips DROIDDECK_EXP_*
+    # from the inherited environment and takes game-level switches from game-environment.json's shared entries.
+    # The app's own copy is what it republishes into the guest when a session starts; the guest copy covers a
+    # session that is already running.
+    if [ "$scenario" = stand-in-native ]; then
+      for f in "/data/user/0/$pkg/files/game-environment.json" "$fs/root/.config/droiddeck/game-environment.json"; do
+        cur=$(adb shell "cat $f 2>/dev/null" | tr -d '\r'); jq -e . >/dev/null 2>&1 <<<"$cur" || cur='{"version":1,"shared":{},"games":{}}'
+        new=$(jq -c '.shared = ((.shared // {}) + {"DROIDDECK_EXP_NATIVE_ENGINE": "1"})' <<<"$cur")
+        adb shell "mkdir -p ${f%/*} && chown $uid:$uid ${f%/*} && printf '%s' '$new' > $f && chown $uid:$uid $f && restorecon $f" 2>/dev/null \
+          || echo "rig: could not write $f"
+      done
+      echo "rig: native-engine on for game launches: $(adb shell "cat $fs/root/.config/droiddeck/game-environment.json" | tr -d '\r' | jq -c .shared)"
+    fi
     "$ctl" run /usr/local/bin/droiddeck-proton-run -- "/root/standin/$exe" --quit-after-frames $frames --max-fps 30 ;;
 esac
 
