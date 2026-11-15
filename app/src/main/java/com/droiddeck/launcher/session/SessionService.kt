@@ -81,6 +81,10 @@ class SessionService : Service() {
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var gameKeptAwake = false
+    private var gameExitKeptAwake = false
+    /** elapsedRealtime of the last game.exited; see [SessionSuspendPolicy.GAME_EXIT_AWAKE_MS]. */
+    private var lastGameExitAt = -1L
+    private val gameExitSettled = Runnable { updateSuspendPolicy() }
     private var steamDownloadsInBackground = false
     private var activityVisible = true
     private var activityDisplayId = Display.DEFAULT_DISPLAY
@@ -577,6 +581,7 @@ class SessionService : Service() {
             listOf(File(sessionDir, "session.log"), com.droiddeck.launcher.telemetry.CrashEvidence.x64Log(this)),
             onGamePlayed = { com.droiddeck.launcher.telemetry.RemoteConfig.markPlayed(this) },
         ) { exit ->
+            noteGameExited()
             com.droiddeck.launcher.telemetry.RemoteConfig.gameExited(this, exit)
             if (exit.abnormal) com.droiddeck.launcher.telemetry.TelemetryUploader.uploadNow(this, sessionDir)
         }.let {
@@ -1742,9 +1747,23 @@ class SessionService : Service() {
         syncWatcher = watcher
     }
 
+    /** From the frame log's thread: keep the guest awake while the game's processes finish exiting, and thaw it if it froze meanwhile. */
+    private fun noteGameExited() {
+        mainHandler.post {
+            if (!SessionState.running) return@post
+            lastGameExitAt = android.os.SystemClock.elapsedRealtime()
+            mainHandler.removeCallbacks(gameExitSettled)
+            mainHandler.postDelayed(gameExitSettled, SessionSuspendPolicy.GAME_EXIT_AWAKE_MS)
+            updateSuspendPolicy()
+        }
+    }
+
     private fun updateSuspendPolicy() {
         if (!SessionState.running) return
         val hidden = !hasVisibleSurface
+        val gameExiting = SessionSuspendPolicy.gameExiting(android.os.SystemClock.elapsedRealtime(), lastGameExitAt)
+        if (gameExiting && hidden && !gameExitKeptAwake) SessionEvents.record("session.suspend_skipped", mapOf("reason" to "game_exiting"))
+        gameExitKeptAwake = gameExiting && hidden
         val downloadsBlockingSuspend = downloadsKeepAwake() && hidden && !suspendDownloadNow
         val steamMode = SessionState.mode == MODE_STEAM
         val gameKeepsAwake = SessionSuspendPolicy.gameKeepsAwake(
@@ -1762,7 +1781,7 @@ class SessionService : Service() {
         val steamPause = SessionSuspendPolicy.steamPause(
             policy = suspendPolicy, steamMode = steamMode, hidden = hidden, manualHold = manualHold,
             downloadsBlockingSuspend = downloadsBlockingSuspend, gameKeepsAwake = gameKeepsAwake,
-            manualPauseRequested = manualPauseRequested,
+            manualPauseRequested = manualPauseRequested, gameExiting = gameExiting,
         )
         if (!steamPause) {
             completeNativeSleep()
@@ -1775,7 +1794,7 @@ class SessionService : Service() {
             policy = suspendPolicy, hidden = hidden, manualHold = manualHold,
             downloadsBlockingSuspend = downloadsBlockingSuspend, gameKeepsAwake = gameKeepsAwake,
             manualPauseRequested = manualPauseRequested, prepared = prepared, nativeSleepReady = nativeSleepReady,
-            steamSleepRequested = steamSleepToken != null,
+            steamSleepRequested = steamSleepToken != null, gameExiting = gameExiting,
         )
         val quietRumble = !screenOn || shouldSuspend || SessionState.suspended
         components.forEach { (it as? RumbleComponent)?.quiet(quietRumble) }
