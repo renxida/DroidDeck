@@ -40,6 +40,11 @@ SCENARIOS.update({
     "steam-ui-background": STEAM[:3] + ["backgrounded", "returned_to_session"] + STEAM[3:],
     "stand-in-background": SCENARIOS["stand-in-game"][:2] + ["backgrounded", "returned_to_session"]
                            + SCENARIOS["stand-in-game"][2:],
+    # The native engine, not Proton: the session log's last engine line is "native <tag>" (game-env prints a
+    # "proton ...; native skipped: ..." line when it falls back), and the stand-in's own stdout markers, which
+    # natively reach native-engine.log, show it ran to its last frame.
+    "stand-in-native": ["start_requested", "guest_started", "native_engine", "standin_first_frame",
+                        "standin_mainloop_ok"],
     "upgrade": ["upgrade_installed", "settings_kept", "runtime_kept"] + STEAM,
 })
 # Seconds after the start request by which a stage must have happened. CI's Steam UI takes about
@@ -121,6 +126,7 @@ def main():
     # The stand-in prints its own markers; the session log carries the guest's stdout.
     # Under Proton the game's stdout can land in Proton's own log (games/*/steam-*.log) instead.
     logs = [os.path.join(a.session_dir, "session.log")]
+    logs += [os.path.join(a.session_dir, f) for f in ("native-engine.log",)]
     for folder in (os.path.join(a.session_dir, "games"), a.extra_logs):
         if folder and os.path.isdir(folder):
             for root, _, files in os.walk(folder):
@@ -133,8 +139,16 @@ def main():
             if stage not in seen and re.search(pattern, text, re.M):
                 seen[stage] = None  # present, time unknown from the log alone
 
+    engine_lines = []
+    session_log = os.path.join(a.session_dir, "session.log")
+    if os.path.isfile(session_log):
+        engine_lines = re.findall(r"droiddeck-game-env: engine: (.*)",
+                                  open(session_log, encoding="utf-8", errors="replace").read())
+    if engine_lines and engine_lines[-1].startswith("native ") and "skipped" not in engine_lines[-1]:
+        seen["native_engine"] = None
+
     frames = None
-    if a.scenario.startswith("stand-in"):
+    if a.scenario.startswith("stand-in") and a.scenario != "stand-in-native":
         first, frames = game_frames(os.path.join(a.session_dir, "frames.csv"))
         if first is not None:
             seen["standin_first_frame"] = first
@@ -184,6 +198,7 @@ def main():
         "exit": {k: last_exit.get(k) for k in ("class", "suspect", "status", "signal", "detail")} if last_exit else None,
         "next_missing_stage": next((s for s in order if s not in seen), None),
         "game_vulkan_frames": frames,
+        "engine_lines": engine_lines or None,
         "too_late": late or None,
         "session_restarted": restarted is not None,
     }

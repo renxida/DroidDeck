@@ -11,6 +11,10 @@
 #                        starts (cdabfbd: Steam's UI took 150 s instead of 25).
 # steam-ui-background    steam-ui with the app sent home for 30 s while Steam starts.
 # stand-in-background    stand-in-game with the app sent home for 20 s while the game loads (008c6625).
+# stand-in-native        The stand-in with the native-engine experiment on, as Slay the Spire 2 runs on a
+#                        phone: droiddeck-game-env must start it on the native engine this APK embeds
+#                        (Steam preflight on, Steam's client installed) and it must run to its last frame.
+#                        "Native engine skipped" or a fall back to Proton fails the run.
 # upgrade                The previous kestrel.apk installed and set up first (OLD_APK, already
 #                        installed by the caller), then this APK (NEW_APK) installed over it: a
 #                        setting must survive, then steam-ui.
@@ -26,7 +30,7 @@ pkg=$("$apptools/app-id")
 fs=/data/user/0/$pkg/files/linuxfs
 case $scenario in
   steam-ui|steam-ui-screen-cycle|steam-ui-background|upgrade) base=steam-ui ;;
-  stand-in-game|stand-in-background) base=stand-in-game ;;
+  stand-in-game|stand-in-background|stand-in-native) base=stand-in-game ;;
   *) echo "unknown scenario $scenario"; exit 2 ;;
 esac
 mkdir -p "$out"; : > "$out/rig-events.jsonl"
@@ -175,6 +179,8 @@ case $base in
     # In stand-in-background the game must still be running when the rig comes back (READY at
     # about 12 s, 20 s away), so it runs about three times longer there.
     frames=300; [ "$scenario" = stand-in-background ] && frames=1200
+    # The experiment switch for this launch only (the next session's environment).
+    [ "$scenario" = stand-in-native ] && "$ctl" env set DROIDDECK_EXP_NATIVE_ENGINE=1 >/dev/null
     "$ctl" run /usr/local/bin/droiddeck-proton-run -- "/root/standin/$exe" --quit-after-frames $frames --max-fps 30 ;;
 esac
 
@@ -213,7 +219,8 @@ while [ $(( $(date +%s) - t0 )) -lt "$limit" ]; do
     # The stand-in prints its markers to stdout, which lands in the session log.
     d=$(latest_dir)
     if [ -n "$d" ] && [ "$d" != "$before" ]; then
-      m=$(adb shell "grep -m2 -E '^(FIRST_FRAME|MAINLOOP_OK)' ${d%/}/session.log 2>/dev/null" | tr -d '\r')
+      # Natively the game's stdout goes to native-engine.log in the session folder, not session.log.
+      m=$(adb shell "grep -rh -m2 -E '^(FIRST_FRAME|MAINLOOP_OK)' ${d%/}/session.log ${d%/}/native-engine.log ${d%/}/games 2>/dev/null" | tr -d '\r')
       grep -q '^FIRST_FRAME' <<<"$m" && ! grep -q standin_first_frame "$out/rig-events.jsonl" && rig_event standin_first_frame
       grep -q '^MAINLOOP_OK' <<<"$m" && { rig_event standin_mainloop_ok; break; }
     fi
@@ -245,6 +252,12 @@ for f in $(find "$out/rig-session/games" -type f 2>/dev/null | sort); do
   else grep -v '^D [0-9]' "$f"; fi | cut -c1-300
   echo; echo "::endgroup::"
 done
+if [ "$scenario" = stand-in-native ]; then
+  echo "rig: engine lines: $(grep -h 'droiddeck-game-env: engine: ' "$out/rig-session/session.log" 2>/dev/null | cut -c1-200 | tr '\n' '|')"
+  for f in $(find "$out/rig-session" -name native-engine.log 2>/dev/null); do
+    echo "::group::native engine log ${f#$out/rig-session/} (last 200 lines)"; tail -n 200 "$f" | cut -c1-300; echo "::endgroup::"
+  done
+fi
 if [ "$base" = stand-in-game ]; then
   echo "rig: stand-in folder: $(ls "$standin" | tr '\n' ' ')"
   # Godot's own log, in the game's prefix.
