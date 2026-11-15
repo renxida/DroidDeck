@@ -60,9 +60,9 @@ import time
 import urllib.request
 
 # The published component. Built by .github/workflows/native-engine-build.yml (publish=true).
-COMPONENT = {"tag": "native-engine-54",
-             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-54/native-engine.tar.zst",
-             "sha256": "2d48de6b67c78992557bab42ee06311cae33a4db1281b8465a19e23c59f93b32"}
+COMPONENT = {"tag": "native-engine-65",
+             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-65/native-engine.tar.zst",
+             "sha256": "409dce6fc579032ca1c744f3832bf359705b8b6dd73739bf9f1165c4dd824daa"}
 # Valve's linux-arm64 Steamworks library, as packaged by Steamworks.NET on nuget.org (Steamworks SDK 1.63+).
 STEAM_API = {"package": "Steamworks.NET.AnyCPU 2026.165.3",
              "url": "https://api.nuget.org/v3-flatcontainer/steamworks.net.anycpu/2026.165.3/"
