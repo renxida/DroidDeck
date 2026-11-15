@@ -16,9 +16,19 @@ class LauncherRejoinTest {
         running: Boolean = false,
         phase: SessionPhase = SessionPhase.STARTING_STEAM,
         stopRequested: Boolean = false,
-        pipActive: Boolean = false,
+        inPip: Boolean = false,
+        pipChosen: Boolean = false,
         lastShown: Screen = Screen.SESSION,
-    ) = LauncherRejoin.shouldRejoin(action, categories, running, phase, stopRequested, pipActive, lastShown)
+    ) = LauncherRejoin.shouldRejoin(action, categories, running, phase, stopRequested, inPip, pipChosen, lastShown)
+
+    private fun expand(
+        running: Boolean = true,
+        phase: SessionPhase = SessionPhase.READY,
+        stopRequested: Boolean = false,
+        inPip: Boolean = true,
+        pipChosen: Boolean = false,
+        lastShown: Screen = Screen.SESSION,
+    ) = LauncherRejoin.shouldExpandPip(running, phase, stopRequested, inPip, pipChosen, lastShown)
 
     @Test
     fun launcherIconReturnsToASessionThatIsStillStarting() {
@@ -52,9 +62,31 @@ class LauncherRejoinTest {
         assertFalse(rejoin(lastShown = Screen.NONE))
     }
 
+    // Off-phone rig, stand-in-background: Home during a game floated the session, and the icon showed the library.
     @Test
-    fun aFloatingSessionIsLeftInPictureInPicture() {
-        assertFalse(rejoin(running = true, phase = SessionPhase.READY, pipActive = true))
+    fun launcherIconBringsASessionFloatedByLeavingTheAppBackFullScreen() {
+        assertTrue(rejoin(running = true, phase = SessionPhase.READY, inPip = true))
+        assertTrue(rejoin(running = true, phase = SessionPhase.SUSPENDED, inPip = true))
+        assertTrue(expand())
+        assertTrue(expand(phase = SessionPhase.SUSPENDED))
+    }
+
+    @Test
+    fun aSessionFloatedWithItsOwnButtonStaysFloatingOverTheLibrary() {
+        assertFalse(rejoin(running = true, phase = SessionPhase.READY, inPip = true, pipChosen = true))
+        assertFalse(expand(pipChosen = true))
+        // A stale choice from an earlier float does not hold back a full-screen session.
+        assertTrue(rejoin(running = true, phase = SessionPhase.READY, inPip = false, pipChosen = true))
+    }
+
+    @Test
+    fun theFrontScreenOnlyExpandsAFloatingLiveSessionThePlayerLeft() {
+        assertFalse(expand(inPip = false))
+        assertFalse(expand(lastShown = Screen.FRONT))
+        assertFalse(expand(lastShown = Screen.NONE))
+        assertFalse(expand(running = false, phase = SessionPhase.IDLE))
+        assertFalse(expand(phase = SessionPhase.STOPPING))
+        assertFalse(expand(stopRequested = true))
     }
 
     @Test
