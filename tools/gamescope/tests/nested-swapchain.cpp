@@ -1,6 +1,7 @@
 #include "nested_swapchain.hpp"
 #include "nested_surface_format.hpp"
 #include "dmabuf_import.hpp"
+#include "mappable_memory_type.hpp"
 #include "sdl_refresh.hpp"
 #include <cassert>
 #include <cstdio>
@@ -152,5 +153,25 @@ int main()
     assert(DmabufMemoryType(memory, 7, 0, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == UINT32_MAX);
     assert(DmabufMemoryType(memory, 7, 4, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == UINT32_MAX);
-    std::puts("Gamescope presentation and DMA-BUF import tests passed");
+
+    // PowerVR D-Series: HOST_COHERENT and HOST_CACHED, never both, for a mappable texture.
+    VkPhysicalDeviceMemoryProperties pvr = {};
+    pvr.memoryTypeCount = 5;
+    pvr.memoryTypes[0].propertyFlags = 0x1;
+    pvr.memoryTypes[1].propertyFlags = 0x7;
+    pvr.memoryTypes[2].propertyFlags = 0xb;
+    pvr.memoryTypes[3].propertyFlags = 0x11;
+    pvr.memoryTypes[4].propertyFlags = 0x21;
+    using gamescope::MappableMemoryTypeFallback;
+    const VkMemoryPropertyFlags mappable = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+    VkMemoryPropertyFlags chosen = 0;
+    assert(MappableMemoryTypeFallback(pvr, mappable, 0x7, &chosen) == 1);
+    assert(chosen == (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+    assert(MappableMemoryTypeFallback(pvr, mappable, 0x5, &chosen) == 2);
+    assert(chosen == (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT));
+    assert(MappableMemoryTypeFallback(pvr, mappable, 0x1, &chosen) == -1);
+    assert(MappableMemoryTypeFallback(pvr, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 0x5, &chosen) == -1);
+    std::puts("Gamescope presentation, DMA-BUF import and memory type tests passed");
 }

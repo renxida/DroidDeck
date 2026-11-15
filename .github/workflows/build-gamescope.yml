@@ -41,7 +41,7 @@ jobs:
             gamescope.tzst.sha256
       - uses: actions/create-github-app-token@v2
         id: components-token
-        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != '' && github.repository == 'Droid-Deck/DroidDeck'
         with:
           app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
           private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
@@ -50,14 +50,16 @@ jobs:
       - name: Publish
         if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
         env:
-          GH_TOKEN: ${{ steps.components-token.outputs.token }}
-          GH_REPO: Droid-Deck/DroidDeck-Components
+          # A fork publishes to its own releases with its own token.
+          GH_TOKEN: ${{ github.repository == 'Droid-Deck/DroidDeck' && steps.components-token.outputs.token || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository == 'Droid-Deck/DroidDeck' && 'Droid-Deck/DroidDeck-Components' || github.repository }}
+          TARGET: ${{ github.repository != 'Droid-Deck/DroidDeck' && github.sha || '' }}
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::error::$TAG is already published in DroidDeck-Components, and published tags are never replaced: use a new tag"
+            echo "::error::$TAG is already published in $GH_REPO, and published tags are never replaced: use a new tag"
             exit 1
           fi
-          gh release create "$TAG" --latest=false --prerelease=false --title "$TAG" --notes "gamescope 3.16.29 with tools/gamescope/patches ($GITHUB_REPOSITORY $GITHUB_SHA, run $GITHUB_RUN_ID); staged by the apk over /usr/local/bin/gamescope. sha256 $(cut -d' ' -f1 gamescope.tzst.sha256)" gamescope.tzst gamescope.tzst.sha256
+          gh release create "$TAG" ${TARGET:+--target "$TARGET"} --latest=false --prerelease=false --title "$TAG" --notes "gamescope 3.16.29 with tools/gamescope/patches ($GITHUB_REPOSITORY $GITHUB_SHA, run $GITHUB_RUN_ID); staged by the apk over /usr/local/bin/gamescope. sha256 $(cut -d' ' -f1 gamescope.tzst.sha256)" gamescope.tzst gamescope.tzst.sha256
           gh release edit "$TAG" --latest=false --prerelease=false

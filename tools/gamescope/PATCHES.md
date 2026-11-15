@@ -350,3 +350,15 @@ motion while the seat is locked) with how the X pointer moves. A hinted constrai
 after 30 moving frames on which the X pointer follows. Any constraint goes relative once the X pointer moves less than a quarter
 of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
 (PEAK). `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
+
+## 0936 rendervulkan: mappable memory without HOST_CACHED or HOST_COHERENT
+
+A screenshot (`GAMESCOPECTRL_REQUEST_SCREENSHOT`, also Steam's screenshot button) or PipeWire SHM
+capture asks for a mappable texture in HOST_VISIBLE|HOST_COHERENT|HOST_CACHED memory. The PowerVR
+D-Series driver (Pixel 10, DXT-48-1536) has HOST_VISIBLE|HOST_COHERENT and HOST_VISIBLE|HOST_CACHED
+types but none with both, so `acquire_pooled_texture` asserted and the session ended. `findMemoryType`
+now drops HOST_CACHED, then HOST_COHERENT, for such a request (`src/mappable_memory_type.hpp`) and logs
+the type it settled for once. A texture mapped from non-coherent memory is invalidated
+(`CVulkanTexture::invalidateMappedData`) before the screenshot thread and the PipeWire copy read it;
+gamescope never writes a mapped texture from the CPU. `tools/tests/test_gamescope_mappable_memory.py`
+compiles the fallback from this patch, and `tests/nested-swapchain.cpp` checks it with this driver's types.
