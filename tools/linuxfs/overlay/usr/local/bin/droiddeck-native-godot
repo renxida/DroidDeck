@@ -505,6 +505,27 @@ if init == 0:
         out["client"] = bool(client)
         for v in sys.argv[2:]:
             out["versions"][v] = bool(client) and bool(get(client, user, pipe, v.encode()))
+        # The typed accessors Steamworks.NET's CSteamAPIContext calls, as Valve's library answers them for the
+        # versions the game asks (Nov 15: one came back NULL right after STEAMAPPS though the generic one served).
+        out["typed_null"] = []
+        typed = {"SteamUser": "User", "SteamFriends": "Friends", "SteamMatchMaking": "Matchmaking",
+                 "SteamMatchMakingServers": "MatchmakingServers", "STEAMUSERSTATS_INTERFACE_VERSION": "UserStats",
+                 "STEAMAPPS_INTERFACE_VERSION": "Apps", "SteamNetworking": "Networking",
+                 "STEAMREMOTESTORAGE_INTERFACE_VERSION": "RemoteStorage",
+                 "STEAMSCREENSHOTS_INTERFACE_VERSION": "Screenshots", "STEAMHTTP_INTERFACE_VERSION": "HTTP",
+                 "STEAMUGC_INTERFACE_VERSION": "UGC", "STEAMMUSIC_INTERFACE_VERSION": "Music",
+                 "STEAMHTMLSURFACE_INTERFACE_VERSION_": "HTMLSurface", "STEAMINVENTORY_INTERFACE_V": "Inventory",
+                 "STEAMVIDEO_INTERFACE_V": "Video", "STEAMPARENTALSETTINGS_INTERFACE_VERSION": "ParentalSettings",
+                 "SteamInput": "Input", "SteamParties": "Parties", "STEAMREMOTEPLAY_INTERFACE_VERSION": "RemotePlay"}
+        for v in sys.argv[2:] if client else []:
+            iface = typed.get(v.rstrip("0123456789"))
+            f = getattr(lib, "SteamAPI_ISteamClient_GetISteam" + iface, None) if iface else None
+            if f is None:
+                continue
+            f.restype = ctypes.c_void_p
+            f.argtypes = [ctypes.c_void_p, ctypes.c_int32, ctypes.c_int32, ctypes.c_char_p]
+            if not f(client, user, pipe, v.encode()):
+                out["typed_null"].append(v)
     finally:
         lib.SteamAPI_Shutdown()
     # Which of these versions does Valve's init itself refuse? (Steamworks.NET hands init its whole list; one
@@ -565,7 +586,7 @@ def steam_probe(library, cwd, env, cache=CACHE, clients=None, timeout=STEAM_PROB
     for path in clients:
         with open(path, "rb") as f:
             digest.update(hashlib.sha256(f.read()).digest())
-    digest.update(b"probe-2\0" + "\0".join(versions).encode())  # probe-2: also init per version
+    digest.update(b"probe-3\0" + "\0".join(versions).encode())  # probe-3: also init per version and typed accessors
     key = digest.hexdigest()
     path = os.path.join(cache, "steam-probe", key + ".json")
     try:
@@ -608,6 +629,9 @@ def steam_probe_line(result):
     refused = [f"{v} ({r})" for v, r in each.items() if r != 0]
     init = (f"; Valve's init refuses {', '.join(refused)} of {len(each)} checked one by one" if refused
             else f"; Valve's init takes each of {len(each)} one by one" if each else "")
+    typed_null = result.get("typed_null") or []
+    if typed_null:
+        init += f"; typed accessors NULL for {', '.join(typed_null)}"
     return (f"Steam probe: {served}; client {'non-null' if result.get('client') else 'null'}{init}; "
             f"{result.get('wall_seconds')} s" + (" (cached)" if result.get("cached") else ""))
 
