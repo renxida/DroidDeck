@@ -348,7 +348,10 @@ jobs:
         if: startsWith(matrix.row, 'game-env-')
         run: |
           set -euo pipefail
-          if [ -n "${{ inputs.component_artifact }}" ] && [ "${{ matrix.row }}" = game-env-native ]; then
+          # droiddeck-game-env always runs a published component (--fetch reads the pin), so before publishing it would
+          # test the previous engine: with a wrapper that needs this build's Steam bridge, game-env-steam-init would
+          # see the old bridge's gap. The app build's own gate runs these rows on the pin it embeds.
+          if [ -n "${{ inputs.component_artifact }}" ] && { [ "${{ matrix.row }}" = game-env-native ] || [ "${{ matrix.row }}" = game-env-steam-init ]; }; then
             echo "This gate checks a component artifact before it is published; the app build's own gate runs this row on the pin it embeds."
             exit 0
           fi
