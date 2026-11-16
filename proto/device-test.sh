@@ -18,9 +18,10 @@ for f in 201 1225 2249 4297 8393 16585 205 713 31945 31949; do
 done
 
 log "== full workspace session (flags 31945)"
-rm -f $D/cmd; mkfifo $D/cmd
-run 1080 2400 420 31945 claude-ws < $D/cmd > $O/helper.log 2>&1 &
-exec 3>$D/cmd
+# Commands go in by appending to a file that tail -f pipes into the helper (a pipe works; a fifo did not).
+: > $D/cmd.txt
+(tail -f $D/cmd.txt | CLASSPATH=$D/vd.dex app_process / claude.vd.Main 1080 2400 420 31945 claude-ws > $O/helper.log 2>&1) &
+c() { echo "$@" >> $D/cmd.txt; sleep 1; }
 ID=""
 for i in $(seq 1 40); do ID=$(grep DISPLAY_ID $O/helper.log | head -1 | cut -d' ' -f2); [ -n "$ID" ] && break; sleep 0.5; done
 log "helper start: $(head -3 $O/helper.log)"
@@ -29,25 +30,25 @@ dumpsys display > $O/dumpsys_display.txt
 log "-- launch Settings on the workspace"
 am start -W --display $ID -n com.android.settings/.Settings >> $REP 2>&1
 sleep 3
-echo "shot $O/1_ws_settings.png" >&3
+c "shot $O/1_ws_settings.png"
 log "-- use display 0 at the same time (home, swipe up)"
 input keyevent KEYCODE_WAKEUP; input keyevent KEYCODE_HOME; sleep 1
 input -d 0 swipe 540 2000 540 600 300; sleep 1
 screencap -p $O/2_panel.png
 log "-- drive the workspace: tap and scroll"
 input -d $ID swipe 540 1800 540 700 300 >> $REP 2>&1; sleep 1
-echo "shot $O/3_ws_scrolled.png" >&3
+c "shot $O/3_ws_scrolled.png"
 input -d $ID tap 540 900 >> $REP 2>&1; sleep 2
-echo "shot $O/4_ws_tapped.png" >&3
+c "shot $O/4_ws_tapped.png"
 screencap -p $O/5_panel_after.png
 log "-- keyboard inside the workspace"
-echo "ime $ID 0" >&3
+c "ime $ID 0"
 input -d $ID keyevent KEYCODE_BACK; sleep 1
 am start -W --display $ID -a android.settings.APP_SEARCH_SETTINGS >> $REP 2>&1
 am start -W --display $ID -a com.android.settings.action.SETTINGS_SEARCH >> $REP 2>&1
 sleep 2
 input -d $ID text hello >> $REP 2>&1; sleep 2
-echo "shot $O/6_ws_typing.png" >&3
+c "shot $O/6_ws_typing.png"
 dumpsys input_method > $O/dumpsys_input_method.txt
 dumpsys window displays > $O/dumpsys_window_displays.txt
 dumpsys window | grep -E 'mCurrentFocus|mFocusedApp|mTopFocusedDisplayId' >> $REP
@@ -55,14 +56,14 @@ log "-- panel locked, workspace still driven"
 input keyevent KEYCODE_SLEEP; sleep 2
 input -d $ID keyevent KEYCODE_BACK >> $REP 2>&1; sleep 1
 input -d $ID swipe 540 1800 540 700 300 >> $REP 2>&1; sleep 2
-echo "shot $O/7_ws_while_locked.png" >&3
+c "shot $O/7_ws_while_locked.png"
 dumpsys window | grep -iE 'keyguard|isKeyguardShowing|mDreamingLockscreen' | head -5 >> $REP
 input keyevent KEYCODE_WAKEUP
 log "-- surface swap, uinput, display association"
-echo swap >&3; echo uinput >&3; echo assoc >&3; echo info >&3
+c swap; c uinput; c assoc; c info
 sleep 4
 dumpsys activity activities | grep -E 'Display #|ActivityRecord|mResumedActivity' | head -40 > $O/activities.txt
-echo quit >&3; exec 3>&-
+c quit; pkill -f "tail -f $D/cmd.txt"
 sleep 2
 log "== helper log"; cat $O/helper.log >> $REP
 log "== display dump, workspace lines"; grep -iE 'claude-ws|mDisplayId|FLAG_' $O/dumpsys_display.txt | head -60 >> $REP
