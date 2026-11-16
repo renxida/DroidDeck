@@ -44,8 +44,16 @@ pw "before drive the workspa"
 log "-- drive the workspace: tap and scroll"
 input -d $ID swipe 540 1800 540 700 300 >> $REP 2>&1; sleep 1
 c "shot $O/3_ws_scrolled.png"
-input -d $ID tap 540 980 >> $REP 2>&1; sleep 2
+act() { log "acts[$1]: $(dumpsys activity activities | grep -E 'Display #|topResumedActivity|ResumedActivity:' | tr -s ' ' | tr '\n' ';' | cut -c1-500)"; }
+sleep 3; act "before tap"
+input -d $ID tap 540 130 >> $REP 2>&1; sleep 3
+act "after tap on search bar"
 c "shot $O/4_ws_tapped.png"
+input -d $ID keyevent KEYCODE_BACK; sleep 2
+input -d $ID motionevent DOWN 540 1500 >> $REP 2>&1; sleep 0.1; input -d $ID motionevent UP 540 1500 >> $REP 2>&1; sleep 3
+act "after down/up at 540,1500"
+c "shot $O/4b_ws_tapped.png"
+input -d $ID keyevent KEYCODE_BACK; sleep 2
 screencap -p $O/5_panel_after.png
 pw "before keyboard inside t"
 log "-- keyboard inside the workspace"
