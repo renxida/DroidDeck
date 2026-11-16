@@ -764,7 +764,10 @@ class SessionService : Service() {
             SessionTerminal.prepare(terminalCommand, terminalHostEnvironment.map { (key, value) -> "$key=$value" }.toTypedArray(), root, gen)
         }
 
-        if (SessionState.mode == MODE_STEAM) OfflineMode.apply(this, root)
+        if (SessionState.mode == MODE_STEAM) {
+            OfflineMode.apply(this, root)
+            CloudConflicts.apply(root).takeIf { it.isNotEmpty() }?.let { Log.i(TAG, "cloud conflicts settled for the cloud copy: $it") }
+        }
 
         val networkLink = LinuxNetworkLinkComponent(this, root)
         networkLink.attach(this)
