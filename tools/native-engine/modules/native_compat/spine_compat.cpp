@@ -985,7 +985,22 @@ Transform2D SpineBone::get_transform() const {
 	if (!b) {
 		return Transform2D();
 	}
+	// Matches what the game's own engine returns, as read back by the frame-diff harness on Cedar's phone: the
+	// local rotation is not negated, each axis carries cos and sin scaled by the other axis's scale, and the
+	// origin is the bone's local x and y as stored (y up). DROIDDECK_NATIVE_SPINE_BONE_TRANSFORM=0 restores the
+	// earlier canvas-convention transform.
+	static const bool raw_layout = [] {
+		const char *v = getenv("DROIDDECK_NATIVE_SPINE_BONE_TRANSFORM");
+		return !(v && v[0] == '0');
+	}();
 	Transform2D t;
+	if (raw_layout) {
+		const real_t r = Math::deg_to_rad(b->rotation), cs = Math::cos(r), sn = Math::sin(r);
+		t.columns[0] = Vector2(cs * b->scale_x, sn * b->scale_y);
+		t.columns[1] = Vector2(-sn * b->scale_x, cs * b->scale_y);
+		t.columns[2] = Vector2(b->x, b->y);
+		return t;
+	}
 	t.set_rotation_scale_and_skew(Math::deg_to_rad(-b->rotation), Size2(b->scale_x, b->scale_y), 0);
 	t.set_origin(to_canvas(b->x, b->y));
 	return t;
@@ -1382,6 +1397,16 @@ void SpineSprite::_rebuild() {
 		skeleton->set_skin(to_std(preview_skin));
 	}
 	skeleton->update_world_transform();
+	// The setup-pose transform above must not start the physics simulation: the game's own engine starts it
+	// from the first animated update, so springs begin at rest on the animated pose (frame-diff harness, Fool
+	// idle). DROIDDECK_NATIVE_SPINE_PHYSICS_START=0 keeps the old start from the setup pose.
+	static const bool start_on_update = [] {
+		const char *v = getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_START");
+		return !(v && v[0] == '0');
+	}();
+	if (start_on_update) {
+		skeleton->reset_physics();
+	}
 	queue_redraw();
 }
 

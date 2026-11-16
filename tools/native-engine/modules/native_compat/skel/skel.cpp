@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace skel {
 
@@ -1095,6 +1096,17 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 				}
 				float key = b.data->rotation + cv.evaluate(time, 0);
 				if (blend == MixBlend::Replace) {
+					// A full-weight key lands as keyed (the game's engine reads back -206 where a wrapped mix
+					// gave 153); partial weights still take the short way round. DROIDDECK_NATIVE_SPINE_RAW_ROTATE=0
+					// wraps every key as before.
+					static const bool raw_key = [] {
+						const char *v = getenv("DROIDDECK_NATIVE_SPINE_RAW_ROTATE");
+						return !(v && v[0] == '0');
+					}();
+					if (raw_key && alpha >= 1) {
+						b.rotation = key;
+						break;
+					}
 					b.rotation += wrap180(key - b.rotation) * alpha;
 				} else {
 					b.rotation += (key - b.data->rotation) * alpha;
