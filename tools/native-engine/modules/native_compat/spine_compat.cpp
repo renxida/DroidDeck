@@ -938,12 +938,14 @@ float SpineBone::get_world_x() const {
 
 float SpineBone::get_world_y() const {
 	skel::Bone *b = bone();
-	return b ? b->world_y : 0;
+	// The canvas's y runs down; the skeleton's runs up. The game's renderer reports canvas y here (harness:
+	// every bone's world y came back negated before this).
+	return b ? -b->world_y : 0;
 }
 
 float SpineBone::get_world_rotation_x() const {
 	skel::Bone *b = bone();
-	return b ? b->world_rotation_x() : 0;
+	return b ? -b->world_rotation_x() : 0; // canvas angles turn the other way (y down), as the game's renderer reports
 }
 
 float SpineBone::get_world_scale_x() const {
