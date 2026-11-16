@@ -1,0 +1,148 @@
++ echo '== build'
+== build
++ adb shell getprop ro.build.fingerprint
+google/sdk_gphone64_x86_64/emu64xa:16/BE2A.250530.026.F3/13894323:userdebug/dev-keys
++ echo '== assistant before'
+== assistant before
++ adb shell cmd role get-role-holders android.app.role.ASSISTANT
+com.google.android.googlequicksearchbox
++ adb shell settings get secure assistant
+com.google.android.googlequicksearchbox/com.google.android.voiceinteraction.GsaVoiceInteractionService
++ adb shell settings get secure voice_interaction_service
+com.google.android.googlequicksearchbox/com.google.android.voiceinteraction.GsaVoiceInteractionService
++ echo '== install'
+== install
++ adb install -r assist/claude-assist.apk
+Serving...
+All files should be loaded. Notifying the device.
+Performing Incremental Install
+Success
+Install command complete in 3046 ms
++ echo '== qualifies?'
+== qualifies?
++ adb shell cmd role add-role-holder android.app.role.ASSISTANT claude.assist
++ echo exit=0
+exit=0
++ sleep 3
++ echo '== assistant after'
+== assistant after
++ adb shell cmd role get-role-holders android.app.role.ASSISTANT
+claude.assist
++ adb shell settings get secure assistant
+claude.assist/.ClaudeVIS
++ adb shell settings get secure voice_interaction_service
+claude.assist/.ClaudeVIS
++ adb shell dumpsys voiceinteraction
++ head -40
+VOICE INTERACTION MANAGER (dumpsys voiceinteraction)
+  mEnableService: true
+  mTemporarilyDisabled: false
+  mCurUser: 0
+  mCurUserSupported: true
+  mIsHdsRequired: false
+  1 supported user: [0]
+  Enrolled KeyphraseSoundModels:
+  mUser=0
+  mComponent=claude.assist/.ClaudeVIS
+  Session service=claude.assist.ClaudeSessionService
+  Service info:
+    name=claude.assist.ClaudeVIS
+    packageName=claude.assist
+    enabled=true exported=true directBootAware=false
+    permission=android.permission.BIND_VOICE_INTERACTION
+    flags=0x0
+    ApplicationInfo:
+      packageName=claude.assist
+      labelRes=0x0 nonLocalizedLabel=Claude icon=0x0 banner=0x0
+      processName=claude.assist
+      taskAffinity=claude.assist
+      uid=10216 flags=0x3088be44 privateFlags=0x8c001000 theme=0x0
+      requiresSmallestWidthDp=0 compatibleWidthLimitDp=0 largestWidthLimitDp=0
+      sourceDir=/data/app/~~p_DatcB6uAv_vjsZQLWEAw==/claude.assist-w6JOcJuPUheFlyCTAOh1Mw==/base.apk
+      resourceDirs=[/product/overlay/EmulationPixel6/EmulationPixel6Overlay.apk, /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk]
+      overlayPaths=[/product/overlay/EmulationPixel6/EmulationPixel6Overlay.apk, /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk]
+      seinfo=default:targetSdkVersion=35
+      seinfoUser=:complete
+      dataDir=/data/user/0/claude.assist
+      deviceProtectedDataDir=/data/user_de/0/claude.assist
+      credentialProtectedDataDir=/data/user/0/claude.assist
+      enabled=true minSdkVersion=33 targetSdkVersion=35 versionCode=0 targetSandboxVersion=1
+      supportsRtl=false
+      fullBackupContent=true
+      crossProfile=false
+      HiddenApiEnforcementPolicy=2
+      usesNonSdkApi=false
+      allowsPlaybackCapture=true
+      nativeHeapZeroInitialized=0
++ adb logcat -c
++ echo '== KEYCODE_ASSIST'
+== KEYCODE_ASSIST
++ adb shell input keyevent KEYCODE_ASSIST
++ sleep 4
++ adb logcat -d -s ClaudeAssist:I
+--------- beginning of main
+11-16 06:53:59.115  2249  2249 I ClaudeAssist: VIS_READY
++ adb shell input keyevent KEYCODE_BACK
++ sleep 1
++ adb logcat -c
++ echo '== long-press power (power_button_long_press=5 means assistant)'
+== long-press power (power_button_long_press=5 means assistant)
++ adb shell settings get global power_button_long_press
+null
++ adb shell settings put global power_button_long_press 5
++ adb shell input keyevent --longpress KEYCODE_POWER
++ sleep 4
++ adb logcat -d -s ClaudeAssist:I
+--------- beginning of main
+11-16 06:54:05.394  2249  2249 I ClaudeAssist: SESSION_SHOWN flags=7 args=Bundle[mParcelledData.dataSize=700]
+11-16 06:54:05.395  2249  2249 I ClaudeAssist: ASSIST_DATA structure=true screenshot? see onHandleScreenshot
+11-16 06:54:05.524  2249  2249 I ClaudeAssist: SCREENSHOT 1080x2400
++ adb shell input keyevent KEYCODE_BACK
++ sleep 1
++ adb logcat -c
++ echo '== voiceinteraction show'
+== voiceinteraction show
++ adb shell cmd voiceinteraction show
+Error calling showSessionForActiveService(): java.lang.SecurityException: Access denied, requires: android.permission.ACCESS_VOICE_INTERACTION_SERVICE
++ sleep 4
++ adb logcat -d -s ClaudeAssist:I
++ adb shell screencap -p /data/local/tmp/assist.png
++ adb pull /data/local/tmp/assist.png results/assist-api36-google_apis/
+/data/local/tmp/assist.png: 1 file pulled, 0 skipped. 81.0 MB/s (1376540 bytes in 0.016s)
++ echo '== VIS log since boot'
+== VIS log since boot
++ grep -iE 'ClaudeAssist|claude.assist'
++ tail -30
++ adb logcat -d -b all
+11-16 06:53:53.805   620   620 I notification_cancel_all: [1000,620,claude.assist,0,0,0,5,NULL]
+11-16 06:53:55.216   620   685 I am_proc_start: [0,2249,10216,claude.assist,service,{claude.assist/claude.assist.ClaudeVIS}]
+11-16 06:53:55.446   620  1201 I am_proc_bound: [0,2249,claude.assist]
++ echo '== hotword permission'
+== hotword permission
++ adb shell dumpsys package claude.assist
++ grep -iE 'HOTWORD|RECORD_AUDIO'
++ adb shell pm grant claude.assist android.permission.CAPTURE_AUDIO_HOTWORD
+
+Exception occurred while executing 'grant':
+java.lang.SecurityException: Permission android.permission.CAPTURE_AUDIO_HOTWORD is managed by role
+	at com.android.server.permission.access.permission.PermissionService.setRuntimePermissionGranted(PermissionService.kt:997)
+	at com.android.server.permission.access.permission.PermissionService.access$setRuntimePermissionGranted(PermissionService.kt:108)
+	at com.android.server.permission.access.permission.PermissionService.setRuntimePermissionGranted(PermissionService.kt:883)
+	at com.android.server.permission.access.permission.PermissionService.setRuntimePermissionGranted$default(PermissionService.kt:788)
+	at com.android.server.permission.access.permission.PermissionService.grantRuntimePermission(PermissionService.kt:750)
+	at com.android.server.pm.permission.PermissionManagerService.grantRuntimePermission(PermissionManagerService.java:599)
+	at android.permission.PermissionManager.grantRuntimePermissionInternal(PermissionManager.java:680)
+	at android.permission.PermissionManager.grantRuntimePermission(PermissionManager.java:643)
+	at com.android.server.pm.PackageManagerShellCommand.runGrantRevokePermission(PackageManagerShellCommand.java:2704)
+	at com.android.server.pm.PackageManagerShellCommand.onCommand(PackageManagerShellCommand.java:317)
+	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+	at android.os.ShellCommand.exec(ShellCommand.java:38)
+	at com.android.server.pm.PackageManagerService$IPackageManagerImpl.onShellCommand(PackageManagerService.java:6684)
+	at android.os.Binder.shellCommand(Binder.java:1151)
+	at android.os.Binder.onTransact(Binder.java:953)
+	at android.content.pm.IPackageManager$Stub.onTransact(IPackageManager.java:4729)
+	at com.android.server.pm.PackageManagerService$IPackageManagerImpl.onTransact(PackageManagerService.java:6668)
+	at android.os.Binder.execTransactInternal(Binder.java:1426)
+	at android.os.Binder.execTransact(Binder.java:1365)
++ echo grant_exit=255
+grant_exit=255
