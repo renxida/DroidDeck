@@ -175,13 +175,14 @@ bool parse_atlas(const char *text, size_t length, Atlas &out, std::string &error
 namespace {
 
 // UV for a corner given in unrotated region space: s across (0 left .. 1 right), t up (0 bottom .. 1 top).
-// Texture v grows downward. A 90 degree region is stored turned clockwise in the page.
-// NOTE: the turn direction is unverified against real data; check a rotated region once the game's atlas is read.
+// Texture v grows downward. A 90 degree region is stored turned counter-clockwise in the page: the image's
+// top edge runs down the page rect's left side. (The first guess, clockwise, rendered every rotated region and
+// mesh turned 180 degrees in the frame-diff harness against the game's own renderer on Cedar's phone.)
 void region_uv(const AtlasRegion &r, float s, float t, float &u, float &v) {
 	if (r.degrees == 90) {
-		// Turned clockwise in the page: image top-left lands top-right, image bottom-left lands top-left.
-		u = r.u + t * (r.u2 - r.u);
-		v = r.v + s * (r.v2 - r.v);
+		// Image bottom-left lands bottom-right, image top-left lands bottom-left.
+		u = r.u + (1 - t) * (r.u2 - r.u);
+		v = r.v + (1 - s) * (r.v2 - r.v);
 		return;
 	}
 	u = r.u + s * (r.u2 - r.u);
