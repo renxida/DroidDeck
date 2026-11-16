@@ -2,6 +2,7 @@ name: claude-phone-proto
 on:
   push:
     branches: [claude-phone-proto]
+    paths: ['proto/**', '.github/workflows/claude-phone-proto.yml']
   workflow_dispatch:
 permissions:
   contents: write

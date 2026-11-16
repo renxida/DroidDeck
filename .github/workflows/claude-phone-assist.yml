@@ -1,0 +1,44 @@
+name: claude-phone-assist
+on:
+  push:
+    branches: [claude-phone-proto]
+    paths: ['assist/**', '.github/workflows/claude-phone-assist.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  assist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [google_apis, google_apis_playstore]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build test assistant
+        run: bash assist/build.sh
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: ${{ matrix.target }}
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: bash assist/test.sh results/assist-api36-${{ matrix.target }}
+      - name: Commit results to the branch
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+          git add -f results/ || exit 0
+          git commit -qm "Results: assistant role, ${{ matrix.target }}, run ${{ github.run_id }}" || exit 0
+          for i in 1 2 3 4 5; do git pull -q --rebase origin claude-phone-proto && git push -q origin HEAD:claude-phone-proto && break; sleep $((i*3)); done

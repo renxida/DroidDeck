@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="claude.assist">
+  <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="35"/>
+  <application android:label="Claude">
+    <activity android:name=".AssistActivity" android:exported="true" android:theme="@android:style/Theme.DeviceDefault.Dialog">
+      <intent-filter><action android:name="android.intent.action.ASSIST"/><category android:name="android.intent.category.DEFAULT"/></intent-filter>
+    </activity>
+    <service android:name=".ClaudeVIS" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION">
+      <meta-data android:name="android.voice_interaction" android:resource="@xml/interaction"/>
+      <intent-filter><action android:name="android.service.voice.VoiceInteractionService"/></intent-filter>
+    </service>
+    <service android:name=".ClaudeSessionService" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION"/>
+    <service android:name=".ClaudeRecognizer" android:exported="true">
+      <intent-filter><action android:name="android.speech.RecognitionService"/></intent-filter>
+      <meta-data android:name="android.speech" android:resource="@xml/recognizer"/>
+    </service>
+  </application>
+</manifest>
