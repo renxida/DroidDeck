@@ -44,7 +44,7 @@ pw "before drive the workspa"
 log "-- drive the workspace: tap and scroll"
 input -d $ID swipe 540 1800 540 700 300 >> $REP 2>&1; sleep 1
 c "shot $O/3_ws_scrolled.png"
-input -d $ID tap 540 900 >> $REP 2>&1; sleep 2
+input -d $ID tap 540 980 >> $REP 2>&1; sleep 2
 c "shot $O/4_ws_tapped.png"
 screencap -p $O/5_panel_after.png
 pw "before keyboard inside t"
