@@ -15,6 +15,27 @@ constexpr float DEG = 3.14159265358979323846f / 180.0f;
 // Skins gate skin-required bones and constraints, as the game's renderer does (frame-diff harness, Phantasmal
 // Gardener: its "short" skin turns on five height and scale constraints, "tall" one bone).
 // DROIDDECK_NATIVE_SPINE_SKIN_GATING=0 applies every bone and constraint regardless of skin, as before.
+// Harness A/B switches. NoScale mode 0 drops the parent's scale before the local rotation is applied;
+// 1 aims the local x axis through the parent's full (possibly non-uniform) matrix and keeps the
+// result's direction; 2 does that for both local axes. Path samples is the per-curve arc-length
+// sampling.
+int noscale_mode() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_MODE");
+		return v ? std::atoi(v) : 0;
+	}();
+	return m;
+}
+
+int path_samples() {
+	static const int n = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_SAMPLES");
+		int k = v ? std::atoi(v) : 16;
+		return k < 1 ? 16 : (k > 256 ? 256 : k);
+	}();
+	return n;
+}
+
 bool skin_gating() {
 	static const bool on = [] {
 		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_SKIN_GATING");
@@ -461,6 +482,44 @@ void Skeleton::update_bone(Bone &bone) {
 		bones[bd.parent].local_to_world(bone.x, bone.y, bone.world_x, bone.world_y);
 	}
 	float pa, pb, pc, pd;
+	const bool no_scale = bd.parent >= 0 && (bone.inherit == Inherit::NoScale || bone.inherit == Inherit::NoScaleOrReflection);
+	if (no_scale && noscale_mode() != 0) {
+		const Bone &p = bones[bd.parent];
+		float qa = p.a, qb = p.b, qc = p.c, qd = p.d;
+		if (bone.inherit == Inherit::NoScaleOrReflection && qa * qd - qb * qc < 0) {
+			qb = -qb; // take the reflection out of the parent before aiming through it
+			qd = -qd;
+		}
+		auto aim = [&](float ang, float scale, float &ox, float &oy) {
+			float x = qa * std::cos(ang) + qb * std::sin(ang), y = qc * std::cos(ang) + qd * std::sin(ang);
+			float l = std::hypot(x, y);
+			if (l < 1e-9f) {
+				x = std::cos(ang);
+				y = std::sin(ang);
+				l = 1;
+			}
+			ox = x / l * scale;
+			oy = y / l * scale;
+		};
+		if (noscale_mode() == 2) {
+			aim(rx, bone.scale_x, bone.a, bone.c);
+			aim(ry, bone.scale_y, bone.b, bone.d);
+		} else {
+			float ax, ay;
+			aim(rx, 1, ax, ay);
+			float th = std::atan2(ay, ax) - rx, cs = std::cos(th), sn = std::sin(th);
+			float flip = (bone.inherit == Inherit::NoScale && qa * qd - qb * qc < 0) ? -1.0f : 1.0f;
+			pa = cs;
+			pb = -sn * flip;
+			pc = sn;
+			pd = cs * flip;
+			bone.a = pa * la + pb * lc;
+			bone.b = pa * lb + pb * ld;
+			bone.c = pc * la + pd * lc;
+			bone.d = pc * lb + pd * ld;
+		}
+		return;
+	}
 	parent_basis(*this, bone, pa, pb, pc, pd);
 	bone.a = pa * la + pb * lc;
 	bone.b = pa * lb + pb * ld;
@@ -717,7 +776,7 @@ void Skeleton::apply_path(PathConstraint &p) {
 	if (curves < 1) {
 		return;
 	}
-	const int samples = 16;
+	const int samples = path_samples();
 	std::vector<float> &pts = path_points_; // per sample: x, y, tangent x, tangent y
 	std::vector<float> &cum = path_lengths_;
 	pts.clear();

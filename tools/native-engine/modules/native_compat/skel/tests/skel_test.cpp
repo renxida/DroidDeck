@@ -4,6 +4,7 @@
 #include "../skel.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -222,6 +223,21 @@ static void test_skin_gating() {
 	CHECK(sk.bones[2].active);
 	NEAR(sk.bones[2].world_y, 400);
 	NEAR(sk.bones[1].world_rotation_x(), 0);
+}
+
+// A NoScale child under a parent with non-uniform world scale (numbers from the Gardener's fin).
+static void test_noscale_nonuniform_parent() {
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+	  {"name": "root"},
+	  {"name": "stalk", "parent": "root", "rotation": -53.417, "scaleX": 0.8235},
+	  {"name": "fin", "parent": "stalk", "rotation": 308.154, "inherit": "noScale"}]})");
+	if (!sd) return;
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_MODE");
+	const bool aim = m && m[0] != '0';
+	NEAR(sk.bones[2].world_rotation_x(), aim ? -110.5157 : -105.263);
+	NEAR(std::hypot(sk.bones[2].a, sk.bones[2].c), 1);
 }
 
 static void test_spine3_layout() {
@@ -624,6 +640,7 @@ int main() {
 	test_crossfade();
 	test_ik();
 	test_skin_gating();
+	test_noscale_nonuniform_parent();
 	test_spine3_layout();
 	test_binary();
 	test_binary_path_physics();
