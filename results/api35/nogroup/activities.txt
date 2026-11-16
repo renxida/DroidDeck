@@ -1,0 +1,21 @@
+Display #11 (activities from top to bottom):
+    mLastPausedActivity: ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+    topResumedActivity=ActivityRecord{bf88995 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+    * Hist  #1: ActivityRecord{bf88995 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+    * Hist  #0: ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+    mLastPausedActivity: ActivityRecord{fe67649 u0 com.android.settings/.SubSettings t-1 f}}
+    * Hist  #0: ActivityRecord{8298a42 u0 com.android.settings/.Settings t8}
+    Resumed: ActivityRecord{bf88995 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+Display #0 (activities from top to bottom):
+      mLastPausedActivity: ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+      topResumedActivity=ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+      * Hist  #1: ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+    Resumed: ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+  ResumedActivity: ActivityRecord{bf88995 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+  deepestLastOrientationSource=ActivityRecord{bf88995 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+  mFocusedApp=ActivityRecord{bf88995 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+        * ActivityRecord{bf88995 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+        * ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+        * ActivityRecord{8298a42 u0 com.android.settings/.Settings t8}
+          * ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+    mSystemBarColorApps={ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}}
