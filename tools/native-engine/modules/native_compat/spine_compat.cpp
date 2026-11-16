@@ -79,6 +79,17 @@ struct FrameSplit {
 		if (window_start_usec == 0) {
 			window_start_usec = now;
 			thread_cpu_start_nsec = thread_cpu_nsec();
+			static bool formats_logged = false;
+			if (!formats_logged) {
+				// Which compressed texture formats the GPU takes as they are; the engine decodes the others on the
+				// CPU at load.
+				formats_logged = true;
+				RenderingServer *rs = RenderingServer::get_singleton();
+				print_line(vformat("native_compat: texture formats on gpu: s3tc %s, bptc %s, etc2 %s, astc %s, astc_hdr %s",
+						rs->has_os_feature("s3tc") ? "yes" : "no", rs->has_os_feature("bptc") ? "yes" : "no",
+						rs->has_os_feature("etc2") ? "yes" : "no", rs->has_os_feature("astc") ? "yes" : "no",
+						rs->has_os_feature("astc_hdr") ? "yes" : "no"));
+			}
 		}
 		if (frames > 0 && now - window_start_usec >= 10000000) {
 			const double f = double(frames);
