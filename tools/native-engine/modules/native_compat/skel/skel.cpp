@@ -12,6 +12,17 @@ namespace {
 
 constexpr float DEG = 3.14159265358979323846f / 180.0f;
 
+// Skins gate skin-required bones and constraints, as the game's renderer does (frame-diff harness, Phantasmal
+// Gardener: its "short" skin turns on five height and scale constraints, "tall" one bone).
+// DROIDDECK_NATIVE_SPINE_SKIN_GATING=0 applies every bone and constraint regardless of skin, as before.
+bool skin_gating() {
+	static const bool on = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_SKIN_GATING");
+		return !(v && v[0] == '0');
+	}();
+	return on;
+}
+
 float wrap180(float degrees) {
 	degrees = std::fmod(degrees, 360.0f);
 	if (degrees > 180) {
@@ -260,6 +271,12 @@ Skeleton::Skeleton(const SkeletonData *d) : data(d) {
 	};
 	std::stable_sort(constraint_order.begin(), constraint_order.end(),
 			[&](const std::pair<int, int> &a, const std::pair<int, int> &b) { return order_of(a) < order_of(b); });
+	if (skin_gating()) {
+		// No skin is on yet, so a skin-required bone stays unposed until set_skin turns it on.
+		for (auto &b : bones) {
+			b.active = !b.data->skin_required;
+		}
+	}
 	setup_pose();
 }
 
@@ -902,6 +919,36 @@ void Skeleton::apply_physics(PhysicsConstraint &p, float dt) {
 	set_world(b, a, bb, c, dd, wx, wy);
 }
 
+bool Skeleton::constraint_on(int kind, int index) const {
+	if (!skin_gating()) {
+		return true;
+	}
+	bool required = false;
+	const std::vector<int> *listed = nullptr;
+	switch (kind) {
+		case IK:
+			required = data->ik[index].skin_required;
+			listed = skin ? &skin->ik : nullptr;
+			break;
+		case TRANSFORM:
+			required = data->transforms[index].skin_required;
+			listed = skin ? &skin->transforms : nullptr;
+			break;
+		case PATH:
+			required = data->paths[index].skin_required;
+			listed = skin ? &skin->paths : nullptr;
+			break;
+		default:
+			required = data->physics[index].skin_required;
+			listed = skin ? &skin->physics : nullptr;
+			break;
+	}
+	if (!required) {
+		return true;
+	}
+	return listed && std::find(listed->begin(), listed->end(), index) != listed->end();
+}
+
 void Skeleton::update_after(const std::vector<int> &constrained) {
 	if (constrained.empty()) {
 		return;
@@ -909,12 +956,18 @@ void Skeleton::update_after(const std::vector<int> &constrained) {
 	// Constrained bones changed: recompute them and everything after the first one (children follow parents).
 	int first = *std::min_element(constrained.begin(), constrained.end());
 	for (size_t i = first; i < bones.size(); i++) {
+		if (!bones[i].active && skin_gating()) {
+			continue;
+		}
 		update_bone(bones[i]);
 	}
 }
 
 void Skeleton::update_world_transform() {
 	for (auto &b : bones) {
+		if (!b.active && skin_gating()) {
+			continue; // the game's renderer leaves a bone its skin has not turned on unposed
+		}
 		update_bone(b);
 	}
 	if (constraint_order.empty()) {
@@ -926,6 +979,9 @@ void Skeleton::update_world_transform() {
 	float dt = physics_time;
 	physics_time = 0;
 	for (const auto &c : constraint_order) {
+		if (!constraint_on(c.first, c.second)) {
+			continue;
+		}
 		switch (c.first) {
 			case TRANSFORM:
 				apply_transform(transforms[c.second]);

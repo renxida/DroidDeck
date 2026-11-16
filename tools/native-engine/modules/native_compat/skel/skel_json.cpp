@@ -166,6 +166,7 @@ struct Loader {
 			d.compress = k.flag("compress", false);
 			d.stretch = k.flag("stretch", false);
 			d.uniform = k.flag("uniform", false);
+			d.skin_required = k.flag("skin", false);
 			sd.ik.push_back(d);
 		}
 		std::stable_sort(sd.ik.begin(), sd.ik.end(), [](const IkData &a, const IkData &b) { return a.order < b.order; });
@@ -266,7 +267,7 @@ struct Loader {
 		return att;
 	}
 
-	bool skin(const std::string &name, const JsonValue &slots_map, const JsonValue *bones_list) {
+	bool skin(const std::string &name, const JsonValue &slots_map, const JsonValue *bones_list, const JsonValue *iks = nullptr) {
 		auto skin = std::make_unique<Skin>();
 		skin->name = name;
 		skin->slots.resize(sd.slots.size());
@@ -275,6 +276,14 @@ struct Loader {
 				int i = sd.find_bone(b.string);
 				if (i >= 0) {
 					skin->bones.push_back(i);
+				}
+			}
+		}
+		if (iks) {
+			for (const JsonValue &k : iks->array) {
+				int i = sd.find_ik(k.string);
+				if (i >= 0) {
+					skin->ik.push_back(i);
 				}
 			}
 		}
@@ -307,7 +316,7 @@ struct Loader {
 			for (const JsonValue &k : s->array) {
 				static const JsonValue empty_obj = [] { JsonValue v; v.kind = JsonValue::OBJECT; return v; }();
 				const JsonValue *att = k.get("attachments");
-				if (!skin(k.str("name", ""), att ? *att : empty_obj, k.get("bones"))) {
+				if (!skin(k.str("name", ""), att ? *att : empty_obj, k.get("bones"), k.get("ik"))) {
 					return false;
 				}
 			}

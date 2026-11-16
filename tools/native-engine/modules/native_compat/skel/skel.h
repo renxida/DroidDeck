@@ -106,6 +106,8 @@ struct Skin {
 	// One map per slot index: attachment key -> attachment.
 	std::vector<std::unordered_map<std::string, std::unique_ptr<Attachment>>> slots;
 	std::vector<int> bones; // bones only active while this skin is on (skin_required bones)
+	// Skin-required constraints this skin turns on, by index into SkeletonData's ik, transforms, paths, physics.
+	std::vector<int> ik, transforms, paths, physics;
 
 	Attachment *find(int slot, const std::string &key) const;
 };
@@ -134,6 +136,7 @@ struct IkData {
 	int target = 0;
 	float mix = 1, softness = 0;
 	bool bend_positive = true, compress = false, stretch = false, uniform = false;
+	bool skin_required = false; // applies only while a skin that lists it is on
 };
 
 // Moves bones toward a target bone's transform. World mode works on world matrices; local mode on
@@ -144,6 +147,7 @@ struct TransformData {
 	std::vector<int> bones;
 	int target = 0;
 	bool local = false, relative = false;
+	bool skin_required = false; // applies only while a skin that lists it is on
 	float offset_rotation = 0, offset_x = 0, offset_y = 0, offset_scale_x = 0, offset_scale_y = 0, offset_shear_y = 0;
 	float mix_rotate = 0, mix_x = 0, mix_y = 0, mix_scale_x = 0, mix_scale_y = 0, mix_shear_y = 0;
 };
@@ -341,6 +345,8 @@ private:
 	void apply_physics(PhysicsConstraint &p, float dt);
 	void set_world(Bone &bone, float a, float b, float c, float d, float wx, float wy);
 	void update_after(const std::vector<int> &constrained);
+	// Whether a constraint applies: always, unless it is skin-required and the current skin does not list it.
+	bool constraint_on(int kind, int index) const;
 	std::vector<Bone> pose_; // local values before constraints, restored after the world transform
 	std::vector<float> path_world_, path_points_, path_lengths_; // path constraint scratch
 };

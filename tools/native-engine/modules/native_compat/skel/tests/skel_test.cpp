@@ -187,6 +187,43 @@ static void test_ik() {
 	NEAR(sk.bones[2].world_x, 30);
 }
 
+// Skin-required bones and constraints only act while a skin that lists them is set.
+static const char *RIG_SKIN = R"({
+ "skeleton": {"spine": "4.2.43", "hash": "h"},
+ "bones": [
+  {"name": "root"},
+  {"name": "arm", "parent": "root", "length": 20},
+  {"name": "tall", "parent": "root", "y": 400, "skin": true},
+  {"name": "target", "parent": "root", "x": 0, "y": 30}
+ ],
+ "slots": [],
+ "ik": [{"name": "aim", "bones": ["arm"], "target": "target", "skin": true}],
+ "skins": [{"name": "default"}, {"name": "short", "ik": ["aim"]}, {"name": "tall", "bones": ["tall"]}]
+})";
+
+static void test_skin_gating() {
+	auto sd = load(RIG_SKIN);
+	if (!sd) return;
+	CHECK(sd->bones[2].skin_required);
+	CHECK(sd->ik[0].skin_required);
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	CHECK(!sk.bones[2].active);
+	NEAR(sk.bones[2].world_y, 0); // unposed without a skin that lists it
+	NEAR(sk.bones[1].world_rotation_x(), 0); // aim is off without its skin
+	CHECK(sk.set_skin("short"));
+	sk.setup_pose();
+	sk.update_world_transform();
+	NEAR(sk.bones[1].world_rotation_x(), 90); // aim now points the arm at the target
+	CHECK(!sk.bones[2].active);
+	CHECK(sk.set_skin("tall"));
+	sk.setup_pose();
+	sk.update_world_transform();
+	CHECK(sk.bones[2].active);
+	NEAR(sk.bones[2].world_y, 400);
+	NEAR(sk.bones[1].world_rotation_x(), 0);
+}
+
 static void test_spine3_layout() {
 	const char *rig3 = R"({
 	 "skeleton": {"spine": "3.8.99"},
@@ -586,6 +623,7 @@ int main() {
 	test_slots_events_draw_order_deform();
 	test_crossfade();
 	test_ik();
+	test_skin_gating();
 	test_spine3_layout();
 	test_binary();
 	test_binary_path_physics();

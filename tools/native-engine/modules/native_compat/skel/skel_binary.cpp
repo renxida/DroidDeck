@@ -271,6 +271,7 @@ struct BinaryLoader {
 			uint8_t f = r.byte();
 			// 1 skin required, 2 bend positive, 4 compress, 8 stretch, 16 uniform,
 			// 32 mix is not 0, 64 its value follows (else 1; without 32 the bit means nothing), 128 softness follows.
+			k.skin_required = f & 1;
 			k.bend_positive = f & 2;
 			k.compress = f & 4;
 			k.stretch = f & 8;
@@ -295,6 +296,7 @@ struct BinaryLoader {
 			t.target = index(int(sd.bones.size()), "transform target");
 			uint8_t f = r.byte();
 			// 1 skin required, 2 local, 4 relative, then which offsets follow.
+			t.skin_required = f & 1;
 			t.local = f & 2;
 			t.relative = f & 4;
 			if (f & 8) t.offset_rotation = r.f32();
@@ -606,10 +608,13 @@ struct BinaryLoader {
 			for (int k = 0; k < bones_n && ok(); k++) {
 				s->bones.push_back(index(int(sd.bones.size()), "skin bone"));
 			}
-			for (int list = 0; list < 4 && ok(); list++) { // ik, transform, path, physics constraints
+			// The skin-required constraints this skin turns on: ik, transform, path, physics, by index.
+			const int limits[4] = { int(sd.ik.size()), int(sd.transforms.size()), int(sd.paths.size()), int(sd.physics.size()) };
+			std::vector<int> *lists[4] = { &s->ik, &s->transforms, &s->paths, &s->physics };
+			for (int list = 0; list < 4 && ok(); list++) {
 				int c = r.count();
-				for (int k = 0; k < c && !r.bad; k++) {
-					r.varint();
+				for (int k = 0; k < c && ok(); k++) {
+					lists[list]->push_back(index(limits[list], "skin constraint"));
 				}
 			}
 			if (!skin_attachments(*s)) {
