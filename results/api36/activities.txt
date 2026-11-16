@@ -1,0 +1,11 @@
+Display #0 (activities from top to bottom):
+      mLastPausedActivity: ActivityRecord{35436106 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+      topResumedActivity=ActivityRecord{35436106 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+      * Hist  #1: ActivityRecord{35436106 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+    Resumed: ActivityRecord{35436106 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+Display #10 (activities from top to bottom):
+  ResumedActivity: ActivityRecord{35436106 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+  deepestLastOrientationSource=ActivityRecord{35436106 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+  mFocusedApp=ActivityRecord{35436106 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+          * ActivityRecord{35436106 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+    mSystemBarColorApps={ActivityRecord{35436106 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}}
