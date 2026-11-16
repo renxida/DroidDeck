@@ -1,0 +1,23 @@
+Display #10 (activities from top to bottom):
+    mLastPausedActivity: ActivityRecord{151868740 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+    topResumedActivity=ActivityRecord{151017519 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+    * Hist  #1: ActivityRecord{151017519 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+    * Hist  #0: ActivityRecord{151868740 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+    mLastPausedActivity: ActivityRecord{39297156 u0 com.android.settings/.Settings t7}
+    * Hist  #0: ActivityRecord{39297156 u0 com.android.settings/.Settings t7}
+    Resumed: ActivityRecord{151017519 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+Display #0 (activities from top to bottom):
+      mLastPausedActivity: ActivityRecord{189172279 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+      topResumedActivity=ActivityRecord{189172279 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+      * Hist  #1: ActivityRecord{189172279 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+    Resumed: ActivityRecord{189172279 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+  ResumedActivity: ActivityRecord{151017519 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+  deepestLastOrientationSource=ActivityRecord{151017519 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+  mFocusedApp=ActivityRecord{151017519 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+        * ActivityRecord{151017519 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+        * ActivityRecord{151868740 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+        * ActivityRecord{39297156 u0 com.android.settings/.Settings t7}
+  deepestLastOrientationSource=ActivityRecord{189172279 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+  mFocusedApp=ActivityRecord{189172279 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+          * ActivityRecord{189172279 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+    mSystemBarColorApps={ActivityRecord{189172279 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}}
