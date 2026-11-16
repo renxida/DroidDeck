@@ -21,8 +21,9 @@ log "== full workspace session (flags 31945)"
 rm -f $D/cmd; mkfifo $D/cmd
 run 1080 2400 420 31945 claude-ws < $D/cmd > $O/helper.log 2>&1 &
 exec 3>$D/cmd
-sleep 3
-ID=$(grep DISPLAY_ID $O/helper.log | head -1 | cut -d' ' -f2)
+ID=""
+for i in $(seq 1 40); do ID=$(grep DISPLAY_ID $O/helper.log | head -1 | cut -d' ' -f2); [ -n "$ID" ] && break; sleep 0.5; done
+log "helper start: $(head -3 $O/helper.log)"
 log "workspace id=$ID"
 dumpsys display > $O/dumpsys_display.txt
 log "-- launch Settings on the workspace"
