@@ -15,14 +15,15 @@ constexpr float DEG = 3.14159265358979323846f / 180.0f;
 // Skins gate skin-required bones and constraints, as the game's renderer does (frame-diff harness, Phantasmal
 // Gardener: its "short" skin turns on five height and scale constraints, "tall" one bone).
 // DROIDDECK_NATIVE_SPINE_SKIN_GATING=0 applies every bone and constraint regardless of skin, as before.
-// Harness A/B switches. NoScale mode 0 drops the parent's scale before the local rotation is applied;
-// 1 aims the local x axis through the parent's full (possibly non-uniform) matrix and keeps the
-// result's direction; 2 does that for both local axes. Path samples is the per-curve arc-length
+// NoScale mode 1 (default) aims the local x axis through the parent's full, possibly non-uniform,
+// matrix and keeps only the result's direction: the Gardener harness's raw world matrices match it to
+// 0.01 deg (fins under stretched path bones), where mode 0 (drop the parent's scale first) was off by up
+// to 5.2 deg. Mode 2 also aims the y axis. Path samples is the per-curve arc-length
 // sampling.
 int noscale_mode() {
 	static const int m = [] {
 		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_MODE");
-		return v ? std::atoi(v) : 0;
+		return v ? std::atoi(v) : 1;
 	}();
 	return m;
 }
@@ -507,8 +508,9 @@ void Skeleton::update_bone(Bone &bone) {
 		} else {
 			float ax, ay;
 			aim(rx, 1, ax, ay);
-			float th = std::atan2(ay, ax) - rx, cs = std::cos(th), sn = std::sin(th);
 			float flip = (bone.inherit == Inherit::NoScale && qa * qd - qb * qc < 0) ? -1.0f : 1.0f;
+			// With a kept reflection the basis turns the local angle the other way.
+			float th = std::atan2(ay, ax) - flip * rx, cs = std::cos(th), sn = std::sin(th);
 			pa = cs;
 			pb = -sn * flip;
 			pc = sn;

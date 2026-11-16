@@ -362,6 +362,10 @@ public:
 	float get_world_x() const;
 	float get_world_y() const;
 	float get_world_rotation_x() const;
+	float get_a() const;
+	float get_b() const;
+	float get_c() const;
+	float get_d() const;
 	float get_world_scale_x() const;
 	float get_world_scale_y() const;
 	bool is_active() const;

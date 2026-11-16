@@ -235,9 +235,19 @@ static void test_noscale_nonuniform_parent() {
 	Skeleton sk(sd.get());
 	sk.update_world_transform();
 	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_MODE");
-	const bool aim = m && m[0] != '0';
+	const bool aim = !(m && m[0] == '0');
 	NEAR(sk.bones[2].world_rotation_x(), aim ? -110.5157 : -105.263);
 	NEAR(std::hypot(sk.bones[2].a, sk.bones[2].c), 1);
+	if (aim) {
+		// In the game's y-down skeleton (scale y -1) the parent's world matrix is the harness's raw
+		// (0.4908, -0.8030, -0.6613, -0.5960), reflected and stretched; the game's fin reads 3.68 deg.
+		sk.bones[1].rotation = 53.417f;
+		sk.scale_y = -1;
+		sk.update_world_transform();
+		NEAR(sk.bones[1].a, 0.4908);
+		NEAR(sk.bones[1].d, -0.5960);
+		NEAR(std::round(sk.bones[2].world_rotation_x() * 10) / 10, 3.7);
+	}
 }
 
 static void test_spine3_layout() {

@@ -959,6 +959,27 @@ float SpineBone::get_world_rotation_x() const {
 	return b ? -b->world_rotation_x() : 0; // canvas angles turn the other way (y down), as the game's renderer reports
 }
 
+// The world matrix as the game reports it: its skeleton runs y down, so the rows that produce y flip.
+float SpineBone::get_a() const {
+	skel::Bone *b = bone();
+	return b ? b->a : 1;
+}
+
+float SpineBone::get_b() const {
+	skel::Bone *b = bone();
+	return b ? b->b : 0;
+}
+
+float SpineBone::get_c() const {
+	skel::Bone *b = bone();
+	return b ? -b->c : 0;
+}
+
+float SpineBone::get_d() const {
+	skel::Bone *b = bone();
+	return b ? -b->d : -1;
+}
+
 float SpineBone::get_world_scale_x() const {
 	skel::Bone *b = bone();
 	return b ? b->world_scale_x() : 1;
@@ -1036,6 +1057,10 @@ void SpineBone::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_world_y"), &SpineBone::get_world_y);
 	ClassDB::bind_method(D_METHOD("get_world_rotation_x"), &SpineBone::get_world_rotation_x);
 	ClassDB::bind_method(D_METHOD("get_world_scale_x"), &SpineBone::get_world_scale_x);
+	ClassDB::bind_method(D_METHOD("get_a"), &SpineBone::get_a);
+	ClassDB::bind_method(D_METHOD("get_b"), &SpineBone::get_b);
+	ClassDB::bind_method(D_METHOD("get_c"), &SpineBone::get_c);
+	ClassDB::bind_method(D_METHOD("get_d"), &SpineBone::get_d);
 	ClassDB::bind_method(D_METHOD("get_world_scale_y"), &SpineBone::get_world_scale_y);
 	ClassDB::bind_method(D_METHOD("is_active"), &SpineBone::is_active);
 	ClassDB::bind_method(D_METHOD("set_to_setup_pose"), &SpineBone::set_to_setup_pose);
