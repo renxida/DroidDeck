@@ -1,18 +1,18 @@
-DISPLAY_ID 11 createMs=59.747571
+DISPLAY_ID 11 createMs=89.650642
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
-OK shot frames=25
+OK shot frames=27
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
-OK shot frames=38
 OK shot frames=44
+OK shot frames=53
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
 OK ime display=11 policy=0
-OK shot frames=116
+OK shot frames=122
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
-OK shot frames=203
+OK shot frames=160
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
-OK swap toSecond frame=true ms=75.72593 sameDisplayId=11
-OK swap back ms=7.222103
+OK swap toSecond frame=true ms=78.28417 sameDisplayId=11
+OK swap back ms=6.245648
 OK uinput open rw
 OK assoc addPortAssociation[class java.lang.String, int]
 OK assoc addUniqueIdAssociationByDescriptor[class java.lang.String, class java.lang.String]

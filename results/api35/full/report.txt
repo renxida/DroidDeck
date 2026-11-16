@@ -3,7 +3,7 @@ google/sdk_gphone64_x86_64/emu64xa:15/AE3A.240806.043/12960925:userdebug/dev-key
 sdk=35
 uid=2000(shell) gid=2000(shell) groups=2000(shell),1004(input),1007(log),1011(adb),1015(sdcard_rw),1028(sdcard_r),1078(ext_data_rw),1079(ext_obb_rw),3001(net_bt_admin),3002(net_bt),3003(inet),3006(net_bw_stats),3009(readproc),3011(uhid),3012(readtracefs) context=u:r:shell:s0
 == uinput node
-crw-rw---- 1 uhid uhid u:object_r:uhid_device:s0  10, 223 2026-11-16 05:46 /dev/uinput
+crw-rw---- 1 uhid uhid u:object_r:uhid_device:s0  10, 223 2026-11-16 05:52 /dev/uinput
 == shell permissions of interest
       android.permission.INTERNAL_SYSTEM_WINDOW
       android.permission.MANAGE_ACTIVITY_TASKS
@@ -31,51 +31,51 @@ crw-rw---- 1 uhid uhid u:object_r:uhid_device:s0  10, 223 2026-11-16 05:46 /dev/
       android.permission.INJECT_EVENTS: granted=true
 == flag matrix
 -- flags 201
-DISPLAY_ID 2 createMs=136.997004
+DISPLAY_ID 2 createMs=14.928001
 INFO id=2 name=m201 flags=0x4000 type=5 state=2 refresh=60.0
 INFO id=2 name=m201 flags=0x4000 type=5 state=2 refresh=60.0
 BYE
 -- flags 1225
-DISPLAY_ID 3 createMs=77.86719
+DISPLAY_ID 3 createMs=2.45356
 INFO id=3 name=m1225 flags=0x4080 type=5 state=2 refresh=60.0
 INFO id=3 name=m1225 flags=0x4080 type=5 state=2 refresh=60.0
 BYE
 -- flags 2249
-DISPLAY_ID 4 createMs=27.612587
+DISPLAY_ID 4 createMs=14.329657
 INFO id=4 name=m2249 flags=0x4100 type=5 state=2 refresh=60.0
 INFO id=4 name=m2249 flags=0x4100 type=5 state=2 refresh=60.0
 BYE
 -- flags 4297
-DISPLAY_ID 5 createMs=27.538694
+DISPLAY_ID 5 createMs=4.228309
 INFO id=5 name=m4297 flags=0x4000 type=5 state=2 refresh=60.0
 INFO id=5 name=m4297 flags=0x4000 type=5 state=2 refresh=60.0
 BYE
 -- flags 8393
-DISPLAY_ID 6 createMs=271.519454
+DISPLAY_ID 6 createMs=120.669197
 INFO id=6 name=m8393 flags=0x4400 type=5 state=2 refresh=60.0
 INFO id=6 name=m8393 flags=0x4400 type=5 state=2 refresh=60.0
 BYE
 -- flags 16585
-DISPLAY_ID 7 createMs=63.895754
+DISPLAY_ID 7 createMs=15.629234
 INFO id=7 name=m16585 flags=0x4000 type=5 state=2 refresh=60.0
 INFO id=7 name=m16585 flags=0x4000 type=5 state=2 refresh=60.0
 BYE
 -- flags 205
 CREATE_FAILED java.lang.SecurityException: Requires CAPTURE_SECURE_VIDEO_OUTPUT or an appropriate MediaProjection token to create a secure virtual display.
 -- flags 713
-DISPLAY_ID 8 createMs=93.013988
+DISPLAY_ID 8 createMs=37.434319
 INFO id=8 name=m713 flags=0x4000 type=5 state=2 refresh=60.0
 INFO id=8 name=m713 flags=0x4000 type=5 state=2 refresh=60.0
 BYE
 -- flags 31945
-DISPLAY_ID 9 createMs=140.769306
+DISPLAY_ID 9 createMs=89.897071
 INFO id=9 name=m31945 flags=0x4f80 type=5 state=2 refresh=60.0
 INFO id=9 name=m31945 flags=0x4f80 type=5 state=2 refresh=60.0
 BYE
 -- flags 31949
 CREATE_FAILED java.lang.SecurityException: Requires CAPTURE_SECURE_VIDEO_OUTPUT or an appropriate MediaProjection token to create a secure virtual display.
 == workspace session flags=31945 label=full
-helper start: DISPLAY_ID 10 createMs=130.168205
+helper start: DISPLAY_ID 10 createMs=16.572908
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
 workspace id=10
 -- launch Settings on the workspace
@@ -83,8 +83,8 @@ Starting: Intent { cmp=com.android.settings/.Settings }
 Status: ok
 LaunchState: WARM
 Activity: com.android.settings/.homepage.SettingsHomepageActivity
-TotalTime: 2876
-WaitTime: 2883
+TotalTime: 3836
+WaitTime: 3932
 Complete
 power[before use display 0 at ]:  mWakefulness=Awake; displayGroupId=0; displayGroupId=1; Wakefulness Session Power Group powerGroupId: 0; Wakefulness Session Power Group powerGroupId: 1;
 -- use display 0 at the same time (home, swipe up)
@@ -96,20 +96,20 @@ Starting: Intent { act=android.settings.APP_SEARCH_SETTINGS }
 Status: ok
 LaunchState: WARM
 Activity: com.google.android.settings.intelligence/.modules.search.SearchActivity
-TotalTime: 1648
-WaitTime: 1938
+TotalTime: 1279
+WaitTime: 1313
 Complete
 Starting: Intent { act=com.android.settings.action.SETTINGS_SEARCH }
 Status: ok
 LaunchState: WARM
 Activity: com.google.android.settings.intelligence/.modules.search.SearchActivity
-TotalTime: 565
-WaitTime: 739
+TotalTime: 516
+WaitTime: 599
 Complete
   mCurrentFocus=null
-  mFocusedApp=ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
-  mCurrentFocus=Window{33b45ae u0 com.google.android.settings.intelligence/com.google.android.settings.intelligence.modules.search.SearchActivity}
-  mFocusedApp=ActivityRecord{7bf0b47 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+  mFocusedApp=ActivityRecord{dcd8c78 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+  mCurrentFocus=Window{d8bb5dd u0 com.google.android.settings.intelligence/com.google.android.settings.intelligence.modules.search.SearchActivity}
+  mFocusedApp=ActivityRecord{901f068 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
   mTopFocusedDisplayId=10
 power[before panel locked, wor]:  mWakefulness=Awake; displayGroupId=0; displayGroupId=1; Wakefulness Session Power Group powerGroupId: 0; Wakefulness Session Power Group powerGroupId: 1;
 -- panel locked, workspace still driven
@@ -121,21 +121,21 @@ power[before panel locked, wor]:  mWakefulness=Awake; displayGroupId=0; displayG
 power[before surface swap, uin]:  mWakefulness=Awake; displayGroupId=0; displayGroupId=1; Wakefulness Session Power Group powerGroupId: 0; Wakefulness Session Power Group powerGroupId: 1;
 -- surface swap, uinput, display association
 == helper log
-DISPLAY_ID 10 createMs=130.168205
+DISPLAY_ID 10 createMs=16.572908
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
-OK shot frames=16
+OK shot frames=17
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
-OK shot frames=33
-OK shot frames=44
+OK shot frames=40
+OK shot frames=46
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
 OK ime display=10 policy=0
-OK shot frames=122
+OK shot frames=138
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
-OK shot frames=175
+OK shot frames=191
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
-OK swap toSecond frame=true ms=65.662721 sameDisplayId=10
-OK swap back ms=9.378402
+OK swap toSecond frame=true ms=64.235914 sameDisplayId=10
+OK swap back ms=0.560677
 OK uinput open rw
 OK assoc addPortAssociation[class java.lang.String, int]
 OK assoc addUniqueIdAssociationByDescriptor[class java.lang.String, class java.lang.String]
@@ -156,13 +156,13 @@ BYE
     mBaseDisplayInfo=DisplayInfo{"claude-ws", displayId 10, displayGroupId 1, FLAG_TRUSTED, FLAG_OWN_DISPLAY_GROUP, FLAG_ALWAYS_UNLOCKED, FLAG_TOUCH_FEEDBACK_DISABLED, real 1080 x 2400, largest app 1080 x 2400, smallest app 1080 x 2400, appVsyncOff 0, presDeadline 16666666, mode 10, renderFrameRate 60.0, defaultMode 10, userPreferredModeId -1, supportedModes [{id=10, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], appsSupportedModes [{id=10, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], hdrCapabilities null, userDisabledHdrTypes [], minimalPostProcessingSupported false, rotation 0, state ON, committedState UNKNOWN, type VIRTUAL, uniqueId "virtual:com.android.shell,2000,claude-ws,8", app 1080 x 2400, density 420 (420.0 x 420.0) dpi, layerStack 10, colorMode 0, supportedColorModes [0], deviceProductInfo null, owner com.android.shell (uid 2000), removeMode 0, refreshRateOverride 0.0, brightnessMinimum 0.0, brightnessMaximum 0.0, brightnessDefault 0.0, installOrientation ROTATION_0, layoutLimitedRefreshRate null, hdrSdrRatio not_available, thermalRefreshRateThrottling {}, thermalBrightnessThrottlingDataId default}
     mOverrideDisplayInfo=DisplayInfo{"claude-ws", displayId 10, displayGroupId 1, FLAG_TRUSTED, FLAG_OWN_DISPLAY_GROUP, FLAG_ALWAYS_UNLOCKED, FLAG_TOUCH_FEEDBACK_DISABLED, real 1080 x 2400, largest app 2400 x 2400, smallest app 1080 x 1080, appVsyncOff 0, presDeadline 16666666, mode 10, renderFrameRate 60.0, defaultMode 10, userPreferredModeId -1, supportedModes [{id=10, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], appsSupportedModes [{id=10, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], hdrCapabilities null, userDisabledHdrTypes [], minimalPostProcessingSupported false, rotation 0, state ON, committedState UNKNOWN, type VIRTUAL, uniqueId "virtual:com.android.shell,2000,claude-ws,8", app 1080 x 2400, density 420 (420.0 x 420.0) dpi, layerStack 10, colorMode 0, supportedColorModes [0], deviceProductInfo null, owner com.android.shell (uid 2000), removeMode 0, refreshRateOverride 60.0, brightnessMinimum 0.0, brightnessMaximum 0.0, brightnessDefault 0.0, installOrientation ROTATION_0, layoutLimitedRefreshRate null, hdrSdrRatio not_available, thermalRefreshRateThrottling {}, thermalBrightnessThrottlingDataId default}
   mDisplayId=0
-  mDisplayId=10
   mDisplayId=0
   mDisplayId=0
   mDisplayId=: 0
   mDisplayId= 0
   mDisplayId=0
   mDisplayId=0
+  mDisplayId=10
   mDisplayId=10
   mUniqueDisplayId=virtual:com.android.shell,2000,claude-ws,8
   mDisplayId=10

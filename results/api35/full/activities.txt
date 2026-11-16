@@ -1,20 +1,20 @@
 Display #10 (activities from top to bottom):
-    topResumedActivity=ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
-    * Hist  #0: ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
-    mLastPausedActivity: ActivityRecord{8298a42 u0 com.android.settings/.Settings t8}
-    * Hist  #0: ActivityRecord{8298a42 u0 com.android.settings/.Settings t8}
-    Resumed: ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+    topResumedActivity=ActivityRecord{108408d u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+    * Hist  #0: ActivityRecord{108408d u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+    mLastPausedActivity: ActivityRecord{2cbbb82 u0 com.android.settings/.Settings t8}
+    * Hist  #0: ActivityRecord{2cbbb82 u0 com.android.settings/.Settings t8}
+    Resumed: ActivityRecord{108408d u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
 Display #0 (activities from top to bottom):
-      mLastPausedActivity: ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
-      topResumedActivity=ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
-      * Hist  #1: ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
-    Resumed: ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
-  ResumedActivity: ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
-  deepestLastOrientationSource=ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
-  mFocusedApp=ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
-        * ActivityRecord{8bdbd65 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
-        * ActivityRecord{8298a42 u0 com.android.settings/.Settings t8}
-  deepestLastOrientationSource=ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
-  mFocusedApp=ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
-          * ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
-    mSystemBarColorApps={ActivityRecord{465ad12 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}}
+      mLastPausedActivity: ActivityRecord{dcd8c78 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+      topResumedActivity=ActivityRecord{dcd8c78 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+      * Hist  #1: ActivityRecord{dcd8c78 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+    Resumed: ActivityRecord{dcd8c78 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+  ResumedActivity: ActivityRecord{108408d u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+  deepestLastOrientationSource=ActivityRecord{108408d u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+  mFocusedApp=ActivityRecord{108408d u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+        * ActivityRecord{108408d u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+        * ActivityRecord{2cbbb82 u0 com.android.settings/.Settings t8}
+  deepestLastOrientationSource=ActivityRecord{dcd8c78 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+  mFocusedApp=ActivityRecord{dcd8c78 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+          * ActivityRecord{dcd8c78 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+    mSystemBarColorApps={ActivityRecord{dcd8c78 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}}

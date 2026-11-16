@@ -15,7 +15,7 @@ Display States: size=2
   Display Brightness=0.39763778
   Display SdrBrightness=0.39763778
   Display Id=10
-  Display State=UNKNOWN
+  Display State=ON
   Display Brightness=0.0
   Display SdrBrightness=0.0
 
@@ -30,7 +30,7 @@ Display Devices: size=2
   DisplayDeviceInfo{"Built-in Screen": uniqueId="local:4619827259835644672", 1080 x 2400, modeId 1, renderFrameRate 60.000004, defaultModeId 1, userPreferredModeId -1, supportedModes [{id=1, width=1080, height=2400, fps=60.000004, vsync=60.000004, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], colorMode 0, supportedColorModes [0], hdrCapabilities HdrCapabilities{mSupportedHdrTypes=[], mMaxLuminance=500.0, mMaxAverageLuminance=500.0, mMinLuminance=0.0}, allmSupported false, gameContentTypeSupported false, density 420, 420.0 x 420.0 dpi, appVsyncOff 1000000, presDeadline 16666666, cutout DisplayCutout{insets=Rect(0, 128 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(492, 0 - 610, 128), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=1080 displayHeight=2400 physicalDisplayWidth=1080 physicalDisplayHeight=2400 density={2.625} cutoutSpec={M 507,64 a 33,33 0 1 0 66,0 33,33 0 1 0 -66,0 Z @left} rotation={0} scale={1.0} physicalPixelDisplaySizeRatio={1.0}}} sideOverrides={}}, touch INTERNAL, rotation 0, type INTERNAL, address {port=0, model=0x401cec6a7a2b7b}, deviceProductInfo DeviceProductInfo{name=EMU_display_0, manufacturerPnpId=GGL, productId=1, modelYear=null, manufactureDate=ManufactureDate{week=27, year=2006}, connectionToSinkType=0}, state ON, committedState ON, frameRateOverride , brightnessMinimum 0.0, brightnessMaximum 1.0, brightnessDefault 0.39763778, hdrSdrRatio NaN, roundedCorners RoundedCorners{[RoundedCorner{position=TopLeft, radius=28, center=Point(28, 28)}, RoundedCorner{position=TopRight, radius=28, center=Point(1052, 28)}, RoundedCorner{position=BottomRight, radius=28, center=Point(1052, 2372)}, RoundedCorner{position=BottomLeft, radius=28, center=Point(28, 2372)}]}, FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY, FLAG_ROTATES_WITH_CONTENT, FLAG_SECURE, FLAG_SUPPORTS_PROTECTED_BUFFERS, FLAG_TRUSTED, installOrientation 0, displayShape DisplayShape{ spec=-1893857183 displayWidth=1080 displayHeight=2400 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}}
     mAdapter=LocalDisplayAdapter
     mUniqueId=local:4619827259835644672
-    mDisplayToken=android.os.BinderProxy@e7eac59
+    mDisplayToken=android.os.BinderProxy@74e34bd
     mCurrentLayerStack=0
     mCurrentFlags=1
     mCurrentOrientation=0
@@ -47,7 +47,7 @@ Display Devices: size=2
     mState=ON
     mCommittedState=ON
     mBrightnessState=0.39763778
-    mBacklightAdapter=BacklightAdapter [useSurfaceControl=false (force_anyway? false), backlight=com.android.server.lights.LightsService$LightImpl@a48b01e]
+    mBacklightAdapter=BacklightAdapter [useSurfaceControl=false (force_anyway? false), backlight=com.android.server.lights.LightsService$LightImpl@78c3ab2]
     mAllmSupported=false
     mAllmRequested=false
     mGameContentTypeSupported=false
@@ -112,15 +112,15 @@ Display Devices: size=2
   DisplayDeviceInfo{"claude-ws": uniqueId="virtual:com.android.shell,2000,claude-ws,8", 1080 x 2400, modeId 10, renderFrameRate 60.0, defaultModeId 10, userPreferredModeId -1, supportedModes [{id=10, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], colorMode 0, supportedColorModes [0], hdrCapabilities null, allmSupported false, gameContentTypeSupported false, density 420, 420.0 x 420.0 dpi, appVsyncOff 0, presDeadline 16666666, touch VIRTUAL, rotation 0, type VIRTUAL, deviceProductInfo null, state ON, committedState UNKNOWN, owner com.android.shell (uid 2000), frameRateOverride , brightnessMinimum 0.0, brightnessMaximum 0.0, brightnessDefault 0.0, hdrSdrRatio NaN, FLAG_ROTATES_WITH_CONTENT, FLAG_OWN_CONTENT_ONLY, FLAG_TRUSTED, FLAG_OWN_DISPLAY_GROUP, FLAG_ALWAYS_UNLOCKED, FLAG_TOUCH_FEEDBACK_DISABLED, FLAG_OWN_FOCUS, installOrientation 0, displayShape DisplayShape{ spec=-1893857183 displayWidth=1080 displayHeight=2400 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}}
     mAdapter=VirtualDisplayAdapter
     mUniqueId=virtual:com.android.shell,2000,claude-ws,8
-    mDisplayToken=android.os.BinderProxy@1d661f5
+    mDisplayToken=android.os.BinderProxy@8436a03
     mCurrentLayerStack=10
     mCurrentFlags=1
     mCurrentOrientation=0
     mCurrentLayerStackRect=Rect(0, 0 - 1080, 2400)
     mCurrentDisplayRect=Rect(0, 0 - 1080, 2400)
-    mCurrentSurface=Surface(name=null mNativeObject=138547025803056)/@0x29e8b8a
+    mCurrentSurface=Surface(name=null mNativeObject=130126503429776)/@0x533d80
     mFlags=31945
-    mDisplayState=UNKNOWN
+    mDisplayState=ON
     mStopped=false
     mDisplayIdToMirror=0
     mWindowManagerMirroring=false
@@ -193,14 +193,14 @@ LogicalDisplayMapper:
     state(-1): [{dispId: 0(ON), displayGroupName: , addr: {port=0, model=0x401cec6a7a2b7b}, mThermalBrightnessThrottlingMapId: null, mRefreshRateZoneId: null, mLeadDisplayId: -1, mLeadDisplayAddress: null, mThermalRefreshRateThrottlingMapId: null, mPowerThrottlingMapId: null}]
 
 Callbacks: size=8
-  0: mPid=573, mWifiDisplayScanRequested=false
-  1: mPid=925, mWifiDisplayScanRequested=false
-  2: mPid=1075, mWifiDisplayScanRequested=false
-  3: mPid=1101, mWifiDisplayScanRequested=false
-  4: mPid=1112, mWifiDisplayScanRequested=false
-  5: mPid=1208, mWifiDisplayScanRequested=false
-  6: mPid=1395, mWifiDisplayScanRequested=false
-  7: mPid=1683, mWifiDisplayScanRequested=false
+  0: mPid=553, mWifiDisplayScanRequested=false
+  1: mPid=902, mWifiDisplayScanRequested=false
+  2: mPid=1044, mWifiDisplayScanRequested=false
+  3: mPid=1068, mWifiDisplayScanRequested=false
+  4: mPid=1070, mWifiDisplayScanRequested=false
+  5: mPid=1196, mWifiDisplayScanRequested=false
+  6: mPid=1322, mWifiDisplayScanRequested=false
+  7: mPid=1572, mWifiDisplayScanRequested=false
 
 Display Power Controllers: size=2
 
@@ -233,58 +233,6 @@ Display Power Controller Configuration:
   mDisplayBlanksAfterDozeConfig=false
   mBrightnessBucketsInDozeConfig=false
   mDozeScaleFactor=1.0
-
-Display Power Controller:
-  mDisplayId=10
-  mLeadDisplayId=-1
-  mLightSensor=null
-  mDisplayBrightnessFollowers={}
-
-Display Power Controller Locked State:
-  mDisplayReadyLocked=false
-  mPendingRequestLocked=policy=BRIGHT, useProximitySensor=false, screenBrightnessOverride=NaN, screenAutoBrightnessAdjustmentOverride=NaN, screenLowPowerBrightnessFactor=1.0, blockScreenOn=false, lowPowerMode=false, boostScreenBrightness=false, dozeScreenBrightness=NaN, dozeScreenState=UNKNOWN, dozeScreenStateReason=DEFAULT_POLICY
-  mPendingRequestChangedLocked=false
-  mPendingUpdatePowerStateLocked=false
-
-Display Power Controller Configuration:
-  mScreenBrightnessDozeConfig=0.0
-  mUseSoftwareAutoBrightnessConfig=false
-  mSkipScreenOnBrightnessRamp=false
-  mColorFadeFadesConfig=false
-  mColorFadeEnabled=true
-  mIsDisplayInternal=false
-  mCachedBrightnessInfo.brightness=0.0
-  mCachedBrightnessInfo.adjustedBrightness=0.0
-  mCachedBrightnessInfo.brightnessMin=1.0
-  mCachedBrightnessInfo.brightnessMax=1.0
-  mCachedBrightnessInfo.hbmMode=0
-  mCachedBrightnessInfo.hbmTransitionPoint=Infinity
-  mCachedBrightnessInfo.brightnessMaxReason =0
-  mDisplayBlanksAfterDozeConfig=false
-  mBrightnessBucketsInDozeConfig=false
-  mDozeScaleFactor=1.0
-
-PersistentDataStore
-  mLoaded=true
-  mDirty=false
-  RememberedWifiDisplays:
-  DisplayStates:
-  StableDeviceValues:
-      StableDisplayWidth=1080
-      StableDisplayHeight=2400
-  GlobalBrightnessConfigurations:
-  mBrightnessNitsForDefaultDisplay=-1.0
-
-Display Window Policy Controllers: size=0
-
-BrightnessTracker state:
-  mStarted=false
-  mLightSensor=null
-  mLastBatteryLevel=NaN
-  mLastBrightness=-1.0
-  mEventsDirty=false
-  mEvents.size=0
-  mWriteBrightnessTrackerStateScheduled=false
 
 Display Power Controller Thread State:
   mPowerRequest=policy=BRIGHT, useProximitySensor=false, screenBrightnessOverride=NaN, screenAutoBrightnessAdjustmentOverride=NaN, screenLowPowerBrightnessFactor=1.0, blockScreenOn=false, lowPowerMode=false, boostScreenBrightness=false, dozeScreenBrightness=NaN, dozeScreenState=UNKNOWN, dozeScreenStateReason=DEFAULT_POLICY
@@ -449,7 +397,7 @@ DisplayPowerProximityStateController:
   mProximityThreshold=1.0
   mProximity=Unknown
   mPendingProximity=Unknown
-  mPendingProximityDebounceTime=-1 (44054 ms ago)
+  mPendingProximityDebounceTime=-1 (34575 ms ago)
   mScreenOffBecauseOfProximity=false
   mSkipRampBecauseOfProximityChangeToNegative=false
 
@@ -485,6 +433,36 @@ BrightnessLowPowerModeModifier:
 BrightnessModifier:
   mApplied=false
 
+Display Power Controller:
+  mDisplayId=10
+  mLeadDisplayId=-1
+  mLightSensor=null
+  mDisplayBrightnessFollowers={}
+
+Display Power Controller Locked State:
+  mDisplayReadyLocked=true
+  mPendingRequestLocked=policy=BRIGHT, useProximitySensor=false, screenBrightnessOverride=NaN, screenAutoBrightnessAdjustmentOverride=NaN, screenLowPowerBrightnessFactor=1.0, blockScreenOn=false, lowPowerMode=false, boostScreenBrightness=false, dozeScreenBrightness=NaN, dozeScreenState=UNKNOWN, dozeScreenStateReason=DEFAULT_POLICY
+  mPendingRequestChangedLocked=false
+  mPendingUpdatePowerStateLocked=false
+
+Display Power Controller Configuration:
+  mScreenBrightnessDozeConfig=0.0
+  mUseSoftwareAutoBrightnessConfig=false
+  mSkipScreenOnBrightnessRamp=false
+  mColorFadeFadesConfig=false
+  mColorFadeEnabled=true
+  mIsDisplayInternal=false
+  mCachedBrightnessInfo.brightness=0.0
+  mCachedBrightnessInfo.adjustedBrightness=0.0
+  mCachedBrightnessInfo.brightnessMin=0.0
+  mCachedBrightnessInfo.brightnessMax=1.0
+  mCachedBrightnessInfo.hbmMode=0
+  mCachedBrightnessInfo.hbmTransitionPoint=Infinity
+  mCachedBrightnessInfo.brightnessMaxReason =0
+  mDisplayBlanksAfterDozeConfig=false
+  mBrightnessBucketsInDozeConfig=false
+  mDozeScaleFactor=1.0
+
 Display Power Controller Thread State:
   mPowerRequest=policy=BRIGHT, useProximitySensor=false, screenBrightnessOverride=NaN, screenAutoBrightnessAdjustmentOverride=NaN, screenLowPowerBrightnessFactor=1.0, blockScreenOn=false, lowPowerMode=false, boostScreenBrightness=false, dozeScreenBrightness=NaN, dozeScreenState=UNKNOWN, dozeScreenStateReason=DEFAULT_POLICY
   mBrightnessReason=manual
@@ -497,7 +475,7 @@ Display Power Controller Thread State:
   mPendingScreenOnUnblocker=null
   mPendingScreenOffUnblocker=null
   mPendingScreenOff=false
-  mReportedToPolicy=REPORTED_TO_POLICY_SCREEN_TURNING_ON
+  mReportedToPolicy=REPORTED_TO_POLICY_SCREEN_ON
   mIsRbcActive=false
 AutomaticBrightnessStrategy:
   mDisplayId=10
@@ -520,7 +498,7 @@ Display Power State:
   mScreenState=ON
   mScreenBrightness=0.0
   mSdrScreenBrightness=0.0
-  mScreenReady=false
+  mScreenReady=true
   mScreenUpdatePending=false
   mColorFadePrepared=false
   mColorFadeLevel=1.0
@@ -531,11 +509,11 @@ Photonic Modulator State:
   mPendingState=ON
   mPendingBacklight=0.0
   mPendingSdrBacklight=0.0
-  mActualState=UNKNOWN
-  mActualBacklight=NaN
-  mActualSdrBacklight=NaN
-  mStateChangeInProgress=true
-  mBacklightChangeInProgress=true
+  mActualState=ON
+  mActualBacklight=0.0
+  mActualSdrBacklight=0.0
+  mStateChangeInProgress=false
+  mBacklightChangeInProgress=false
 
 Color Fade State:
   mPrepared=false
@@ -604,7 +582,7 @@ BrightnessThrottler:
 
 WakelockController State:
   mDisplayId=10
-  mUnfinishedBusiness=true
+  mUnfinishedBusiness=false
   mOnStateChangePending=false
   mOnProximityPositiveMessages=false
   mOnProximityNegativeMessages=false
@@ -648,7 +626,7 @@ DisplayPowerProximityStateController:
   mProximityThreshold=0.0
   mProximity=Unknown
   mPendingProximity=Unknown
-  mPendingProximityDebounceTime=-1 (44055 ms ago)
+  mPendingProximityDebounceTime=-1 (34592 ms ago)
   mScreenOffBecauseOfProximity=false
   mSkipRampBecauseOfProximityChangeToNegative=false
 
@@ -683,6 +661,28 @@ BrightnessModifier:
 BrightnessLowPowerModeModifier:
 BrightnessModifier:
   mApplied=false
+
+PersistentDataStore
+  mLoaded=true
+  mDirty=false
+  RememberedWifiDisplays:
+  DisplayStates:
+  StableDeviceValues:
+      StableDisplayWidth=1080
+      StableDisplayHeight=2400
+  GlobalBrightnessConfigurations:
+  mBrightnessNitsForDefaultDisplay=-1.0
+
+Display Window Policy Controllers: size=0
+
+BrightnessTracker state:
+  mStarted=false
+  mLightSensor=null
+  mLastBatteryLevel=NaN
+  mLastBrightness=-1.0
+  mEventsDirty=false
+  mEvents.size=0
+  mWriteBrightnessTrackerStateScheduled=false
 
 DisplayModeDirector
   mSupportedModesByDisplay:
@@ -729,7 +729,7 @@ DisplayModeDirector
      mRefreshRateInHbmHdr: 0
   SkinThermalStatusObserver:
     mStatus: 0
-    mThermalThrottlingByDisplay: {0={}, 10={}}
+    mThermalThrottlingByDisplay: {0={}}
   mVotesByDisplay:
     -1:
       PRIORITY_DEFAULT_REFRESH_RATE -> RenderVote{ RefreshRateVote{  mMinRefreshRate=0.0, mMaxRefreshRate=60.0 } }
@@ -741,7 +741,6 @@ DisplayModeDirector
     mIsProxActive=false
     mDozeStateByDisplay:
       0 -> false
-      10 -> false
 BrightnessSynchronizer
   mLatestIntBrightness=102
   mLatestFloatBrightness=0.39763778

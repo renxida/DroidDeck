@@ -3,7 +3,7 @@ google/sdk_gphone64_x86_64/emu64xa:15/AE3A.240806.043/12960925:userdebug/dev-key
 sdk=35
 uid=2000(shell) gid=2000(shell) groups=2000(shell),1004(input),1007(log),1011(adb),1015(sdcard_rw),1028(sdcard_r),1078(ext_data_rw),1079(ext_obb_rw),3001(net_bt_admin),3002(net_bt),3003(inet),3006(net_bw_stats),3009(readproc),3011(uhid),3012(readtracefs) context=u:r:shell:s0
 == uinput node
-crw-rw---- 1 uhid uhid u:object_r:uhid_device:s0  10, 223 2026-11-16 05:46 /dev/uinput
+crw-rw---- 1 uhid uhid u:object_r:uhid_device:s0  10, 223 2026-11-16 05:52 /dev/uinput
 == shell permissions of interest
       android.permission.INTERNAL_SYSTEM_WINDOW
       android.permission.MANAGE_ACTIVITY_TASKS
@@ -30,7 +30,7 @@ crw-rw---- 1 uhid uhid u:object_r:uhid_device:s0  10, 223 2026-11-16 05:46 /dev/
       android.permission.CAPTURE_VIDEO_OUTPUT: granted=true
       android.permission.INJECT_EVENTS: granted=true
 == workspace session flags=29897 label=nogroup
-helper start: DISPLAY_ID 11 createMs=59.747571
+helper start: DISPLAY_ID 11 createMs=89.650642
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
 workspace id=11
 -- launch Settings on the workspace
@@ -40,7 +40,7 @@ Status: ok
 LaunchState: UNKNOWN (0)
 Activity: com.android.settings/.homepage.SettingsHomepageActivity
 TotalTime: 0
-WaitTime: 141
+WaitTime: 37
 Complete
 power[before use display 0 at ]:  mWakefulness=Awake; displayGroupId=0; Wakefulness Session Power Group powerGroupId: 0;
 -- use display 0 at the same time (home, swipe up)
@@ -54,19 +54,19 @@ Status: ok
 LaunchState: UNKNOWN (0)
 Activity: com.google.android.settings.intelligence/.modules.search.SearchActivity
 TotalTime: 0
-WaitTime: 47
+WaitTime: 11
 Complete
 Starting: Intent { act=com.android.settings.action.SETTINGS_SEARCH }
 Status: ok
 LaunchState: WARM
 Activity: com.google.android.settings.intelligence/.modules.search.SearchActivity
-TotalTime: 231
-WaitTime: 242
+TotalTime: 222
+WaitTime: 261
 Complete
   mCurrentFocus=null
   mFocusedApp=null
-  mCurrentFocus=Window{8da93c8 u0 com.google.android.settings.intelligence/com.google.android.settings.intelligence.modules.search.SearchActivity}
-  mFocusedApp=ActivityRecord{bf88995 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
+  mCurrentFocus=Window{930af17 u0 com.google.android.settings.intelligence/com.google.android.settings.intelligence.modules.search.SearchActivity}
+  mFocusedApp=ActivityRecord{2036228 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t9}
   mTopFocusedDisplayId=11
 power[before panel locked, wor]:  mWakefulness=Awake; displayGroupId=0; Wakefulness Session Power Group powerGroupId: 0;
 -- panel locked, workspace still driven
@@ -78,21 +78,21 @@ power[before panel locked, wor]:  mWakefulness=Awake; displayGroupId=0; Wakefuln
 power[before surface swap, uin]:  mWakefulness=Awake; displayGroupId=0; Wakefulness Session Power Group powerGroupId: 0;
 -- surface swap, uinput, display association
 == helper log
-DISPLAY_ID 11 createMs=59.747571
+DISPLAY_ID 11 createMs=89.650642
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
-OK shot frames=25
+OK shot frames=27
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
-OK shot frames=38
 OK shot frames=44
+OK shot frames=53
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
 OK ime display=11 policy=0
-OK shot frames=116
+OK shot frames=122
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
-OK shot frames=203
+OK shot frames=160
 INFO id=11 name=claude-ws flags=0x4c80 type=5 state=2 refresh=60.0
-OK swap toSecond frame=true ms=75.72593 sameDisplayId=11
-OK swap back ms=7.222103
+OK swap toSecond frame=true ms=78.28417 sameDisplayId=11
+OK swap back ms=6.245648
 OK uinput open rw
 OK assoc addPortAssociation[class java.lang.String, int]
 OK assoc addUniqueIdAssociationByDescriptor[class java.lang.String, class java.lang.String]
