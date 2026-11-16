@@ -19,6 +19,9 @@ object SteamBranch {
     @Volatile var last: Request? = null
         private set
 
+    /** Forgets the latest request, so a test starts with no branch on the loading screen. */
+    internal fun forget() { last = null }
+
     fun request(context: Context, appId: Int, branch: String) {
         val chosen = offered(appId) && branch in setOf(BETA, STABLE)
         last = if (chosen) Request(appId, branch, System.currentTimeMillis()) else null

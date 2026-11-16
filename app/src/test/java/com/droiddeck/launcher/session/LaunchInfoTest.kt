@@ -13,6 +13,8 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class LaunchInfoTest {
+    // Another test's launch can leave a branch request behind, which would add " · beta" to the engine line.
+    @org.junit.Before fun setUp() { SteamBranch.forget() }
     @After fun tearDown() { LaunchInfo.reset(); Experiments.endSession() }
 
     @Test
