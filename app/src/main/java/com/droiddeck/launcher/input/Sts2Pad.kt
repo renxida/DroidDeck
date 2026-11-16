@@ -57,16 +57,21 @@ internal object Sts2Pad {
     private const val MIN_STRIP_DP = 56f
     private const val MIN_ROW_DP = 48f
     /**
-     * The swipe pad and the X / B / Y / A grid as drawn on a Pixel 10 (2424 × 1080 px at density 2.625): the pad from the left
-     * edge to 620 px and from 330 px down to the bottom; the grid's columns 240 px (X, Y) and 280 px (B, A) wide at the right
-     * edge, rows from 90 px down, 280 px (X, B) and 350 px (Y, A) tall, ending above End Turn.
+     * The swipe pad and the face grid as drawn on a Pixel 10 (2424 × 1080 px at density 2.625): the pad from the left edge to
+     * 620 px and from 330 px down to the bottom; X and Y on top, A and B below, rows from 90 px down, 280 px (X, Y) and 350 px
+     * (A, B) tall, ending above End Turn. The inner column (X, A) is 280 px wide and the outer one (Y, B) 240 px, so A, which
+     * the person presses most, is the biggest tile and the nearest to a resting thumb, and Y, mostly End Turn and Skip, is the
+     * smallest, up in the corner ("Y should be harder to press ... I want a to be in an easier position", Nov 16).
      */
     private const val ZONE_WIDTH_DP = 620f / REFERENCE_DENSITY
     private const val ZONE_HEIGHT_DP = (1080f - 330f) / REFERENCE_DENSITY
     private const val ZONE_MAX_SHARE = .3f
     private const val ZONE_OPACITY = .5f
-    private const val INNER_DP = 240f / REFERENCE_DENSITY
-    private const val OUTER_DP = 280f / REFERENCE_DENSITY
+    private const val INNER_DP = 280f / REFERENCE_DENSITY
+    private const val OUTER_DP = 240f / REFERENCE_DENSITY
+    /** The grid before Nov 16: X, B on top and Y, A below, the inner column (X, Y) 240 px and the outer (B, A) 280 px wide. */
+    private const val OLD_INNER_DP = 240f / REFERENCE_DENSITY
+    private const val OLD_OUTER_DP = 280f / REFERENCE_DENSITY
     private const val GRID_TOP_DP = 90f / REFERENCE_DENSITY
     private const val TOP_ROW_DP = 280f / REFERENCE_DENSITY
     private const val LOW_ROW_DP = 350f / REFERENCE_DENSITY
@@ -94,6 +99,7 @@ internal object Sts2Pad {
     val HUD_IDS = HUD.map { it.id }.toSet()
 
     private val stock by lazy { elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY) }
+    private val oldGridStock by lazy { elements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, oldGrid = true) }
     private val classicStock by lazy { classicElements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY) }
     /**
      * Where earlier pads put the d-pad and A / B / Y: low circles near the piles, then raised circles, then tiles only as
@@ -105,6 +111,24 @@ internal object Sts2Pad {
         classicElements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, x = false, wide = false),
         classicElements(REFERENCE_WIDTH, REFERENCE_HEIGHT, REFERENCE_DENSITY, wide = false)) }
     private val X_ID = "legacy:${InputControl.X.id}"
+
+    /** The swipe pad's stock before X, Y moved on top and A, B below. */
+    internal fun oldGrid(): List<InputSurfaceElement> = oldGridStock
+
+    /**
+     * Moves X / B / Y / A of a saved swipe pad that are still where the old grid put them to the new grid (X, Y on top, A, B
+     * below); a tile the person moved, and every other button, stays.
+     */
+    fun regrid(layout: SavedInputLayout): SavedInputLayout {
+        if (!owns(layout) || layout.elements.none { it.id == SWIPE }) return layout
+        val old = oldGridStock.associateBy { it.id }
+        val now = stock.associateBy { it.id }
+        val elements = layout.elements.map { e ->
+            if (e.id !in FACE_IDS || old[e.id]?.let { same(it, e) } != true) e
+            else now.getValue(e.id).let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) }
+        }
+        return if (elements == layout.elements) layout else layout.copy(elements = elements)
+    }
 
     /** The stock pads before the swipe pad, oldest first and the classic d-pad tiles last, for tests of the upgrade. */
     internal fun earlier(): List<List<InputSurfaceElement>> = earlierStocks + listOf(classicStock)
@@ -232,7 +256,10 @@ internal object Sts2Pad {
      * is short; then the buttons on the game's own icons (over the swipe pad where they meet it, as the draw pile does) and
      * the keyboard key.
      */
-    fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0): List<InputSurfaceElement> {
+    fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0): List<InputSurfaceElement> =
+        elements(width, height, density, top, bottom, oldGrid = false)
+
+    private fun elements(width: Int, height: Int, density: Float, top: Int = 0, bottom: Int = 0, oldGrid: Boolean): List<InputSurfaceElement> {
         val w = width.toFloat()
         val h = height.toFloat()
         val hud = hud(w, h)
@@ -242,8 +269,8 @@ internal object Sts2Pad {
         val zoneTop = max(keyboardBox.bottom + GAP_DP * density, zoneBottom - ZONE_HEIGHT_DP * density).coerceAtMost(zoneBottom - MIN_ROW_DP * density)
         val zoneWidth = min(ZONE_WIDTH_DP * density, w * ZONE_MAX_SHARE)
         val zone = Box(zoneWidth / 2f, (zoneTop + zoneBottom) / 2f, zoneWidth, zoneBottom - zoneTop)
-        val inner = INNER_DP * density
-        val outer = OUTER_DP * density
+        val inner = (if (oldGrid) OLD_INNER_DP else INNER_DP) * density
+        val outer = (if (oldGrid) OLD_OUTER_DP else OUTER_DP) * density
         val gridLeft = w - inner - outer
         fun over(b: Box) = b.left < w && gridLeft < b.right
         val ceiling = maxOf(top + GRID_TOP_DP * density, hud.map { it.second }.filter { it.cy < h / 2f && over(it) }.maxOfOrNull { it.bottom + edge } ?: 0f)
@@ -251,11 +278,12 @@ internal object Sts2Pad {
         val fit = min(1f, (floor - ceiling) / ((TOP_ROW_DP + LOW_ROW_DP) * density))
         val topRow = TOP_ROW_DP * density * fit
         val lowRow = LOW_ROW_DP * density * fit
-        val grid = listOf(
-            InputControl.X to Box(gridLeft + inner / 2f, ceiling + topRow / 2f, inner, topRow),
-            InputControl.B to Box(w - outer / 2f, ceiling + topRow / 2f, outer, topRow),
-            InputControl.Y to Box(gridLeft + inner / 2f, ceiling + topRow + lowRow / 2f, inner, lowRow),
-            InputControl.A to Box(w - outer / 2f, ceiling + topRow + lowRow / 2f, outer, lowRow))
+        val innerTop = Box(gridLeft + inner / 2f, ceiling + topRow / 2f, inner, topRow)
+        val outerTop = Box(w - outer / 2f, ceiling + topRow / 2f, outer, topRow)
+        val innerLow = Box(gridLeft + inner / 2f, ceiling + topRow + lowRow / 2f, inner, lowRow)
+        val outerLow = Box(w - outer / 2f, ceiling + topRow + lowRow / 2f, outer, lowRow)
+        val grid = if (oldGrid) listOf(InputControl.X to innerTop, InputControl.B to outerTop, InputControl.Y to innerLow, InputControl.A to outerLow)
+            else listOf(InputControl.X to innerTop, InputControl.B to outerLow, InputControl.Y to outerTop, InputControl.A to innerLow)
         return listOf(element(w, h, InputControl.LS, zone, SWIPE, "Swipe", InputButtonShape.ROUNDED, ZONE_OPACITY, kind = InputElementKind.SWIPE)) +
             grid.map { (control, b) -> element(w, h, control, b, shape = InputButtonShape.RECTANGLE, opacity = TILE_OPACITY) } +
             hud.map { (s, b) -> element(w, h, s.control, b, s.id, s.name, s.shape, HUD_OPACITY) } +

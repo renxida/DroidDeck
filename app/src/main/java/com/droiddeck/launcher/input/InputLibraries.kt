@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 20
+    private const val VERSION = 21
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -38,6 +38,7 @@ object InputLibraries {
         if (version < 19) library = library.copy(layouts = library.layouts.map(Sts2Pad::raiseThumbs))
         if (version < 20) library = runCatching { Sts2Pad.withSwipe(library) }
             .onFailure { android.util.Log.e("InputLibraries", "Could not put the swipe pad on the Slay the Spire 2 pad; keeping it as it was", it) }.getOrDefault(library)
+        if (version < 21) library = library.copy(layouts = library.layouts.map(Sts2Pad::regrid))
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
