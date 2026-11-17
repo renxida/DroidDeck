@@ -28,6 +28,18 @@ int noscale_mode() {
 	return m;
 }
 
+// NoScale mode 1 aims through the parent with the bone's rotation alone; its shear_x stays in the local
+// matrix. hunter_killer's jaw_r (local shear 11.9/12.7 under facel, world scale 1.05 x 0.75) matches
+// Proton's raw matrix to 4 decimals at t0 and t0.5 this way; aiming with rotation + shear_x was 2.2 and
+// 1.7 deg off. DROIDDECK_NATIVE_SPINE_NOSCALE_AIM_SHEAR=1 restores the old aim.
+bool noscale_aim_shear() {
+	static const bool on = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_AIM_SHEAR");
+		return v && v[0] == '1';
+	}();
+	return on;
+}
+
 int path_samples() {
 	static const int n = [] {
 		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_SAMPLES");
@@ -507,10 +519,11 @@ void Skeleton::update_bone(Bone &bone) {
 			aim(ry, bone.scale_y, bone.b, bone.d);
 		} else {
 			float ax, ay;
-			aim(rx, 1, ax, ay);
+			const float r = noscale_aim_shear() ? rx : bone.rotation * DEG;
+			aim(r, 1, ax, ay);
 			float flip = (bone.inherit == Inherit::NoScale && qa * qd - qb * qc < 0) ? -1.0f : 1.0f;
 			// With a kept reflection the basis turns the local angle the other way.
-			float th = std::atan2(ay, ax) - flip * rx, cs = std::cos(th), sn = std::sin(th);
+			float th = std::atan2(ay, ax) - flip * r, cs = std::cos(th), sn = std::sin(th);
 			pa = cs;
 			pb = -sn * flip;
 			pc = sn;

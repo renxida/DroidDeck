@@ -250,6 +250,30 @@ static void test_noscale_nonuniform_parent() {
 	}
 }
 
+// A sheared NoScale child under a non-uniform parent aims with its rotation alone (hunter_killer's jaw_r).
+static void test_noscale_sheared_child() {
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+	  {"name": "root"},
+	  {"name": "p", "parent": "root", "rotation": 30, "scaleX": 1.5, "scaleY": 0.6},
+	  {"name": "c", "parent": "p", "rotation": -120, "scaleX": 0.5, "scaleY": 1.1, "shearX": 12, "shearY": 13, "inherit": "noScale"}]})");
+	if (!sd) return;
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_MODE");
+	if (m && m[0] != '1') return;
+	const char *sh = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_AIM_SHEAR");
+	const Bone &b = sk.bones[2];
+	if (sh && sh[0] == '1') {
+		NEAR(b.a, -0.0790);
+		NEAR(b.d, -0.1547);
+		return;
+	}
+	NEAR(b.a, -0.1149);
+	NEAR(b.b, 1.0748);
+	NEAR(b.c, -0.4866);
+	NEAR(b.d, -0.2341);
+}
+
 static void test_spine3_layout() {
 	const char *rig3 = R"({
 	 "skeleton": {"spine": "3.8.99"},
@@ -651,6 +675,7 @@ int main() {
 	test_ik();
 	test_skin_gating();
 	test_noscale_nonuniform_parent();
+	test_noscale_sheared_child();
 	test_spine3_layout();
 	test_binary();
 	test_binary_path_physics();
