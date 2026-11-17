@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstdio>
 
 namespace skel {
 
@@ -839,6 +840,55 @@ void rotate_basis(float &a, float &b, float &c, float &d, float r) {
 
 } // namespace
 
+// DROIDDECK_NATIVE_SPINE_PATH_DUMP=<slot name> prints that slot's path attachment to stderr the first time a
+// path constraint uses it: flags, stored lengths, how its vertices are bound, and the world vertices it was
+// given. Text for comparing the path evaluation off the device; nothing else changes.
+void Skeleton::dump_path_once(const PathData &d, const Attachment &att, int n) {
+	static const char *want = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP");
+	if (!want || !want[0] || path_dumped_ || slots[d.target].data->name != want) {
+		return;
+	}
+	path_dumped_ = true;
+	std::fprintf(stderr, "SPINE_PATH_DUMP constraint %s order %d slot %s bone %s attachment %s\n", d.name.c_str(), d.order,
+			slots[d.target].data->name.c_str(), data->bones[slots[d.target].data->bone].name.c_str(), att.name.c_str());
+	std::fprintf(stderr, "SPINE_PATH_DUMP closed %d constant_speed %d vertex_count %d world_points %d weighted %d posmode %d spacingmode %d rotmode %d pos %.6f spacing %.6f offrot %.6f\n",
+			int(att.closed), int(att.constant_speed), att.vertex_count, n, int(att.weighted()), d.position_mode, d.spacing_mode,
+			d.rotate_mode, d.position, d.spacing, d.offset_rotation);
+	std::string line = "SPINE_PATH_DUMP lengths";
+	char buf[64];
+	for (float l : att.lengths) {
+		std::snprintf(buf, sizeof(buf), " %.4f", l);
+		line += buf;
+	}
+	std::fprintf(stderr, "%s\n", line.c_str());
+	if (att.weighted()) {
+		line = "SPINE_PATH_DUMP bones";
+		for (size_t i = 0; i < att.bones.size();) {
+			const int count = att.bones[i++];
+			line += " [";
+			for (int k = 0; k < count && i < att.bones.size(); k++, i++) {
+				line += (k ? " " : "") + data->bones[att.bones[i]].name;
+			}
+			line += "]";
+		}
+		std::fprintf(stderr, "%s\n", line.c_str());
+	}
+	line = "SPINE_PATH_DUMP world";
+	for (int i = 0; i < n; i++) {
+		std::snprintf(buf, sizeof(buf), " %.4f,%.4f", path_world_[i * 2], path_world_[i * 2 + 1]);
+		line += buf;
+	}
+	std::fprintf(stderr, "%s\n", line.c_str());
+	line = "SPINE_PATH_DUMP spine";
+	for (int bi : d.bones) {
+		const Bone &b = bones[bi];
+		std::snprintf(buf, sizeof(buf), " %s:%.4f:%.4f", b.data->name.c_str(), b.data->length, b.world_scale_x());
+		line += buf;
+	}
+	std::fprintf(stderr, "%s\n", line.c_str());
+	std::fflush(stderr);
+}
+
 // Path vertices are triples (handle in, anchor, handle out). An open path runs anchor to anchor through
 // the handles between them; a closed one also joins the last anchor back to the first. Each curve is
 // sampled into short segments so points can be found by arc length (constant speed along the path).
@@ -852,6 +902,7 @@ void Skeleton::apply_path(PathConstraint &p) {
 		return;
 	}
 	int n = world_vertices(d.target, path_world_);
+	dump_path_once(d, *att, n);
 	int curves = att->closed ? n / 3 : n / 3 - 1;
 	if (curves < 1) {
 		return;

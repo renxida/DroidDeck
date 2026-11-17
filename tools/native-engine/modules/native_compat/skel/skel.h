@@ -359,6 +359,8 @@ private:
 	bool constraint_on(int kind, int index) const;
 	std::vector<Bone> pose_; // local values before constraints, restored after the world transform
 	std::vector<float> path_world_, path_points_, path_lengths_; // path constraint scratch
+	bool path_dumped_ = false;
+	void dump_path_once(const PathData &d, const Attachment &att, int n);
 };
 
 enum class MixBlend {
