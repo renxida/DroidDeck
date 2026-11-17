@@ -36,6 +36,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Wireless debugging on, [installUnattended] installs while the phone is idle on the charger ([KadbInstaller]).
  * An APK is installed only when its package is ours, its signing certificates equal ours exactly and it is newer
  * ([SelfUpdateRules.notNewerReason]); anything else is deleted.
+ *
+ * One thing happens at a time, so the front screen's line always says one clear state: a check or download never
+ * starts while an install is under way ([SelfUpdateRules.mayStartCheck]), and an install first re-checks the release
+ * when the last check is more than two minutes old ([SelfUpdateRules.recheckBeforeInstall]), so the person always
+ * installs the newest build rather than one a newer release has replaced.
  */
 object SelfUpdate {
     private const val TAG = "SelfUpdate"
@@ -49,9 +54,10 @@ object SelfUpdate {
     private const val CHANNEL = "self_update"
     private const val NOTIFICATION = 0x4b7e5a
 
-    enum class Phase { IDLE, DOWNLOADING, READY, NEEDS_PERMISSION, INSTALLING }
+    enum class Phase { IDLE, CHECKING, DOWNLOADING, READY, NEEDS_PERMISSION, INSTALLING }
 
-    data class Ui(val phase: Phase = Phase.IDLE, val percent: Int = -1)
+    /** [available] is the staged build (READY, NEEDS_PERMISSION, INSTALLING), so the screen can name it. */
+    data class Ui(val phase: Phase = Phase.IDLE, val percent: Int = -1, val available: SelfUpdateRules.Build? = null)
 
     /** What the front screen's update line shows. */
     var ui by mutableStateOf(Ui())
@@ -109,6 +115,14 @@ object SelfUpdate {
         return SelfUpdateRules.notNewerReason(candidate, installed())
     }
 
+    /** What a staged APK says about itself, for the screen; null when it can't be read. */
+    internal fun describe(context: Context, file: File): SelfUpdateRules.Build? = runCatching {
+        val info = context.packageManager.getPackageArchiveInfo(file.path, PackageManager.GET_META_DATA) ?: return null
+        val meta = info.applicationInfo?.metaData
+        SelfUpdateRules.Build(versionCode(info), SelfUpdateRules.parseCommit(meta?.getString(META_COMMIT)),
+            SelfUpdateRules.parseCommitTimeMs(meta?.getString(META_COMMIT_TIME)))
+    }.getOrNull()
+
     @Suppress("DEPRECATION")
     private fun certificateFlag(): Int =
         if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
@@ -128,26 +142,33 @@ object SelfUpdate {
 
     // ---- checking ----
 
-    /** One check now, on the calling (background) thread; null when another check is running. */
-    private fun runCheck(app: Context): UpdateCheck.Outcome? {
-        if (!busy.compareAndSet(false, true)) return null
+    /**
+     * One check now, on the calling (background) thread; null when another check or an install is running.
+     * [forInstall] is the install's own re-check, which runs while that install holds [installing].
+     */
+    private fun runCheck(app: Context, forInstall: Boolean = false): UpdateCheck.Outcome? {
+        if (!SelfUpdateRules.mayStartCheck(installing && !forInstall, false) || !busy.compareAndSet(false, true)) return null
         try {
+            showUi(Ui(Phase.CHECKING))
             prefs(app).edit().putLong(LAST_CHECK, System.currentTimeMillis()).apply()
             val outcome = runCatching { checker(app).run() }
                 .getOrElse { UpdateCheck.Outcome.Failed("${it.javaClass.simpleName}: ${it.message}") }
             Log.i(TAG, "check: ${outcome.line()}")
             prefs(app).edit().putString(LAST_OUTCOME, outcome.line()).apply()
-            showStaged(app, outcome is UpdateCheck.Outcome.Ready)
+            if (!forInstall) showStaged(app, outcome is UpdateCheck.Outcome.Ready)
             return outcome
         } finally {
             busy.set(false)
         }
     }
 
+    private fun stagedBuild(app: Context): SelfUpdateRules.Build? =
+        File(dir(app), UpdateCheck.APK).takeIf { it.isFile }?.let { describe(app, it) }
+
     private fun showStaged(app: Context, staged: Boolean) = showUi(when {
         !staged -> Ui()
-        !canInstall(app) -> Ui(Phase.NEEDS_PERMISSION)
-        else -> Ui(Phase.READY)
+        !canInstall(app) -> Ui(Phase.NEEDS_PERMISSION, available = stagedBuild(app))
+        else -> Ui(Phase.READY, available = stagedBuild(app))
     })
 
     private fun canInstall(app: Context): Boolean =
@@ -164,10 +185,12 @@ object SelfUpdate {
             launchConfirm(activity, confirm)
             return
         }
-        if (busy.get()) return
+        if (busy.get() || installing) return
+        val due = tracksRelease() && SelfUpdateRules.checkDue(System.currentTimeMillis(), prefs(app).getLong(LAST_CHECK, 0L), sessionActive())
+        // Hide a stale Install button at once: the check below may replace the staged build it would install.
+        if (due) showUi(Ui(Phase.CHECKING))
         Thread({
-            val due = tracksRelease() && SelfUpdateRules.checkDue(System.currentTimeMillis(), prefs(app).getLong(LAST_CHECK, 0L), sessionActive())
-            if (due) runCheck(app)
+            if (due) runCheck(app) ?: showStaged(app, checker(app).stagedReady() != null)
             else if (File(dir(app), UpdateCheck.APK).isFile) showStaged(app, checker(app).stagedReady() != null)
             else showUi(Ui())
             main.post { startInstall(app, byPerson = false) }
@@ -197,8 +220,11 @@ object SelfUpdate {
         if (!canInstall(app)) { showUi(Ui(Phase.NEEDS_PERMISSION)); return }
         if (busy.get() || (installing && !byPerson)) return
         installing = true
-        showUi(Ui(Phase.INSTALLING))
+        showUi(Ui(Phase.INSTALLING, available = ui.available))
         Thread(work@{
+            if (tracksRelease() && SelfUpdateRules.recheckBeforeInstall(System.currentTimeMillis(), prefs(app).getLong(LAST_CHECK, 0L)))
+                runCheck(app, forInstall = true)
+            showUi(Ui(Phase.INSTALLING, available = stagedBuild(app)))
             val file = if (busy.compareAndSet(false, true)) {
                 try { checker(app).stagedReady() } finally { busy.set(false) }
             } else null
@@ -230,7 +256,8 @@ object SelfUpdate {
     fun installUnattended(context: Context, check: Boolean = true): Boolean {
         val app = context.applicationContext
         val backends = installers.filter { runCatching { it.unattended(app) }.getOrDefault(false) }
-        if (backends.isEmpty() || sessionActive()) return false
+        // With the front screen open the person's own flow installs; this must not race its prompt.
+        if (backends.isEmpty() || sessionActive() || frontResumed) return false
         if (check && tracksRelease() && SelfUpdateRules.checkDue(System.currentTimeMillis(), prefs(app).getLong(LAST_CHECK, 0L), sessionActive()))
             runCheck(app)
         if (installing || sessionActive() || !busy.compareAndSet(false, true)) return false
@@ -271,8 +298,9 @@ object SelfUpdate {
         main.post {
             when (result) {
                 is UpdateInstaller.Result.Success -> {
+                    // The staged file is left for the next start to judge: if a check replaced it with a newer build
+                    // meanwhile, deleting it here would lose that build until the next release.
                     installing = false
-                    File(dir(app), UpdateCheck.APK).delete()
                     showUi(Ui())
                 }
                 is UpdateInstaller.Result.NeedsConfirmation -> {
@@ -320,7 +348,7 @@ object SelfUpdate {
     fun remoteUpdate(context: Context): JSONObject {
         val app = context.applicationContext
         val outcome = runCheck(app)
-            ?: return JSONObject().put("ok", false).put("error", JSONObject().put("code", "BUSY").put("message", "a check is running"))
+            ?: return JSONObject().put("ok", false).put("error", JSONObject().put("code", "BUSY").put("message", "a check or an install is running"))
         if (outcome is UpdateCheck.Outcome.Ready) main.post {
             if (frontResumed) startInstall(app, byPerson = false)
             else if (!sessionActive()) Thread({

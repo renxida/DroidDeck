@@ -89,4 +89,18 @@ class SelfUpdateRulesTest {
         assertFalse(SelfUpdateRules.mayStartInstall(sessionActive = false, frontResumed = true, staged = true, declined = true))
         assertTrue(SelfUpdateRules.mayStartInstall(sessionActive = false, frontResumed = true, staged = true, declined = true, byPerson = true))
     }
+
+    @Test fun anInstallReChecksTheReleaseWhenTheLastCheckIsStale() {
+        val now = 10_000_000L
+        assertTrue(SelfUpdateRules.recheckBeforeInstall(now, 0L))
+        assertTrue(SelfUpdateRules.recheckBeforeInstall(now, now - SelfUpdateRules.FRESH_FOR_INSTALL_MS))
+        assertFalse(SelfUpdateRules.recheckBeforeInstall(now, now - 30_000L))
+        assertTrue(SelfUpdateRules.recheckBeforeInstall(now, now + 60_000L))
+    }
+
+    @Test fun noCheckStartsWhileAnInstallIsUnderWay() {
+        assertFalse(SelfUpdateRules.mayStartCheck(installing = true, alreadyChecking = false))
+        assertFalse(SelfUpdateRules.mayStartCheck(installing = false, alreadyChecking = true))
+        assertTrue(SelfUpdateRules.mayStartCheck(installing = false, alreadyChecking = false))
+    }
 }

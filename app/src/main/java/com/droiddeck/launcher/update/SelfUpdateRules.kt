@@ -4,6 +4,12 @@ package com.droiddeck.launcher.update
 object SelfUpdateRules {
     const val CHECK_EVERY_MS = 30 * 60_000L
 
+    /**
+     * An install first re-checks the release when the last check is older than this, so the person never installs a
+     * staged build that a newer release has already replaced (an unchanged release costs one 304).
+     */
+    const val FRESH_FOR_INSTALL_MS = 2 * 60_000L
+
     /** What a build says about itself: versionCode, and the commit and commit time it embeds in its manifest. */
     data class Build(val versionCode: Long, val commit: String, val commitTimeMs: Long)
 
@@ -43,6 +49,16 @@ object SelfUpdateRules {
         if (sessionActive) return false
         return lastCheckMs <= 0L || nowMs < lastCheckMs || nowMs - lastCheckMs >= CHECK_EVERY_MS
     }
+
+    /** True when an install should re-check the release first ([FRESH_FOR_INSTALL_MS]). */
+    fun recheckBeforeInstall(nowMs: Long, lastCheckMs: Long): Boolean =
+        lastCheckMs <= 0L || nowMs < lastCheckMs || nowMs - lastCheckMs >= FRESH_FOR_INSTALL_MS
+
+    /**
+     * A check (and its download) never starts while an install is under way, so the screen never shows a download
+     * racing the system's install prompt, and a download can't replace the APK the prompt is installing.
+     */
+    fun mayStartCheck(installing: Boolean, alreadyChecking: Boolean): Boolean = !installing && !alreadyChecking
 
     /**
      * The install starts by itself only on the resumed front screen with no session, and only once per build:
