@@ -80,16 +80,17 @@ int path_samples() {
 	return n;
 }
 
-// Chain rotate modes, how far apart the bones sit along the path. 2 (default): with length spacing,
-// each next bone sits on the curve where the straight distance from the current one equals the spacing, so neighbours are
-// exactly a bone length apart; the game's Decimillipede shows that to three decimals on all eleven
-// links, where arc spacing came up short by up to 1.4 px at the sharp turn. 1: the next bone starts at
-// the current bone's tip (arc positions are only aimed at). 0: plain arc-length spacing.
+// Chain rotate modes with length spacing, how far apart the bones sit along the path. 1 (default): each
+// bone aims at its arc position and the next one starts at its tip, so neighbours are exactly a bone
+// length apart and only the first sits on the curve; with the stretched gaps below this matches the
+// game's Decimillipede to 0.0004 px. 2: each next bone sits on the curve a straight bone length from the
+// current one (also a bone length apart, but up to 0.66 px off the game). 0: plain arc-length spacing.
+// Other spacing modes always use 0.
 int path_chain_mode() {
 	static const int m = [] {
 		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_CHAIN");
-		int k = v ? std::atoi(v) : 2;
-		return k < 0 || k > 2 ? 2 : k;
+		int k = v ? std::atoi(v) : 1;
+		return k < 0 || k > 2 ? 1 : k;
 	}();
 	return m;
 }
@@ -1040,9 +1041,21 @@ void Skeleton::apply_path(PathConstraint &p) {
 	// Straight-line spacing only with length spacing (bones meant to touch): the Gardener's stalks
 	// (proportional spacing, chain scale) sit at arc positions in the game, and moved ~1 px under it.
 	int chain = d.rotate_mode != 0 ? path_chain_mode() : 0;
-	if (chain == 2 && d.spacing_mode != 0) {
+	if (chain != 0 && d.spacing_mode != 0) {
 		chain = 0;
 	}
+	// With constant speed, length spacing runs in the attachment's stored lengths: each gap grows by how much
+	// longer the path is now than its stored length. The game's Decimillipede matched that to 0.0004 px on all
+	// twelve spine bones (aiming at those points, each bone starting at the last one's tip); unscaled gaps
+	// drifted to 1.4 px. DROIDDECK_NATIVE_SPINE_PATH_STRETCH=0 leaves the gaps unscaled.
+	static const bool stretch_gaps = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_STRETCH");
+		return !(v && v[0] == '0');
+	}();
+	const float gap_scale = stretch_gaps && by_curve && att->constant_speed && d.spacing_mode == 0 &&
+					int(att->lengths.size()) >= curves && att->lengths[curves - 1] > 1e-6f
+			? cum.back() / att->lengths[curves - 1]
+			: 1.0f;
 	// The distance past `from` where the curve is `step` away in a straight line from (x, y).
 	auto chord_dist = [&](float from, float x, float y, float step) {
 		float s = from + step;
@@ -1071,7 +1084,7 @@ void Skeleton::apply_path(PathConstraint &p) {
 			x = tip_x;
 			y = tip_y;
 		}
-		float step = gap(i);
+		float step = gap(i) * gap_scale;
 		float next = chain == 2 ? chord_dist(dist, x, y, step) : dist + step;
 		float angle = std::atan2(ty, tx);
 		float stretch = 1;

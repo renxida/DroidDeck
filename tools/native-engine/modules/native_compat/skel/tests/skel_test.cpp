@@ -748,11 +748,12 @@ static void test_binary_path_physics() {
 	NEAR(c.world_y, 20);
 }
 
-// Chain rotation on a bent path: in chain mode 2 the bone aims at the curve point exactly the spacing
-// away in a straight line (the game keeps chained neighbours a bone length apart); mode 0 aims at the
-// point the spacing away along the curve, which sits short of that on a bend.
+// Chain rotation on a bent path. Every mode aims the bone at a point on the curve; what differs is
+// which point. Mode 1 (the default, matching the game) takes the point the gap away along the path's
+// 10-chord table, with length gaps stretched by table length over stored length; mode 2 takes the curve
+// point exactly the gap away in a straight line; mode 0 places by arc without chaining.
 static void test_path_chain_bend() {
-	// One curve from (0, 0) to (20, 20) bending through (20, 0): a sharp turn.
+	// One curve from (0, 0) to (20, 20) bending through (20, 0): a sharp turn. Stored length 20.
 	std::vector<uint8_t> bin = synthetic_path_physics({ -5, 0, 0, 0, 20, 0, 20, 0, 20, 20, 20, 25 });
 	std::string err;
 	auto sd = load_binary(bin.data(), bin.size(), 1, err);
@@ -760,40 +761,88 @@ static void test_path_chain_bend() {
 	if (!sd) {
 		return;
 	}
-	// Worst miss of the aimed-at point from the curve over a few places along the bend.
-	auto worst_miss = [&](int spacing_mode) {
+	auto bez = [](float t, float &x, float &y) {
+		const float u = 1 - t;
+		x = 3 * u * u * t * 20 + 3 * u * t * t * 20 + t * t * t * 20;
+		y = t * t * t * 20;
+	};
+	// Distance along the 10-chord table to bezier parameter t.
+	float chord[10], table = 0;
+	for (int k = 0; k < 10; k++) {
+		float x0, y0, x1, y1;
+		bez(k / 10.0f, x0, y0);
+		bez((k + 1) / 10.0f, x1, y1);
+		chord[k] = std::hypot(x1 - x0, y1 - y0);
+		table += chord[k];
+	}
+	auto table_dist = [&](float t) {
+		float d = 0;
+		const int k = std::min(int(t * 10), 9);
+		for (int i = 0; i < k; i++) {
+			d += chord[i];
+		}
+		return d + (t * 10 - k) * chord[k];
+	};
+	struct Aim { float miss, straight, along; };
+	// For each place along the bend: how far the bone's ray misses the curve, and the straight and table
+	// distances from the bone's start to the curve point it aims at.
+	auto aims = [&](int spacing_mode) {
 		sd->paths[0].spacing_mode = spacing_mode;
 		Skeleton sk(sd.get());
 		// Length spacing: the bone's 10 plus -5 gives the same 5-unit gap as fixed spacing 5.
 		sk.paths[0].spacing = spacing_mode == 0 ? -5.0f : 5.0f;
 		const Bone &b = sk.bones[1];
-		float best = 0;
+		std::vector<Aim> out;
 		for (float pos : { 0.25f, 0.4f, 0.5f, 0.6f }) {
 			sk.paths[0].position = pos;
 			sk.update_world_transform();
-			const float r = std::atan2(b.c, b.a);
-			const float ax = b.world_x + 5 * std::cos(r), ay = (b.world_y * 2 - 4) + 5 * std::sin(r); // undo mix y 0.5 (rest y 4)
-			float miss = 1e9f;
+			const float r = std::atan2(b.c, b.a), dx = std::cos(r), dy = std::sin(r);
+			const float sx = b.world_x, sy = b.world_y * 2 - 4; // undo mix y 0.5 (rest y 4)
+			Aim a { 1e9f, 0, 0 };
+			float start_t = 0, start_miss = 1e9f, hit_t = 0;
 			for (int k = 0; k <= 20000; k++) {
-				const float t = k / 20000.0f, u = 1 - t;
-				const float x = 3 * u * u * t * 20 + 3 * u * t * t * 20 + t * t * t * 20;
-				const float y = t * t * t * 20;
-				miss = std::min(miss, std::hypot(x - ax, y - ay));
+				const float t = k / 20000.0f;
+				float x, y;
+				bez(t, x, y);
+				const float ox = x - sx, oy = y - sy, ahead = ox * dx + oy * dy;
+				if (std::hypot(ox, oy) < start_miss) {
+					start_miss = std::hypot(ox, oy);
+					start_t = t;
+				}
+				const float miss = std::fabs(ox * dy - oy * dx);
+				if (ahead > 2 && miss < a.miss) {
+					a.miss = miss;
+					a.straight = ahead;
+					hit_t = t;
+				}
 			}
-			best = std::max(best, miss);
+			a.along = table_dist(hit_t) - table_dist(start_t);
+			out.push_back(a);
 		}
-		return best;
+		return out;
 	};
 	// Fixed spacing keeps arc positions in every mode (the Gardener's stalks sit there in the game).
-	CHECK(worst_miss(1) > 0.05f);
-	const float best = worst_miss(0);
+	float fixed_off = 0;
+	for (const Aim &a : aims(1)) {
+		fixed_off = std::max(fixed_off, std::fabs(a.straight - 5));
+	}
+	CHECK(fixed_off > 0.05f);
 	const char *mode = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_CHAIN");
 	const char *eval = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_EVAL");
-	const float tol = eval && std::atoi(eval) == 0 ? 0.2f : 0.02f; // eval 0 walks table chords, not the curve
-	if (!mode || std::atoi(mode) == 2) {
-		CHECK(best < tol);
-	} else if (std::atoi(mode) == 0) {
-		CHECK(best > 0.05f);
+	const char *stretch = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_STRETCH");
+	if (eval && std::atoi(eval) == 0) {
+		return; // eval 0 walks table chords, not the curve
+	}
+	const int m = mode ? std::atoi(mode) : 1;
+	const float scale = stretch && stretch[0] == '0' ? 1.0f : table / 20;
+	CHECK(table > 25); // the bend is much longer than the stored 20, so the stretch shows
+	for (const Aim &a : aims(0)) {
+		CHECK(a.miss < 0.02f);
+		if (m == 1) {
+			CHECK(std::fabs(a.along - 5 * scale) < 0.03f);
+		} else if (m == 2 && scale == 1) {
+			CHECK(std::fabs(a.straight - 5) < 0.03f);
+		}
 	}
 }
 
