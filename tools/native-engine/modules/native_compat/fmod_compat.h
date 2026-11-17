@@ -80,8 +80,8 @@ public:
 	void event_key_off() {}
 	void set_parameter_by_name(const String &p_name, float p_value);
 	float get_parameter_by_name(const String &p_name) const;
-	void set_parameter_by_id(int64_t p_id, float p_value) { parameters[itos(p_id)] = p_value; }
-	float get_parameter_by_id(int64_t p_id) const { return get_parameter_by_name(itos(p_id)); }
+	void set_parameter_by_id(int64_t p_id, float p_value);
+	float get_parameter_by_id(int64_t p_id) const;
 	void set_parameter_by_name_with_label(const String &p_name, const String &p_label, bool p_ignore_seek);
 	void set_2d_attributes(const Transform2D &p_t) { transform_2d = p_t; }
 	void set_3d_attributes(const Transform3D &p_t) { transform_3d = p_t; }
@@ -118,9 +118,9 @@ public:
 	bool is_snapshot() const { return path.begins_with("snapshot:/"); }
 	int get_length() const { return 0; }
 	Array get_min_max_distance() const;
-	int get_parameter_count() const { return 0; }
+	int get_parameter_count() const { return get_parameters().size(); }
 	Ref<FmodParameterDescription> get_parameter_by_name(const String &p_name) const;
-	Array get_parameters() const { return Array(); }
+	Array get_parameters() const;
 	String get_guid() const { return guid; }
 	String get_path() const { return path; }
 };
@@ -285,6 +285,11 @@ public:
 	friend class FmodBank;
 	friend class FmodBus;
 	friend struct EventTimeline;
+	friend class FmodEventDescription;
+	friend class FmodEvent;
+	// Parameter descriptions handed out, by id, so a set by id reaches the name the timeline reads.
+	HashMap<int64_t, String> parameter_names;
+	Array event_parameters(const String &p_guid);
 	int64_t count_instances(const String &p_path) const;
 	// Plays the sounds one start of the event (by GUID text) gives, each in its own audio player added to the
 	// scene root. Returns how many started; their ids and levels go to r_players and r_db when given.

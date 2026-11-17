@@ -65,7 +65,8 @@ Bytes inst(float volume_db) {
 // or W3 (weight 3); T1 has a loop region over M1. E2 has no instruments of its own; its parameter sheet S2
 // names W1. E3's timeline places W2 half a second in. E4's places W1 under a loop region and W3 past it.
 const fsb::Guid E1 = G(1), E2 = G(2), T1 = G(3), T2 = G(4), M1 = G(5), W1 = G(6), W2 = G(7), W3 = G(8), S2 = G(9),
-				A = G(10), B = G(11), C = G(12), E3 = G(13), T3 = G(14), E4 = G(15), T4 = G(16);
+				A = G(10), B = G(11), C = G(12), E3 = G(13), T3 = G(14), E4 = G(15), T4 = G(16), P1 = G(17);
+// E2 also refers to parameter P1 ("Intensity", 0..3, default 1).
 
 Bytes bank() {
 	auto evtb = [](const fsb::Guid &own, const fsb::Guid &tl, const std::vector<fsb::Guid> &refs) {
@@ -138,18 +139,28 @@ Bytes bank() {
 	putg(plst, W3);
 	putf(plst, 3);
 	putg(pmlb, S2);
+	Bytes prmb;
+	putg(prmb, P1);
+	put(prmb, 1, 4); // flags: global
+	put(prmb, 0, 4);
+	put(prmb, 9, 2);
+	prmb.insert(prmb.end(), { 'I', 'n', 't', 'e', 'n', 's', 'i', 't', 'y' });
+	putf(prmb, 0);
+	putf(prmb, 3);
+	putf(prmb, 1);
 	Bytes sheet_refs;
 	putg(sheet_refs, W1);
 	Bytes proj = list("PROJ", {
 			chunk("BNKI", Bytes(32, 0)),
 			list("EVTS", { list("EVNT", { chunk("EVTB", evtb(E1, T1, { W1 })) }),
-								 list("EVNT", { chunk("EVTB", evtb(E2, T2, { S2 })) }),
+								 list("EVNT", { chunk("EVTB", evtb(E2, T2, { S2, P1 })) }),
 								 list("EVNT", { chunk("EVTB", evtb(E3, T3, {})) }),
 								 list("EVNT", { chunk("EVTB", evtb(E4, T4, {})) }) }),
 			list("TLNS", { list("TMLN", { chunk("TLNB", tlnb(T1, { { M1, 0 } }, true)) }),
 								 list("TMLN", { chunk("TLNB", tlnb(T2, {}, false)) }),
 								 list("TMLN", { chunk("TLNB", tlnb(T3, { { W2, 24000 } }, false)) }),
 								 list("TMLN", { chunk("TLNB", tlnb(T4, { { W1, 0 }, { W3, 2000 } }, true)) }) }),
+			list("PRMS", { list("PARM", { chunk("PRMB", prmb) }) }),
 			list("PMLS", { list("PMLO", { chunk("PMLB", pmlb), chunk("PMIN", sheet_refs) }) }),
 			list("MUIS", { list("MUIT", { chunk("MUIB", muib), chunk("PLST", plst), chunk("INST", inst(-3)) }) }),
 			list("WAIS", { wait(W1, A, -6), wait(W2, B, 0), wait(W3, C, 0) }),
@@ -174,6 +185,11 @@ void test_synthetic() {
 	CHECK(t.waves.size() == 3 && t.waves.at(B) == 7);
 	CHECK(t.instruments.at(M1).multi && t.instruments.at(M1).playlist.size() == 2);
 	CHECK(t.events.at(E1).instruments.size() == 2);
+	// Per-event parameters: E2 lists P1 with its name and range; E1 refers to none.
+	CHECK(t.params.count(P1) && t.params.at(P1).name == "Intensity" && t.params.at(P1).max == 3 && t.params.at(P1).value == 1 &&
+			t.params.at(P1).global());
+	CHECK(t.events.at(E2).params.size() == 1 && t.events.at(E2).params[0] == P1);
+	CHECK(t.events.at(E1).params.empty());
 	uint32_t rng = 1;
 	int got_b = 0, got_c = 0;
 	for (int i = 0; i < 4000; i++) {

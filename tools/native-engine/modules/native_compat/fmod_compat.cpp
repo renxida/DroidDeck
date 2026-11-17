@@ -309,6 +309,18 @@ int FmodEvent::get_playback_state() {
 	return state;
 }
 
+void FmodEvent::set_parameter_by_id(int64_t p_id, float p_value) {
+	FmodServer *s = FmodServer::get_singleton();
+	const String *name = s ? s->parameter_names.getptr(p_id) : nullptr;
+	set_parameter_by_name(name ? *name : itos(p_id), p_value);
+}
+
+float FmodEvent::get_parameter_by_id(int64_t p_id) const {
+	FmodServer *s = FmodServer::get_singleton();
+	const String *name = s ? s->parameter_names.getptr(p_id) : nullptr;
+	return get_parameter_by_name(name ? *name : itos(p_id));
+}
+
 float FmodEvent::get_parameter_by_name(const String &p_name) const {
 	const float *v = parameters.getptr(p_name);
 	return v ? *v : 0.0f;
@@ -400,7 +412,20 @@ Array FmodEventDescription::get_min_max_distance() const {
 	return a;
 }
 
+Array FmodEventDescription::get_parameters() const {
+	FmodServer *s = FmodServer::get_singleton();
+	return s ? s->event_parameters(guid) : Array();
+}
+
 Ref<FmodParameterDescription> FmodEventDescription::get_parameter_by_name(const String &p_name) const {
+	const Array all = get_parameters();
+	for (int i = 0; i < all.size(); i++) {
+		Ref<FmodParameterDescription> d = all[i];
+		if (d.is_valid() && d->name == p_name) {
+			return d;
+		}
+	}
+	// Not one of the event's own: a bare description, as before, so a caller that does not check gets an object.
 	Ref<FmodParameterDescription> d;
 	d.instantiate();
 	d->name = p_name;
@@ -648,6 +673,44 @@ Ref<AudioStreamOggVorbis> FmodServer::stream_for_wave(const fsb::Guid &p_wave, b
 		}
 	}
 	return Ref<AudioStreamOggVorbis>();
+}
+
+Array FmodServer::event_parameters(const String &p_guid) {
+	Array out;
+	static const bool enabled = [] {
+		const char *v = getenv("DROIDDECK_NATIVE_FMOD_EVENT_PARAMS");
+		return !(v && v[0] == '0');
+	}();
+	fsb::Guid g;
+	if (!enabled || p_guid.is_empty() || !fsb::parse_guid_text(p_guid.utf8().get_data(), g)) {
+		return out;
+	}
+	Ref<NativeSoundBank> d = bank_with_event(g);
+	if (d.is_null()) {
+		return out;
+	}
+	const fsb::EventTable &t = d->get_event_table();
+	for (const fsb::Guid &pg : t.events.at(g).params) {
+		auto it = t.params.find(pg);
+		if (it == t.params.end()) {
+			continue;
+		}
+		Ref<FmodParameterDescription> pd;
+		pd.instantiate();
+		pd->name = String::utf8(it->second.name.c_str());
+		pd->minimum = it->second.min;
+		pd->maximum = it->second.max;
+		pd->default_value = it->second.value;
+		pd->global = it->second.global();
+		int64_t id = 0;
+		for (int i = 0; i < 8; i++) {
+			id = (id << 8) | pg[i];
+		}
+		pd->id = id & 0x7fffffffffffffffll ? id & 0x7fffffffffffffffll : 1;
+		parameter_names[pd->id] = pd->name;
+		out.push_back(pd);
+	}
+	return out;
 }
 
 bool FmodServer::label_value(const String &p_name, const String &p_label, float &r_value) const {

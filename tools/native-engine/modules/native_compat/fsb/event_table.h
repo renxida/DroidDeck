@@ -99,6 +99,8 @@ struct EventTable {
 		std::string name;
 		float min = 0, max = 0, value = 0; // value: the default
 		std::vector<std::string> labels; // label i stands for the value i
+		uint32_t flags = 0; // PRMB flags; bit 0 is set on the parameters the game sets globally (Progress, ducking)
+		bool global() const { return flags & 1; }
 	};
 	struct Event {
 		std::vector<Guid> instruments; // all start together
@@ -106,6 +108,7 @@ struct EventTable {
 		std::vector<Guid> unreachable; // placed past a loop region: skipped
 		std::vector<std::pair<Guid, float>> delays; // timeline start, seconds
 		std::string refs; // diagnostics: types of the objects reachable from the event, as "TYPE:count ..."
+		std::vector<Guid> params; // parameters (PARM objects) reachable from the event, for its description
 		// The timeline as a whole, for events that need it played over time (see `dynamic`).
 		std::vector<Placement> placements;
 		std::vector<Transition> transitions;

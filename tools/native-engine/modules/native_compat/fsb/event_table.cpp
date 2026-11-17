@@ -209,7 +209,8 @@ void apply_timeline(const TimelineParts &parts, const std::unordered_map<Guid, u
 
 // Diagnostics: the types of the objects an event reaches through GUID references (a few levels deep), so a
 // silent event's log line says which kinds of object it uses.
-static std::string reach_types(const std::unordered_map<Guid, Object, GuidHash> &objects, const GuidSet &all, const Guid &root) {
+static std::string reach_types(const std::unordered_map<Guid, Object, GuidHash> &objects, const GuidSet &all, const Guid &root,
+		std::vector<Guid> *r_params = nullptr) {
 	GuidSet seen{ root };
 	std::vector<Guid> level{ root };
 	std::map<std::string, int> counts;
@@ -228,6 +229,9 @@ static std::string reach_types(const std::unordered_map<Guid, Object, GuidHash> 
 				if (seen.insert(f).second) {
 					next_level.push_back(f);
 					counts[std::string(objects.at(f).type, 4)]++;
+					if (r_params && memcmp(objects.at(f).type, "PARM", 4) == 0) {
+						r_params->push_back(f);
+					}
 				}
 			}
 		}
@@ -325,6 +329,7 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 			continue;
 		}
 		EventTable::Param prm;
+		prm.flags = rd32(c->body + 16);
 		prm.name.assign(reinterpret_cast<const char *>(c->body + 26), len);
 		const uint8_t *f = c->body + 26 + len;
 		prm.min = rdf(f);
@@ -498,7 +503,7 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 				}
 			}
 		}
-		ev.refs = reach_types(objects, all_ids, kv.first);
+		ev.refs = reach_types(objects, all_ids, kv.first, &ev.params);
 		out.events.emplace(kv.first, std::move(ev));
 	}
 	std::map<std::string, int> counts;
