@@ -63,9 +63,9 @@ import time
 import urllib.request
 
 # The published component. Built by .github/workflows/native-engine-build.yml (publish=true).
-COMPONENT = {"tag": "native-engine-104",
-             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-104/native-engine.tar.zst",
-             "sha256": "51c4156f07f8baf6f9105e6680393f63739398ff8d80a8ac0ee5d6718fa3c4a0"}
+COMPONENT = {"tag": "native-engine-105",
+             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-105/native-engine.tar.zst",
+             "sha256": "d9eb59b12cc2e1ec1612a8235e1575f4611ce23ba9dc2c7e5d510043aa69ce50"}
 # The component layout this wrapper understands. A release declares its own in component.json; CI's resolver
 # (tools/native-engine/resolve_component.py) only pins releases whose api matches.
 COMPONENT_API = 1
