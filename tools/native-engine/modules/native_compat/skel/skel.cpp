@@ -1178,10 +1178,19 @@ void Skeleton::apply_physics2(PhysicsConstraint &p) {
 		const float k = p.strength * p.mass_inverse, keep = std::min(std::max(p.damping, 0.0f), 1.0f);
 		// Wind and gravity push the origin and, across the bone, turn it.
 		const float fx = p.wind * p.mass_inverse, fy = -p.gravity * p.mass_inverse;
+		// Their turn grows with the bone's length over the skeleton's reference scale: fitted on sewer_clam's
+		// idle wind, where horns 77 to 180 long all matched Proton with torque = force * length / 100
+		// (reference scale 100). DROIDDECK_NATIVE_SPINE_PHYSICS_WIND=0 divides by the length as before.
+		static const bool wind_by_length = [] {
+			const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_WIND");
+			return !(v && v[0] == '0');
+		}();
+		const float ref = data->reference_scale > 1e-6f ? data->reference_scale : 100.0f;
+		const float lever = wind_by_length ? len / ref : 1 / len;
 		while (p.remaining >= step) {
 			p.remaining -= step;
 			const float a1 = angle + p.rot * mix;
-			const float torque = (-fx * std::sin(a1) + fy * std::cos(a1)) / len;
+			const float torque = (-fx * std::sin(a1) + fy * std::cos(a1)) * lever;
 			p.rot_v = p.rot_v * keep + (-k * p.rot + torque) * step;
 			p.rot += p.rot_v * step;
 			p.stretch_v = p.stretch_v * keep - k * p.stretch * step;
@@ -1620,6 +1629,34 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 					if (tl.target < 0 || int(i) == tl.target) {
 						PhysicsConstraint &p = sk.physics[i];
 						mix_value(p.mix, p.data->mix, v, alpha, blend);
+					}
+				}
+				break;
+			}
+			case TimelineType::PhysicsSetting: {
+				const float v = cv.evaluate(time, 0);
+				// The skeleton-wide timeline drives the constraints whose global flags carry this setting's
+				// bit (inertia 1, strength 2, damping 4, mass 8, wind 16, gravity 32).
+				const int bit = 1 << (tl.setting > 3 ? tl.setting - 1 : tl.setting);
+				for (size_t i = 0; i < sk.physics.size(); i++) {
+					PhysicsConstraint &p = sk.physics[i];
+					if (tl.target < 0 ? !(p.data->global_flags & bit) : int(i) != tl.target) {
+						continue;
+					}
+					const PhysicsData &d = *p.data;
+					switch (tl.setting) {
+						case 0: mix_value(p.inertia, d.inertia, v, alpha, blend); break;
+						case 1: mix_value(p.strength, d.strength, v, alpha, blend); break;
+						case 2: mix_value(p.damping, d.damping, v, alpha, blend); break;
+						case 4: {
+							float mass = 1 / std::max(p.mass_inverse, 1e-6f);
+							mix_value(mass, 1 / std::max(d.mass_inverse, 1e-6f), v, alpha, blend);
+							p.mass_inverse = 1 / std::max(mass, 1e-6f);
+							break;
+						}
+						case 5: mix_value(p.wind, d.wind, v, alpha, blend); break;
+						case 6: mix_value(p.gravity, d.gravity, v, alpha, blend); break;
+						default: break;
 					}
 				}
 				break;

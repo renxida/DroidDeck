@@ -75,6 +75,7 @@ struct Loader {
 			sd.width = float(s->num("width", 0)) * scale;
 			sd.height = float(s->num("height", 0)) * scale;
 			sd.fps = float(s->num("fps", 30));
+			sd.reference_scale = float(s->num("referenceScale", 100)) * scale;
 		}
 		major = sd.major_version();
 		return true;

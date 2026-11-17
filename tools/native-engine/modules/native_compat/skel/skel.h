@@ -198,7 +198,7 @@ struct Curve {
 enum class TimelineType {
 	Rotate, Translate, TranslateX, TranslateY, Scale, ScaleX, ScaleY, Shear, ShearX, ShearY,
 	Attachment, RGBA, RGB, Alpha, RGBA2, RGB2, Deform, DrawOrder, Event, Ik, Inherit, Transform, Sequence,
-	PathPosition, PathSpacing, PathMix, PhysicsMix
+	PathPosition, PathSpacing, PathMix, PhysicsMix, PhysicsSetting
 };
 
 struct Timeline {
@@ -213,6 +213,7 @@ struct Timeline {
 	std::vector<int> sequence_keys; // sequence: per frame, start index << 4 | SequenceMode
 	std::vector<float> sequence_delays; // sequence: per frame, seconds per image
 	std::vector<uint8_t> flags; // ik: bend_positive, compress, stretch per frame (bit 0, 1, 2); inherit: mode per frame
+	int setting = 0; // physics setting: 0 inertia, 1 strength, 2 damping, 4 mass, 5 wind, 6 gravity
 };
 
 struct Animation {
@@ -225,6 +226,7 @@ struct SkeletonData {
 	std::string version; // e.g. "4.2.43", or "" when unknown
 	std::string hash;
 	float x = 0, y = 0, width = 0, height = 0, fps = 30;
+	float reference_scale = 100; // the header's reference scale (physics wind and gravity are relative to it)
 	std::vector<BoneData> bones;
 	std::vector<SlotData> slots;
 	std::vector<std::unique_ptr<Skin>> skins;

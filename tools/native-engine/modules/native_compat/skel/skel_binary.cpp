@@ -14,6 +14,7 @@
 #include "skel.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 
 namespace skel {
@@ -183,7 +184,7 @@ struct BinaryLoader {
 		sd.y = r.f32() * scale;
 		sd.width = r.f32() * scale;
 		sd.height = r.f32() * scale;
-		r.f32(); // reference scale
+		sd.reference_scale = r.f32() * scale;
 		nonessential = r.boolean();
 		if (nonessential) {
 			sd.fps = r.f32();
@@ -905,7 +906,19 @@ struct BinaryLoader {
 				tl.type = TimelineType::PhysicsMix;
 				tl.target = int(target) - 1;
 				float_frames(tl, frames, 1, 1.0f);
+				// The other types set one setting each: 0 inertia (sewer_clam keys horn_top_2's 0.8664 there),
+				// 5 wind (sewer_clam's idle sways its horns with it; the skeleton-wide one drives exactly the
+				// constraints flagged 16), and by the same order 1 strength, 2 damping, 4 mass, 6 gravity.
+				// DROIDDECK_NATIVE_SPINE_PHYSICS_SETTINGS=0 skips all but the mix, as before.
+				static const bool settings = [] {
+					const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_SETTINGS");
+					return !(v && v[0] == '0');
+				}();
 				if (type == 7) {
+					keep(std::move(tl));
+				} else if (settings && type != 3) {
+					tl.type = TimelineType::PhysicsSetting;
+					tl.setting = type;
 					keep(std::move(tl));
 				} else {
 					unsupported.push_back("physics setting timelines other than mix");

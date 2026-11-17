@@ -379,6 +379,40 @@ static void test_physics_seam() {
 	}
 }
 
+// Wind turns a physics bone by force * length / reference scale (sewer_clam's horns, 77 to 180 long,
+// all matched the game this way): a 100-long bone pointing up under wind 10, strength 100 settles near
+// -0.1 rad off.
+static void test_physics_wind_lever() {
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+	if (m && m[0] != '2') return;
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43", "referenceScale": 100}, "bones": [
+	  {"name": "root"}, {"name": "stalk", "parent": "root", "rotation": 90, "length": 100}]})");
+	if (!sd) return;
+	CHECK(std::fabs(sd->reference_scale - 100) < 1e-3f);
+	PhysicsData pd;
+	pd.bone = 1;
+	pd.rotate = 1;
+	pd.inertia = 0.5f;
+	pd.strength = 100;
+	pd.damping = 0.85f;
+	pd.limit = 5000;
+	pd.wind = 10;
+	sd->physics.push_back(pd);
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	for (int i = 0; i < 600; i++) {
+		sk.update(1.0f / 60);
+		sk.update_world_transform();
+	}
+	const float off = sk.bones[1].world_rotation_x() - 90;
+	const char *wind = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_WIND");
+	if (wind && wind[0] == '0') {
+		CHECK(std::fabs(off) < 0.2f);
+	} else {
+		CHECK(off < -5 && off > -6.5f);
+	}
+}
+
 static void test_spine3_layout() {
 	const char *rig3 = R"({
 	 "skeleton": {"spine": "3.8.99"},
@@ -593,7 +627,7 @@ static std::vector<uint8_t> synthetic_path_physics(const std::vector<float> &cur
 	w.v(0); w.v(0); w.v(0); w.v(0); // slot, bone, ik, transform timelines
 	w.v(1); w.v(0); w.v(1); w.u8(0); w.v(2); w.v(0); // path position: 0 -> 1 over 1 s
 	w.f(0); w.f(0.25f); w.f(1); w.f(0.75f); w.u8(0);
-	// Physics: every constraint's mix (target 0) 1 -> 0, then constraint 0's type-5 setting (read, skipped).
+	// Physics: every constraint's mix (target 0) 1 -> 0, then constraint 0's type-5 setting (wind, held at -2).
 	w.v(2);
 	w.v(0); w.v(1); w.u8(7); w.v(2); w.v(0); w.f(0); w.f(1); w.f(1); w.f(0); w.u8(0);
 	w.v(1); w.v(1); w.u8(5); w.v(1); w.v(0); w.f(0); w.f(-2);
@@ -640,15 +674,23 @@ static void test_binary_path_physics() {
 		NEAR(path->lengths[0], 40);
 	}
 	const Animation *anim = sd->find_animation("go");
-	CHECK(anim && anim->timelines.size() == 3);
-	if (anim && anim->timelines.size() == 3) {
+	const char *settings_env = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_SETTINGS");
+	const bool settings = !(settings_env && settings_env[0] == '0');
+	const size_t want = settings ? 4 : 3;
+	CHECK(anim && anim->timelines.size() == want);
+	if (anim && anim->timelines.size() == want) {
 		const Timeline &pos = anim->timelines[0];
 		CHECK(pos.type == TimelineType::PathPosition);
 		NEAR(pos.curve.evaluate(0.5f, 0), 0.5);
 		const Timeline &mix = anim->timelines[1];
 		CHECK(mix.type == TimelineType::PhysicsMix && mix.target == -1);
 		NEAR(mix.curve.evaluate(0.5f, 0), 0.5);
-		const Timeline &def = anim->timelines[2];
+		if (settings) {
+			const Timeline &wind = anim->timelines[2];
+			CHECK(wind.type == TimelineType::PhysicsSetting && wind.target == 0 && wind.setting == 5);
+			NEAR(wind.curve.evaluate(0.5f, 0), -2);
+		}
+		const Timeline &def = anim->timelines[want - 1];
 		CHECK(def.type == TimelineType::Deform && def.deforms.size() == 2 && def.curve.kinds[0] == Curve::STEPPED);
 		if (def.deforms.size() == 2 && def.deforms[1].size() == 6) {
 			NEAR(def.deforms[1][4], 14);
@@ -835,6 +877,7 @@ int main() {
 	test_physics_model2();
 	test_physics_scale_tip();
 	test_physics_seam();
+	test_physics_wind_lever();
 	test_spine3_layout();
 	test_binary();
 	test_binary_path_physics();
