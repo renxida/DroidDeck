@@ -303,6 +303,8 @@ struct PhysicsConstraint {
 	float origin_x = 0, origin_y = 0; // bone origin at the last step
 	float tip_x = 0, tip_y = 0, tip_vx = 0, tip_vy = 0; // simulated tip (world)
 	float off_x = 0, off_y = 0, off_vx = 0, off_vy = 0; // simulated origin offset (world)
+	// Model 2 (see physics_model() in skel.cpp): angle and stretch offsets, and the pose they lag behind.
+	float last_time = 0, last_angle = 0, rot = 0, rot_v = 0, stretch = 0, stretch_v = 0;
 	void reset() { started = false; }
 };
 
@@ -318,6 +320,8 @@ struct Skeleton {
 	enum ConstraintKind { IK, TRANSFORM, PATH, PHYSICS };
 	std::vector<std::pair<int, int>> constraint_order; // (ConstraintKind, index), by data order
 	float physics_time = 0; // seconds not yet simulated; Skeleton::update adds to it
+	float time = 0; // skeleton clock in seconds (float, as the game keeps it); physics model 2 steps from it
+	int physics_pass = 2; // 0 none, 1 reset, 2 update, 3 pose (the game's physics argument)
 	const Skin *skin = nullptr;
 	Color color;
 	float x = 0, y = 0, scale_x = 1, scale_y = 1;
@@ -331,7 +335,10 @@ struct Skeleton {
 	bool set_attachment(const std::string &slot, const std::string &key);
 	void update_world_transform();
 	// Advances physics by dt seconds at the next update_world_transform.
-	void update(float dt) { physics_time += dt; }
+	void update(float dt) {
+		physics_time += dt;
+		time += dt;
+	}
 	void reset_physics();
 
 	// World-space vertices for a slot's current attachment (x,y pairs). Returns vertex count.
@@ -343,6 +350,7 @@ private:
 	void apply_transform(TransformConstraint &t);
 	void apply_path(PathConstraint &p);
 	void apply_physics(PhysicsConstraint &p, float dt);
+	void apply_physics2(PhysicsConstraint &p);
 	void set_world(Bone &bone, float a, float b, float c, float d, float wx, float wy);
 	void update_after(const std::vector<int> &constrained);
 	// Whether a constraint applies: always, unless it is skin-required and the current skin does not list it.

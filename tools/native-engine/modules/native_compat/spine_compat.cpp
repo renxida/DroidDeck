@@ -1271,7 +1271,9 @@ void SpineSkeleton::update_world_transform(int p_physics) {
 	} else if (p_physics == 0 || p_physics == 3) {
 		sk->physics_time = 0; // hold the simulation where it is
 	}
+	sk->physics_pass = (p_physics >= 0 && p_physics <= 3) ? p_physics : 2;
 	sk->update_world_transform();
+	sk->physics_pass = 2;
 }
 
 void SpineSkeleton::update(float p_delta) {
@@ -1425,9 +1427,15 @@ void SpineSprite::_rebuild() {
 	// The setup-pose transform above must not start the physics simulation: the game's own engine starts it
 	// from the first animated update, so springs begin at rest on the animated pose (frame-diff harness, Fool
 	// idle). DROIDDECK_NATIVE_SPINE_PHYSICS_START=0 keeps the old start from the setup pose.
+	// Physics model 2 (skel.cpp) starts from the setup pose like the game (Fool ancestor probe: the ears hold
+	// back half the head's first animated turn), so the reset is only the model 1 default.
 	static const bool start_on_update = [] {
 		const char *v = getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_START");
-		return !(v && v[0] == '0');
+		if (v) {
+			return v[0] != '0';
+		}
+		const char *m = getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+		return m && m[0] == '1';
 	}();
 	if (start_on_update) {
 		skeleton->reset_physics();

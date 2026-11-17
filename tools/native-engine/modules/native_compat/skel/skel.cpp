@@ -40,6 +40,23 @@ bool noscale_aim_shear() {
 	return on;
 }
 
+// Physics model 2 (default) is fitted to the Fool's ear, bell and cape chains in the frame-diff harness
+// (Proton raw world matrices, 46 rotate-only constraints, inertia 0.5): each update holds back the inertia
+// share of the bone's change in world angle (ear_l1/l2/l3 make 0.5/0.25/0.125 of the head's turn at a
+// zero-delta update) and lets its tip lag the same share of the origin's movement, capped at
+// limit * delta (so a zero-delta update moves nothing); a spring of strength * mass_inverse with
+// velocity damped per step (v = v * damping + a * step) pulls the angle offset back at fixed fps steps
+// counted from the float skeleton clock. Fitted: cape chain 0.002 deg rms over 10 frames, ears and bells
+// within 0.65 deg where model 1 was 20-30 deg and 50 px off. DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL=1
+// restores the old point-tip model.
+int physics_model() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+		return v ? std::atoi(v) : 2;
+	}();
+	return m;
+}
+
 int path_samples() {
 	static const int n = [] {
 		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_SAMPLES");
@@ -993,6 +1010,91 @@ void Skeleton::apply_physics(PhysicsConstraint &p, float dt) {
 	set_world(b, a, bb, c, dd, wx, wy);
 }
 
+void Skeleton::apply_physics2(PhysicsConstraint &p) {
+	const PhysicsData &d = *p.data;
+	Bone &b = bones[d.bone];
+	if (physics_pass == 0) {
+		return;
+	}
+	const float len = b.data->length > 1e-3f ? b.data->length : 1.0f;
+	const float angle = std::atan2(b.c, b.a);
+	if (physics_pass == 1 || !p.started) {
+		p.started = true;
+		p.remaining = 0;
+		p.last_time = time;
+		p.last_angle = angle;
+		p.origin_x = b.world_x;
+		p.origin_y = b.world_y;
+		p.rot = p.rot_v = p.stretch = p.stretch_v = 0;
+		p.off_x = p.off_y = p.off_vx = p.off_vy = 0;
+	}
+	const float inertia = std::min(std::max(p.inertia, 0.0f), 1.0f);
+	const float mix = p.mix;
+	if (physics_pass == 2) {
+		float delta = std::max(time - p.last_time, 0.0f);
+		p.last_time = time;
+		// The inertia share of the turn is held back.
+		p.rot -= inertia * wrap180((angle - p.last_angle) / DEG) * DEG;
+		p.last_angle = angle;
+		// The origin's movement since the last update, capped by limit * delta.
+		float mx = b.world_x - p.origin_x, my = b.world_y - p.origin_y;
+		p.origin_x = b.world_x;
+		p.origin_y = b.world_y;
+		const float move = std::hypot(mx, my), cap = d.limit * delta;
+		if (move > cap) {
+			const float f = move > 0 ? cap / move : 0;
+			mx *= f;
+			my *= f;
+		}
+		if (mx != 0 || my != 0) {
+			// The tip lags the inertia share of the movement: that turns and stretches the bone.
+			const float a0 = angle + p.rot * mix;
+			const float tx = len * std::cos(a0) - inertia * mx, ty = len * std::sin(a0) - inertia * my;
+			p.rot += std::atan2(ty, tx) - a0;
+			p.stretch += std::hypot(tx, ty) / len - 1;
+			p.off_x -= inertia * mx;
+			p.off_y -= inertia * my;
+		}
+		const float fps = d.fps > 0 ? d.fps : 60, step = 1 / fps;
+		p.remaining = std::min(p.remaining + delta, 0.25f);
+		const float k = p.strength * p.mass_inverse, keep = std::min(std::max(p.damping, 0.0f), 1.0f);
+		// Wind and gravity push the origin and, across the bone, turn it.
+		const float fx = p.wind * p.mass_inverse, fy = -p.gravity * p.mass_inverse;
+		while (p.remaining >= step) {
+			p.remaining -= step;
+			const float a1 = angle + p.rot * mix;
+			const float torque = (-fx * std::sin(a1) + fy * std::cos(a1)) / len;
+			p.rot_v = p.rot_v * keep + (-k * p.rot + torque) * step;
+			p.rot += p.rot_v * step;
+			p.stretch_v = p.stretch_v * keep - k * p.stretch * step;
+			p.stretch += p.stretch_v * step;
+			p.off_vx = p.off_vx * keep + (-k * p.off_x + fx) * step;
+			p.off_vy = p.off_vy * keep + (-k * p.off_y + fy) * step;
+			p.off_x += p.off_vx * step;
+			p.off_y += p.off_vy * step;
+		}
+	}
+	if (mix <= 0) {
+		return;
+	}
+	float a = b.a, bb = b.b, c = b.c, dd = b.d;
+	if (d.rotate != 0) {
+		rotate_basis(a, bb, c, dd, p.rot * d.rotate * mix);
+	}
+	if (d.shear_x != 0) { // turns the x axis only
+		const float rs = p.rot * d.shear_x * mix, cs = std::cos(rs), sn = std::sin(rs);
+		const float na = cs * a - sn * c, nc = sn * a + cs * c;
+		a = na;
+		c = nc;
+	}
+	if (d.scale_x != 0) {
+		const float s = std::max(1 + p.stretch * d.scale_x * mix, 0.0f);
+		a *= s;
+		c *= s;
+	}
+	set_world(b, a, bb, c, dd, b.world_x + p.off_x * d.x * mix, b.world_y + p.off_y * d.y * mix);
+}
+
 bool Skeleton::constraint_on(int kind, int index) const {
 	if (!skin_gating()) {
 		return true;
@@ -1071,7 +1173,11 @@ void Skeleton::update_world_transform() {
 				break;
 			default: {
 				PhysicsConstraint &p = physics[c.second];
-				apply_physics(p, dt);
+				if (physics_model() == 2) {
+					apply_physics2(p);
+				} else {
+					apply_physics(p, dt);
+				}
 				update_after({ p.data->bone });
 				break;
 			}

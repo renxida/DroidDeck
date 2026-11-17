@@ -274,6 +274,41 @@ static void test_noscale_sheared_child() {
 	NEAR(b.d, -0.2341);
 }
 
+// Physics model 2: a rotate-only constraint (inertia 0.5) holds back half of its parent's turn at a
+// zero-delta update, then a damped spring pulls it back in fixed 1/60 steps counted from the float clock.
+static void test_physics_model2() {
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+	if (m && m[0] != '2') return;
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+	  {"name": "root"}, {"name": "head", "parent": "root"},
+	  {"name": "ear", "parent": "head", "length": 60}]})");
+	if (!sd) return;
+	PhysicsData pd;
+	pd.bone = 2;
+	pd.rotate = 1;
+	pd.inertia = 0.5f;
+	pd.strength = 100;
+	pd.damping = 0.85f;
+	sd->physics.push_back(pd);
+	Skeleton sk(sd.get());
+	sk.update_world_transform(); // starts at the setup pose
+	sk.bones[1].rotation = 30;
+	sk.update_world_transform(); // zero delta: half the turn is held back
+	NEAR(sk.bones[2].world_rotation_x(), 15);
+	sk.update(1.0f / 60);
+	sk.update_world_transform(); // one step: v = 100 * 15 / 60 deg/s, offset -15 + v / 60
+	NEAR(sk.bones[2].world_rotation_x(), 30 - 15 + 25.0 / 60);
+	// The float clock runs 1, 1, 1, 0, 1, 1, 2 steps over the next updates (as the game's did).
+	std::vector<float> r;
+	for (int i = 0; i < 7; i++) {
+		sk.update(1.0f / 60);
+		sk.update_world_transform();
+		r.push_back(sk.bones[2].world_rotation_x());
+	}
+	NEAR(r[3], r[2]);
+	CHECK(std::fabs(r[6] - r[5]) > 1.5f * std::fabs(r[5] - r[4]));
+}
+
 static void test_spine3_layout() {
 	const char *rig3 = R"({
 	 "skeleton": {"spine": "3.8.99"},
@@ -676,6 +711,7 @@ int main() {
 	test_skin_gating();
 	test_noscale_nonuniform_parent();
 	test_noscale_sheared_child();
+	test_physics_model2();
 	test_spine3_layout();
 	test_binary();
 	test_binary_path_physics();
