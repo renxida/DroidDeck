@@ -79,8 +79,8 @@ int path_samples() {
 	return n;
 }
 
-// Chain rotate modes, how far apart the bones sit along the path. 2 (default): each next bone sits on
-// the curve where the straight distance from the current one equals the spacing, so neighbours are
+// Chain rotate modes, how far apart the bones sit along the path. 2 (default): with length spacing,
+// each next bone sits on the curve where the straight distance from the current one equals the spacing, so neighbours are
 // exactly a bone length apart; the game's Decimillipede shows that to three decimals on all eleven
 // links, where arc spacing came up short by up to 1.4 px at the sharp turn. 1: the next bone starts at
 // the current bone's tip (arc positions are only aimed at). 0: plain arc-length spacing.
@@ -944,7 +944,12 @@ void Skeleton::apply_path(PathConstraint &p) {
 			default: return bone_sum > 1e-6f ? len / bone_sum * p.spacing * total : 0.0f; // proportional
 		}
 	};
-	const int chain = d.rotate_mode != 0 ? path_chain_mode() : 0;
+	// Straight-line spacing only with length spacing (bones meant to touch): the Gardener's stalks
+	// (proportional spacing, chain scale) sit at arc positions in the game, and moved ~1 px under it.
+	int chain = d.rotate_mode != 0 ? path_chain_mode() : 0;
+	if (chain == 2 && d.spacing_mode != 0) {
+		chain = 0;
+	}
 	// The distance past `from` where the curve is `step` away in a straight line from (x, y).
 	auto chord_dist = [&](float from, float x, float y, float step) {
 		float s = from + step;

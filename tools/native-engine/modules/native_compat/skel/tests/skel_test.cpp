@@ -674,24 +674,33 @@ static void test_path_chain_bend() {
 	if (!sd) {
 		return;
 	}
-	Skeleton sk(sd.get());
-	const Bone &b = sk.bones[1];
-	float best = 0; // the worst miss over a few places along the bend
-	for (float pos : { 0.25f, 0.4f, 0.5f, 0.6f }) {
-		sk.paths[0].position = pos;
-		sk.update_world_transform();
-		// The point the bone aims at, the 5-unit spacing (fixed, scale 1) out along its x axis.
-		const float r = std::atan2(b.c, b.a);
-		const float ax = b.world_x + 5 * std::cos(r), ay = (b.world_y * 2 - 4) + 5 * std::sin(r); // undo mix y 0.5 (rest y 4)
-		float miss = 1e9f;
-		for (int k = 0; k <= 20000; k++) {
-			const float t = k / 20000.0f, u = 1 - t;
-			const float x = 3 * u * u * t * 20 + 3 * u * t * t * 20 + t * t * t * 20;
-			const float y = t * t * t * 20;
-			miss = std::min(miss, std::hypot(x - ax, y - ay));
+	// Worst miss of the aimed-at point from the curve over a few places along the bend.
+	auto worst_miss = [&](int spacing_mode) {
+		sd->paths[0].spacing_mode = spacing_mode;
+		Skeleton sk(sd.get());
+		// Length spacing: the bone's 10 plus -5 gives the same 5-unit gap as fixed spacing 5.
+		sk.paths[0].spacing = spacing_mode == 0 ? -5.0f : 5.0f;
+		const Bone &b = sk.bones[1];
+		float best = 0;
+		for (float pos : { 0.25f, 0.4f, 0.5f, 0.6f }) {
+			sk.paths[0].position = pos;
+			sk.update_world_transform();
+			const float r = std::atan2(b.c, b.a);
+			const float ax = b.world_x + 5 * std::cos(r), ay = (b.world_y * 2 - 4) + 5 * std::sin(r); // undo mix y 0.5 (rest y 4)
+			float miss = 1e9f;
+			for (int k = 0; k <= 20000; k++) {
+				const float t = k / 20000.0f, u = 1 - t;
+				const float x = 3 * u * u * t * 20 + 3 * u * t * t * 20 + t * t * t * 20;
+				const float y = t * t * t * 20;
+				miss = std::min(miss, std::hypot(x - ax, y - ay));
+			}
+			best = std::max(best, miss);
 		}
-		best = std::max(best, miss);
-	}
+		return best;
+	};
+	// Fixed spacing keeps arc positions in every mode (the Gardener's stalks sit there in the game).
+	CHECK(worst_miss(1) > 0.05f);
+	const float best = worst_miss(0);
 	const char *mode = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_CHAIN");
 	const char *eval = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_EVAL");
 	const float tol = eval && std::atoi(eval) == 0 ? 0.2f : 0.02f; // eval 0 walks table chords, not the curve
