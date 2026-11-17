@@ -299,6 +299,7 @@ public:
 	bool start_timeline(FmodEvent *p_event);
 	void log_parameter(const String &p_scope, const String &p_name, float p_value, const String &p_label);
 	int timeline_logs = 0;
+	HashMap<String, int> timeline_line_counts; // repeats of each timeline log line
 	int parameter_logs = 0;
 	HashSet<String> parameters_logged;
 	Vector<Ref<NativeSoundBank>> all_bank_data() const;

@@ -164,9 +164,17 @@ struct EventTimeline : public fsb::TimelineSink {
 
 	void log(const std::string &p_line) override {
 		FmodServer *s = FmodServer::get_singleton();
-		if (s && s->timeline_logs < 300) {
+		if (!s) {
+			return;
+		}
+		// A loop region repeats the same jump every pass; say it twice, then every 100th time with a count,
+		// so a long session's cap is not spent on one loop.
+		const String key = event->path + "|" + String::utf8(p_line.c_str());
+		const int n = ++s->timeline_line_counts[key];
+		if ((n <= 2 || n % 100 == 0) && s->timeline_logs < 300) {
 			s->timeline_logs++;
-			print_line(vformat("native_compat: fmod timeline %s: %s", event->path, String::utf8(p_line.c_str())));
+			const String count = n > 2 ? vformat(" (x%d)", n) : String();
+			print_line(vformat("native_compat: fmod timeline %s: %s%s", event->path, String::utf8(p_line.c_str()), count));
 		}
 	}
 };
