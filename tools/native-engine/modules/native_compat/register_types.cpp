@@ -5,6 +5,7 @@
 #include "native_skeleton_2d.h"
 #include "native_sound_bank.h"
 #include "spine_compat.h"
+#include "prof/prof.h"
 
 #include "core/config/engine.h"
 #include "core/io/json.h"
@@ -13,6 +14,7 @@
 #include "core/object/class_db.h"
 #include "core/string/print_string.h"
 #include "core/variant/variant.h"
+#include "servers/rendering_server.h"
 
 #ifdef __linux__
 #include <errno.h>
@@ -109,6 +111,33 @@ static void apply_main_thread_hints() {
 #endif
 static FmodServer *fmod_server = nullptr;
 
+// The sampling profiler (prof/prof.h), when DROIDDECK_NATIVE_PROF asks for it: reports go to the log each window.
+static void prof_print(const std::vector<std::string> &p_lines) {
+	for (const std::string &line : p_lines) {
+		print_line(String::utf8(line.c_str()));
+	}
+}
+
+static void prof_frame() {
+	prof_print(droiddeck_prof::tick());
+}
+
+static void prof_start() {
+	const std::string started = droiddeck_prof::start_from_env();
+	if (started.empty()) {
+		return;
+	}
+	print_line(String::utf8(started.c_str()));
+	if (!droiddeck_prof::active()) {
+		return;
+	}
+	if (RenderingServer *rs = RenderingServer::get_singleton()) {
+		rs->connect(SNAME("frame_pre_draw"), callable_mp_static(&prof_frame));
+	} else {
+		print_line("native_compat: prof no rendering server yet; one report at exit");
+	}
+}
+
 void initialize_native_compat_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
@@ -116,6 +145,7 @@ void initialize_native_compat_module(ModuleInitializationLevel p_level) {
 #ifdef __linux__
 	apply_main_thread_hints();
 #endif
+	prof_start();
 	GDREGISTER_CLASS(NativeSkeleton2D);
 	GDREGISTER_CLASS(NativeSoundBank);
 
@@ -169,6 +199,7 @@ void uninitialize_native_compat_module(ModuleInitializationLevel p_level) {
 		ResourceLoader::remove_resource_format_loader(spine_loader);
 		spine_loader.unref();
 	}
+	prof_print(droiddeck_prof::report_now());
 	// One line each for the session log: how the game's skeletons and sound calls fared.
 	print_line(vformat("native_compat: spine skeletons loaded=%d failed=%d sprites=%d", spine_compat_stats.loaded,
 			spine_compat_stats.failed, spine_compat_stats.sprites));

@@ -51,6 +51,8 @@ jobs:
         run: sh tools/native-engine/modules/native_compat/skel/tests/run_tests.sh
       - name: Host tests for the clean-room FSB5 sound reader
         run: sh tools/native-engine/modules/native_compat/fsb/tests/run_tests.sh
+      - name: Host tests for the sampling profiler
+        run: sh tools/native-engine/modules/native_compat/prof/tests/run_tests.sh
       - name: Windows x64 assemblies (IL-only and ReadyToRun), made portable, run on arm64 .NET
         # A small public library published win-x64 with and without ReadyToRun (R2R: IL-only clear, like the
         # game's DLLs), and Microsoft's own R2R System.Linq.dll from the public win-x64 runtime pack. Each
@@ -123,6 +125,10 @@ jobs:
           cd ~/godot-src && git log -1 --oneline
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/csharp_compat_classes.py" ~/godot-src \
             "$GITHUB_WORKSPACE/tools/native-engine/modules/native_compat/register_types.cpp"
+          # Link unstripped so the build can write a symbol map (godot.syms) for the sampling profiler; the binary is
+          # stripped right after, so what ships is the same size as before.
+          grep -q 'env.AppendUnique(LINKFLAGS=\["-s"\])' SConstruct
+          sed -i 's/env.AppendUnique(LINKFLAGS=\["-s"\])/pass  # droiddeck: stripped after the symbol map is written/' SConstruct
       - uses: actions/cache@v4
         with:
           path: ~/scons-cache
@@ -137,6 +143,11 @@ jobs:
           scons platform=linuxbsd arch=arm64 target=template_release module_mono_enabled=yes \
             custom_modules="$GITHUB_WORKSPACE/tools/native-engine/modules" \
             debug_symbols=no -j"$(nproc)" 2>&1 | tail -40
+          B=bin/godot.linuxbsd.template_release.arm64.mono
+          { echo "# buildid $(readelf -n "$B" | awk '/Build ID/{print $3}')"
+            nm -C -n -S --defined-only "$B" | awk '$2 ~ /^[tTwW]$/ || $3 ~ /^[tTwW]$/'; } > bin/godot.syms
+          strip "$B"
+          wc -l bin/godot.syms; head -1 bin/godot.syms
           ls -la bin/
           file bin/godot.linuxbsd.template_release.arm64.mono
           grep -c native_compat <(strings bin/godot.linuxbsd.template_release.arm64.mono) || true
@@ -172,6 +183,20 @@ jobs:
           grep -E "native_compat|BENCH|ERROR|\.NET|hostfxr" run.log | head -40
           grep -q "native_compat: module loaded" run.log
           grep -q "BENCH" run.log
+          # The sampling profiler under the .NET runtime: it starts, finds the symbol map, reports and the bench
+          # still exits as it did.
+          cp ~/godot-src/bin/godot.syms out/arm64/godot.syms
+          set +e
+          DROIDDECK_NATIVE_PROF=250 DROIDDECK_NATIVE_PROF_WINDOW=1 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
+            timeout 300 out/arm64/NativeBench.arm64 --headless --verbose > prof-run.log 2>&1
+          prc=$?
+          set -e
+          echo "exit with profiler $prc (without $rc)"
+          grep "native_compat: prof" prof-run.log | cut -c1-600
+          test "$prc" = "$rc"
+          grep -q "native_compat: prof sampling the main thread at 250 Hz.*engine symbols" prof-run.log
+          grep -q "native_compat: prof threads" prof-run.log
+          grep -q "BENCH" prof-run.log
       - name: Run the bench's Windows export through droiddeck-native-godot on our template
         timeout-minutes: 30
         working-directory: tools/native-engine/bench
@@ -187,6 +212,7 @@ jobs:
           C=$GITHUB_WORKSPACE/out/component
           rm -rf "$C" && mkdir -p "$C"
           cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono "$C/godot"
+          cp ~/godot-src/bin/godot.syms "$C/godot.syms"
           cp -a out/arm64/data_NativeBench_linuxbsd_arm64 "$C/kit"
           python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")], "deps": "NativeBench.deps.json", "runtimeconfig": "NativeBench.runtimeconfig.json"}, open(os.path.join(k,"kit.json"),"w"))' "$C/kit"
           echo "${GITHUB_SHA}" > "$C/VERSION"

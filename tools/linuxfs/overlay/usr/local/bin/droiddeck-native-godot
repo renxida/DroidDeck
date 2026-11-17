@@ -740,6 +740,10 @@ def compose(game_dir, kit, engine, out, exe=None, steam=None, bridge=None):
         except OSError:
             shutil.copy2(engine, target)
         os.chmod(target, 0o755)
+    # The engine's symbol map, when the component has one, sits beside it for the sampling profiler.
+    syms = os.path.join(os.path.dirname(engine), "godot.syms")
+    if os.path.isfile(syms):
+        place(syms, os.path.join(out, "godot.syms"))
     report = {"assembly": asm, "pack": find_pack(game_dir, exe), "engine": target, "data": data,
               "game_assemblies": taken, "patched": patched, "mixed_mode": mixed_refs, "steam_api": steam,
               "steam_api_missing": steam_missing, "steam_bridge": bridge,
