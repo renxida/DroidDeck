@@ -57,10 +57,23 @@ int physics_model() {
 	return m;
 }
 
+// Path evaluation mode 1 (default): a per-curve arc-length table maps a distance to the curve's
+// parameter, and the point and tangent come from the bezier itself at that parameter; a path without
+// constant speed maps distance to the parameter by its stored curve lengths alone. Mode 0 interpolates
+// straight between table points (chords), which the Decimillipede harness showed drifting from the game
+// as the table got finer (16 -> 64 samples: mean 1.17 -> 1.35 px) and wrong in the max as it got coarser.
+int path_eval_mode() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_EVAL");
+		return v ? std::atoi(v) : 1;
+	}();
+	return m;
+}
+
 int path_samples() {
 	static const int n = [] {
 		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_SAMPLES");
-		int k = v ? std::atoi(v) : 16;
+		int k = v ? std::atoi(v) : (path_eval_mode() == 1 ? 10 : 16);
 		return k < 1 ? 16 : (k > 256 ? 256 : k);
 	}();
 	return n;
@@ -832,10 +845,20 @@ void Skeleton::apply_path(PathConstraint &p) {
 			pts.insert(pts.end(), { x, y, tx, ty });
 		}
 	}
-	float total = cum.back();
+	const bool by_curve = path_eval_mode() == 1;
+	// Mode 1 without constant speed: distances run along the attachment's stored curve lengths.
+	const bool stored = by_curve && !att->constant_speed && int(att->lengths.size()) >= curves;
+	float total = stored ? att->lengths[curves - 1] : cum.back();
 	if (total < 1e-6f) {
 		return;
 	}
+	auto curve_points = [&](int i, float *c) {
+		for (int k = 0; k < 4; k++) {
+			int v = (3 * i + 1 + k) % n;
+			c[k * 2] = path_world_[v * 2];
+			c[k * 2 + 1] = path_world_[v * 2 + 1];
+		}
+	};
 	// Point and tangent at a distance along the path; an open path extends straight past its ends.
 	auto at = [&](float dist, float &x, float &y, float &tx, float &ty) {
 		if (att->closed) {
@@ -843,6 +866,29 @@ void Skeleton::apply_path(PathConstraint &p) {
 			if (dist < 0) {
 				dist += total;
 			}
+		}
+		if (by_curve && dist > 0 && dist < total) {
+			int ci = 0;
+			float t = 0;
+			if (stored) {
+				while (ci < curves - 1 && att->lengths[ci] < dist) {
+					ci++;
+				}
+				const float start = ci > 0 ? att->lengths[ci - 1] : 0, len = att->lengths[ci] - start;
+				t = len > 1e-9f ? (dist - start) / len : 0;
+			} else {
+				// Table entry k of curve ci sits at index ci * samples + k (entry 0 is shared with the previous curve's end).
+				size_t i = size_t(std::upper_bound(cum.begin(), cum.end(), dist) - cum.begin());
+				i = std::max<size_t>(1, std::min(i, cum.size() - 1));
+				const float seg = cum[i] - cum[i - 1];
+				const float f = seg > 1e-9f ? (dist - cum[i - 1]) / seg : 0;
+				ci = std::min(int((i - 1) / size_t(samples)), curves - 1);
+				t = (float(i - 1 - size_t(ci) * size_t(samples)) + f) / samples;
+			}
+			float c[8];
+			curve_points(ci, c);
+			bezier_at(c, std::min(std::max(t, 0.0f), 1.0f), x, y, tx, ty);
+			return;
 		}
 		size_t last = cum.size() - 1;
 		if (dist <= 0 || dist >= total) {
@@ -1028,7 +1074,13 @@ void Skeleton::apply_physics2(PhysicsConstraint &p) {
 		p.rot = p.rot_v = p.stretch = p.stretch_v = 0;
 		p.off_x = p.off_y = p.off_vx = p.off_vy = 0;
 	}
-	const float inertia = std::min(std::max(p.inertia, 0.0f), 1.0f);
+	// The game does not cap inertia at 1 (battleworn_dummy's arm_l uses 1.2); DROIDDECK_NATIVE_SPINE_PHYSICS_INERTIA_CLAMP=1
+	// caps it as model 1 did.
+	static const bool clamp_inertia = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_INERTIA_CLAMP");
+		return v && v[0] == '1';
+	}();
+	const float inertia = clamp_inertia ? std::min(std::max(p.inertia, 0.0f), 1.0f) : std::max(p.inertia, 0.0f);
 	const float mix = p.mix;
 	if (physics_pass == 2) {
 		float delta = std::max(time - p.last_time, 0.0f);

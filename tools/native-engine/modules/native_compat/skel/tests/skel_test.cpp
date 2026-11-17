@@ -597,7 +597,9 @@ static void test_binary_path_physics() {
 	Skeleton sk(one.get());
 	sk.update_world_transform();
 	const Bone &b = sk.bones[1];
-	NEAR(b.world_x, 5);
+	// Path eval mode 1 maps distance to the curve parameter through a 10-step table and evaluates the
+	// curve there, so an unevenly parameterized straight curve lands within a few hundredths.
+	CHECK(std::fabs(b.world_x - 5) < 0.05);
 	NEAR(b.world_y, 2);
 	NEAR(b.world_rotation_x(), 0);
 	NEAR(b.rotation, 90); // the animated pose is kept for the next frame
