@@ -200,6 +200,27 @@ float Curve::evaluate(float t, int channel) const {
 			return v0 + (v1 - v0) * (t - t0) / (t1 - t0);
 		case BEZIER: {
 			const float *b = &beziers[(i * channels + channel) * 4];
+			// The game reads a curve as straight lines between points at s = 1/10, 2/10 ... of the cubic:
+			// sewer_clam's top bone matched Proton to 0.0003 degrees that way, 0.0055 with the exact curve
+			// (hunter_killer's tail compounds that to 2 px). DROIDDECK_NATIVE_SPINE_BEZIER=0 solves exactly,
+			// another number sets how many segments.
+			static const int segments = [] {
+				const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_BEZIER");
+				return v ? std::max(std::atoi(v), 0) : 10;
+			}();
+			if (segments > 0) {
+				float px = t0, py = v0;
+				for (int k = 1; k < segments; k++) {
+					const float s = float(k) / segments;
+					const float x = cubic(t0, b[0], b[2], t1, s), y = cubic(v0, b[1], b[3], v1, s);
+					if (x >= t) {
+						return x > px ? py + (y - py) * (t - px) / (x - px) : y;
+					}
+					px = x;
+					py = y;
+				}
+				return t1 > px ? py + (v1 - py) * (t - px) / (t1 - px) : v1;
+			}
 			// x(s) is monotonic for valid curves; bisect for the s whose x equals t.
 			float lo = 0, hi = 1;
 			for (int k = 0; k < 24; k++) {

@@ -114,6 +114,15 @@ static void test_linear_and_bezier() {
 	apply_animation(*sd->find_animation("ease"), sk, -1, 0.25f, false, nullptr, 1, MixBlend::Replace);
 	CHECK(sk.bones[0].x < 10 + 25); // eased in
 	CHECK(sd->find_animation("ease")->duration == 1);
+	// The curve is read as ten straight pieces: (0.082, 2.8) to (0.176, 10.4) at s = 0.1 and 0.2, so halfway
+	// between them is 6.6. Solved exactly the curve gives about 6.2 there.
+	sk.setup_pose();
+	apply_animation(*sd->find_animation("ease"), sk, -1, 0.129f, false, nullptr, 1, MixBlend::Replace);
+	const char *bz = std::getenv("DROIDDECK_NATIVE_SPINE_BEZIER");
+	if (bz && bz[0] == '0' && !bz[1])
+		CHECK(sk.bones[0].x > 10 + 5.9f && sk.bones[0].x < 10 + 6.45f);
+	else if (!bz || std::atoi(bz) == 10)
+		CHECK(std::fabs(sk.bones[0].x - (10 + 6.6f)) < 0.01f);
 }
 
 static void test_slots_events_draw_order_deform() {
