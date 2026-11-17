@@ -344,6 +344,41 @@ static void test_physics_scale_tip() {
 	}
 }
 
+// A physics bone pointing near 180 degrees whose tip lag crosses the -180/180 seam turns a little,
+// not a full turn (sewer_clam's horn_back_1 swung far off the game's here).
+static void test_physics_seam() {
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+	if (m && m[0] != '2') return;
+	for (float dy : {3.0f, -3.0f}) {
+		auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+		  {"name": "root"}, {"name": "head", "parent": "root", "rotation": 179.5},
+		  {"name": "ear", "parent": "head", "length": 60}]})");
+		if (!sd) return;
+		PhysicsData pd;
+		pd.bone = 2;
+		pd.rotate = 1;
+		pd.inertia = 0.5f;
+		pd.strength = 100;
+		pd.damping = 0.85f;
+		pd.limit = 5000;
+		sd->physics.push_back(pd);
+		Skeleton sk(sd.get());
+		sk.update_world_transform();
+		float worst = 0;
+		for (int i = 0; i < 6; i++) {
+			sk.bones[1].y += i == 0 ? dy : 0;
+			sk.update(1.0f / 60);
+			sk.update_world_transform();
+			const Bone &e = sk.bones[2];
+			float off = std::fmod(std::fabs(e.world_rotation_x() - 179.5f), 360.0f);
+			off = std::min(off, 360 - off);
+			worst = std::max(worst, off);
+		}
+		const char *seam = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_SEAM");
+		if (!(seam && seam[0] == '0')) CHECK(worst < 5);
+	}
+}
+
 static void test_spine3_layout() {
 	const char *rig3 = R"({
 	 "skeleton": {"spine": "3.8.99"},
@@ -799,6 +834,7 @@ int main() {
 	test_noscale_sheared_child();
 	test_physics_model2();
 	test_physics_scale_tip();
+	test_physics_seam();
 	test_spine3_layout();
 	test_binary();
 	test_binary_path_physics();

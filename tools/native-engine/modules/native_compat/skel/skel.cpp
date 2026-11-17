@@ -1160,7 +1160,15 @@ void Skeleton::apply_physics2(PhysicsConstraint &p) {
 			}();
 			const float a0 = angle + p.rot * mix * (whole_offset ? 1.0f : d.rotate + d.shear_x);
 			const float tx = len * std::cos(a0) - inertia * mx, ty = len * std::sin(a0) - inertia * my;
-			p.rot += std::atan2(ty, tx) - a0;
+			// Across the -180/180 seam atan2 jumps a full turn: take the short way round. sewer_clam's
+			// horn_back_1 sits near 180 and swung 124 degrees off the game's without this.
+			// DROIDDECK_NATIVE_SPINE_PHYSICS_SEAM=0 takes the raw difference as before.
+			static const bool short_way = [] {
+				const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_SEAM");
+				return !(v && v[0] == '0');
+			}();
+			const float turn = std::atan2(ty, tx) - a0;
+			p.rot += short_way ? wrap180(turn / DEG) * DEG : turn;
 			p.stretch += std::hypot(tx, ty) / len - 1;
 			p.off_x -= inertia * mx;
 			p.off_y -= inertia * my;
