@@ -840,18 +840,36 @@ void rotate_basis(float &a, float &b, float &c, float &d, float r) {
 
 } // namespace
 
-// DROIDDECK_NATIVE_SPINE_PATH_DUMP=<slot name> prints that slot's path attachment to stderr the first time a
+// DROIDDECK_NATIVE_SPINE_PATH_DUMP=<slot name> prints that slot's path attachment (to stderr, or appended to
+// DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE) the first time a
 // path constraint uses it: flags, stored lengths, how its vertices are bound, and the world vertices it was
 // given. Text for comparing the path evaluation off the device; nothing else changes.
 void Skeleton::dump_path_once(const PathData &d, const Attachment &att, int n) {
 	static const char *want = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP");
-	if (!want || !want[0] || path_dumped_ || slots[d.target].data->name != want) {
+	if (!want || !want[0] || path_dumped_) {
+		return;
+	}
+	if (slots[d.target].data->name != want) {
+		// One line per process naming the first path slot seen, so a run shows the switch reached the engine.
+		static bool noted = false;
+		const char *file = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE");
+		if (!noted && file && file[0]) {
+			noted = true;
+			if (FILE *o = std::fopen(file, "a")) {
+				std::fprintf(o, "SPINE_PATH_DUMP armed for %s, first path slot seen %s\n", want, slots[d.target].data->name.c_str());
+				std::fclose(o);
+			}
+		}
 		return;
 	}
 	path_dumped_ = true;
-	std::fprintf(stderr, "SPINE_PATH_DUMP constraint %s order %d slot %s bone %s attachment %s\n", d.name.c_str(), d.order,
+	// The engine's stderr is not kept on the device, so DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE names a file to append to.
+	static const char *file = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE");
+	FILE *out = file && file[0] ? std::fopen(file, "a") : nullptr;
+	FILE *f = out ? out : stderr;
+	std::fprintf(f, "SPINE_PATH_DUMP constraint %s order %d slot %s bone %s attachment %s\n", d.name.c_str(), d.order,
 			slots[d.target].data->name.c_str(), data->bones[slots[d.target].data->bone].name.c_str(), att.name.c_str());
-	std::fprintf(stderr, "SPINE_PATH_DUMP closed %d constant_speed %d vertex_count %d world_points %d weighted %d posmode %d spacingmode %d rotmode %d pos %.6f spacing %.6f offrot %.6f\n",
+	std::fprintf(f, "SPINE_PATH_DUMP closed %d constant_speed %d vertex_count %d world_points %d weighted %d posmode %d spacingmode %d rotmode %d pos %.6f spacing %.6f offrot %.6f\n",
 			int(att.closed), int(att.constant_speed), att.vertex_count, n, int(att.weighted()), d.position_mode, d.spacing_mode,
 			d.rotate_mode, d.position, d.spacing, d.offset_rotation);
 	std::string line = "SPINE_PATH_DUMP lengths";
@@ -860,7 +878,7 @@ void Skeleton::dump_path_once(const PathData &d, const Attachment &att, int n) {
 		std::snprintf(buf, sizeof(buf), " %.4f", l);
 		line += buf;
 	}
-	std::fprintf(stderr, "%s\n", line.c_str());
+	std::fprintf(f, "%s\n", line.c_str());
 	if (att.weighted()) {
 		line = "SPINE_PATH_DUMP bones";
 		for (size_t i = 0; i < att.bones.size();) {
@@ -871,22 +889,25 @@ void Skeleton::dump_path_once(const PathData &d, const Attachment &att, int n) {
 			}
 			line += "]";
 		}
-		std::fprintf(stderr, "%s\n", line.c_str());
+		std::fprintf(f, "%s\n", line.c_str());
 	}
 	line = "SPINE_PATH_DUMP world";
 	for (int i = 0; i < n; i++) {
 		std::snprintf(buf, sizeof(buf), " %.4f,%.4f", path_world_[i * 2], path_world_[i * 2 + 1]);
 		line += buf;
 	}
-	std::fprintf(stderr, "%s\n", line.c_str());
+	std::fprintf(f, "%s\n", line.c_str());
 	line = "SPINE_PATH_DUMP spine";
 	for (int bi : d.bones) {
 		const Bone &b = bones[bi];
 		std::snprintf(buf, sizeof(buf), " %s:%.4f:%.4f", b.data->name.c_str(), b.data->length, b.world_scale_x());
 		line += buf;
 	}
-	std::fprintf(stderr, "%s\n", line.c_str());
-	std::fflush(stderr);
+	std::fprintf(f, "%s\n", line.c_str());
+	std::fflush(f);
+	if (out) {
+		std::fclose(out);
+	}
 }
 
 // Path vertices are triples (handle in, anchor, handle out). An open path runs anchor to anchor through
