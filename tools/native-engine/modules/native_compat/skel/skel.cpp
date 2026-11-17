@@ -1145,7 +1145,15 @@ void Skeleton::apply_physics2(PhysicsConstraint &p) {
 		}
 		if (mx != 0 || my != 0) {
 			// The tip lags the inertia share of the movement: that turns and stretches the bone.
-			const float a0 = angle + p.rot * mix;
+			// The tip sits along the bone's x axis as last drawn: the offset turns it only by the share
+			// that rotate and shear x apply. The shield on battleworn_dummy (rotate 0, scale x 1) showed
+			// it: aiming the tip by the whole offset made its scale wobble 6% too strong.
+			// DROIDDECK_NATIVE_SPINE_PHYSICS_TIP=1 aims by the whole offset as before.
+			static const bool whole_offset = [] {
+				const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_TIP");
+				return v && v[0] == '1';
+			}();
+			const float a0 = angle + p.rot * mix * (whole_offset ? 1.0f : d.rotate + d.shear_x);
 			const float tx = len * std::cos(a0) - inertia * mx, ty = len * std::sin(a0) - inertia * my;
 			p.rot += std::atan2(ty, tx) - a0;
 			p.stretch += std::hypot(tx, ty) / len - 1;

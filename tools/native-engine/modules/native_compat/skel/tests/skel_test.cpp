@@ -309,6 +309,41 @@ static void test_physics_model2() {
 	CHECK(std::fabs(r[6] - r[5]) > 1.5f * std::fabs(r[5] - r[4]));
 }
 
+// A scale-only physics bone (rotate 0) stretches from movement along the bone as drawn: the turn
+// offset it keeps (but does not apply) does not aim its tip.
+static void test_physics_scale_tip() {
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+	if (m && m[0] != '2') return;
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+	  {"name": "root"}, {"name": "head", "parent": "root"},
+	  {"name": "ear", "parent": "head", "length": 60}]})");
+	if (!sd) return;
+	PhysicsData pd;
+	pd.bone = 2;
+	pd.rotate = 0;
+	pd.scale_x = 1;
+	pd.inertia = 0.5f;
+	pd.strength = 100;
+	pd.damping = 0.85f;
+	pd.limit = 5000;
+	sd->physics.push_back(pd);
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	sk.bones[1].rotation = 90;
+	sk.update_world_transform(); // zero delta: the offset holds back half the turn, unapplied
+	sk.bones[1].x = 10; // across the ear, which now points along y
+	sk.update(1.0f / 60);
+	sk.update_world_transform();
+	const Bone &e = sk.bones[2];
+	const float s = std::hypot(e.a, e.c);
+	const char *tip = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_TIP");
+	if (tip && tip[0] == '1') {
+		CHECK(std::fabs(s - 1) > 0.03f);
+	} else {
+		CHECK(std::fabs(s - 1) < 0.01f);
+	}
+}
+
 static void test_spine3_layout() {
 	const char *rig3 = R"({
 	 "skeleton": {"spine": "3.8.99"},
@@ -754,6 +789,7 @@ int main() {
 	test_noscale_nonuniform_parent();
 	test_noscale_sheared_child();
 	test_physics_model2();
+	test_physics_scale_tip();
 	test_spine3_layout();
 	test_binary();
 	test_binary_path_physics();
