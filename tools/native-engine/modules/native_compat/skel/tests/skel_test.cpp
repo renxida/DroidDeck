@@ -492,7 +492,7 @@ static std::vector<uint8_t> synthetic_binary() {
 
 // Path and physics constraints, a path attachment, a named skin and a path timeline, in the layouts
 // read from real 4.2 files (see skel_binary.cpp).
-static std::vector<uint8_t> synthetic_path_physics() {
+static std::vector<uint8_t> synthetic_path_physics(const std::vector<float> &curve = { -5, 0, 0, 0, 5, 0, 15, 0, 20, 0, 25, 0 }) {
 	BinWriter w;
 	for (int i = 0; i < 8; i++) w.u8(i);
 	w.s("4.2.43");
@@ -515,7 +515,7 @@ static std::vector<uint8_t> synthetic_path_physics() {
 	w.u8(128); w.f(0.75f);
 	w.v(1); w.v(0); w.v(1); w.v(1); // default skin: slot 0, "path"
 	w.u8(4 | 32); w.v(6); // path attachment, constant speed: a straight 20-unit curve from (0, 0) to (20, 0)
-	for (float x : { -5.0f, 0.0f, 0.0f, 0.0f, 5.0f, 0.0f, 15.0f, 0.0f, 20.0f, 0.0f, 25.0f, 0.0f }) w.f(x);
+	for (float x : curve) w.f(x);
 	w.f(20); w.f(40); // one curve length per 3 vertices
 	w.v(1); w.s("alt"); w.v(0); for (int i = 0; i < 4; i++) w.v(0); w.v(0); // named skin, inline name
 	w.v(0); // events
@@ -627,6 +627,46 @@ static void test_binary_path_physics() {
 	NEAR(c.world_y, 20);
 }
 
+// Chain rotation on a bent path: in chain mode 2 the bone aims at the curve point exactly the spacing
+// away in a straight line (the game keeps chained neighbours a bone length apart); mode 0 aims at the
+// point the spacing away along the curve, which sits short of that on a bend.
+static void test_path_chain_bend() {
+	// One curve from (0, 0) to (20, 20) bending through (20, 0): a sharp turn.
+	std::vector<uint8_t> bin = synthetic_path_physics({ -5, 0, 0, 0, 20, 0, 20, 0, 20, 20, 20, 25 });
+	std::string err;
+	auto sd = load_binary(bin.data(), bin.size(), 1, err);
+	CHECK(sd != nullptr);
+	if (!sd) {
+		return;
+	}
+	Skeleton sk(sd.get());
+	const Bone &b = sk.bones[1];
+	float best = 0; // the worst miss over a few places along the bend
+	for (float pos : { 0.25f, 0.4f, 0.5f, 0.6f }) {
+		sk.paths[0].position = pos;
+		sk.update_world_transform();
+		// The point the bone aims at, the 5-unit spacing (fixed, scale 1) out along its x axis.
+		const float r = std::atan2(b.c, b.a);
+		const float ax = b.world_x + 5 * std::cos(r), ay = (b.world_y * 2 - 4) + 5 * std::sin(r); // undo mix y 0.5 (rest y 4)
+		float miss = 1e9f;
+		for (int k = 0; k <= 20000; k++) {
+			const float t = k / 20000.0f, u = 1 - t;
+			const float x = 3 * u * u * t * 20 + 3 * u * t * t * 20 + t * t * t * 20;
+			const float y = t * t * t * 20;
+			miss = std::min(miss, std::hypot(x - ax, y - ay));
+		}
+		best = std::max(best, miss);
+	}
+	const char *mode = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_CHAIN");
+	const char *eval = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_EVAL");
+	const float tol = eval && std::atoi(eval) == 0 ? 0.2f : 0.02f; // eval 0 walks table chords, not the curve
+	if (!mode || std::atoi(mode) == 2) {
+		CHECK(best < tol);
+	} else if (std::atoi(mode) == 0) {
+		CHECK(best > 0.05f);
+	}
+}
+
 static void test_binary() {
 	std::vector<uint8_t> bin = synthetic_binary();
 	std::string err;
@@ -717,6 +757,7 @@ int main() {
 	test_spine3_layout();
 	test_binary();
 	test_binary_path_physics();
+	test_path_chain_bend();
 	if (failures) {
 		std::printf("%d failure(s)\n", failures);
 		return 1;

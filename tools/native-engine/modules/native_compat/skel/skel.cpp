@@ -79,6 +79,20 @@ int path_samples() {
 	return n;
 }
 
+// Chain rotate modes, how far apart the bones sit along the path. 2 (default): each next bone sits on
+// the curve where the straight distance from the current one equals the spacing, so neighbours are
+// exactly a bone length apart; the game's Decimillipede shows that to three decimals on all eleven
+// links, where arc spacing came up short by up to 1.4 px at the sharp turn. 1: the next bone starts at
+// the current bone's tip (arc positions are only aimed at). 0: plain arc-length spacing.
+int path_chain_mode() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_CHAIN");
+		int k = v ? std::atoi(v) : 2;
+		return k < 0 || k > 2 ? 2 : k;
+	}();
+	return m;
+}
+
 bool skin_gating() {
 	static const bool on = [] {
 		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_SKIN_GATING");
@@ -930,17 +944,42 @@ void Skeleton::apply_path(PathConstraint &p) {
 			default: return bone_sum > 1e-6f ? len / bone_sum * p.spacing * total : 0.0f; // proportional
 		}
 	};
+	const int chain = d.rotate_mode != 0 ? path_chain_mode() : 0;
+	// The distance past `from` where the curve is `step` away in a straight line from (x, y).
+	auto chord_dist = [&](float from, float x, float y, float step) {
+		float s = from + step;
+		if (step <= 1e-6f) {
+			return s;
+		}
+		for (int it = 0; it < 24; it++) {
+			float qx, qy, qtx, qty;
+			at(s, qx, qy, qtx, qty);
+			float short_by = step - std::hypot(qx - x, qy - y);
+			if (std::fabs(short_by) < 1e-4f) {
+				break;
+			}
+			s += short_by;
+		}
+		return s;
+	};
 	float dist = d.position_mode == 1 ? p.position * total : p.position;
+	bool have_tip = false;
+	float tip_x = 0, tip_y = 0;
 	for (size_t i = 0; i < count; i++) {
 		Bone &b = bones[d.bones[i]];
 		float x, y, tx, ty;
 		at(dist, x, y, tx, ty);
+		if (chain == 1 && have_tip) {
+			x = tip_x;
+			y = tip_y;
+		}
 		float step = gap(i);
+		float next = chain == 2 ? chord_dist(dist, x, y, step) : dist + step;
 		float angle = std::atan2(ty, tx);
 		float stretch = 1;
 		if (d.rotate_mode != 0) { // chain: aim at where the next bone starts
 			float nx, ny, ntx, nty;
-			at(dist + step, nx, ny, ntx, nty);
+			at(next, nx, ny, ntx, nty);
 			float dx = nx - x, dy = ny - y;
 			if (std::hypot(dx, dy) > 1e-6f) {
 				angle = std::atan2(dy, dx);
@@ -963,7 +1002,13 @@ void Skeleton::apply_path(PathConstraint &p) {
 		float wx = b.world_x + (x - b.world_x) * p.mix_x;
 		float wy = b.world_y + (y - b.world_y) * p.mix_y;
 		set_world(b, a, bb, c, dd, wx, wy);
-		dist += step;
+		if (chain == 1) {
+			const float len = b.data->length;
+			tip_x = b.world_x + b.a * len;
+			tip_y = b.world_y + b.c * len;
+			have_tip = true;
+		}
+		dist = next;
 	}
 }
 
