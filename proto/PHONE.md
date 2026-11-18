@@ -1,5 +1,9 @@
 # Real-phone test: Pixel 10a on GrapheneOS
 
+> Nov 17 update: setup day now flashes our own signed GrapheneOS build with root (see the design doc's
+> "Core principle"). The stock web-installer steps below stay as the fallback baseline and as the
+> first sanity run of the workspace test before our build goes on.
+
 GrapheneOS lists the Pixel 10a (codename stallion) under official production support
 (https://grapheneos.org/faq). Install follows https://grapheneos.org/install/web.
 
