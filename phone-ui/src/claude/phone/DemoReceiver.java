@@ -17,6 +17,7 @@ public class DemoReceiver extends BroadcastReceiver {
     switch (cmd) {
       case "demo": Ui.prefs(c).edit().putString("demo", i.getStringExtra("v")).commit(); break;
       case "screenshot": Ui.prefs(c).edit().putBoolean("screenshot", "true".equals(i.getStringExtra("v"))).commit(); break;
+      case "variant": Ui.prefs(c).edit().putString("variant", i.getStringExtra("v")).commit(); break;
       case "prewarm": Ui.prefs(c).edit().putBoolean("prewarm", "true".equals(i.getStringExtra("v"))).commit(); break;
       case "show": ClaudeVIS.showDemo(c, i.getStringExtra("v") == null ? "" : i.getStringExtra("v")); break;
       case "seed": LogStore.seed(c, i.getIntExtra("n", 24)); break;

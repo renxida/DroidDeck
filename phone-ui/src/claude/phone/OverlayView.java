@@ -52,6 +52,10 @@ final class OverlayView extends FrameLayout {
   private boolean leaving;
   private String committed = "";
   private boolean transcriptSmall;
+  /** "card": dim + floating card from the start. "ambient": while listening, only an edge glow and a compact card; the dim arrives with the answer. */
+  final boolean ambient;
+  final View edge;
+  final View handle;
 
   /** A LinearLayout capped at a fraction of the screen, so long answers scroll inside it. */
   final class Card extends LinearLayout {
@@ -73,6 +77,11 @@ final class OverlayView extends FrameLayout {
     scrim.setOnClickListener(v -> dismiss());
     scrim.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
     addView(scrim, new LayoutParams(-1, -1));
+    ambient = "ambient".equals(Ui.prefs(c).getString("variant", "card"));
+    edge = new Glow.EdgeView(c, ui);
+    edge.setAlpha(0f);
+    edge.setVisibility(ambient ? VISIBLE : GONE);
+    addView(edge, new LayoutParams(-1, -1));
 
     card = new Card(c);
     card.setOrientation(LinearLayout.VERTICAL);
@@ -89,7 +98,7 @@ final class OverlayView extends FrameLayout {
     clp.leftMargin = clp.rightMargin = ui.dp(10);
     addView(card, clp);
 
-    View handle = new View(c);
+    handle = new View(c);
     handle.setBackground(ui.rounded(ui.surface3, 2));
     LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(ui.dp(36), ui.dp(4));
     hlp.gravity = Gravity.CENTER_HORIZONTAL; hlp.bottomMargin = ui.dp(8);
@@ -251,7 +260,14 @@ final class OverlayView extends FrameLayout {
     card.setScaleX(0.97f); card.setScaleY(0.97f);
     card.animate().alpha(1f).translationY(0).scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(Ui.EMPH_DECEL)
         .withEndAction(() -> perf.phase = "listen").start();
-    scrim.animate().alpha(1f).setDuration(200).setInterpolator(Ui.STD_DECEL).start();
+    if (ambient) edge.animate().alpha(1f).setDuration(260).start();
+    else scrim.animate().alpha(1f).setDuration(200).setInterpolator(Ui.STD_DECEL).start();
+  }
+
+  private void settleAmbient() {
+    if (!ambient || edge.getVisibility() != VISIBLE) return;
+    edge.animate().alpha(0f).setDuration(220).withEndAction(() -> edge.setVisibility(GONE)).start();
+    scrim.animate().alpha(1f).setDuration(260).setInterpolator(Ui.STD_DECEL).start();
   }
 
   void dismiss() {
@@ -261,6 +277,7 @@ final class OverlayView extends FrameLayout {
     card.animate().alpha(0f).translationY(card.getTranslationY() + ui.dpf(24)).setDuration(170).setInterpolator(Ui.EMPH_ACCEL)
         .withEndAction(host::dismiss).start();
     scrim.animate().alpha(0f).setDuration(170).start();
+    edge.animate().alpha(0f).setDuration(170).start();
   }
 
   // ---- States ----
@@ -299,6 +316,7 @@ final class OverlayView extends FrameLayout {
     setLabel("Thinking");
     transcript.setTranscript(committed, null, 0);
     setTranscriptSmall(true, true);
+    settleAmbient();
   }
 
   private void setTranscriptSmall(boolean small, boolean animate) {
@@ -374,6 +392,7 @@ final class OverlayView extends FrameLayout {
 
   void offline(String msg) {
     perf.phase = "offline";
+    settleAmbient();
     orb.setState(OrbView.State.OFFLINE);
     setLabel("Offline");
     response.setVisibility(VISIBLE);
