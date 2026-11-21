@@ -42,6 +42,7 @@ public class LogActivity extends Activity {
   @Override protected void onCreate(Bundle b) {
     long t = Perf.now();
     super.onCreate(b);
+    requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
     ui = Ui.of(this);
     getWindow().setDecorFitsSystemWindows(false);
     getWindow().setStatusBarColor(Color.TRANSPARENT);

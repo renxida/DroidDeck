@@ -106,7 +106,7 @@ for mode in light dark; do
   adb logcat -c; A cmd statusbar click-tile claude.phone/.KillTile; sleep 1.2; shot ${mode}_qs_paused; perfdump "${mode}_killtile"
   A cmd statusbar collapse; sleep 0.5; B resume; B cancel_all
   # Edge glow over another app
-  A am start -W -a android.settings.SETTINGS > /dev/null; sleep 1.5
+  A am start -W -a android.intent.action.SHOW_ALARMS > /dev/null; sleep 1.5  # not Settings: it hides non-system overlays
   echo "${mode} overlay appop: $(A appops get claude.phone SYSTEM_ALERT_WINDOW)" >> $R
   B glow_on; sleep 1.2; shot ${mode}_glow; B glow_off; sleep 0.5
   A input keyevent KEYCODE_HOME
