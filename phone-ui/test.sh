@@ -29,7 +29,7 @@ turn() { # demo label shots(yes/no)
   A input keyevent KEYCODE_ASSIST
   waitfor "STATE listening" 8
   if [ $S = yes ]; then sleep 1.3; shot ${L}_1_listening; fi
-  if [ $d != offline ]; then waitfor "STATE thinking" 10; [ $S = yes ] && shot ${L}_2_thinking; fi
+  if [ $d != offline ] && [ $d != idle ]; then waitfor "STATE thinking" 10; [ $S = yes ] && shot ${L}_2_thinking; fi
   case $d in
     message)
       waitfor "STATE speaking" 8; [ $S = yes ] && { sleep 0.9; shot ${L}_3_speaking; }
@@ -64,6 +64,23 @@ turn message perf_msg_1 no
 turn message perf_msg_2 no
 turn message perf_msg_3 no
 turn tool perf_tool_1 no
+log "perf: with a screenshot captured on every invoke (Android's default)"
+B screenshot --es v true; A am force-stop claude.phone; sleep 8
+turn message perf_msg_shot_1 no
+turn message perf_msg_shot_2 no
+B screenshot --es v false; A am force-stop claude.phone; sleep 8
+
+# ---------- 1b. Calibration: stock apps on this same emulator ----------
+log "calibration: Settings scroll"
+A am start -W -a android.settings.SETTINGS > /dev/null; sleep 2
+A dumpsys gfxinfo com.android.settings reset > /dev/null
+for i in 1 2 3 4; do A input swipe 540 1800 540 600 150; sleep 0.7; A input swipe 540 600 540 1800 150; sleep 0.7; done
+A dumpsys gfxinfo com.android.settings | grep -E 'Total frames|Janky|percentile' | sed 's/^/settings: /' | tee -a $R
+log "calibration: notification shade"
+A input keyevent KEYCODE_HOME; sleep 1
+A dumpsys gfxinfo com.android.systemui reset > /dev/null
+for i in 1 2 3; do A cmd statusbar expand-notifications; sleep 1.2; A cmd statusbar collapse; sleep 1.2; done
+A dumpsys gfxinfo com.android.systemui | grep -E 'Total frames|Janky|percentile' | sed 's/^/systemui: /' | tee -a $R
 
 # ---------- 2. Video of the message flow ----------
 log "video"
@@ -90,7 +107,7 @@ for mode in light dark; do
   A input keyevent KEYCODE_HOME
   # Activity log
   B seed --ei n 40
-  A am start -W -S -n claude.phone/.LogActivity | grep -E 'TotalTime|WaitTime' | sed "s/^/${mode} log start: /" >> $R
+  A am start -W -S -n claude.phone/.LogActivity | grep -E 'Time|State' | tr '\n' ' ' | sed "s/^/${mode} log start: /" >> $R; echo >> $R
   sleep 1.2; shot ${mode}_log
   A input swipe 540 1700 540 900 300; sleep 1; shot ${mode}_log_scrolled
   B clearlog; A am start -W -S -n claude.phone/.LogActivity > /dev/null; sleep 1.2; shot ${mode}_log_empty
@@ -101,13 +118,18 @@ A cmd uimode night no
 # ---------- 4. Activity log: cold start and scroll jank ----------
 log "log cold start x5"
 B seed --ei n 120
-for i in 1 2 3 4 5; do A am start -W -S -n claude.phone/.LogActivity | grep TotalTime | tee -a $R; sleep 0.8; done
+for i in 1 2 3 4 5; do A am start -W -S -n claude.phone/.LogActivity | grep -E 'Time|State' | tr '\n' ' ' | tee -a $R; echo >> $R; sleep 0.8; done
+log "log warm start x3"
+for i in 1 2 3; do A input keyevent KEYCODE_HOME; sleep 0.8; A am start -W -n claude.phone/.LogActivity | grep -E 'Time|State' | tr '\n' ' ' | tee -a $R; echo >> $R; sleep 0.8; done
 A dumpsys gfxinfo claude.phone reset > /dev/null
 for i in 1 2 3 4 5 6; do A input swipe 540 1900 540 400 120; sleep 0.6; done
 for i in 1 2 3; do A input swipe 540 500 540 1900 120; sleep 0.6; done
 log "log scroll gfxinfo"; A dumpsys gfxinfo claude.phone | grep -E 'Total frames|Janky|percentile|Number' | tee -a $R
+adb logcat -c; A input keyevent KEYCODE_HOME; sleep 1; perfdump log_scroll
 A input keyevent KEYCODE_HOME
 
 log "summary"
-grep -E 'FIRST_FRAME|LATENCY|MARK (create_to_onShow|key_to_onShow|overlay_build|session_onCreate|prewarm|canvas|kill)|FRAMES overlay/ALL|ARGS' $P | head -120 >> $R
+grep -E '^---|FIRST_FRAME|LATENCY|MARK (create_to_onShow|key_to_onShow|overlay_build|session_onCreate|prewarm|canvas|kill)|FRAMES (overlay|log)/ALL' $P | head -200 >> $R
+# Shots to webp so they can live in the repo.
+for f in $OUT/shots/*.png; do convert "$f" -quality 92 "${f%.png}.webp" && rm "$f"; done
 cat $R

@@ -20,6 +20,7 @@ final class Session extends VoiceInteractionSession implements OverlayView.Host 
   private Perf perf;
   private Script script;
   private boolean shown;
+  private long invokeAt;
 
   Session(Context c) { super(c); }
 
@@ -49,16 +50,17 @@ final class Session extends VoiceInteractionSession implements OverlayView.Host 
   @Override public void onShow(Bundle args, int flags) {
     super.onShow(args, flags);
     long now = Perf.now();
-    Log.i(Perf.TAG, "MARK create_to_onShow ms=" + Perf.fmt((now - createdAt) / 1e6) + " flags=" + flags + " canvas_warm=" + CanvasHost.isWarm());
+    Log.i(Perf.TAG, "MARK create_to_onShow ms=" + (shown ? "reused" : Perf.fmt((now - createdAt) / 1e6)) + " flags=" + flags + " canvas_warm=" + CanvasHost.isWarm());
     if (args != null) {
       StringBuilder sb = new StringBuilder();
       for (String k : args.keySet()) sb.append(k).append('=').append(args.get(k)).append(' ');
       Log.i(Perf.TAG, "ARGS " + sb);
-      long ev = args.getLong("android.intent.extra.TIME", args.getLong("invocation_time_ms", 0));
-      if (ev > 0) Log.i(Perf.TAG, "MARK key_to_onShow ms=" + (SystemClock.uptimeMillis() - ev));
+      long ev = args.getLong("android.intent.extra.TIME", 0);
+      if (ev > 0) { invokeAt = ev; Log.i(Perf.TAG, "MARK key_to_onShow ms=" + (SystemClock.uptimeMillis() - ev)); }
     }
-    if (shown) { perf.report(); perf.detach(); perf = new Perf("overlay", now); view = rebuild(); }
+    if (shown) { perf.detach(); perf = new Perf("overlay", now); view = rebuild(); }
     shown = true;
+    perf.invokeUptimeMs = invokeAt;
     perf.attach(getWindow().getWindow());
     view.enter();
     view.listen();

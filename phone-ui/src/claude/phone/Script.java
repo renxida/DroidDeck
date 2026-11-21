@@ -27,9 +27,9 @@ final class Script implements Choreographer.FrameCallback {
   Script(Context c, OverlayView v, Perf perf, String demo) { this.c = c; this.v = v; this.perf = perf; this.demo = demo; }
 
   void start() {
+    t0 = SystemClock.uptimeMillis();
     state("listening");
     Choreographer.getInstance().postFrameCallback(this);
-    t0 = SystemClock.uptimeMillis();
     switch (demo) {
       case "message": say(new String[] { "Text", "Betty", "that", "I'll", "be", "home", "by", "seven" }, this::messageTurn); break;
       case "chart": say(new String[] { "How", "did", "I", "sleep", "this", "week?" }, this::chartTurn); break;

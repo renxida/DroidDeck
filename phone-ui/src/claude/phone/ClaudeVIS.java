@@ -19,6 +19,9 @@ public class ClaudeVIS extends VoiceInteractionService {
   @Override public void onReady() {
     super.onReady();
     instance = this;
+    // Claude reads the screen's structure (text, views) on invoke; a full screenshot is taken only
+    // when needed, off the critical path. Saves a capture on every press.
+    if (!Ui.prefs(this).getBoolean("screenshot", false)) setDisabledShowContext(android.service.voice.VoiceInteractionSession.SHOW_WITH_SCREENSHOT);
     boolean warm = Ui.prefs(this).getBoolean("prewarm", true);
     Log.i(Perf.TAG, "EVENT vis_ready prewarm=" + warm);
     if (!warm) return;
