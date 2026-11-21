@@ -33,7 +33,7 @@ final class Script implements Choreographer.FrameCallback {
     switch (demo) {
       case "message": say(new String[] { "Text", "Betty", "that", "I'll", "be", "home", "by", "seven" }, this::messageTurn); break;
       case "chart": say(new String[] { "How", "did", "I", "sleep", "this", "week?" }, this::chartTurn); break;
-      case "tool": say(new String[] { "Split", "dinner,", "142", "dollars,", "four", "of", "us" }, this::toolTurn); break;
+      case "tool": say(new String[] { "Split", "the", "84.50", "dinner", "bill", "two", "ways" }, this::toolTurn); break;
       case "offline": say(new String[] { "Order", "more", "coffee", "beans" }, () -> { state("offline"); v.offline("I can't reach the network right now. I'll place the order as soon as you're back online, and ask you first."); }); break;
       default: after(7000, () -> { micOn = false; v.orb.setState(OrbView.State.IDLE); v.setLabel("Didn't catch that"); v.transcript.setText("Try “text Betty I'm on my way” or “what's next today?”"); v.showAskBar(); state("idle"); });
     }
@@ -94,7 +94,7 @@ final class Script implements Choreographer.FrameCallback {
   private void chartTurn() {
     state("speaking");
     canvas("sleep");
-    stream("You averaged 6 hours 50 minutes, about an hour under your 8 hour goal. Tuesday was the short night.", 55, () -> { state("canvas_done"); v.done("Done", "Show last month", "Set a bedtime"); });
+    stream("You averaged 7.2 hours, under your 8 hour goal on five nights. Friday was the short one, 5.4 hours.", 55, () -> { state("canvas_done"); v.done("Done", "Show last month", "Set a bedtime"); });
   }
 
   private void toolTurn() {
