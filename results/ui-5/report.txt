@@ -1,0 +1,281 @@
+== build google/sdk_gphone64_x86_64/emu64xa:16/BE2A.250530.026.F3/13894323:userdebug/dev-keys
+== install
+Install command complete in 1671 ms
+== role exit=0 holders=claude.phone
+== perf: cold start without prewarm
+== perf: cold start with prewarm
+== perf: with a screenshot captured on every invoke (Android's default)
+== calibration: Settings scroll
+settings: Total frames rendered: 135
+settings: Janky frames: 107 (79.26%)
+settings: Janky frames (legacy): 128 (94.81%)
+settings: 50th percentile: 65ms
+settings: 90th percentile: 125ms
+settings: 95th percentile: 150ms
+settings: 99th percentile: 250ms
+settings: 50th gpu percentile: 4950ms
+settings: 90th gpu percentile: 4950ms
+settings: 95th gpu percentile: 4950ms
+settings: 99th gpu percentile: 4950ms
+== calibration: notification shade
+systemui: Total frames rendered: 54
+systemui: Janky frames: 51 (94.44%)
+systemui: Janky frames (legacy): 54 (100.00%)
+systemui: 50th percentile: 150ms
+systemui: 90th percentile: 550ms
+systemui: 95th percentile: 850ms
+systemui: 99th percentile: 1000ms
+systemui: 50th gpu percentile: 4950ms
+systemui: 90th gpu percentile: 4950ms
+systemui: 95th gpu percentile: 4950ms
+systemui: 99th gpu percentile: 4950ms
+== video
+== screens light
+light overlay appop: SYSTEM_ALERT_WINDOW: allow; time=+4m35s271ms ago
+light log start: LaunchState: UNKNOWN (0) WaitTime: 661 
+== screens dark
+dark overlay appop: SYSTEM_ALERT_WINDOW: allow; time=+1m40s215ms ago; duration=+2s291ms
+dark log start: LaunchState: UNKNOWN (0) WaitTime: 596 
+== log cold start x5
+LaunchState: UNKNOWN (0) WaitTime: 269 
+LaunchState: UNKNOWN (0) WaitTime: 52 
+LaunchState: UNKNOWN (0) WaitTime: 45 
+LaunchState: UNKNOWN (0) WaitTime: 28 
+LaunchState: UNKNOWN (0) WaitTime: 29 
+== log warm start x3
+LaunchState: UNKNOWN (0) WaitTime: 83 
+LaunchState: UNKNOWN (0) WaitTime: 147 
+LaunchState: UNKNOWN (0) WaitTime: 98 
+== log scroll gfxinfo
+== crashes
+12
+11-21 02:28:07.974 E/AndroidRuntime( 7948): FATAL EXCEPTION: main
+11-21 02:28:07.974 E/AndroidRuntime( 7948): Process: claude.phone, PID: 7948
+11-21 02:28:07.974 E/AndroidRuntime( 7948): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.os.Looper.loop(Looper.java:338)
+--
+11-21 02:28:11.965 E/AndroidRuntime( 8074): FATAL EXCEPTION: main
+11-21 02:28:11.965 E/AndroidRuntime( 8074): Process: claude.phone, PID: 8074
+11-21 02:28:11.965 E/AndroidRuntime( 8074): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.os.Looper.loop(Looper.java:338)
+--
+11-21 02:29:47.884 E/AndroidRuntime( 9010): FATAL EXCEPTION: main
+11-21 02:29:47.884 E/AndroidRuntime( 9010): Process: claude.phone, PID: 9010
+11-21 02:29:47.884 E/AndroidRuntime( 9010): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.os.Looper.loop(Looper.java:338)
+--
+11-21 02:29:51.779 E/AndroidRuntime( 9185): FATAL EXCEPTION: main
+11-21 02:29:51.779 E/AndroidRuntime( 9185): Process: claude.phone, PID: 9185
+11-21 02:29:51.779 E/AndroidRuntime( 9185): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.os.Looper.loop(Looper.java:338)
+--
+11-21 02:29:54.390 E/AndroidRuntime( 9349): FATAL EXCEPTION: main
+11-21 02:29:54.390 E/AndroidRuntime( 9349): Process: claude.phone, PID: 9349
+11-21 02:29:54.390 E/AndroidRuntime( 9349): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+== summary
+--- perf_cold_noprewarm
+MARK session_onCreate ms=358.5
+MARK overlay_build ms=33.1
+MARK create_to_onShow ms=401.6 flags=7 canvas_warm=false
+MARK key_to_onShow ms=703
+FIRST_FRAME overlay ms=1533.8 from_key_ms=1823.3 first_draw=1
+MARK canvas_prewarm_create ms=859.5
+MARK canvas_runtime_loaded
+LATENCY canvas_render_call_to_painted ms=1705.1 js_ms=455.3
+LATENCY token_to_pixels ms=517.9
+FRAMES overlay/ALL n=25 p50=533.5 p90=2046.0 p99=3030.7 max=3030.7 jank=24 | ui n=25 p50=7.5 p90=169.7 p99=475.2 max=475.2 | rt n=25 p50=128.7 p90=580.4 p99=1957.7 max=1957.7
+--- perf_warm_noprewarm_1
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=71
+FIRST_FRAME overlay ms=320.4 from_key_ms=391.9 first_draw=1
+LATENCY canvas_render_call_to_painted ms=537.3 js_ms=306.7
+LATENCY token_to_pixels ms=120.3
+FRAMES overlay/ALL n=47 p50=267.7 p90=736.2 p99=949.5 max=949.5 jank=47 | ui n=47 p50=0.9 p90=16.6 p99=264.2 max=264.2 | rt n=47 p50=83.8 p90=248.1 p99=644.6 max=644.6
+--- perf_cold_prewarm
+MARK session_onCreate ms=104.9
+MARK overlay_build ms=2.2
+MARK create_to_onShow ms=111.0 flags=7 canvas_warm=true
+MARK key_to_onShow ms=164
+FIRST_FRAME overlay ms=950.0 from_key_ms=1000.6 first_draw=1
+LATENCY canvas_render_call_to_painted ms=467.1 js_ms=293.0
+LATENCY token_to_pixels ms=241.6
+FRAMES overlay/ALL n=28 p50=450.2 p90=1690.6 p99=2404.2 max=2404.2 jank=27 | ui n=28 p50=1.5 p90=22.3 p99=482.9 max=482.9 | rt n=28 p50=86.3 p90=613.1 p99=1607.3 max=1607.3
+--- perf_warm_prewarm_1
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=23
+FIRST_FRAME overlay ms=263.7 from_key_ms=286.9 first_draw=1
+LATENCY canvas_render_call_to_painted ms=411.7 js_ms=277.1
+LATENCY token_to_pixels ms=192.7
+FRAMES overlay/ALL n=49 p50=280.6 p90=676.6 p99=973.3 max=973.3 jank=48 | ui n=49 p50=0.9 p90=7.1 p99=164.3 max=164.3 | rt n=49 p50=85.8 p90=251.7 p99=537.5 max=537.5
+--- perf_msg_1
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=9
+FIRST_FRAME overlay ms=81.9 from_key_ms=91.6 first_draw=1
+LATENCY token_to_pixels ms=295.6
+FRAMES overlay/ALL n=88 p50=221.4 p90=478.0 p99=775.3 max=775.3 jank=87 | ui n=88 p50=0.5 p90=4.5 p99=20.3 max=20.3 | rt n=88 p50=75.3 p90=165.4 p99=374.0 max=374.0
+--- perf_msg_2
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=5
+FIRST_FRAME overlay ms=247.8 from_key_ms=253.4 first_draw=1
+LATENCY token_to_pixels ms=272.9
+FRAMES overlay/ALL n=101 p50=221.7 p90=372.0 p99=724.1 max=786.7 jank=101 | ui n=101 p50=0.4 p90=1.4 p99=11.6 max=55.3 | rt n=101 p50=73.7 p90=137.0 p99=251.2 max=427.8
+--- perf_msg_3
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=12
+FIRST_FRAME overlay ms=85.4 from_key_ms=98.1 first_draw=1
+LATENCY token_to_pixels ms=260.0
+FRAMES overlay/ALL n=105 p50=209.7 p90=398.6 p99=654.6 max=757.3 jank=104 | ui n=105 p50=0.4 p90=1.6 p99=19.7 max=20.5 | rt n=105 p50=71.1 p90=148.0 p99=235.4 max=320.9
+--- perf_tool_1
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=6
+FIRST_FRAME overlay ms=433.8 from_key_ms=439.9 first_draw=0
+LATENCY canvas_render_call_to_painted ms=342.7 js_ms=213.4
+LATENCY token_to_pixels ms=705.7
+FRAMES overlay/ALL n=58 p50=203.8 p90=600.5 p99=984.2 max=984.2 jank=58 | ui n=58 p50=0.5 p90=5.2 p99=12.6 max=12.6 | rt n=58 p50=64.7 p90=201.9 p99=595.8 max=595.8
+--- perf_msg_shot_1
+MARK session_onCreate ms=23.2
+MARK overlay_build ms=1.6
+MARK create_to_onShow ms=468.7 flags=7 canvas_warm=true
+MARK key_to_onShow ms=511
+FIRST_FRAME overlay ms=1140.2 from_key_ms=1179.7 first_draw=1
+LATENCY token_to_pixels ms=275.7
+FRAMES overlay/ALL n=85 p50=221.7 p90=387.0 p99=1641.6 max=1641.6 jank=83 | ui n=85 p50=0.4 p90=2.7 p99=371.2 max=371.2 | rt n=85 p50=70.6 p90=157.7 p99=985.7 max=985.7
+--- perf_msg_shot_2
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=51
+FIRST_FRAME overlay ms=302.0 from_key_ms=348.8 first_draw=1
+LATENCY token_to_pixels ms=337.8
+FRAMES overlay/ALL n=112 p50=201.2 p90=325.9 p99=682.2 max=849.9 jank=111 | ui n=112 p50=0.4 p90=2.6 p99=12.5 max=120.3 | rt n=112 p50=67.6 p90=110.2 p99=187.6 max=422.8
+--- vid
+MARK session_onCreate ms=131.6
+MARK overlay_build ms=17.7
+MARK create_to_onShow ms=151.6 flags=7 canvas_warm=true
+MARK key_to_onShow ms=309
+FIRST_FRAME overlay ms=1061.7 from_key_ms=1212.3 first_draw=1
+LATENCY token_to_pixels ms=355.8
+FRAMES overlay/ALL n=52 p50=318.4 p90=660.1 p99=2883.5 max=2883.5 jank=52 | ui n=52 p50=0.5 p90=8.2 p99=303.4 max=303.4 | rt n=52 p50=105.9 p90=220.3 p99=2066.9 max=2066.9
+--- vid2
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=64.9 from_key_ms=69.7 first_draw=1
+LATENCY canvas_render_call_to_painted ms=709.2 js_ms=75.0
+LATENCY token_to_pixels ms=421.8
+FRAMES overlay/ALL n=50 p50=323.3 p90=666.4 p99=816.9 max=816.9 jank=50 | ui n=50 p50=0.8 p90=9.7 p99=43.3 max=43.3 | rt n=50 p50=98.4 p90=217.6 p99=501.8 max=501.8
+--- light_ambient_msg
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=17
+FIRST_FRAME overlay ms=105.3 from_key_ms=122.6 first_draw=1
+LATENCY token_to_pixels ms=379.4
+FRAMES overlay/ALL n=250 p50=202.3 p90=335.5 p99=1408.7 max=1471.0 jank=249 | ui n=250 p50=0.3 p90=1.4 p99=9.6 max=33.4 | rt n=250 p50=67.2 p90=122.9 p99=172.3 max=1388.0
+--- light_msg
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=5
+FIRST_FRAME overlay ms=49.5 from_key_ms=55.3 first_draw=1
+LATENCY token_to_pixels ms=349.8
+FRAMES overlay/ALL n=221 p50=188.5 p90=267.7 p99=525.1 max=625.3 jank=219 | ui n=221 p50=0.3 p90=1.1 p99=6.8 max=11.0 | rt n=221 p50=65.0 p90=94.8 p99=166.4 max=257.0
+--- light_chart
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=84.7 from_key_ms=88.8 first_draw=1
+LATENCY canvas_render_call_to_painted ms=300.3 js_ms=125.1
+LATENCY token_to_pixels ms=254.8
+FRAMES overlay/ALL n=130 p50=187.4 p90=309.1 p99=548.6 max=731.0 jank=129 | ui n=130 p50=0.3 p90=1.4 p99=8.9 max=14.6 | rt n=130 p50=63.9 p90=111.5 p99=273.5 max=280.5
+--- light_tool
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=47.0 from_key_ms=51.0 first_draw=1
+LATENCY canvas_render_call_to_painted ms=211.0 js_ms=121.3
+LATENCY token_to_pixels ms=568.2
+FRAMES overlay/ALL n=113 p50=189.2 p90=438.1 p99=827.1 max=867.4 jank=111 | ui n=113 p50=0.3 p90=3.0 p99=14.1 max=24.3 | rt n=113 p50=65.5 p90=120.3 p99=437.1 max=569.2
+--- light_offline
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=3
+FIRST_FRAME overlay ms=107.1 from_key_ms=110.8 first_draw=1
+FRAMES overlay/ALL n=87 p50=172.5 p90=383.5 p99=765.6 max=765.6 jank=85 | ui n=87 p50=0.3 p90=0.8 p99=19.2 max=19.2 | rt n=87 p50=60.8 p90=124.9 p99=311.5 max=311.5
+--- light_idle
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=155.0 from_key_ms=159.4 first_draw=1
+FRAMES overlay/ALL n=142 p50=188.9 p90=254.9 p99=671.3 max=913.2 jank=142 | ui n=142 p50=0.3 p90=0.9 p99=35.3 max=57.0 | rt n=142 p50=65.1 p90=89.7 p99=245.6 max=522.6
+--- light_killtile
+MARK kill_switch_pause ms=3.0
+--- dark_ambient_msg
+MARK session_onCreate ms=132.3
+MARK overlay_build ms=10.5
+MARK create_to_onShow ms=143.5 flags=7 canvas_warm=false
+MARK key_to_onShow ms=155
+FIRST_FRAME overlay ms=1101.1 from_key_ms=1113.2 first_draw=1
+LATENCY token_to_pixels ms=238.0
+FRAMES overlay/ALL n=184 p50=203.0 p90=287.5 p99=1301.6 max=2122.3 jank=183 | ui n=184 p50=0.4 p90=2.5 p99=11.2 max=730.9 | rt n=184 p50=67.0 p90=107.5 p99=392.7 max=1171.2
+--- dark_msg
+MARK create_to_onShow ms=reused flags=7 canvas_warm=false
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=80.0 from_key_ms=84.0 first_draw=1
+LATENCY token_to_pixels ms=257.3
+FRAMES overlay/ALL n=216 p50=187.6 p90=250.6 p99=449.9 max=615.1 jank=215 | ui n=216 p50=0.3 p90=1.0 p99=8.4 max=35.5 | rt n=216 p50=63.7 p90=92.8 p99=200.3 max=242.5
+--- dark_chart
+MARK create_to_onShow ms=reused flags=7 canvas_warm=false
+MARK key_to_onShow ms=3
+FIRST_FRAME overlay ms=46.0 from_key_ms=49.4 first_draw=1
+MARK canvas_prewarm_create ms=257.8
+MARK canvas_runtime_loaded
+LATENCY canvas_render_call_to_painted ms=668.3 js_ms=101.2
+LATENCY token_to_pixels ms=137.1
+FRAMES overlay/ALL n=91 p50=206.4 p90=387.0 p99=685.5 max=685.5 jank=90 | ui n=91 p50=0.4 p90=4.6 p99=30.3 max=30.3 | rt n=91 p50=67.9 p90=146.7 p99=253.7 max=253.7
+--- dark_tool
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=93.5 from_key_ms=98.2 first_draw=1
+LATENCY canvas_render_call_to_painted ms=389.7 js_ms=124.4
+LATENCY token_to_pixels ms=277.9
+FRAMES overlay/ALL n=113 p50=200.7 p90=280.9 p99=634.0 max=756.9 jank=113 | ui n=113 p50=0.3 p90=4.4 p99=23.6 max=25.8 | rt n=113 p50=64.7 p90=104.3 p99=241.6 max=285.7
+--- dark_offline
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=118.6 from_key_ms=123.1 first_draw=1
+FRAMES overlay/ALL n=71 p50=184.6 p90=323.4 p99=832.7 max=832.7 jank=68 | ui n=71 p50=0.3 p90=1.3 p99=57.3 max=57.3 | rt n=71 p50=62.7 p90=85.0 p99=403.2 max=403.2
+--- dark_idle
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=5
+FIRST_FRAME overlay ms=145.9 from_key_ms=151.0 first_draw=1
+FRAMES overlay/ALL n=139 p50=186.3 p90=238.9 p99=604.1 max=742.3 jank=138 | ui n=139 p50=0.3 p90=1.3 p99=5.1 max=56.5 | rt n=139 p50=64.9 p90=86.7 p99=227.3 max=307.7
+--- dark_killtile
+MARK kill_switch_pause ms=3.4
+--- log_scroll

@@ -1,0 +1,301 @@
+--------- beginning of crash
+11-21 02:28:07.974 E/AndroidRuntime( 7948): FATAL EXCEPTION: main
+11-21 02:28:07.974 E/AndroidRuntime( 7948): Process: claude.phone, PID: 7948
+11-21 02:28:07.974 E/AndroidRuntime( 7948): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:28:07.974 E/AndroidRuntime( 7948): 	... 13 more
+11-21 02:28:11.965 E/AndroidRuntime( 8074): FATAL EXCEPTION: main
+11-21 02:28:11.965 E/AndroidRuntime( 8074): Process: claude.phone, PID: 8074
+11-21 02:28:11.965 E/AndroidRuntime( 8074): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:28:11.965 E/AndroidRuntime( 8074): 	... 13 more
+11-21 02:29:47.884 E/AndroidRuntime( 9010): FATAL EXCEPTION: main
+11-21 02:29:47.884 E/AndroidRuntime( 9010): Process: claude.phone, PID: 9010
+11-21 02:29:47.884 E/AndroidRuntime( 9010): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:29:47.884 E/AndroidRuntime( 9010): 	... 13 more
+11-21 02:29:51.779 E/AndroidRuntime( 9185): FATAL EXCEPTION: main
+11-21 02:29:51.779 E/AndroidRuntime( 9185): Process: claude.phone, PID: 9185
+11-21 02:29:51.779 E/AndroidRuntime( 9185): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:29:51.779 E/AndroidRuntime( 9185): 	... 13 more
+11-21 02:29:54.390 E/AndroidRuntime( 9349): FATAL EXCEPTION: main
+11-21 02:29:54.390 E/AndroidRuntime( 9349): Process: claude.phone, PID: 9349
+11-21 02:29:54.390 E/AndroidRuntime( 9349): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:29:54.390 E/AndroidRuntime( 9349): 	... 13 more
+11-21 02:29:55.616 E/AndroidRuntime( 9428): FATAL EXCEPTION: main
+11-21 02:29:55.616 E/AndroidRuntime( 9428): Process: claude.phone, PID: 9428
+11-21 02:29:55.616 E/AndroidRuntime( 9428): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:29:55.616 E/AndroidRuntime( 9428): 	... 13 more
+11-21 02:29:56.806 E/AndroidRuntime( 9502): FATAL EXCEPTION: main
+11-21 02:29:56.806 E/AndroidRuntime( 9502): Process: claude.phone, PID: 9502
+11-21 02:29:56.806 E/AndroidRuntime( 9502): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:29:56.806 E/AndroidRuntime( 9502): 	... 13 more
+11-21 02:29:57.924 E/AndroidRuntime( 9575): FATAL EXCEPTION: main
+11-21 02:29:57.924 E/AndroidRuntime( 9575): Process: claude.phone, PID: 9575
+11-21 02:29:57.924 E/AndroidRuntime( 9575): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:29:57.924 E/AndroidRuntime( 9575): 	... 13 more
+11-21 02:29:59.037 E/AndroidRuntime( 9647): FATAL EXCEPTION: main
+11-21 02:29:59.037 E/AndroidRuntime( 9647): Process: claude.phone, PID: 9647
+11-21 02:29:59.037 E/AndroidRuntime( 9647): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:29:59.037 E/AndroidRuntime( 9647): 	... 13 more
+11-21 02:30:00.790 E/AndroidRuntime( 9719): FATAL EXCEPTION: main
+11-21 02:30:00.790 E/AndroidRuntime( 9719): Process: claude.phone, PID: 9719
+11-21 02:30:00.790 E/AndroidRuntime( 9719): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:30:00.790 E/AndroidRuntime( 9719): 	... 13 more
+11-21 02:30:02.734 E/AndroidRuntime( 9803): FATAL EXCEPTION: main
+11-21 02:30:02.734 E/AndroidRuntime( 9803): Process: claude.phone, PID: 9803
+11-21 02:30:02.734 E/AndroidRuntime( 9803): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:30:02.734 E/AndroidRuntime( 9803): 	... 13 more
+11-21 02:30:04.631 E/AndroidRuntime( 9823): FATAL EXCEPTION: main
+11-21 02:30:04.631 E/AndroidRuntime( 9823): Process: claude.phone, PID: 9823
+11-21 02:30:04.631 E/AndroidRuntime( 9823): java.lang.RuntimeException: Unable to start activity ComponentInfo{claude.phone/claude.phone.LogActivity}: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4280)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4467)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2823)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.os.Handler.dispatchMessage(Handler.java:110)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.os.Looper.loopOnce(Looper.java:248)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.os.Looper.loop(Looper.java:338)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.ActivityThread.main(ActivityThread.java:9067)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at java.lang.reflect.Method.invoke(Native Method)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): Caused by: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.WindowInsetsController com.android.internal.policy.DecorView.getWindowInsetsController()' on a null object reference
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at com.android.internal.policy.PhoneWindow.getInsetsController(PhoneWindow.java:4140)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at claude.phone.LogActivity.onCreate(LogActivity.java:50)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.Activity.performCreate(Activity.java:9155)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.Activity.performCreate(Activity.java:9133)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1521)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4262)
+11-21 02:30:04.631 E/AndroidRuntime( 9823): 	... 13 more
