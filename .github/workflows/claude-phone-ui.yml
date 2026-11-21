@@ -1,0 +1,48 @@
+name: claude-phone-ui
+on:
+  push:
+    branches: [claude-phone-proto]
+    paths: ['phone-ui/**', '.github/workflows/claude-phone-ui.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: bash phone-ui/build.sh
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 4
+          ram-size: 4096M
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: false
+          script: bash phone-ui/test.sh results/ui-${{ github.run_number }}
+      - name: Upload shots and video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-${{ github.run_number }}
+          path: results/ui-${{ github.run_number }}
+      - name: Commit text results
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+          git add -f results/ui-${{ github.run_number }}/*.txt || exit 0
+          git commit -qm "Results: phone UI, run ${{ github.run_number }}" || exit 0
+          for i in 1 2 3 4 5; do git pull -q --rebase origin claude-phone-proto && git push -q origin HEAD:claude-phone-proto && break; sleep $((i*3)); done

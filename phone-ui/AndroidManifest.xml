@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="claude.phone">
+  <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="36"/>
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+  <uses-permission android:name="android.permission.VIBRATE"/>
+  <application android:label="Claude" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"
+      android:hardwareAccelerated="true" android:supportsRtl="true" android:enableOnBackInvokedCallback="true">
+    <activity android:name=".LogActivity" android:exported="true" android:label="Claude"
+        android:theme="@android:style/Theme.DeviceDefault.DayNight" android:configChanges="uiMode">
+      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+    </activity>
+    <activity android:name=".AssistActivity" android:exported="true" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:noHistory="true">
+      <intent-filter><action android:name="android.intent.action.ASSIST"/><category android:name="android.intent.category.DEFAULT"/></intent-filter>
+    </activity>
+    <service android:name=".ClaudeVIS" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION">
+      <meta-data android:name="android.voice_interaction" android:resource="@xml/interaction"/>
+      <intent-filter><action android:name="android.service.voice.VoiceInteractionService"/></intent-filter>
+    </service>
+    <service android:name=".ClaudeSessionService" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION"/>
+    <service android:name=".ClaudeRecognizer" android:exported="true">
+      <intent-filter><action android:name="android.speech.RecognitionService"/></intent-filter>
+      <meta-data android:name="android.speech" android:resource="@xml/recognizer"/>
+    </service>
+    <service android:name=".KillTile" android:exported="true" android:label="Claude" android:icon="@drawable/ic_spark"
+        android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+      <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter>
+      <meta-data android:name="android.service.quicksettings.ACTIVE_TILE" android:value="false"/>
+    </service>
+    <receiver android:name=".ActionReceiver" android:exported="false"/>
+    <receiver android:name=".DemoReceiver" android:exported="true" android:permission="android.permission.DUMP"/>
+  </application>
+</manifest>
