@@ -30,6 +30,11 @@ final class Glow {
   static void show(Context app, String what) {
     if (edge != null) return;
     Context c = app.getApplicationContext();
+    if (!android.provider.Settings.canDrawOverlays(c)) { android.util.Log.w(Perf.TAG, "GLOW no overlay permission"); return; }
+    try { add(c, what); } catch (RuntimeException e) { android.util.Log.e(Perf.TAG, "GLOW failed", e); edge = null; pill = null; }
+  }
+
+  private static void add(Context c, String what) {
     WindowManager wm = c.getSystemService(WindowManager.class);
     Ui ui = Ui.of(c);
     edge = new EdgeView(c, ui);

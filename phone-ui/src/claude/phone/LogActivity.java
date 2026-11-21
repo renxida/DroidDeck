@@ -216,11 +216,11 @@ public class LogActivity extends Activity {
     list.setVisibility(none ? View.GONE : View.VISIBLE);
   }
 
-  private static String section(long at) {
+  private String section(long at) {
     if (DateUtils.isToday(at)) return "Today";
     if (DateUtils.isToday(at + DateUtils.DAY_IN_MILLIS)) return "Yesterday";
     Calendar c = Calendar.getInstance(); c.setTimeInMillis(at);
-    return DateUtils.formatDateTime(null, at, DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_ALL);
+    return DateUtils.formatDateTime(this, at, DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_ALL);
   }
 
   static int icon(String kind) {

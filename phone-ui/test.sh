@@ -18,6 +18,9 @@ A settings put global window_animation_scale 1; A settings put global transition
 A settings put system screen_off_timeout 1800000; A svc power stayon true; A wm dismiss-keyguard; A input keyevent KEYCODE_WAKEUP
 A cmd uimode night no
 log "install"; adb install -r -g phone-ui/claude-phone.apk 2>&1 | tail -1 | tee -a $R
+# Crashes and warnings for the whole run (logcat -c elsewhere would clear them).
+adb logcat -b crash -b main -v time AndroidRuntime:E ClaudePerf:W "*:S" > $OUT/crash.txt 2>/dev/null &
+CRASHPID=$!
 A appops set claude.phone SYSTEM_ALERT_WINDOW allow
 A cmd role add-role-holder android.app.role.ASSISTANT claude.phone; log "role exit=$? holders=$(A cmd role get-role-holders android.app.role.ASSISTANT)"
 A settings put global power_button_long_press 5
@@ -104,6 +107,7 @@ for mode in light dark; do
   A cmd statusbar collapse; sleep 0.5; B resume; B cancel_all
   # Edge glow over another app
   A am start -W -a android.settings.SETTINGS > /dev/null; sleep 1.5
+  echo "${mode} overlay appop: $(A appops get claude.phone SYSTEM_ALERT_WINDOW)" >> $R
   B glow_on; sleep 1.2; shot ${mode}_glow; B glow_off; sleep 0.5
   A input keyevent KEYCODE_HOME
   # Activity log
@@ -129,6 +133,7 @@ log "log scroll gfxinfo"; A dumpsys gfxinfo claude.phone | grep -E 'Total frames
 adb logcat -c; A input keyevent KEYCODE_HOME; sleep 1; perfdump log_scroll
 A input keyevent KEYCODE_HOME
 
+kill $CRASHPID 2>/dev/null; log "crashes"; grep -c "FATAL" $OUT/crash.txt | tee -a $R; grep -A12 "FATAL" $OUT/crash.txt | head -60 >> $R
 log "summary"
 grep -E '^---|FIRST_FRAME|LATENCY|MARK (create_to_onShow|key_to_onShow|overlay_build|session_onCreate|prewarm|canvas|kill)|FRAMES (overlay|log)/ALL' $P | head -200 >> $R
 # Shots to webp so they can live in the repo.

@@ -62,14 +62,28 @@ final class StreamText extends TextView {
   }
 
   private void tick() {
+    // TextView with an Editable buffer draws through Editor's per-paragraph display lists, which a
+    // plain invalidate() does not re-record. Re-setting the span marks just its paragraph dirty;
+    // removing it when done leaves plain text (and no span cost) behind.
+    Editable e = getEditableText();
     long now = SystemClock.uptimeMillis();
     for (int i = active.size() - 1; i >= 0; i--) {
       Fade f = active.get(i);
       float t = (now - f.start) / (float) FADE_MS;
-      f.a = t >= 1 ? 1 : 1 - (1 - t) * (1 - t);
-      if (t >= 1) active.remove(i);
+      int s = e.getSpanStart(f), en = e.getSpanEnd(f);
+      if (t >= 1 || s < 0) { e.removeSpan(f); active.remove(i); continue; }
+      f.a = 1 - (1 - t) * (1 - t);
+      e.setSpan(f, s, en, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
     }
-    invalidate();
     if (!active.isEmpty()) postOnAnimation(tick); else ticking = false;
   }
+
+  /** Snaps every fading chunk to full color (used when a stream ends or the view is reused). */
+  void settle() {
+    Editable e = getEditableText();
+    for (Fade f : active) e.removeSpan(f);
+    active.clear();
+  }
+
+  @Override protected void onDetachedFromWindow() { settle(); super.onDetachedFromWindow(); }
 }
