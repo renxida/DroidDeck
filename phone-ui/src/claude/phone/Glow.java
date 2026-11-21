@@ -46,9 +46,10 @@ final class Glow {
     lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
     lp.setFitInsetsTypes(0);
     lp.setTitle("ClaudeGlow");
+    // Fade in with a window animation run by the system, not by our process: a broadcast-started
+    // process can be frozen as soon as onReceive returns, which would leave a view animation at 0.
+    lp.windowAnimations = android.R.style.Animation_Toast;
     wm.addView(edge, lp);
-    edge.setAlpha(0f);
-    edge.animate().alpha(1f).setDuration(300).start();
 
     LinearLayout p = new LinearLayout(c);
     p.setGravity(Gravity.CENTER_VERTICAL);
@@ -78,9 +79,8 @@ final class Glow {
     pl.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
     pl.y = ui.dp(8);
     pl.setTitle("ClaudeGlowPill");
+    pl.windowAnimations = android.R.style.Animation_Toast;
     wm.addView(pill, pl);
-    pill.setAlpha(0f); pill.setTranslationY(-ui.dpf(12));
-    pill.animate().alpha(1f).translationY(0).setDuration(320).setInterpolator(Ui.EMPH_DECEL).start();
   }
 
   static void hide() {
@@ -88,8 +88,8 @@ final class Glow {
     edge = null; pill = null;
     if (e == null) return;
     final WindowManager wm = e.getContext().getSystemService(WindowManager.class);
-    e.animate().alpha(0f).setDuration(200).withEndAction(() -> wm.removeView(e)).start();
-    if (p != null) p.animate().alpha(0f).translationY(-p.getHeight() / 2f).setDuration(180).withEndAction(() -> wm.removeView(p)).start();
+    wm.removeView(e);
+    if (p != null) wm.removeView(p);
   }
 
   static final class EdgeView extends View {

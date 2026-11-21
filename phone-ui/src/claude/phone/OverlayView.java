@@ -77,7 +77,7 @@ final class OverlayView extends FrameLayout {
     scrim.setOnClickListener(v -> dismiss());
     scrim.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
     addView(scrim, new LayoutParams(-1, -1));
-    ambient = "ambient".equals(Ui.prefs(c).getString("variant", "card"));
+    ambient = "ambient".equals(Ui.prefs(c).getString("variant", "ambient"));
     edge = new Glow.EdgeView(c, ui);
     edge.setAlpha(0f);
     edge.setVisibility(ambient ? VISIBLE : GONE);

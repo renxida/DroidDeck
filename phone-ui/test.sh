@@ -96,7 +96,7 @@ for mode in light dark; do
   log "screens $mode"
   [ $mode = dark ] && { A cmd uimode night yes; sleep 3; }
   A input keyevent KEYCODE_HOME; sleep 1
-  B variant --es v ambient; turn message ${mode}_ambient_msg; B variant --es v card
+  B variant --es v card; turn message ${mode}_card_msg; B variant --es v ambient
   turn message ${mode}_msg; turn chart ${mode}_chart; turn tool ${mode}_tool; turn offline ${mode}_offline; turn idle ${mode}_idle
   # Notifications and the kill switch
   B resume; B nudge; B needs; sleep 1

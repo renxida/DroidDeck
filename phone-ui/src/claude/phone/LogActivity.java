@@ -47,13 +47,13 @@ public class LogActivity extends Activity {
     getWindow().setStatusBarColor(Color.TRANSPARENT);
     getWindow().setNavigationBarColor(Color.TRANSPARENT);
     getWindow().setBackgroundDrawable(new ColorDrawable(ui.bg));
-    WindowInsetsController ic = getWindow().getInsetsController();
+    perf = new Perf("log", t);
+    setContentView(build());
+    WindowInsetsController ic = getWindow().getDecorView().getWindowInsetsController();
     if (ic != null) {
       int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
       ic.setSystemBarsAppearance(ui.night ? 0 : light, light);
     }
-    perf = new Perf("log", t);
-    setContentView(build());
     perf.attach(getWindow());
     perf.phase = "open";
     reload();
