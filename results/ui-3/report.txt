@@ -1,0 +1,47 @@
+== build google/sdk_gphone64_x86_64/emu64xa:16/BE2A.250530.026.F3/13894323:userdebug/dev-keys
+== install
+Install command complete in 1208 ms
+== role exit=0 holders=claude.phone
+== perf: cold start without prewarm
+== perf: cold start with prewarm
+== perf: with a screenshot captured on every invoke (Android's default)
+== calibration: Settings scroll
+settings: Total frames rendered: 140
+settings: Janky frames: 111 (79.29%)
+settings: Janky frames (legacy): 135 (96.43%)
+settings: 50th percentile: 69ms
+settings: 90th percentile: 117ms
+settings: 95th percentile: 125ms
+settings: 99th percentile: 250ms
+settings: 50th gpu percentile: 4950ms
+settings: 90th gpu percentile: 4950ms
+settings: 95th gpu percentile: 4950ms
+settings: 99th gpu percentile: 4950ms
+== calibration: notification shade
+systemui: Total frames rendered: 53
+systemui: Janky frames: 50 (94.34%)
+systemui: Janky frames (legacy): 53 (100.00%)
+systemui: 50th percentile: 150ms
+systemui: 90th percentile: 400ms
+systemui: 95th percentile: 750ms
+systemui: 99th percentile: 1350ms
+systemui: 50th gpu percentile: 4950ms
+systemui: 90th gpu percentile: 4950ms
+systemui: 95th gpu percentile: 4950ms
+systemui: 99th gpu percentile: 4950ms
+== video
+== screens light
+light log start: LaunchState: UNKNOWN (0) WaitTime: 620 
+== screens dark
+dark log start: LaunchState: UNKNOWN (0) WaitTime: 539 
+== log cold start x5
+LaunchState: UNKNOWN (0) WaitTime: 305 
+
+
+
+
+== log warm start x3
+
+
+
+== log scroll gfxinfo
