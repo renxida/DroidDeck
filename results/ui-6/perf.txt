@@ -1,0 +1,570 @@
+--- perf_cold_noprewarm
+DEMO demo
+MARK session_onCreate ms=135.7
+MARK overlay_build ms=33.5
+MARK create_to_onShow ms=170.2 flags=7 canvas_warm=false
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=78935 android.service.voice.SHOW_SESSION_ID=1 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=78952 
+MARK key_to_onShow ms=483
+STATE listening t=0
+EVENT screenshot null
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=1428.1 from_key_ms=1741.0 first_draw=1
+EVENT speech_end t=84571928705
+STATE thinking t=5167
+STATE speaking t=5173
+MARK canvas_prewarm_create ms=689.1
+STATE canvas_done t=7940
+MARK canvas_runtime_loaded
+LATENCY token_to_pixels ms=306.6
+LATENCY canvas_render_call_to_painted ms=2964.2 js_ms=312.4
+STATE canvas_rendered t=8839
+FRAMES overlay/listen n=1 p50=1287.6 p90=1287.6 p99=1287.6 max=1287.6 jank=1 | ui n=1 p50=716.8 p90=716.8 p99=716.8 max=716.8 | rt n=1 p50=509.9 p90=509.9 p99=509.9 max=509.9
+FRAMES overlay/think n=3 p50=3950.9 p90=5016.8 p99=5016.8 max=5016.8 jank=3 | ui n=3 p50=0.4 p90=0.5 p99=0.5 max=0.5 | rt n=3 p50=106.2 p90=3798.3 p99=3798.3 max=3798.3
+FRAMES overlay/stream n=2 p50=1104.9 p90=1427.9 p99=1427.9 max=1427.9 jank=2 | ui n=2 p50=2.9 p90=172.4 p99=172.4 max=172.4 | rt n=2 p50=412.0 p90=516.3 p99=516.3 max=516.3
+FRAMES overlay/done n=8 p50=801.3 p90=1807.2 p99=1807.2 max=1807.2 jank=8 | ui n=8 p50=8.0 p90=120.3 p99=120.3 max=120.3 | rt n=8 p50=170.6 p90=889.4 p99=889.4 max=889.4
+FRAMES overlay/exit n=2 p50=567.8 p90=985.4 p99=985.4 max=985.4 jank=2 | ui n=2 p50=1.1 p90=1.2 p99=1.2 max=1.2 | rt n=2 p50=27.3 p90=592.7 p99=592.7 max=592.7
+FRAMES overlay/ALL n=16 p50=1002.2 p90=3950.9 p99=5016.8 max=5016.8 jank=16 | ui n=16 p50=2.9 p90=172.4 p99=716.8 max=716.8 | rt n=16 p50=295.8 p90=889.4 p99=3798.3 max=3798.3
+STATE hidden
+--- perf_warm_noprewarm_1
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=92389 android.service.voice.SHOW_SESSION_ID=2 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=92476 
+MARK key_to_onShow ms=97
+STATE listening t=0
+FIRST_FRAME overlay ms=436.4 from_key_ms=533.9 first_draw=1
+EVENT assist_data structure=false
+EVENT speech_end t=95421498483
+STATE thinking t=2939
+STATE speaking t=3609
+LATENCY canvas_render_call_to_painted ms=550.0 js_ms=424.2
+STATE canvas_rendered t=4160
+STATE canvas_done t=5365
+LATENCY token_to_pixels ms=450.2
+FRAMES overlay/listen n=7 p50=649.8 p90=1620.2 p99=1620.2 max=1620.2 jank=7 | ui n=7 p50=0.9 p90=381.3 p99=381.3 max=381.3 | rt n=7 p50=256.4 p90=1198.6 p99=1198.6 max=1198.6
+FRAMES overlay/think n=3 p50=655.6 p90=728.7 p99=728.7 max=728.7 jank=3 | ui n=3 p50=0.9 p90=4.0 p99=4.0 max=4.0 | rt n=3 p50=252.1 p90=294.7 p99=294.7 max=294.7
+FRAMES overlay/stream n=7 p50=470.1 p90=1149.4 p99=1149.4 max=1149.4 jank=7 | ui n=7 p50=11.4 p90=18.6 p99=18.6 max=18.6 | rt n=7 p50=139.1 p90=913.8 p99=913.8 max=913.8
+FRAMES overlay/done n=6 p50=984.2 p90=1312.7 p99=1312.7 max=1312.7 jank=6 | ui n=6 p50=6.7 p90=32.8 p99=32.8 max=32.8 | rt n=6 p50=183.5 p90=429.6 p99=429.6 max=429.6
+FRAMES overlay/exit n=3 p50=669.8 p90=807.5 p99=807.5 max=807.5 jank=3 | ui n=3 p50=10.4 p90=14.0 p99=14.0 max=14.0 | rt n=3 p50=177.9 p90=289.1 p99=289.1 max=289.1
+FRAMES overlay/ALL n=26 p50=655.6 p90=1471.5 p99=1620.2 max=1620.2 jank=26 | ui n=26 p50=6.5 p90=21.3 p99=381.3 max=381.3 | rt n=26 p50=183.5 p90=429.6 p99=1198.6 max=1198.6
+STATE hidden
+--- perf_cold_prewarm
+DEMO demo
+MARK session_onCreate ms=103.6
+MARK overlay_build ms=3.8
+MARK create_to_onShow ms=107.9 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=111334 android.service.voice.SHOW_SESSION_ID=3 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=111342 
+MARK key_to_onShow ms=212
+STATE listening t=0
+EVENT screenshot null
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=817.2 from_key_ms=921.2 first_draw=1
+EVENT speech_end t=114796607586
+STATE thinking t=3241
+STATE speaking t=3316
+LATENCY canvas_render_call_to_painted ms=826.7 js_ms=218.1
+STATE canvas_rendered t=4250
+STATE canvas_done t=5092
+LATENCY token_to_pixels ms=941.5
+FRAMES overlay/listen n=2 p50=700.2 p90=3134.3 p99=3134.3 max=3134.3 jank=2 | ui n=2 p50=0.3 p90=342.2 p99=342.2 max=342.2 | rt n=2 p50=249.0 p90=2519.0 p99=2519.0 max=2519.0
+FRAMES overlay/think n=2 p50=2600.1 p90=2670.9 p99=2670.9 max=2670.9 jank=2 | ui n=2 p50=0.3 p90=0.3 p99=0.3 max=0.3 | rt n=2 p50=83.5 p90=92.9 p99=92.9 max=92.9
+FRAMES overlay/stream n=4 p50=810.0 p90=1120.0 p99=1120.0 max=1120.0 jank=4 | ui n=4 p50=1.7 p90=9.7 p99=9.7 max=9.7 | rt n=4 p50=161.3 p90=584.9 p99=584.9 max=584.9
+FRAMES overlay/done n=5 p50=935.2 p90=947.7 p99=947.7 max=947.7 jank=5 | ui n=5 p50=6.7 p90=10.6 p99=10.6 max=10.6 | rt n=5 p50=335.8 p90=500.4 p99=500.4 max=500.4
+FRAMES overlay/exit n=4 p50=215.1 p90=667.6 p99=667.6 max=667.6 jank=4 | ui n=4 p50=0.3 p90=0.6 p99=0.6 max=0.6 | rt n=4 p50=64.6 p90=537.3 p99=537.3 max=537.3
+FRAMES overlay/ALL n=17 p50=883.5 p90=2670.9 p99=3134.3 max=3134.3 jank=17 | ui n=17 p50=1.1 p90=10.6 p99=342.2 max=342.2 | rt n=17 p50=161.3 p90=584.9 p99=2519.0 max=2519.0
+STATE hidden
+--- perf_warm_prewarm_1
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=120662 android.service.voice.SHOW_SESSION_ID=4 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=120668 
+MARK key_to_onShow ms=16
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=35.9 from_key_ms=52.0 first_draw=1
+EVENT speech_end t=123576428832
+STATE thinking t=2897
+STATE speaking t=3481
+LATENCY canvas_render_call_to_painted ms=321.2 js_ms=251.7
+STATE canvas_rendered t=3807
+STATE canvas_done t=5237
+LATENCY token_to_pixels ms=307.0
+FRAMES overlay/enter n=1 p50=25.7 p90=25.7 p99=25.7 max=25.7 jank=1 | ui n=1 p50=13.1 p90=13.1 p99=13.1 max=13.1 | rt n=1 p50=11.5 p90=11.5 p99=11.5 max=11.5
+FRAMES overlay/listen n=16 p50=336.3 p90=737.5 p99=781.9 max=781.9 jank=16 | ui n=16 p50=0.4 p90=5.9 p99=18.6 max=18.6 | rt n=16 p50=111.0 p90=312.5 p99=326.8 max=326.8
+FRAMES overlay/think n=5 p50=334.9 p90=485.8 p99=485.8 max=485.8 jank=5 | ui n=5 p50=0.3 p90=1.0 p99=1.0 max=1.0 | rt n=5 p50=137.3 p90=197.8 p99=197.8 max=197.8
+FRAMES overlay/stream n=6 p50=369.6 p90=1195.5 p99=1195.5 max=1195.5 jank=6 | ui n=6 p50=1.2 p90=17.0 p99=17.0 max=17.0 | rt n=6 p50=116.5 p90=755.7 p99=755.7 max=755.7
+FRAMES overlay/done n=8 p50=502.0 p90=1251.3 p99=1251.3 max=1251.3 jank=8 | ui n=8 p50=0.7 p90=39.7 p99=39.7 max=39.7 | rt n=8 p50=155.7 p90=280.7 p99=280.7 max=280.7
+FRAMES overlay/exit n=3 p50=327.0 p90=402.4 p99=402.4 max=402.4 jank=3 | ui n=3 p50=0.2 p90=3.3 p99=3.3 max=3.3 | rt n=3 p50=115.0 p90=194.2 p99=194.2 max=194.2
+FRAMES overlay/ALL n=39 p50=402.4 p90=781.9 p99=1251.3 max=1251.3 jank=39 | ui n=39 p50=0.7 p90=13.1 p99=39.7 max=39.7 | rt n=39 p50=115.0 p90=312.5 p99=755.7 max=755.7
+STATE hidden
+--- perf_msg_1
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=129715 android.service.voice.SHOW_SESSION_ID=5 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=129719 
+MARK key_to_onShow ms=25
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=232.5 from_key_ms=257.7 first_draw=1
+EVENT speech_end t=133299309898
+STATE thinking t=3557
+STATE speaking t=3985
+STATE confirm t=5250
+LATENCY token_to_pixels ms=409.3
+HOLD 540 2058
+STATE sent t=7233
+FRAMES overlay/enter n=1 p50=217.7 p90=217.7 p99=217.7 max=217.7 jank=1 | ui n=1 p50=24.1 p90=24.1 p99=24.1 max=24.1 | rt n=1 p50=134.7 p90=134.7 p99=134.7 max=134.7
+FRAMES overlay/listen n=17 p50=359.0 p90=1013.5 p99=1357.7 max=1357.7 jank=17 | ui n=17 p50=0.4 p90=1.1 p99=3.4 max=3.4 | rt n=17 p50=129.7 p90=422.0 p99=666.3 max=666.3
+FRAMES overlay/think n=3 p50=375.4 p90=403.4 p99=403.4 max=403.4 jank=3 | ui n=3 p50=0.4 p90=0.5 p99=0.5 max=0.5 | rt n=3 p50=131.2 p90=155.0 p99=155.0 max=155.0
+FRAMES overlay/stream n=8 p50=324.8 p90=606.3 p99=606.3 max=606.3 jank=8 | ui n=8 p50=0.8 p90=14.0 p99=14.0 max=14.0 | rt n=8 p50=105.6 p90=434.7 p99=434.7 max=434.7
+FRAMES overlay/confirm n=12 p50=402.1 p90=702.0 p99=716.0 max=716.0 jank=12 | ui n=12 p50=0.3 p90=8.9 p99=11.6 max=11.6 | rt n=12 p50=124.1 p90=292.5 p99=329.9 max=329.9
+FRAMES overlay/done n=17 p50=405.4 p90=652.0 p99=673.6 max=673.6 jank=17 | ui n=17 p50=0.8 p90=11.1 p99=22.3 max=22.3 | rt n=17 p50=128.1 p90=253.7 p99=289.6 max=289.6
+FRAMES overlay/exit n=4 p50=291.8 p90=451.8 p99=451.8 max=451.8 jank=4 | ui n=4 p50=0.2 p90=0.6 p99=0.6 max=0.6 | rt n=4 p50=102.6 p90=242.3 p99=242.3 max=242.3
+FRAMES overlay/ALL n=62 p50=375.4 p90=702.0 p99=1357.7 max=1357.7 jank=62 | ui n=62 p50=0.4 p90=5.4 p99=24.1 max=24.1 | rt n=62 p50=124.1 p90=255.1 p99=666.3 max=666.3
+STATE hidden
+--- perf_msg_2
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=141774 android.service.voice.SHOW_SESSION_ID=6 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=141779 
+MARK key_to_onShow ms=18
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=509.0 from_key_ms=527.6 first_draw=1
+EVENT speech_end t=145362048258
+STATE thinking t=3533
+STATE speaking t=4064
+STATE confirm t=5104
+LATENCY token_to_pixels ms=599.5
+HOLD 540 2058
+STATE sent t=6830
+FRAMES overlay/listen n=17 p50=486.2 p90=851.8 p99=1104.6 max=1104.6 jank=17 | ui n=17 p50=0.6 p90=2.8 p99=128.2 max=128.2 | rt n=17 p50=147.2 p90=381.3 p99=438.8 max=438.8
+FRAMES overlay/think n=5 p50=348.5 p90=443.2 p99=443.2 max=443.2 jank=5 | ui n=5 p50=0.3 p90=4.3 p99=4.3 max=4.3 | rt n=5 p50=109.5 p90=185.7 p99=185.7 max=185.7
+FRAMES overlay/stream n=6 p50=352.2 p90=419.3 p99=419.3 max=419.3 jank=6 | ui n=6 p50=0.7 p90=10.1 p99=10.1 max=10.1 | rt n=6 p50=108.7 p90=159.1 p99=159.1 max=159.1
+FRAMES overlay/confirm n=9 p50=506.6 p90=741.4 p99=741.4 max=741.4 jank=9 | ui n=9 p50=0.4 p90=7.0 p99=7.0 max=7.0 | rt n=9 p50=148.8 p90=323.8 p99=323.8 max=323.8
+FRAMES overlay/done n=18 p50=402.1 p90=562.7 p99=658.5 max=658.5 jank=18 | ui n=18 p50=0.4 p90=11.2 p99=12.4 max=12.4 | rt n=18 p50=102.7 p90=235.2 p99=339.8 max=339.8
+FRAMES overlay/exit n=3 p50=280.0 p90=305.7 p99=305.7 max=305.7 jank=3 | ui n=3 p50=0.3 p90=0.7 p99=0.7 max=0.7 | rt n=3 p50=108.1 p90=118.8 p99=118.8 max=118.8
+FRAMES overlay/ALL n=58 p50=408.5 p90=658.5 p99=1104.6 max=1104.6 jank=58 | ui n=58 p50=0.6 p90=7.0 p99=128.2 max=128.2 | rt n=58 p50=122.3 p90=280.9 p99=438.8 max=438.8
+STATE hidden
+--- perf_msg_3
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=153150 android.service.voice.SHOW_SESSION_ID=7 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=153162 
+MARK key_to_onShow ms=24
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=1185.9 from_key_ms=1210.3 first_draw=0
+EVENT speech_end t=156677625561
+STATE thinking t=3500
+STATE speaking t=4000
+STATE confirm t=5013
+LATENCY token_to_pixels ms=420.6
+HOLD 540 2058
+STATE sent t=7273
+FRAMES overlay/listen n=15 p50=450.5 p90=1142.2 p99=1155.3 max=1155.3 jank=15 | ui n=15 p50=1.1 p90=20.1 p99=209.0 max=209.0 | rt n=15 p50=129.8 p90=361.1 p99=725.1 max=725.1
+FRAMES overlay/think n=4 p50=369.4 p90=434.2 p99=434.2 max=434.2 jank=4 | ui n=4 p50=0.5 p90=11.4 p99=11.4 max=11.4 | rt n=4 p50=134.5 p90=170.5 p99=170.5 max=170.5
+FRAMES overlay/stream n=8 p50=333.5 p90=389.5 p99=389.5 max=389.5 jank=8 | ui n=8 p50=0.4 p90=8.7 p99=8.7 max=8.7 | rt n=8 p50=94.8 p90=163.9 p99=163.9 max=163.9
+FRAMES overlay/confirm n=20 p50=360.8 p90=418.3 p99=471.8 max=471.8 jank=20 | ui n=20 p50=0.5 p90=0.9 p99=2.9 max=2.9 | rt n=20 p50=105.8 p90=148.3 p99=201.5 max=201.5
+FRAMES overlay/done n=18 p50=321.5 p90=421.1 p99=488.9 max=488.9 jank=18 | ui n=18 p50=0.4 p90=1.0 p99=1.3 max=1.3 | rt n=18 p50=110.4 p90=146.7 p99=147.6 max=147.6
+FRAMES overlay/exit n=4 p50=252.3 p90=386.6 p99=386.6 max=386.6 jank=4 | ui n=4 p50=0.3 p90=0.3 p99=0.3 max=0.3 | rt n=4 p50=87.0 p90=209.4 p99=209.4 max=209.4
+FRAMES overlay/ALL n=69 p50=364.1 p90=539.2 p99=1155.3 max=1155.3 jank=69 | ui n=69 p50=0.6 p90=2.9 p99=209.0 max=209.0 | rt n=69 p50=114.3 p90=199.4 p99=725.1 max=725.1
+STATE hidden
+--- perf_tool_1
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=164669 android.service.voice.SHOW_SESSION_ID=8 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=164671 
+MARK key_to_onShow ms=5
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=66.2 from_key_ms=71.2 first_draw=1
+EVENT speech_end t=167894177980
+STATE thinking t=3218
+STATE speaking t=3647
+LATENCY canvas_render_call_to_painted ms=321.9 js_ms=206.9
+STATE canvas_rendered t=4000
+STATE canvas_done t=4991
+LATENCY token_to_pixels ms=413.8
+FRAMES overlay/enter n=1 p50=51.9 p90=51.9 p99=51.9 max=51.9 jank=1 | ui n=1 p50=41.1 p90=41.1 p99=41.1 max=41.1 | rt n=1 p50=7.3 p90=7.3 p99=7.3 max=7.3
+FRAMES overlay/listen n=23 p50=286.8 p90=715.4 p99=1019.5 max=1019.5 jank=23 | ui n=23 p50=0.3 p90=0.8 p99=1.7 max=1.7 | rt n=23 p50=95.9 p90=189.3 p99=616.6 max=616.6
+FRAMES overlay/think n=5 p50=286.8 p90=335.9 p99=335.9 max=335.9 jank=5 | ui n=5 p50=0.4 p90=1.0 p99=1.0 max=1.0 | rt n=5 p50=92.7 p90=134.0 p99=134.0 max=134.0
+FRAMES overlay/stream n=6 p50=272.7 p90=900.5 p99=900.5 max=900.5 jank=6 | ui n=6 p50=1.6 p90=6.8 p99=6.8 max=6.8 | rt n=6 p50=90.2 p90=688.1 p99=688.1 max=688.1
+FRAMES overlay/done n=10 p50=576.8 p90=926.8 p99=983.6 max=983.6 jank=10 | ui n=10 p50=0.5 p90=1.6 p99=3.8 max=3.8 | rt n=10 p50=143.5 p90=248.3 p99=261.2 max=261.2
+FRAMES overlay/exit n=4 p50=221.3 p90=360.7 p99=360.7 max=360.7 jank=4 | ui n=4 p50=0.2 p90=0.3 p99=0.3 max=0.3 | rt n=4 p50=74.6 p90=197.4 p99=197.4 max=197.4
+FRAMES overlay/ALL n=49 p50=300.0 p90=900.5 p99=1019.5 max=1019.5 jank=49 | ui n=49 p50=0.4 p90=2.3 p99=41.1 max=41.1 | rt n=49 p50=95.9 p90=246.5 p99=688.1 max=688.1
+STATE hidden
+--- perf_msg_shot_1
+DEMO demo
+MARK session_onCreate ms=57.1
+MARK overlay_build ms=2.7
+MARK create_to_onShow ms=968.5 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=181397 android.service.voice.SHOW_SESSION_ID=9 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=181399 
+MARK key_to_onShow ms=1034
+STATE listening t=0
+EVENT assist_data structure=true
+EVENT screenshot 1080x2400
+FIRST_FRAME overlay ms=1725.8 from_key_ms=1791.5 first_draw=1
+EVENT speech_end t=185873555705
+STATE thinking t=3442
+STATE speaking t=3919
+STATE confirm t=5160
+LATENCY token_to_pixels ms=524.2
+HOLD 540 2058
+STATE sent t=6920
+FRAMES overlay/listen n=19 p50=271.9 p90=1237.2 p99=1850.5 max=1850.5 jank=19 | ui n=19 p50=0.3 p90=9.4 p99=435.0 max=435.0 | rt n=19 p50=90.5 p90=252.9 p99=1123.9 max=1123.9
+FRAMES overlay/think n=5 p50=258.2 p90=420.7 p99=420.7 max=420.7 jank=5 | ui n=5 p50=0.4 p90=1.3 p99=1.3 max=1.3 | rt n=5 p50=87.0 p90=244.6 p99=244.6 max=244.6
+FRAMES overlay/stream n=10 p50=294.6 p90=354.4 p99=554.4 max=554.4 jank=10 | ui n=10 p50=1.3 p90=2.5 p99=4.5 max=4.5 | rt n=10 p50=66.8 p90=195.1 p99=235.0 max=235.0
+FRAMES overlay/confirm n=16 p50=390.0 p90=515.2 p99=568.2 max=568.2 jank=16 | ui n=16 p50=0.4 p90=4.8 p99=23.1 max=23.1 | rt n=16 p50=83.4 p90=226.3 p99=261.8 max=261.8
+FRAMES overlay/done n=16 p50=289.3 p90=420.0 p99=463.0 max=463.0 jank=16 | ui n=16 p50=0.4 p90=6.3 p99=7.2 max=7.2 | rt n=16 p50=94.1 p90=153.8 p99=237.0 max=237.0
+FRAMES overlay/exit n=3 p50=288.6 p90=386.6 p99=386.6 max=386.6 jank=3 | ui n=3 p50=0.3 p90=0.9 p99=0.9 max=0.9 | rt n=3 p50=106.6 p90=195.1 p99=195.1 max=195.1
+FRAMES overlay/ALL n=69 p50=300.4 p90=515.2 p99=1850.5 max=1850.5 jank=69 | ui n=69 p50=0.4 p90=4.5 p99=435.0 max=435.0 | rt n=69 p50=90.0 p90=226.3 p99=1123.9 max=1123.9
+STATE hidden
+--- perf_msg_shot_2
+DEMO demo
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=193531 android.service.voice.SHOW_SESSION_ID=10 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=193536 
+MARK key_to_onShow ms=30
+STATE listening t=0
+EVENT assist_data structure=true
+EVENT screenshot 1080x2400
+FIRST_FRAME overlay ms=351.3 from_key_ms=381.3 first_draw=1
+EVENT speech_end t=197027023774
+STATE thinking t=3465
+STATE speaking t=3930
+STATE confirm t=4881
+LATENCY token_to_pixels ms=403.4
+HOLD 540 2058
+STATE sent t=7222
+FRAMES overlay/enter n=1 p50=340.7 p90=340.7 p99=340.7 max=340.7 jank=1 | ui n=1 p50=75.8 p90=75.8 p99=75.8 max=75.8 | rt n=1 p50=54.1 p90=54.1 p99=54.1 max=54.1
+FRAMES overlay/listen n=20 p50=303.5 p90=1053.1 p99=1129.8 max=1129.8 jank=20 | ui n=20 p50=0.3 p90=2.2 p99=3.4 max=3.4 | rt n=20 p50=100.5 p90=142.3 p99=908.6 max=908.6
+FRAMES overlay/think n=6 p50=271.6 p90=387.6 p99=387.6 max=387.6 jank=6 | ui n=6 p50=0.4 p90=1.3 p99=1.3 max=1.3 | rt n=6 p50=91.4 p90=168.3 p99=168.3 max=168.3
+FRAMES overlay/stream n=7 p50=294.2 p90=350.5 p99=350.5 max=350.5 jank=7 | ui n=7 p50=0.5 p90=0.7 p99=0.7 max=0.7 | rt n=7 p50=99.8 p90=136.6 p99=136.6 max=136.6
+FRAMES overlay/confirm n=25 p50=272.5 p90=473.2 p99=508.3 max=508.3 jank=25 | ui n=25 p50=0.3 p90=2.1 p99=6.6 max=6.6 | rt n=25 p50=88.8 p90=169.4 p99=183.3 max=183.3
+FRAMES overlay/done n=13 p50=301.0 p90=603.1 p99=666.1 max=666.1 jank=13 | ui n=13 p50=0.4 p90=1.4 p99=3.4 max=3.4 | rt n=13 p50=98.3 p90=191.9 p99=311.2 max=311.2
+FRAMES overlay/exit n=4 p50=208.3 p90=287.6 p99=287.6 max=287.6 jank=4 | ui n=4 p50=0.3 p90=0.9 p99=0.9 max=0.9 | rt n=4 p50=75.6 p90=166.6 p99=166.6 max=166.6
+FRAMES overlay/ALL n=76 p50=293.0 p90=502.3 p99=1129.8 max=1129.8 jank=76 | ui n=76 p50=0.4 p90=2.1 p99=75.8 max=75.8 | rt n=76 p50=92.3 p90=168.3 p99=908.6 max=908.6
+STATE hidden
+--- vid
+DEMO demo
+MARK session_onCreate ms=68.3
+MARK overlay_build ms=3.9
+MARK create_to_onShow ms=135.1 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=234453 android.service.voice.SHOW_SESSION_ID=11 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=234465 
+MARK key_to_onShow ms=211
+STATE listening t=0
+EVENT screenshot null
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=1086.5 from_key_ms=1161.1 first_draw=1
+EVENT speech_end t=238575963216
+STATE thinking t=3899
+STATE speaking t=4090
+STATE confirm t=5066
+LATENCY token_to_pixels ms=489.9
+HOLD 540 2058
+STATE sent t=6905
+FRAMES overlay/listen n=2 p50=959.1 p90=3561.6 p99=3561.6 max=3561.6 jank=2 | ui n=2 p50=1.6 p90=293.4 p99=293.4 max=293.4 | rt n=2 p50=466.6 p90=2815.6 p99=2815.6 max=2815.6
+FRAMES overlay/think n=2 p50=2956.7 p90=3121.6 p99=3121.6 max=3121.6 jank=2 | ui n=2 p50=0.4 p90=2.4 p99=2.4 max=2.4 | rt n=2 p50=120.7 p90=203.9 p99=203.9 max=203.9
+FRAMES overlay/stream n=5 p50=504.6 p90=703.6 p99=703.6 max=703.6 jank=5 | ui n=5 p50=1.0 p90=62.7 p99=62.7 max=62.7 | rt n=5 p50=92.1 p90=349.0 p99=349.0 max=349.0
+FRAMES overlay/confirm n=11 p50=438.3 p90=584.2 p99=635.4 max=635.4 jank=11 | ui n=11 p50=0.6 p90=4.5 p99=24.2 max=24.2 | rt n=11 p50=104.1 p90=299.5 p99=402.8 max=402.8
+FRAMES overlay/done n=13 p50=502.4 p90=626.8 p99=659.3 max=659.3 jank=13 | ui n=13 p50=0.5 p90=5.2 p99=8.7 max=8.7 | rt n=13 p50=109.1 p90=184.9 p99=320.8 max=320.8
+FRAMES overlay/exit n=4 p50=346.3 p90=669.3 p99=669.3 max=669.3 jank=4 | ui n=4 p50=1.2 p90=9.1 p99=9.1 max=9.1 | rt n=4 p50=113.2 p90=394.5 p99=394.5 max=394.5
+FRAMES overlay/ALL n=37 p50=497.4 p90=959.1 p99=3561.6 max=3561.6 jank=37 | ui n=37 p50=0.8 p90=9.1 p99=293.4 max=293.4 | rt n=37 p50=120.7 p90=394.5 p99=2815.6 max=2815.6
+STATE hidden
+--- vid2
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=246118 android.service.voice.SHOW_SESSION_ID=12 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=246119 
+MARK key_to_onShow ms=4
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=234.9 from_key_ms=239.3 first_draw=1
+EVENT speech_end t=249159935894
+STATE thinking t=3035
+STATE speaking t=3512
+LATENCY canvas_render_call_to_painted ms=529.5 js_ms=260.3
+STATE canvas_rendered t=4103
+STATE canvas_done t=5072
+LATENCY token_to_pixels ms=687.7
+FRAMES overlay/enter n=1 p50=219.0 p90=219.0 p99=219.0 max=219.0 jank=1 | ui n=1 p50=41.2 p90=41.2 p99=41.2 max=41.2 | rt n=1 p50=92.3 p90=92.3 p99=92.3 max=92.3
+FRAMES overlay/listen n=13 p50=526.9 p90=804.4 p99=871.2 max=871.2 jank=13 | ui n=13 p50=0.4 p90=5.8 p99=13.0 max=13.0 | rt n=13 p50=159.0 p90=308.3 p99=497.9 max=497.9
+FRAMES overlay/think n=5 p50=405.1 p90=452.1 p99=452.1 max=452.1 jank=5 | ui n=5 p50=1.4 p90=4.7 p99=4.7 max=4.7 | rt n=5 p50=137.3 p90=239.6 p99=239.6 max=239.6
+FRAMES overlay/stream n=4 p50=700.1 p90=931.8 p99=931.8 max=931.8 jank=4 | ui n=4 p50=4.0 p90=44.7 p99=44.7 max=44.7 | rt n=4 p50=313.0 p90=464.3 p99=464.3 max=464.3
+FRAMES overlay/done n=7 p50=648.5 p90=1078.4 p99=1078.4 max=1078.4 jank=7 | ui n=7 p50=4.3 p90=17.0 p99=17.0 max=17.0 | rt n=7 p50=139.8 p90=490.1 p99=490.1 max=490.1
+FRAMES overlay/exit n=3 p50=403.8 p90=425.4 p99=425.4 max=425.4 jank=3 | ui n=3 p50=0.8 p90=1.5 p99=1.5 max=1.5 | rt n=3 p50=118.8 p90=168.4 p99=168.4 max=168.4
+FRAMES overlay/ALL n=33 p50=438.1 p90=871.2 p99=1078.4 max=1078.4 jank=33 | ui n=33 p50=1.4 p90=16.5 p99=44.7 max=44.7 | rt n=33 p50=151.2 p90=362.3 p99=497.9 max=497.9
+STATE hidden
+--- light_card_msg
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=258035 android.service.voice.SHOW_SESSION_ID=13 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=258144 
+MARK key_to_onShow ms=141
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=166.7 from_key_ms=308.2 first_draw=1
+EVENT speech_end t=261651616994
+STATE thinking t=3470
+STATE speaking t=3908
+STATE confirm t=5007
+LATENCY token_to_pixels ms=589.2
+HOLD 540 2058
+STATE sent t=18281
+FRAMES overlay/enter n=1 p50=171.5 p90=171.5 p99=171.5 max=171.5 jank=1 | ui n=1 p50=76.7 p90=76.7 p99=76.7 max=76.7 | rt n=1 p50=47.6 p90=47.6 p99=47.6 max=47.6
+FRAMES overlay/listen n=27 p50=336.3 p90=477.1 p99=530.2 max=530.2 jank=27 | ui n=27 p50=0.4 p90=2.7 p99=3.5 max=3.5 | rt n=27 p50=95.9 p90=196.8 p99=251.3 max=251.3
+FRAMES overlay/think n=7 p50=238.4 p90=264.8 p99=264.8 max=264.8 jank=7 | ui n=7 p50=0.4 p90=1.0 p99=1.0 max=1.0 | rt n=7 p50=80.4 p90=116.4 p99=116.4 max=116.4
+FRAMES overlay/stream n=5 p50=469.3 p90=479.5 p99=479.5 max=479.5 jank=5 | ui n=5 p50=0.7 p90=1.9 p99=1.9 max=1.9 | rt n=5 p50=160.2 p90=201.9 p99=201.9 max=201.9
+FRAMES overlay/confirm n=130 p50=274.9 p90=438.1 p99=617.4 max=671.3 jank=130 | ui n=130 p50=0.3 p90=0.9 p99=6.0 max=44.9 | rt n=130 p50=90.7 p90=152.4 p99=210.3 max=214.9
+FRAMES overlay/done n=57 p50=240.2 p90=389.2 p99=549.1 max=549.1 jank=57 | ui n=57 p50=0.3 p90=1.7 p99=3.8 max=3.8 | rt n=57 p50=79.7 p90=140.5 p99=198.9 max=198.9
+FRAMES overlay/exit n=4 p50=217.1 p90=306.9 p99=306.9 max=306.9 jank=4 | ui n=4 p50=0.2 p90=0.9 p99=0.9 max=0.9 | rt n=4 p50=74.1 p90=146.1 p99=146.1 max=146.1
+FRAMES overlay/ALL n=231 p50=269.9 p90=443.2 p99=574.7 max=671.3 jank=231 | ui n=231 p50=0.3 p90=1.1 p99=6.0 max=76.7 | rt n=231 p50=88.5 p90=157.0 p99=210.3 max=251.3
+STATE hidden
+--- light_msg
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=283918 android.service.voice.SHOW_SESSION_ID=14 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=283920 
+MARK key_to_onShow ms=4
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=335.9 from_key_ms=340.8 first_draw=1
+EVENT speech_end t=287471892479
+STATE thinking t=3546
+STATE speaking t=4030
+STATE confirm t=5095
+LATENCY token_to_pixels ms=416.4
+HOLD 540 2058
+STATE sent t=13373
+FRAMES overlay/enter n=1 p50=320.4 p90=320.4 p99=320.4 max=320.4 jank=1 | ui n=1 p50=116.3 p90=116.3 p99=116.3 max=116.3 | rt n=1 p50=34.3 p90=34.3 p99=34.3 max=34.3
+FRAMES overlay/listen n=25 p50=286.1 p90=629.2 p99=864.1 max=864.1 jank=25 | ui n=25 p50=0.4 p90=3.4 p99=22.8 max=22.8 | rt n=25 p50=109.3 p90=273.9 p99=370.7 max=370.7
+FRAMES overlay/think n=5 p50=335.0 p90=355.4 p99=355.4 max=355.4 jank=5 | ui n=5 p50=0.5 p90=1.9 p99=1.9 max=1.9 | rt n=5 p50=121.1 p90=152.0 p99=152.0 max=152.0
+FRAMES overlay/stream n=8 p50=271.3 p90=468.5 p99=468.5 max=468.5 jank=8 | ui n=8 p50=0.4 p90=1.1 p99=1.1 max=1.1 | rt n=8 p50=97.4 p90=213.5 p99=213.5 max=213.5
+FRAMES overlay/confirm n=95 p50=250.3 p90=320.2 p99=466.6 max=466.6 jank=95 | ui n=95 p50=0.3 p90=0.9 p99=7.8 max=7.8 | rt n=95 p50=83.2 p90=108.2 p99=172.5 max=172.5
+FRAMES overlay/done n=82 p50=245.4 p90=300.2 p99=433.8 max=433.8 jank=82 | ui n=82 p50=0.3 p90=0.7 p99=5.8 max=5.8 | rt n=82 p50=83.1 p90=110.7 p99=183.3 max=183.3
+FRAMES overlay/exit n=5 p50=250.5 p90=336.9 p99=336.9 max=336.9 jank=5 | ui n=5 p50=0.3 p90=0.6 p99=0.6 max=0.6 | rt n=5 p50=83.6 p90=169.9 p99=169.9 max=169.9
+FRAMES overlay/ALL n=221 p50=256.1 p90=336.9 p99=629.2 max=864.1 jank=221 | ui n=221 p50=0.3 p90=1.0 p99=7.8 max=116.3 | rt n=221 p50=84.5 p90=120.5 p99=273.9 max=370.7
+STATE hidden
+--- light_chart
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=306539 android.service.voice.SHOW_SESSION_ID=15 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=306542 
+MARK key_to_onShow ms=7
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=299.0 from_key_ms=305.9 first_draw=1
+EVENT speech_end t=309415980106
+STATE thinking t=2868
+STATE speaking t=3384
+LATENCY canvas_render_call_to_painted ms=411.0 js_ms=222.5
+STATE canvas_rendered t=3854
+STATE canvas_done t=4806
+LATENCY token_to_pixels ms=360.8
+FRAMES overlay/listen n=20 p50=292.6 p90=609.4 p99=786.6 max=786.6 jank=20 | ui n=20 p50=0.4 p90=1.5 p99=124.0 max=124.0 | rt n=20 p50=106.4 p90=189.1 p99=304.5 max=304.5
+FRAMES overlay/think n=6 p50=289.0 p90=351.8 p99=351.8 max=351.8 jank=6 | ui n=6 p50=0.3 p90=1.2 p99=1.2 max=1.2 | rt n=6 p50=82.4 p90=176.4 p99=176.4 max=176.4
+FRAMES overlay/stream n=10 p50=251.0 p90=685.0 p99=723.0 max=723.0 jank=10 | ui n=10 p50=3.5 p90=9.9 p99=14.3 max=14.3 | rt n=10 p50=92.3 p90=128.1 p99=499.6 max=499.6
+FRAMES overlay/done n=80 p50=237.5 p90=340.3 p99=591.7 max=591.7 jank=80 | ui n=80 p50=0.3 p90=1.6 p99=17.3 max=17.3 | rt n=80 p50=81.7 p90=112.9 p99=234.5 max=234.5
+FRAMES overlay/exit n=4 p50=217.8 p90=367.9 p99=367.9 max=367.9 jank=4 | ui n=4 p50=0.3 p90=0.9 p99=0.9 max=0.9 | rt n=4 p50=81.2 p90=190.9 p99=190.9 max=190.9
+FRAMES overlay/ALL n=120 p50=250.7 p90=454.5 p99=723.0 max=786.6 jank=120 | ui n=120 p50=0.3 p90=3.5 p99=37.5 max=124.0 | rt n=120 p50=84.4 p90=130.3 p99=304.5 max=499.6
+STATE hidden
+--- light_tool
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=320645 android.service.voice.SHOW_SESSION_ID=16 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=320647 
+MARK key_to_onShow ms=5
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=73.2 from_key_ms=78.3 first_draw=1
+EVENT speech_end t=323883202269
+STATE thinking t=3230
+STATE speaking t=3697
+LATENCY canvas_render_call_to_painted ms=328.8 js_ms=255.4
+STATE canvas_rendered t=4028
+STATE canvas_done t=4759
+LATENCY token_to_pixels ms=203.3
+FRAMES overlay/enter n=1 p50=68.3 p90=68.3 p99=68.3 max=68.3 jank=1 | ui n=1 p50=35.7 p90=35.7 p99=35.7 max=35.7 | rt n=1 p50=12.6 p90=12.6 p99=12.6 max=12.6
+FRAMES overlay/listen n=24 p50=286.4 p90=656.7 p99=956.7 max=956.7 jank=24 | ui n=24 p50=0.4 p90=1.5 p99=6.6 max=6.6 | rt n=24 p50=102.1 p90=193.2 p99=536.8 max=536.8
+FRAMES overlay/think n=5 p50=257.1 p90=390.0 p99=390.0 max=390.0 jank=5 | ui n=5 p50=0.4 p90=1.1 p99=1.1 max=1.1 | rt n=5 p50=103.6 p90=176.4 p99=176.4 max=176.4
+FRAMES overlay/stream n=5 p50=337.6 p90=735.1 p99=735.1 max=735.1 jank=5 | ui n=5 p50=8.2 p90=27.6 p99=27.6 max=27.6 | rt n=5 p50=73.7 p90=625.9 p99=625.9 max=625.9
+FRAMES overlay/done n=74 p50=237.7 p90=300.5 p99=761.3 max=761.3 jank=74 | ui n=74 p50=0.3 p90=0.8 p99=43.6 max=43.6 | rt n=74 p50=78.3 p90=109.1 p99=310.8 max=310.8
+FRAMES overlay/exit n=5 p50=218.9 p90=344.1 p99=344.1 max=344.1 jank=5 | ui n=5 p50=0.3 p90=3.1 p99=3.1 max=3.1 | rt n=5 p50=76.0 p90=214.3 p99=214.3 max=214.3
+FRAMES overlay/ALL n=114 p50=254.0 p90=504.7 p99=761.3 max=956.7 jank=114 | ui n=114 p50=0.3 p90=3.1 p99=35.7 max=43.6 | rt n=114 p50=82.8 p90=129.5 p99=536.8 max=625.9
+STATE hidden
+--- light_offline
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=334143 android.service.voice.SHOW_SESSION_ID=17 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=334145 
+MARK key_to_onShow ms=6
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=185.6 from_key_ms=192.2 first_draw=1
+EVENT speech_end t=336541732643
+STATE thinking t=2391
+STATE offline t=2807
+FRAMES overlay/enter n=1 p50=180.2 p90=180.2 p99=180.2 max=180.2 jank=1 | ui n=1 p50=37.5 p90=37.5 p99=37.5 max=37.5 | rt n=1 p50=104.6 p90=104.6 p99=104.6 max=104.6
+FRAMES overlay/listen n=10 p50=487.7 p90=939.0 p99=1184.6 max=1184.6 jank=10 | ui n=10 p50=0.4 p90=0.6 p99=5.4 max=5.4 | rt n=10 p50=107.7 p90=415.1 p99=518.3 max=518.3
+FRAMES overlay/think n=4 p50=271.4 p90=317.3 p99=317.3 max=317.3 jank=4 | ui n=4 p50=0.3 p90=1.4 p99=1.4 max=1.4 | rt n=4 p50=85.9 p90=167.0 p99=167.0 max=167.0
+FRAMES overlay/offline n=53 p50=272.9 p90=436.1 p99=619.0 max=619.0 jank=52 | ui n=53 p50=0.3 p90=1.3 p99=9.9 max=9.9 | rt n=53 p50=91.5 p90=125.8 p99=468.0 max=468.0
+FRAMES overlay/exit n=4 p50=244.4 p90=317.5 p99=317.5 max=317.5 jank=4 | ui n=4 p50=0.2 p90=0.3 p99=0.3 max=0.3 | rt n=4 p50=83.5 p90=151.6 p99=151.6 max=151.6
+FRAMES overlay/ALL n=72 p50=274.2 p90=600.9 p99=1184.6 max=1184.6 jank=71 | ui n=72 p50=0.3 p90=1.4 p99=37.5 max=37.5 | rt n=72 p50=93.5 p90=167.0 p99=518.3 max=518.3
+STATE hidden
+--- light_idle
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=344585 android.service.voice.SHOW_SESSION_ID=18 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=344587 
+MARK key_to_onShow ms=5
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=270.2 from_key_ms=275.5 first_draw=1
+STATE idle t=7162
+FRAMES overlay/enter n=1 p50=255.5 p90=255.5 p99=255.5 max=255.5 jank=1 | ui n=1 p50=84.3 p90=84.3 p99=84.3 max=84.3 | rt n=1 p50=107.5 p90=107.5 p99=107.5 max=107.5
+FRAMES overlay/listen n=108 p50=285.5 p90=383.0 p99=608.9 max=816.2 jank=107 | ui n=108 p50=0.3 p90=0.9 p99=5.8 max=8.5 | rt n=108 p50=95.4 p90=133.8 p99=283.7 max=415.4
+FRAMES overlay/exit n=4 p50=286.4 p90=344.0 p99=344.0 max=344.0 jank=4 | ui n=4 p50=0.3 p90=2.2 p99=2.2 max=2.2 | rt n=4 p50=86.3 p90=144.1 p99=144.1 max=144.1
+FRAMES overlay/ALL n=113 p50=286.4 p90=378.7 p99=608.9 max=816.2 jank=112 | ui n=113 p50=0.3 p90=0.9 p99=8.5 max=84.3 | rt n=113 p50=95.8 p90=133.8 p99=283.7 max=415.4
+STATE hidden
+--- light_killtile
+MARK kill_switch_pause ms=16.9
+--- dark_card_msg
+DEMO demo
+MARK session_onCreate ms=42.3
+MARK overlay_build ms=7.8
+MARK create_to_onShow ms=50.6 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=389062 android.service.voice.SHOW_SESSION_ID=19 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=389064 
+MARK key_to_onShow ms=74
+STATE listening t=0
+EVENT screenshot null
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=767.4 from_key_ms=790.8 first_draw=1
+EVENT speech_end t=392590273926
+STATE thinking t=3454
+STATE speaking t=3902
+STATE confirm t=4881
+LATENCY token_to_pixels ms=582.1
+HOLD 540 2058
+STATE sent t=13760
+FRAMES overlay/listen n=14 p50=436.3 p90=1495.6 p99=1683.8 max=1683.8 jank=14 | ui n=14 p50=0.3 p90=1.1 p99=48.7 max=48.7 | rt n=14 p50=96.4 p90=600.4 p99=972.2 max=972.2
+FRAMES overlay/think n=6 p50=249.6 p90=284.9 p99=284.9 max=284.9 jank=6 | ui n=6 p50=0.7 p90=1.8 p99=1.8 max=1.8 | rt n=6 p50=85.9 p90=102.3 p99=102.3 max=102.3
+FRAMES overlay/stream n=5 p50=454.0 p90=513.2 p99=513.2 max=513.2 jank=5 | ui n=5 p50=1.0 p90=16.8 p99=16.8 max=16.8 | rt n=5 p50=148.8 p90=242.4 p99=242.4 max=242.4
+FRAMES overlay/confirm n=82 p50=300.1 p90=469.2 p99=681.9 max=681.9 jank=82 | ui n=82 p50=0.3 p90=0.8 p99=21.8 max=21.8 | rt n=82 p50=95.9 p90=177.1 p99=233.2 max=233.2
+FRAMES overlay/done n=56 p50=233.6 p90=307.2 p99=485.1 max=485.1 jank=56 | ui n=56 p50=0.3 p90=1.1 p99=38.1 max=38.1 | rt n=56 p50=78.4 p90=96.1 p99=283.8 max=283.8
+FRAMES overlay/exit n=5 p50=222.0 p90=516.9 p99=516.9 max=516.9 jank=5 | ui n=5 p50=0.2 p90=0.3 p99=0.3 max=0.3 | rt n=5 p50=82.8 p90=359.2 p99=359.2 max=359.2
+FRAMES overlay/ALL n=168 p50=264.2 p90=472.6 p99=1495.6 max=1683.8 jank=168 | ui n=168 p50=0.3 p90=1.1 p99=38.1 max=48.7 | rt n=168 p50=85.7 p90=179.9 p99=600.4 max=972.2
+STATE hidden
+--- dark_msg
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=410147 android.service.voice.SHOW_SESSION_ID=20 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=410149 
+MARK key_to_onShow ms=5
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=130.3 from_key_ms=135.3 first_draw=1
+EVENT speech_end t=413627754990
+STATE thinking t=3475
+STATE speaking t=3913
+LATENCY token_to_pixels ms=168.0
+STATE confirm t=4879
+HOLD 540 2058
+STATE sent t=14058
+FRAMES overlay/enter n=1 p50=127.3 p90=127.3 p99=127.3 max=127.3 jank=1 | ui n=1 p50=23.9 p90=23.9 p99=23.9 max=23.9 | rt n=1 p50=42.2 p90=42.2 p99=42.2 max=42.2
+FRAMES overlay/listen n=22 p50=290.6 p90=1256.6 p99=1359.8 max=1359.8 jank=22 | ui n=22 p50=0.3 p90=0.6 p99=5.2 max=5.2 | rt n=22 p50=88.9 p90=163.2 p99=1115.2 max=1115.2
+FRAMES overlay/think n=5 p50=318.3 p90=353.7 p99=353.7 max=353.7 jank=5 | ui n=5 p50=0.4 p90=1.2 p99=1.2 max=1.2 | rt n=5 p50=103.3 p90=165.2 p99=165.2 max=165.2
+FRAMES overlay/stream n=10 p50=269.8 p90=295.0 p99=319.1 max=319.1 jank=10 | ui n=10 p50=0.5 p90=0.8 p99=2.1 max=2.1 | rt n=10 p50=84.2 p90=118.5 p99=130.0 max=130.0
+FRAMES overlay/confirm n=112 p50=234.6 p90=272.9 p99=324.2 max=338.0 jank=112 | ui n=112 p50=0.3 p90=0.5 p99=1.7 max=4.1 | rt n=112 p50=81.0 p90=97.3 p99=143.4 max=152.7
+FRAMES overlay/done n=77 p50=235.4 p90=272.4 p99=329.8 max=329.8 jank=77 | ui n=77 p50=0.3 p90=0.7 p99=4.0 max=4.0 | rt n=77 p50=81.5 p90=97.8 p99=138.8 max=138.8
+FRAMES overlay/exit n=5 p50=230.9 p90=308.4 p99=308.4 max=308.4 jank=5 | ui n=5 p50=0.2 p90=0.8 p99=0.8 max=0.8 | rt n=5 p50=75.5 p90=157.7 p99=157.7 max=157.7
+FRAMES overlay/ALL n=232 p50=238.1 p90=302.2 p99=1256.6 max=1359.8 jank=232 | ui n=232 p50=0.3 p90=0.7 p99=4.1 max=23.9 | rt n=232 p50=82.1 p90=107.0 p99=163.3 max=1115.2
+STATE hidden
+--- dark_chart
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=432746 android.service.voice.SHOW_SESSION_ID=21 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=432748 
+MARK key_to_onShow ms=6
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=48.1 from_key_ms=54.9 first_draw=1
+EVENT speech_end t=435648465639
+STATE thinking t=2895
+STATE speaking t=3321
+LATENCY canvas_render_call_to_painted ms=634.9 js_ms=74.5
+STATE canvas_rendered t=3965
+STATE canvas_done t=4783
+LATENCY token_to_pixels ms=323.4
+FRAMES overlay/enter n=1 p50=45.9 p90=45.9 p99=45.9 max=45.9 jank=1 | ui n=1 p50=31.2 p90=31.2 p99=31.2 max=31.2 | rt n=1 p50=6.6 p90=6.6 p99=6.6 max=6.6
+FRAMES overlay/listen n=21 p50=305.4 p90=689.1 p99=884.1 max=884.1 jank=21 | ui n=21 p50=0.4 p90=0.8 p99=6.5 max=6.5 | rt n=21 p50=99.4 p90=214.4 p99=361.3 max=361.3
+FRAMES overlay/think n=5 p50=301.5 p90=352.3 p99=352.3 max=352.3 jank=5 | ui n=5 p50=0.3 p90=1.2 p99=1.2 max=1.2 | rt n=5 p50=93.9 p90=129.9 p99=129.9 max=129.9
+FRAMES overlay/stream n=7 p50=503.1 p90=639.4 p99=639.4 max=639.4 jank=7 | ui n=7 p50=2.3 p90=8.3 p99=8.3 max=8.3 | rt n=7 p50=134.7 p90=356.7 p99=356.7 max=356.7
+FRAMES overlay/done n=88 p50=236.3 p90=317.4 p99=652.1 max=652.1 jank=88 | ui n=88 p50=0.3 p90=1.4 p99=6.6 max=6.6 | rt n=88 p50=79.7 p90=104.1 p99=193.8 max=193.8
+FRAMES overlay/exit n=5 p50=252.4 p90=347.1 p99=347.1 max=347.1 jank=5 | ui n=5 p50=0.3 p90=0.8 p99=0.8 max=0.8 | rt n=5 p50=90.0 p90=185.9 p99=185.9 max=185.9
+FRAMES overlay/ALL n=127 p50=251.5 p90=402.9 p99=747.6 max=884.1 jank=127 | ui n=127 p50=0.3 p90=2.3 p99=8.3 max=31.2 | rt n=127 p50=84.6 p90=130.6 p99=356.7 max=361.3
+STATE hidden
+--- dark_tool
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=447156 android.service.voice.SHOW_SESSION_ID=22 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=447157 
+MARK key_to_onShow ms=4
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=272.0 from_key_ms=276.2 first_draw=1
+EVENT speech_end t=450370615420
+STATE thinking t=3209
+STATE speaking t=3651
+LATENCY canvas_render_call_to_painted ms=326.8 js_ms=185.1
+STATE canvas_rendered t=3983
+STATE canvas_done t=4758
+LATENCY token_to_pixels ms=258.0
+FRAMES overlay/enter n=1 p50=260.5 p90=260.5 p99=260.5 max=260.5 jank=1 | ui n=1 p50=128.0 p90=128.0 p99=128.0 max=128.0 | rt n=1 p50=5.2 p90=5.2 p99=5.2 max=5.2
+FRAMES overlay/listen n=23 p50=307.2 p90=825.0 p99=897.2 max=897.2 jank=23 | ui n=23 p50=0.4 p90=0.8 p99=4.4 max=4.4 | rt n=23 p50=98.7 p90=153.5 p99=596.6 max=596.6
+FRAMES overlay/think n=5 p50=304.2 p90=357.6 p99=357.6 max=357.6 jank=5 | ui n=5 p50=0.4 p90=1.3 p99=1.3 max=1.3 | rt n=5 p50=115.1 p90=131.3 p99=131.3 max=131.3
+FRAMES overlay/stream n=5 p50=301.0 p90=700.4 p99=700.4 max=700.4 jank=5 | ui n=5 p50=5.8 p90=8.3 p99=8.3 max=8.3 | rt n=5 p50=75.0 p90=552.1 p99=552.1 max=552.1
+FRAMES overlay/done n=83 p50=240.0 p90=306.5 p99=851.1 max=851.1 jank=83 | ui n=83 p50=0.3 p90=0.8 p99=6.5 max=6.5 | rt n=83 p50=83.2 p90=116.4 p99=227.4 max=227.4
+FRAMES overlay/exit n=5 p50=204.0 p90=336.3 p99=336.3 max=336.3 jank=5 | ui n=5 p50=0.2 p90=0.7 p99=0.7 max=0.7 | rt n=5 p50=76.5 p90=170.3 p99=170.3 max=170.3
+FRAMES overlay/ALL n=122 p50=258.5 p90=338.9 p99=864.0 max=897.2 jank=122 | ui n=122 p50=0.3 p90=1.3 p99=8.3 max=128.0 | rt n=122 p50=84.9 p90=123.0 p99=552.1 max=596.6
+STATE hidden
+--- dark_offline
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=461376 android.service.voice.SHOW_SESSION_ID=23 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=461378 
+MARK key_to_onShow ms=5
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=123.2 from_key_ms=128.5 first_draw=1
+EVENT speech_end t=463738234414
+STATE thinking t=2355
+STATE offline t=2814
+FRAMES overlay/enter n=1 p50=116.1 p90=116.1 p99=116.1 max=116.1 jank=1 | ui n=1 p50=32.4 p90=32.4 p99=32.4 max=32.4 | rt n=1 p50=33.3 p90=33.3 p99=33.3 max=33.3
+FRAMES overlay/listen n=14 p50=411.1 p90=724.2 p99=748.4 max=748.4 jank=14 | ui n=14 p50=0.4 p90=1.7 p99=35.7 max=35.7 | rt n=14 p50=119.6 p90=281.7 p99=379.2 max=379.2
+FRAMES overlay/think n=4 p50=261.3 p90=351.3 p99=351.3 max=351.3 jank=4 | ui n=4 p50=0.3 p90=1.3 p99=1.3 max=1.3 | rt n=4 p50=82.6 p90=160.8 p99=160.8 max=160.8
+FRAMES overlay/offline n=43 p50=236.8 p90=367.9 p99=616.8 max=616.8 jank=42 | ui n=43 p50=0.2 p90=0.8 p99=20.6 max=20.6 | rt n=43 p50=75.7 p90=104.5 p99=413.0 max=413.0
+FRAMES overlay/exit n=4 p50=220.6 p90=283.9 p99=283.9 max=283.9 jank=4 | ui n=4 p50=0.2 p90=0.4 p99=0.4 max=0.4 | rt n=4 p50=64.8 p90=125.1 p99=125.1 max=125.1
+FRAMES overlay/ALL n=66 p50=250.3 p90=497.2 p99=748.4 max=748.4 jank=65 | ui n=66 p50=0.3 p90=1.3 p99=35.7 max=35.7 | rt n=66 p50=81.2 p90=158.6 p99=413.0 max=413.0
+STATE hidden
+--- dark_idle
+DEMO demo
+EVENT screenshot null
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=470140 android.service.voice.SHOW_SESSION_ID=24 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=470143 
+MARK key_to_onShow ms=6
+STATE listening t=0
+EVENT assist_data structure=true
+FIRST_FRAME overlay ms=130.1 from_key_ms=136.3 first_draw=1
+STATE idle t=7120
+FRAMES overlay/enter n=1 p50=121.3 p90=121.3 p99=121.3 max=121.3 jank=1 | ui n=1 p50=41.1 p90=41.1 p99=41.1 max=41.1 | rt n=1 p50=62.0 p90=62.0 p99=62.0 max=62.0
+FRAMES overlay/listen n=119 p50=278.9 p90=334.9 p99=660.5 max=935.3 jank=119 | ui n=119 p50=0.3 p90=0.8 p99=5.8 max=12.6 | rt n=119 p50=94.8 p90=131.1 p99=261.4 max=400.6
+FRAMES overlay/exit n=5 p50=253.3 p90=350.3 p99=350.3 max=350.3 jank=5 | ui n=5 p50=0.2 p90=1.0 p99=1.0 max=1.0 | rt n=5 p50=91.0 p90=169.1 p99=169.1 max=169.1
+FRAMES overlay/ALL n=125 p50=278.0 p90=334.9 p99=660.5 max=935.3 jank=125 | ui n=125 p50=0.3 p90=0.8 p99=12.6 max=41.1 | rt n=125 p50=93.8 p90=131.1 p99=261.4 max=400.6
+STATE hidden
+--- dark_killtile
+MARK kill_switch_pause ms=3.8
+--- log_scroll
+FRAMES log/open n=11 p50=261.1 p90=343.4 p99=454.4 max=454.4 jank=11 | ui n=11 p50=0.9 p90=5.8 p99=22.6 max=22.6 | rt n=11 p50=107.6 p90=159.9 p99=204.6 max=204.6
+FRAMES log/scroll n=160 p50=102.8 p90=180.0 p99=219.6 max=286.1 jank=139 | ui n=160 p50=1.2 p90=3.1 p99=17.8 max=29.5 | rt n=160 p50=35.2 p90=59.5 p99=87.1 max=207.8
+FRAMES log/idle n=21 p50=200.8 p90=236.2 p99=334.2 max=334.2 jank=20 | ui n=21 p50=0.3 p90=0.4 p99=1.3 max=1.3 | rt n=21 p50=60.2 p90=79.4 p99=94.1 max=94.1
+FRAMES log/ALL n=192 p50=105.1 p90=210.6 p99=343.4 max=454.4 jank=170 | ui n=192 p50=1.1 p90=3.0 p99=22.6 max=29.5 | rt n=192 p50=36.8 p90=74.8 p99=204.6 max=207.8

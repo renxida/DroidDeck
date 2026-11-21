@@ -1,0 +1,238 @@
+== build google/sdk_gphone64_x86_64/emu64xa:16/BE2A.250530.026.F3/13894323:userdebug/dev-keys
+== install
+Install command complete in 3669 ms
+== role exit=0 holders=claude.phone
+== perf: cold start without prewarm
+== perf: cold start with prewarm
+== perf: with a screenshot captured on every invoke (Android's default)
+== calibration: Settings scroll
+settings: Total frames rendered: 85
+settings: Janky frames: 76 (89.41%)
+settings: Janky frames (legacy): 80 (94.12%)
+settings: 50th percentile: 77ms
+settings: 90th percentile: 150ms
+settings: 95th percentile: 150ms
+settings: 99th percentile: 250ms
+settings: 50th gpu percentile: 4950ms
+settings: 90th gpu percentile: 4950ms
+settings: 95th gpu percentile: 4950ms
+settings: 99th gpu percentile: 4950ms
+== calibration: notification shade
+systemui: Total frames rendered: 35
+systemui: Janky frames: 34 (97.14%)
+systemui: Janky frames (legacy): 34 (97.14%)
+systemui: 50th percentile: 200ms
+systemui: 90th percentile: 850ms
+systemui: 95th percentile: 1150ms
+systemui: 99th percentile: 1200ms
+systemui: 50th gpu percentile: 4950ms
+systemui: 90th gpu percentile: 4950ms
+systemui: 95th gpu percentile: 4950ms
+systemui: 99th gpu percentile: 4950ms
+== video
+== screens light
+light overlay appop: SYSTEM_ALERT_WINDOW: allow
+light log start: LaunchState: WARM TotalTime: 1568 WaitTime: 1584 
+== screens dark
+dark overlay appop: SYSTEM_ALERT_WINDOW: allow; time=+2m7s64ms ago; duration=+2s573ms
+dark log start: LaunchState: WARM TotalTime: 1453 WaitTime: 1459 
+== log cold start x5
+LaunchState: WARM TotalTime: 1316 WaitTime: 1317 
+LaunchState: WARM TotalTime: 2734 WaitTime: 2735 
+LaunchState: WARM TotalTime: 2178 WaitTime: 2179 
+LaunchState: WARM TotalTime: 1866 WaitTime: 1871 
+LaunchState: WARM TotalTime: 1995 WaitTime: 1996 
+== log warm start x3
+LaunchState: HOT TotalTime: 532 WaitTime: 534 
+LaunchState: HOT TotalTime: 304 WaitTime: 309 
+LaunchState: HOT TotalTime: 289 WaitTime: 292 
+== log scroll gfxinfo
+Total frames rendered: 176
+Janky frames: 153 (86.93%)
+Janky frames (legacy): 175 (99.43%)
+50th percentile: 73ms
+90th percentile: 129ms
+95th percentile: 150ms
+99th percentile: 250ms
+Number Missed Vsync: 131
+Number High input latency: 45
+Number Slow UI thread: 83
+Number Slow bitmap uploads: 1
+Number Slow issue draw commands: 153
+Number Frame deadline missed: 153
+Number Frame deadline missed (legacy): 153
+50th gpu percentile: 4950ms
+90th gpu percentile: 4950ms
+95th gpu percentile: 4950ms
+99th gpu percentile: 4950ms
+== crashes
+0
+== summary
+--- perf_cold_noprewarm
+MARK session_onCreate ms=135.7
+MARK overlay_build ms=33.5
+MARK create_to_onShow ms=170.2 flags=7 canvas_warm=false
+MARK key_to_onShow ms=483
+FIRST_FRAME overlay ms=1428.1 from_key_ms=1741.0 first_draw=1
+MARK canvas_prewarm_create ms=689.1
+MARK canvas_runtime_loaded
+LATENCY token_to_pixels ms=306.6
+LATENCY canvas_render_call_to_painted ms=2964.2 js_ms=312.4
+FRAMES overlay/ALL n=16 p50=1002.2 p90=3950.9 p99=5016.8 max=5016.8 jank=16 | ui n=16 p50=2.9 p90=172.4 p99=716.8 max=716.8 | rt n=16 p50=295.8 p90=889.4 p99=3798.3 max=3798.3
+--- perf_warm_noprewarm_1
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=97
+FIRST_FRAME overlay ms=436.4 from_key_ms=533.9 first_draw=1
+LATENCY canvas_render_call_to_painted ms=550.0 js_ms=424.2
+LATENCY token_to_pixels ms=450.2
+FRAMES overlay/ALL n=26 p50=655.6 p90=1471.5 p99=1620.2 max=1620.2 jank=26 | ui n=26 p50=6.5 p90=21.3 p99=381.3 max=381.3 | rt n=26 p50=183.5 p90=429.6 p99=1198.6 max=1198.6
+--- perf_cold_prewarm
+MARK session_onCreate ms=103.6
+MARK overlay_build ms=3.8
+MARK create_to_onShow ms=107.9 flags=7 canvas_warm=true
+MARK key_to_onShow ms=212
+FIRST_FRAME overlay ms=817.2 from_key_ms=921.2 first_draw=1
+LATENCY canvas_render_call_to_painted ms=826.7 js_ms=218.1
+LATENCY token_to_pixels ms=941.5
+FRAMES overlay/ALL n=17 p50=883.5 p90=2670.9 p99=3134.3 max=3134.3 jank=17 | ui n=17 p50=1.1 p90=10.6 p99=342.2 max=342.2 | rt n=17 p50=161.3 p90=584.9 p99=2519.0 max=2519.0
+--- perf_warm_prewarm_1
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=16
+FIRST_FRAME overlay ms=35.9 from_key_ms=52.0 first_draw=1
+LATENCY canvas_render_call_to_painted ms=321.2 js_ms=251.7
+LATENCY token_to_pixels ms=307.0
+FRAMES overlay/ALL n=39 p50=402.4 p90=781.9 p99=1251.3 max=1251.3 jank=39 | ui n=39 p50=0.7 p90=13.1 p99=39.7 max=39.7 | rt n=39 p50=115.0 p90=312.5 p99=755.7 max=755.7
+--- perf_msg_1
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=25
+FIRST_FRAME overlay ms=232.5 from_key_ms=257.7 first_draw=1
+LATENCY token_to_pixels ms=409.3
+FRAMES overlay/ALL n=62 p50=375.4 p90=702.0 p99=1357.7 max=1357.7 jank=62 | ui n=62 p50=0.4 p90=5.4 p99=24.1 max=24.1 | rt n=62 p50=124.1 p90=255.1 p99=666.3 max=666.3
+--- perf_msg_2
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=18
+FIRST_FRAME overlay ms=509.0 from_key_ms=527.6 first_draw=1
+LATENCY token_to_pixels ms=599.5
+FRAMES overlay/ALL n=58 p50=408.5 p90=658.5 p99=1104.6 max=1104.6 jank=58 | ui n=58 p50=0.6 p90=7.0 p99=128.2 max=128.2 | rt n=58 p50=122.3 p90=280.9 p99=438.8 max=438.8
+--- perf_msg_3
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=24
+FIRST_FRAME overlay ms=1185.9 from_key_ms=1210.3 first_draw=0
+LATENCY token_to_pixels ms=420.6
+FRAMES overlay/ALL n=69 p50=364.1 p90=539.2 p99=1155.3 max=1155.3 jank=69 | ui n=69 p50=0.6 p90=2.9 p99=209.0 max=209.0 | rt n=69 p50=114.3 p90=199.4 p99=725.1 max=725.1
+--- perf_tool_1
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=5
+FIRST_FRAME overlay ms=66.2 from_key_ms=71.2 first_draw=1
+LATENCY canvas_render_call_to_painted ms=321.9 js_ms=206.9
+LATENCY token_to_pixels ms=413.8
+FRAMES overlay/ALL n=49 p50=300.0 p90=900.5 p99=1019.5 max=1019.5 jank=49 | ui n=49 p50=0.4 p90=2.3 p99=41.1 max=41.1 | rt n=49 p50=95.9 p90=246.5 p99=688.1 max=688.1
+--- perf_msg_shot_1
+MARK session_onCreate ms=57.1
+MARK overlay_build ms=2.7
+MARK create_to_onShow ms=968.5 flags=7 canvas_warm=true
+MARK key_to_onShow ms=1034
+FIRST_FRAME overlay ms=1725.8 from_key_ms=1791.5 first_draw=1
+LATENCY token_to_pixels ms=524.2
+FRAMES overlay/ALL n=69 p50=300.4 p90=515.2 p99=1850.5 max=1850.5 jank=69 | ui n=69 p50=0.4 p90=4.5 p99=435.0 max=435.0 | rt n=69 p50=90.0 p90=226.3 p99=1123.9 max=1123.9
+--- perf_msg_shot_2
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=30
+FIRST_FRAME overlay ms=351.3 from_key_ms=381.3 first_draw=1
+LATENCY token_to_pixels ms=403.4
+FRAMES overlay/ALL n=76 p50=293.0 p90=502.3 p99=1129.8 max=1129.8 jank=76 | ui n=76 p50=0.4 p90=2.1 p99=75.8 max=75.8 | rt n=76 p50=92.3 p90=168.3 p99=908.6 max=908.6
+--- vid
+MARK session_onCreate ms=68.3
+MARK overlay_build ms=3.9
+MARK create_to_onShow ms=135.1 flags=7 canvas_warm=true
+MARK key_to_onShow ms=211
+FIRST_FRAME overlay ms=1086.5 from_key_ms=1161.1 first_draw=1
+LATENCY token_to_pixels ms=489.9
+FRAMES overlay/ALL n=37 p50=497.4 p90=959.1 p99=3561.6 max=3561.6 jank=37 | ui n=37 p50=0.8 p90=9.1 p99=293.4 max=293.4 | rt n=37 p50=120.7 p90=394.5 p99=2815.6 max=2815.6
+--- vid2
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=234.9 from_key_ms=239.3 first_draw=1
+LATENCY canvas_render_call_to_painted ms=529.5 js_ms=260.3
+LATENCY token_to_pixels ms=687.7
+FRAMES overlay/ALL n=33 p50=438.1 p90=871.2 p99=1078.4 max=1078.4 jank=33 | ui n=33 p50=1.4 p90=16.5 p99=44.7 max=44.7 | rt n=33 p50=151.2 p90=362.3 p99=497.9 max=497.9
+--- light_card_msg
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=141
+FIRST_FRAME overlay ms=166.7 from_key_ms=308.2 first_draw=1
+LATENCY token_to_pixels ms=589.2
+FRAMES overlay/ALL n=231 p50=269.9 p90=443.2 p99=574.7 max=671.3 jank=231 | ui n=231 p50=0.3 p90=1.1 p99=6.0 max=76.7 | rt n=231 p50=88.5 p90=157.0 p99=210.3 max=251.3
+--- light_msg
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=335.9 from_key_ms=340.8 first_draw=1
+LATENCY token_to_pixels ms=416.4
+FRAMES overlay/ALL n=221 p50=256.1 p90=336.9 p99=629.2 max=864.1 jank=221 | ui n=221 p50=0.3 p90=1.0 p99=7.8 max=116.3 | rt n=221 p50=84.5 p90=120.5 p99=273.9 max=370.7
+--- light_chart
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=7
+FIRST_FRAME overlay ms=299.0 from_key_ms=305.9 first_draw=1
+LATENCY canvas_render_call_to_painted ms=411.0 js_ms=222.5
+LATENCY token_to_pixels ms=360.8
+FRAMES overlay/ALL n=120 p50=250.7 p90=454.5 p99=723.0 max=786.6 jank=120 | ui n=120 p50=0.3 p90=3.5 p99=37.5 max=124.0 | rt n=120 p50=84.4 p90=130.3 p99=304.5 max=499.6
+--- light_tool
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=5
+FIRST_FRAME overlay ms=73.2 from_key_ms=78.3 first_draw=1
+LATENCY canvas_render_call_to_painted ms=328.8 js_ms=255.4
+LATENCY token_to_pixels ms=203.3
+FRAMES overlay/ALL n=114 p50=254.0 p90=504.7 p99=761.3 max=956.7 jank=114 | ui n=114 p50=0.3 p90=3.1 p99=35.7 max=43.6 | rt n=114 p50=82.8 p90=129.5 p99=536.8 max=625.9
+--- light_offline
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=6
+FIRST_FRAME overlay ms=185.6 from_key_ms=192.2 first_draw=1
+FRAMES overlay/ALL n=72 p50=274.2 p90=600.9 p99=1184.6 max=1184.6 jank=71 | ui n=72 p50=0.3 p90=1.4 p99=37.5 max=37.5 | rt n=72 p50=93.5 p90=167.0 p99=518.3 max=518.3
+--- light_idle
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=5
+FIRST_FRAME overlay ms=270.2 from_key_ms=275.5 first_draw=1
+FRAMES overlay/ALL n=113 p50=286.4 p90=378.7 p99=608.9 max=816.2 jank=112 | ui n=113 p50=0.3 p90=0.9 p99=8.5 max=84.3 | rt n=113 p50=95.8 p90=133.8 p99=283.7 max=415.4
+--- light_killtile
+MARK kill_switch_pause ms=16.9
+--- dark_card_msg
+MARK session_onCreate ms=42.3
+MARK overlay_build ms=7.8
+MARK create_to_onShow ms=50.6 flags=7 canvas_warm=true
+MARK key_to_onShow ms=74
+FIRST_FRAME overlay ms=767.4 from_key_ms=790.8 first_draw=1
+LATENCY token_to_pixels ms=582.1
+FRAMES overlay/ALL n=168 p50=264.2 p90=472.6 p99=1495.6 max=1683.8 jank=168 | ui n=168 p50=0.3 p90=1.1 p99=38.1 max=48.7 | rt n=168 p50=85.7 p90=179.9 p99=600.4 max=972.2
+--- dark_msg
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=5
+FIRST_FRAME overlay ms=130.3 from_key_ms=135.3 first_draw=1
+LATENCY token_to_pixels ms=168.0
+FRAMES overlay/ALL n=232 p50=238.1 p90=302.2 p99=1256.6 max=1359.8 jank=232 | ui n=232 p50=0.3 p90=0.7 p99=4.1 max=23.9 | rt n=232 p50=82.1 p90=107.0 p99=163.3 max=1115.2
+--- dark_chart
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=6
+FIRST_FRAME overlay ms=48.1 from_key_ms=54.9 first_draw=1
+LATENCY canvas_render_call_to_painted ms=634.9 js_ms=74.5
+LATENCY token_to_pixels ms=323.4
+FRAMES overlay/ALL n=127 p50=251.5 p90=402.9 p99=747.6 max=884.1 jank=127 | ui n=127 p50=0.3 p90=2.3 p99=8.3 max=31.2 | rt n=127 p50=84.6 p90=130.6 p99=356.7 max=361.3
+--- dark_tool
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=4
+FIRST_FRAME overlay ms=272.0 from_key_ms=276.2 first_draw=1
+LATENCY canvas_render_call_to_painted ms=326.8 js_ms=185.1
+LATENCY token_to_pixels ms=258.0
+FRAMES overlay/ALL n=122 p50=258.5 p90=338.9 p99=864.0 max=897.2 jank=122 | ui n=122 p50=0.3 p90=1.3 p99=8.3 max=128.0 | rt n=122 p50=84.9 p90=123.0 p99=552.1 max=596.6
+--- dark_offline
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=5
+FIRST_FRAME overlay ms=123.2 from_key_ms=128.5 first_draw=1
+FRAMES overlay/ALL n=66 p50=250.3 p90=497.2 p99=748.4 max=748.4 jank=65 | ui n=66 p50=0.3 p90=1.3 p99=35.7 max=35.7 | rt n=66 p50=81.2 p90=158.6 p99=413.0 max=413.0
+--- dark_idle
+MARK create_to_onShow ms=reused flags=7 canvas_warm=true
+MARK key_to_onShow ms=6
+FIRST_FRAME overlay ms=130.1 from_key_ms=136.3 first_draw=1
+FRAMES overlay/ALL n=125 p50=278.0 p90=334.9 p99=660.5 max=935.3 jank=125 | ui n=125 p50=0.3 p90=0.8 p99=12.6 max=41.1 | rt n=125 p50=93.8 p90=131.1 p99=261.4 max=400.6
+--- dark_killtile
+MARK kill_switch_pause ms=3.8
+--- log_scroll
+FRAMES log/ALL n=192 p50=105.1 p90=210.6 p99=343.4 max=454.4 jank=170 | ui n=192 p50=1.1 p90=3.0 p99=22.6 max=29.5 | rt n=192 p50=36.8 p90=74.8 p99=204.6 max=207.8
