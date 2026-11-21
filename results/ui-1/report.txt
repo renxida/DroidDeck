@@ -1,0 +1,136 @@
+== build google/sdk_gphone64_x86_64/emu64xa:16/BE2A.250530.026.F3/13894323:userdebug/dev-keys
+== install
+Install command complete in 1700 ms
+== role exit=0 holders=claude.phone
+== perf: cold start without prewarm
+== perf: cold start with prewarm
+== video
+== screens light
+== TIMEOUT waiting for STATE thinking
+light log start: WaitTime: 837
+== screens dark
+== TIMEOUT waiting for STATE thinking
+dark log start: WaitTime: 602
+== log cold start x5
+== log scroll gfxinfo
+== summary
+MARK session_onCreate ms=171.7
+MARK overlay_build ms=9.9
+MARK create_to_onShow ms=606.4 flags=7 canvas_warm=false
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=52380 android.service.voice.SHOW_SESSION_ID=1 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=52702 
+MARK key_to_onShow ms=1380
+FIRST_FRAME overlay ms=1754.3 first_draw=1
+MARK canvas_prewarm_create ms=1552.6
+MARK canvas_runtime_loaded
+LATENCY canvas_render_call_to_painted ms=1254.6 js_ms=299.2
+LATENCY token_to_pixels ms=302.4
+FRAMES overlay/ALL n=18 p50=620.0 p90=2552.4 p99=3572.8 max=3572.8 jank=18
+MARK create_to_onShow ms=11993.3 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=65068 android.service.voice.SHOW_SESSION_ID=2 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=65118 
+MARK key_to_onShow ms=79
+FRAMES overlay/ALL n=19 p50=666.8 p90=2552.4 p99=3572.8 max=3572.8 jank=19
+FIRST_FRAME overlay ms=499.9 first_draw=1
+LATENCY canvas_render_call_to_painted ms=774.5 js_ms=144.0
+LATENCY token_to_pixels ms=321.7
+FRAMES overlay/ALL n=44 p50=317.2 p90=633.5 p99=1308.5 max=1308.5 jank=44
+MARK session_onCreate ms=73.7
+MARK overlay_build ms=1.2
+MARK create_to_onShow ms=162.6 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=82228 android.service.voice.SHOW_SESSION_ID=3 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=82236 
+MARK key_to_onShow ms=262
+FIRST_FRAME overlay ms=1223.6 first_draw=1
+LATENCY canvas_render_call_to_painted ms=559.2 js_ms=211.1
+LATENCY token_to_pixels ms=378.1
+FRAMES overlay/ALL n=34 p50=268.7 p90=988.0 p99=2315.8 max=2315.8 jank=34
+MARK create_to_onShow ms=9201.5 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=91485 android.service.voice.SHOW_SESSION_ID=4 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=91486 
+MARK key_to_onShow ms=44
+FRAMES overlay/ALL n=34 p50=268.7 p90=988.0 p99=2315.8 max=2315.8 jank=34
+FIRST_FRAME overlay ms=133.6 first_draw=1
+LATENCY canvas_render_call_to_painted ms=540.0 js_ms=238.4
+LATENCY token_to_pixels ms=427.1
+FRAMES overlay/ALL n=52 p50=282.4 p90=553.5 p99=800.1 max=800.1 jank=52
+MARK create_to_onShow ms=17497.2 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=99806 android.service.voice.SHOW_SESSION_ID=5 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=99808 
+MARK key_to_onShow ms=19
+FRAMES overlay/ALL n=53 p50=284.2 p90=553.5 p99=800.1 max=800.1 jank=53
+FIRST_FRAME overlay ms=403.7 first_draw=1
+LATENCY token_to_pixels ms=322.3
+FRAMES overlay/ALL n=113 p50=220.4 p90=356.1 p99=493.8 max=504.3 jank=112
+MARK create_to_onShow ms=28964.5 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=111267 android.service.voice.SHOW_SESSION_ID=6 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=111270 
+MARK key_to_onShow ms=25
+FRAMES overlay/ALL n=113 p50=220.4 p90=356.1 p99=493.8 max=504.3 jank=112
+FIRST_FRAME overlay ms=174.6 first_draw=1
+LATENCY token_to_pixels ms=286.4
+FRAMES overlay/ALL n=96 p50=222.8 p90=356.3 p99=564.0 max=564.0 jank=96
+MARK create_to_onShow ms=39184.9 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=121491 android.service.voice.SHOW_SESSION_ID=7 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=121493 
+MARK key_to_onShow ms=22
+FRAMES overlay/ALL n=96 p50=222.8 p90=356.3 p99=564.0 max=564.0 jank=96
+FIRST_FRAME overlay ms=238.7 first_draw=1
+LATENCY token_to_pixels ms=456.4
+FRAMES overlay/ALL n=107 p50=203.0 p90=366.8 p99=503.8 max=650.9 jank=104
+MARK create_to_onShow ms=49722.1 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=132035 android.service.voice.SHOW_SESSION_ID=8 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=132037 
+MARK key_to_onShow ms=15
+FRAMES overlay/ALL n=107 p50=203.0 p90=366.8 p99=503.8 max=650.9 jank=104
+FIRST_FRAME overlay ms=217.1 first_draw=1
+LATENCY canvas_render_call_to_painted ms=291.3 js_ms=242.3
+LATENCY token_to_pixels ms=625.6
+FRAMES overlay/ALL n=62 p50=205.0 p90=508.0 p99=690.0 max=690.0 jank=61
+MARK create_to_onShow ms=58583.5 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=140893 android.service.voice.SHOW_SESSION_ID=9 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=140895 
+MARK key_to_onShow ms=18
+FRAMES overlay/ALL n=63 p50=205.5 p90=508.0 p99=690.0 max=690.0 jank=62
+FIRST_FRAME overlay ms=253.6 first_draw=1
+LATENCY token_to_pixels ms=169.1
+FRAMES overlay/ALL n=77 p50=299.8 p90=421.9 p99=590.7 max=590.7 jank=77
+MARK create_to_onShow ms=69375.2 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=151678 android.service.voice.SHOW_SESSION_ID=10 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=151681 
+MARK key_to_onShow ms=25
+FRAMES overlay/ALL n=78 p50=299.8 p90=421.9 p99=590.7 max=590.7 jank=78
+FIRST_FRAME overlay ms=118.5 first_draw=1
+LATENCY canvas_render_call_to_painted ms=558.9 js_ms=202.8
+LATENCY token_to_pixels ms=311.8
+FRAMES overlay/ALL n=52 p50=300.8 p90=496.9 p99=736.0 max=736.0 jank=52
+MARK create_to_onShow ms=80464.5 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=162695 android.service.voice.SHOW_SESSION_ID=11 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=162701 
+MARK key_to_onShow ms=97
+FRAMES overlay/ALL n=53 p50=301.1 p90=496.9 p99=736.0 max=736.0 jank=53
+FIRST_FRAME overlay ms=308.2 first_draw=1
+LATENCY token_to_pixels ms=327.4
+FRAMES overlay/ALL n=212 p50=209.4 p90=333.0 p99=455.9 max=524.0 jank=210
+MARK create_to_onShow ms=99307.3 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=181614 android.service.voice.SHOW_SESSION_ID=12 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=181615 
+MARK key_to_onShow ms=21
+FRAMES overlay/ALL n=213 p50=212.4 p90=333.0 p99=455.9 max=524.0 jank=211
+FIRST_FRAME overlay ms=140.9 first_draw=1
+LATENCY canvas_render_call_to_painted ms=230.5 js_ms=151.5
+LATENCY token_to_pixels ms=212.8
+FRAMES overlay/ALL n=166 p50=181.3 p90=305.8 p99=587.0 max=609.4 jank=166
+MARK create_to_onShow ms=113098.1 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=195415 android.service.voice.SHOW_SESSION_ID=13 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=195416 
+MARK key_to_onShow ms=11
+FRAMES overlay/ALL n=167 p50=183.8 p90=305.8 p99=587.0 max=609.4 jank=167
+FIRST_FRAME overlay ms=182.0 first_draw=1
+LATENCY canvas_render_call_to_painted ms=396.1 js_ms=146.0
+LATENCY token_to_pixels ms=698.3
+FRAMES overlay/ALL n=136 p50=186.2 p90=335.8 p99=688.9 max=700.6 jank=134
+MARK create_to_onShow ms=125260.4 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=207572 android.service.voice.SHOW_SESSION_ID=14 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=207574 
+MARK key_to_onShow ms=16
+FRAMES overlay/ALL n=137 p50=186.7 p90=335.8 p99=688.9 max=700.6 jank=135
+FIRST_FRAME overlay ms=266.9 first_draw=1
+FRAMES overlay/ALL n=83 p50=180.7 p90=351.0 p99=520.0 max=520.0 jank=81
+MARK create_to_onShow ms=133396.0 flags=7 canvas_warm=true
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=215703 android.service.voice.SHOW_SESSION_ID=15 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=215705 
+MARK key_to_onShow ms=21
+FRAMES overlay/ALL n=84 p50=180.7 p90=351.0 p99=520.0 max=520.0 jank=82
+FIRST_FRAME overlay ms=270.9 first_draw=1
+FRAMES overlay/ALL n=421 p50=169.2 p90=204.8 p99=421.0 max=781.7 jank=419
+MARK kill_switch_pause ms=3.2
+MARK session_onCreate ms=44.6
+MARK overlay_build ms=15.9
+MARK create_to_onShow ms=61.5 flags=7 canvas_warm=false
+ARGS invocation_type=7 android.service.voice.FOREGROUND_ACTIVITIES=[ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}] android.intent.extra.TIME=269646 android.service.voice.SHOW_SESSION_ID=16 invocation_phone_state=5 android.intent.extra.ASSIST_INPUT_DEVICE_ID=-1 invocation_time_ms=269647 
