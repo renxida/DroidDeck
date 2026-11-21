@@ -1,0 +1,11 @@
+{"state":{"days":[{"label":"Mon","value":7.2},{"label":"Tue","value":6.8},{"label":"Wed","value":6.1},{"label":"Thu","value":7.9},{"label":"Fri","value":5.4},{"label":"Sat","value":8.6},{"label":"Sun","value":8.1}],"sel":null},
+ "view":{"type":"column","children":[
+  {"type":"row","justify":"between","children":[
+    {"type":"column","gap":2,"children":[{"type":"text","style":"title","value":"Sleep this week"},{"type":"text","style":"sub","value":"Target 8h a night"}]},
+    {"type":"column","gap":0,"children":[{"type":"text","style":"big","align":"right","value":"{{fmt.num(sum(days,d=>d.value)/len(days),1)}}h"},{"type":"text","style":"muted","align":"right","value":"avg / night"}]}]},
+  {"type":"chart","kind":"bar","data":"=days.map(d=>({label:d.label,value:d.value,color:d.value>=8?'var(--success)':'var(--accent)'}))","target":8,"unit":"h","selected":"=sel","onSelect":{"set":{"sel":"=$index"}}},
+  {"type":"card","id":"detail","children":[
+    {"type":"text","style":"sub","value":"Tap a bar to see the day","visible":"=sel==null"},
+    {"type":"row","justify":"between","visible":"=sel!=null","children":[
+      {"type":"text","style":"title","value":"=sel==null?'':days[sel].label+' · '+days[sel].value+'h'"},
+      {"type":"badge","value":"=sel==null?'':(days[sel].value>=8?'+':'')+fmt.num(days[sel].value-8,1)+'h vs target'"}]}]}]}}

@@ -1,0 +1,13 @@
+{"state":{"kmPerMile":1.609344,"v":10,"toMiles":true},
+ "view":{"type":"column","gap":14,"children":[
+  {"type":"text","style":"title","value":"Length converter"},
+  {"type":"card","children":[
+    {"type":"column","gap":10,"children":[
+      {"type":"row","justify":"between","align":"center","children":[
+        {"type":"text","style":"label","value":"=toMiles ? 'Kilometers' : 'Miles'"},
+        {"type":"button","id":"swap","variant":"small-ghost","label":"=toMiles ? 'km → mi  ⇄' : 'mi → km  ⇄'","action":{"toggle":"toMiles"}}]},
+      {"type":"input","id":"value","bind":"v","inputType":"number","placeholder":"Enter a length"},
+      {"type":"divider"},
+      {"type":"text","style":"label","value":"=toMiles ? 'Miles' : 'Kilometers'"},
+      {"type":"text","id":"result","style":"big","color":"accent","value":"=toMiles ? (Number(v)/kmPerMile).toFixed(2) + ' mi' : (Number(v)*kmPerMile).toFixed(2) + ' km'"}]}]},
+  {"type":"text","style":"muted","value":"=toMiles ? '1 km = ' + (1/kmPerMile).toFixed(6) + ' mi' : '1 mi = ' + kmPerMile + ' km'"}]}}

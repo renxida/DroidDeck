@@ -1,0 +1,15 @@
+{"state":{"sel":null,"st":[{"k":"mic","n":"Mic","ms":0,"d":"Speech captured at 16 kHz"},{"k":"asr","n":"On-device ASR","ms":120,"d":"Streaming speech-to-text on the phone"},{"k":"claude","n":"Claude","ms":450,"d":"Time to first token"},{"k":"tts","n":"TTS","ms":180,"d":"Text-to-speech, first audio chunk"},{"k":"speaker","n":"Speaker","ms":40,"d":"Audio output buffer"}]},
+ "view":{"type":"column","children":[
+  {"type":"row","justify":"between","children":[
+    {"type":"column","gap":2,"children":[{"type":"text","style":"title","value":"Voice pipeline"},{"type":"text","style":"sub","value":"Speech in to audio out"}]},
+    {"type":"column","gap":0,"children":[{"type":"text","style":"big","align":"right","id":"total","value":"{{sum(st,s=>s.ms)}} ms"},{"type":"text","style":"muted","align":"right","value":"end to end"}]}]},
+  {"type":"list","gap":0,"items":"=st","template":{"type":"column","gap":0,"children":[
+    {"type":"text","value":"↓","align":"center","color":"onSurface3","visible":"=$index>0","style":{"height":"22px"}},
+    {"type":"card","id":"node-{{$item.k}}","onTap":{"set":{"sel":"=$index"}},"style":{"padding":"10px 12px","cursor":"pointer","border":"1px solid var(--outline)"},"children":[
+      {"type":"row","children":[{"type":"text","weight":"600","value":"{{$item.n}}","style":{"flex":"1"}},
+        {"type":"progress","value":"=$item.ms/450","style":{"width":"80px"}},
+        {"type":"text","style":"sub","align":"right","value":"={{$item.ms?$item.ms+' ms':'—'}}","style":{"width":"56px"}}]}]}]}},
+  {"type":"card","id":"detail","gap":2,"children":[
+    {"type":"text","style":"sub","value":"Tap a stage for details","visible":"=sel==null"},
+    {"type":"row","justify":"between","visible":"=sel!=null","children":[{"type":"text","style":"title","value":"=sel==null?'':st[sel].n"},{"type":"badge","value":"=sel==null?'':round(st[sel].ms/sum(st,s=>s.ms)*100)+'% of total'"}]},
+    {"type":"text","style":"sub","visible":"=sel!=null","value":"=sel==null?'':st[sel].d+' · '+st[sel].ms+' ms'"}]}]}}

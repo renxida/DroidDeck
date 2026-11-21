@@ -1,0 +1,53 @@
+<style>
+.tip input[type=range]{width:100%}
+.tip .pct{font-weight:600;font-size:17px}
+.tip .step{display:flex;align-items:center;gap:12px}
+.tip .step .btn{min-width:40px;min-height:40px;font-size:20px;padding:0}
+.tip .step .n{min-width:28px;text-align:center;font-size:20px;font-weight:600}
+.tip .kv{display:flex;justify-content:space-between;align-items:baseline}
+.tip .pp{color:var(--accent)}
+</style>
+<div class="tip stack">
+  <div><div class="title">Split the bill</div><div class="sub">Bill <span class="num">$84.50</span></div></div>
+  <div class="card stack">
+    <div class="spread"><span>Tip</span><span class="pct num"></span></div>
+    <input type="range" min="10" max="30" step="1" value="18" data-testid="tip" aria-label="Tip percent">
+    <div class="spread muted"><span>10%</span><span>30%</span></div>
+  </div>
+  <div class="card spread">
+    <span>People</span>
+    <div class="step">
+      <button class="btn ghost" type="button" data-testid="minus" aria-label="Fewer people">&minus;</button>
+      <span class="n num" data-testid="party">2</span>
+      <button class="btn ghost" type="button" data-testid="plus" aria-label="More people">+</button>
+    </div>
+  </div>
+  <div class="card stack">
+    <div class="kv"><span class="sub">Tip</span><span class="num" data-testid="tip-amount"></span></div>
+    <div class="kv"><span class="sub">Total</span><span class="num" data-testid="total"></span></div>
+    <div class="divider"></div>
+    <div class="kv"><span>Per person</span><span class="big num pp" data-testid="per-person"></span></div>
+  </div>
+</div>
+<script>
+const bill=84.5;
+let party=2;
+const slider=root.querySelector('[data-testid=tip]');
+const f=n=>'$'+n.toFixed(2);
+const draw=()=>{
+  const pct=+slider.value;
+  const tip=Math.round(bill*pct)/100;
+  const total=bill+tip;
+  root.querySelector('.pct').textContent=pct+'%';
+  root.querySelector('[data-testid=party]').textContent=party;
+  root.querySelector('[data-testid=tip-amount]').textContent=f(tip);
+  root.querySelector('[data-testid=total]').textContent=f(total);
+  root.querySelector('[data-testid=per-person]').textContent=f(Math.round(total/party*100+1e-9)/100);
+  root.querySelector('[data-testid=minus]').setAttribute('aria-disabled',party<=1?'true':'false');
+};
+slider.addEventListener('input',draw);
+slider.addEventListener('change',draw);
+root.querySelector('[data-testid=minus]').onclick=()=>{if(party>1)party--;draw();};
+root.querySelector('[data-testid=plus]').onclick=()=>{party++;draw();};
+draw();
+</script>

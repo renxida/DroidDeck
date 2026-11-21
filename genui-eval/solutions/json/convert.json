@@ -1,0 +1,10 @@
+{"state":{"v":10,"km":true},
+ "view":{"type":"column","children":[
+  {"type":"text","style":"title","value":"Length converter"},
+  {"type":"card","children":[
+    {"type":"text","style":"sub","value":"=km?'Kilometers':'Miles'"},
+    {"type":"input","id":"value","bind":"v","inputType":"number"},
+    {"type":"row","style":{"justifyContent":"center"},"children":[{"type":"button","id":"swap","variant":"small-ghost","label":"⇅ Swap","action":{"toggle":"km"}}]},
+    {"type":"text","style":"sub","value":"=km?'Miles':'Kilometers'"},
+    {"type":"text","style":"big","id":"result","value":"=v===''?'—':(km?(v/1.609344).toFixed(2)+' mi':(v*1.609344).toFixed(2)+' km')"}]},
+  {"type":"text","style":"muted","value":"=km?'1 km = 0.6214 mi':'1 mi = 1.609344 km'"}]}}

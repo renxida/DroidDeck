@@ -1,0 +1,28 @@
+{"state":{
+  "now":800,
+  "sel":-1,
+  "hours":["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00"],
+  "events":[
+    {"s":"09:00","e":"09:30","start":540,"end":570,"title":"Standup","loc":"Zoom"},
+    {"s":"10:00","e":"11:30","start":600,"end":690,"title":"Design review","loc":"Room 4B"},
+    {"s":"12:30","e":"13:15","start":750,"end":795,"title":"Lunch with Sam","loc":"Tartine"},
+    {"s":"14:00","e":"15:00","start":840,"end":900,"title":"1:1 with Priya","loc":"Room 2A"},
+    {"s":"16:30","e":"17:00","start":990,"end":1020,"title":"Dentist","loc":"24th St Dental"},
+    {"s":"19:00","e":"21:00","start":1140,"end":1260,"title":"Climbing","loc":"Mission Cliffs"}]},
+ "view":{"type":"column","gap":12,"children":[
+  {"type":"column","gap":2,"children":[
+    {"type":"text","style":"title","value":"Today"},
+    {"type":"text","style":"sub","value":"=events.find(e=>e.start>now) ? 'Next: ' + events.find(e=>e.start>now).title + ' at ' + events.find(e=>e.start>now).s : 'Nothing else today'"}]},
+  {"type":"card","children":[
+    {"type":"text","id":"detail","value":"=sel<0 ? 'Tap an event for details' : events[sel].title + ' · ' + events[sel].s + '–' + events[sel].e + ' · ' + events[sel].loc"}]},
+  {"type":"column","gap":0,"style":{"position":"relative","height":"636px","marginTop":"6px"},"children":[
+    {"type":"list","items":"=hours","gap":0,"style":{"position":"absolute","top":"0","left":"0","right":"0","height":"100%"},"template":
+      {"type":"row","style":{"position":"absolute","left":"0","right":"0","top":"=($index*48)+'px'","borderTop":"1px solid rgba(128,128,128,0.25)","height":"0","overflow":"visible"},"children":[
+        {"type":"text","style":"label","value":"=$item"}]}},
+    {"type":"list","items":"=events","gap":0,"style":{"position":"absolute","top":"0","left":"0","right":"0","height":"100%"},"template":
+      {"type":"card","id":"event-{{$index}}","onTap":{"set":{"sel":"=$index"}},"style":{"position":"absolute","left":"52px","right":"4px","top":"=(($item.start-480)*0.8+1)+'px'","height":"=(($item.end-$item.start)*0.8-2)+'px'","padding":"2px 8px","overflow":"hidden","boxSizing":"border-box","cursor":"pointer","borderLeft":"3px solid var(--accent)","outline":"=sel===$index ? '2px solid var(--accent)' : 'none'"},"children":[
+        {"type":"row","gap":6,"align":"center","children":[
+          {"type":"text","weight":"600","value":"=$item.title"},
+          {"type":"text","style":"muted","value":"{{$item.s}}–{{$item.e}}"}]}]}},
+    {"type":"row","style":{"position":"absolute","left":"44px","right":"0","top":"256px","height":"2px","background":"var(--rose)","pointerEvents":"none"},"children":[]},
+    {"type":"text","style":"label","color":"danger","value":"13:20","style2":"","align":"left"}]}]}}

@@ -1,0 +1,27 @@
+<div class="cp stack">
+  <div><div class="title">Headphones compared</div><div class="sub">Best in each row highlighted</div></div>
+  <div id="tbl"></div>
+  <div class="card" data-testid="choice"><span class="sub">Pick one to decide</span></div>
+</div>
+<style>
+.cp .g{display:grid;grid-template-columns:64px repeat(3,minmax(0,1fr));gap:4px;font-size:13px;align-items:center}
+.cp .h{font-weight:600;font-size:12px;line-height:1.25;padding:8px 4px;border-radius:10px;text-align:center}
+.cp .v{text-align:center;padding:6px 2px;border-radius:8px}
+.cp .best{background:var(--accentSoft);color:var(--accent);font-weight:600}
+.cp .l{color:var(--onSurface2);font-size:12px}
+.cp .picked{outline:2px solid var(--accent)}
+.cp .btn{width:100%;padding:0 4px}
+</style>
+<script>
+const opts=[["Sony WH-1000XM6",449,30,254,5],["Bose QC Ultra",429,24,250,5],["Sennheiser Momentum 4",379,60,293,4]];
+const rows=[["Price",1,'min',v=>'$'+v],["Battery",2,'max',v=>v+'h'],["Weight",3,'min',v=>v+'g'],["ANC",4,'max',v=>'●'.repeat(v)]];
+let pick=null;
+function draw(){
+  let h='<div class="g"><div></div>'+opts.map((o,i)=>`<div class="h ${pick===i?'picked':''}">${o[0]}</div>`).join('');
+  rows.forEach(([n,k,m,f])=>{const vals=opts.map(o=>o[k]),b=m==='min'?Math.min(...vals):Math.max(...vals);h+=`<div class="l">${n}</div>`+opts.map(o=>`<div class="v num ${o[k]===b?'best':''}">${f(o[k])}</div>`).join('');});
+  h+='<div></div>'+opts.map((o,i)=>`<button class="btn small ${pick===i?'':'ghost'}" data-testid="pick-${i}" data-i="${i}">${pick===i?'Picked':'Pick'}</button>`).join('')+'</div>';
+  root.querySelector('#tbl').innerHTML=h;
+}
+root.querySelector('#tbl').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b)return;pick=+b.dataset.i;root.querySelector('[data-testid=choice]').innerHTML=`<span style="font-weight:600">Picked: ${opts[pick][0]}</span> <span class="sub">· $${opts[pick][1]}</span>`;draw();});
+draw();
+</script>

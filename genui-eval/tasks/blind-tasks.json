@@ -1,0 +1,294 @@
+[
+ {
+  "id": "sleep",
+  "prompt": "Sleep hours this week as a bar chart with an 8h target line; header shows the weekly average. Tapping a bar shows that day and its hours in data-testid=detail (e.g. 'Wed \u00b7 6.1h').",
+  "data": {
+   "days": [
+    [
+     "Mon",
+     7.2
+    ],
+    [
+     "Tue",
+     6.8
+    ],
+    [
+     "Wed",
+     6.1
+    ],
+    [
+     "Thu",
+     7.9
+    ],
+    [
+     "Fri",
+     5.4
+    ],
+    [
+     "Sat",
+     8.6
+    ],
+    [
+     "Sun",
+     8.1
+    ]
+   ],
+   "target": 8
+  }
+ },
+ {
+  "id": "spending",
+  "prompt": "Spending by category this month: donut chart with the total in the center, plus a legend listing each category with amount and share. Each legend row (data-testid=cat-<Name>) toggles that category in/out of the chart; data-testid=total shows the total of included categories.",
+  "data": {
+   "Rent": 1850,
+   "Groceries": 420,
+   "Dining": 310,
+   "Transport": 140,
+   "Subscriptions": 65,
+   "Other": 215
+  }
+ },
+ {
+  "id": "tip",
+  "prompt": "Tip splitter for a $84.50 bill: tip % slider 10-30 (step 1, default 18, data-testid=tip), party size stepper with buttons data-testid=minus / data-testid=plus (default 2, min 1), showing tip amount, total, and the per-person amount in data-testid=per-person formatted like $33.80.",
+  "data": {
+   "bill": 84.5
+  }
+ },
+ {
+  "id": "calendar",
+  "prompt": "Today's calendar as a vertical timeline 08:00-21:00 with hour labels, event blocks positioned by start time with height proportional to duration, and a 'now' line at 13:20. Header shows the next upcoming event. Tapping an event (data-testid=event-<index>) shows its title, time range and location in data-testid=detail.",
+  "data": [
+   [
+    "09:00",
+    "09:30",
+    "Standup",
+    "Zoom"
+   ],
+   [
+    "10:00",
+    "11:30",
+    "Design review",
+    "Room 4B"
+   ],
+   [
+    "12:30",
+    "13:15",
+    "Lunch with Sam",
+    "Tartine"
+   ],
+   [
+    "14:00",
+    "15:00",
+    "1:1 with Priya",
+    "Room 2A"
+   ],
+   [
+    "16:30",
+    "17:00",
+    "Dentist",
+    "24th St Dental"
+   ],
+   [
+    "19:00",
+    "21:00",
+    "Climbing",
+    "Mission Cliffs"
+   ]
+  ]
+ },
+ {
+  "id": "flow",
+  "prompt": "Diagram of the voice pipeline: Mic -> On-device ASR -> Claude -> TTS -> Speaker, as nodes connected by arrows with each stage's latency labelled, and total end-to-end latency in data-testid=total. Tapping a node (data-testid=node-<key>) shows its description and its share of total latency (whole %) in data-testid=detail.",
+  "data": [
+   [
+    "mic",
+    "Mic",
+    0,
+    "Speech captured at 16 kHz"
+   ],
+   [
+    "asr",
+    "On-device ASR",
+    120,
+    "Streaming speech-to-text on the phone"
+   ],
+   [
+    "claude",
+    "Claude",
+    450,
+    "Time to first token"
+   ],
+   [
+    "tts",
+    "TTS",
+    180,
+    "Text-to-speech, first audio chunk"
+   ],
+   [
+    "speaker",
+    "Speaker",
+    40,
+    "Audio output buffer"
+   ]
+  ]
+ },
+ {
+  "id": "habits",
+  "prompt": "Habit tracker grid: rows are habits, columns Mon-Sun, each cell is a toggle (data-testid=cell-<row>-<col>, 0-based). Show each habit's count for the week and the overall done count in data-testid=count as 'N / 28'.",
+  "data": {
+   "Meditate": [
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0
+   ],
+   "Stretch": [
+    1,
+    0,
+    0,
+    1,
+    0,
+    1,
+    0
+   ],
+   "Read 30m": [
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1
+   ],
+   "No phone after 11": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    0
+   ]
+  }
+ },
+ {
+  "id": "convert",
+  "prompt": "Length converter between kilometers and miles: number input (data-testid=value, default 10), a swap button (data-testid=swap) that flips the direction, and the result with 2 decimals and unit in data-testid=result (e.g. '6.21 mi'). Show the conversion rate as a hint. 1 mi = 1.609344 km.",
+  "data": {
+   "kmPerMile": 1.609344
+  }
+ },
+ {
+  "id": "compare",
+  "prompt": "Compare 3 headphones side by side (price, battery, weight, ANC rating), highlighting the best value in each row, with a 'Pick' button per option (data-testid=pick-<index>). After picking, show 'Picked: <name>' in data-testid=choice and mark the picked option.",
+  "data": [
+   [
+    "Sony WH-1000XM6",
+    449,
+    30,
+    254,
+    5
+   ],
+   [
+    "Bose QC Ultra",
+    429,
+    24,
+    250,
+    5
+   ],
+   [
+    "Sennheiser Momentum 4",
+    379,
+    60,
+    293,
+    4
+   ]
+  ]
+ },
+ {
+  "id": "timer",
+  "prompt": "Tea timer: countdown from 3:00 with a big display (data-testid=time, m:ss), a progress ring or bar, a Start/Pause toggle button (data-testid=start) and a Reset button (data-testid=reset).",
+  "data": {
+   "seconds": 180
+  }
+ },
+ {
+  "id": "checklist",
+  "prompt": "Weekend trip packing checklist: Passport (done), Charger (done), Toothbrush, Rain jacket, Headphones, Snacks. Each item is tappable to check/uncheck (data-testid=item-<index>), with a progress bar and 'N/6 packed' in data-testid=progress-label.",
+  "data": [
+   [
+    "Passport",
+    1
+   ],
+   [
+    "Charger",
+    1
+   ],
+   [
+    "Toothbrush",
+    0
+   ],
+   [
+    "Rain jacket",
+    0
+   ],
+   [
+    "Headphones",
+    0
+   ],
+   [
+    "Snacks",
+    0
+   ]
+  ]
+ },
+ {
+  "id": "quiz",
+  "prompt": "Quiz card: 'Which planet has the shortest day?' Options Mercury, Venus, Jupiter, Mars as buttons (data-testid=opt-<index>); correct is Jupiter (about 9h 56m). After an answer show 'Correct!' or 'Not quite, it's Jupiter' plus a one-line explanation in data-testid=feedback, color the chosen option, and lock further answers.",
+  "data": {
+   "options": [
+    "Mercury",
+    "Venus",
+    "Jupiter",
+    "Mars"
+   ],
+   "correct": 2
+  }
+ },
+ {
+  "id": "heartrate",
+  "prompt": "Line chart of today's hourly heart rate with min and max annotated; header shows resting (min) and peak bpm. A chip (data-testid=toggle-avg) shows/hides an average line and the average in data-testid=avg (e.g. 'avg 76 bpm').",
+  "data": {
+   "bpm": [
+    58,
+    56,
+    55,
+    54,
+    55,
+    57,
+    63,
+    78,
+    92,
+    85,
+    76,
+    74,
+    81,
+    79,
+    73,
+    72,
+    88,
+    124,
+    131,
+    96,
+    82,
+    74,
+    66,
+    61
+   ]
+  }
+ }
+]

@@ -1,0 +1,8 @@
+{"state":{"options":["Mercury","Venus","Jupiter","Mars"],"correct":2,"ans":-1},
+ "view":{"type":"card","children":[
+  {"type":"column","gap":12,"children":[
+    {"type":"text","style":"label","value":"Space quiz"},
+    {"type":"text","style":"title","value":"Which planet has the shortest day?"},
+    {"type":"list","items":"=options","gap":8,"template":
+      {"type":"button","id":"opt-{{$index}}","full":true,"variant":"=ans<0 ? 'ghost' : ($index===ans || $index===correct ? 'primary' : 'ghost')","label":"=$item + (ans>=0 && $index===correct ? '  ✓' : (ans>=0 && $index===ans ? '  ✗' : ''))","disabled":"=ans>=0 && $index!==ans && $index!==correct","action":{"set":{"ans":"=ans<0 ? $index : ans"}},"style":{"background":"=ans<0 ? '' : ($index===correct ? 'var(--success)' : ($index===ans ? 'var(--danger)' : ''))","borderColor":"=ans<0 ? '' : ($index===correct ? 'var(--success)' : ($index===ans ? 'var(--danger)' : ''))","color":"=ans>=0 && ($index===correct || $index===ans) ? '#fff' : ''","pointerEvents":"=ans>=0 ? 'none' : 'auto'"}}},
+    {"type":"text","id":"feedback","visible":"=ans>=0","color":"=ans===correct ? 'success' : 'danger'","weight":"600","value":"=ans===correct ? 'Correct! Jupiter spins once about every 9h 56m, the shortest day of any planet.' : \"Not quite, it's Jupiter. It spins once about every 9h 56m, the shortest day of any planet.\""}]}]}}

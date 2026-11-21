@@ -1,0 +1,22 @@
+<div class="qz stack">
+  <span class="badge" style="align-self:flex-start">Space quiz</span>
+  <div class="title">Which planet has the shortest day?</div>
+  <div class="stack" style="gap:8px" id="opts"></div>
+  <div data-testid="feedback"></div>
+</div>
+<style>
+.qz .o{justify-content:flex-start;width:100%;background:var(--surface2);color:var(--onSurface);border:1px solid var(--outline);font-weight:500}
+.qz .o.right{background:var(--success);color:var(--surface);border-color:transparent}
+.qz .o.wrong{background:var(--danger);color:var(--surface);border-color:transparent}
+.qz .o:disabled{opacity:1}
+</style>
+<script>
+const opts=["Mercury","Venus","Jupiter","Mars"],correct=2;let ans=null;
+function draw(){
+  root.querySelector('#opts').innerHTML=opts.map((o,i)=>`<button class="btn o ${ans!=null&&i===correct?'right':''} ${ans===i&&i!==correct?'wrong':''}" data-testid="opt-${i}" data-i="${i}" ${ans!=null?'disabled':''}>${o}</button>`).join('');
+  const fb=root.querySelector('[data-testid=feedback]');
+  if(ans!=null)fb.innerHTML=`<div class="card"><div class="title" style="color:${ans===correct?'var(--success)':'var(--danger)'}">${ans===correct?'Correct!':"Not quite, it's Jupiter"}</div><div class="sub">Jupiter spins once every ~9h 56m, the fastest rotation of any planet.</div></div>`;
+}
+root.querySelector('#opts').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b||ans!=null)return;ans=+b.dataset.i;draw();});
+draw();
+</script>

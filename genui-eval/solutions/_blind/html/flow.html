@@ -1,0 +1,39 @@
+<style>
+.flw .pipe{display:flex;flex-direction:column;align-items:stretch}
+.flw .node{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;padding:10px 14px;border-radius:14px;background:var(--surface2);border:1.5px solid var(--outline);color:var(--onSurface);font:inherit;text-align:left;cursor:pointer}
+.flw .node .nm{font-weight:600}
+.flw .node .lat{font-size:13px;color:var(--onSurface2)}
+.flw .node.sel{border-color:var(--accent);background:var(--accentSoft)}
+.flw .arrow{display:flex;flex-direction:column;align-items:center;height:26px;justify-content:center}
+.flw .arrow i{display:block;width:2px;height:14px;background:var(--onSurface3)}
+.flw .arrow b{display:block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid var(--onSurface3)}
+.flw .stackbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface2)}
+.flw .stackbar span{display:block;height:100%}
+.flw .totv{font-size:24px;font-weight:600}
+.flw .det{min-height:44px}
+</style>
+<div class="flw stack">
+  <div class="spread">
+    <div><div class="title">Voice pipeline</div><div class="sub">Tap a stage for details</div></div>
+    <div style="text-align:right"><div class="totv num" data-testid="total"></div><div class="muted">end-to-end</div></div>
+  </div>
+  <div class="stackbar"></div>
+  <div class="pipe"></div>
+  <div class="card det sub" data-testid="detail">Tap a stage to see what it does and its share of latency</div>
+</div>
+<script>
+const stages=[["mic","Mic",0,"Speech captured at 16 kHz"],["asr","On-device ASR",120,"Streaming speech-to-text on the phone"],["claude","Claude",450,"Time to first token"],["tts","TTS",180,"Text-to-speech, first audio chunk"],["speaker","Speaker",40,"Audio output buffer"]];
+const total=stages.reduce((s,x)=>s+x[2],0);
+root.querySelector('[data-testid=total]').textContent=total+' ms';
+root.querySelector('.stackbar').innerHTML=stages.filter(s=>s[2]>0).map((s,i)=>'<span title="'+G.esc(s[1])+'" style="width:'+(s[2]/total*100)+'%;background:'+G.color(i)+'"></span>').join('');
+const pipe=root.querySelector('.pipe');
+pipe.innerHTML=stages.map((s,i)=>(i?'<div class="arrow" aria-hidden="true"><i></i><b></b></div>':'')+'<button type="button" class="node" data-i="'+i+'" data-testid="node-'+s[0]+'"><span class="nm">'+G.esc(s[1])+'</span><span class="lat num">'+s[2]+' ms</span></button>').join('');
+pipe.addEventListener('click',e=>{
+  const b=e.target.closest('.node');
+  if(!b)return;
+  const s=stages[+b.dataset.i];
+  pipe.querySelectorAll('.node').forEach(n=>n.classList.toggle('sel',n===b));
+  const pct=total?Math.round(s[2]/total*100):0;
+  root.querySelector('[data-testid=detail]').textContent=s[1]+': '+s[3]+' · '+s[2]+' ms · '+pct+'% of total';
+});
+</script>

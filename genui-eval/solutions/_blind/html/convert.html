@@ -1,0 +1,33 @@
+<style>
+.cnv .inrow{display:flex;align-items:center;gap:10px}
+.cnv .inrow input{flex:1;min-width:0;min-height:40px;font-size:18px}
+.cnv .unit{font-weight:600;min-width:28px}
+.cnv .swapb{align-self:center;min-height:40px;min-width:120px}
+.cnv .res{font-size:30px;font-weight:600;color:var(--accent)}
+</style>
+<div class="cnv stack">
+  <div><div class="title">Length converter</div><div class="sub" data-testid="direction"></div></div>
+  <div class="card stack">
+    <div class="inrow"><input type="number" inputmode="decimal" step="any" value="10" data-testid="value" aria-label="Value"><span class="unit from"></span></div>
+    <button type="button" class="btn ghost swapb" data-testid="swap">&#8645; Swap</button>
+    <div class="res num" data-testid="result"></div>
+    <div class="muted hint" data-testid="rate"></div>
+  </div>
+</div>
+<script>
+const K=1.609344;
+let kmToMi=true;
+const inp=root.querySelector('[data-testid=value]');
+const draw=()=>{
+  const v=parseFloat(inp.value);
+  const from=kmToMi?'km':'mi',to=kmToMi?'mi':'km';
+  root.querySelector('.from').textContent=from;
+  root.querySelector('[data-testid=direction]').textContent=(kmToMi?'Kilometers → miles':'Miles → kilometers');
+  root.querySelector('[data-testid=rate]').textContent=kmToMi?'1 km = '+(1/K).toFixed(6)+' mi (1 mi = 1.609344 km)':'1 mi = 1.609344 km';
+  root.querySelector('[data-testid=result]').textContent=isFinite(v)?(kmToMi?v/K:v*K).toFixed(2)+' '+to:'—';
+};
+inp.addEventListener('input',draw);
+inp.addEventListener('change',draw);
+root.querySelector('[data-testid=swap]').onclick=()=>{kmToMi=!kmToMi;draw();};
+draw();
+</script>

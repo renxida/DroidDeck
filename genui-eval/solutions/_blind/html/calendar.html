@@ -1,0 +1,49 @@
+<style>
+.cal .tlwrap{padding:8px 0}
+.cal .tl{position:relative}
+.cal .hr{position:absolute;left:0;right:0;height:0;border-top:1px solid var(--outline)}
+.cal .hr span{position:absolute;left:0;top:-8px;font-size:11px;color:var(--onSurface3);background:var(--surface);padding-right:4px;line-height:16px}
+.cal .ev{position:absolute;left:50px;right:0;border-radius:8px;background:var(--accentSoft);border:0;border-left:3px solid var(--accent);color:var(--onSurface);font:inherit;text-align:left;padding:4px 8px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start}
+.cal .ev .t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal .ev .s{font-size:11px;color:var(--onSurface2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal .ev.short{flex-direction:row;align-items:center;gap:6px}
+.cal .ev.past{opacity:.55}
+.cal .ev.sel{background:var(--accent);color:var(--onAccent)}
+.cal .ev.sel .s{color:var(--onAccent)}
+.cal .now{position:absolute;left:44px;right:0;height:0;border-top:2px solid var(--danger);z-index:2;pointer-events:none}
+.cal .now::before{content:'';position:absolute;left:-4px;top:-5px;width:8px;height:8px;border-radius:50%;background:var(--danger)}
+.cal .now span{position:absolute;right:0;top:-16px;font-size:10px;font-weight:600;color:var(--danger)}
+.cal .det{min-height:40px}
+</style>
+<div class="cal stack">
+  <div><div class="title">Today</div><div class="sub" data-testid="next"></div></div>
+  <div class="card det sub" data-testid="detail">Tap an event for details</div>
+  <div class="tlwrap"><div class="tl"></div></div>
+</div>
+<script>
+const events=[["09:00","09:30","Standup","Zoom"],["10:00","11:30","Design review","Room 4B"],["12:30","13:15","Lunch with Sam","Tartine"],["14:00","15:00","1:1 with Priya","Room 2A"],["16:30","17:00","Dentist","24th St Dental"],["19:00","21:00","Climbing","Mission Cliffs"]];
+const START=8,END=21,H=64,NOW="13:20";
+const mins=s=>{const p=s.split(':');return +p[0]*60+ +p[1];};
+const y=s=>(mins(s)-START*60)/60*H;
+const tl=root.querySelector('.tl');
+tl.style.height=((END-START)*H)+'px';
+let html='';
+for(let h=START;h<=END;h++){html+='<div class="hr" style="top:'+((h-START)*H)+'px"><span>'+String(h).padStart(2,'0')+':00</span></div>';}
+const nowM=mins(NOW);
+events.forEach((e,i)=>{
+  const top=y(e[0]),ht=Math.max(y(e[1])-top,24);
+  const cls='ev'+(ht<44?' short':'')+(mins(e[1])<=nowM?' past':'');
+  html+='<button type="button" class="'+cls+'" data-i="'+i+'" data-testid="event-'+i+'" style="top:'+(top+1)+'px;height:'+(ht-2)+'px"><span class="t">'+G.esc(e[2])+'</span><span class="s">'+e[0]+'–'+e[1]+' · '+G.esc(e[3])+'</span></button>';
+});
+html+='<div class="now" style="top:'+y(NOW)+'px"><span>now '+NOW+'</span></div>';
+tl.innerHTML=html;
+const next=events.find(e=>mins(e[0])>nowM);
+root.querySelector('[data-testid=next]').textContent=next?'Next: '+next[2]+' at '+next[0]+' (in '+(mins(next[0])-nowM)+' min) · '+next[3]:'Nothing else today';
+tl.addEventListener('click',ev=>{
+  const b=ev.target.closest('.ev');
+  if(!b)return;
+  const e=events[+b.dataset.i];
+  tl.querySelectorAll('.ev').forEach(x=>x.classList.toggle('sel',x===b));
+  root.querySelector('[data-testid=detail]').textContent=e[2]+' · '+e[0]+'–'+e[1]+' · '+e[3];
+});
+</script>

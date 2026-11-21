@@ -1,0 +1,17 @@
+{"state":{
+  "items":[
+    {"name":"Passport","done":true},
+    {"name":"Charger","done":true},
+    {"name":"Toothbrush","done":false},
+    {"name":"Rain jacket","done":false},
+    {"name":"Headphones","done":false},
+    {"name":"Snacks","done":false}]},
+ "view":{"type":"column","gap":12,"children":[
+  {"type":"text","style":"title","value":"Weekend trip packing"},
+  {"type":"column","gap":6,"children":[
+    {"type":"progress","value":"=count(items, i=>i.done)/items.length","color":"=count(items, i=>i.done)===items.length ? 'success' : 'accent'"},
+    {"type":"text","id":"progress-label","style":"muted","value":"=count(items, i=>i.done) + '/6 packed'"}]},
+  {"type":"list","items":"=items","divided":true,"template":
+    {"type":"row","id":"item-{{$index}}","align":"center","gap":12,"onTap":{"toggle":"items.$index.done"},"style":{"cursor":"pointer","padding":"8px 0"},"children":[
+      {"type":"text","weight":"700","color":"=$item.done ? 'success' : 'onSurface3'","value":"=$item.done ? '☑' : '☐'"},
+      {"type":"text","color":"=$item.done ? 'onSurface3' : ''","value":"=$item.name"}]}}]}}

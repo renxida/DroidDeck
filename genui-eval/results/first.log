@@ -1,0 +1,64 @@
+PASS html       sleep      warm   12.9ms  lat    19ms  cold undefinedms 
+PASS html       spending   warm     14ms  lat    14ms  cold undefinedms 
+PASS html       tip        warm   14.7ms  lat   9.7ms  cold undefinedms 
+PASS html       calendar   warm   11.8ms  lat  11.3ms  cold undefinedms 
+PASS html       flow       warm   13.7ms  lat  20.3ms  cold undefinedms 
+PASS html       habits     warm     13ms  lat  15.1ms  cold undefinedms 
+PASS html       convert    warm   14.1ms  lat  15.1ms  cold undefinedms 
+PASS html       compare    warm   14.5ms  lat  13.3ms  cold undefinedms 
+PASS html       timer      warm   13.7ms  lat  12.6ms  cold undefinedms 
+PASS html       checklist  warm   13.9ms  lat    15ms  cold undefinedms 
+PASS html       quiz       warm   13.1ms  lat  16.5ms  cold undefinedms 
+PASS html       heartrate  warm   14.5ms  lat    12ms  cold undefinedms 
+PASS preact-htm sleep      warm   13.7ms  lat  16.3ms  cold undefinedms 
+PASS preact-htm spending   warm   14.2ms  lat  16.3ms  cold undefinedms 
+PASS preact-htm tip        warm   13.8ms  lat  11.7ms  cold undefinedms 
+PASS preact-htm calendar   warm   12.5ms  lat  20.3ms  cold undefinedms 
+PASS preact-htm flow       warm   14.4ms  lat    23ms  cold undefinedms 
+PASS preact-htm habits     warm   15.2ms  lat  20.5ms  cold undefinedms 
+PASS preact-htm convert    warm   14.7ms  lat  17.1ms  cold undefinedms 
+PASS preact-htm compare    warm   11.2ms  lat  21.3ms  cold undefinedms 
+PASS preact-htm timer      warm   13.9ms  lat    15ms  cold undefinedms 
+PASS preact-htm checklist  warm   14.8ms  lat  13.4ms  cold undefinedms 
+PASS preact-htm quiz       warm   14.5ms  lat  17.9ms  cold undefinedms 
+PASS preact-htm heartrate  warm   14.7ms  lat  15.2ms  cold undefinedms 
+PASS ts         sleep      warm   13.4ms  lat    23ms  cold undefinedms 
+PASS ts         spending   warm   15.2ms  lat  15.5ms  cold undefinedms 
+PASS ts         tip        warm   15.4ms  lat  11.8ms  cold undefinedms 
+PASS ts         calendar   warm   18.1ms  lat  13.9ms  cold undefinedms 
+PASS ts         flow       warm   14.6ms  lat    20ms  cold undefinedms 
+PASS ts         habits     warm   15.7ms  lat  15.1ms  cold undefinedms 
+PASS ts         convert    warm   12.8ms  lat  12.4ms  cold undefinedms 
+PASS ts         compare    warm   16.5ms  lat  13.9ms  cold undefinedms 
+PASS ts         timer      warm   14.3ms  lat  18.6ms  cold undefinedms 
+PASS ts         checklist  warm   14.2ms  lat  12.7ms  cold undefinedms 
+PASS ts         quiz       warm   13.2ms  lat  21.2ms  cold undefinedms 
+PASS ts         heartrate  warm   16.7ms  lat  19.3ms  cold undefinedms 
+PASS json       sleep      warm   15.4ms  lat  18.2ms  cold undefinedms 
+FAIL json       spending   warm   13.3ms  lat  18.9ms  cold undefinedms  <- light contrast<2.5: ● 2.23
+PASS json       tip        warm   14.1ms  lat  10.6ms  cold undefinedms 
+PASS json       calendar   warm   12.7ms  lat  19.5ms  cold undefinedms 
+FAIL json       flow       warm     13ms  lat  nullms  cold undefinedms  <- console: light: render error: SyntaxError: Unexpected token '{'
+    at new Function (<anonymous>)
+    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044 | light interaction: total: got "" want ["7
+PASS json       habits     warm   14.9ms  lat  10.8ms  cold undefinedms 
+PASS json       convert    warm   13.7ms  lat  12.5ms  cold undefinedms 
+FAIL json       compare    warm   13.8ms  lat  nullms  cold undefinedms  <- console: light: render error: SyntaxError: Unexpected token '{'
+    at new Function (<anonymous>)
+    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044 | light interaction: locator.click: Timeout
+FAIL json       timer      warm   13.4ms  lat  nullms  cold undefinedms  <- console: light: render error: SyntaxError: Unexpected token '{'
+    at new Function (<anonymous>)
+    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044 | light interaction: time: got "" want ["3:
+PASS json       checklist  warm   14.6ms  lat  13.6ms  cold undefinedms 
+FAIL json       quiz       warm   13.7ms  lat  nullms  cold undefinedms  <- console: light: render error: SyntaxError: Unexpected token '{'
+    at new Function (<anonymous>)
+    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044 | light interaction: locator.click: Timeout
+PASS json       heartrate  warm   13.7ms  lat  18.9ms  cold undefinedms 
+
+set=first  CPU throttle 4x  viewport 411x914@2.625
+cand        pass   tokens  warm_ms  warm_js  lat_max  lat_mean  longT  cold_ms  init_ms  rt_KB(gz)
+html        12/12     462     13.7      1.6     14.5      14.0      0        -        -  15.2(6.0)
+preact-htm  12/12     424     14.0      4.3     17.3      16.5      0        -        -  32.3(13.1)
+ts          12/12     531     15.0      7.5     16.4      15.6      0        -        -  216.5(52.3)
+            ts transform: phone(4x, in-page sucrase) 5.7ms; this machine esbuild 1.31ms, sucrase 0.39ms
+json        7/12      482     13.9      2.2     15.4      14.8      0        -        -  24.6(9.0)

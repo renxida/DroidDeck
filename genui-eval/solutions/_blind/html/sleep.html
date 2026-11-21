@@ -1,0 +1,39 @@
+<style>
+.slp .avgv{font-size:24px;font-weight:600;line-height:1.1}
+.slp .right{text-align:right}
+.slp [data-bar]{cursor:pointer}
+.slp .det{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.slp .det b{font-weight:600}
+</style>
+<div class="slp stack">
+  <div class="spread">
+    <div><div class="title">Sleep this week</div><div class="sub">Target 8h a night</div></div>
+    <div class="right"><div class="avgv num" data-testid="avg"></div><div class="muted">weekly average</div></div>
+  </div>
+  <div class="card"><div class="chart"></div></div>
+  <div class="card det"><b data-testid="detail">Tap a bar to see that night</b><span class="muted gap"></span></div>
+</div>
+<script>
+const days=[["Mon",7.2],["Tue",6.8],["Wed",6.1],["Thu",7.9],["Fri",5.4],["Sat",8.6],["Sun",8.1]];
+const target=8;
+let sel=-1;
+const avg=days.reduce((s,d)=>s+d[1],0)/days.length;
+root.querySelector('[data-testid=avg]').textContent=avg.toFixed(1)+'h';
+const chart=root.querySelector('.chart');
+const draw=()=>{
+  const opts={target:target,unit:'h',values:true};
+  if(sel>=0)opts.selected=sel;
+  chart.innerHTML=G.bar(days.map(d=>({label:d[0],value:d[1],color:d[1]>=target?'var(--success)':undefined})),opts);
+};
+chart.addEventListener('click',e=>{
+  const b=e.target.closest('[data-bar]');
+  if(!b)return;
+  sel=+b.getAttribute('data-bar');
+  const d=days[sel];
+  root.querySelector('[data-testid=detail]').textContent=d[0]+' · '+d[1].toFixed(1)+'h';
+  const diff=d[1]-target;
+  root.querySelector('.gap').textContent=diff>=0?'target met':Math.abs(diff).toFixed(1)+'h under target';
+  draw();
+});
+draw();
+</script>

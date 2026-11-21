@@ -1,0 +1,20 @@
+<div class="cv stack">
+  <div class="title">Length converter</div>
+  <div class="card stack">
+    <label class="sub" id="from"></label>
+    <input type="number" inputmode="decimal" value="10" data-testid="value">
+    <div class="row" style="justify-content:center"><button class="btn small ghost" data-testid="swap">⇅ Swap</button></div>
+    <div class="sub" id="to"></div>
+    <div class="big" data-testid="result"></div>
+  </div>
+  <div class="muted" id="hint"></div>
+</div>
+<script>
+const K=1.609344;let kmToMi=true;const $=s=>root.querySelector(s);
+function upd(){const v=parseFloat($('[data-testid=value]').value);$('#from').textContent=kmToMi?'Kilometers':'Miles';$('#to').textContent=kmToMi?'Miles':'Kilometers';
+$('[data-testid=result]').textContent=isNaN(v)?'—':(kmToMi?v/K:v*K).toFixed(2)+(kmToMi?' mi':' km');
+$('#hint').textContent=kmToMi?`1 km = ${(1/K).toFixed(4)} mi`:`1 mi = ${K} km`;}
+$('[data-testid=value]').addEventListener('input',upd);
+$('[data-testid=swap]').onclick=()=>{kmToMi=!kmToMi;upd();};
+upd();
+</script>

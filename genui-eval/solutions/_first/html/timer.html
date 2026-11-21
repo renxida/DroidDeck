@@ -1,0 +1,16 @@
+<div class="tm stack" style="align-items:center">
+  <div class="title" style="align-self:flex-start">Tea timer</div>
+  <div style="position:relative;width:200px;height:200px">
+    <svg viewBox="0 0 200 200" width="200" height="200"><circle cx="100" cy="100" r="88" fill="none" stroke="var(--outline)" stroke-width="12"/><circle id="arc" cx="100" cy="100" r="88" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" transform="rotate(-90 100 100)" stroke-dasharray="552.9" stroke-dashoffset="0"/></svg>
+    <div style="position:absolute;inset:0;display:grid;place-items:center"><div class="big" style="font-size:44px" data-testid="time">3:00</div></div>
+  </div>
+  <div class="row" style="width:100%"><button class="btn grow" data-testid="start">Start</button><button class="btn ghost grow" data-testid="reset">Reset</button></div>
+</div>
+<script>
+const TOTAL=180,C=2*Math.PI*88;let left=TOTAL,id=null,endAt=0;const $=s=>root.querySelector(s);
+function show(){$('[data-testid=time]').textContent=G.fmt.dur(left);$('#arc').setAttribute('stroke-dashoffset',C*(1-left/TOTAL));$('[data-testid=start]').textContent=id?'Pause':left<TOTAL&&left>0?'Resume':left===0?'Done':'Start';}
+function tick(){left=Math.max(0,Math.ceil((endAt-Date.now())/1000));if(left===0){clearInterval(id);id=null;}show();}
+$('[data-testid=start]').onclick=()=>{if(id){clearInterval(id);id=null;}else if(left>0){endAt=Date.now()+left*1000;id=setInterval(tick,250);}show();};
+$('[data-testid=reset]').onclick=()=>{clearInterval(id);id=null;left=TOTAL;show();};
+show();
+</script>

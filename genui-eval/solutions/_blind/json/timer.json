@@ -1,0 +1,13 @@
+{"state":{"total":180,"left":180,"running":false},
+ "view":{"type":"column","gap":16,"children":[
+  {"type":"row","justify":"between","align":"center","children":[
+    {"type":"text","style":"title","value":"Tea timer"},
+    {"type":"badge","value":"=left===0 ? 'Ready!' : (running && left>0 ? 'Steeping' : 'Paused')"}]},
+  {"type":"timer","running":"=running && left>0","every":1000,"do":{"set":{"left":"=Math.max(0, left-1)"}}},
+  {"type":"card","children":[
+    {"type":"column","gap":14,"children":[
+      {"type":"text","id":"time","style":"big","align":"center","style2":"","value":"=Math.floor(left/60) + ':' + String(left%60).padStart(2,'0')"},
+      {"type":"progress","value":"=(total-left)/total","color":"=left===0 ? 'success' : 'accent'"}]}]},
+  {"type":"row","gap":10,"children":[
+    {"type":"button","id":"start","variant":"primary","full":true,"label":"=running && left>0 ? 'Pause' : 'Start'","action":{"set":{"left":"=left===0 ? total : left","running":"=!(running && left>0)"}}},
+    {"type":"button","id":"reset","variant":"ghost","full":true,"label":"Reset","action":{"set":{"left":"=total","running":false}}}]}]}}

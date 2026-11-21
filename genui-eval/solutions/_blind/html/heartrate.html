@@ -1,0 +1,40 @@
+<style>
+.hrt .stats{display:flex;gap:16px}
+.hrt .stats .v{font-size:22px;font-weight:600}
+.hrt .chip{min-height:32px;cursor:pointer}
+.hrt .avgv{font-weight:600;color:var(--accent)}
+</style>
+<div class="hrt stack">
+  <div class="spread">
+    <div><div class="title">Heart rate today</div><div class="sub">Hourly, bpm</div></div>
+    <div class="stats">
+      <div><div class="v num" data-testid="resting"></div><div class="muted">resting</div></div>
+      <div><div class="v num" data-testid="peak"></div><div class="muted">peak</div></div>
+    </div>
+  </div>
+  <div class="card"><div class="chart"></div></div>
+  <div class="spread">
+    <button type="button" class="chip" data-testid="toggle-avg" aria-pressed="false">Average line</button>
+    <span class="avgv num" data-testid="avg" hidden></span>
+  </div>
+</div>
+<script>
+const bpm=[58,56,55,54,55,57,63,78,92,85,76,74,81,79,73,72,88,124,131,96,82,74,66,61];
+const pts=bpm.map((v,h)=>({label:String(h).padStart(2,'0'),value:v}));
+const min=Math.min.apply(null,bpm),max=Math.max.apply(null,bpm);
+const avg=Math.round(bpm.reduce((s,v)=>s+v,0)/bpm.length);
+root.querySelector('[data-testid=resting]').textContent=min+' bpm';
+root.querySelector('[data-testid=peak]').textContent=max+' bpm';
+const avgEl=root.querySelector('[data-testid=avg]');
+avgEl.textContent='avg '+avg+' bpm';
+let showAvg=false;
+const chip=root.querySelector('[data-testid=toggle-avg]');
+const draw=()=>{
+  root.querySelector('.chart').innerHTML=G.line(pts,{unit:' bpm',annotate:'minmax',avg:showAvg,every:4,color:'var(--rose)'});
+  chip.classList.toggle('on',showAvg);
+  chip.setAttribute('aria-pressed',showAvg?'true':'false');
+  avgEl.hidden=!showAvg;
+};
+chip.onclick=()=>{showAvg=!showAvg;draw();};
+draw();
+</script>

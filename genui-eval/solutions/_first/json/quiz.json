@@ -1,0 +1,10 @@
+{"state":{"ans":null,"opts":["Mercury","Venus","Jupiter","Mars"]},
+ "view":{"type":"column","children":[
+  {"type":"row","children":[{"type":"badge","value":"Space quiz"}]},
+  {"type":"text","style":"title","value":"Which planet has the shortest day?"},
+  {"type":"list","items":"=opts","template":{"type":"row","children":[
+    {"type":"button","id":"opt-{{$index}}","variant":"ghost","full":true,"label":"{{$item}}","disabled":"=ans!=null","action":{"set":{"ans":"=ans==null?$index:ans"}},"style":{"flex":"1","justifyContent":"flex-start"}},
+    {"type":"text","weight":"700","value":"={{$index===2?'✓':'✗'}}","color":"=$index===2?'success':'danger'","visible":"=ans!=null&&(ans===$index||$index===2)","style":{"width":"20px"}}]}},
+  {"type":"card","id":"feedback","gap":2,"visible":"=ans!=null","children":[
+    {"type":"text","style":"title","value":"=ans===2?'Correct!':'Not quite, it’s Jupiter'","color":"=ans===2?'success':'danger'"},
+    {"type":"text","style":"sub","value":"Jupiter spins once every ~9h 56m, the fastest rotation of any planet."}]}]}}

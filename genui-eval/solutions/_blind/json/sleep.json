@@ -1,0 +1,15 @@
+{"state":{
+  "days":[{"label":"Mon","value":7.2},{"label":"Tue","value":6.8},{"label":"Wed","value":6.1},{"label":"Thu","value":7.9},{"label":"Fri","value":5.4},{"label":"Sat","value":8.6},{"label":"Sun","value":8.1}],
+  "target":8,
+  "sel":-1},
+ "view":{"type":"column","gap":12,"children":[
+  {"type":"row","justify":"between","align":"center","children":[
+    {"type":"column","gap":2,"children":[
+      {"type":"text","style":"title","value":"Sleep this week"},
+      {"type":"text","style":"muted","value":"Target {{target}}h"}]},
+    {"type":"column","gap":0,"children":[
+      {"type":"text","style":"big","align":"right","value":"={round(sum(days, d=>d.value)/days.length, 1)}h"},
+      {"type":"text","style":"label","align":"right","value":"weekly avg"}]}]},
+  {"type":"chart","kind":"bar","data":"=days","target":8,"unit":"h","selected":"=sel","onSelect":{"set":{"sel":"=$index"}}},
+  {"type":"card","children":[
+    {"type":"text","id":"detail","value":"=sel<0 ? 'Tap a bar to see that night' : days[sel].label + ' · ' + days[sel].value + 'h'"}]}]}}

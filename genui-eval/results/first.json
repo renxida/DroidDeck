@@ -1,0 +1,1356 @@
+[
+ {
+  "cand": "html",
+  "task": "sleep",
+  "chars": 1317,
+  "tokens": 376,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 332
+  },
+  "warmFirstMs": 73.5,
+  "warmMs": 12.9,
+  "warmJsMs": 2.8,
+  "warmMaxMs": 73.5,
+  "inputLatMs": 19,
+  "inputLatMeanMs": 19,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 332
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "spending",
+  "chars": 1676,
+  "tokens": 479,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 554
+  },
+  "warmFirstMs": 75.8,
+  "warmMs": 14,
+  "warmJsMs": 2.5,
+  "warmMaxMs": 75.8,
+  "inputLatMs": 14,
+  "inputLatMeanMs": 14,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 554
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "tip",
+  "chars": 1720,
+  "tokens": 491,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 389
+  },
+  "warmFirstMs": 64.8,
+  "warmMs": 14.7,
+  "warmJsMs": 1.1,
+  "warmMaxMs": 64.8,
+  "inputLatMs": 9.7,
+  "inputLatMeanMs": 7.7,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 389
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "calendar",
+  "chars": 2414,
+  "tokens": 690,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 723
+  },
+  "warmFirstMs": 21.8,
+  "warmMs": 11.8,
+  "warmJsMs": 2.1,
+  "warmMaxMs": 21.8,
+  "inputLatMs": 11.3,
+  "inputLatMeanMs": 11.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 723
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "flow",
+  "chars": 2078,
+  "tokens": 594,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 469
+  },
+  "warmFirstMs": 29,
+  "warmMs": 13.7,
+  "warmJsMs": 1.4,
+  "warmMaxMs": 29,
+  "inputLatMs": 20.3,
+  "inputLatMeanMs": 20.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 469
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "habits",
+  "chars": 1725,
+  "tokens": 493,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 268
+  },
+  "warmFirstMs": 35.5,
+  "warmMs": 13,
+  "warmJsMs": 1.8,
+  "warmMaxMs": 35.5,
+  "inputLatMs": 15.1,
+  "inputLatMeanMs": 15.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 268
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "convert",
+  "chars": 1036,
+  "tokens": 296,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 333
+  },
+  "warmFirstMs": 33.5,
+  "warmMs": 14.1,
+  "warmJsMs": 0.9,
+  "warmMaxMs": 33.5,
+  "inputLatMs": 15.1,
+  "inputLatMeanMs": 13.6,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 333
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "compare",
+  "chars": 1927,
+  "tokens": 551,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.12,
+   "height": 372
+  },
+  "warmFirstMs": 18.1,
+  "warmMs": 14.5,
+  "warmJsMs": 1.1,
+  "warmMaxMs": 18.1,
+  "inputLatMs": 13.3,
+  "inputLatMeanMs": 13.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 372
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "timer",
+  "chars": 1568,
+  "tokens": 448,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.9,
+   "height": 328
+  },
+  "warmFirstMs": 13.9,
+  "warmMs": 13.7,
+  "warmJsMs": 0.9,
+  "warmMaxMs": 14.5,
+  "inputLatMs": 12.6,
+  "inputLatMeanMs": 10.8,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 5.85,
+   "height": 328
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "checklist",
+  "chars": 1166,
+  "tokens": 333,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 349
+  },
+  "warmFirstMs": 14.1,
+  "warmMs": 13.9,
+  "warmJsMs": 1.4,
+  "warmMaxMs": 15.5,
+  "inputLatMs": 15,
+  "inputLatMeanMs": 15,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 349
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "quiz",
+  "chars": 1464,
+  "tokens": 418,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.12,
+   "height": 317
+  },
+  "warmFirstMs": 10.6,
+  "warmMs": 13.1,
+  "warmJsMs": 1,
+  "warmMaxMs": 15,
+  "inputLatMs": 16.5,
+  "inputLatMeanMs": 16.5,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 317
+  },
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "heartrate",
+  "chars": 1292,
+  "tokens": 369,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 345
+  },
+  "warmFirstMs": 21.9,
+  "warmMs": 14.5,
+  "warmJsMs": 2.1,
+  "warmMaxMs": 21.9,
+  "inputLatMs": 12,
+  "inputLatMeanMs": 12,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 345
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "sleep",
+  "chars": 1078,
+  "tokens": 308,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 332
+  },
+  "warmFirstMs": 69.8,
+  "warmMs": 13.7,
+  "warmJsMs": 4.1,
+  "warmMaxMs": 69.8,
+  "inputLatMs": 16.3,
+  "inputLatMeanMs": 16.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 332
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "spending",
+  "chars": 1504,
+  "tokens": 430,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 554
+  },
+  "warmFirstMs": 73,
+  "warmMs": 14.2,
+  "warmJsMs": 4.9,
+  "warmMaxMs": 73,
+  "inputLatMs": 16.3,
+  "inputLatMeanMs": 16.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 554
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "tip",
+  "chars": 1563,
+  "tokens": 447,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 389
+  },
+  "warmFirstMs": 77,
+  "warmMs": 13.8,
+  "warmJsMs": 4.7,
+  "warmMaxMs": 77,
+  "inputLatMs": 11.7,
+  "inputLatMeanMs": 10.4,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 389
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "calendar",
+  "chars": 2384,
+  "tokens": 681,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 723
+  },
+  "warmFirstMs": 22.8,
+  "warmMs": 12.5,
+  "warmJsMs": 4.9,
+  "warmMaxMs": 22.8,
+  "inputLatMs": 20.3,
+  "inputLatMeanMs": 20.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 723
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "flow",
+  "chars": 1897,
+  "tokens": 542,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 469
+  },
+  "warmFirstMs": 32.2,
+  "warmMs": 14.4,
+  "warmJsMs": 6.9,
+  "warmMaxMs": 32.2,
+  "inputLatMs": 23,
+  "inputLatMeanMs": 23,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 469
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "habits",
+  "chars": 1437,
+  "tokens": 411,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 248
+  },
+  "warmFirstMs": 43,
+  "warmMs": 15.2,
+  "warmJsMs": 5.6,
+  "warmMaxMs": 43,
+  "inputLatMs": 20.5,
+  "inputLatMeanMs": 20.5,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 248
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "convert",
+  "chars": 934,
+  "tokens": 267,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 333
+  },
+  "warmFirstMs": 39.4,
+  "warmMs": 14.7,
+  "warmJsMs": 2.5,
+  "warmMaxMs": 39.4,
+  "inputLatMs": 17.1,
+  "inputLatMeanMs": 9.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 333
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "compare",
+  "chars": 1806,
+  "tokens": 516,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.12,
+   "height": 372
+  },
+  "warmFirstMs": 33,
+  "warmMs": 11.2,
+  "warmJsMs": 4.5,
+  "warmMaxMs": 33,
+  "inputLatMs": 21.3,
+  "inputLatMeanMs": 21.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 372
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "timer",
+  "chars": 1641,
+  "tokens": 469,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.9,
+   "height": 328
+  },
+  "warmFirstMs": 18.8,
+  "warmMs": 13.9,
+  "warmJsMs": 2.7,
+  "warmMaxMs": 18.8,
+  "inputLatMs": 15,
+  "inputLatMeanMs": 13.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 5.85,
+   "height": 328
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "checklist",
+  "chars": 1052,
+  "tokens": 301,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 349
+  },
+  "warmFirstMs": 22.7,
+  "warmMs": 14.8,
+  "warmJsMs": 3.8,
+  "warmMaxMs": 22.7,
+  "inputLatMs": 13.4,
+  "inputLatMeanMs": 13.4,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 349
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "quiz",
+  "chars": 1395,
+  "tokens": 399,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.12,
+   "height": 317
+  },
+  "warmFirstMs": 20.3,
+  "warmMs": 14.5,
+  "warmJsMs": 3.7,
+  "warmMaxMs": 20.3,
+  "inputLatMs": 17.9,
+  "inputLatMeanMs": 17.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 317
+  },
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "heartrate",
+  "chars": 1122,
+  "tokens": 321,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 345
+  },
+  "warmFirstMs": 21.9,
+  "warmMs": 14.7,
+  "warmJsMs": 3.5,
+  "warmMaxMs": 21.9,
+  "inputLatMs": 15.2,
+  "inputLatMeanMs": 15.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 345
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "sleep",
+  "chars": 1482,
+  "tokens": 423,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.4867369499999767,
+   "sucrase": 1.2829996500000562
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 332
+  },
+  "warmFirstMs": 113.4,
+  "warmMs": 13.4,
+  "warmJsMs": 7.5,
+  "warmMaxMs": 113.4,
+  "inputLatMs": 23,
+  "inputLatMeanMs": 23,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.4,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 332
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "spending",
+  "chars": 1960,
+  "tokens": 560,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.1711267499998939,
+   "sucrase": 0.44771440000004076
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 554
+  },
+  "warmFirstMs": 89.2,
+  "warmMs": 15.2,
+  "warmJsMs": 8,
+  "warmMaxMs": 89.2,
+  "inputLatMs": 15.5,
+  "inputLatMeanMs": 15.5,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 554
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "tip",
+  "chars": 2032,
+  "tokens": 581,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.1442826000002242,
+   "sucrase": 0.4332712999999785
+  },
+  "light": {
+   "minContrast": 2.56,
+   "height": 389
+  },
+  "warmFirstMs": 94.2,
+  "warmMs": 15.4,
+  "warmJsMs": 7.1,
+  "warmMaxMs": 94.2,
+  "inputLatMs": 11.8,
+  "inputLatMeanMs": 11.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.9,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 389
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "calendar",
+  "chars": 2599,
+  "tokens": 743,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.2869125500001246,
+   "sucrase": 0.350693450000108
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 723
+  },
+  "warmFirstMs": 54.1,
+  "warmMs": 18.1,
+  "warmJsMs": 7.1,
+  "warmMaxMs": 54.1,
+  "inputLatMs": 13.9,
+  "inputLatMeanMs": 13.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.2,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 723
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "flow",
+  "chars": 2354,
+  "tokens": 673,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.24846344999969,
+   "sucrase": 0.20404975000019476
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 469
+  },
+  "warmFirstMs": 45.7,
+  "warmMs": 14.6,
+  "warmJsMs": 5.2,
+  "warmMaxMs": 45.7,
+  "inputLatMs": 20,
+  "inputLatMeanMs": 20,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 3.8,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 469
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "habits",
+  "chars": 1903,
+  "tokens": 544,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.2699835999999778,
+   "sucrase": 0.30498864999972286
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 268
+  },
+  "warmFirstMs": 52.3,
+  "warmMs": 15.7,
+  "warmJsMs": 7,
+  "warmMaxMs": 52.3,
+  "inputLatMs": 15.1,
+  "inputLatMeanMs": 15.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 4.5,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 268
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "convert",
+  "chars": 1218,
+  "tokens": 348,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.122902299999987,
+   "sucrase": 0.11274339999981749
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 333
+  },
+  "warmFirstMs": 40.4,
+  "warmMs": 12.8,
+  "warmJsMs": 6.2,
+  "warmMaxMs": 40.4,
+  "inputLatMs": 12.4,
+  "inputLatMeanMs": 7.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.1,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 333
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "compare",
+  "chars": 2383,
+  "tokens": 681,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.4189704500000517,
+   "sucrase": 0.47137719999991534
+  },
+  "light": {
+   "minContrast": 3.12,
+   "height": 372
+  },
+  "warmFirstMs": 54.6,
+  "warmMs": 16.5,
+  "warmJsMs": 9.3,
+  "warmMaxMs": 54.6,
+  "inputLatMs": 13.9,
+  "inputLatMeanMs": 13.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 7.8,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 372
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "timer",
+  "chars": 1902,
+  "tokens": 543,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.4124776000000565,
+   "sucrase": 0.33556429999989634
+  },
+  "light": {
+   "minContrast": 3.9,
+   "height": 328
+  },
+  "warmFirstMs": 45.2,
+  "warmMs": 14.3,
+  "warmJsMs": 7.9,
+  "warmMaxMs": 45.2,
+  "inputLatMs": 18.6,
+  "inputLatMeanMs": 14.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.8,
+  "dark": {
+   "minContrast": 5.85,
+   "height": 328
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "checklist",
+  "chars": 1395,
+  "tokens": 399,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.4993163499999356,
+   "sucrase": 0.3263058500000625
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 349
+  },
+  "warmFirstMs": 41.8,
+  "warmMs": 14.2,
+  "warmJsMs": 6,
+  "warmMaxMs": 41.8,
+  "inputLatMs": 12.7,
+  "inputLatMeanMs": 12.7,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.2,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 349
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "quiz",
+  "chars": 1657,
+  "tokens": 473,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.30258900000008,
+   "sucrase": 0.1898819000001822
+  },
+  "light": {
+   "minContrast": 3.12,
+   "height": 317
+  },
+  "warmFirstMs": 26,
+  "warmMs": 13.2,
+  "warmJsMs": 8.6,
+  "warmMaxMs": 26,
+  "inputLatMs": 21.2,
+  "inputLatMeanMs": 21.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 7.3,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 317
+  },
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "heartrate",
+  "chars": 1397,
+  "tokens": 399,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.3017519000000903,
+   "sucrase": 0.22647519999991345
+  },
+  "light": {
+   "minContrast": 2.56,
+   "height": 345
+  },
+  "warmFirstMs": 52.1,
+  "warmMs": 16.7,
+  "warmJsMs": 9.8,
+  "warmMaxMs": 52.1,
+  "inputLatMs": 19.3,
+  "inputLatMeanMs": 19.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 7.2,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 345
+  },
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "sleep",
+  "chars": 1350,
+  "tokens": 386,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 332
+  },
+  "warmFirstMs": 72.6,
+  "warmMs": 15.4,
+  "warmJsMs": 2.8,
+  "warmMaxMs": 72.6,
+  "inputLatMs": 18.2,
+  "inputLatMeanMs": 18.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 332
+  },
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "spending",
+  "chars": 1685,
+  "tokens": 481,
+  "errors": [],
+  "fails": [
+   "light contrast<2.5: ● 2.23"
+  ],
+  "light": {
+   "minContrast": 2.23,
+   "height": 553
+  },
+  "warmFirstMs": 97.4,
+  "warmMs": 13.3,
+  "warmJsMs": 4.4,
+  "warmMaxMs": 97.4,
+  "inputLatMs": 18.9,
+  "inputLatMeanMs": 18.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 5.85,
+   "height": 553
+  },
+  "pass": false
+ },
+ {
+  "cand": "json",
+  "task": "tip",
+  "chars": 1644,
+  "tokens": 470,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 387
+  },
+  "warmFirstMs": 65.3,
+  "warmMs": 14.1,
+  "warmJsMs": 1.6,
+  "warmMaxMs": 65.3,
+  "inputLatMs": 10.6,
+  "inputLatMeanMs": 8.8,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 387
+  },
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "calendar",
+  "chars": 3824,
+  "tokens": 1093,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 5.19,
+   "height": 723
+  },
+  "warmFirstMs": 18.8,
+  "warmMs": 12.7,
+  "warmJsMs": 2.6,
+  "warmMaxMs": 18.8,
+  "inputLatMs": 19.5,
+  "inputLatMeanMs": 19.5,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 5.87,
+   "height": 723
+  },
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "flow",
+  "chars": 2028,
+  "tokens": 579,
+  "errors": [
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "canvas: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044"
+  ],
+  "fails": [
+   "console: light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light interaction: total: got \"\" want [\"790\"]",
+   "dark interaction: total: got \"\" want [\"790\"]"
+  ],
+  "light": {
+   "minContrast": 6.54,
+   "height": 205
+  },
+  "warmFirstMs": 11.6,
+  "warmMs": 13,
+  "warmJsMs": 2.3,
+  "warmMaxMs": 16.2,
+  "inputLatMs": null,
+  "inputLatMeanMs": null,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 9.11,
+   "height": 205
+  },
+  "pass": false
+ },
+ {
+  "cand": "json",
+  "task": "habits",
+  "chars": 2929,
+  "tokens": 837,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 295
+  },
+  "warmFirstMs": 26.9,
+  "warmMs": 14.9,
+  "warmJsMs": 2.5,
+  "warmMaxMs": 26.9,
+  "inputLatMs": 10.8,
+  "inputLatMeanMs": 10.8,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 295
+  },
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "convert",
+  "chars": 760,
+  "tokens": 217,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 333
+  },
+  "warmFirstMs": 32.6,
+  "warmMs": 13.7,
+  "warmJsMs": 1.3,
+  "warmMaxMs": 32.6,
+  "inputLatMs": 12.5,
+  "inputLatMeanMs": 10,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 333
+  },
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "compare",
+  "chars": 2344,
+  "tokens": 670,
+  "errors": [
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "canvas: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044"
+  ],
+  "fails": [
+   "console: light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light interaction: locator.click: Timeout 1500ms exceeded.",
+   "dark interaction: locator.click: Timeout 1500ms exceeded."
+  ],
+  "light": {
+   "minContrast": 6.54,
+   "height": 205
+  },
+  "warmFirstMs": 25.8,
+  "warmMs": 13.8,
+  "warmJsMs": 1.8,
+  "warmMaxMs": 25.8,
+  "inputLatMs": null,
+  "inputLatMeanMs": null,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 9.11,
+   "height": 205
+  },
+  "pass": false
+ },
+ {
+  "cand": "json",
+  "task": "timer",
+  "chars": 882,
+  "tokens": 252,
+  "errors": [
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "canvas: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044"
+  ],
+  "fails": [
+   "console: light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light interaction: time: got \"\" want [\"3:00\"]",
+   "dark interaction: time: got \"\" want [\"3:00\"]"
+  ],
+  "light": {
+   "minContrast": 6.54,
+   "height": 205
+  },
+  "warmFirstMs": 10.7,
+  "warmMs": 13.4,
+  "warmJsMs": 1.5,
+  "warmMaxMs": 15.9,
+  "inputLatMs": null,
+  "inputLatMeanMs": null,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 9.11,
+   "height": 205
+  },
+  "pass": false
+ },
+ {
+  "cand": "json",
+  "task": "checklist",
+  "chars": 661,
+  "tokens": 189,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 6.49,
+   "height": 349
+  },
+  "warmFirstMs": 18.6,
+  "warmMs": 14.6,
+  "warmJsMs": 1.3,
+  "warmMaxMs": 18.6,
+  "inputLatMs": 13.6,
+  "inputLatMeanMs": 13.6,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 7.66,
+   "height": 349
+  },
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "quiz",
+  "chars": 1061,
+  "tokens": 303,
+  "errors": [
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "dark: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "canvas: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044"
+  ],
+  "fails": [
+   "console: light: render error: SyntaxError: Unexpected token '{'\n    at new Function (<anonymous>)\n    at compile (file:///tmp/claude-0/-home-user/8928c7c7-0fc9-5b00-984f-921044",
+   "light interaction: locator.click: Timeout 1500ms exceeded.",
+   "dark interaction: locator.click: Timeout 1500ms exceeded."
+  ],
+  "light": {
+   "minContrast": 6.54,
+   "height": 205
+  },
+  "warmFirstMs": 13.7,
+  "warmMs": 13.7,
+  "warmJsMs": 2,
+  "warmMaxMs": 14.7,
+  "inputLatMs": null,
+  "inputLatMeanMs": null,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 9.11,
+   "height": 205
+  },
+  "pass": false
+ },
+ {
+  "cand": "json",
+  "task": "heartrate",
+  "chars": 1081,
+  "tokens": 309,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 347
+  },
+  "warmFirstMs": 25,
+  "warmMs": 13.7,
+  "warmJsMs": 2.8,
+  "warmMaxMs": 25,
+  "inputLatMs": 18.9,
+  "inputLatMeanMs": 18.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 347
+  },
+  "pass": true
+ }
+]

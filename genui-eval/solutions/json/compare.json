@@ -1,0 +1,17 @@
+{"state":{"pick":null,"names":["Sony WH-1000XM6","Bose QC Ultra","Sennheiser Momentum 4"]},
+ "view":{"type":"column","children":[
+  {"type":"column","gap":2,"children":[{"type":"text","style":"title","value":"Headphones compared"},{"type":"text","style":"sub","value":"Best in each row highlighted"}]},
+  {"type":"grid","columns":4,"gap":4,"style":{"gridTemplateColumns":"64px repeat(3,minmax(0,1fr))","alignItems":"center","fontSize":"13px","textAlign":"center"},"children":[
+    {"type":"spacer","size":0},
+    {"type":"text","weight":"600","value":"Sony WH-1000XM6","color":"=pick===0?'accent':'onSurface'","style":{"fontSize":"12px"}},
+    {"type":"text","weight":"600","value":"Bose QC Ultra","color":"=pick===1?'accent':'onSurface'","style":{"fontSize":"12px"}},
+    {"type":"text","weight":"600","value":"Sennheiser Momentum 4","color":"=pick===2?'accent':'onSurface'","style":{"fontSize":"12px"}},
+    {"type":"text","style":"sub","align":"left","value":"Price"},{"type":"text","value":"$449"},{"type":"text","value":"$429"},{"type":"text","value":"$379","color":"accent","weight":"600"},
+    {"type":"text","style":"sub","align":"left","value":"Battery"},{"type":"text","value":"30h"},{"type":"text","value":"24h"},{"type":"text","value":"60h","color":"accent","weight":"600"},
+    {"type":"text","style":"sub","align":"left","value":"Weight"},{"type":"text","value":"254g"},{"type":"text","value":"250g","color":"accent","weight":"600"},{"type":"text","value":"293g"},
+    {"type":"text","style":"sub","align":"left","value":"ANC"},{"type":"text","value":"●●●●●","color":"accent","weight":"600"},{"type":"text","value":"●●●●●","color":"accent","weight":"600"},{"type":"text","value":"●●●●"},
+    {"type":"spacer","size":0},
+    {"type":"button","id":"pick-0","variant":"small-ghost","full":true,"label":"=pick===0?'Picked':'Pick'","action":{"set":{"pick":0}}},
+    {"type":"button","id":"pick-1","variant":"small-ghost","full":true,"label":"=pick===1?'Picked':'Pick'","action":{"set":{"pick":1}}},
+    {"type":"button","id":"pick-2","variant":"small-ghost","full":true,"label":"=pick===2?'Picked':'Pick'","action":{"set":{"pick":2}}}]},
+  {"type":"card","id":"choice","children":[{"type":"text","value":"=pick==null?'Pick one to decide':'Picked: '+names[pick]","weight":"=pick==null?'400':'600'"}]}]}}

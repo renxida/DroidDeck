@@ -1,0 +1,19 @@
+<div class="tp stack">
+  <div class="spread"><div class="title">Split the bill</div><span class="badge">Bill $84.50</span></div>
+  <div class="card stack">
+    <div class="spread"><span class="sub">Tip</span><span class="num" style="font-weight:600" id="tipv"></span></div>
+    <input type="range" min="10" max="30" step="1" value="18" data-testid="tip">
+    <div class="spread"><span class="sub">People</span><div class="row"><button class="btn small ghost" data-testid="minus">−</button><span class="num" id="ppl" style="min-width:28px;text-align:center;font-weight:600"></span><button class="btn small ghost" data-testid="plus">+</button></div></div>
+  </div>
+  <div class="grid2"><div class="card"><div class="muted">Tip</div><div class="num" style="font-weight:600" id="tipamt"></div></div><div class="card"><div class="muted">Total</div><div class="num" style="font-weight:600" id="total"></div></div></div>
+  <div class="card" style="background:var(--accentSoft);text-align:center"><div class="sub">Each person pays</div><div class="big" style="color:var(--accent)" data-testid="per-person"></div></div>
+</div>
+<script>
+const bill=84.5;let tip=18,people=2;
+const $=s=>root.querySelector(s);
+function upd(){const t=bill*tip/100,tot=bill+t;$('#tipv').textContent=tip+'%';$('#ppl').textContent=people;$('#tipamt').textContent=G.fmt.money(t);$('#total').textContent=G.fmt.money(tot);$('[data-testid=per-person]').textContent=G.fmt.money(tot/people);$('[data-testid=minus]').disabled=people<=1;}
+$('[data-testid=tip]').addEventListener('input',e=>{tip=+e.target.value;upd();});
+$('[data-testid=plus]').onclick=()=>{people++;upd();};
+$('[data-testid=minus]').onclick=()=>{if(people>1)people--;upd();};
+upd();
+</script>

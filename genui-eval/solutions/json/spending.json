@@ -1,0 +1,11 @@
+{"state":{"cats":[{"label":"Rent","value":1850,"color":"accent","on":true},{"label":"Groceries","value":420,"color":"amber","on":true},{"label":"Dining","value":310,"color":"success","on":true},{"label":"Transport","value":140,"color":"rose","on":true},{"label":"Subscriptions","value":65,"color":"onSurface2","on":true},{"label":"Other","value":215,"color":"danger","on":true}]},
+ "view":{"type":"column","children":[
+  {"type":"column","gap":2,"children":[{"type":"text","style":"title","value":"Spending · November"},{"type":"text","style":"sub","value":"Tap a category to include or exclude it"}]},
+  {"type":"chart","kind":"donut","data":"=cats.filter(c=>c.on).map(c=>({label:c.label,value:c.value,color:'var(--'+c.color+')'}))","center":"=fmt.money(sum(cats,c=>c.on?c.value:0)).replace('.00','')","sub":"spent"},
+  {"type":"row","justify":"between","children":[{"type":"text","style":"sub","value":"Included total"},{"type":"text","style":"label","id":"total","value":"{{fmt.money(sum(cats,c=>c.on?c.value:0))}}"}]},
+  {"type":"list","divided":true,"items":"=cats","template":
+    {"type":"row","id":"cat-{{$item.label}}","onTap":{"toggle":"cats.$index.on"},"style":{"minHeight":"40px","cursor":"pointer"},"children":[
+      {"type":"text","value":"","color":"=$item.on?$item.color:'onSurface3'","style":{"width":"10px","height":"10px","borderRadius":"50%","background":"currentColor","flex":"none"}},
+      {"type":"text","value":"{{$item.label}}","color":"=$item.on?'onSurface':'onSurface3'","style":{"flex":"1"}},
+      {"type":"text","value":"{{fmt.money($item.value)}}","color":"=$item.on?'onSurface':'onSurface3'"},
+      {"type":"text","style":"muted","align":"right","value":"=$item.on?fmt.pct($item.value/sum(cats,c=>c.on?c.value:0)):'off'","style":{"width":"40px"}}]}}]}}

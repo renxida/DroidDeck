@@ -1,0 +1,5 @@
+{"state":{"items":[{"n":"Passport","d":true},{"n":"Charger","d":true},{"n":"Toothbrush","d":false},{"n":"Rain jacket","d":false},{"n":"Headphones","d":false},{"n":"Snacks","d":false}]},
+ "view":{"type":"column","children":[
+  {"type":"row","justify":"between","children":[{"type":"text","style":"title","value":"Weekend trip packing"},{"type":"text","style":"sub","id":"progress-label","value":"{{count(items,i=>i.d)}}/{{len(items)}} packed"}]},
+  {"type":"progress","value":"=count(items,i=>i.d)/len(items)"},
+  {"type":"list","divided":true,"items":"=items","template":{"type":"check","id":"item-{{$index}}","bind":"items.$index.d","label":"{{$item.n}}"}}]}}

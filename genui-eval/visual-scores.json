@@ -1,0 +1,11 @@
+{
+ "_rubric": "1-5 per screenshot pair (light+dark), strict: 5 = ship as-is in the native app; 4 = clean hierarchy/spacing, minor nits; 3 = works and legible but visibly generic or one clear flaw (awkward wrap, weak emphasis, crowding); 2 = layout or legibility problems; 1 = broken. Scored by the eval agent from shots/.",
+ "html":       {"sleep":4,"spending":4,"tip":4,"calendar":4,"flow":4,"habits":3,"convert":3,"compare":3,"timer":4,"checklist":4,"quiz":3,"heartrate":4},
+ "ts":         {"sleep":4,"spending":4,"tip":4,"calendar":4,"flow":4,"habits":3,"convert":3,"compare":3,"timer":4,"checklist":4,"quiz":3,"heartrate":4},
+ "preact-htm": {"sleep":4,"spending":4,"tip":4,"calendar":4,"flow":4,"habits":3,"convert":3,"compare":3,"timer":4,"checklist":4,"quiz":3,"heartrate":4},
+ "json":       {"sleep":4,"spending":4,"tip":4,"calendar":3,"flow":4,"habits":3,"convert":3,"compare":3,"timer":3,"checklist":4,"quiz":3,"heartrate":4},
+ "_notes": {
+  "all": "Visual quality is dominated by the shared theme.css + chart helpers, not the language: html/ts/preact screenshots are near pixel-identical. Common nits: habit names wrap ('No phone after 11'), product names hyphen-break in compare, convert is plain.",
+  "json": "calendar needed hand-computed pixel offsets for every event (no dynamic style); timer fell back to a bar (no ring primitive); compare can only highlight by text colour; quiz can't colour the chosen button."
+ }
+}

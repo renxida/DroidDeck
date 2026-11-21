@@ -1,0 +1,16 @@
+{"state":{
+  "bpm":[58,56,55,54,55,57,63,78,92,85,76,74,81,79,73,72,88,124,131,96,82,74,66,61],
+  "showAvg":false},
+ "view":{"type":"column","gap":12,"children":[
+  {"type":"row","justify":"between","align":"center","children":[
+    {"type":"text","style":"title","value":"Heart rate today"},
+    {"type":"chip","id":"toggle-avg","label":"Average","on":"=showAvg","action":{"toggle":"showAvg"}}]},
+  {"type":"row","gap":20,"children":[
+    {"type":"column","gap":0,"children":[
+      {"type":"text","style":"label","value":"Resting"},
+      {"type":"text","style":"big","value":"{{Math.min(...bpm)}} bpm"}]},
+    {"type":"column","gap":0,"children":[
+      {"type":"text","style":"label","value":"Peak"},
+      {"type":"text","style":"big","color":"danger","value":"{{Math.max(...bpm)}} bpm"}]}]},
+  {"type":"chart","kind":"line","data":"=bpm.map((v,i)=>({label:String(i).padStart(2,'0'), value:v}))","unit":"bpm","annotate":"minmax","avg":"=showAvg ? sum(bpm)/bpm.length : null"},
+  {"type":"text","id":"avg","visible":"=showAvg","style":"muted","value":"='avg ' + Math.round(sum(bpm)/bpm.length) + ' bpm'"}]}}

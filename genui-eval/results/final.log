@@ -1,0 +1,56 @@
+PASS html       sleep      warm   13.5ms  lat  14.8ms  cold  181.4ms 
+PASS html       spending   warm   13.8ms  lat  19.8ms  cold  200.9ms 
+PASS html       tip        warm   13.1ms  lat  20.1ms  cold    180ms 
+PASS html       calendar   warm   13.2ms  lat  13.8ms  cold  147.1ms 
+PASS html       flow       warm   14.3ms  lat  21.2ms  cold  149.8ms 
+PASS html       habits     warm   14.4ms  lat  34.3ms  cold  129.8ms 
+PASS html       convert    warm   12.7ms  lat  16.8ms  cold  133.9ms 
+PASS html       compare    warm   12.1ms  lat  16.4ms  cold  104.3ms 
+PASS html       timer      warm   13.2ms  lat  15.8ms  cold    118ms 
+PASS html       checklist  warm   14.1ms  lat  14.5ms  cold  117.1ms 
+PASS html       quiz       warm   13.7ms  lat  18.2ms  cold   97.5ms 
+PASS html       heartrate  warm     14ms  lat  14.9ms  cold   97.6ms 
+PASS preact-htm sleep      warm   13.3ms  lat  17.9ms  cold  153.7ms 
+PASS preact-htm spending   warm   13.2ms  lat  18.4ms  cold  167.3ms 
+PASS preact-htm tip        warm   12.5ms  lat  12.1ms  cold    140ms 
+PASS preact-htm calendar   warm   17.2ms  lat   9.2ms  cold  115.8ms 
+PASS preact-htm flow       warm   14.1ms  lat  16.6ms  cold  122.9ms 
+PASS preact-htm habits     warm   20.3ms  lat  16.1ms  cold  115.2ms 
+PASS preact-htm convert    warm   14.1ms  lat  17.2ms  cold  159.6ms 
+PASS preact-htm compare    warm   14.5ms  lat  18.1ms  cold  109.1ms 
+PASS preact-htm timer      warm   14.6ms  lat  12.7ms  cold  116.1ms 
+PASS preact-htm checklist  warm   14.1ms  lat  18.3ms  cold   85.8ms 
+PASS preact-htm quiz       warm   13.9ms  lat  15.5ms  cold  106.4ms 
+PASS preact-htm heartrate  warm   14.2ms  lat  20.1ms  cold   89.5ms 
+PASS ts         sleep      warm   13.4ms  lat  18.7ms  cold  250.4ms 
+PASS ts         spending   warm   18.6ms  lat  21.1ms  cold  274.6ms 
+PASS ts         tip        warm   17.3ms  lat  14.2ms  cold  212.9ms 
+PASS ts         calendar   warm   13.7ms  lat  15.3ms  cold  204.3ms 
+PASS ts         flow       warm   13.7ms  lat  13.6ms  cold    145ms 
+PASS ts         habits     warm   16.6ms  lat  16.3ms  cold  150.1ms 
+PASS ts         convert    warm   12.1ms  lat  14.2ms  cold  150.6ms 
+PASS ts         compare    warm     15ms  lat  13.8ms  cold  157.7ms 
+PASS ts         timer      warm     15ms  lat  12.8ms  cold  132.5ms 
+PASS ts         checklist  warm   12.6ms  lat  13.1ms  cold  127.8ms 
+PASS ts         quiz       warm     15ms  lat  14.9ms  cold  123.6ms 
+PASS ts         heartrate  warm   14.3ms  lat  12.5ms  cold  126.2ms 
+PASS json       sleep      warm   14.2ms  lat  21.9ms  cold    167ms 
+PASS json       spending   warm   12.2ms  lat  21.9ms  cold    148ms 
+PASS json       tip        warm   14.5ms  lat    23ms  cold  192.7ms 
+PASS json       calendar   warm   12.7ms  lat  21.2ms  cold  119.4ms 
+PASS json       flow       warm   13.2ms  lat  22.5ms  cold   85.9ms 
+PASS json       habits     warm     15ms  lat  13.2ms  cold   77.6ms 
+PASS json       convert    warm   15.1ms  lat  12.9ms  cold   97.2ms 
+PASS json       compare    warm   15.3ms  lat  12.3ms  cold   97.9ms 
+PASS json       timer      warm     15ms  lat  14.5ms  cold   67.9ms 
+PASS json       checklist  warm   13.2ms  lat  11.8ms  cold   77.4ms 
+PASS json       quiz       warm   13.8ms  lat  20.1ms  cold   75.8ms 
+PASS json       heartrate  warm   13.9ms  lat  14.6ms  cold   86.7ms 
+
+set=final  CPU throttle 4x  viewport 411x914@2.625
+cand        pass   tokens  warm_ms  warm_js  lat_max  lat_mean  longT  cold_ms  init_ms  rt_KB(gz)
+html        12/12     462     13.5      2.0     18.4      17.8      0    138.1     17.0  15.2(6.0)
+preact-htm  12/12     424     14.7      4.9     16.0      15.6      0    123.4     17.5  32.3(13.1)
+ts          12/12     531     14.8      6.5     15.0      14.3      1    171.3     46.3  216.5(52.3)
+            ts transform: phone(4x, in-page sucrase) 5.1ms; this machine esbuild 1.25ms, sucrase 0.38ms
+json        12/12     484     14.0      2.3     17.5      16.2      0    107.8     14.6  24.6(9.0)

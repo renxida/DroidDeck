@@ -1,0 +1,29 @@
+{"state":{"bill":84.5,"tip":18,"n":2},
+ "view":{"type":"column","gap":14,"children":[
+  {"type":"row","justify":"between","align":"center","children":[
+    {"type":"text","style":"title","value":"Split the tip"},
+    {"type":"badge","value":"Bill $84.50"}]},
+  {"type":"card","children":[
+    {"type":"column","gap":8,"children":[
+      {"type":"row","justify":"between","children":[
+        {"type":"text","style":"label","value":"Tip"},
+        {"type":"text","weight":"700","value":"{{tip}}%"}]},
+      {"type":"slider","id":"tip","bind":"tip","min":10,"max":30,"step":1}]}]},
+  {"type":"card","children":[
+    {"type":"row","justify":"between","align":"center","children":[
+      {"type":"text","style":"label","value":"Party size"},
+      {"type":"row","gap":12,"align":"center","children":[
+        {"type":"button","id":"minus","variant":"small-ghost","label":"−","disabled":"=n<=1","action":{"set":{"n":"=Math.max(1, n-1)"}}},
+        {"type":"text","weight":"700","value":"{{n}}"},
+        {"type":"button","id":"plus","variant":"small-ghost","label":"+","action":{"set":{"n":"=n+1"}}}]}]}]},
+  {"type":"column","gap":6,"children":[
+    {"type":"row","justify":"between","children":[
+      {"type":"text","style":"muted","value":"Tip amount"},
+      {"type":"text","value":"='$' + (bill*tip/100).toFixed(2)"}]},
+    {"type":"row","justify":"between","children":[
+      {"type":"text","style":"muted","value":"Total"},
+      {"type":"text","value":"='$' + (bill*(1+tip/100)).toFixed(2)"}]},
+    {"type":"divider"},
+    {"type":"row","justify":"between","align":"center","children":[
+      {"type":"text","style":"label","value":"Per person"},
+      {"type":"text","id":"per-person","style":"big","color":"accent","value":"='$' + (bill*(1+tip/100)/n).toFixed(2)"}]}]}]}}

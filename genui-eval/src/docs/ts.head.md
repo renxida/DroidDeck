@@ -1,0 +1,2 @@
+# Runtime: ts
+Write a strict TypeScript script body (no imports/exports). It must pass `tsc --strict`; the phone strips types on the fly. Globals: `root: HTMLElement` (your container) and `G` (typed helpers below). Build DOM with `root.innerHTML = \`...\`` (include a `<style>` there if needed; scope CSS under a class) and query with typed selectors, e.g. `root.querySelector<HTMLInputElement>('#tip')!`. No external URLs.

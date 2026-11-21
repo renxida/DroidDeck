@@ -1,0 +1,48 @@
+{"state":{
+  "pick":-1,
+  "p":[
+    {"name":"Sony WH-1000XM6","price":449,"battery":30,"weight":254,"anc":5},
+    {"name":"Bose QC Ultra","price":429,"battery":24,"weight":250,"anc":5},
+    {"name":"Sennheiser Momentum 4","price":379,"battery":60,"weight":293,"anc":4}]},
+ "view":{"type":"column","gap":14,"children":[
+  {"type":"row","justify":"between","align":"center","children":[
+    {"type":"text","style":"title","value":"Headphones"},
+    {"type":"text","style":"muted","value":"green = best in row"}]},
+  {"type":"card","children":[
+   {"type":"grid","columns":4,"gap":10,"style":{"gridTemplateColumns":"64px 1fr 1fr 1fr","alignItems":"center"},"children":[
+    {"type":"text","style":"label","value":""},
+    {"type":"column","gap":4,"children":[
+      {"type":"text","weight":"=pick===0 ? '700' : '600'","color":"=pick===0 ? 'accent' : ''","value":"=p[0].name"},
+      {"type":"badge","visible":"=pick===0","value":"✓ Picked"}]},
+    {"type":"column","gap":4,"children":[
+      {"type":"text","weight":"=pick===1 ? '700' : '600'","color":"=pick===1 ? 'accent' : ''","value":"=p[1].name"},
+      {"type":"badge","visible":"=pick===1","value":"✓ Picked"}]},
+    {"type":"column","gap":4,"children":[
+      {"type":"text","weight":"=pick===2 ? '700' : '600'","color":"=pick===2 ? 'accent' : ''","value":"=p[2].name"},
+      {"type":"badge","visible":"=pick===2","value":"✓ Picked"}]},
+
+    {"type":"text","style":"label","value":"Price"},
+    {"type":"text","value":"${{p[0].price}}","color":"=p[0].price===Math.min(...p.map(x=>x.price)) ? 'success' : ''","weight":"=p[0].price===Math.min(...p.map(x=>x.price)) ? '700' : '400'"},
+    {"type":"text","value":"${{p[1].price}}","color":"=p[1].price===Math.min(...p.map(x=>x.price)) ? 'success' : ''","weight":"=p[1].price===Math.min(...p.map(x=>x.price)) ? '700' : '400'"},
+    {"type":"text","value":"${{p[2].price}}","color":"=p[2].price===Math.min(...p.map(x=>x.price)) ? 'success' : ''","weight":"=p[2].price===Math.min(...p.map(x=>x.price)) ? '700' : '400'"},
+
+    {"type":"text","style":"label","value":"Battery"},
+    {"type":"text","value":"{{p[0].battery}} h","color":"=p[0].battery===Math.max(...p.map(x=>x.battery)) ? 'success' : ''","weight":"=p[0].battery===Math.max(...p.map(x=>x.battery)) ? '700' : '400'"},
+    {"type":"text","value":"{{p[1].battery}} h","color":"=p[1].battery===Math.max(...p.map(x=>x.battery)) ? 'success' : ''","weight":"=p[1].battery===Math.max(...p.map(x=>x.battery)) ? '700' : '400'"},
+    {"type":"text","value":"{{p[2].battery}} h","color":"=p[2].battery===Math.max(...p.map(x=>x.battery)) ? 'success' : ''","weight":"=p[2].battery===Math.max(...p.map(x=>x.battery)) ? '700' : '400'"},
+
+    {"type":"text","style":"label","value":"Weight"},
+    {"type":"text","value":"{{p[0].weight}} g","color":"=p[0].weight===Math.min(...p.map(x=>x.weight)) ? 'success' : ''","weight":"=p[0].weight===Math.min(...p.map(x=>x.weight)) ? '700' : '400'"},
+    {"type":"text","value":"{{p[1].weight}} g","color":"=p[1].weight===Math.min(...p.map(x=>x.weight)) ? 'success' : ''","weight":"=p[1].weight===Math.min(...p.map(x=>x.weight)) ? '700' : '400'"},
+    {"type":"text","value":"{{p[2].weight}} g","color":"=p[2].weight===Math.min(...p.map(x=>x.weight)) ? 'success' : ''","weight":"=p[2].weight===Math.min(...p.map(x=>x.weight)) ? '700' : '400'"},
+
+    {"type":"text","style":"label","value":"ANC"},
+    {"type":"text","value":"{{p[0].anc}}/5","color":"=p[0].anc===Math.max(...p.map(x=>x.anc)) ? 'success' : ''","weight":"=p[0].anc===Math.max(...p.map(x=>x.anc)) ? '700' : '400'"},
+    {"type":"text","value":"{{p[1].anc}}/5","color":"=p[1].anc===Math.max(...p.map(x=>x.anc)) ? 'success' : ''","weight":"=p[1].anc===Math.max(...p.map(x=>x.anc)) ? '700' : '400'"},
+    {"type":"text","value":"{{p[2].anc}}/5","color":"=p[2].anc===Math.max(...p.map(x=>x.anc)) ? 'success' : ''","weight":"=p[2].anc===Math.max(...p.map(x=>x.anc)) ? '700' : '400'"},
+
+    {"type":"spacer","size":0},
+    {"type":"button","id":"pick-0","variant":"=pick===0 ? 'small' : 'small-ghost'","label":"=pick===0 ? 'Picked' : 'Pick'","action":{"set":{"pick":0}}},
+    {"type":"button","id":"pick-1","variant":"=pick===1 ? 'small' : 'small-ghost'","label":"=pick===1 ? 'Picked' : 'Pick'","action":{"set":{"pick":1}}},
+    {"type":"button","id":"pick-2","variant":"=pick===2 ? 'small' : 'small-ghost'","label":"=pick===2 ? 'Picked' : 'Pick'","action":{"set":{"pick":2}}}]}]},
+  {"type":"text","id":"choice","weight":"600","value":"=pick<0 ? 'Nothing picked yet' : 'Picked: ' + p[pick].name"}]}}

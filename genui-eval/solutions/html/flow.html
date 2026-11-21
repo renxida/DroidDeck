@@ -1,0 +1,19 @@
+<div class="fl stack">
+  <div class="spread"><div><div class="title">Voice pipeline</div><div class="sub">Speech in to audio out</div></div><div style="text-align:right"><div class="big" data-testid="total"></div><div class="muted">end to end</div></div></div>
+  <div id="nodes" class="stack" style="gap:0"></div>
+  <div class="card" data-testid="detail"><span class="sub">Tap a stage for details</span></div>
+</div>
+<style>
+.fl .nd{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--outline);background:var(--surface2);cursor:pointer}
+.fl .nd.on{border-color:var(--accent);background:var(--accentSoft)}
+.fl .nd .bar{height:6px;border-radius:3px;background:var(--accent)}
+.fl .ar{height:22px;display:flex;justify-content:center;color:var(--onSurface3);font-size:14px;line-height:22px}
+</style>
+<script>
+const st=[["mic","Mic",0,"Speech captured at 16 kHz"],["asr","On-device ASR",120,"Streaming speech-to-text on the phone"],["claude","Claude",450,"Time to first token"],["tts","TTS",180,"Text-to-speech, first audio chunk"],["speaker","Speaker",40,"Audio output buffer"]];
+const total=st.reduce((a,s)=>a+s[2],0);let sel=null;
+root.querySelector('[data-testid=total]').textContent=total+' ms';
+function draw(){root.querySelector('#nodes').innerHTML=st.map(([k,n,ms],i)=>(i?'<div class="ar">↓</div>':'')+`<div class="nd ${sel===k?'on':''}" data-testid="node-${k}" data-k="${k}"><span class="grow" style="font-weight:600">${n}</span><div style="width:80px"><div class="bar" style="width:${ms/450*100}%"></div></div><span class="num sub" style="width:56px;text-align:right">${ms?ms+' ms':'—'}</span></div>`).join('');}
+root.querySelector('#nodes').addEventListener('click',e=>{const el=e.target.closest('[data-k]');if(!el)return;sel=el.dataset.k;const s=st.find(x=>x[0]===sel);root.querySelector('[data-testid=detail]').innerHTML=`<div class="spread"><span class="title">${s[1]}</span><span class="badge">${Math.round(s[2]/total*100)}% of total</span></div><div class="sub">${s[3]} · ${s[2]} ms</div>`;draw();});
+draw();
+</script>

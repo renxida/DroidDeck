@@ -1,0 +1,8 @@
+{"state":{"showAvg":false,"bpm":[58,56,55,54,55,57,63,78,92,85,76,74,81,79,73,72,88,124,131,96,82,74,66,61]},
+ "view":{"type":"column","children":[
+  {"type":"row","justify":"between","children":[{"type":"text","style":"title","value":"Heart rate today"},{"type":"chip","id":"toggle-avg","label":"Show average","on":"=showAvg","action":{"toggle":"showAvg"}}]},
+  {"type":"grid","columns":2,"children":[
+    {"type":"card","gap":2,"children":[{"type":"text","style":"muted","value":"Resting"},{"type":"text","weight":"650","value":"{{min(...bpm)}} bpm","style":{"fontSize":"22px"}}]},
+    {"type":"card","gap":2,"children":[{"type":"text","style":"muted","value":"Peak"},{"type":"text","weight":"650","color":"accent","value":"{{max(...bpm)}} bpm","style":{"fontSize":"22px"}}]}]},
+  {"type":"chart","kind":"line","data":"=bpm.map((v,i)=>({label:i%6===0?((i%12)||12)+(i<12?'a':'p'):'',value:v}))","annotate":"minmax","avg":"=showAvg","every":6,"color":"var(--rose)"},
+  {"type":"text","style":"sub","id":"avg","visible":"=showAvg","value":"avg {{round(sum(bpm)/len(bpm))}} bpm"}]}}

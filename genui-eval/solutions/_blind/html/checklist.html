@@ -1,0 +1,37 @@
+<style>
+.pck .item{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:8px 4px;background:none;border:0;border-bottom:1px solid var(--outline);color:var(--onSurface);font:inherit;font-size:15px;text-align:left;cursor:pointer}
+.pck .item:last-child{border-bottom:0}
+.pck .box{width:22px;height:22px;border-radius:7px;border:2px solid var(--outline);flex:none;display:flex;align-items:center;justify-content:center;color:var(--onAccent);font-size:14px;font-weight:700}
+.pck .item.on .box{background:var(--success);border-color:var(--success)}
+.pck .item.on .lbl{color:var(--onSurface3);text-decoration:line-through}
+.pck .list2{display:flex;flex-direction:column}
+</style>
+<div class="pck stack">
+  <div class="spread"><div><div class="title">Weekend trip</div><div class="sub">Packing checklist</div></div><div class="sub num" data-testid="progress-label"></div></div>
+  <div class="progress"><i></i></div>
+  <div class="card list2"></div>
+</div>
+<script>
+const items=[["Passport",1],["Charger",1],["Toothbrush",0],["Rain jacket",0],["Headphones",0],["Snacks",0]].map(x=>({name:x[0],on:!!x[1]}));
+const list=root.querySelector('.list2');
+list.innerHTML=items.map((it,i)=>'<button type="button" class="item" role="checkbox" data-i="'+i+'" data-testid="item-'+i+'"><span class="box"></span><span class="lbl">'+G.esc(it.name)+'</span></button>').join('');
+const draw=()=>{
+  const n=items.filter(x=>x.on).length;
+  list.querySelectorAll('.item').forEach(b=>{
+    const on=items[+b.dataset.i].on;
+    b.classList.toggle('on',on);
+    b.setAttribute('aria-checked',on?'true':'false');
+    b.querySelector('.box').textContent=on?'✓':'';
+  });
+  root.querySelector('.progress>i').style.width=(n/items.length*100)+'%';
+  root.querySelector('[data-testid=progress-label]').textContent=n+'/'+items.length+' packed';
+};
+list.addEventListener('click',e=>{
+  const b=e.target.closest('.item');
+  if(!b)return;
+  const it=items[+b.dataset.i];
+  it.on=!it.on;
+  draw();
+});
+draw();
+</script>

@@ -1,0 +1,23 @@
+{"state":{
+  "cats":[
+    {"name":"Rent","value":1850,"on":true,"dot":"var(--accent)"},
+    {"name":"Groceries","value":420,"on":true,"dot":"var(--amber)"},
+    {"name":"Dining","value":310,"on":true,"dot":"var(--success)"},
+    {"name":"Transport","value":140,"on":true,"dot":"var(--rose)"},
+    {"name":"Subscriptions","value":65,"on":true,"dot":"var(--onSurface2)"},
+    {"name":"Other","value":215,"on":true,"dot":"#7c6fd6","sc":"#7c6fd6"}]},
+ "view":{"type":"column","gap":14,"children":[
+  {"type":"row","justify":"between","align":"center","children":[
+    {"type":"text","style":"title","value":"Spending this month"},
+    {"type":"text","id":"total","weight":"700","value":"=fmt.money(sum(cats, c=>c.on ? c.value : 0))"}]},
+  {"type":"row","justify":"center","children":[
+    {"type":"chart","kind":"donut","data":"=cats.map(c=>({label:c.name, value:c.on ? c.value : 0, color:c.sc}))","center":"=fmt.money(sum(cats, c=>c.on ? c.value : 0))","sub":"total"}]},
+  {"type":"text","style":"muted","value":"Tap a category to include or exclude it"},
+  {"type":"list","items":"=cats","divided":true,"template":
+    {"type":"row","id":"cat-{{$item.name}}","justify":"between","align":"center","onTap":{"toggle":"cats.$index.on"},"style":{"opacity":"=$item.on ? 1 : 0.4","cursor":"pointer","padding":"6px 0"},"children":[
+      {"type":"row","gap":8,"align":"center","children":[
+        {"type":"row","style":{"width":"10px","height":"10px","borderRadius":"5px","background":"=$item.dot","flexShrink":"0"},"children":[]},
+        {"type":"text","value":"=$item.name"}]},
+      {"type":"row","gap":10,"align":"center","children":[
+        {"type":"text","weight":"600","value":"=fmt.money($item.value)"},
+        {"type":"text","style":"muted","value":"=$item.on ? Math.round($item.value / sum(cats, c=>c.on ? c.value : 0) * 100) + '%' : 'off'"}]}]}}]}}

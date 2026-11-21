@@ -1,0 +1,50 @@
+<style>
+.hab .days,.hab .cells{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.hab .days span{text-align:center;font-size:11px;color:var(--onSurface3)}
+.hab .cell{min-height:36px;border-radius:10px;border:1.5px solid var(--outline);background:transparent;cursor:pointer;padding:0;color:var(--onAccent);font-size:15px;font-weight:700}
+.hab .cell.on{background:var(--accent);border-color:var(--accent)}
+.hab .hrow{display:flex;flex-direction:column;gap:6px}
+.hab .hname{font-weight:600;font-size:14px}
+.hab .cnt{font-size:13px;color:var(--onSurface2)}
+.hab .totv{font-size:22px;font-weight:600}
+</style>
+<div class="hab stack">
+  <div class="spread">
+    <div><div class="title">Habits this week</div><div class="sub">Tap a day to toggle</div></div>
+    <div style="text-align:right"><div class="totv num" data-testid="count"></div><div class="muted">done</div></div>
+  </div>
+  <div class="card stack">
+    <div class="days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+    <div class="rows stack"></div>
+  </div>
+</div>
+<script>
+const src={"Meditate":[1,1,0,1,1,0,0],"Stretch":[1,0,0,1,0,1,0],"Read 30m":[1,1,1,1,0,1,1],"No phone after 11":[0,0,1,0,0,1,0]};
+const names=Object.keys(src);
+const grid=names.map(n=>src[n].slice());
+const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const rows=root.querySelector('.rows');
+rows.innerHTML=names.map((n,r)=>'<div class="hrow"><div class="spread"><span class="hname">'+G.esc(n)+'</span><span class="cnt num" data-testid="habit-count-'+r+'"></span></div><div class="cells">'+grid[r].map((v,c)=>'<button type="button" class="cell" data-r="'+r+'" data-c="'+c+'" data-testid="cell-'+r+'-'+c+'" aria-label="'+G.esc(n)+' '+days[c]+'"></button>').join('')+'</div></div>').join('');
+const draw=()=>{
+  let all=0;
+  grid.forEach((row,r)=>{
+    const n=row.reduce((s,v)=>s+v,0);all+=n;
+    root.querySelector('[data-testid=habit-count-'+r+']').textContent=n+'/7';
+  });
+  rows.querySelectorAll('.cell').forEach(b=>{
+    const on=!!grid[+b.dataset.r][+b.dataset.c];
+    b.classList.toggle('on',on);
+    b.setAttribute('aria-pressed',on?'true':'false');
+    b.textContent=on?'✓':'';
+  });
+  root.querySelector('[data-testid=count]').textContent=all+' / '+(names.length*7);
+};
+rows.addEventListener('click',e=>{
+  const b=e.target.closest('.cell');
+  if(!b)return;
+  const r=+b.dataset.r,c=+b.dataset.c;
+  grid[r][c]=grid[r][c]?0:1;
+  draw();
+});
+draw();
+</script>

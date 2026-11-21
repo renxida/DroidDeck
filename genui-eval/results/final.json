@@ -1,0 +1,1418 @@
+[
+ {
+  "cand": "html",
+  "task": "sleep",
+  "chars": 1317,
+  "tokens": 376,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 332
+  },
+  "warmFirstMs": 118,
+  "warmMs": 13.5,
+  "warmJsMs": 3.7,
+  "warmMaxMs": 118,
+  "inputLatMs": 14.8,
+  "inputLatMeanMs": 14.8,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 332
+  },
+  "coldPaintMs": 181.4,
+  "runtimeInitMs": 17.9,
+  "coldRenderMs": 81.3,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "spending",
+  "chars": 1676,
+  "tokens": 479,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 554
+  },
+  "warmFirstMs": 80.5,
+  "warmMs": 13.8,
+  "warmJsMs": 2.5,
+  "warmMaxMs": 80.5,
+  "inputLatMs": 19.8,
+  "inputLatMeanMs": 19.8,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 554
+  },
+  "coldPaintMs": 200.9,
+  "runtimeInitMs": 18.6,
+  "coldRenderMs": 90.6,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "tip",
+  "chars": 1720,
+  "tokens": 491,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 389
+  },
+  "warmFirstMs": 98.6,
+  "warmMs": 13.1,
+  "warmJsMs": 1.6,
+  "warmMaxMs": 98.6,
+  "inputLatMs": 20.1,
+  "inputLatMeanMs": 16.7,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 389
+  },
+  "coldPaintMs": 180,
+  "runtimeInitMs": 11.7,
+  "coldRenderMs": 88.5,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "calendar",
+  "chars": 2414,
+  "tokens": 690,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 723
+  },
+  "warmFirstMs": 20.1,
+  "warmMs": 13.2,
+  "warmJsMs": 2.3,
+  "warmMaxMs": 20.1,
+  "inputLatMs": 13.8,
+  "inputLatMeanMs": 13.8,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 723
+  },
+  "coldPaintMs": 147.1,
+  "runtimeInitMs": 12.6,
+  "coldRenderMs": 4.2,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "flow",
+  "chars": 2078,
+  "tokens": 594,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 469
+  },
+  "warmFirstMs": 21.9,
+  "warmMs": 14.3,
+  "warmJsMs": 1.5,
+  "warmMaxMs": 21.9,
+  "inputLatMs": 21.2,
+  "inputLatMeanMs": 21.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 469
+  },
+  "coldPaintMs": 149.8,
+  "runtimeInitMs": 36.8,
+  "coldRenderMs": 6.4,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "habits",
+  "chars": 1725,
+  "tokens": 493,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 268
+  },
+  "warmFirstMs": 53.6,
+  "warmMs": 14.4,
+  "warmJsMs": 2.1,
+  "warmMaxMs": 53.6,
+  "inputLatMs": 34.3,
+  "inputLatMeanMs": 34.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 268
+  },
+  "coldPaintMs": 129.8,
+  "runtimeInitMs": 17.3,
+  "coldRenderMs": 5.4,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "convert",
+  "chars": 1036,
+  "tokens": 296,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 333
+  },
+  "warmFirstMs": 37.5,
+  "warmMs": 12.7,
+  "warmJsMs": 1.5,
+  "warmMaxMs": 37.5,
+  "inputLatMs": 16.8,
+  "inputLatMeanMs": 15.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 333
+  },
+  "coldPaintMs": 133.9,
+  "runtimeInitMs": 8.7,
+  "coldRenderMs": 1.2,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "compare",
+  "chars": 1927,
+  "tokens": 551,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.12,
+   "height": 372
+  },
+  "warmFirstMs": 36.6,
+  "warmMs": 12.1,
+  "warmJsMs": 2.1,
+  "warmMaxMs": 36.6,
+  "inputLatMs": 16.4,
+  "inputLatMeanMs": 16.4,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 372
+  },
+  "coldPaintMs": 104.3,
+  "runtimeInitMs": 18,
+  "coldRenderMs": 5.2,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "timer",
+  "chars": 1568,
+  "tokens": 448,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.9,
+   "height": 328
+  },
+  "warmFirstMs": 13.2,
+  "warmMs": 13.2,
+  "warmJsMs": 1.2,
+  "warmMaxMs": 24.2,
+  "inputLatMs": 15.8,
+  "inputLatMeanMs": 13.5,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 5.85,
+   "height": 328
+  },
+  "coldPaintMs": 118,
+  "runtimeInitMs": 14.2,
+  "coldRenderMs": 3.6,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "checklist",
+  "chars": 1166,
+  "tokens": 333,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 349
+  },
+  "warmFirstMs": 20.7,
+  "warmMs": 14.1,
+  "warmJsMs": 1.1,
+  "warmMaxMs": 20.7,
+  "inputLatMs": 14.5,
+  "inputLatMeanMs": 14.5,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 349
+  },
+  "coldPaintMs": 117.1,
+  "runtimeInitMs": 21.2,
+  "coldRenderMs": 5.2,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "quiz",
+  "chars": 1464,
+  "tokens": 418,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.12,
+   "height": 317
+  },
+  "warmFirstMs": 12.2,
+  "warmMs": 13.7,
+  "warmJsMs": 1.2,
+  "warmMaxMs": 16,
+  "inputLatMs": 18.2,
+  "inputLatMeanMs": 18.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 317
+  },
+  "coldPaintMs": 97.5,
+  "runtimeInitMs": 13.3,
+  "coldRenderMs": 3.4,
+  "pass": true
+ },
+ {
+  "cand": "html",
+  "task": "heartrate",
+  "chars": 1292,
+  "tokens": 369,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 345
+  },
+  "warmFirstMs": 29.1,
+  "warmMs": 14,
+  "warmJsMs": 2.6,
+  "warmMaxMs": 29.1,
+  "inputLatMs": 14.9,
+  "inputLatMeanMs": 14.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 345
+  },
+  "coldPaintMs": 97.6,
+  "runtimeInitMs": 14,
+  "coldRenderMs": 10.4,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "sleep",
+  "chars": 1078,
+  "tokens": 308,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 332
+  },
+  "warmFirstMs": 117,
+  "warmMs": 13.3,
+  "warmJsMs": 6.4,
+  "warmMaxMs": 117,
+  "inputLatMs": 17.9,
+  "inputLatMeanMs": 17.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 332
+  },
+  "coldPaintMs": 153.7,
+  "runtimeInitMs": 12.9,
+  "coldRenderMs": 64.8,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "spending",
+  "chars": 1504,
+  "tokens": 430,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 554
+  },
+  "warmFirstMs": 79.7,
+  "warmMs": 13.2,
+  "warmJsMs": 6.6,
+  "warmMaxMs": 79.7,
+  "inputLatMs": 18.4,
+  "inputLatMeanMs": 18.4,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 554
+  },
+  "coldPaintMs": 167.3,
+  "runtimeInitMs": 17.6,
+  "coldRenderMs": 66.4,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "tip",
+  "chars": 1563,
+  "tokens": 447,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 389
+  },
+  "warmFirstMs": 69.7,
+  "warmMs": 12.5,
+  "warmJsMs": 3.6,
+  "warmMaxMs": 69.7,
+  "inputLatMs": 12.1,
+  "inputLatMeanMs": 11.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 389
+  },
+  "coldPaintMs": 140,
+  "runtimeInitMs": 16.5,
+  "coldRenderMs": 60.6,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "calendar",
+  "chars": 2384,
+  "tokens": 681,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 723
+  },
+  "warmFirstMs": 22.5,
+  "warmMs": 17.2,
+  "warmJsMs": 7.7,
+  "warmMaxMs": 22.5,
+  "inputLatMs": 9.2,
+  "inputLatMeanMs": 9.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 723
+  },
+  "coldPaintMs": 115.8,
+  "runtimeInitMs": 21.3,
+  "coldRenderMs": 14.4,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "flow",
+  "chars": 1897,
+  "tokens": 542,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 469
+  },
+  "warmFirstMs": 21.9,
+  "warmMs": 14.1,
+  "warmJsMs": 4,
+  "warmMaxMs": 21.9,
+  "inputLatMs": 16.6,
+  "inputLatMeanMs": 16.6,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 469
+  },
+  "coldPaintMs": 122.9,
+  "runtimeInitMs": 17.7,
+  "coldRenderMs": 20,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "habits",
+  "chars": 1437,
+  "tokens": 411,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 248
+  },
+  "warmFirstMs": 39.8,
+  "warmMs": 20.3,
+  "warmJsMs": 9.3,
+  "warmMaxMs": 39.8,
+  "inputLatMs": 16.1,
+  "inputLatMeanMs": 16.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 248
+  },
+  "coldPaintMs": 115.2,
+  "runtimeInitMs": 17.7,
+  "coldRenderMs": 19.4,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "convert",
+  "chars": 934,
+  "tokens": 267,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 333
+  },
+  "warmFirstMs": 38.5,
+  "warmMs": 14.1,
+  "warmJsMs": 2.7,
+  "warmMaxMs": 38.5,
+  "inputLatMs": 17.2,
+  "inputLatMeanMs": 13.4,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 333
+  },
+  "coldPaintMs": 159.6,
+  "runtimeInitMs": 24.2,
+  "coldRenderMs": 19.3,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "compare",
+  "chars": 1806,
+  "tokens": 516,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.12,
+   "height": 372
+  },
+  "warmFirstMs": 26.1,
+  "warmMs": 14.5,
+  "warmJsMs": 4.9,
+  "warmMaxMs": 26.1,
+  "inputLatMs": 18.1,
+  "inputLatMeanMs": 18.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 372
+  },
+  "coldPaintMs": 109.1,
+  "runtimeInitMs": 21.1,
+  "coldRenderMs": 17.2,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "timer",
+  "chars": 1641,
+  "tokens": 469,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.9,
+   "height": 328
+  },
+  "warmFirstMs": 27.1,
+  "warmMs": 14.6,
+  "warmJsMs": 3.3,
+  "warmMaxMs": 27.1,
+  "inputLatMs": 12.7,
+  "inputLatMeanMs": 12.4,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 5.85,
+   "height": 328
+  },
+  "coldPaintMs": 116.1,
+  "runtimeInitMs": 12.4,
+  "coldRenderMs": 18.5,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "checklist",
+  "chars": 1052,
+  "tokens": 301,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 349
+  },
+  "warmFirstMs": 17.6,
+  "warmMs": 14.1,
+  "warmJsMs": 3.6,
+  "warmMaxMs": 17.6,
+  "inputLatMs": 18.3,
+  "inputLatMeanMs": 18.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 349
+  },
+  "coldPaintMs": 85.8,
+  "runtimeInitMs": 11.4,
+  "coldRenderMs": 11.9,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "quiz",
+  "chars": 1395,
+  "tokens": 399,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.12,
+   "height": 317
+  },
+  "warmFirstMs": 12.8,
+  "warmMs": 13.9,
+  "warmJsMs": 2.5,
+  "warmMaxMs": 15.6,
+  "inputLatMs": 15.5,
+  "inputLatMeanMs": 15.5,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 317
+  },
+  "coldPaintMs": 106.4,
+  "runtimeInitMs": 23.7,
+  "coldRenderMs": 16.8,
+  "pass": true
+ },
+ {
+  "cand": "preact-htm",
+  "task": "heartrate",
+  "chars": 1122,
+  "tokens": 321,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 345
+  },
+  "warmFirstMs": 30.3,
+  "warmMs": 14.2,
+  "warmJsMs": 4.4,
+  "warmMaxMs": 30.3,
+  "inputLatMs": 20.1,
+  "inputLatMeanMs": 20.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 345
+  },
+  "coldPaintMs": 89.5,
+  "runtimeInitMs": 13.5,
+  "coldRenderMs": 14,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "sleep",
+  "chars": 1482,
+  "tokens": 423,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.4258312000001752,
+   "sucrase": 1.2319256999999197
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 332
+  },
+  "warmFirstMs": 86.7,
+  "warmMs": 13.4,
+  "warmJsMs": 8,
+  "warmMaxMs": 86.7,
+  "inputLatMs": 18.7,
+  "inputLatMeanMs": 18.7,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 6.1,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 332
+  },
+  "coldPaintMs": 250.4,
+  "runtimeInitMs": 57.1,
+  "coldRenderMs": 123.9,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "spending",
+  "chars": 1960,
+  "tokens": 560,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.5437691999999514,
+   "sucrase": 0.6436624999998457
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 554
+  },
+  "warmFirstMs": 116.4,
+  "warmMs": 18.6,
+  "warmJsMs": 8.8,
+  "warmMaxMs": 116.4,
+  "inputLatMs": 21.1,
+  "inputLatMeanMs": 21.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 6.4,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 554
+  },
+  "coldPaintMs": 274.6,
+  "runtimeInitMs": 53.5,
+  "coldRenderMs": 149.8,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "tip",
+  "chars": 2032,
+  "tokens": 581,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.334296600000016,
+   "sucrase": 0.6078511499999877
+  },
+  "light": {
+   "minContrast": 2.56,
+   "height": 389
+  },
+  "warmFirstMs": 134.9,
+  "warmMs": 17.3,
+  "warmJsMs": 6.9,
+  "warmMaxMs": 134.9,
+  "inputLatMs": 14.2,
+  "inputLatMeanMs": 13.7,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.6,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 389
+  },
+  "coldPaintMs": 212.9,
+  "runtimeInitMs": 34.8,
+  "coldRenderMs": 91.6,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "calendar",
+  "chars": 2599,
+  "tokens": 743,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.1916900000000168,
+   "sucrase": 0.3482590500003425
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 723
+  },
+  "warmFirstMs": 48.6,
+  "warmMs": 13.7,
+  "warmJsMs": 6.8,
+  "warmMaxMs": 48.6,
+  "inputLatMs": 15.3,
+  "inputLatMeanMs": 15.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.3,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 723
+  },
+  "coldPaintMs": 204.3,
+  "runtimeInitMs": 60.2,
+  "coldRenderMs": 51.1,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "flow",
+  "chars": 2354,
+  "tokens": 673,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.4962647000000289,
+   "sucrase": 0.3125803499999165
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 469
+  },
+  "warmFirstMs": 49.5,
+  "warmMs": 13.7,
+  "warmJsMs": 5.9,
+  "warmMaxMs": 49.5,
+  "inputLatMs": 13.6,
+  "inputLatMeanMs": 13.6,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 4.2,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 469
+  },
+  "coldPaintMs": 145,
+  "runtimeInitMs": 45.2,
+  "coldRenderMs": 35.7,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "habits",
+  "chars": 1903,
+  "tokens": 544,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.2389460500002314,
+   "sucrase": 0.26475645000027725
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 268
+  },
+  "warmFirstMs": 53.6,
+  "warmMs": 16.6,
+  "warmJsMs": 6.4,
+  "warmMaxMs": 53.6,
+  "inputLatMs": 16.3,
+  "inputLatMeanMs": 16.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 268
+  },
+  "coldPaintMs": 150.1,
+  "runtimeInitMs": 46.9,
+  "coldRenderMs": 32.8,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "convert",
+  "chars": 1218,
+  "tokens": 348,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.1333334499999181,
+   "sucrase": 0.13467529999979888
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 333
+  },
+  "warmFirstMs": 83.3,
+  "warmMs": 12.1,
+  "warmJsMs": 6.7,
+  "warmMaxMs": 83.3,
+  "inputLatMs": 14.2,
+  "inputLatMeanMs": 7.5,
+  "longTasks": 1,
+  "longTaskMs": 68,
+  "tsTransformPhoneMs": 5.6,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 333
+  },
+  "coldPaintMs": 150.6,
+  "runtimeInitMs": 44.9,
+  "coldRenderMs": 32.3,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "compare",
+  "chars": 2383,
+  "tokens": 681,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.2731664499995532,
+   "sucrase": 0.300471749999997
+  },
+  "light": {
+   "minContrast": 3.12,
+   "height": 372
+  },
+  "warmFirstMs": 51.8,
+  "warmMs": 15,
+  "warmJsMs": 6.8,
+  "warmMaxMs": 51.8,
+  "inputLatMs": 13.8,
+  "inputLatMeanMs": 13.8,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 4.5,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 372
+  },
+  "coldPaintMs": 157.7,
+  "runtimeInitMs": 44.2,
+  "coldRenderMs": 41.7,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "timer",
+  "chars": 1902,
+  "tokens": 543,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.1649189000003388,
+   "sucrase": 0.18971065000005183
+  },
+  "light": {
+   "minContrast": 3.9,
+   "height": 328
+  },
+  "warmFirstMs": 53.1,
+  "warmMs": 15,
+  "warmJsMs": 7,
+  "warmMaxMs": 53.1,
+  "inputLatMs": 12.8,
+  "inputLatMeanMs": 11.4,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.8,
+  "dark": {
+   "minContrast": 5.85,
+   "height": 328
+  },
+  "coldPaintMs": 132.5,
+  "runtimeInitMs": 44.1,
+  "coldRenderMs": 31.7,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "checklist",
+  "chars": 1395,
+  "tokens": 399,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.0134839999998804,
+   "sucrase": 0.13687319999953615
+  },
+  "light": {
+   "minContrast": 2.89,
+   "height": 349
+  },
+  "warmFirstMs": 42,
+  "warmMs": 12.6,
+  "warmJsMs": 4.4,
+  "warmMaxMs": 42,
+  "inputLatMs": 13.1,
+  "inputLatMeanMs": 13.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 3.6,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 349
+  },
+  "coldPaintMs": 127.8,
+  "runtimeInitMs": 41.6,
+  "coldRenderMs": 32.9,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "quiz",
+  "chars": 1657,
+  "tokens": 473,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.0662037000001874,
+   "sucrase": 0.21122600000016972
+  },
+  "light": {
+   "minContrast": 3.12,
+   "height": 317
+  },
+  "warmFirstMs": 21.8,
+  "warmMs": 15,
+  "warmJsMs": 4,
+  "warmMaxMs": 21.8,
+  "inputLatMs": 14.9,
+  "inputLatMeanMs": 14.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 3.1,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 317
+  },
+  "coldPaintMs": 123.6,
+  "runtimeInitMs": 43.6,
+  "coldRenderMs": 27.3,
+  "pass": true
+ },
+ {
+  "cand": "ts",
+  "task": "heartrate",
+  "chars": 1397,
+  "tokens": 399,
+  "errors": [],
+  "fails": [],
+  "typeErrors": [],
+  "nodeTransform": {
+   "esbuild": 1.0658891000006405,
+   "sucrase": 0.1318841499996779
+  },
+  "light": {
+   "minContrast": 2.56,
+   "height": 345
+  },
+  "warmFirstMs": 44.7,
+  "warmMs": 14.3,
+  "warmJsMs": 6.7,
+  "warmMaxMs": 44.7,
+  "inputLatMs": 12.5,
+  "inputLatMeanMs": 12.5,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "tsTransformPhoneMs": 5.7,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 345
+  },
+  "coldPaintMs": 126.2,
+  "runtimeInitMs": 39.3,
+  "coldRenderMs": 31.8,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "sleep",
+  "chars": 1350,
+  "tokens": 386,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 332
+  },
+  "warmFirstMs": 68.7,
+  "warmMs": 14.2,
+  "warmJsMs": 2.6,
+  "warmMaxMs": 68.7,
+  "inputLatMs": 21.9,
+  "inputLatMeanMs": 21.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 332
+  },
+  "coldPaintMs": 167,
+  "runtimeInitMs": 25.2,
+  "coldRenderMs": 75.6,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "spending",
+  "chars": 1788,
+  "tokens": 511,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 6.49,
+   "height": 553
+  },
+  "warmFirstMs": 46.3,
+  "warmMs": 12.2,
+  "warmJsMs": 4.7,
+  "warmMaxMs": 68.2,
+  "inputLatMs": 21.9,
+  "inputLatMeanMs": 21.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 7.66,
+   "height": 553
+  },
+  "coldPaintMs": 148,
+  "runtimeInitMs": 9.5,
+  "coldRenderMs": 70.4,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "tip",
+  "chars": 1644,
+  "tokens": 470,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 387
+  },
+  "warmFirstMs": 104.2,
+  "warmMs": 14.5,
+  "warmJsMs": 1.9,
+  "warmMaxMs": 104.2,
+  "inputLatMs": 23,
+  "inputLatMeanMs": 13.9,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 387
+  },
+  "coldPaintMs": 192.7,
+  "runtimeInitMs": 18.3,
+  "coldRenderMs": 55,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "calendar",
+  "chars": 3824,
+  "tokens": 1093,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 5.19,
+   "height": 723
+  },
+  "warmFirstMs": 22.3,
+  "warmMs": 12.7,
+  "warmJsMs": 3.6,
+  "warmMaxMs": 24.3,
+  "inputLatMs": 21.2,
+  "inputLatMeanMs": 21.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 5.87,
+   "height": 723
+  },
+  "coldPaintMs": 119.4,
+  "runtimeInitMs": 17.8,
+  "coldRenderMs": 17.8,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "flow",
+  "chars": 2024,
+  "tokens": 578,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 466
+  },
+  "warmFirstMs": 25.9,
+  "warmMs": 13.2,
+  "warmJsMs": 3.3,
+  "warmMaxMs": 25.9,
+  "inputLatMs": 22.5,
+  "inputLatMeanMs": 22.5,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 466
+  },
+  "coldPaintMs": 85.9,
+  "runtimeInitMs": 8.6,
+  "coldRenderMs": 8.9,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "habits",
+  "chars": 2929,
+  "tokens": 837,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 295
+  },
+  "warmFirstMs": 43.6,
+  "warmMs": 15,
+  "warmJsMs": 3.3,
+  "warmMaxMs": 43.6,
+  "inputLatMs": 13.2,
+  "inputLatMeanMs": 13.2,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 295
+  },
+  "coldPaintMs": 77.6,
+  "runtimeInitMs": 13.8,
+  "coldRenderMs": 8.9,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "convert",
+  "chars": 760,
+  "tokens": 217,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.89,
+   "height": 333
+  },
+  "warmFirstMs": 30.9,
+  "warmMs": 15.1,
+  "warmJsMs": 1.2,
+  "warmMaxMs": 30.9,
+  "inputLatMs": 12.9,
+  "inputLatMeanMs": 7.7,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.09,
+   "height": 333
+  },
+  "coldPaintMs": 97.2,
+  "runtimeInitMs": 15.7,
+  "coldRenderMs": 9.6,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "compare",
+  "chars": 2312,
+  "tokens": 661,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.9,
+   "height": 313
+  },
+  "warmFirstMs": 19.3,
+  "warmMs": 15.3,
+  "warmJsMs": 1.5,
+  "warmMaxMs": 19.3,
+  "inputLatMs": 12.3,
+  "inputLatMeanMs": 12.3,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 5.85,
+   "height": 313
+  },
+  "coldPaintMs": 97.9,
+  "runtimeInitMs": 17.9,
+  "coldRenderMs": 7.3,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "timer",
+  "chars": 878,
+  "tokens": 251,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.9,
+   "height": 282
+  },
+  "warmFirstMs": 16.2,
+  "warmMs": 15,
+  "warmJsMs": 0.8,
+  "warmMaxMs": 16.2,
+  "inputLatMs": 14.5,
+  "inputLatMeanMs": 13.7,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 5.85,
+   "height": 282
+  },
+  "coldPaintMs": 67.9,
+  "runtimeInitMs": 13.4,
+  "coldRenderMs": 5.6,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "checklist",
+  "chars": 661,
+  "tokens": 189,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 6.49,
+   "height": 349
+  },
+  "warmFirstMs": 21.1,
+  "warmMs": 13.2,
+  "warmJsMs": 1.4,
+  "warmMaxMs": 21.1,
+  "inputLatMs": 11.8,
+  "inputLatMeanMs": 11.8,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 7.66,
+   "height": 349
+  },
+  "coldPaintMs": 77.4,
+  "runtimeInitMs": 11.9,
+  "coldRenderMs": 9,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "quiz",
+  "chars": 1057,
+  "tokens": 302,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 3.12,
+   "height": 305
+  },
+  "warmFirstMs": 11.8,
+  "warmMs": 13.8,
+  "warmJsMs": 1.1,
+  "warmMaxMs": 14.5,
+  "inputLatMs": 20.1,
+  "inputLatMeanMs": 20.1,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 4.48,
+   "height": 305
+  },
+  "coldPaintMs": 75.8,
+  "runtimeInitMs": 13.2,
+  "coldRenderMs": 7.8,
+  "pass": true
+ },
+ {
+  "cand": "json",
+  "task": "heartrate",
+  "chars": 1081,
+  "tokens": 309,
+  "errors": [],
+  "fails": [],
+  "light": {
+   "minContrast": 2.56,
+   "height": 347
+  },
+  "warmFirstMs": 24.1,
+  "warmMs": 13.9,
+  "warmJsMs": 2.4,
+  "warmMaxMs": 24.1,
+  "inputLatMs": 14.6,
+  "inputLatMeanMs": 14.6,
+  "longTasks": 0,
+  "longTaskMs": 0,
+  "dark": {
+   "minContrast": 3.59,
+   "height": 347
+  },
+  "coldPaintMs": 86.7,
+  "runtimeInitMs": 9.7,
+  "coldRenderMs": 13.4,
+  "pass": true
+ }
+]

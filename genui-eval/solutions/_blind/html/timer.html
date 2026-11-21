@@ -1,0 +1,58 @@
+<style>
+.tmr{align-items:center}
+.tmr .ringwrap{position:relative;width:200px;height:200px}
+.tmr .ringwrap svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.tmr .ringwrap .bg{stroke:var(--surface2)}
+.tmr .ringwrap .fg{stroke:var(--accent);transition:stroke-dashoffset .25s linear}
+.tmr .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.tmr .tm{font-size:44px;font-weight:600;font-variant-numeric:tabular-nums}
+.tmr .btns{display:flex;gap:10px;width:100%}
+.tmr .btns .btn{flex:1;min-height:44px}
+.tmr.done .fg{stroke:var(--success)}
+</style>
+<div class="tmr stack">
+  <div style="align-self:stretch"><div class="title">Tea timer</div><div class="sub">3 minute steep</div></div>
+  <div class="ringwrap">
+    <svg viewBox="0 0 200 200" width="200" height="200"><circle class="bg" cx="100" cy="100" r="88" fill="none" stroke-width="12"/><circle class="fg" cx="100" cy="100" r="88" fill="none" stroke-width="12" stroke-linecap="round"/></svg>
+    <div class="center"><div class="tm" data-testid="time">3:00</div><div class="muted st">Ready</div></div>
+  </div>
+  <div class="btns">
+    <button type="button" class="btn" data-testid="start">Start</button>
+    <button type="button" class="btn ghost" data-testid="reset">Reset</button>
+  </div>
+</div>
+<script>
+const TOTAL=180;
+const C=2*Math.PI*88;
+const fg=root.querySelector('.fg');
+fg.setAttribute('stroke-dasharray',C.toFixed(2));
+let remaining=TOTAL,running=false,endAt=0,iv=null;
+const top=root.querySelector('.tmr');
+const fmt=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+const draw=()=>{
+  const shown=Math.max(0,Math.ceil(remaining-1e-6));
+  root.querySelector('[data-testid=time]').textContent=fmt(shown);
+  fg.setAttribute('stroke-dashoffset',(C*(1-remaining/TOTAL)).toFixed(2));
+  const sb=root.querySelector('[data-testid=start]');
+  sb.textContent=running?'Pause':(remaining<=0?'Start':(remaining<TOTAL?'Resume':'Start'));
+  sb.setAttribute('aria-pressed',running?'true':'false');
+  root.querySelector('.st').textContent=running?'Steeping':(remaining<=0?'Tea is ready':(remaining<TOTAL?'Paused':'Ready'));
+  top.classList.toggle('done',remaining<=0);
+};
+const stop=()=>{running=false;if(iv){clearInterval(iv);iv=null;}};
+const tick=()=>{
+  if(!root.isConnected){stop();return;}
+  remaining=Math.max(0,(endAt-Date.now())/1000);
+  if(remaining<=0){remaining=0;stop();}
+  draw();
+};
+root.querySelector('[data-testid=start]').onclick=()=>{
+  if(running){tick();stop();draw();return;}
+  if(remaining<=0)remaining=TOTAL;
+  running=true;endAt=Date.now()+remaining*1000;
+  iv=setInterval(tick,200);
+  draw();
+};
+root.querySelector('[data-testid=reset]').onclick=()=>{stop();remaining=TOTAL;draw();};
+draw();
+</script>

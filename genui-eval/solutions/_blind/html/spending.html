@@ -1,0 +1,50 @@
+<style>
+.spd .donutwrap{display:flex;justify-content:center;min-height:168px;align-items:center}
+.spd .leg{display:flex;flex-direction:column}
+.spd .legrow{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:6px 4px;background:none;border:0;border-bottom:1px solid var(--outline);color:var(--onSurface);font:inherit;text-align:left;cursor:pointer}
+.spd .legrow:last-child{border-bottom:0}
+.spd .legrow .sw{width:12px;height:12px;border-radius:4px;flex:none}
+.spd .legrow .nm{flex:1}
+.spd .legrow .amt{font-weight:600}
+.spd .legrow .sh{width:44px;text-align:right;color:var(--onSurface2);font-size:13px}
+.spd .legrow.off{opacity:.45}
+.spd .legrow.off .nm{text-decoration:line-through}
+.spd .totv{font-size:22px;font-weight:600}
+.spd .empty{color:var(--onSurface3);font-size:13px}
+</style>
+<div class="spd stack">
+  <div class="spread">
+    <div><div class="title">Spending this month</div><div class="sub">Tap a category to include or exclude it</div></div>
+    <div style="text-align:right"><div class="totv num" data-testid="total"></div><div class="muted">included</div></div>
+  </div>
+  <div class="card"><div class="donutwrap"></div></div>
+  <div class="card leg"></div>
+</div>
+<script>
+const data={"Rent":1850,"Groceries":420,"Dining":310,"Transport":140,"Subscriptions":65,"Other":215};
+const cats=Object.keys(data).map((k,i)=>({name:k,value:data[k],color:G.color(i),on:true}));
+const money=n=>'$'+Math.round(n).toLocaleString('en-US');
+const leg=root.querySelector('.leg');
+leg.innerHTML=cats.map((c,i)=>'<button class="legrow" type="button" aria-pressed="true" data-i="'+i+'" data-testid="cat-'+G.esc(c.name)+'"><span class="sw" style="background:'+c.color+'"></span><span class="nm">'+G.esc(c.name)+'</span><span class="amt num">'+money(c.value)+'</span><span class="sh num"></span></button>').join('');
+const draw=()=>{
+  const inc=cats.filter(c=>c.on);
+  const total=inc.reduce((s,c)=>s+c.value,0);
+  root.querySelector('[data-testid=total]').textContent=money(total);
+  const wrap=root.querySelector('.donutwrap');
+  wrap.innerHTML=inc.length?G.donut(inc.map(c=>({label:c.name,value:c.value,color:c.color})),{center:money(total),sub:'total'}):'<div class="empty">No categories included</div>';
+  leg.querySelectorAll('.legrow').forEach(r=>{
+    const c=cats[+r.dataset.i];
+    r.classList.toggle('off',!c.on);
+    r.setAttribute('aria-pressed',c.on?'true':'false');
+    r.querySelector('.sh').textContent=c.on&&total?Math.round(c.value/total*100)+'%':'—';
+  });
+};
+leg.addEventListener('click',e=>{
+  const r=e.target.closest('.legrow');
+  if(!r)return;
+  const c=cats[+r.dataset.i];
+  c.on=!c.on;
+  draw();
+});
+draw();
+</script>

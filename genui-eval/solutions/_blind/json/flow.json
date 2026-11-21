@@ -1,0 +1,21 @@
+{"state":{
+  "sel":"",
+  "stages":[
+    {"key":"mic","name":"Mic","ms":0,"desc":"Speech captured at 16 kHz"},
+    {"key":"asr","name":"On-device ASR","ms":120,"desc":"Streaming speech-to-text on the phone"},
+    {"key":"claude","name":"Claude","ms":450,"desc":"Time to first token"},
+    {"key":"tts","name":"TTS","ms":180,"desc":"Text-to-speech, first audio chunk"},
+    {"key":"speaker","name":"Speaker","ms":40,"desc":"Audio output buffer"}]},
+ "view":{"type":"column","gap":12,"children":[
+  {"type":"row","justify":"between","align":"center","children":[
+    {"type":"text","style":"title","value":"Voice pipeline"},
+    {"type":"text","id":"total","weight":"700","color":"accent","value":"=sum(stages, s=>s.ms) + ' ms total'"}]},
+  {"type":"list","items":"=stages","gap":0,"template":
+    {"type":"column","gap":0,"children":[
+      {"type":"card","id":"node-{{$item.key}}","onTap":{"set":{"sel":"=$item.key"}},"style":{"cursor":"pointer","outline":"=sel===$item.key ? '2px solid var(--accent)' : 'none'"},"children":[
+        {"type":"row","justify":"between","align":"center","children":[
+          {"type":"text","weight":"600","value":"=$item.name"},
+          {"type":"badge","value":"{{$item.ms}} ms"}]}]},
+      {"type":"text","align":"center","style":"muted","visible":"=$index < stages.length - 1","value":"↓"}]}},
+  {"type":"card","children":[
+    {"type":"text","id":"detail","value":"=sel ? stages.find(s=>s.key===sel).name + ': ' + stages.find(s=>s.key===sel).desc + ' · ' + Math.round(stages.find(s=>s.key===sel).ms / sum(stages, s=>s.ms) * 100) + '% of total' : 'Tap a stage for details'"}]}]}}

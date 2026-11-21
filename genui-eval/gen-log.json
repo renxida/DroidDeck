@@ -1,0 +1,13 @@
+{
+ "_note": "Generation protocol log. All 48 solutions written by one agent (no subagent tool available) in randomized candidate order html -> ts -> json -> preact-htm (seeded shuffle), each candidate's 12 tasks written in one pass from tasks.json + that runtime's DOC.md, before any rendered output was seen. First attempts are frozen in solutions/_first/. fixRounds = check-fail -> edit -> recheck cycles.",
+ "order": ["html", "ts", "json", "preact-htm"],
+ "fixRounds": {
+  "json": {"spending": 1, "flow": 1, "compare": 1, "timer": 1, "quiz": 1}
+ },
+ "fixNotes": {
+  "json/flow,compare,timer,quiz": "Mixed the two value syntaxes (\"={{expr}}\"), a SyntaxError at render. Same mistake in 4 files.",
+  "json/spending": "Legend dot drawn as a text glyph in amber: contrast 2.2 on white. Replaced with a currentColor swatch.",
+  "json/compare": "Also set a dynamic button variant, which the renderer does not support (noticed while fixing, not caught by checks)."
+ },
+ "harnessFixesAfterFirstRun": "After the html set's first run: corrected the habits fixture count (spec said 16/28, data sums to 15) and made the quiz lock test force-click a disabled button. No solution changed for either."
+}
