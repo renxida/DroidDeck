@@ -1,36 +1,42 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-:root{--bg:#F5F4EE;--surface:#FFFFFF;--surface2:#F3F1EA;--on:#141413;--on2:#5F5E5A;--on3:#9A988F;--outline:#E3E0D6;--accent:#C96442;--accentSoft:#F6E2D9;--success:#2F7D52;--danger:#B3261E;--amber:#E3A055;--rose:#D07A8C}
-html[data-theme=dark]{--bg:#161615;--surface:#242422;--surface2:#2E2E2B;--on:#F2F0E8;--on2:#B9B6AC;--on3:#85837B;--outline:#3B3A37;--accent:#E0886A;--accentSoft:#4A3129;--success:#7BC896;--danger:#F2B8B5;--amber:#E8B070;--rose:#E29AAB}
-html,body{margin:0;padding:0;background:transparent;color:var(--on);font:16px/1.4 sans-serif;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
-#root{background:var(--surface2);border-radius:18px;padding:16px;box-sizing:border-box;overflow:hidden}
-#root:empty{display:none}
-.fade{animation:f .22s cubic-bezier(.05,.7,.1,1) both}@keyframes f{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-h3{margin:0 0 4px;font:500 15px/1.3 sans-serif;color:var(--on2)}
-.big{font:500 28px/1.15 sans-serif;color:var(--on);margin:0 0 12px}
-.muted{color:var(--on3)}
-.btn{appearance:none;border:0;border-radius:22px;height:44px;padding:0 18px;font:500 15px sans-serif;background:var(--accent);color:var(--surface)}
-.chip{appearance:none;border:1px solid var(--outline);border-radius:18px;height:36px;padding:0 14px;font:500 14px sans-serif;background:var(--surface);color:var(--on)}
-input[type=range]{width:100%;accent-color:var(--accent)}
-svg text{fill:var(--on2);font:12px sans-serif}
-</style></head>
-<body><div id="root"></div>
+<html data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="rt/theme.css">
+</head><body><div id="root"></div>
+<script src="rt/core.js"></script>
+<script src="rt/preact.min.js"></script>
+<script src="rt/hooks.min.js"></script>
+<script src="rt/htm.min.js"></script>
+<script src="rt/preact-g.js"></script>
 <script>
-const root=document.getElementById('root');
-const B=window.claudeBridge||{height(){},rendered(){},event(){},log(){}};
-let lastH=-1;
-function report(){const h=Math.ceil(document.documentElement.getBoundingClientRect().height);if(h!==lastH){lastH=h;B.height(h)}}
-new ResizeObserver(report).observe(root);
-window.setTheme=t=>{document.documentElement.dataset.theme=t};
-window.clearCanvas=()=>{root.innerHTML='';report()};
-window.emit=(type,data)=>B.event(JSON.stringify({type,data}));
-window.render=p=>{
-  const t0=performance.now();
-  setTheme(p.theme);
-  root.innerHTML=p.src;root.classList.remove('fade');void root.offsetWidth;root.classList.add('fade');
-  for(const s of root.querySelectorAll('script')){const n=document.createElement('script');n.textContent=s.textContent;s.replaceWith(n)}
-  report();
-  requestAnimationFrame(()=>requestAnimationFrame(()=>B.rendered(performance.now()-t0)));
-};
+/* Phone glue. render({kind:'preact'|'html', src, theme}). Same contract as the genui eval (rt/DOC.md). */
+(function () {
+  const root = document.getElementById('root');
+  const B = window.claudeBridge || { height() {}, rendered() {}, event() {}, log() {} };
+  const timers = new Set(), si = setInterval, st = setTimeout, ci = clearInterval, ct = clearTimeout;
+  window.setInterval = (f, ms, ...a) => { const id = si(f, ms, ...a); timers.add(id); return id; };
+  window.setTimeout = (f, ms, ...a) => { const id = st(() => { timers.delete(id); f(...a); }, ms); timers.add(id); return id; };
+  let lastH = -1;
+  const report = () => { const h = Math.ceil(root.getBoundingClientRect().height); if (h !== lastH) { lastH = h; B.height(h); } };
+  new ResizeObserver(report).observe(root);
+  window.setTheme = (t) => { document.documentElement.dataset.theme = t; };
+  window.emit = (type, data) => B.event(JSON.stringify({ type, data }));
+  window.clearCanvas = () => { timers.forEach((id) => { ci(id); ct(id); }); timers.clear(); preact.render(null, root); root.innerHTML = ''; report(); };
+  const err = (e) => { B.log('render error: ' + (e && e.stack || e)); const d = document.createElement('div'); d.className = 'g-err'; d.textContent = String(e && e.message || e); root.appendChild(d); };
+  window.render = function (p) {
+    const t0 = performance.now();
+    setTheme(p.theme || 'light');
+    clearCanvas();
+    try {
+      if (p.kind === 'html') {
+        root.innerHTML = p.src;
+        for (const s of root.querySelectorAll('script')) { const n = document.createElement('script'); n.textContent = '(function(root){' + s.textContent + '\n})(document.getElementById("root"))'; s.replaceWith(n); }
+      } else window.__renderImpl(p.src, root);
+    } catch (e) { err(e); }
+    root.classList.remove('in'); void root.offsetWidth; root.classList.add('in');
+    report();
+    requestAnimationFrame(() => requestAnimationFrame(() => B.rendered(performance.now() - t0)));
+  };
+  // JIT-warm the runtime once while nobody is looking (the phone keeps this WebView alive).
+  try { window.__renderImpl('function App(){const [n]=useState(1);return html`<div class="card"><${G.Bar} data=${[{label:"a",value:n}]}/></div>`}\nreturn App;', root); preact.render(null, root); root.innerHTML = ''; } catch (e) {}
+})();
 </script></body></html>

@@ -104,7 +104,7 @@ final class Script implements Choreographer.FrameCallback {
   }
 
   private void canvas(String name) {
-    String src = asset("demo/" + name + ".html");
+    String src = asset("demo/" + name + ".js");
     android.webkit.WebView w = CanvasHost.take(v.getContext(), new CanvasHost.Listener() {
       @Override public void onHeight(int px) { v.setCanvasHeight(px); }
       @Override public void onRendered(double jsMs) { state("canvas_rendered"); }
@@ -112,7 +112,7 @@ final class Script implements Choreographer.FrameCallback {
     });
     v.showCanvas(w, v.ui.dp(1));
     perf.expectFrame("canvas_first_frame");
-    CanvasHost.render("html", src, v.ui.night);
+    CanvasHost.render("preact", src, v.ui.night);
   }
 
   private String asset(String p) {
