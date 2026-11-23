@@ -7,6 +7,15 @@
 GrapheneOS lists the Pixel 10a (codename stallion) under official production support
 (https://grapheneos.org/faq). Install follows https://grapheneos.org/install/web.
 
+## Arrival day (Nov 23: ordered on Amazon, arriving Nov 25 to 27)
+Two-minute check before anything else, so a locked unit goes back unopened beyond this:
+1. Power on, connect to Wi-Fi (the OEM unlocking toggle stays grey until the phone has been online once).
+2. Settings > About phone: note the model. Pixel 10a (stallion) and Pixel 9a (tegu) are both
+   supported by GrapheneOS; the steps below are the same.
+3. Tap Build number 7 times, then System > Developer options > OEM unlocking.
+   Toggles on: keep it. Greyed out after a few minutes online and a restart: return it.
+Skip signing in to a Google account during setup; nothing below needs it.
+
 ## Buying
 - Buy the **unlocked** Pixel 10a (Google Store, Best Buy unlocked, Amazon unlocked).
   Carrier-branded units can have bootloader unlocking disabled for good.
