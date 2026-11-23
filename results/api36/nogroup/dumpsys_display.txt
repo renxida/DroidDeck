@@ -34,7 +34,7 @@ Display Devices: size=2
   DisplayDeviceInfo{"Built-in Screen": uniqueId="local:4619827259835644672", 1080 x 2400, modeId 1, renderFrameRate 60.000004, hasArrSupport false, frameRateCategoryRate FrameRateCategoryRate {normal=60.0, high=90.0}, supportedRefreshRates [60.000004], defaultModeId 1, userPreferredModeId -1, supportedModes [{id=1, width=1080, height=2400, fps=60.000004, vsync=60.000004, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], colorMode 0, supportedColorModes [0], hdrCapabilities HdrCapabilities{mSupportedHdrTypes=[], mMaxLuminance=500.0, mMaxAverageLuminance=500.0, mMinLuminance=0.0}, isForceSdr false, allmSupported false, gameContentTypeSupported false, density 420, 420.0 x 420.0 dpi, appVsyncOff 1000000, presDeadline 16666666, cutout DisplayCutout{insets=Rect(0, 128 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(492, 0 - 610, 128), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=1080 displayHeight=2400 physicalDisplayWidth=1080 physicalDisplayHeight=2400 density={2.625} cutoutSpec={M 507,64 a 33,33 0 1 0 66,0 33,33 0 1 0 -66,0 Z @left} rotation={0} scale={1.0} physicalPixelDisplaySizeRatio={1.0}}} sideOverrides={}}, touch INTERNAL, rotation 0, type INTERNAL, address {port=0, model=0x401cec6a7a2b7b}, deviceProductInfo DeviceProductInfo{name=EMU_display_0, manufacturerPnpId=GGL, productId=1, modelYear=null, manufactureDate=ManufactureDate{week=27, year=2006}, connectionToSinkType=1}, state ON, committedState ON, frameRateOverride , brightnessMinimum 0.035433073, brightnessMaximum 1.0, brightnessDefault 0.39763778, brightnessDim 0.05, hdrSdrRatio NaN, roundedCorners RoundedCorners{[RoundedCorner{position=TopLeft, radius=28, center=Point(28, 28)}, RoundedCorner{position=TopRight, radius=28, center=Point(1052, 28)}, RoundedCorner{position=BottomRight, radius=28, center=Point(1052, 2372)}, RoundedCorner{position=BottomLeft, radius=28, center=Point(28, 2372)}]}, FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY, FLAG_ROTATES_WITH_CONTENT, FLAG_SECURE, FLAG_SUPPORTS_PROTECTED_BUFFERS, FLAG_TRUSTED, installOrientation 0, displayShape DisplayShape{ spec=-1893857183 displayWidth=1080 displayHeight=2400 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}}
     mAdapter=LocalDisplayAdapter
     mUniqueId=local:4619827259835644672
-    mDisplayToken=android.os.BinderProxy@5f46ce1
+    mDisplayToken=android.os.BinderProxy@d1d1f48
     mCurrentLayerStack=0
     mCurrentFlags=1
     mCurrentOrientation=0
@@ -53,7 +53,7 @@ Display Devices: size=2
     mState=ON
     mCommittedState=ON
     mBrightnessState=0.39763778
-    mBacklightAdapter=BacklightAdapter [useSurfaceControl=false (force_anyway? false), backlight=com.android.server.lights.LightsService$LightImpl@9451a06]
+    mBacklightAdapter=BacklightAdapter [useSurfaceControl=false (force_anyway? false), backlight=com.android.server.lights.LightsService$LightImpl@e9e71e1]
     mAllmSupported=false
     mAllmRequested=false
     mGameContentTypeSupported=false
@@ -126,13 +126,13 @@ Display Devices: size=2
   DisplayDeviceInfo{"claude-ws": uniqueId="virtual:com.android.shell,2000,claude-ws,9", 1080 x 2400, modeId 11, renderFrameRate 60.0, hasArrSupport false, frameRateCategoryRate null, supportedRefreshRates [], defaultModeId 11, userPreferredModeId -1, supportedModes [{id=11, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], colorMode 0, supportedColorModes [0], hdrCapabilities null, isForceSdr false, allmSupported false, gameContentTypeSupported false, density 420, 420.0 x 420.0 dpi, appVsyncOff 0, presDeadline 16666666, touch VIRTUAL, rotation 0, type VIRTUAL, deviceProductInfo null, state ON, committedState UNKNOWN, owner com.android.shell (uid 2000), frameRateOverride , brightnessMinimum 0.0, brightnessMaximum 1.0, brightnessDefault 0.0, brightnessDim -1.0, hdrSdrRatio NaN, FLAG_ROTATES_WITH_CONTENT, FLAG_OWN_CONTENT_ONLY, FLAG_TRUSTED, FLAG_TOUCH_FEEDBACK_DISABLED, FLAG_OWN_FOCUS, installOrientation 0, displayShape DisplayShape{ spec=-1893857183 displayWidth=1080 displayHeight=2400 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}}
     mAdapter=VirtualDisplayAdapter
     mUniqueId=virtual:com.android.shell,2000,claude-ws,9
-    mDisplayToken=android.os.BinderProxy@3bce1aa
+    mDisplayToken=android.os.BinderProxy@fff813f
     mCurrentLayerStack=11
     mCurrentFlags=1
     mCurrentOrientation=0
     mCurrentLayerStackRect=Rect(0, 0 - 1080, 2400)
     mCurrentDisplayRect=Rect(0, 0 - 1080, 2400)
-    mCurrentSurface=Surface(name=null mNativeObject=134887523867328)/@0x7aa119b
+    mCurrentSurface=Surface(name=null mNativeObject=124810151006672)/@0xee56a0c
     mFlags=25801
     mDisplayState=ON
     mStopped=false
@@ -192,7 +192,7 @@ LogicalDisplayMapper:
     mDisplayOffset=(0, 0)
     mDisplayScalingDisabled=false
     mBaseDisplayInfo=DisplayInfo{"claude-ws", displayId 11, displayGroupId 0, FLAG_TRUSTED, FLAG_TOUCH_FEEDBACK_DISABLED, real 1080 x 2400, largest app 1080 x 2400, smallest app 1080 x 2400, appVsyncOff 0, presDeadline 16666666, mode 11, renderFrameRate 60.0, hasArrSupport false, frameRateCategoryRate null, supportedRefreshRates [], defaultMode 11, userPreferredModeId -1, supportedModes [{id=11, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], appsSupportedModes [{id=11, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], hdrCapabilities null, isForceSdr false, userDisabledHdrTypes [], minimalPostProcessingSupported false, rotation 0, state ON, committedState UNKNOWN, type VIRTUAL, uniqueId "virtual:com.android.shell,2000,claude-ws,9", app 1080 x 2400, density 420 (420.0 x 420.0) dpi, layerStack 11, colorMode 0, supportedColorModes [0], deviceProductInfo null, owner com.android.shell (uid 2000), removeMode 0, refreshRateOverride 0.0, brightnessMinimum 0.0, brightnessMaximum 1.0, brightnessDefault 0.0, brightnessDim -1.0, installOrientation ROTATION_0, layoutLimitedRefreshRate null, hdrSdrRatio not_available, thermalRefreshRateThrottling {}, thermalBrightnessThrottlingDataId default, canHostTasks false}
-    mOverrideDisplayInfo=DisplayInfo{"claude-ws", displayId 11, displayGroupId 0, FLAG_TRUSTED, FLAG_TOUCH_FEEDBACK_DISABLED, real 1080 x 2400, largest app 2400 x 2400, smallest app 1080 x 1080, appVsyncOff 0, presDeadline 16666666, mode 11, renderFrameRate 60.0, hasArrSupport false, frameRateCategoryRate null, supportedRefreshRates [], defaultMode 11, userPreferredModeId -1, supportedModes [{id=11, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], appsSupportedModes [{id=11, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], hdrCapabilities null, isForceSdr false, userDisabledHdrTypes [], minimalPostProcessingSupported false, rotation 0, state UNKNOWN, committedState UNKNOWN, type VIRTUAL, uniqueId "virtual:com.android.shell,2000,claude-ws,9", app 1080 x 2400, density 420 (420.0 x 420.0) dpi, layerStack 11, colorMode 0, supportedColorModes [0], deviceProductInfo null, owner com.android.shell (uid 2000), removeMode 0, refreshRateOverride 60.0, brightnessMinimum 0.0, brightnessMaximum 1.0, brightnessDefault 0.0, brightnessDim -1.0, installOrientation ROTATION_0, layoutLimitedRefreshRate null, hdrSdrRatio not_available, thermalRefreshRateThrottling {}, thermalBrightnessThrottlingDataId default, canHostTasks false}
+    mOverrideDisplayInfo=DisplayInfo{"claude-ws", displayId 11, displayGroupId 0, FLAG_TRUSTED, FLAG_TOUCH_FEEDBACK_DISABLED, real 1080 x 2400, largest app 2400 x 2400, smallest app 1080 x 1080, appVsyncOff 0, presDeadline 16666666, mode 11, renderFrameRate 60.0, hasArrSupport false, frameRateCategoryRate null, supportedRefreshRates [], defaultMode 11, userPreferredModeId -1, supportedModes [{id=11, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], appsSupportedModes [{id=11, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], hdrCapabilities null, isForceSdr false, userDisabledHdrTypes [], minimalPostProcessingSupported false, rotation 0, state ON, committedState UNKNOWN, type VIRTUAL, uniqueId "virtual:com.android.shell,2000,claude-ws,9", app 1080 x 2400, density 420 (420.0 x 420.0) dpi, layerStack 11, colorMode 0, supportedColorModes [0], deviceProductInfo null, owner com.android.shell (uid 2000), removeMode 0, refreshRateOverride 60.0, brightnessMinimum 0.0, brightnessMaximum 1.0, brightnessDefault 0.0, brightnessDim -1.0, installOrientation ROTATION_0, layoutLimitedRefreshRate null, hdrSdrRatio not_available, thermalRefreshRateThrottling {}, thermalBrightnessThrottlingDataId default, canHostTasks false}
     mRequestedMinimalPostProcessing=false
     mFrameRateOverrides=[]
     mPendingFrameRateOverrideUids={}
@@ -207,8 +207,8 @@ LogicalDisplayMapper:
   
   Display Groups: size=1
   Group 0:
-    Display 0 com.android.server.display.LocalDisplayAdapter$LocalDisplayDevice@8e9f61d
-    Display 11 com.android.server.display.VirtualDisplayAdapter$VirtualDisplayDevice@da8e938
+    Display 0 com.android.server.display.LocalDisplayAdapter$LocalDisplayDevice@388e7f4
+    Display 11 com.android.server.display.VirtualDisplayAdapter$VirtualDisplayDevice@7851af8
   
   DeviceStateToLayoutMap:
   -----------------------
@@ -218,16 +218,16 @@ LogicalDisplayMapper:
 
 Callbacks: size=10
 -----------------
-  0: mPid=647 mUid=1000 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
-  1: mPid=1013 mUid=10185 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
+  0: mPid=583 mUid=1000 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
+  1: mPid=1011 mUid=10183 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
   2: mPid=1163 mUid=1002 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
-  3: mPid=1184 mUid=1001 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
-  4: mPid=1246 mUid=1000 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
-  5: mPid=1269 mUid=10182 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
-  6: mPid=1476 mUid=10152 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
-  7: mPid=2539 mUid=10147 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
-  8: mPid=3408 mUid=10136 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
-  9: mPid=4562 mUid=10146 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
+  3: mPid=1176 mUid=1001 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
+  4: mPid=1280 mUid=1000 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
+  5: mPid=1313 mUid=10184 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
+  6: mPid=1380 mUid=10147 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
+  7: mPid=1491 mUid=10153 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
+  8: mPid=3771 mUid=10136 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
+  9: mPid=4928 mUid=10146 mWifiDisplayScanRequested=false cached=false frozen=false pendingDisplayEvents=0 pendingTopology=false
 
 PersistentDataStore:
 --------------------
@@ -272,7 +272,7 @@ Display Power Controller Configuration:
   mCachedBrightnessInfo.hbmMode=0
   mCachedBrightnessInfo.hbmTransitionPoint=Infinity
   mCachedBrightnessInfo.brightnessMaxReason =0
-  mCachedBrightnessInfo.brightnessReason =android.util.MutableInt@4e786a7
+  mCachedBrightnessInfo.brightnessReason =android.util.MutableInt@2f40192
   mDisplayBlanksAfterDozeConfig=false
   mBrightnessBucketsInDozeConfig=false
   mDozeScaleFactor=1.0
@@ -282,8 +282,8 @@ Display Power Controller Thread State:
   mBrightnessReason=manual
   mDozing=false
   mSkipRampState=RAMP_STATE_SKIP_NONE
-  mScreenOnBlockStartRealTime=130832
-  mScreenOffBlockStartRealTime=125234
+  mScreenOnBlockStartRealTime=99540
+  mScreenOffBlockStartRealTime=93313
   mPendingScreenOnUnblocker=null
   mPendingScreenOffUnblocker=null
   mPendingScreenOff=false
@@ -496,7 +496,7 @@ DisplayPowerProximityStateController:
   mProximityThreshold=1.0
   mProximity=Unknown
   mPendingProximity=Unknown
-  mPendingProximityDebounceTime=-1 (145811 ms ago)
+  mPendingProximityDebounceTime=-1 (113408 ms ago)
   mScreenOffBecauseOfProximity=false
   mSkipRampBecauseOfProximityChangeToNegative=false
 
@@ -527,7 +527,7 @@ Display Power Controller Configuration:
   mCachedBrightnessInfo.hbmMode=0
   mCachedBrightnessInfo.hbmTransitionPoint=Infinity
   mCachedBrightnessInfo.brightnessMaxReason =0
-  mCachedBrightnessInfo.brightnessReason =android.util.MutableInt@19f60e4
+  mCachedBrightnessInfo.brightnessReason =android.util.MutableInt@5efc40d
   mDisplayBlanksAfterDozeConfig=false
   mBrightnessBucketsInDozeConfig=false
   mDozeScaleFactor=1.0
@@ -751,7 +751,7 @@ DisplayPowerProximityStateController:
   mProximityThreshold=0.0
   mProximity=Unknown
   mPendingProximity=Unknown
-  mPendingProximityDebounceTime=-1 (145817 ms ago)
+  mPendingProximityDebounceTime=-1 (113417 ms ago)
   mScreenOffBecauseOfProximity=false
   mSkipRampBecauseOfProximityChangeToNegative=false
 

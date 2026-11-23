@@ -3,7 +3,7 @@ google/sdk_gphone64_x86_64/emu64xa:16/BE2A.250530.026.F3/13894323:userdebug/dev-
 sdk=36
 uid=2000(shell) gid=2000(shell) groups=2000(shell),1004(input),1007(log),1011(adb),1015(sdcard_rw),1028(sdcard_r),1078(ext_data_rw),1079(ext_obb_rw),3001(net_bt_admin),3002(net_bt),3003(inet),3006(net_bw_stats),3009(readproc),3011(uhid),3012(readtracefs) context=u:r:shell:s0
 == uinput node
-crw-rw---- 1 uhid uhid u:object_r:uhid_device:s0  10, 223 2026-11-18 00:55 /dev/uinput
+crw-rw---- 1 uhid uhid u:object_r:uhid_device:s0  10, 223 2026-11-23 22:53 /dev/uinput
 == shell permissions of interest
       android.permission.INTERNAL_SYSTEM_WINDOW
       android.permission.MANAGE_ACTIVITY_TASKS
@@ -31,51 +31,51 @@ crw-rw---- 1 uhid uhid u:object_r:uhid_device:s0  10, 223 2026-11-18 00:55 /dev/
       android.permission.INJECT_EVENTS: granted=true
 == flag matrix
 -- flags 201
-DISPLAY_ID 2 createMs=82.607283
+DISPLAY_ID 2 createMs=154.930947
 INFO id=2 name=m201 flags=0x4000 type=5 state=0 refresh=60.0
 INFO id=2 name=m201 flags=0x4000 type=5 state=0 refresh=60.0
 BYE
 -- flags 1225
-DISPLAY_ID 3 createMs=70.787669
+DISPLAY_ID 3 createMs=115.941381
 INFO id=3 name=m1225 flags=0x4080 type=5 state=0 refresh=60.0
 INFO id=3 name=m1225 flags=0x4080 type=5 state=0 refresh=60.0
 BYE
 -- flags 2249
-DISPLAY_ID 4 createMs=12.344686
+DISPLAY_ID 4 createMs=103.692717
 INFO id=4 name=m2249 flags=0x4100 type=5 state=0 refresh=60.0
 INFO id=4 name=m2249 flags=0x4100 type=5 state=0 refresh=60.0
 BYE
 -- flags 4297
-DISPLAY_ID 5 createMs=400.69312
+DISPLAY_ID 5 createMs=95.085186
 INFO id=5 name=m4297 flags=0x4000 type=5 state=0 refresh=60.0
 INFO id=5 name=m4297 flags=0x4000 type=5 state=0 refresh=60.0
 BYE
 -- flags 8393
-DISPLAY_ID 6 createMs=425.010392
+DISPLAY_ID 6 createMs=39.676113
 INFO id=6 name=m8393 flags=0x4400 type=5 state=0 refresh=60.0
 INFO id=6 name=m8393 flags=0x4400 type=5 state=0 refresh=60.0
 BYE
 -- flags 16585
-DISPLAY_ID 7 createMs=86.638408
+DISPLAY_ID 7 createMs=159.517903
 INFO id=7 name=m16585 flags=0x4000 type=5 state=0 refresh=60.0
 INFO id=7 name=m16585 flags=0x4000 type=5 state=0 refresh=60.0
 BYE
 -- flags 205
 CREATE_FAILED java.lang.SecurityException: Requires CAPTURE_SECURE_VIDEO_OUTPUT or an appropriate MediaProjection token to create a secure virtual display.
 -- flags 713
-DISPLAY_ID 8 createMs=365.861385
+DISPLAY_ID 8 createMs=55.776078
 INFO id=8 name=m713 flags=0x4000 type=5 state=0 refresh=60.0
 INFO id=8 name=m713 flags=0x4000 type=5 state=0 refresh=60.0
 BYE
 -- flags 31945
-DISPLAY_ID 9 createMs=71.871982
+DISPLAY_ID 9 createMs=117.567631
 INFO id=9 name=m31945 flags=0x4f80 type=5 state=0 refresh=60.0
-INFO id=9 name=m31945 flags=0x4f80 type=5 state=2 refresh=60.0
+INFO id=9 name=m31945 flags=0x4f80 type=5 state=0 refresh=60.0
 BYE
 -- flags 31949
 CREATE_FAILED java.lang.SecurityException: Requires CAPTURE_SECURE_VIDEO_OUTPUT or an appropriate MediaProjection token to create a secure virtual display.
 == workspace session flags=31945 label=full
-helper start: DISPLAY_ID 10 createMs=110.921301
+helper start: DISPLAY_ID 10 createMs=106.873518
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
 workspace id=10
 -- launch Settings on the workspace
@@ -83,36 +83,36 @@ Starting: Intent { cmp=com.android.settings/.Settings }
 Status: ok
 LaunchState: WARM
 Activity: com.android.settings/.homepage.SettingsHomepageActivity
-TotalTime: 3204
-WaitTime: 3208
+TotalTime: 2071
+WaitTime: 2073
 Complete
 power[before use display 0 at ]:  mWakefulness=Awake; displayGroupId=0; displayGroupId=1; Wakefulness Session Power Group powerGroupId: 0; Wakefulness Session Power Group powerGroupId: 1;
 -- use display 0 at the same time (home, swipe up)
 power[before drive the workspa]:  mWakefulness=Awake; displayGroupId=0; displayGroupId=1; Wakefulness Session Power Group powerGroupId: 0; Wakefulness Session Power Group powerGroupId: 1;
 -- drive the workspace: tap and scroll
-acts[before tap]: Display #10 (activities from top to bottom):; topResumedActivity=ActivityRecord{131783776 u0 com.android.settings/.Settings t7};Display #0 (activities from top to bottom):; topResumedActivity=ActivityRecord{85249377 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}; ResumedActivity: ActivityRecord{131783776 u0 com.android.settings/.Settings t7};
-acts[after tap on search bar]: Display #10 (activities from top to bottom):; topResumedActivity=ActivityRecord{104367184 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t7};Display #0 (activities from top to bottom):; topResumedActivity=ActivityRecord{85249377 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}; ResumedActivity: ActivityRecord{104367184 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t7};
-acts[after down/up at 540,1500]: Display #10 (activities from top to bottom):; topResumedActivity=ActivityRecord{104367184 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t7};Display #0 (activities from top to bottom):; topResumedActivity=ActivityRecord{85249377 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}; ResumedActivity: ActivityRecord{104367184 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t7};
+acts[before tap]: Display #10 (activities from top to bottom):; topResumedActivity=ActivityRecord{2952892 u0 com.android.settings/.Settings t7};Display #0 (activities from top to bottom):; topResumedActivity=ActivityRecord{237452865 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}; ResumedActivity: ActivityRecord{2952892 u0 com.android.settings/.Settings t7};
+acts[after tap on search bar]: Display #10 (activities from top to bottom):; topResumedActivity=ActivityRecord{139959047 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t7};Display #0 (activities from top to bottom):; topResumedActivity=ActivityRecord{237452865 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}; ResumedActivity: ActivityRecord{139959047 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t7};
+acts[after down/up at 540,1500]: Display #10 (activities from top to bottom):; topResumedActivity=ActivityRecord{139959047 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t7};Display #0 (activities from top to bottom):; topResumedActivity=ActivityRecord{237452865 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}; ResumedActivity: ActivityRecord{139959047 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t7};
 power[before keyboard inside t]:  mWakefulness=Awake; displayGroupId=0; displayGroupId=1; Wakefulness Session Power Group powerGroupId: 0; Wakefulness Session Power Group powerGroupId: 1;
 -- keyboard inside the workspace
 Starting: Intent { act=android.settings.APP_SEARCH_SETTINGS }
 Status: ok
 LaunchState: WARM
 Activity: com.google.android.settings.intelligence/.modules.search.activity.SearchActivity
-TotalTime: 756
-WaitTime: 763
+TotalTime: 465
+WaitTime: 501
 Complete
 Starting: Intent { act=com.android.settings.action.SETTINGS_SEARCH }
 Status: ok
 LaunchState: WARM
 Activity: com.google.android.settings.intelligence/.modules.search.activity.SearchActivity
-TotalTime: 654
-WaitTime: 686
+TotalTime: 186
+WaitTime: 267
 Complete
   mCurrentFocus=null
-  mFocusedApp=ActivityRecord{85249377 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
-  mCurrentFocus=Window{fcec545 u0 com.google.android.settings.intelligence/com.google.android.settings.intelligence.modules.search.SearchActivity}
-  mFocusedApp=ActivityRecord{75144959 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
+  mFocusedApp=ActivityRecord{237452865 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t6}
+  mCurrentFocus=Window{5f580f2 u0 com.google.android.settings.intelligence/com.google.android.settings.intelligence.modules.search.SearchActivity}
+  mFocusedApp=ActivityRecord{166091549 u0 com.google.android.settings.intelligence/.modules.search.SearchActivity t8}
   mTopFocusedDisplayId=10
 power[before panel locked, wor]:  mWakefulness=Awake; displayGroupId=0; displayGroupId=1; Wakefulness Session Power Group powerGroupId: 0; Wakefulness Session Power Group powerGroupId: 1;
 -- panel locked, workspace still driven
@@ -124,22 +124,22 @@ power[before panel locked, wor]:  mWakefulness=Awake; displayGroupId=0; displayG
 power[before surface swap, uin]:  mWakefulness=Awake; displayGroupId=0; displayGroupId=1; Wakefulness Session Power Group powerGroupId: 0; Wakefulness Session Power Group powerGroupId: 1;
 -- surface swap, uinput, display association
 == helper log
-DISPLAY_ID 10 createMs=110.921301
+DISPLAY_ID 10 createMs=106.873518
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
-OK shot frames=23
+OK shot frames=35
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
-OK shot frames=33
-OK shot frames=58
-OK shot frames=77
+OK shot frames=51
+OK shot frames=79
+OK shot frames=93
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
 OK ime display=10 policy=0
-OK shot frames=172
-INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
 OK shot frames=200
 INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
-OK swap toSecond frame=true ms=77.205705 sameDisplayId=10
-OK swap back ms=25.462587
+OK shot frames=261
+INFO id=10 name=claude-ws flags=0x4f80 type=5 state=2 refresh=60.0
+OK swap toSecond frame=true ms=61.197468 sameDisplayId=10
+OK swap back ms=1.822466
 OK uinput open rw
 OK assoc addPortAssociation[class java.lang.String, int]
 OK assoc addUniqueIdAssociationByDescriptor[class java.lang.String, class java.lang.String]
