@@ -241,6 +241,8 @@
     <string name="wincomp_reverting">Turning off…</string>
     <string name="wincomp_next_launch">Takes effect the next time the game starts.</string>
     <string name="mode_audio">Audio</string>
+    <string name="mode_game_sound">Game sound</string>
+    <string name="mode_game_sound_hint">Off: games are silent, so a podcast or music app keeps playing. Applies from the next launch.</string>
     <string name="mode_directaudio">DirectAudio for games</string>
     <string name="mode_directaudio_hint">Bypasses PulseAudio for lower latency.</string>
     <string name="mode_mic">Microphone</string>

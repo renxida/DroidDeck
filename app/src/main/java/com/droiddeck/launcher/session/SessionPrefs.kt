@@ -510,6 +510,14 @@ object SessionPrefs {
 
     fun directAudio(context: Context): Boolean = prefs(context).getBoolean("directAudio", true)
 
+    /** Off: games play into a silent PulseAudio sink, so nothing reaches Android's audio output and
+     *  a podcast or music app keeps playing alone. Off by default. */
+    fun gameSound(context: Context): Boolean = prefs(context).getBoolean("gameSound", false)
+
+    fun setGameSound(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("gameSound", on).apply()
+    }
+
     fun setDirectAudio(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("directAudio", on).apply()
     }

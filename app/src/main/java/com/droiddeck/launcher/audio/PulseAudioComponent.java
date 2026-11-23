@@ -29,6 +29,8 @@ public class PulseAudioComponent extends SessionPart {
     private final File deviceControls;
     private File logFile;
     private final String micFifoPath;
+    /** Game sound off: the default sink is a null sink, so no AAudio or DirectAudio output opens. */
+    private volatile boolean silent;
     private volatile int pid = -1;
 
     public PulseAudioComponent(Context context) {
@@ -52,6 +54,10 @@ public class PulseAudioComponent extends SessionPart {
             return "?";
         }
         return Long.toHexString(crc.getValue());
+    }
+
+    public void setSilent(boolean silent) {
+        this.silent = silent;
     }
 
     public void setLogFile(File file) {
@@ -97,8 +103,13 @@ public class PulseAudioComponent extends SessionPart {
         config.add("load-module module-native-protocol-unix auth-anonymous=1 auth-cookie-enabled=0 socket=\""
                 + socket().getAbsolutePath() + "\"");
         config.add(".nofail");
-        config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0 control_dir=" + deviceControls);
-        config.add("set-default-sink DirectAudio");
+        if (silent) {
+            config.add("load-module module-null-sink sink_name=Silent");
+            config.add("set-default-sink Silent");
+        } else {
+            config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0 control_dir=" + deviceControls);
+            config.add("set-default-sink DirectAudio");
+        }
         config.add(".fail");
         if (micFifoPath != null && !micFifoPath.isEmpty()) {
             config.add("load-module module-pipe-source source_name=" + MIC_SOURCE + " file=\""
@@ -146,7 +157,11 @@ public class PulseAudioComponent extends SessionPart {
                     + (System.currentTimeMillis() - started) + " ms (socket " + (socketSeen ? "present" : "never appeared") + ", pactl "
                     + (new File(workingDir, "pactl").isFile() ? "present" : "MISSING") + ", daemon pid " + pid + ")");
             String line;
-            if (sinks == null) {
+            if (silent) {
+                line = sinks != null && sinks.contains("Silent")
+                        ? "== client sink: Silent (game sound off; nothing reaches Android output)"
+                        : "== client sink: game sound off but the Silent sink did not load; no fallback attempted, so games stay silent";
+            } else if (sinks == null) {
                 line = "== client sink: the daemon did not answer in 30 s; no fallback attempted";
             } else if (sinks.contains("\tDirectAudio\t") || sinks.startsWith("DirectAudio\t") || sinks.contains("\tDirectAudio\n") || sinks.matches("(?s).*\\bDirectAudio\\b.*")) {
                 line = "== client sink: DirectAudio (module-directaudio-native-sink)";

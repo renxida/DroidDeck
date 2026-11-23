@@ -64,6 +64,7 @@ class ModeSettings(
     val backHold: Boolean = true,
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
+    val gameSound: Boolean = false,
     val mic: Boolean?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
@@ -108,6 +109,7 @@ class ModeSettingsActions(
     val onBackHold: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
+    val onGameSound: (Boolean) -> Unit = {},
     val onMic: (Boolean) -> Unit,
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
@@ -299,6 +301,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     }
     if (tab == SheetTab.AUDIO) {
         if (s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {
+            ToggleRow(host, "game-sound", stringResource(R.string.mode_game_sound), stringResource(R.string.mode_game_sound_hint), s.gameSound, onChange = a.onGameSound)
             ToggleRow(host, "da", stringResource(R.string.mode_directaudio), stringResource(R.string.mode_directaudio_hint), s.directAudio, onChange = a.onDirectAudio)
             ToggleRow(host, "mic", stringResource(R.string.mode_mic), stringResource(R.string.mode_mic_hint), s.mic, onChange = a.onMic)
         }

@@ -1065,7 +1065,8 @@ class SessionService : Service() {
         SessionState.mode == MODE_RUN && SessionState.program == NoSteamLaunch.PROTON_RUN
 
     private fun startAudio(guest: MutableList<String>, sessionDir: File, directAudioPack: Boolean): PulseAudioComponent {
-        val wantsDirectAudio = directAudioPack &&
+        val gameSound = SessionPrefs.gameSound(this)
+        val wantsDirectAudio = gameSound && directAudioPack &&
             (SessionState.mode == MODE_STEAM || noSteamGame()) &&
             SessionPrefs.directAudio(this)
         val wantsMic = SessionPrefs.micEnabled(this) &&
@@ -1078,6 +1079,7 @@ class SessionService : Service() {
 
         val audioLog = File(sessionDir, "audio.log")
         val pulse = PulseAudioComponent(this, micFifo?.absolutePath)
+        pulse.setSilent(!gameSound)
         pulse.setLogFile(audioLog)
         pulse.attach(this)
         guest.add("PULSE_SERVER=unix:" + pulse.socket().absolutePath)
@@ -1105,7 +1107,8 @@ class SessionService : Service() {
             guest.addAll(timing)
             Log.i(TAG, "audio: Android output " + (if (lowLatency) "is low-latency; DirectAudio keeps its defaults" else "is not low-latency; DirectAudio uses " + timing.joinToString(" ")))
         }
-        Log.i(TAG, "audio: client DirectAudio (in-process sink)" + (if (wantsDirectAudio) " + DirectAudio for games" else "")
+        Log.i(TAG, (if (!gameSound) "audio: game sound off (silent sink; nothing reaches Android output)"
+            else "audio: client DirectAudio (in-process sink)") + (if (wantsDirectAudio) " + DirectAudio for games" else "")
             + (if (wantsMic) " + microphone" else "") +
             (if (SessionPrefs.micEnabled(this) && !wantsMic) " (microphone wanted but RECORD_AUDIO not granted)" else ""))
         return pulse
