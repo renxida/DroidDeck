@@ -588,6 +588,15 @@ jobs:
           bash tools/proot/build-host.sh "$RUNNER_TEMP/host-proot"
           echo "KESTREL_TEST_PROOT=$RUNNER_TEMP/host-proot/proot" >> "$GITHUB_ENV"
 
+      - name: Cache Robolectric Android jars
+        # Robolectric fetches its android-all jars from Maven Central on first use; Central
+        # answers 429 under load, which failed every Robolectric test class at once.
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('app/build.gradle', 'app/src/test/resources/robolectric.properties') }}
+          restore-keys: robolectric-
+
       - name: Unit tests
         id: unit-tests
         env:
