@@ -77,6 +77,7 @@ class ExperimentsTest {
             "pe-align" to "DROIDDECK_EXP_PE_ALIGN",
             "vk-blocks-64" to "DROIDDECK_EXP_VK_BLOCKS_64",
             "native-r2r" to "DROIDDECK_EXP_NATIVE_R2R",
+            "godot-render-thread" to "DROIDDECK_EXP_GODOT_RENDER_THREAD",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

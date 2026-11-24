@@ -85,7 +85,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
                "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
-               "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r")
+               "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -1255,6 +1255,20 @@ def godot_verbose(command, env):
     if "--verbose" in args[:cut] or "-v" in args[:cut]:
         return command, "Godot verbose log already on"
     return command[:3] + args[:cut] + ["--verbose"] + args[cut:], "Godot verbose log on (resource loads named)"
+
+
+def godot_render_thread(args, env):
+    """Experiment godot-render-thread: Godot's --render-thread separate, so Vulkan recording and submission run on
+    their own thread instead of the main thread. On the Pixel 10 the PowerVR driver and the hybris compat layer took
+    about half of Slay the Spire 2's main thread in a fight (engine 109 profile, Nov 24); this takes them off it.
+    Game arguments that already pick a render thread model win."""
+    if not experiment(env, "godot-render-thread"):
+        return list(args), None
+    args = list(args)
+    cut = next((i for i, arg in enumerate(args) if arg in ("--", "++")), len(args))
+    if "--render-thread" in args[:cut]:
+        return args, "Godot render thread left to the launch options"
+    return args[:cut] + ["--render-thread", "separate"] + args[cut:], "Godot render thread: separate"
 
 
 PACING_SWITCHES = (("adpf", "DROIDDECK_PACING_ADPF"), ("display", "DROIDDECK_PACING_DISPLAY"),
@@ -3592,8 +3606,11 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
     if skip:
         return None, checked + [skip]
     out = os.path.join(os.path.expanduser("~"), ".cache", "droiddeck", "native", "launch", game_id(env) or "game")
+    game_args, thread_note = godot_render_thread(command[3:], env)
+    if thread_note:
+        checked = checked + [thread_note]
     args = [sys.executable, NATIVE_GODOT, "run", "--fetch", "--game-dir", folder, "--exe", os.path.basename(exe),
-            "--out", out, "--"] + list(command[3:])
+            "--out", out, "--"] + game_args
     log_dir = env.get("DROIDDECK_GAME_LOG_DIR") or env.get("BL_DEBUG_DIR")
     path = os.path.join(log_dir, "native-engine.log") if log_dir else None
     log = None
@@ -3919,6 +3936,11 @@ def main():
         command, note = godot_verbose(command, env)
         if note:
             print("droiddeck-game-env: " + note, file=sys.stderr)
+        if len(command) > 2 and is_godot(Game(command[2], command[3:])):
+            args, note = godot_render_thread(command[3:], env)
+            command = command[:3] + args
+            if note:
+                print("droiddeck-game-env: " + note, file=sys.stderr)
         pacing = pacing_line(env, app_id)
         if pacing:
             print(pacing, file=sys.stderr, flush=True)

@@ -194,6 +194,17 @@ class FrameCapTest(unittest.TestCase):
         command, note = verbose(["/proton", "waitforexitandrun", str(self.godot)], {})
         self.assertEqual((command[3:], note), ([], None))
 
+    def test_godot_render_thread_goes_ahead_of_user_arguments_and_yields_to_theirs(self):
+        thread = MODULE["godot_render_thread"]
+        env = {"DROIDDECK_EXP_GODOT_RENDER_THREAD": "1"}
+        self.assertEqual(thread(["--max-fps", "30", "--", "--mod"], env),
+                         (["--max-fps", "30", "--render-thread", "separate", "--", "--mod"], "Godot render thread: separate"))
+        self.assertEqual(thread(["--render-thread", "safe"], env),
+                         (["--render-thread", "safe"], "Godot render thread left to the launch options"))
+        self.assertEqual(thread(["--", "--render-thread", "safe"], env),
+                         (["--render-thread", "separate", "--", "--render-thread", "safe"], "Godot render thread: separate"))
+        self.assertEqual(thread(["--max-fps", "30"], {}), (["--max-fps", "30"], None))
+
     def test_a_capped_game_gets_three_gamescope_swapchain_images_not_eight(self):
         env = {"DROIDDECK_FPS_CAP": "60", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8"}
         _, note = self.cap([str(self.godot)], env)

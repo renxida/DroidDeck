@@ -68,6 +68,8 @@ object Experiments {
     const val FEX_SMAPS = "fex-smaps"
     /** Godot games log every resource they load (--verbose); the upload lists them. */
     const val GODOT_VERBOSE = "godot-verbose"
+    /** Godot games: --render-thread separate, so Vulkan recording and submission leave the main thread. */
+    const val GODOT_RENDER_THREAD = "godot-render-thread"
     /** Godot games: textures re-encoded to ASTC (the GPU's own format) inside the game's pack on this device; off puts the
      *  original textures back and keeps the build for the next time it is on. */
     const val TEX_ASTC = "tex-astc"
@@ -122,6 +124,7 @@ object Experiments {
         Switch(WEBHELPER_TRIM, R.string.exp_webhelper_trim),
         Switch(FEX_SMAPS, R.string.exp_fex_smaps),
         Switch(GODOT_VERBOSE, R.string.exp_godot_verbose),
+        Switch(GODOT_RENDER_THREAD, R.string.exp_godot_render_thread),
         Switch(TEX_ASTC, R.string.exp_tex_astc),
         Switch(TEX_HALF, R.string.exp_tex_half),
         Switch(FEX_TRIM, R.string.exp_fex_trim),
@@ -148,7 +151,7 @@ object Experiments {
         NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE,
         DXVK_ARM64EC, COMPOSITE_TIMING, DOTNET_R2R, FEX_CODE_BUFFER, FEX_SAMPLE, DOTNET_R2R_GENERICS, DOTNET_R2R_BUBBLE,
         FPS_30, WEBHELPER_TRIM, FEX_SMAPS, GODOT_VERBOSE, TEX_ASTC, TEX_HALF, FEX_TRIM,
-        FEX_CACHE_KEEP, PE_ALIGN, VK_BLOCKS_64, NATIVE_R2R)
+        FEX_CACHE_KEEP, PE_ALIGN, VK_BLOCKS_64, NATIVE_R2R, GODOT_RENDER_THREAD)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
