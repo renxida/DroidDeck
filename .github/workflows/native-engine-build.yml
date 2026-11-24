@@ -127,6 +127,7 @@ jobs:
             "$GITHUB_WORKSPACE/tools/native-engine/modules/native_compat/register_types.cpp"
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_skip_redundant_set_binds.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_batch_census.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_reorder.py" ~/godot-src
           # Link unstripped so the build can write a symbol map (godot.syms) for the sampling profiler; the binary is
           # stripped right after, so what ships is the same size as before.
           grep -q 'env.AppendUnique(LINKFLAGS=\["-s"\])' SConstruct
@@ -295,12 +296,53 @@ jobs:
           sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1 > /dev/null
           set +e
           DROIDDECK_NATIVE_RENDER_CENSUS=0.5 SKELTEST_OUT=$PWD/out-vk DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 \
-            xvfb-run -a -s "-screen 0 256x256x24" out/SkelTest.arm64 --rendering-driver vulkan --verbose > skel-vk.log 2>&1
+            xvfb-run -a -s "-screen 0 256x256x24" out/SkelTest.arm64 --rendering-method mobile --rendering-driver vulkan --verbose > skel-vk.log 2>&1
           echo "exit $?"
           set -e
           grep -E "native_compat: (census|render census)|Vulkan|ERROR" skel-vk.log | cut -c1-2000 | head -20
           # At least one census saw the canvas renderer record a draw list.
           grep -E "native_compat: census \| .* batches per frame over [0-9]+ frames: [0-9.]*[1-9][0-9.]* draw lists" skel-vk.log
+      - name: Canvas reordering keeps every pixel and cuts draws (synthetic scene, lavapipe)
+        timeout-minutes: 20
+        working-directory: tools/native-engine/batchtest
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq xvfb mesa-vulkan-drivers libvulkan1 > /dev/null
+          timeout 300 "$GODOT" --headless --path . --import > import.log 2>&1 || true
+          mkdir -p out
+          timeout 600 "$GODOT" --headless --path . --export-release arm64 out/BatchTest.arm64 > export.log 2>&1 || echo "export exit $?"
+          test -f out/BatchTest.pck || { tail -40 export.log; exit 1; }
+          cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono out/BatchTest.arm64
+          chmod +x out/BatchTest.arm64
+          run() { # name, then env assignments
+            local n=$1; shift
+            env "$@" BATCHTEST_OUT=$PWD/out BATCHTEST_NAME=$n DROIDDECK_NATIVE_RENDER_CENSUS=0.05 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
+              timeout 120 xvfb-run -a -s "-screen 0 640x480x24" out/BatchTest.arm64 --rendering-method mobile --rendering-driver vulkan \
+              --verbose > $n.log 2>&1 || { echo "$n exit $?"; tail -30 $n.log; exit 1; }
+            grep -E "BATCHTEST|native_compat: census" $n.log | cut -c1-1500 | tail -3
+          }
+          run stock-a
+          run stock-b
+          run reorder DROIDDECK_NATIVE_CANVAS_REORDER=16
+          python3 - <<'PY'
+          import re, sys
+          raw = {n: open("out/%s.raw" % n, "rb").read() for n in ("stock-a", "stock-b", "reorder")}
+          draws = {n: int(re.search(r"BATCHTEST %s draws (\d+)" % n, open(n + ".log").read()).group(1)) for n in raw}
+          print("draws", draws, "bytes", {n: len(v) for n, v in raw.items()})
+          if raw["stock-a"] != raw["stock-b"]:
+              print("::warning::two stock renders differ, so the pixel comparison means nothing here")
+              sys.exit(0)
+          if raw["reorder"] != raw["stock-a"]:
+              a, b = raw["stock-a"], raw["reorder"]
+              diff = sum(1 for i in range(8, len(a), 4) if a[i:i + 4] != b[i:i + 4])
+              print("::error::reordering changed %d pixels" % diff)
+              sys.exit(1)
+          if not draws["reorder"] < draws["stock-a"]:
+              print("::error::reordering did not cut draws")
+              sys.exit(1)
+          print("same pixels; draws %d -> %d" % (draws["stock-a"], draws["reorder"]))
+          PY
+          grep -E "reorder look-ahead 16: [0-9.]*[1-9][0-9.]* items moved" reorder.log > /dev/null
       - name: Steam bridge (Cedar-approved) built, checked and put in the component (Valve's library is not)
         run: |
           set -euo pipefail

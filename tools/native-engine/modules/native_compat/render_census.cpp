@@ -32,6 +32,9 @@
 int droiddeck_canvas_batch_sites();
 const char *droiddeck_canvas_batch_site(int p_site);
 uint32_t droiddeck_canvas_batch_take(int p_site);
+// Defined in the canvas renderer by patches/canvas_reorder.py: items moved forward to join a batch.
+uint32_t droiddeck_canvas_reorder_take();
+uint32_t droiddeck_canvas_reorder_window();
 
 namespace droiddeck_census {
 
@@ -210,7 +213,9 @@ std::string batch_reasons(uint32_t p_frames) {
 		snprintf(buf, sizeof(buf), " %s %.1f;", droiddeck_canvas_batch_site(c.second), c.first * per);
 		out += buf;
 	}
-	return out;
+	snprintf(buf, sizeof(buf), " | reorder look-ahead %u: %.1f items moved per frame", droiddeck_canvas_reorder_window(),
+			droiddeck_canvas_reorder_take() * per);
+	return out + buf;
 }
 
 } // namespace

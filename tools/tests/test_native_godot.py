@@ -1321,6 +1321,32 @@ class CanvasBatchCensusPatchTest(unittest.TestCase):
             self.assertFalse([l for l in labels if l.startswith("line ") or ": line " in l], labels)
 
 
+class CanvasReorderPatchTest(unittest.TestCase):
+    """Canvas item reordering (off unless DROIDDECK_NATIVE_CANVAS_REORDER is set) runs before a draw list records
+    its items, only without 2D lights, and composes with the batch census patch."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_reorder_runs_first_in_the_draw_list_and_needs_its_anchor(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_reorder.py"))
+        src = "int a;\n" + mod["RENDER_ITEMS"] + "int x) {\n\tint first;\n}\n"
+        out = mod["patch_source"](src)
+        body = out[out.index(mod["RENDER_ITEMS"]):]
+        self.assertLess(body.index("droiddeck_canvas_reorder(items"), body.index("int first;"))
+        self.assertIn("p_lights == nullptr && !using_directional_lights", body)
+        self.assertLess(out.index("static void droiddeck_canvas_reorder("), out.index(mod["RENDER_ITEMS"]))
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_REORDER", out)
+        with self.assertRaises(SystemExit):
+            mod["patch_source"]("nothing")
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:  # after the census patch, against the real 4.5.1 source, as CI applies them
+            census = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_batch_census.py"))
+            real = (Path(godot) / "servers/rendering/renderer_rd/renderer_canvas_render_rd.cpp").read_text()
+            both = mod["patch_source"](census["patch_source"](real)[0])
+            body = both[both.index(mod["RENDER_ITEMS"]):]
+            self.assertLess(body.index("droiddeck_canvas_reorder(items"), body.index("droiddeck_canvas_batch_count(0);"))
+
+
 if __name__ == "__main__":
     unittest.main()
 
