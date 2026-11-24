@@ -20,6 +20,7 @@
 #include "scene/resources/shader.h"
 #include "servers/rendering_server.h"
 
+#include <algorithm>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,10 +28,16 @@
 #include <set>
 #include <vector>
 
+// Defined in the canvas renderer by patches/canvas_batch_census.py: why each 2D batch started.
+int droiddeck_canvas_batch_sites();
+const char *droiddeck_canvas_batch_site(int p_site);
+uint32_t droiddeck_canvas_batch_take(int p_site);
+
 namespace droiddeck_census {
 
 static double window_sec = 0;
 static uint64_t next_usec = 0;
+static uint32_t frames = 0; // frames since the last census
 
 std::string start_from_env() {
 	const char *v = getenv("DROIDDECK_NATIVE_RENDER_CENSUS");
@@ -179,12 +186,40 @@ void walk(Node *p_node, const Viewport *p_vp, int p_layer, bool p_layer_visible,
 	}
 }
 
+// Per frame since the last census: draw lists, then each reason a new 2D batch started, most first.
+std::string batch_reasons(uint32_t p_frames) {
+	const int sites = droiddeck_canvas_batch_sites();
+	const double per = p_frames ? 1.0 / p_frames : 0.0;
+	std::vector<std::pair<uint32_t, int>> counts;
+	uint32_t lists = 0, total = 0;
+	for (int i = 0; i < sites; i++) {
+		const uint32_t n = droiddeck_canvas_batch_take(i);
+		if (i == 0) {
+			lists = n;
+		} else if (n) {
+			counts.push_back({ n, i });
+			total += n;
+		}
+	}
+	std::sort(counts.begin(), counts.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+	char buf[160];
+	snprintf(buf, sizeof(buf), " | batches per frame over %u frames: %.1f draw lists, %.1f new batches because:", p_frames, lists * per,
+			total * per);
+	std::string out = buf;
+	for (const auto &c : counts) {
+		snprintf(buf, sizeof(buf), " %s %.1f;", droiddeck_canvas_batch_site(c.second), c.first * per);
+		out += buf;
+	}
+	return out;
+}
+
 } // namespace
 
 std::string tick() {
 	if (window_sec <= 0) {
 		return std::string();
 	}
+	frames++;
 	const uint64_t now = OS::get_singleton()->get_ticks_usec();
 	if (next_usec == 0) {
 		next_usec = now + uint64_t(window_sec * 1e6);
@@ -194,6 +229,8 @@ std::string tick() {
 		return std::string();
 	}
 	next_usec = now + uint64_t(window_sec * 1e6);
+	const std::string batches = batch_reasons(frames);
+	frames = 0;
 	SceneTree *st = Object::cast_to<SceneTree>(OS::get_singleton()->get_main_loop());
 	if (!st || !st->get_root()) {
 		return "native_compat: census | no scene tree yet";
@@ -243,7 +280,7 @@ std::string tick() {
 	fill("[]", "[" + c.viewport_desc + "]");
 	fill("shaders: )", "shaders: " + shaders + ")");
 	fill("env []", "env [" + c.env_desc + "]");
-	return line + " | layers (viewport:layer=items/s screen readers/g groups) " + layer_desc;
+	return line + " | layers (viewport:layer=items/s screen readers/g groups) " + layer_desc + batches;
 }
 
 } // namespace droiddeck_census

@@ -126,6 +126,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/csharp_compat_classes.py" ~/godot-src \
             "$GITHUB_WORKSPACE/tools/native-engine/modules/native_compat/register_types.cpp"
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_skip_redundant_set_binds.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_batch_census.py" ~/godot-src
           # Link unstripped so the build can write a symbol map (godot.syms) for the sampling profiler; the binary is
           # stripped right after, so what ships is the same size as before.
           grep -q 'env.AppendUnique(LINKFLAGS=\["-s"\])' SConstruct
@@ -193,9 +194,10 @@ jobs:
           prc=$?
           set -e
           echo "exit with profiler $prc (without $rc)"
-          grep -E "native_compat: (prof|census|render census)" prof-run.log | cut -c1-600
+          grep -E "native_compat: (prof|census|render census)" prof-run.log | cut -c1-2000
           test "$prc" = "$rc"
           grep -q "native_compat: census | [0-9]* viewports \[root " prof-run.log
+          grep -q "native_compat: census | .* | batches per frame over [0-9]* frames: " prof-run.log
           grep -q "native_compat: prof sampling the main thread at 250 Hz.*engine symbols" prof-run.log
           grep -q "native_compat: prof threads" prof-run.log
           grep -q "native_compat: prof frames [0-9]*: wall p50" prof-run.log
@@ -283,6 +285,22 @@ jobs:
           grep -q "SKELTEST fmod .* ok=true" skel.log
           grep -q "SKELTEST spine .* ok=true" skel.log
           python3 check.py out
+      - name: Batch census on a real Vulkan renderer (lavapipe), so the reasons are counted off the phone
+        # Information for the phone A/B, not a gate on the release: lavapipe on a hosted runner can be missing.
+        continue-on-error: true
+        timeout-minutes: 10
+        working-directory: tools/native-engine/skeltest
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1 > /dev/null
+          set +e
+          DROIDDECK_NATIVE_RENDER_CENSUS=0.5 SKELTEST_OUT=$PWD/out-vk DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 \
+            xvfb-run -a -s "-screen 0 256x256x24" out/SkelTest.arm64 --rendering-driver vulkan --verbose > skel-vk.log 2>&1
+          echo "exit $?"
+          set -e
+          grep -E "native_compat: (census|render census)|Vulkan|ERROR" skel-vk.log | cut -c1-2000 | head -20
+          # At least one census saw the canvas renderer record a draw list.
+          grep -E "native_compat: census \| .* batches per frame over [0-9]+ frames: [0-9.]*[1-9][0-9.]* draw lists" skel-vk.log
       - name: Steam bridge (Cedar-approved) built, checked and put in the component (Valve's library is not)
         run: |
           set -euo pipefail

@@ -1273,6 +1273,54 @@ class SkipRedundantSetBindsPatchTest(unittest.TestCase):
             self.assertIn("DROIDDECK_RD_REBIND_SETS", mod["patch"](real))
 
 
+class CanvasBatchCensusPatchTest(unittest.TestCase):
+    """The engine build counts why the 2D renderer starts each batch (every batch is at least one draw, ~37 us of
+    main-thread time each on the phone), credited to the first reason, for the render census line."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def synthetic(self, mod, calls):
+        body = "".join(
+            "\tswitch (c->type) {\n\t\tcase Item::Command::TYPE_RECT: {\n"
+            "\t\t\tif (r_current_batch->tex_info != tex_info) {\n\t\t\t\tr_current_batch = _new_batch(r_batch_broken);\n\t\t\t}\n"
+            for _ in range(calls))
+        return (
+            '#include "renderer_canvas_render_rd.h"\n#include "core/math/geometry_2d.h"\n\nstatic int x;\n'
+            + mod["RENDER_ITEMS"] + "int a) {\n"
+            "\tif (material != current_batch->material) {\n\t\tcurrent_batch = _new_batch(batch_broken);\n\t}\n}\n"
+            "void RendererCanvasRenderRD::_record_item_commands() {\n" + body + "}\n"
+            + mod["DEF"] + "\n\tif (x) {\n\t\treturn nullptr;\n\t}\n" + mod["PUSHED"] + "\treturn nullptr;\n}\n")
+
+    def test_each_call_gets_a_labelled_site_and_only_real_pushes_count(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_batch_census.py"))
+        out, labels = mod["patch_source"](self.synthetic(mod, 10))
+        self.assertEqual(labels[:3], ["draw lists", "material", "rect: texture"])
+        self.assertEqual(len(labels), 12)
+        self.assertIn("_new_batch(batch_broken, 1)", out)
+        self.assertIn("_new_batch(r_batch_broken, 11)", out)
+        self.assertNotIn("_new_batch(r_batch_broken);", out)
+        # The count sits after the early return, so a batch that was already fresh is not counted.
+        definition = out[out.index(mod["DEF_NEW"]):]
+        self.assertLess(definition.index("return nullptr;"), definition.index("droiddeck_canvas_batch_count(p_droiddeck_site);"))
+        self.assertIn("droiddeck_canvas_batch_count(0);", out[out.index(mod["RENDER_ITEMS"]):])
+        # The helpers go after the include block, before any code.
+        self.assertLess(out.index('#include "core/math/geometry_2d.h"'), out.index("droiddeck_canvas_batch_labels[]"))
+        self.assertLess(out.index("droiddeck_canvas_batch_labels[]"), out.index("static int x;"))
+        self.assertIn("DROIDDECK_NATIVE_RENDER_CENSUS", out)
+        self.assertEqual(mod["patch_header"]("x " + mod["DECL"] + " y"), "x " + mod["DECL_NEW"] + " y")
+        with self.assertRaises(SystemExit):
+            mod["patch_source"](self.synthetic(mod, 3))  # too few sites: the source changed under us
+        with self.assertRaises(SystemExit):
+            mod["patch_header"]("nothing")
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:  # against the real 4.5.1 source when it is at hand
+            real = (Path(godot) / "servers/rendering/renderer_rd/renderer_canvas_render_rd.cpp").read_text()
+            out, labels = mod["patch_source"](real)
+            self.assertIn("rect: texture", labels)
+            self.assertIn("material", labels)
+            self.assertFalse([l for l in labels if l.startswith("line ") or ": line " in l], labels)
+
+
 if __name__ == "__main__":
     unittest.main()
 
