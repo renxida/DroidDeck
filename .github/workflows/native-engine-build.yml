@@ -22,6 +22,7 @@ on:
       - 'tools/native-engine/r2r-check/**'
       - 'tools/native-engine/patches/**'
       - 'tools/native-engine/batchtest/**'
+      - 'tools/native-engine/replay/**'
       - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
       - 'tools/tests/test_native_godot.py'
       - '.github/workflows/native-engine-build.yml'
@@ -131,6 +132,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_poly_batch.py" ~/godot-src  # before the census, which labels its batch starts
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_batch_census.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_reorder.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_trace.py" ~/godot-src
           # Link unstripped so the build can write a symbol map (godot.syms) for the sampling profiler; the binary is
           # stripped right after, so what ships is the same size as before.
           grep -q 'env.AppendUnique(LINKFLAGS=\["-s"\])' SConstruct
@@ -305,76 +307,56 @@ jobs:
           grep -E "native_compat: (census|render census)|Vulkan|ERROR" skel-vk.log | cut -c1-2000 | head -20
           # At least one census saw the canvas renderer record a draw list.
           grep -E "native_compat: census \| .* batches per frame over [0-9]+ frames: [0-9.]*[1-9][0-9.]* draw lists" skel-vk.log
-      - name: Canvas reordering keeps every pixel and polygon batching every pixel to within three steps, and both cut draws (synthetic scene, lavapipe)
-        timeout-minutes: 20
+      - name: Canvas reordering keeps every pixel and polygon batching every pixel to within three steps, and both cut draws; a traced frame replays (synthetic scene, lavapipe)
+        timeout-minutes: 25
         working-directory: tools/native-engine/batchtest
         run: |
           set -euo pipefail
           sudo apt-get install -y -qq xvfb mesa-vulkan-drivers libvulkan1 > /dev/null
-          timeout 300 "$GODOT" --headless --path . --import > import.log 2>&1 || true
-          mkdir -p out
-          timeout 600 "$GODOT" --headless --path . --export-release arm64 out/BatchTest.arm64 > export.log 2>&1 || echo "export exit $?"
-          test -f out/BatchTest.pck || { tail -40 export.log; exit 1; }
-          cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono out/BatchTest.arm64
-          chmod +x out/BatchTest.arm64
-          run() { # name, then env assignments
-            local n=$1; shift
-            env "$@" BATCHTEST_OUT=$PWD/out BATCHTEST_NAME=$n DROIDDECK_NATIVE_RENDER_CENSUS=0.05 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
-              timeout 120 xvfb-run -a -s "-screen 0 640x480x24" out/BatchTest.arm64 --rendering-method mobile --rendering-driver vulkan \
+          for proj in . ../replay; do
+            timeout 300 "$GODOT" --headless --path $proj --import > $proj/import.log 2>&1 || true
+            mkdir -p $proj/out
+            name=$(sed -n 's/^config\/name="\(.*\)"/\1/p' $proj/project.godot)
+            timeout 600 "$GODOT" --headless --path $proj --export-release arm64 out/$name.arm64 > $proj/export.log 2>&1 || echo "export exit $?"
+            test -f $proj/out/$name.pck || { tail -40 $proj/export.log; exit 1; }
+            cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono $proj/out/$name.arm64
+            chmod +x $proj/out/$name.arm64
+          done
+          mkdir -p trace
+          run() { # binary, name, then env assignments
+            local b=$1 n=$2; shift 2
+            env BATCHTEST_OUT=$PWD/out DROIDDECK_NATIVE_RENDER_CENSUS=0.05 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 "$@" BATCHTEST_NAME=$n \
+              timeout 120 xvfb-run -a -s "-screen 0 640x480x24" $b --rendering-method mobile --rendering-driver vulkan \
               --verbose > $n.log 2>&1 || { echo "$n exit $?"; tail -30 $n.log; exit 1; }
-            grep -E "BATCHTEST|native_compat: census" $n.log | cut -c1-1500 | tail -3
+            grep -E "BATCHTEST|REPLAY|native_compat: census" $n.log | cut -c1-1500 | tail -4
           }
-          run stock-a
-          run stock-b
-          run reorder DROIDDECK_NATIVE_CANVAS_REORDER=16
-          run poly DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
-          run both DROIDDECK_NATIVE_CANVAS_REORDER=16 DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
-          python3 - <<'PY'
-          import re, sys
-          raw = {n: open("out/%s.raw" % n, "rb").read() for n in ("stock-a", "stock-b", "reorder", "poly", "both")}
-          draws = {n: int(re.search(r"BATCHTEST %s draws (\d+)" % n, open(n + ".log").read()).group(1)) for n in raw}
-          print("draws", draws, "bytes", {n: len(v) for n, v in raw.items()})
-          if raw["stock-a"] != raw["stock-b"]:
-              print("::warning::two stock renders differ, so the pixel comparison means nothing here")
-              sys.exit(0)
-          if raw["reorder"] != raw["stock-a"]:
-              a, b = raw["stock-a"], raw["reorder"]
-              diff = sum(1 for i in range(8, len(a), 4) if a[i:i + 4] != b[i:i + 4])
-              print("::error::reordering changed %d pixels" % diff)
-              sys.exit(1)
-          if not draws["reorder"] < draws["stock-a"]:
-              print("::error::reordering did not cut draws")
-              sys.exit(1)
-          print("same pixels; draws %d -> %d" % (draws["stock-a"], draws["reorder"]))
+          run out/BatchTest.arm64 stock-a
+          run out/BatchTest.arm64 stock-b DROIDDECK_NATIVE_CANVAS_TRACE=$PWD/trace DROIDDECK_NATIVE_CANVAS_TRACE_EVERY=0.2 BATCHTEST_SECONDS=1
+          run out/BatchTest.arm64 reorder DROIDDECK_NATIVE_CANVAS_REORDER=16
+          run out/BatchTest.arm64 poly DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
+          run out/BatchTest.arm64 both DROIDDECK_NATIVE_CANVAS_REORDER=16 DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
           # Polygon batching stores colour times modulate as half floats (as Godot does for every primitive), so a
           # channel may move by a step or two, which nobody can see (Cedar, Nov 24: "Invisible is fine"). A wrong
           # triangle, texture or order moves pixels by far more, so anything past three steps fails.
-          for n in ("poly", "both"):
-              a, b = raw["stock-a"], raw[n]
-              worst = max(abs(x - y) for x, y in zip(a[8:], b[8:]))
-              moved = sum(1 for i in range(8, len(a), 4) if a[i:i + 4] != b[i:i + 4])
-              print("%s: %d draws, %d pixels differ, worst channel difference %d" % (n, draws[n], moved, worst))
-              w = int.from_bytes(a[0:4], "little")
-              cells, worst_at = {}, None
-              for i in range(8, len(a), 4):
-                  if a[i:i + 4] != b[i:i + 4]:
-                      x, y = (i - 8) // 4 % w, (i - 8) // 4 // w
-                      cells[(x // 32 * 32, y // 32 * 32)] = cells.get((x // 32 * 32, y // 32 * 32), 0) + 1
-                      d = max(abs(p - q) for p, q in zip(a[i:i + 4], b[i:i + 4]))
-                      if worst_at is None or d > worst_at[0]:
-                          worst_at = (d, x, y, tuple(a[i:i + 4]), tuple(b[i:i + 4]))
-              print("  differing pixels by 32x32 cell (x, y): count:", sorted(cells.items(), key=lambda kv: -kv[1])[:12])
-              print("  worst pixel (difference, x, y, stock rgba, new rgba):", worst_at)
-              if len(a) != len(b) or worst > 3:
-                  print("::error::%s changed a pixel by more than three steps" % n)
-                  sys.exit(1)
-          # Alone it changes little (panels sit between other items); with the reorder it merges them.
-          if not draws["poly"] <= draws["stock-a"] or not draws["both"] < draws["reorder"]:
-              print("::error::polygon batching did not cut draws")
-              sys.exit(1)
-          PY
+          python3 compare.py out --logs . reorder=exact poly=max=3 both=max=3 --fewer "reorder<stock-a" --fewer "poly<=stock-a" --fewer "both<reorder"
           grep -E "reorder look-ahead 16: [0-9.]*[1-9][0-9.]* items moved" reorder.log > /dev/null
           grep -E "polygon batching up to 256 triangles: [0-9.]*[1-9][0-9.]* polygons batched" poly.log > /dev/null
+          # The trace writer saw the scene, and its replay batches like the scene itself (within 5 draws).
+          T=$(grep -l "^end calls 1$" trace/*.trace | tail -1)
+          mkdir -p rp
+          for arm in stock-a:  stock-b:  reorder:DROIDDECK_NATIVE_CANVAS_REORDER=16; do
+            n=${arm%%:*}; e=${arm#*:}
+            (cd ../replay && run out/CanvasReplay.arm64 $n REPLAY_TRACE=$OLDPWD/$T BATCHTEST_OUT=$OLDPWD/rp $e)
+            mv ../replay/$n.log rp/$n.log
+          done
+          python3 compare.py rp reorder=exact --fewer "reorder<stock-a"
+          python3 - <<'PY'
+          import re
+          d = {k: int(re.search(r"BATCHTEST \S+ draws (\d+)", open(p).read()).group(1)) for k, p in
+               (("scene", "stock-a.log"), ("replay", "rp/stock-a.log"))}
+          print("draws: scene", d["scene"], "replay of its trace", d["replay"])
+          assert abs(d["scene"] - d["replay"]) <= 5, d
+          PY
       - name: Steam bridge (Cedar-approved) built, checked and put in the component (Valve's library is not)
         run: |
           set -euo pipefail

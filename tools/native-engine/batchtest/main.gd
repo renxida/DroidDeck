@@ -130,4 +130,8 @@ func _ready() -> void:
 	f.store_buffer(img.get_data())
 	f.close()
 	print("BATCHTEST ", run_name, " draws ", draws, " size ", img.get_width(), "x", img.get_height(), " renderer ", RenderingServer.get_current_rendering_method())
+	# BATCHTEST_SECONDS keeps drawing the same frame that long, so a Vulkan call counter can report steady frames.
+	var hold = OS.get_environment("BATCHTEST_SECONDS").to_float()
+	if hold > 0:
+		await get_tree().create_timer(hold).timeout
 	get_tree().quit(0)

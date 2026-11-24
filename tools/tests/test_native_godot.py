@@ -1385,6 +1385,71 @@ class CanvasPolyBatchPatchTest(unittest.TestCase):
         self.assertLess(out.index("#define DROIDDECK_POLY_BATCH 1"), out.index("#ifdef DROIDDECK_POLY_BATCH"))
 
 
+class CanvasTraceTest(unittest.TestCase):
+    """The canvas trace hooks request, free and canvas_render_items, is off without DROIDDECK_NATIVE_CANVAS_TRACE,
+    and writes no vertices or pixels; it applies in either order with polygon batching."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_hooks_every_anchor_and_stays_off_by_default(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_trace.py"))
+        poly = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_poly_batch.py"))
+        src = ("int a;\n" + mod["REQUEST"] + "int x) {\n" + mod["STORED"] + "}\n" + mod["FREE"] + "}\n" +
+               mod["RENDER"] + "}\nswitch (c->type) {\n" + poly["RECORD"] + "}\n")
+        out = mod["patch_source"](src)
+        self.assertLess(out.index("droiddeck_canvas_trace(RID p_target"), out.index(mod["REQUEST"]))
+        self.assertIn("droiddeck_trace_remember_polygon(id,", out)
+        self.assertIn("droiddeck_trace_polygons.erase(p_polygon);", out)
+        self.assertIn(mod["RENDER"] + "\tdroiddeck_canvas_trace(", out)
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_TRACE", out)
+        # Polygons, meshes: bounds and counts only.
+        helpers = mod["HELPERS"]
+        self.assertNotIn("p_points[", helpers)
+        self.assertNotIn("get_data", helpers)
+        both = poly["patch_source"](out)
+        self.assertEqual(both.count("droiddeck_poly_remember(id,"), 1)
+        self.assertEqual(both.count("droiddeck_trace_remember_polygon(id,"), 1)
+        mod["patch_source"](poly["patch_source"](src))
+        for broken in ("nothing", src.replace(mod["RENDER"], "")):
+            with self.assertRaises(SystemExit):
+                mod["patch_source"](broken)
+
+
+class BatchCompareTest(unittest.TestCase):
+    """compare.py judges each arm's frame against stock and reads draws and Vulkan call counts from the logs."""
+
+    COMPARE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "native-engine/batchtest/compare.py"))
+
+    def write(self, d, name, pixels, draws, vk=None):
+        Path(d, name + ".raw").write_bytes((2).to_bytes(4, "little") + (1).to_bytes(4, "little") + bytes(pixels))
+        log = "BATCHTEST %s draws %d size 2x1\n" % (name, draws)
+        if vk:
+            log += ("droiddeck-vkcount: window 1.0s 60 frames 60.0 fps | per frame: 1.0 submits 1.0 cmdbufs %d draws (0 indirect) "
+                    "0.0 dispatches 5 pipeline-binds %d set-binds 9 push-consts 3.0 passes 18.0 barriers 0.0 copies | ms/frame:\n" % vk)
+        Path(d, name + ".log").write_text(log)
+
+    def test_rules_and_draw_counts(self):
+        base = [10, 20, 30, 255, 40, 50, 60, 255]
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "stock-a", base, 10, (10, 14))
+            self.write(d, "stock-b", base, 10)
+            self.write(d, "same", base, 6, (6, 9))
+            self.write(d, "near", [12] + base[1:], 5)
+            self.assertEqual(self.COMPARE["main"]([d, "same=exact", "near=max=3", "--fewer", "same<stock-a", "--fewer", "near<=same"]), 0)
+            self.assertEqual(self.COMPARE["main"]([d, "near=exact"]), 1)
+            self.assertEqual(self.COMPARE["main"]([d, "same=exact", "--fewer", "stock-a<same"]), 1)
+            self.assertEqual(self.COMPARE["vkcount"](d, "same")["set-binds"], 9)
+            self.assertAlmostEqual(self.COMPARE["phone_ms"](self.COMPARE["vkcount"](d, "stock-a")), 0.72)
+            self.assertIsNone(self.COMPARE["vkcount"](d, "near"))
+
+    def test_nondeterministic_stock_passes_with_a_warning(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "stock-a", [1] * 8, 4)
+            self.write(d, "stock-b", [2] * 8, 4)
+            self.write(d, "x", [200] * 8, 4)
+            self.assertEqual(self.COMPARE["main"]([d, "x=exact"]), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
 
