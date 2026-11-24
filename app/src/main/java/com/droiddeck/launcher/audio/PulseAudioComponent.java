@@ -29,7 +29,7 @@ public class PulseAudioComponent extends SessionPart {
     private final File deviceControls;
     private File logFile;
     private final String micFifoPath;
-    /** Game sound off: the default sink is a null sink, so no AAudio or DirectAudio output opens. */
+    /** Game sound off: the default sink is a pipe sink nobody reads, so no AAudio or DirectAudio output opens. */
     private volatile boolean silent;
     private volatile int pid = -1;
 
@@ -104,7 +104,11 @@ public class PulseAudioComponent extends SessionPart {
                 + socket().getAbsolutePath() + "\"");
         config.add(".nofail");
         if (silent) {
-            config.add("load-module module-null-sink sink_name=Silent");
+            // The bundled module-null-sink is a glibc build that bionic cannot load; the pipe sink is
+            // ours. With system-clock timing it consumes audio in real time and drops what the
+            // unread FIFO cannot hold, so games play normally into nothing.
+            config.add("load-module module-pipe-sink sink_name=Silent file=\""
+                    + new File(workingDir, "silent.fifo").getAbsolutePath() + "\" use_system_clock_for_timing=yes");
             config.add("set-default-sink Silent");
         } else {
             config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0 control_dir=" + deviceControls);
