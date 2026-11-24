@@ -94,6 +94,7 @@ INCLUDE = '#include "renderer_canvas_render_rd.h"\n'
 HELPERS = r"""
 // Kestrel: several textures per 2D batch (canvas_texture_slots.py). On only with DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS=<1..7>.
 #include <stdlib.h>
+#define DROIDDECK_TEXTURE_SLOTS_PATCH 1
 #include <atomic>
 static std::atomic<uint32_t> droiddeck_canvas_slots_joined{ 0 };
 static std::atomic<uint32_t> droiddeck_canvas_slots_sets{ 0 };

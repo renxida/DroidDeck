@@ -52,6 +52,7 @@ def patch_shader(text):
 INCLUDE = '#include "renderer_canvas_render_rd.h"\n'
 HELPERS = r"""
 // Kestrel: rects batch with nine-patches (canvas_quad_merge.py). On only with DROIDDECK_NATIVE_CANVAS_QUAD_MERGE=1.
+#define DROIDDECK_QUAD_MERGE_PATCH 1
 #include <stdlib.h>
 bool droiddeck_canvas_quad_merge() {
 	static const bool on = [] {

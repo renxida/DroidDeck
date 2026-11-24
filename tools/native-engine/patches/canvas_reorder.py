@@ -59,6 +59,25 @@ namespace {
 
 typedef RendererCanvasRender::Item DroiddeckItem;
 
+// With canvas_texture_slots.py on, a batch takes other textures (not MSDF ones, bit 8 of bits), so texture no
+// longer decides whether an item joins; with canvas_quad_merge.py on, rects and nine-patches share batches.
+bool droiddeck_same_texture(RID p_a, RID p_b, uint32_t p_bits) {
+#ifdef DROIDDECK_TEXTURE_SLOTS_PATCH
+	if (droiddeck_canvas_slots_max() && !(p_bits & (1u << 8))) {
+		return true;
+	}
+#endif
+	return p_a == p_b;
+}
+int droiddeck_rect_type() {
+#ifdef DROIDDECK_QUAD_MERGE_PATCH
+	if (droiddeck_canvas_quad_merge()) {
+		return 2;
+	}
+#endif
+	return 1;
+}
+
 struct DroiddeckItemInfo {
 	bool joins = false; // every command would join one batch, described by the fields below
 	bool trusted = false; // rect bounds everything it draws
@@ -69,7 +88,7 @@ struct DroiddeckItemInfo {
 	const DroiddeckItem *clip = nullptr;
 
 	bool same_batch(const DroiddeckItemInfo &p_other) const {
-		return joins && p_other.joins && type == p_other.type && texture == p_other.texture && bits == p_other.bits && clip == p_other.clip;
+		return joins && p_other.joins && type == p_other.type && droiddeck_same_texture(texture, p_other.texture, bits) && bits == p_other.bits && clip == p_other.clip;
 	}
 };
 
@@ -105,7 +124,7 @@ DroiddeckItemInfo droiddeck_item_info(const DroiddeckItem *p_item, RS::CanvasIte
 					joins = false; // its batch also keys on the colour
 				}
 				const RS::CanvasItemTextureRepeat rect_repeat = (rect->flags & RendererCanvasRender::CANVAS_RECT_TILE) ? RS::CANVAS_ITEM_TEXTURE_REPEAT_ENABLED : repeat;
-				type = 1;
+				type = droiddeck_rect_type();
 				texture = rect->texture;
 				bits = filter | (uint32_t(rect_repeat) << 4) | ((rect->flags & RendererCanvasRender::CANVAS_RECT_MSDF) ? (1u << 8) : 0u);
 			} break;
@@ -160,7 +179,7 @@ DroiddeckItemInfo droiddeck_item_info(const DroiddeckItem *p_item, RS::CanvasIte
 			info.texture = texture;
 			info.bits = bits;
 			first = false;
-		} else if (type != info.type || texture != info.texture || bits != info.bits) {
+		} else if (type != info.type || !droiddeck_same_texture(texture, info.texture, bits) || bits != info.bits) {
 			joins = false;
 		}
 	}
