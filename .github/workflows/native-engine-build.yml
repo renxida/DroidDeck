@@ -125,6 +125,7 @@ jobs:
           cd ~/godot-src && git log -1 --oneline
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/csharp_compat_classes.py" ~/godot-src \
             "$GITHUB_WORKSPACE/tools/native-engine/modules/native_compat/register_types.cpp"
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_skip_redundant_set_binds.py" ~/godot-src
           # Link unstripped so the build can write a symbol map (godot.syms) for the sampling profiler; the binary is
           # stripped right after, so what ships is the same size as before.
           grep -q 'env.AppendUnique(LINKFLAGS=\["-s"\])' SConstruct

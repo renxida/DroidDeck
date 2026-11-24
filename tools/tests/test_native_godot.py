@@ -1249,6 +1249,30 @@ class CompatClassesInCSharpTest(unittest.TestCase):
         self.assertEqual(1, len(bad))
         self.assertIn("SpineSprite InvalidOperationException", bad[0])
 
+class SkipRedundantSetBindsPatchTest(unittest.TestCase):
+    """The engine build makes RenderingDevice skip binding a uniform set already bound at its index (the phone's
+    Nov 24 vkcount: 810 descriptor-set binds for 604 draws, ~25 us each), with a run-time switch back."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_patch_guards_the_bind_and_needs_its_anchor(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/rd_skip_redundant_set_binds.py"))
+        src = '#include "rendering_device.h"\n' + mod["ANCHOR"]
+        out = mod["patch"](src)
+        self.assertIn("DROIDDECK_RD_REBIND_SETS", out)
+        self.assertIn("#include <stdlib.h>", out)
+        guard = out.index("draw_list.state.sets[p_index].bound && draw_list.state.sets[p_index].uniform_set == p_uniform_set")
+        self.assertLess(guard, out.index("// Needs rebind."))
+        with self.assertRaises(SystemExit):
+            mod["patch"]("nothing here")
+        with self.assertRaises(SystemExit):
+            mod["patch"](src + mod["ANCHOR"])
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:  # against the real 4.5.1 source when it is at hand
+            real = (Path(godot) / "servers/rendering/rendering_device.cpp").read_text()
+            self.assertIn("DROIDDECK_RD_REBIND_SETS", mod["patch"](real))
+
+
 if __name__ == "__main__":
     unittest.main()
 
