@@ -197,6 +197,7 @@ jobs:
           grep -q "native_compat: census | [0-9]* viewports \[root " prof-run.log
           grep -q "native_compat: prof sampling the main thread at 250 Hz.*engine symbols" prof-run.log
           grep -q "native_compat: prof threads" prof-run.log
+          grep -q "native_compat: prof frames [0-9]*: wall p50" prof-run.log
           grep -q "BENCH" prof-run.log
       - name: Run the bench's Windows export through droiddeck-native-godot on our template
         timeout-minutes: 30

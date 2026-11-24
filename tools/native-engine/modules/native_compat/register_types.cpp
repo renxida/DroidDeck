@@ -14,6 +14,9 @@
 
 #include "core/object/class_db.h"
 #include "core/os/thread.h"
+#include "scene/main/scene_tree.h"
+#include "core/os/os.h"
+#include "core/object/message_queue.h"
 #include "core/string/print_string.h"
 #include "core/variant/variant.h"
 #include "servers/rendering_server.h"
@@ -120,33 +123,13 @@ static void prof_print(const std::vector<std::string> &p_lines) {
 	}
 }
 
-static void prof_frame() {
-	prof_print(droiddeck_prof::tick());
-}
-
-static void prof_start() {
-	const std::string started = droiddeck_prof::start_from_env();
-	if (started.empty()) {
-		return;
-	}
-	print_line(String::utf8(started.c_str()));
-	if (!droiddeck_prof::active()) {
-		return;
-	}
-	if (RenderingServer *rs = RenderingServer::get_singleton()) {
-		rs->connect(SNAME("frame_pre_draw"), callable_mp_static(&prof_frame));
-	} else {
-		print_line("native_compat: prof no rendering server yet; one report at exit");
-	}
-}
-
 // The render census (render_census.h), when DROIDDECK_NATIVE_RENDER_CENSUS asks for it. It walks the scene tree,
-// so it only runs when the frame signal comes on the thread that started the engine (the scene tree's thread;
-// under a .NET host it need not carry Godot's main-thread id).
+// so it only runs on the thread that started the engine (the scene tree's thread; under a .NET host it need not
+// carry Godot's main-thread id).
 static Thread::ID census_thread = 0;
 
 static void census_frame() {
-	if (Thread::get_caller_id() != census_thread) {
+	if (!droiddeck_census::active() || Thread::get_caller_id() != census_thread) {
 		return;
 	}
 	const std::string line = droiddeck_census::tick();
@@ -155,15 +138,47 @@ static void census_frame() {
 	}
 }
 
-static void census_start() {
-	const std::string started = droiddeck_census::start_from_env();
-	if (started.empty()) {
+// Once a frame for both: the scene tree's process_frame once the tree exists (it runs headless too, where the
+// rendering server sends no frame signals), the rendering server's frame_pre_draw until then.
+static bool frame_from_tree = false;
+
+static void each_frame() {
+	prof_print(droiddeck_prof::tick());
+	census_frame();
+}
+
+static void each_frame_from_rs() {
+	if (!frame_from_tree) {
+		each_frame();
+	}
+}
+
+static void hook_tree() {
+	if (SceneTree *st = Object::cast_to<SceneTree>(OS::get_singleton()->get_main_loop())) {
+		st->connect(SNAME("process_frame"), callable_mp_static(&each_frame));
+		frame_from_tree = true;
+	}
+}
+
+static void frame_hooks_start() {
+	const std::string prof = droiddeck_prof::start_from_env();
+	if (!prof.empty()) {
+		print_line(String::utf8(prof.c_str()));
+	}
+	const std::string census = droiddeck_census::start_from_env();
+	if (!census.empty()) {
+		print_line(String::utf8(census.c_str()));
+		census_thread = Thread::get_caller_id();
+	}
+	if (!droiddeck_prof::active() && !droiddeck_census::active()) {
 		return;
 	}
-	print_line(String::utf8(started.c_str()));
-	census_thread = Thread::get_caller_id();
 	if (RenderingServer *rs = RenderingServer::get_singleton()) {
-		rs->connect(SNAME("frame_pre_draw"), callable_mp_static(&census_frame));
+		rs->connect(SNAME("frame_pre_draw"), callable_mp_static(&each_frame_from_rs));
+	}
+	// The first message-queue flush comes in the main loop's first iteration, after the tree is made.
+	if (MessageQueue::get_singleton()) {
+		MessageQueue::get_singleton()->push_callable(callable_mp_static(&hook_tree));
 	}
 }
 
@@ -174,8 +189,7 @@ void initialize_native_compat_module(ModuleInitializationLevel p_level) {
 #ifdef __linux__
 	apply_main_thread_hints();
 #endif
-	prof_start();
-	census_start();
+	frame_hooks_start();
 	GDREGISTER_CLASS(NativeSkeleton2D);
 	GDREGISTER_CLASS(NativeSoundBank);
 
