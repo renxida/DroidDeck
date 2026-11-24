@@ -56,8 +56,13 @@ int main(int argc, char **argv) {
 	CHECK(p && std::sscanf(p, "main thread %ld samples", &n) == 1 && n > 50 && n < 900);
 	CHECK(all.find("prof threads") != std::string::npos);
 	CHECK(all.find("main:") != std::string::npos);
+	// The first tick starts the frame clock; the second closes a 0.3 s frame, a hitch with its samples.
+	CHECK(all.find("prof frames 1: wall p50 3") != std::string::npos);
+	CHECK(all.find("| 1 at or over 33 ms") != std::string::npos);
+	CHECK(all.find("prof worst frames: 3") != std::string::npos);
 	if (!syms.empty() || from_cache) {
 		CHECK(started.find("engine symbols") != std::string::npos);
+		CHECK(all.find("samples): 100.0% burn_heavy") != std::string::npos || all.find("samples): 9") != std::string::npos);
 		CHECK(all.find("% burn_heavy") != std::string::npos); // the leaf, by name
 		CHECK(all.find("burn_light") != std::string::npos); // its caller, through frame pointers
 	}
@@ -68,6 +73,29 @@ int main(int argc, char **argv) {
 	if (!again.empty() && std::sscanf(std::strstr(again[0].c_str(), "main thread "), "main thread %ld samples", &n) == 1) {
 		CHECK(n > 8 && n < 200);
 	}
+	// Twenty short frames and one long one: frame counts, quantiles and one hitch. A tick and a report first
+	// close the frame that held the burn above and clear the window.
+	droiddeck_prof::tick();
+	droiddeck_prof::report_now();
+	for (int i = 0; i < 20; i++) {
+		burn_heavy(0.005);
+		droiddeck_prof::tick();
+	}
+	burn_light(0.06);
+	droiddeck_prof::tick();
+	const auto frames = droiddeck_prof::report_now();
+	std::string fr;
+	for (const auto &l : frames) {
+		fr += l + "\n";
+	}
+	std::printf("%s", fr.c_str());
+	CHECK(fr.find("prof frames 21: wall p50 ") != std::string::npos);
+	CHECK(fr.find("| 1 at or over 33 ms") != std::string::npos);
+	double p50 = 0, mx = 0;
+	const char *fp = std::strstr(fr.c_str(), "wall p50 ");
+	CHECK(fp && std::sscanf(fp, "wall p50 %lf", &p50) == 1 && p50 >= 4.5 && p50 < 20);
+	const char *mp = fp ? std::strstr(fp, " max ") : nullptr;
+	CHECK(mp && std::sscanf(mp, " max %lf", &mx) == 1 && mx >= 59 && mx < 200);
 	if (failures) {
 		std::printf("%d failure(s)\n", failures);
 		return 1;

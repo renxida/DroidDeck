@@ -25,6 +25,7 @@
 #include <ucontext.h>
 #include <unistd.h>
 #include <unordered_map>
+#include <vector>
 
 #ifndef sigev_notify_thread_id
 #define sigev_notify_thread_id _sigev_un._tid
@@ -51,6 +52,26 @@ pid_t sampled_tid = 0;
 int rate_hz = 0;
 double window_sec = 10;
 double window_start = 0;
+
+// Frame timing, from tick() (called once a frame): wall and main-thread CPU per frame, and the samples that fell
+// in each frame at or over the hitch threshold, so a slow frame can be told apart as CPU work (and whose) or a
+// wait (little CPU, few samples).
+double hitch_ms = 33;
+double last_frame_wall = 0, last_frame_cpu = 0;
+uint32_t frame_mark = 0; // ring position at the last frame's end
+std::vector<float> frame_wall_ms, frame_cpu_ms;
+struct Hitch {
+	float wall_ms, cpu_ms;
+	std::vector<uintptr_t> pcs; // leaf pcs of the samples inside the frame
+};
+std::vector<Hitch> hitches;
+uint32_t hitch_count = 0;
+
+double thread_cpu_sec() {
+	timespec ts;
+	clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+	return double(ts.tv_sec) + double(ts.tv_nsec) * 1e-9;
+}
 
 double now_sec() {
 	timespec ts;
@@ -492,6 +513,10 @@ std::string start_from_env() {
 	}
 	const char *w = getenv("DROIDDECK_NATIVE_PROF_WINDOW");
 	const char *syms = getenv("DROIDDECK_NATIVE_PROF_SYMS");
+	const char *hitch = getenv("DROIDDECK_NATIVE_PROF_HITCH_MS");
+	if (hitch && atof(hitch) > 0) {
+		hitch_ms = atof(hitch);
+	}
 	return start(atoi(hz), w ? atof(w) : 10.0, syms ? syms : "");
 }
 
@@ -566,6 +591,38 @@ std::vector<std::string> report_now() {
 	if (!lib_callers.empty()) {
 		lines.push_back("native_compat: prof library time by engine caller: " + top(lib_callers, n, 15));
 	}
+	// Frame times over the window, and the worst frames at or over the hitch threshold.
+	if (!frame_wall_ms.empty()) {
+		auto q = [](std::vector<float> v, double p) {
+			std::sort(v.begin(), v.end());
+			return double(v[std::min(v.size() - 1, size_t(p * double(v.size())))]);
+		};
+		char fl[320];
+		snprintf(fl, sizeof(fl),
+				"native_compat: prof frames %zu: wall p50 %.1f p95 %.1f p99 %.1f max %.1f ms | main cpu p50 %.1f p95 %.1f p99 %.1f max %.1f ms | %u at or over %g ms",
+				frame_wall_ms.size(), q(frame_wall_ms, 0.5), q(frame_wall_ms, 0.95), q(frame_wall_ms, 0.99), q(frame_wall_ms, 1.0),
+				q(frame_cpu_ms, 0.5), q(frame_cpu_ms, 0.95), q(frame_cpu_ms, 0.99), q(frame_cpu_ms, 1.0), hitch_count, hitch_ms);
+		lines.push_back(fl);
+		std::sort(hitches.begin(), hitches.end(), [](const Hitch &a, const Hitch &b) { return a.wall_ms > b.wall_ms; });
+		std::string hl;
+		for (size_t i = 0; i < hitches.size() && i < 8; i++) {
+			std::unordered_map<std::string, int64_t> leafs;
+			for (uintptr_t pc : hitches[i].pcs) {
+				leafs[lookup(pc).first]++;
+			}
+			char hb[96];
+			snprintf(hb, sizeof(hb), "%s%.0f ms (cpu %.0f, %zu samples): ", i ? " || " : "", hitches[i].wall_ms, hitches[i].cpu_ms,
+					hitches[i].pcs.size());
+			hl += hb + (leafs.empty() ? std::string("no samples") : top(leafs, int64_t(hitches[i].pcs.size()), 4));
+		}
+		if (!hl.empty()) {
+			lines.push_back("native_compat: prof worst frames: " + hl);
+		}
+		frame_wall_ms.clear();
+		frame_cpu_ms.clear();
+		hitches.clear();
+		hitch_count = 0;
+	}
 	// Every thread's CPU over the window: what the battery pays for.
 	uint64_t proc_now = 0;
 	std::map<int, ThreadCpu> threads_now = read_threads(proc_now);
@@ -596,7 +653,36 @@ std::vector<std::string> report_now() {
 }
 
 std::vector<std::string> tick() {
-	if (!running || pid_t(syscall(SYS_gettid)) != sampled_tid || now_sec() - window_start < window_sec) {
+	if (!running || pid_t(syscall(SYS_gettid)) != sampled_tid) {
+		return {};
+	}
+	const double wall = now_sec(), cpu = thread_cpu_sec();
+	const uint32_t h = head.load(std::memory_order_acquire);
+	if (last_frame_wall > 0) {
+		const float wall_ms = float((wall - last_frame_wall) * 1000.0), cpu_ms = float((cpu - last_frame_cpu) * 1000.0);
+		frame_wall_ms.push_back(wall_ms);
+		frame_cpu_ms.push_back(cpu_ms);
+		if (wall_ms >= hitch_ms) {
+			hitch_count++;
+			Hitch hi { wall_ms, cpu_ms, {} };
+			for (uint32_t i = (h - frame_mark > RING ? h - RING : frame_mark); i != h; i++) {
+				hi.pcs.push_back(ring[i % RING].pc);
+			}
+			// Keep the 32 worst for the report.
+			if (hitches.size() < 32) {
+				hitches.push_back(std::move(hi));
+			} else {
+				auto least = std::min_element(hitches.begin(), hitches.end(), [](const Hitch &a, const Hitch &b) { return a.wall_ms < b.wall_ms; });
+				if (least->wall_ms < hi.wall_ms) {
+					*least = std::move(hi);
+				}
+			}
+		}
+	}
+	last_frame_wall = wall;
+	last_frame_cpu = cpu;
+	frame_mark = h;
+	if (wall - window_start < window_sec) {
 		return {};
 	}
 	return report_now();
