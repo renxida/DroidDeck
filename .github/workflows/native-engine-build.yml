@@ -130,6 +130,8 @@ jobs:
             "$GITHUB_WORKSPACE/tools/native-engine/modules/native_compat/register_types.cpp"
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_skip_redundant_set_binds.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_poly_batch.py" ~/godot-src  # before the census, which labels its batch starts
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_texture_slots.py" ~/godot-src  # before the census too
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_quad_merge.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_batch_census.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_reorder.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_trace.py" ~/godot-src
@@ -307,7 +309,7 @@ jobs:
           grep -E "native_compat: (census|render census)|Vulkan|ERROR" skel-vk.log | cut -c1-2000 | head -20
           # At least one census saw the canvas renderer record a draw list.
           grep -E "native_compat: census \| .* batches per frame over [0-9]+ frames: [0-9.]*[1-9][0-9.]* draw lists" skel-vk.log
-      - name: Canvas reordering keeps every pixel and polygon batching every pixel to within three steps, and both cut draws; a traced frame replays (synthetic scene, lavapipe)
+      - name: Canvas reordering, texture slots and quad merge keep every pixel and polygon batching every pixel to within three steps, and each cuts draws; a traced frame replays (synthetic scene, lavapipe)
         timeout-minutes: 25
         working-directory: tools/native-engine/batchtest
         run: |
@@ -335,21 +337,31 @@ jobs:
           run out/BatchTest.arm64 reorder DROIDDECK_NATIVE_CANVAS_REORDER=16
           run out/BatchTest.arm64 poly DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
           run out/BatchTest.arm64 both DROIDDECK_NATIVE_CANVAS_REORDER=16 DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
+          run out/BatchTest.arm64 slots DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS=7
+          run out/BatchTest.arm64 quad DROIDDECK_NATIVE_CANVAS_QUAD_MERGE=1
+          run out/BatchTest.arm64 all DROIDDECK_NATIVE_CANVAS_REORDER=16 DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256 DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS=7 \
+            DROIDDECK_NATIVE_CANVAS_QUAD_MERGE=1
           # Polygon batching stores colour times modulate as half floats (as Godot does for every primitive), so a
           # channel may move by a step or two, which nobody can see (Cedar, Nov 24: "Invisible is fine"). A wrong
           # triangle, texture or order moves pixels by far more, so anything past three steps fails.
-          python3 compare.py out --logs . reorder=exact poly=max=3 both=max=3 --fewer "reorder<stock-a" --fewer "poly<=stock-a" --fewer "both<reorder"
+          # Texture slots draw several textures in one batch and quad merge draws rects with the nine-patch variant;
+          # each pixel samples the same texture at the same UV, so both keep every pixel.
+          python3 compare.py out --logs . reorder=exact poly=max=3 both=max=3 slots=exact quad=exact all=max=3 \
+            --fewer "reorder<stock-a" --fewer "poly<=stock-a" --fewer "both<reorder" --fewer "slots<stock-a" --fewer "quad<=stock-a" \
+            --fewer "all<both"
           grep -E "reorder look-ahead 16: [0-9.]*[1-9][0-9.]* items moved" reorder.log > /dev/null
           grep -E "polygon batching up to 256 triangles: [0-9.]*[1-9][0-9.]* polygons batched" poly.log > /dev/null
+          grep -E "texture slots 7: [0-9.]*[1-9][0-9.]* joins" slots.log > /dev/null
           # The trace writer saw the scene, and its replay batches like the scene itself (within 5 draws).
           T=$(grep -l "^end calls 1$" trace/*.trace | tail -1)
           mkdir -p rp
-          for arm in stock-a:  stock-b:  reorder:DROIDDECK_NATIVE_CANVAS_REORDER=16; do
+          for arm in stock-a:  stock-b:  reorder:DROIDDECK_NATIVE_CANVAS_REORDER=16  slots:DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS=7 \
+                     quad:DROIDDECK_NATIVE_CANVAS_QUAD_MERGE=1; do
             n=${arm%%:*}; e=${arm#*:}
             (cd ../replay && run out/CanvasReplay.arm64 $n REPLAY_TRACE=$OLDPWD/$T BATCHTEST_OUT=$OLDPWD/rp $e)
             mv ../replay/$n.log rp/$n.log
           done
-          python3 compare.py rp reorder=exact --fewer "reorder<stock-a"
+          python3 compare.py rp reorder=exact slots=exact quad=exact --fewer "reorder<stock-a" --fewer "slots<stock-a" --fewer "quad<=stock-a"
           python3 - <<'PY'
           import re
           d = {k: int(re.search(r"BATCHTEST \S+ draws (\d+)", open(p).read()).group(1)) for k, p in

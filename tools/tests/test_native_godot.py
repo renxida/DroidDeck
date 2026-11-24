@@ -1385,6 +1385,87 @@ class CanvasPolyBatchPatchTest(unittest.TestCase):
         self.assertLess(out.index("#define DROIDDECK_POLY_BATCH 1"), out.index("#ifdef DROIDDECK_POLY_BATCH"))
 
 
+class CanvasTextureSlotsPatchTest(unittest.TestCase):
+    """Several textures per 2D batch (off unless DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS is set): the shader picks
+    the texture from flags bits 29..31 only when compiled with the define, every texture break may join instead,
+    and the cache key holds the slot textures."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_shader_and_header(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_texture_slots.py"))
+        inc = mod["patch_shader_uniforms"]("x\n" + mod["UNIFORMS_ANCHOR"])
+        self.assertIn("#ifdef DROIDDECK_TEXTURE_SLOTS\n", inc)
+        self.assertIn("binding = 5) uniform texture2D droiddeck_slot_textures[7];", inc)
+        frag = mod["patch_shader"]("{\n" + mod["SAMPLE"] + "}\n")
+        self.assertIn("#else\n" + mod["SAMPLE"] + "#endif\n", frag)
+        self.assertEqual(frag.count("droiddeck_slot_textures["), 7)
+        head = mod["patch_header"](mod["TEX_INFO"] + mod["BATCH_END"] + mod["KEY_FIELDS"] + mod["KEY_EQ"] + mod["KEY_HASH"])
+        self.assertIn("RID droiddeck_slots[7];\n\t\tuint32_t droiddeck_slot_count = 0;", head)
+        self.assertIn("droiddeck_slots[i] != p_val.droiddeck_slots[i]", head)
+        self.assertIn("droiddeck_slots[i].get_id()", head)
+        self.assertIn("TextureInfo *tex_info = nullptr;", head)
+        with self.assertRaises(SystemExit):
+            mod["patch_header"]("nothing")
+        with self.assertRaises(SystemExit):
+            mod["patch_shader"]("nothing")
+        # Flag bits 29..31 must be free: the shadow mask ends at bit 28.
+        self.assertEqual(mod["SLOT_SHIFT"], 29)
+
+    def test_real_source_every_break_may_join_and_census_still_labels_them(self):
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if not godot:
+            self.skipTest("DROIDDECK_GODOT_SRC not set")
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_texture_slots.py"))
+        poly = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_poly_batch.py"))
+        census = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_batch_census.py"))
+        rd = Path(godot) / "servers/rendering/renderer_rd"
+        mod["patch_shader"]((rd / "shaders/canvas.glsl").read_text())
+        mod["patch_shader_uniforms"]((rd / "shaders/canvas_uniforms_inc.glsl").read_text())
+        mod["patch_header"]((rd / "renderer_canvas_render_rd.h").read_text())
+        out, joined = mod["patch_source"](poly["patch_source"]((rd / "renderer_canvas_render_rd.cpp").read_text()))
+        # rect, nine-patch, primitive, polygon as triangles and the debug redraw; never the unbatched polygon.
+        self.assertEqual(joined, 5)
+        self.assertEqual(out.count("!droiddeck_slot_join(r_current_batch, tex_info)"), joined)
+        self.assertEqual(out.count("r_current_batch->tex_info = tex_info;\n"), out.count("droiddeck_slot_reset(r_current_batch);"))
+        self.assertIn("droiddeck_slot_info = nullptr; // texture infos are freed here", out)
+        self.assertIn("state.batch_texture_uniforms.resize(droiddeck_canvas_slots_max() ? 6 : 5);", out)
+        _, labels = census["patch_source"](out)
+        self.assertIn("rect: texture", labels)
+        self.assertIn("polygon: as triangles, texture", labels)
+
+
+class CanvasQuadMergePatchTest(unittest.TestCase):
+    """Rects batch with nine-patches (off unless DROIDDECK_NATIVE_CANVAS_QUAD_MERGE is set): only instances marked
+    as nine-patches get the margin mapping, and rects record into nine-patch batches."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_patches_shader_and_source(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_quad_merge.py"))
+        frag = mod["patch_shader"]("a\n" + mod["NP_BEGIN"] + "\tuv = vec2(1);\n" + mod["NP_END"] + "\n#endif\n")
+        self.assertIn("#ifdef USE_NINEPATCH\n#ifdef DROIDDECK_QUAD_MERGE\n", frag)
+        self.assertLess(frag.index("if (draw_data.pad.x != 0.0) {"), frag.index("int draw_center = 2;"))
+        self.assertLess(frag.index(mod["NP_END"]), frag.index("\t}\n#endif\n\n#endif"))
+        src = mod["INCLUDE"] + mod["DEFINES"] + mod["RECT"] + mod["NP_MARGIN"]
+        out = mod["patch_source"](src)
+        self.assertIn("command_type != droiddeck_rect_batch_type()", out)
+        self.assertIn("instance_data->pad[0] = 1.0;", out)
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_QUAD_MERGE", out)
+        for broken in ("nothing", src.replace(mod["RECT"], "")):
+            with self.assertRaises(SystemExit):
+                mod["patch_source"](broken)
+
+    def test_real_source(self):
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if not godot:
+            self.skipTest("DROIDDECK_GODOT_SRC not set")
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_quad_merge.py"))
+        rd = Path(godot) / "servers/rendering/renderer_rd"
+        mod["patch_shader"]((rd / "shaders/canvas.glsl").read_text())
+        mod["patch_source"]((rd / "renderer_canvas_render_rd.cpp").read_text())
+
+
 class CanvasTraceTest(unittest.TestCase):
     """The canvas trace hooks request, free and canvas_render_items, is off without DROIDDECK_NATIVE_CANVAS_TRACE,
     and writes no vertices or pixels; it applies in either order with polygon batching."""

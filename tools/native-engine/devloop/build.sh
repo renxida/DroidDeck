@@ -22,6 +22,8 @@ git checkout -q -- .
 P=$REPO/tools/native-engine/patches
 python3 "$P/rd_skip_redundant_set_binds.py" "$G" > /dev/null
 python3 "$P/canvas_poly_batch.py" "$G" > /dev/null
+python3 "$P/canvas_texture_slots.py" "$G" > /dev/null
+python3 "$P/canvas_quad_merge.py" "$G" > /dev/null
 python3 "$P/canvas_batch_census.py" "$G" > /dev/null
 python3 "$P/canvas_reorder.py" "$G" > /dev/null
 python3 "$P/canvas_trace.py" "$G" > /dev/null
