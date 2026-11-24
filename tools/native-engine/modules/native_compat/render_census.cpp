@@ -196,7 +196,7 @@ std::string tick() {
 	next_usec = now + uint64_t(window_sec * 1e6);
 	SceneTree *st = Object::cast_to<SceneTree>(OS::get_singleton()->get_main_loop());
 	if (!st || !st->get_root()) {
-		return std::string();
+		return "native_compat: census | no scene tree yet";
 	}
 	const uint64_t t0 = OS::get_singleton()->get_ticks_usec();
 	Census c;

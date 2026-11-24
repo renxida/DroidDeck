@@ -141,9 +141,12 @@ static void prof_start() {
 }
 
 // The render census (render_census.h), when DROIDDECK_NATIVE_RENDER_CENSUS asks for it. It walks the scene tree,
-// so it only runs when the frame signal comes on the main thread.
+// so it only runs when the frame signal comes on the thread that started the engine (the scene tree's thread;
+// under a .NET host it need not carry Godot's main-thread id).
+static Thread::ID census_thread = 0;
+
 static void census_frame() {
-	if (!Thread::is_main_thread()) {
+	if (Thread::get_caller_id() != census_thread) {
 		return;
 	}
 	const std::string line = droiddeck_census::tick();
@@ -158,6 +161,7 @@ static void census_start() {
 		return;
 	}
 	print_line(String::utf8(started.c_str()));
+	census_thread = Thread::get_caller_id();
 	if (RenderingServer *rs = RenderingServer::get_singleton()) {
 		rs->connect(SNAME("frame_pre_draw"), callable_mp_static(&census_frame));
 	}
