@@ -16,10 +16,13 @@ Before a draw list records its items, for each item whose commands would all joi
 would break that batch, the first later item (within n) that would join it is moved up to follow it, provided
 its bounds do not overlap the bounds of any item it moves past. Draw order only matters where pixels overlap,
 so the image is unchanged. To keep that true, only plain items take part: no material (a shader may move
-vertices or read the screen), no custom rect, no canvas group, no back-buffer copy, no skeleton, mesh,
+vertices or read the screen), no canvas group, no back-buffer copy, no skeleton, mesh,
 multimesh or particles, no LCD text, and the whole list is skipped when 2D lights are in use. An item that
 does not pass those checks stops the look-ahead, since nothing may move across bounds it can't trust.
-Bounds are the culler's global rects, grown by one pixel.
+Bounds come from the item's own commands (rects, nine-patches, polygons, primitives, with their transforms), as
+Item::get_rect() works them out, not from the culler's rect: every Control sets its size as a custom rect, which
+need not bound what it draws. They are grown by one unit. Disjoint shapes never cover the same pixel sample, so
+moving an item past others whose bounds it does not meet cannot change a pixel.
 
 The census reads how many items moved through droiddeck_canvas_reorder_take(). Fails unless _render_batch_items
 is found exactly once.
@@ -57,7 +60,8 @@ typedef RendererCanvasRender::Item DroiddeckItem;
 
 struct DroiddeckItemInfo {
 	bool joins = false; // every command would join one batch, described by the fields below
-	bool trusted = false; // its global rect bounds everything it draws
+	bool trusted = false; // rect bounds everything it draws
+	Rect2 rect; // in the same space for every item of the list, grown by a pixel
 	int type = 0;
 	RID texture;
 	uint32_t bits = 0;
@@ -71,14 +75,15 @@ struct DroiddeckItemInfo {
 DroiddeckItemInfo droiddeck_item_info(const DroiddeckItem *p_item, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat) {
 	DroiddeckItemInfo info;
 	const RID material = p_item->material_owner ? p_item->material_owner->material : p_item->material;
-	if (material.is_valid() || p_item->custom_rect || p_item->use_canvas_group || p_item->copy_back_buffer || p_item->repeat_source_item ||
+	if (material.is_valid() || p_item->use_canvas_group || p_item->copy_back_buffer || p_item->repeat_source_item ||
 			p_item->skeleton.is_valid() || p_item->commands == nullptr) {
 		return info;
 	}
-	const Rect2 &r = p_item->global_rect_cache;
-	if (!r.is_finite() || r.size.x <= 0 || r.size.y <= 0) {
-		return info;
-	}
+	// The item's own drawing bounds, as Item::get_rect() works them out before any custom rect replaces them
+	// (every Control sets its size as a custom rect, which need not bound what it draws).
+	Transform2D xf;
+	Rect2 bounds;
+	bool have_bounds = false;
 	const uint32_t filter = uint32_t(p_item->texture_filter == RS::CANVAS_ITEM_TEXTURE_FILTER_DEFAULT ? p_default_filter : p_item->texture_filter);
 	const RS::CanvasItemTextureRepeat repeat = p_item->texture_repeat == RS::CANVAS_ITEM_TEXTURE_REPEAT_DEFAULT ? p_default_repeat : p_item->texture_repeat;
 	bool joins = true;
@@ -87,11 +92,14 @@ DroiddeckItemInfo droiddeck_item_info(const DroiddeckItem *p_item, RS::CanvasIte
 		int type = 0;
 		RID texture;
 		uint32_t bits = 0;
+		Rect2 r;
 		switch (c->type) {
 			case DroiddeckItem::Command::TYPE_TRANSFORM:
+				xf = static_cast<const DroiddeckItem::CommandTransform *>(c)->xform;
 				continue;
 			case DroiddeckItem::Command::TYPE_RECT: {
 				const DroiddeckItem::CommandRect *rect = static_cast<const DroiddeckItem::CommandRect *>(c);
+				r = rect->rect;
 				if (rect->flags & RendererCanvasRender::CANVAS_RECT_LCD) {
 					joins = false; // its batch also keys on the colour
 				}
@@ -102,17 +110,39 @@ DroiddeckItemInfo droiddeck_item_info(const DroiddeckItem *p_item, RS::CanvasIte
 			} break;
 			case DroiddeckItem::Command::TYPE_NINEPATCH: {
 				const DroiddeckItem::CommandNinePatch *np = static_cast<const DroiddeckItem::CommandNinePatch *>(c);
+				r = np->rect;
 				type = 2;
 				texture = np->texture;
 				bits = filter | (uint32_t(repeat) << 4);
 			} break;
-			case DroiddeckItem::Command::TYPE_POLYGON:
-			case DroiddeckItem::Command::TYPE_PRIMITIVE:
-				joins = false; // drawn within its rect, but never joins another item's batch
+			case DroiddeckItem::Command::TYPE_POLYGON: {
+				r = xf.xform(static_cast<const DroiddeckItem::CommandPolygon *>(c)->polygon.rect_cache);
+				bounds = have_bounds ? bounds.merge(r) : r;
+				have_bounds = true;
+				joins = false; // never joins another item's batch
 				continue;
+			}
+			case DroiddeckItem::Command::TYPE_PRIMITIVE: {
+				const DroiddeckItem::CommandPrimitive *primitive = static_cast<const DroiddeckItem::CommandPrimitive *>(c);
+				if (primitive->point_count == 0) {
+					continue;
+				}
+				r.position = primitive->points[0];
+				for (uint32_t j = 1; j < primitive->point_count; j++) {
+					r.expand_to(primitive->points[j]);
+				}
+				r = xf.xform(r);
+				bounds = have_bounds ? bounds.merge(r) : r;
+				have_bounds = true;
+				joins = false;
+				continue;
+			}
 			default:
 				return info; // meshes, particles, clip ignore, animation slices: untrusted
 		}
+		r = xf.xform(r.abs()); // a flipped sprite has a negative size
+		bounds = have_bounds ? bounds.merge(r) : r;
+		have_bounds = true;
 		if (first) {
 			info.type = type;
 			info.texture = texture;
@@ -121,6 +151,13 @@ DroiddeckItemInfo droiddeck_item_info(const DroiddeckItem *p_item, RS::CanvasIte
 		} else if (type != info.type || texture != info.texture || bits != info.bits) {
 			joins = false;
 		}
+	}
+	if (!have_bounds) {
+		return info;
+	}
+	info.rect = p_item->final_transform.xform(bounds).grow(1);
+	if (!info.rect.is_finite()) {
+		return info;
 	}
 	info.trusted = true;
 	info.joins = joins && !first;
@@ -148,10 +185,9 @@ static void droiddeck_canvas_reorder(DroiddeckItem **p_items, int p_count, RS::C
 		const int limit = MIN(p_count, i + 2 + window);
 		for (int k = i + 1; k < limit; k++) {
 			if (k > i + 1 && infos[k].same_batch(infos[i])) {
-				const Rect2 r = p_items[k]->global_rect_cache.grow(1);
 				bool clear = true;
 				for (int m = i + 1; m < k && clear; m++) {
-					clear = !r.intersects(p_items[m]->global_rect_cache.grow(1));
+					clear = !infos[k].rect.intersects(infos[m].rect);
 				}
 				if (clear) {
 					DroiddeckItem *item = p_items[k];

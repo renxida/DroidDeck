@@ -59,6 +59,7 @@ func _ready() -> void:
 		s.position = Vector2(20 + i * 9, 300 + (i % 3) * 7)
 		s.scale = Vector2(3, 3)
 		s.modulate = Color(1, 1, 1, 0.6)
+		s.flip_h = i % 2 == 1 # a flipped sprite's rect has a negative size
 		add_child(s)
 	# The same textures again further right, overlapping only some neighbours.
 	for i in 12:
@@ -69,6 +70,20 @@ func _ready() -> void:
 		s.scale = Vector2(2.5, 2.5)
 		s.modulate = Color(1, 1, 1, 0.7)
 		add_child(s)
+	# Rotated and scaled items that overlap their neighbours only through the rotation.
+	for i in 6:
+		var s = Sprite2D.new()
+		s.texture = tex_a if i % 2 == 0 else tex_b
+		s.position = Vector2(500 + (i % 3) * 40, 330 + (i / 3) * 40)
+		s.rotation = 0.6 + i * 0.3
+		s.scale = Vector2(3.5, 1.2)
+		s.modulate = Color(1, 1, 1, 0.75)
+		add_child(s)
+		var l = Label.new()
+		l.text = "rot %d" % i
+		l.position = Vector2(490 + (i % 3) * 40, 325 + (i / 3) * 40)
+		l.rotation = -0.4
+		add_child(l)
 	for i in 4:
 		await RenderingServer.frame_post_draw
 	var draws = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
