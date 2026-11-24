@@ -8,6 +8,7 @@
  *            descriptor-set binds, render passes, barriers, copies
  *   ms:      time inside vkQueueSubmit, vkQueuePresentKHR (includes the WSI layer's CPU wait on the
  *            present fence), vkAcquireNextImageKHR, vkWaitForFences and queue/device idle waits
+ *   passes:  passes begun per frame by render area and the first attachment's load/store ops (top 16 kinds)
  *   misc:    pipelines compiled and the ms spent compiling them, memory allocations
  *   memory:  device memory the app holds now (from vkAllocateMemory and vkFreeMemory), the host-visible
  *            part, and the peak; and the BC-compressed images it holds, with the size they take once the
@@ -112,6 +113,12 @@ static int table_take(struct table *t, uint64_t handle, struct entry *out) {
     t->used--;
     return 1;
 }
+static uint64_t table_get(const struct table *t, uint64_t handle) { /* extra, or 0 when absent */
+    if (!handle) return 0;
+    for (uint32_t i = slot_of(handle); t->slots[i].handle; i = (i + 1) & (TABLE_SIZE - 1))
+        if (t->slots[i].handle == handle) return t->slots[i].extra;
+    return 0;
+}
 static struct table memory_table, image_table, bound_table;
 static pthread_mutex_t mem_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t live_bytes, host_bytes, peak_bytes, live_allocations, untracked_allocations;
@@ -143,6 +150,64 @@ static int reports_off;
 static FILE *extra;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
+/* ---- render passes by size and first attachment's load/store ops ----
+ * Each pass begun in the window is filed by its render area and the load and store op of its first colour
+ * attachment (depth when it has none). On a tiler a pass that loads or stores reads or writes its whole area
+ * in main memory, so full-screen load/store passes are the ones worth merging; small viewports are not. */
+enum { OP_UNKNOWN = 0 };
+static const char *load_name(int op) {
+    switch (op) { case 1 + VK_ATTACHMENT_LOAD_OP_LOAD: return "load"; case 1 + VK_ATTACHMENT_LOAD_OP_CLEAR: return "clear";
+                  case 1 + VK_ATTACHMENT_LOAD_OP_DONT_CARE: return "dontcare"; case 0: return "?"; default: return "none"; }
+}
+static const char *store_name(int op) {
+    switch (op) { case 1 + VK_ATTACHMENT_STORE_OP_STORE: return "store"; case 1 + VK_ATTACHMENT_STORE_OP_DONT_CARE: return "dontcare";
+                  case 0: return "?"; default: return "none"; }
+}
+static int load_code(VkAttachmentLoadOp op) { return op == VK_ATTACHMENT_LOAD_OP_LOAD || op == VK_ATTACHMENT_LOAD_OP_CLEAR ||
+                                                     op == VK_ATTACHMENT_LOAD_OP_DONT_CARE ? 1 + (int)op : 9; }
+static int store_code(VkAttachmentStoreOp op) { return op == VK_ATTACHMENT_STORE_OP_STORE ||
+                                                       op == VK_ATTACHMENT_STORE_OP_DONT_CARE ? 1 + (int)op : 9; }
+#define PASS_KINDS 16
+struct pass_kind { uint32_t w, h; uint8_t load, store; uint64_t count; };
+static struct pass_kind pass_kinds[PASS_KINDS];
+static uint64_t passes_unfiled;
+static struct table render_pass_table; /* render pass -> extra = load code * 16 + store code (under mem_lock) */
+static pthread_mutex_t pass_lock = PTHREAD_MUTEX_INITIALIZER;
+static void file_pass(uint32_t w, uint32_t h, int load, int store) {
+    if (reports_off) return;
+    pthread_mutex_lock(&pass_lock);
+    int i = 0;
+    for (; i < PASS_KINDS && pass_kinds[i].count; i++)
+        if (pass_kinds[i].w == w && pass_kinds[i].h == h && pass_kinds[i].load == load && pass_kinds[i].store == store) break;
+    if (i < PASS_KINDS) {
+        if (!pass_kinds[i].count) pass_kinds[i] = (struct pass_kind){w, h, (uint8_t)load, (uint8_t)store, 0};
+        pass_kinds[i].count++;
+    } else passes_unfiled++;
+    pthread_mutex_unlock(&pass_lock);
+}
+static int pass_order(const void *a, const void *b) {
+    const struct pass_kind *x = a, *y = b;
+    return x->count < y->count ? 1 : x->count > y->count ? -1 : 0;
+}
+/* Appends " | passes by area, load/store: WxH load/store N, ..." (per frame) and clears the window's kinds. */
+static int pass_summary(char *out, size_t room, double frames) {
+    struct pass_kind k[PASS_KINDS]; uint64_t unfiled;
+    pthread_mutex_lock(&pass_lock);
+    memcpy(k, pass_kinds, sizeof k); memset(pass_kinds, 0, sizeof pass_kinds);
+    unfiled = passes_unfiled; passes_unfiled = 0;
+    pthread_mutex_unlock(&pass_lock);
+    int used = 0;
+    while (used < PASS_KINDS && k[used].count) used++;
+    if (!used) return 0;
+    qsort(k, used, sizeof *k, pass_order);
+    int n = snprintf(out, room, " | passes by area, load/store per frame:");
+    for (int i = 0; i < used && n > 0 && (size_t)n < room; i++)
+        n += snprintf(out + n, room - n, "%s %ux%u %s/%s %.1f", i ? "," : "", k[i].w, k[i].h, load_name(k[i].load),
+                      store_name(k[i].store), k[i].count / frames);
+    if (unfiled && n > 0 && (size_t)n < room) n += snprintf(out + n, room - n, ", other %.1f", unfiled / frames);
+    return n > 0 && (size_t)n < room ? n : 0;
+}
+
 static void report(uint64_t now, const char *why) {
     uint64_t snapshot[C_COUNT];
     for (int i = 0; i < C_COUNT; i++) snapshot[i] = __atomic_exchange_n(&counters[i], 0, __ATOMIC_RELAXED);
@@ -156,7 +221,7 @@ static void report(uint64_t now, const char *why) {
     pthread_mutex_unlock(&mem_lock);
     double seconds = (double)(now - window_start) / 1e9;
     double frames = snapshot[C_frames] ? (double)snapshot[C_frames] : 1.0;
-    char line[1400];
+    char line[2200];
     int n = snprintf(line, sizeof line,
         "droiddeck-vkcount: %s %.1fs %llu frames %.1f fps | per frame: %.1f submits %.1f cmdbufs %.0f draws "
         "(%.0f indirect) %.1f dispatches %.0f pipeline-binds %.0f set-binds %.0f push-consts %.1f passes "
@@ -182,6 +247,7 @@ static void report(uint64_t now, const char *why) {
         n += snprintf(line + n, sizeof line - n, ", blocks capped at %llu MB (%llu bigger refused)",
                       (unsigned long long)(block_cap >> 20),
                       (unsigned long long)__atomic_load_n(&blocks_refused, __ATOMIC_RELAXED));
+    n += pass_summary(line + n, sizeof line - n - 2, frames);
     if (n >= (int)sizeof line - 1) n = (int)sizeof line - 2;
     line[n] = '\n';
     line[n + 1] = 0;
@@ -213,7 +279,7 @@ static void frame_done(void) {
     X(CmdBindDescriptorSets) X(CmdPushConstants) X(CmdBeginRenderPass) X(CmdBeginRenderPass2) \
     X(CmdBeginRenderPass2KHR) X(CmdBeginRendering) X(CmdBeginRenderingKHR) X(CmdPipelineBarrier) \
     X(CmdPipelineBarrier2) X(CmdPipelineBarrier2KHR) X(CmdCopyBuffer) X(CmdCopyBufferToImage) X(CmdCopyImage) \
-    X(CmdBlitImage)
+    X(CmdBlitImage) X(CreateRenderPass) X(CreateRenderPass2) X(CreateRenderPass2KHR) X(DestroyRenderPass)
 
 struct device_data {
     dispatch_key key;
@@ -672,22 +738,96 @@ static void VKAPI_CALL cmd_push_constants(VkCommandBuffer cb, VkPipelineLayout l
                                           uint32_t offset, uint32_t size, const void *values) {
     NEXT(cb, CmdPushConstants); bump(C_push_constants); next_(cb, layout, stages, offset, size, values);
 }
+static int pass_ops(VkRenderPass pass) {
+    pthread_mutex_lock(&mem_lock);
+    int ops = (int)table_get(&render_pass_table, (uint64_t)pass);
+    pthread_mutex_unlock(&mem_lock);
+    return ops;
+}
+static void file_begin(const VkRenderPassBeginInfo *info) {
+    if (!info || reports_off) return;
+    int ops = pass_ops(info->renderPass);
+    file_pass(info->renderArea.extent.width, info->renderArea.extent.height, ops / 16, ops % 16);
+}
+static void file_rendering(const VkRenderingInfo *info) {
+    if (!info || reports_off) return;
+    const VkRenderingAttachmentInfo *a = info->colorAttachmentCount && info->pColorAttachments
+        ? &info->pColorAttachments[0] : info->pDepthAttachment;
+    file_pass(info->renderArea.extent.width, info->renderArea.extent.height, a ? load_code(a->loadOp) : 0,
+              a ? store_code(a->storeOp) : 0);
+}
 static void VKAPI_CALL cmd_begin_pass(VkCommandBuffer cb, const VkRenderPassBeginInfo *info, VkSubpassContents contents) {
-    NEXT(cb, CmdBeginRenderPass); bump(C_passes); next_(cb, info, contents);
+    NEXT(cb, CmdBeginRenderPass); bump(C_passes); file_begin(info); next_(cb, info, contents);
 }
 static void VKAPI_CALL cmd_begin_pass2(VkCommandBuffer cb, const VkRenderPassBeginInfo *info,
                                        const VkSubpassBeginInfo *subpass) {
-    NEXT(cb, CmdBeginRenderPass2); bump(C_passes); next_(cb, info, subpass);
+    NEXT(cb, CmdBeginRenderPass2); bump(C_passes); file_begin(info); next_(cb, info, subpass);
 }
 static void VKAPI_CALL cmd_begin_pass2_khr(VkCommandBuffer cb, const VkRenderPassBeginInfo *info,
                                            const VkSubpassBeginInfo *subpass) {
-    NEXT(cb, CmdBeginRenderPass2KHR); bump(C_passes); next_(cb, info, subpass);
+    NEXT(cb, CmdBeginRenderPass2KHR); bump(C_passes); file_begin(info); next_(cb, info, subpass);
 }
 static void VKAPI_CALL cmd_begin_rendering(VkCommandBuffer cb, const VkRenderingInfo *info) {
-    NEXT(cb, CmdBeginRendering); bump(C_passes); next_(cb, info);
+    NEXT(cb, CmdBeginRendering); bump(C_passes); file_rendering(info); next_(cb, info);
 }
 static void VKAPI_CALL cmd_begin_rendering_khr(VkCommandBuffer cb, const VkRenderingInfo *info) {
-    NEXT(cb, CmdBeginRenderingKHR); bump(C_passes); next_(cb, info);
+    NEXT(cb, CmdBeginRenderingKHR); bump(C_passes); file_rendering(info); next_(cb, info);
+}
+/* Render passes: remember the first attachment's load and store ops, so a begun pass can be filed by them. The
+ * first colour attachment of subpass 0 when there is one, else attachment 0. */
+static void remember_pass(VkRenderPass pass, uint32_t count, uint32_t first, VkAttachmentLoadOp load, VkAttachmentStoreOp store) {
+    if (!pass || first >= count) return;
+    pthread_mutex_lock(&mem_lock);
+    table_put(&render_pass_table, (uint64_t)pass, 0, (uint64_t)(load_code(load) * 16 + store_code(store)));
+    pthread_mutex_unlock(&mem_lock);
+}
+static VkResult VKAPI_CALL create_render_pass(VkDevice device, const VkRenderPassCreateInfo *info,
+                                              const VkAllocationCallbacks *allocator, VkRenderPass *pass) {
+    NEXT(device, CreateRenderPass);
+    if (!next_) return VK_ERROR_INITIALIZATION_FAILED;
+    VkResult result = next_(device, info, allocator, pass);
+    if (result == VK_SUCCESS && info && info->attachmentCount) {
+        uint32_t first = info->subpassCount && info->pSubpasses[0].colorAttachmentCount &&
+                         info->pSubpasses[0].pColorAttachments[0].attachment != VK_ATTACHMENT_UNUSED
+            ? info->pSubpasses[0].pColorAttachments[0].attachment : 0;
+        if (first < info->attachmentCount)
+            remember_pass(*pass, info->attachmentCount, first, info->pAttachments[first].loadOp, info->pAttachments[first].storeOp);
+    }
+    return result;
+}
+static void remember_pass2(VkRenderPass pass, const VkRenderPassCreateInfo2 *info) {
+    if (!info || !info->attachmentCount) return;
+    uint32_t first = info->subpassCount && info->pSubpasses[0].colorAttachmentCount &&
+                     info->pSubpasses[0].pColorAttachments[0].attachment != VK_ATTACHMENT_UNUSED
+        ? info->pSubpasses[0].pColorAttachments[0].attachment : 0;
+    if (first < info->attachmentCount)
+        remember_pass(pass, info->attachmentCount, first, info->pAttachments[first].loadOp, info->pAttachments[first].storeOp);
+}
+static VkResult VKAPI_CALL create_render_pass2(VkDevice device, const VkRenderPassCreateInfo2 *info,
+                                               const VkAllocationCallbacks *allocator, VkRenderPass *pass) {
+    NEXT(device, CreateRenderPass2);
+    if (!next_) return VK_ERROR_INITIALIZATION_FAILED;
+    VkResult result = next_(device, info, allocator, pass);
+    if (result == VK_SUCCESS) remember_pass2(*pass, info);
+    return result;
+}
+static VkResult VKAPI_CALL create_render_pass2_khr(VkDevice device, const VkRenderPassCreateInfo2 *info,
+                                                   const VkAllocationCallbacks *allocator, VkRenderPass *pass) {
+    NEXT(device, CreateRenderPass2KHR);
+    if (!next_) return VK_ERROR_INITIALIZATION_FAILED;
+    VkResult result = next_(device, info, allocator, pass);
+    if (result == VK_SUCCESS) remember_pass2(*pass, info);
+    return result;
+}
+static void VKAPI_CALL destroy_render_pass(VkDevice device, VkRenderPass pass, const VkAllocationCallbacks *allocator) {
+    NEXT(device, DestroyRenderPass);
+    if (pass) {
+        struct entry gone;
+        pthread_mutex_lock(&mem_lock);
+        table_take(&render_pass_table, (uint64_t)pass, &gone);
+        pthread_mutex_unlock(&mem_lock);
+    }
+    if (next_) next_(device, pass, allocator);
 }
 static void VKAPI_CALL cmd_barrier(VkCommandBuffer cb, VkPipelineStageFlags src, VkPipelineStageFlags dst,
                                    VkDependencyFlags flags, uint32_t nm, const VkMemoryBarrier *m, uint32_t nb,
@@ -766,6 +906,10 @@ static const struct hook { const char *name; PFN_vkVoidFunction function; } devi
     {"vkCmdCopyBufferToImage", (PFN_vkVoidFunction)cmd_copy_buffer_to_image},
     {"vkCmdCopyImage", (PFN_vkVoidFunction)cmd_copy_image},
     {"vkCmdBlitImage", (PFN_vkVoidFunction)cmd_blit_image},
+    {"vkCreateRenderPass", (PFN_vkVoidFunction)create_render_pass},
+    {"vkCreateRenderPass2", (PFN_vkVoidFunction)create_render_pass2},
+    {"vkCreateRenderPass2KHR", (PFN_vkVoidFunction)create_render_pass2_khr},
+    {"vkDestroyRenderPass", (PFN_vkVoidFunction)destroy_render_pass},
 };
 
 static PFN_vkVoidFunction device_hook(const char *name) {

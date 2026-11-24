@@ -1,7 +1,8 @@
 /* Drives VK_LAYER_DROIDDECK_vkcount on lavapipe: 60 frames on a headless swapchain, each with one
  * submit of one command buffer holding five buffer copies and a barrier. It holds 8 MiB of device memory
  * after freeing a 4 MiB allocation, and one 1024x1024 BC3 image (1 MiB compressed, 4 MiB decoded) after
- * destroying a BC1 one, and a 1 MiB RGBA image bound into that memory. See test_vkcount_layer.py. */
+ * destroying a BC1 one, and a 1 MiB RGBA image bound into that memory. Each frame also runs two render passes
+ * on the swapchain image: a full 64x64 clear/store pass and a 32x16 load/store one. See test_vkcount_layer.py. */
 #include <vulkan/vulkan.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,6 +59,29 @@ int main(void) {
     VkImage rgba; CK(vkCreateImage(dev, &ii, NULL, &rgba));
     CK(vkBindImageMemory(dev, rgba, mem, 1 << 20));
     vkBindBufferMemory(dev, b1, mem, 0); vkBindBufferMemory(dev, b2, mem, 4096);
+    uint32_t nimg = 0; vkGetSwapchainImagesKHR(dev, sc, &nimg, NULL);
+    VkImage simg[8]; if (nimg > 8) nimg = 8; vkGetSwapchainImagesKHR(dev, sc, &nimg, simg);
+    VkAttachmentReference ref = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    VkSubpassDescription sub = {.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS, .colorAttachmentCount = 1, .pColorAttachments = &ref};
+    VkAttachmentDescription att = {.format = VK_FORMAT_B8G8R8A8_UNORM, .samples = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE, .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    VkRenderPassCreateInfo rpi = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO, .attachmentCount = 1, .pAttachments = &att,
+        .subpassCount = 1, .pSubpasses = &sub};
+    VkRenderPass clear_pass, load_pass; CK(vkCreateRenderPass(dev, &rpi, NULL, &clear_pass));
+    att.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; att.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    att.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    CK(vkCreateRenderPass(dev, &rpi, NULL, &load_pass));
+    VkImageView views[8]; VkFramebuffer fbs[8];
+    for (uint32_t i = 0; i < nimg; i++) {
+        VkImageViewCreateInfo vi = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, .image = simg[i], .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = VK_FORMAT_B8G8R8A8_UNORM, .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
+        CK(vkCreateImageView(dev, &vi, NULL, &views[i]));
+        VkFramebufferCreateInfo fi = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, .renderPass = clear_pass, .attachmentCount = 1,
+            .pAttachments = &views[i], .width = 64, .height = 64, .layers = 1};
+        CK(vkCreateFramebuffer(dev, &fi, NULL, &fbs[i]));
+    }
     VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO}; VkFence fence, af; vkCreateFence(dev, &fci, NULL, &fence); vkCreateFence(dev, &fci, NULL, &af);
     for (int f = 0; f < 60; f++) {
         uint32_t idx; CK(vkAcquireNextImageKHR(dev, sc, UINT64_MAX, VK_NULL_HANDLE, af, &idx));
@@ -67,6 +91,12 @@ int main(void) {
         VkBufferCopy rg = {0, 0, 4096};
         for (int k = 0; k < 5; k++) vkCmdCopyBuffer(cb, b1, b2, 1, &rg);
         vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 0, NULL);
+        VkClearValue clear = {{{0, 0, 0, 1}}};
+        VkRenderPassBeginInfo rb = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = clear_pass, .framebuffer = fbs[idx],
+            .renderArea = {{0, 0}, {64, 64}}, .clearValueCount = 1, .pClearValues = &clear};
+        vkCmdBeginRenderPass(cb, &rb, VK_SUBPASS_CONTENTS_INLINE); vkCmdEndRenderPass(cb);
+        rb.renderPass = load_pass; rb.renderArea = (VkRect2D){{8, 8}, {32, 16}}; rb.clearValueCount = 0;
+        vkCmdBeginRenderPass(cb, &rb, VK_SUBPASS_CONTENTS_INLINE); vkCmdEndRenderPass(cb);
         vkEndCommandBuffer(cb);
         VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &cb};
         CK(vkQueueSubmit(queue, 1, &si, fence)); vkWaitForFences(dev, 1, &fence, 1, UINT64_MAX); vkResetFences(dev, 1, &fence);
@@ -75,6 +105,8 @@ int main(void) {
     }
     vkDeviceWaitIdle(dev);
     (void)bc3; (void)rgba; /* left alive, like mem, so the final line at vkDestroyDevice still counts it */
+    for (uint32_t i = 0; i < nimg; i++) { vkDestroyFramebuffer(dev, fbs[i], NULL); vkDestroyImageView(dev, views[i], NULL); }
+    vkDestroyRenderPass(dev, clear_pass, NULL); vkDestroyRenderPass(dev, load_pass, NULL);
     vkDestroySwapchainKHR(dev, sc, NULL); vkDestroyDevice(dev, NULL); vkDestroyInstance(inst, NULL);
     puts("ok");
 }

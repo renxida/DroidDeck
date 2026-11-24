@@ -62,7 +62,8 @@ class VkCountLayerTest(unittest.TestCase):
             self.assertTrue(line.startswith("droiddeck-vkcount: final "), line)
             for part in ("60 frames", "1.0 submits", "1.0 cmdbufs", "1.0 barriers", "5.0 copies", "allocations 2",
                          "memory 8.0 MB live", "peak 12.0 MB", "in 1 allocations,", "bound 1.0 MB in 1 images and 0.0 MB in 2 buffers",
-                         "BC textures 1.0 MB -> 4.0 MB decoded (1 images)"):
+                         "BC textures 1.0 MB -> 4.0 MB decoded (1 images)", "2.0 passes",
+                         "| passes by area, load/store per frame:", "64x64 clear/store 1.0", "32x16 load/store 1.0"):
                 self.assertIn(part, line)
             self.assertNotIn("blocks capped", line)
             self.assertIn(line, ran.stderr)
