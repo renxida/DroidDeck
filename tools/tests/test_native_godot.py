@@ -773,6 +773,11 @@ class NativeGodotTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             NG["fetch"](dict(comp, tag="native-engine-t2", sha256="0" * 64), str(cache), opener)
         self.assertFalse((cache / "native-engine-t2").exists())
+        # A new engine landing removes the old engine folders and nothing else.
+        for name in ("native-engine-7", "native-engine-8.orig", "check"):
+            (cache / name).mkdir()
+        NG["fetch"](dict(comp, tag="native-engine-9"), str(cache), opener)
+        self.assertEqual({"native-engine-t1", "native-engine-8.orig", "check", "native-engine-9"}, {p.name for p in cache.iterdir()})
         with self.assertRaises(SystemExit):
             NG["fetch"]({"tag": "", "url": "", "sha256": ""}, str(cache), opener)
 

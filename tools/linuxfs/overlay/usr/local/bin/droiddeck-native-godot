@@ -345,9 +345,21 @@ def fetch(component=COMPONENT, cache=CACHE, opener=urllib.request.urlopen):
         if os.path.isdir(folder):
             shutil.rmtree(folder)
         os.rename(root, folder)
+        prune_engines(cache, component["tag"])
         return folder
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+ENGINE_FOLDER = re.compile(r"native-engine-\d+")
+
+
+def prune_engines(cache, keep):
+    """Remove engine folders other than [keep] (about 170 MB each): only the pinned one is ever run, and a
+    pin that moves back downloads its engine again. Called only once a new engine has landed."""
+    for name in os.listdir(cache):
+        if name != keep and ENGINE_FOLDER.fullmatch(name):
+            shutil.rmtree(os.path.join(cache, name), ignore_errors=True)
 
 
 def steam_api(spec=STEAM_API, cache=CACHE, opener=urllib.request.urlopen):
