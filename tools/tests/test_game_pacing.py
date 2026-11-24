@@ -194,6 +194,16 @@ class FrameCapTest(unittest.TestCase):
         command, note = verbose(["/proton", "waitforexitandrun", str(self.godot)], {})
         self.assertEqual((command[3:], note), ([], None))
 
+    def test_test_experiments_add_game_level_switches_for_one_launch_only(self):
+        add = MODULE["test_experiments"]
+        env = {"DROIDDECK_TEST_EXPERIMENTS": "hybris-index, godot-render-thread,two-frames,bogus"}
+        self.assertEqual(add(env), "test experiments for this launch: hybris-index,godot-render-thread; "
+                                   "refused two-frames,bogus")
+        self.assertEqual(env["DROIDDECK_EXP_HYBRIS_INDEX"], "1")
+        self.assertEqual(env["DROIDDECK_EXP_GODOT_RENDER_THREAD"], "1")
+        self.assertNotIn("DROIDDECK_EXP_TWO_FRAMES", env)
+        self.assertIsNone(add({}))
+
     def test_godot_render_thread_goes_ahead_of_user_arguments_and_yields_to_theirs(self):
         thread = MODULE["godot_render_thread"]
         env = {"DROIDDECK_EXP_GODOT_RENDER_THREAD": "1"}

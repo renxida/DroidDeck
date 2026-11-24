@@ -146,6 +146,25 @@ SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-f
                        "hybris-index-session", "composite-timing")
 
 
+def test_experiments(env):
+    """DROIDDECK_TEST_EXPERIMENTS (comma-separated ids): game-level experiments for one test launch on top of the
+    saved switches. Only the remote's session env lines set it, and the app drops "next"-scope lines when that
+    session ends, so a person's own sessions run on the saved switches alone. Session-level and unknown ids are
+    refused, since this cannot change a session that has already started."""
+    asked = [name.strip() for name in env.get("DROIDDECK_TEST_EXPERIMENTS", "").split(",") if name.strip()]
+    if not asked:
+        return None
+    on, refused = [], []
+    for name in asked:
+        if name in EXPERIMENTS and name not in SESSION_EXPERIMENTS:
+            env[experiment_name(name)] = "1"
+            on.append(name)
+        else:
+            refused.append(name)
+    return "test experiments for this launch: %s%s" % (",".join(on) or "none",
+                                                       "; refused " + ",".join(refused) if refused else "")
+
+
 def experiments_line(saved, session):
     """The switches in effect for this launch: game-level ones from the saved config, session-level ones from the
     Steam session's environment, then the session-level ones saved differently, which need a new session."""
@@ -3769,6 +3788,11 @@ def main():
                 launch_config_valid = False
         if not launch_config_valid:
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+        if effective_env is env:
+            effective_env = env.copy()
+        note = test_experiments(effective_env)
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
         print("droiddeck-game-env: " + experiments_line(experiments(effective_env), steam_experiments),
               file=sys.stderr, flush=True)
     phases = []
