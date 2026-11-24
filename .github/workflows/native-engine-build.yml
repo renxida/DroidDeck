@@ -305,7 +305,7 @@ jobs:
           grep -E "native_compat: (census|render census)|Vulkan|ERROR" skel-vk.log | cut -c1-2000 | head -20
           # At least one census saw the canvas renderer record a draw list.
           grep -E "native_compat: census \| .* batches per frame over [0-9]+ frames: [0-9.]*[1-9][0-9.]* draw lists" skel-vk.log
-      - name: Canvas reordering keeps every pixel and polygon batching every pixel to within one step, and both cut draws (synthetic scene, lavapipe)
+      - name: Canvas reordering keeps every pixel and polygon batching every pixel to within three steps, and both cut draws (synthetic scene, lavapipe)
         timeout-minutes: 20
         working-directory: tools/native-engine/batchtest
         run: |
@@ -347,7 +347,8 @@ jobs:
               sys.exit(1)
           print("same pixels; draws %d -> %d" % (draws["stock-a"], draws["reorder"]))
           # Polygon batching stores colour times modulate as half floats (as Godot does for every primitive), so a
-          # channel may move by one step; nothing may move further.
+          # channel may move by a step or two, which nobody can see (Cedar, Nov 24: "Invisible is fine"). A wrong
+          # triangle, texture or order moves pixels by far more, so anything past three steps fails.
           for n in ("poly", "both"):
               a, b = raw["stock-a"], raw[n]
               worst = max(abs(x - y) for x, y in zip(a[8:], b[8:]))
@@ -364,8 +365,8 @@ jobs:
                           worst_at = (d, x, y, tuple(a[i:i + 4]), tuple(b[i:i + 4]))
               print("  differing pixels by 32x32 cell (x, y): count:", sorted(cells.items(), key=lambda kv: -kv[1])[:12])
               print("  worst pixel (difference, x, y, stock rgba, new rgba):", worst_at)
-              if len(a) != len(b) or worst > 1:
-                  print("::error::%s changed a pixel by more than one step" % n)
+              if len(a) != len(b) or worst > 3:
+                  print("::error::%s changed a pixel by more than three steps" % n)
                   sys.exit(1)
           # Alone it changes little (panels sit between other items); with the reorder it merges them.
           if not draws["poly"] <= draws["stock-a"] or not draws["both"] < draws["reorder"]:

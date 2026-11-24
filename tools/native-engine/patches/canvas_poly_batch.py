@@ -17,7 +17,8 @@ and the recorder turns such a polygon, drawn as a triangle list with no material
 primitives (draw_primitive) by texture, so consecutive panels share one draw. The vertex shader's primitive
 path takes the same positions, UVs and world transform; the only difference is that the colour times the
 item's modulate is worked out on the CPU and stored as half floats, as Godot does for every primitive, instead
-of being multiplied in float on the GPU. That can move a channel by at most one step out of 255.
+of being multiplied in float on the GPU. In CI that moves some pixels by up to two steps
+out of 255, which can't be seen.
 
 The census counts converted polygons through droiddeck_canvas_poly_take(), and canvas_reorder.py treats a
 convertible polygon as joining primitive batches when DROIDDECK_POLY_BATCH is defined. Apply before canvas_batch_census.py, which
