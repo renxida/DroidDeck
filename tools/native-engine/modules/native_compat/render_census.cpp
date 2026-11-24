@@ -35,6 +35,9 @@ uint32_t droiddeck_canvas_batch_take(int p_site);
 // Defined in the canvas renderer by patches/canvas_reorder.py: items moved forward to join a batch.
 uint32_t droiddeck_canvas_reorder_take();
 uint32_t droiddeck_canvas_reorder_window();
+// Defined in the canvas renderer by patches/canvas_poly_batch.py: polygons drawn as batched triangles.
+uint32_t droiddeck_canvas_poly_take();
+uint32_t droiddeck_canvas_poly_max();
 
 namespace droiddeck_census {
 
@@ -215,6 +218,9 @@ std::string batch_reasons(uint32_t p_frames) {
 	}
 	snprintf(buf, sizeof(buf), " | reorder look-ahead %u: %.1f items moved per frame", droiddeck_canvas_reorder_window(),
 			droiddeck_canvas_reorder_take() * per);
+	out += buf;
+	snprintf(buf, sizeof(buf), " | polygon batching up to %u triangles: %.1f polygons batched per frame", droiddeck_canvas_poly_max(),
+			droiddeck_canvas_poly_take() * per);
 	return out + buf;
 }
 

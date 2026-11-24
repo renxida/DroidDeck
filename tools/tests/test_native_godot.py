@@ -1347,6 +1347,44 @@ class CanvasReorderPatchTest(unittest.TestCase):
             self.assertLess(body.index("droiddeck_canvas_reorder(items"), body.index("droiddeck_canvas_batch_count(0);"))
 
 
+class CanvasPolyBatchPatchTest(unittest.TestCase):
+    """Small plain polygons become batched three-point primitives (off unless DROIDDECK_NATIVE_CANVAS_POLY_BATCH is
+    set); the census labels the new batch starts, and the reorder treats a convertible polygon as batchable."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_conversion_is_wired_into_request_free_and_record_and_needs_every_anchor(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_poly_batch.py"))
+        src = ("int a;\n" + mod["REQUEST"] + "int x) {\n" + mod["STORED"] + "}\n" + mod["FREE"] + "}\n" +
+               "switch (c->type) {\n" + mod["RECORD"] + "\t\t\t\tr_current_batch = _new_batch(r_batch_broken);\n}\n")
+        out = mod["patch_source"](src)
+        self.assertLess(out.index("struct DroiddeckPolyCpu"), out.index(mod["REQUEST"]))
+        self.assertIn("droiddeck_poly_remember(id,", out)
+        self.assertLess(out.index(mod["FREE"]), out.index("droiddeck_poly_cpu.erase(p_polygon);"))
+        record = out[out.index(mod["RECORD"]):]
+        self.assertLess(record.index("droiddeck_poly_lookup("), record.index("r_current_batch = _new_batch(r_batch_broken);\n}"))
+        for guard in ("RS::PRIMITIVE_TRIANGLES", "!use_linear_colors", "light_count == 0", "material.is_valid()"):
+            self.assertIn(guard, record.replace("->material).is_valid()", "material.is_valid()"))
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_POLY_BATCH", out)
+        for broken in ("nothing", src.replace(mod["FREE"], "")):
+            with self.assertRaises(SystemExit):
+                mod["patch_source"](broken)
+
+    def test_census_labels_the_converted_batch_starts(self):
+        census = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_batch_census.py"))
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if not godot:
+            self.skipTest("DROIDDECK_GODOT_SRC not set")
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_poly_batch.py"))
+        reorder = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_reorder.py"))
+        real = (Path(godot) / "servers/rendering/renderer_rd/renderer_canvas_render_rd.cpp").read_text()
+        out, labels = census["patch_source"](mod["patch_source"](real))
+        self.assertIn("polygon: as triangles, command type", labels)
+        self.assertIn("polygon: as triangles, texture", labels)
+        out = reorder["patch_source"](out)
+        self.assertLess(out.index("#define DROIDDECK_POLY_BATCH 1"), out.index("#ifdef DROIDDECK_POLY_BATCH"))
+
+
 if __name__ == "__main__":
     unittest.main()
 

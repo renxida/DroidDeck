@@ -128,6 +128,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/csharp_compat_classes.py" ~/godot-src \
             "$GITHUB_WORKSPACE/tools/native-engine/modules/native_compat/register_types.cpp"
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_skip_redundant_set_binds.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_poly_batch.py" ~/godot-src  # before the census, which labels its batch starts
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_batch_census.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_reorder.py" ~/godot-src
           # Link unstripped so the build can write a symbol map (godot.syms) for the sampling profiler; the binary is
@@ -304,7 +305,7 @@ jobs:
           grep -E "native_compat: (census|render census)|Vulkan|ERROR" skel-vk.log | cut -c1-2000 | head -20
           # At least one census saw the canvas renderer record a draw list.
           grep -E "native_compat: census \| .* batches per frame over [0-9]+ frames: [0-9.]*[1-9][0-9.]* draw lists" skel-vk.log
-      - name: Canvas reordering keeps every pixel and cuts draws (synthetic scene, lavapipe)
+      - name: Canvas reordering keeps every pixel and polygon batching every pixel to within one step, and both cut draws (synthetic scene, lavapipe)
         timeout-minutes: 20
         working-directory: tools/native-engine/batchtest
         run: |
@@ -326,9 +327,11 @@ jobs:
           run stock-a
           run stock-b
           run reorder DROIDDECK_NATIVE_CANVAS_REORDER=16
+          run poly DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
+          run both DROIDDECK_NATIVE_CANVAS_REORDER=16 DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
           python3 - <<'PY'
           import re, sys
-          raw = {n: open("out/%s.raw" % n, "rb").read() for n in ("stock-a", "stock-b", "reorder")}
+          raw = {n: open("out/%s.raw" % n, "rb").read() for n in ("stock-a", "stock-b", "reorder", "poly", "both")}
           draws = {n: int(re.search(r"BATCHTEST %s draws (\d+)" % n, open(n + ".log").read()).group(1)) for n in raw}
           print("draws", draws, "bytes", {n: len(v) for n, v in raw.items()})
           if raw["stock-a"] != raw["stock-b"]:
@@ -343,8 +346,22 @@ jobs:
               print("::error::reordering did not cut draws")
               sys.exit(1)
           print("same pixels; draws %d -> %d" % (draws["stock-a"], draws["reorder"]))
+          # Polygon batching stores colour times modulate as half floats (as Godot does for every primitive), so a
+          # channel may move by one step; nothing may move further.
+          for n in ("poly", "both"):
+              a, b = raw["stock-a"], raw[n]
+              worst = max(abs(x - y) for x, y in zip(a[8:], b[8:]))
+              moved = sum(1 for i in range(8, len(a), 4) if a[i:i + 4] != b[i:i + 4])
+              print("%s: %d draws, %d pixels differ, worst channel difference %d" % (n, draws[n], moved, worst))
+              if len(a) != len(b) or worst > 1:
+                  print("::error::%s changed a pixel by more than one step" % n)
+                  sys.exit(1)
+          if not draws["poly"] < draws["stock-a"] or not draws["both"] < draws["reorder"]:
+              print("::error::polygon batching did not cut draws")
+              sys.exit(1)
           PY
           grep -E "reorder look-ahead 16: [0-9.]*[1-9][0-9.]* items moved" reorder.log > /dev/null
+          grep -E "polygon batching up to 256 triangles: [0-9.]*[1-9][0-9.]* polygons batched" poly.log > /dev/null
       - name: Steam bridge (Cedar-approved) built, checked and put in the component (Valve's library is not)
         run: |
           set -euo pipefail

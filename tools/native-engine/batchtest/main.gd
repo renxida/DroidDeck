@@ -84,6 +84,39 @@ func _ready() -> void:
 		l.position = Vector2(490 + (i % 3) * 40, 325 + (i / 3) * 40)
 		l.rotation = -0.4
 		add_child(l)
+	# Polygons along the bottom: flat rounded panels with labels between them, a textured Polygon2D with UVs and
+	# vertex colours, and a Line2D with a gradient, so polygon batching has every kind of vertex data to keep.
+	var rounded = StyleBoxFlat.new()
+	rounded.bg_color = Color(0.7, 0.3, 0.6, 0.85)
+	rounded.set_corner_radius_all(5)
+	rounded.border_color = Color(0.95, 0.95, 0.9)
+	rounded.set_border_width_all(1)
+	for i in 6:
+		var p = Panel.new()
+		p.position = Vector2(8 + i * 52, 424)
+		p.size = Vector2(46, 22)
+		p.add_theme_stylebox_override("panel", rounded)
+		add_child(p)
+		var t = Label.new()
+		t.text = "%d" % i
+		t.position = Vector2(12 + i * 52, 448)
+		add_child(t)
+	var poly = Polygon2D.new()
+	poly.texture = tex_b
+	poly.polygon = PackedVector2Array([Vector2(330, 420), Vector2(380, 425), Vector2(390, 465), Vector2(335, 470), Vector2(320, 445)])
+	poly.uv = PackedVector2Array([Vector2(0, 0), Vector2(16, 0), Vector2(16, 16), Vector2(0, 16), Vector2(0, 8)])
+	poly.vertex_colors = PackedColorArray([Color(1, 1, 1), Color(1, 0.5, 0.5), Color(0.5, 1, 0.5, 0.7), Color(0.5, 0.5, 1), Color(1, 1, 0)])
+	add_child(poly)
+	var line = Line2D.new()
+	line.points = PackedVector2Array([Vector2(410, 430), Vector2(450, 460), Vector2(500, 425), Vector2(560, 462), Vector2(620, 430)])
+	line.width = 6
+	line.antialiased = true
+	var g = Gradient.new()
+	g.set_color(0, Color(0.2, 0.9, 0.9))
+	g.set_color(1, Color(0.9, 0.9, 0.2, 0.6))
+	line.gradient = g
+	line.joint_mode = Line2D.LINE_JOINT_ROUND
+	add_child(line)
 	for i in 4:
 		await RenderingServer.frame_post_draw
 	var draws = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)

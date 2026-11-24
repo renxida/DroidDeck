@@ -19,7 +19,8 @@ so the image is unchanged. To keep that true, only plain items take part: no mat
 vertices or read the screen), no canvas group, no back-buffer copy, no skeleton, mesh,
 multimesh or particles, no LCD text, and the whole list is skipped when 2D lights are in use. An item that
 does not pass those checks stops the look-ahead, since nothing may move across bounds it can't trust.
-Bounds come from the item's own commands (rects, nine-patches, polygons, primitives, with their transforms), as
+With canvas_poly_batch.py applied, a polygon it can convert joins batches of
+three-point primitives. Bounds come from the item's own commands (rects, nine-patches, polygons, primitives, with their transforms), as
 Item::get_rect() works them out, not from the culler's rect: every Control sets its size as a custom rect, which
 need not bound what it draws. They are grown by one unit. Disjoint shapes never cover the same pixel sample, so
 moving an item past others whose bounds it does not meet cannot change a pixel.
@@ -116,7 +117,18 @@ DroiddeckItemInfo droiddeck_item_info(const DroiddeckItem *p_item, RS::CanvasIte
 				bits = filter | (uint32_t(repeat) << 4);
 			} break;
 			case DroiddeckItem::Command::TYPE_POLYGON: {
-				r = xf.xform(static_cast<const DroiddeckItem::CommandPolygon *>(c)->polygon.rect_cache);
+				const DroiddeckItem::CommandPolygon *polygon = static_cast<const DroiddeckItem::CommandPolygon *>(c);
+				r = polygon->polygon.rect_cache;
+#ifdef DROIDDECK_POLY_BATCH
+				// canvas_poly_batch.py draws it as three-point primitives, which batch by texture.
+				if (polygon->primitive == RS::PRIMITIVE_TRIANGLES && droiddeck_poly_lookup(polygon->polygon.polygon_id)) {
+					type = 3;
+					texture = polygon->texture;
+					bits = filter | (uint32_t(repeat) << 4);
+					break;
+				}
+#endif
+				r = xf.xform(r);
 				bounds = have_bounds ? bounds.merge(r) : r;
 				have_bounds = true;
 				joins = false; // never joins another item's batch

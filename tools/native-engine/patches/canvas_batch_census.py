@@ -49,6 +49,8 @@ COMMAND_NAMES = {
 
 # (substring of the condition or comment just above the call, label)
 REASONS = [
+    ("as triangles: command type", "as triangles, command type"),  # canvas_poly_batch.py
+    ("as triangles: texture", "as triangles, texture"),
     ("final_clip_owner", "clip"),
     ("material != current_batch->material", "material"),
     ("use_lighting != ", "lighting"),
