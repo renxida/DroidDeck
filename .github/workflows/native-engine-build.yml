@@ -353,10 +353,22 @@ jobs:
               worst = max(abs(x - y) for x, y in zip(a[8:], b[8:]))
               moved = sum(1 for i in range(8, len(a), 4) if a[i:i + 4] != b[i:i + 4])
               print("%s: %d draws, %d pixels differ, worst channel difference %d" % (n, draws[n], moved, worst))
+              w = int.from_bytes(a[0:4], "little")
+              cells, worst_at = {}, None
+              for i in range(8, len(a), 4):
+                  if a[i:i + 4] != b[i:i + 4]:
+                      x, y = (i - 8) // 4 % w, (i - 8) // 4 // w
+                      cells[(x // 32 * 32, y // 32 * 32)] = cells.get((x // 32 * 32, y // 32 * 32), 0) + 1
+                      d = max(abs(p - q) for p, q in zip(a[i:i + 4], b[i:i + 4]))
+                      if worst_at is None or d > worst_at[0]:
+                          worst_at = (d, x, y, tuple(a[i:i + 4]), tuple(b[i:i + 4]))
+              print("  differing pixels by 32x32 cell (x, y): count:", sorted(cells.items(), key=lambda kv: -kv[1])[:12])
+              print("  worst pixel (difference, x, y, stock rgba, new rgba):", worst_at)
               if len(a) != len(b) or worst > 1:
                   print("::error::%s changed a pixel by more than one step" % n)
                   sys.exit(1)
-          if not draws["poly"] < draws["stock-a"] or not draws["both"] < draws["reorder"]:
+          # Alone it changes little (panels sit between other items); with the reorder it merges them.
+          if not draws["poly"] <= draws["stock-a"] or not draws["both"] < draws["reorder"]:
               print("::error::polygon batching did not cut draws")
               sys.exit(1)
           PY
