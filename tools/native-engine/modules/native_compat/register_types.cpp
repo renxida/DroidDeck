@@ -6,12 +6,14 @@
 #include "native_sound_bank.h"
 #include "spine_compat.h"
 #include "prof/prof.h"
+#include "render_census.h"
 
 #include "core/config/engine.h"
 #include "core/io/json.h"
 #include "core/io/resource_loader.h"
 
 #include "core/object/class_db.h"
+#include "core/os/thread.h"
 #include "core/string/print_string.h"
 #include "core/variant/variant.h"
 #include "servers/rendering_server.h"
@@ -138,6 +140,29 @@ static void prof_start() {
 	}
 }
 
+// The render census (render_census.h), when DROIDDECK_NATIVE_RENDER_CENSUS asks for it. It walks the scene tree,
+// so it only runs when the frame signal comes on the main thread.
+static void census_frame() {
+	if (!Thread::is_main_thread()) {
+		return;
+	}
+	const std::string line = droiddeck_census::tick();
+	if (!line.empty()) {
+		print_line(String::utf8(line.c_str()));
+	}
+}
+
+static void census_start() {
+	const std::string started = droiddeck_census::start_from_env();
+	if (started.empty()) {
+		return;
+	}
+	print_line(String::utf8(started.c_str()));
+	if (RenderingServer *rs = RenderingServer::get_singleton()) {
+		rs->connect(SNAME("frame_pre_draw"), callable_mp_static(&census_frame));
+	}
+}
+
 void initialize_native_compat_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
@@ -146,6 +171,7 @@ void initialize_native_compat_module(ModuleInitializationLevel p_level) {
 	apply_main_thread_hints();
 #endif
 	prof_start();
+	census_start();
 	GDREGISTER_CLASS(NativeSkeleton2D);
 	GDREGISTER_CLASS(NativeSoundBank);
 

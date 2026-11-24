@@ -187,13 +187,14 @@ jobs:
           # still exits as it did.
           cp ~/godot-src/bin/godot.syms out/arm64/godot.syms
           set +e
-          DROIDDECK_NATIVE_PROF=250 DROIDDECK_NATIVE_PROF_WINDOW=1 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
+          DROIDDECK_NATIVE_PROF=250 DROIDDECK_NATIVE_PROF_WINDOW=1 DROIDDECK_NATIVE_RENDER_CENSUS=1 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
             timeout 300 out/arm64/NativeBench.arm64 --headless --verbose > prof-run.log 2>&1
           prc=$?
           set -e
           echo "exit with profiler $prc (without $rc)"
-          grep "native_compat: prof" prof-run.log | cut -c1-600
+          grep -E "native_compat: (prof|census|render census)" prof-run.log | cut -c1-600
           test "$prc" = "$rc"
+          grep -q "native_compat: census | [0-9]* viewports \[root " prof-run.log
           grep -q "native_compat: prof sampling the main thread at 250 Hz.*engine symbols" prof-run.log
           grep -q "native_compat: prof threads" prof-run.log
           grep -q "BENCH" prof-run.log
