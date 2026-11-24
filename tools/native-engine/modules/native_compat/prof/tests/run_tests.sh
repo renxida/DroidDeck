@@ -10,4 +10,9 @@ c++ -std=c++17 -O1 -g -Wall -Wextra -fno-exceptions -fno-omit-frame-pointer -fsa
   nm -C -n -S --defined-only "$out" | awk '$2 ~ /^[tTwW]$/ || $3 ~ /^[tTwW]$/'; } > "$out.syms"
 "$out" "$out.syms"
 "$out"
-rm -f "$out" "$out.syms"
+home="$out.home"
+mkdir -p "$home/.cache/droiddeck/native/other" "$home/.cache/droiddeck/native/this"
+echo "# buildid 00" > "$home/.cache/droiddeck/native/other/godot.syms"
+cp "$out.syms" "$home/.cache/droiddeck/native/this/godot.syms"
+HOME="$home" "$out" --cache
+rm -rf "$out" "$out.syms" "$home"

@@ -152,13 +152,11 @@ std::string exe_dir() {
 
 // "nm -C -n -S --defined-only" lines: address, optional size, type, name. The first line may be
 // "# buildid <hex>".
-void load_syms(const std::string &p_path) {
-	const std::string path = p_path.empty() ? exe_dir() + "/godot.syms" : p_path;
-	const std::string own = build_id_of_exe();
+bool load_syms_from(const std::string &path, const std::string &own) {
 	FILE *f = fopen(path.c_str(), "r");
 	if (!f) {
 		syms_note = "no symbol map at " + path;
-		return;
+		return false;
 	}
 	char line[8192];
 	bool first = true;
@@ -173,7 +171,7 @@ void load_syms(const std::string &p_path) {
 				if (!own.empty() && own != line + 10) {
 					syms_note = "symbol map " + path + " is for build " + std::string(line + 10) + ", not " + own;
 					fclose(f);
-					return;
+					return false;
 				}
 				continue;
 			}
@@ -220,7 +218,51 @@ void load_syms(const std::string &p_path) {
 	fclose(f);
 	std::sort(exe_syms.begin(), exe_syms.end(), [](const Sym &a, const Sym &b) { return a.addr < b.addr; });
 	syms_note = std::to_string(exe_syms.size()) + " engine symbols";
+	return true;
 }
+
+// The map named by DROIDDECK_NATIVE_PROF_SYMS, else godot.syms beside the executable, else one in a downloaded
+// component (the launcher hardlinks the engine out of ~/.cache/droiddeck/native/<tag>/ under the game's name)
+// whose build id is this executable's.
+void load_syms(const std::string &p_path) {
+	const std::string own = build_id_of_exe();
+	if (!p_path.empty()) {
+		load_syms_from(p_path, own);
+		return;
+	}
+	if (load_syms_from(exe_dir() + "/godot.syms", own)) {
+		return;
+	}
+	const std::string first_note = syms_note;
+	const char *home = getenv("HOME");
+	const std::string cache = std::string(home ? home : "") + "/.cache/droiddeck/native";
+	if (!own.empty()) {
+		if (DIR *d = opendir(cache.c_str())) {
+			while (dirent *e = readdir(d)) {
+				if (e->d_name[0] == '.') {
+					continue;
+				}
+				const std::string path = cache + "/" + e->d_name + "/godot.syms";
+				FILE *f = fopen(path.c_str(), "r");
+				if (!f) {
+					continue;
+				}
+				char head[128] = {};
+				const bool match = fgets(head, sizeof(head), f) && strncmp(head, "# buildid ", 10) == 0 &&
+						strncmp(head + 10, own.c_str(), own.size()) == 0;
+				fclose(f);
+				if (match && load_syms_from(path, own)) {
+					closedir(d);
+					return;
+				}
+			}
+			closedir(d);
+		}
+	}
+	syms_note = first_note + "; none for build " + (own.empty() ? std::string("?") : own) + " in " + cache;
+}
+
+
 
 struct Map {
 	uintptr_t start, end, offset;
@@ -254,7 +296,9 @@ void load_maps() {
 			path.pop_back();
 		}
 		Map m { uintptr_t(s), uintptr_t(e), uintptr_t(off), std::string(), !exe_path.empty() && path == exe_path };
-		if (path.empty() || path[0] == '[') {
+		if (path.rfind("/memfd:doublemapper", 0) == 0 || path.rfind("memfd:doublemapper", 0) == 0) {
+			m.name = "[managed jit]"; // the .NET runtime's W^X double mapping of JIT code
+		} else if (path.empty() || path[0] == '[') {
 			m.name = path.empty() || path.rfind("[anon", 0) == 0 ? "[anon exec]" : path;
 		} else {
 			const size_t slash = path.rfind('/');
@@ -297,7 +341,7 @@ std::string where(uintptr_t pc, std::string *r_module) {
 		}
 		return m->name;
 	}
-	if (m->name != "[anon exec]") {
+	if (m->name != "[anon exec]" && m->name != "[managed jit]") {
 		Dl_info info;
 		if (dladdr(reinterpret_cast<void *>(pc), &info) && info.dli_sname) {
 			int status = 0;

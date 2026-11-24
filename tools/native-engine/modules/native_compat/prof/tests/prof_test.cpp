@@ -31,7 +31,9 @@ __attribute__((noinline)) void burn_light(double sec) {
 int main(int argc, char **argv) {
 	CHECK(droiddeck_prof::start_from_env().empty() || std::getenv("DROIDDECK_NATIVE_PROF"));
 	CHECK(droiddeck_prof::start(0, 1, "").find("off") != std::string::npos);
-	const std::string syms = argc > 1 ? argv[1] : "";
+	// "--cache": no path given, the map waits in $HOME/.cache/droiddeck/native/<tag>/ as a downloaded component's.
+	const bool from_cache = argc > 1 && std::strcmp(argv[1], "--cache") == 0;
+	const std::string syms = argc > 1 && !from_cache ? argv[1] : "";
 	const std::string started = droiddeck_prof::start(1000, 0.5, syms);
 	std::printf("%s\n", started.c_str());
 	CHECK(started.find("sampling the main thread at 1000 Hz") != std::string::npos);
@@ -54,7 +56,7 @@ int main(int argc, char **argv) {
 	CHECK(p && std::sscanf(p, "main thread %ld samples", &n) == 1 && n > 50 && n < 900);
 	CHECK(all.find("prof threads") != std::string::npos);
 	CHECK(all.find("main:") != std::string::npos);
-	if (!syms.empty()) {
+	if (!syms.empty() || from_cache) {
 		CHECK(started.find("engine symbols") != std::string::npos);
 		CHECK(all.find("% burn_heavy") != std::string::npos); // the leaf, by name
 		CHECK(all.find("burn_light") != std::string::npos); // its caller, through frame pointers
