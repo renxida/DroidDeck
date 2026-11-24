@@ -20,6 +20,8 @@ on:
       - 'tools/native-engine/skeltest/**'
       - 'tools/native-engine/bench/**'
       - 'tools/native-engine/r2r-check/**'
+      - 'tools/native-engine/patches/**'
+      - 'tools/native-engine/batchtest/**'
       - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
       - 'tools/tests/test_native_godot.py'
       - '.github/workflows/native-engine-build.yml'
