@@ -42,6 +42,10 @@ uint32_t droiddeck_canvas_poly_max();
 uint32_t droiddeck_canvas_slots_max();
 uint32_t droiddeck_canvas_slots_take_joined();
 uint32_t droiddeck_canvas_slots_take_sets();
+// Defined in the canvas renderer by patches/canvas_group_hoist.py: groups drawn ahead, back-buffer passes for them.
+uint32_t droiddeck_canvas_group_hoist();
+uint32_t droiddeck_canvas_group_hoist_take_groups();
+uint32_t droiddeck_canvas_group_hoist_take_passes();
 
 namespace droiddeck_census {
 
@@ -228,6 +232,9 @@ std::string batch_reasons(uint32_t p_frames) {
 	out += buf;
 	snprintf(buf, sizeof(buf), " | texture slots %u: %.1f joins and %.1f batch descriptor sets made per frame", droiddeck_canvas_slots_max(),
 			droiddeck_canvas_slots_take_joined() * per, droiddeck_canvas_slots_take_sets() * per);
+	out += buf;
+	snprintf(buf, sizeof(buf), " | group hoist %u: %.1f groups in %.1f back-buffer passes per frame", droiddeck_canvas_group_hoist(),
+			droiddeck_canvas_group_hoist_take_groups() * per, droiddeck_canvas_group_hoist_take_passes() * per);
 	return out + buf;
 }
 

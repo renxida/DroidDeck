@@ -5,7 +5,8 @@
 
 DIR holds NAME.raw (width, height as little-endian u32, then RGBA8) and NAME.log (with "BATCHTEST NAME draws N";
 in LOGDIR instead when given) for stock-a, stock-b and every arm. RULE is "exact" (every byte the same as stock-a) or "max=K" (no channel more
-than K steps out of 255 away). --fewer A<B requires arm A to draw fewer calls than arm B (A<=B allows equal).
+than K steps out of 255 away). --fewer A<B requires arm A to draw fewer calls than arm B (A<=B allows equal); A<B.passes compares
+another Vulkan count per frame (passes, barriers, set-binds and so on) from the call counter instead.
 Prints one line per arm, and where pixels moved, where they moved. Exits 1 on any failure. If the two stock runs
 differ, the renderer itself is not deterministic here, so it warns and passes rather than judging anything.
 """
@@ -120,13 +121,21 @@ def main(argv):
             print("::error::%s moved a pixel by %d steps, more than %d" % (name, worst, limit))
             bad = True
     for f in fewer:
-        a, op, b = re.match(r"([\w-]+)(<=|<)([\w-]+)$", f).groups()
-        if a not in draws:
-            draws[a] = load(d, a)[1]
-        if b not in draws:
-            draws[b] = load(d, b)[1]
-        if not (draws[a] < draws[b] if op == "<" else draws[a] <= draws[b]):
-            print("::error::expected %s draws %s %s draws (%d vs %d)" % (a, op, b, draws[a], draws[b]))
+        a, op, b, metric = re.match(r"([\w-]+)(<=|<)([\w-]+)(?:\.([\w-]+))?$", f).groups()
+        if metric: # a Vulkan count from the call counter, like passes or set-binds
+            va, vb = (vkcount(d, x) for x in (a, b))
+            if not va or not vb:
+                print("::error::%s: no Vulkan counts for %s or %s" % (f, a, b))
+                bad = True
+                continue
+            na, nb = va[metric], vb[metric]
+        else:
+            for x in (a, b):
+                if x not in draws:
+                    draws[x] = load(d, x)[1]
+            na, nb, metric = draws[a], draws[b], "draws"
+        if not (na < nb if op == "<" else na <= nb):
+            print("::error::expected %s %s %s %s %s (%g vs %g)" % (a, metric, op, b, metric, na, nb))
             bad = True
     return 1 if bad else 0
 

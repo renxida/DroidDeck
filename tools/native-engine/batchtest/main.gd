@@ -152,6 +152,36 @@ func _ready() -> void:
 			cap.position = Vector2(2, 0)
 			cap.scale = Vector2(0.25, 0.4)
 			mask.add_child(cap)
+		# A fanned hand: masked cards that overlap one another, half clip-only, so their contents can't share a
+		# back-buffer pass.
+		for hi in 5:
+			var card = Sprite2D.new()
+			card.texture = tex_panel
+			card.position = Vector2(440 + hi * 26, 395)
+			card.rotation = -0.3 + hi * 0.15
+			card.scale = Vector2(2.5, 4)
+			card.clip_children = CanvasItem.CLIP_CHILDREN_ONLY if hi % 2 == 1 else CanvasItem.CLIP_CHILDREN_AND_DRAW
+			add_child(card)
+			var art = Sprite2D.new()
+			art.texture = tex_b if hi % 2 == 0 else tex_a
+			art.position = Vector2(3, -2)
+			art.scale = Vector2(1.3, 0.7)
+			art.modulate = Color(1, 1, 1, 0.85)
+			card.add_child(art)
+		# A masked item inside a canvas group: nested groups are drawn the stock way.
+		var outer = CanvasGroup.new()
+		outer.position = Vector2(600, 150)
+		outer.self_modulate = Color(1, 1, 1, 0.7)
+		add_child(outer)
+		var inner = Sprite2D.new()
+		inner.texture = tex_panel
+		inner.scale = Vector2(2, 2)
+		inner.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+		outer.add_child(inner)
+		var inner_art = Sprite2D.new()
+		inner_art.texture = tex_a
+		inner_art.position = Vector2(4, 4)
+		inner.add_child(inner_art)
 	for i in 4:
 		await RenderingServer.frame_post_draw
 	var draws = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)

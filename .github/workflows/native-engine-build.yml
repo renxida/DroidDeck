@@ -132,6 +132,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_poly_batch.py" ~/godot-src  # before the census, which labels its batch starts
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_texture_slots.py" ~/godot-src  # before the census too
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_quad_merge.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_group_hoist.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_batch_census.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_reorder.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_trace.py" ~/godot-src
@@ -309,7 +310,7 @@ jobs:
           grep -E "native_compat: (census|render census)|Vulkan|ERROR" skel-vk.log | cut -c1-2000 | head -20
           # At least one census saw the canvas renderer record a draw list.
           grep -E "native_compat: census \| .* batches per frame over [0-9]+ frames: [0-9.]*[1-9][0-9.]* draw lists" skel-vk.log
-      - name: Canvas reordering, texture slots and quad merge keep every pixel and polygon batching every pixel to within three steps, and each cuts draws; a traced frame replays (synthetic scene, lavapipe)
+      - name: Canvas reordering, texture slots and quad merge keep every pixel, polygon batching and group hoisting every pixel to within three steps, and each cuts draws or passes; a traced frame replays (synthetic scene, lavapipe)
         timeout-minutes: 25
         working-directory: tools/native-engine/batchtest
         run: |
@@ -327,7 +328,7 @@ jobs:
           mkdir -p trace
           run() { # binary, name, then env assignments
             local b=$1 n=$2; shift 2
-            env BATCHTEST_OUT=$PWD/out DROIDDECK_NATIVE_RENDER_CENSUS=0.05 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 "$@" BATCHTEST_NAME=$n \
+            env BATCHTEST_OUT=${OUT:-$PWD/out} DROIDDECK_NATIVE_RENDER_CENSUS=0.05 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 "$@" BATCHTEST_NAME=$n \
               timeout 120 xvfb-run -a -s "-screen 0 640x480x24" $b --rendering-method mobile --rendering-driver vulkan \
               --verbose > $n.log 2>&1 || { echo "$n exit $?"; tail -30 $n.log; exit 1; }
             grep -E "BATCHTEST|REPLAY|native_compat: census" $n.log | cut -c1-1500 | tail -4
@@ -368,6 +369,24 @@ jobs:
                (("scene", "stock-a.log"), ("replay", "rp/stock-a.log"))}
           print("draws: scene", d["scene"], "replay of its trace", d["replay"])
           assert abs(d["scene"] - d["replay"]) <= 5, d
+          PY
+          # The scene again with what a fight adds: canvas groups and clip_children masks, some overlapping, one nested.
+          # Group hoisting draws their contents into the back buffer ahead, a few groups per pass, instead of three
+          # passes each; plain groups composite as stock and clip groups to within a step or two.
+          mkdir -p fight
+          for arm in stock-a:  stock-b:  hoist:DROIDDECK_NATIVE_CANVAS_GROUP_HOIST=64 \
+                     all:DROIDDECK_NATIVE_CANVAS_GROUP_HOIST=64:DROIDDECK_NATIVE_CANVAS_REORDER=16:DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256:DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS=7:DROIDDECK_NATIVE_CANVAS_QUAD_MERGE=1; do
+            n=${arm%%:*}; e=${arm#*:}
+            OUT=$PWD/fight run out/BatchTest.arm64 $n BATCHTEST_FIGHT=1 ${e//:/ }
+            mv $n.log fight/$n.log
+          done
+          python3 compare.py fight hoist=max=3 all=max=3 --fewer "hoist<=stock-a" --fewer "all<hoist"
+          grep -E "group hoist 64: [0-9.]*[1-9][0-9.]* groups in" fight/hoist.log > /dev/null
+          python3 - <<'PY'
+          import re
+          g, p = map(float, re.findall(r"group hoist 64: ([\d.]+) groups in ([\d.]+) back-buffer passes", open("fight/hoist.log").read())[-1])
+          print("group hoist: %.1f groups in %.1f back-buffer passes per frame" % (g, p))
+          assert g >= 2 * p, (g, p)
           PY
       - name: Steam bridge (Cedar-approved) built, checked and put in the component (Valve's library is not)
         run: |

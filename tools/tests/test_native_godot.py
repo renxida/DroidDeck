@@ -1466,6 +1466,41 @@ class CanvasQuadMergePatchTest(unittest.TestCase):
         mod["patch_source"]((rd / "renderer_canvas_render_rd.cpp").read_text())
 
 
+class CanvasGroupHoistPatchTest(unittest.TestCase):
+    """Canvas group contents drawn ahead into one back-buffer pass (off unless DROIDDECK_NATIVE_CANVAS_GROUP_HOIST is
+    set): every anchor is patched once, the back buffer starts cleared, clip groups composite unpremultiplied, and a
+    run waits for earlier owners before clearing the back buffer again."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def mod(self):
+        return runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_group_hoist.py"))
+
+    def test_patches_every_anchor(self):
+        mod = self.mod()
+        src = "".join(mod[k] for k in ("INCLUDE", "CTOR", "DTOR", "LOOP", "GROUP", "FRAME_END", "MATERIAL", "BACKBUFFER"))
+        out = mod["patch_source"](src)
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_GROUP_HOIST", out)
+        self.assertIn("COLOR.a *= c.a;", out)
+        self.assertIn("clear_color = Color(0, 0, 0, 0);", out)
+        self.assertIn("droiddeck_hoisted_owners.clear();", out)
+        self.assertLess(out.index("bool earlier_owner = false;"), out.index("droiddeck_bb_clear_next = true;"))
+        self.assertLess(out.index("droiddeck_skip_owner = nullptr; // Kestrel"), out.index("while (ci) {"))
+        self.assertLess(out.index("if (droiddeck_skip_owner != nullptr) {"), out.index(mod["GROUP"]))
+        for broken in ("nothing", src.replace(mod["GROUP"], ""), src + mod["MATERIAL"]):
+            with self.assertRaises(SystemExit):
+                mod["patch_source"](broken)
+
+    def test_real_source(self):
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if not godot:
+            self.skipTest("DROIDDECK_GODOT_SRC not set")
+        mod = self.mod()
+        rd = Path(godot) / "servers/rendering/renderer_rd"
+        out = mod["patch_source"]((rd / "renderer_canvas_render_rd.cpp").read_text())
+        self.assertEqual(out.count("Kestrel (canvas_group_hoist.py)"), 5)
+
+
 class CanvasTraceTest(unittest.TestCase):
     """The canvas trace hooks request, free and canvas_render_items, is off without DROIDDECK_NATIVE_CANVAS_TRACE,
     and writes no vertices or pixels; it applies in either order with polygon batching."""
