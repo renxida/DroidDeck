@@ -117,6 +117,41 @@ func _ready() -> void:
 	line.gradient = g
 	line.joint_mode = Line2D.LINE_JOINT_ROUND
 	add_child(line)
+	# BATCHTEST_FIGHT=1 adds what a Slay the Spire 2 fight has that the UI above lacks (stock fight on the phone,
+	# Nov 25: 5 canvas groups, 17 clip_children items, 32 render passes a frame): canvas groups of overlapping
+	# sprites, as characters are drawn, and masked card art. Off by default, so the CI gate's scene is unchanged.
+	if OS.get_environment("BATCHTEST_FIGHT") == "1":
+		for gi in 5:
+			var group = CanvasGroup.new()
+			group.position = Vector2(30 + gi * 120, 150)
+			group.self_modulate = Color(1, 1, 1, 0.8)
+			add_child(group)
+			for k in 6:
+				var part = Sprite2D.new()
+				part.texture = tex_a if (gi + k) % 2 == 0 else tex_b
+				part.position = Vector2((k % 3) * 14, (k / 3) * 18)
+				part.rotation = 0.2 * k
+				part.scale = Vector2(2, 2.5)
+				group.add_child(part)
+		for ci in 17:
+			var mask = Sprite2D.new()
+			mask.texture = tex_panel
+			mask.centered = false
+			mask.position = Vector2(10 + (ci % 9) * 70, 230 + (ci / 9) * 40)
+			mask.scale = Vector2(3.5, 2)
+			mask.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+			add_child(mask)
+			var art = Sprite2D.new()
+			art.texture = tex_a if ci % 2 == 0 else tex_b
+			art.centered = false
+			art.position = Vector2(-4, 3)
+			art.scale = Vector2(1.2, 0.8)
+			mask.add_child(art)
+			var cap = Label.new()
+			cap.text = "%d" % ci
+			cap.position = Vector2(2, 0)
+			cap.scale = Vector2(0.25, 0.4)
+			mask.add_child(cap)
 	for i in 4:
 		await RenderingServer.frame_post_draw
 	var draws = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)

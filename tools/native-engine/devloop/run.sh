@@ -4,6 +4,7 @@
 #
 #   tools/native-engine/devloop/run.sh BINARY [PROJECT_DIR] [-- compare.py arguments]
 #
+# BATCHTEST_FIGHT=1 in the environment adds canvas groups and clip_children like a fight.
 # Arms: stock-a and stock-b (twice, to show the renderer is deterministic here), reorder, poly, both, slots
 # (texture slots alone), quad (rects batch with nine-patches) and all (every one of them). Logs and
 # frames go to $DEVLOOP_OUT (default /tmp/devloop-out). With no compare arguments it uses the CI gate's rules.
