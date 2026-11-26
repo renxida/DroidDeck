@@ -1233,8 +1233,28 @@ def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.mono
         except OSError:
             pass
 
+    def stopped():
+        """The engine is frozen (SIGSTOP from the session hiding it): that time is not loading time."""
+        try:
+            with open(f"/proc/{proc.pid}/stat") as f:
+                return f.read().rsplit(")", 1)[1].split()[0] in ("T", "t")
+        except (OSError, IndexError):
+            return False
+
     def guard():
-        if not seen.wait(first_frame_s) and proc.poll() is None:
+        # Counts only time the engine could run: a session frozen while the game loads (hidden, or a standby
+        # load) must not read as a hang and send the game to Proton. A jump longer than a tick (this wrapper
+        # frozen too, or the phone asleep) counts as one tick.
+        left = first_frame_s
+        last = time.monotonic()
+        while left > 0:
+            if seen.wait(min(1.0, left)):
+                return
+            now = time.monotonic()
+            if not stopped():
+                left -= min(now - last, 2.0)
+            last = now
+        if proc.poll() is None:
             timed_out.set()
             log(f"no first frame after {first_frame_s:.0f} s; stopping the engine")
             kill()
