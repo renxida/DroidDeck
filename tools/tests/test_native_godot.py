@@ -6,10 +6,12 @@ import os
 from pathlib import Path
 import runpy
 import shutil
+import signal
 import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import unittest.mock
@@ -359,6 +361,26 @@ class NativeGodotTest(unittest.TestCase):
         rc, out, took = self.run_watch("print('loading', flush=True)\ntime.sleep(60)", first_frame_s=1)
         self.assertEqual(NG["DID_NOT_START"], rc)
         self.assertLess(took, 20)
+
+    def test_watch_does_not_count_time_the_engine_is_frozen(self):
+        # Nov 26: a standby load frozen 12 s in, resumed 3 min later, was stopped as a hang and sent to Proton.
+        pidfile = self.root / "engine.pid"
+
+        def thaw():
+            for _ in range(200):
+                if pidfile.exists() and pidfile.read_text():
+                    break
+                time.sleep(0.05)
+            time.sleep(3.5)
+            os.kill(int(pidfile.read_text()), signal.SIGCONT)
+
+        threading.Thread(target=thaw, daemon=True).start()
+        rc, out, took = self.run_watch(
+            "import os, signal\nprint('loading', flush=True)\n"
+            f"open({str(pidfile)!r}, 'w').write(str(os.getpid()))\nos.kill(os.getpid(), signal.SIGSTOP)\n"
+            "time.sleep(0.5)\nprint('Project FPS: 30 (33.33 mspf)', flush=True)\nsys.exit(0)", first_frame_s=2)
+        self.assertEqual(0, rc)
+        self.assertGreater(took, 3.0)
 
     def test_watch_kills_the_engine_s_children_on_a_hang(self):
         # The engine's own child (a shader compiler, say) holding the pipe open must not keep us waiting.

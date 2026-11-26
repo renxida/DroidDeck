@@ -52,7 +52,7 @@ import java.net.URL
  * hand: {"op": "tap"|"swipe", "x"/"fx", "y"/"fy", ...} and {"op": "back"}, never on the Debugging tools switch.
  * "update" checks the fork's latest APK now and downloads it; it installs only through the same checks and the
  * system's confirmation on the front screen, or, with Install updates over Wireless debugging on and the phone idle
- * on the charger, over Wireless debugging with no prompt. "wake" turns the screen on and shows the running session over
+ * on the charger, over Wireless debugging with no prompt. "hide" goes to the home screen, as pressing Home does. "wake" turns the screen on and shows the running session over
  * the lock screen ("start" does that too), so it renders and can be pictured without unlocking. "ping" answers the read-only [com.droiddeck.launcher.telemetry.DeviceStatus].
  */
 object AgentRemote {
@@ -174,6 +174,7 @@ object AgentRemote {
                 "update" -> com.droiddeck.launcher.update.SelfUpdate.remoteUpdate(context)
                 "start" -> startSession(context, request)
                 "wake" -> wake(context)
+                "hide" -> hide(context)
                 "autotest" -> {
                     val latch = java.util.concurrent.CountDownLatch(1)
                     var message = ""
@@ -232,6 +233,13 @@ object AgentRemote {
         while (!power.isInteractive && System.currentTimeMillis() < until) Thread.sleep(100)
         if (wasHidden) Thread.sleep(1_500) // the surface draws again a moment after the screen comes on
         return JSONObject().put("ok", power.isInteractive).put("wasHidden", wasHidden).put("interactive", power.isInteractive)
+    }
+
+    /** Goes to the home screen, as the player pressing Home does, so a test can hide the session and see it freeze. */
+    private fun hide(context: Context): JSONObject {
+        context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return JSONObject().put("ok", true).put("running", com.droiddeck.launcher.session.SessionState.running)
     }
 
     private fun screenshot(context: Context, repo: String, token: String, id: String): JSONObject {

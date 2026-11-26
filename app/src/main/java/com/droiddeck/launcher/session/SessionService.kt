@@ -90,6 +90,7 @@ class SessionService : Service() {
     private val freezeGameDue = Runnable { updateSuspendPolicy() }
     /** elapsedRealtime until which a game relaunched for standby keeps the hidden session awake, or -1. */
     private var standbyLoadUntil = -1L
+    private var standbySawHidden = false
     /** elapsedRealtime of the last resume request, for the session.resumed timing. */
     private var resumeAskedAt = -1L
     private var steamDownloadsInBackground = false
@@ -1629,6 +1630,7 @@ class SessionService : Service() {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
         }.onFailure { Log.w(TAG, "could not show the front screen for standby", it) }
         standbyLoadUntil = android.os.SystemClock.elapsedRealtime() + STANDBY_LOAD_MS
+        standbySawHidden = false
         queueSteamGame(gameId)
         updateSuspendPolicy()
     }
@@ -1832,8 +1834,11 @@ class SessionService : Service() {
         if (!hidden) hiddenSince = -1L else if (hiddenSince < 0) hiddenSince = now
         val hiddenForMs = if (hiddenSince < 0) 0L else now - hiddenSince
         val freezeGameAfter = SessionPrefs.freezeGameAfterMs(this)
-        // A standby load ends early when the player comes back; it never outlives its window.
-        if (!hidden || standbyLoadUntil <= now) standbyLoadUntil = -1L
+        // A standby load ends early when the player comes back; it never outlives its window. It starts while
+        // the session is still showing (the front screen comes up a moment later), so only a return after the
+        // session was hidden counts as coming back.
+        if (hidden && standbyLoadUntil > 0) standbySawHidden = true
+        if ((!hidden && standbySawHidden) || standbyLoadUntil <= now) standbyLoadUntil = -1L
         val standbyLoading = standbyLoadUntil > 0 && steamMode && !SessionState.suspended
         val gameKeepsAwake = standbyLoading || SessionSuspendPolicy.gameKeepsAwake(
             hidden = hidden, manualHold = manualHold, suspended = SessionState.suspended,

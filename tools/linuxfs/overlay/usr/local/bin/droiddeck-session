@@ -1322,12 +1322,17 @@ case $mode in
       [ -n "$m" ] || { echo "== prestart: app $app is not installed"; return 0; }
       dir=$(sed -n 's/^[[:space:]]*"installdir"[[:space:]]*"\(.*\)".*/\1/p' "$m" | head -n 1)
       dir=$lib/common/$dir
-      for data in "$dir"/data_*_windows_x86_64; do
-        [ -d "$data" ] || continue
-        exe=${data##*/data_}; exe=${exe%_windows_x86_64}.exe
+      # A Godot C# game keeps its assemblies in data_<name>_windows_x86_64 and its pack beside the exe,
+      # whose name need not match the data folder (Slay the Spire 2: data_sts2 and SlayTheSpire2.exe).
+      set -- "$dir"/data_*_windows_x86_64
+      [ -d "$1" ] || { echo "== prestart: app $app has no Godot C# data folder"; return 0; }
+      for m in "$dir"/*.pck; do
+        [ -f "$m" ] && [ -f "${m%.pck}.exe" ] || continue
+        exe=${m##*/}; exe=${exe%.pck}.exe
         break
       done
-      [ -n "$exe" ] && [ -f "$dir/$exe" ] || { echo "== prestart: app $app has no Godot C# executable"; return 0; }
+      [ -n "$exe" ] || { exe=${1##*/data_}; exe=${exe%_windows_x86_64}.exe; }
+      [ -f "$dir/$exe" ] || { echo "== prestart: app $app has no Godot C# executable"; return 0; }
       echo "== prestart: booting $exe ahead of Steam at $(date +%T)"
       STEAM_COMPAT_DATA_PATH=$lib/compatdata/$app SteamAppId=$app SteamGameId=$app \
         setsid /usr/local/bin/droiddeck-game-env --native-prestart "$dir/$exe" \
