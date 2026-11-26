@@ -362,6 +362,10 @@ public:
 	float get_world_x() const;
 	float get_world_y() const;
 	float get_world_rotation_x() const;
+	float get_a() const;
+	float get_b() const;
+	float get_c() const;
+	float get_d() const;
 	float get_world_scale_x() const;
 	float get_world_scale_y() const;
 	bool is_active() const;
@@ -471,7 +475,7 @@ private:
 	// Materials the scene or game sets per blend mode; each one replaces the default for that blend.
 	Ref<Material> normal_material, additive_material, multiply_material, screen_material;
 	Ref<Material> _custom_material(int p_blend) const;
-	RID _blend_item(int p_run, int p_blend);
+	RID _blend_item(int p_run, int p_blend, int p_draw_index, const Ref<Material> &p_override = Ref<Material>());
 	void _free_blend_items();
 
 	void _data_changed();
@@ -479,6 +483,22 @@ private:
 	void _draw_skeleton();
 	void _emit_pending();
 	void _follow_children();
+	// Calls f on each node under the sprite down to any depth, not below a nested SpineSprite (which updates
+	// its own); DROIDDECK_NATIVE_SPINE_DEEP_NODES=0 keeps to direct children.
+	template <typename F>
+	static void _walk_bone_slot_nodes(Node *p_node, const F &f) {
+		static const bool deep = [] {
+			const char *v = getenv("DROIDDECK_NATIVE_SPINE_DEEP_NODES");
+			return !(v && v[0] == '0');
+		}();
+		for (int i = 0; i < p_node->get_child_count(); i++) {
+			Node *c = p_node->get_child(i);
+			f(c);
+			if (deep && c->get_child_count() > 0 && !Object::cast_to<SpineSprite>(c)) {
+				_walk_bone_slot_nodes(c, f);
+			}
+		}
+	}
 
 protected:
 	static void _bind_methods();
@@ -577,6 +597,8 @@ public:
 	Ref<Material> get_multiply_material() const { return multiply_material; }
 	void set_screen_material(const Ref<Material> &p) { screen_material = p; }
 	Ref<Material> get_screen_material() const { return screen_material; }
+	// The material set here for a blend mode (empty if none): it draws the slot's own attachment.
+	Ref<Material> material_for(int p_blend) const;
 	void follow(SpineSprite *p_sprite);
 };
 

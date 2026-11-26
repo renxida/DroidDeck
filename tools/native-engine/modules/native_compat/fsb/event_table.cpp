@@ -2,6 +2,8 @@
 #include "event_table.h"
 
 #include <cstring>
+#include <functional>
+#include <map>
 #include <unordered_set>
 
 namespace fsb {
@@ -83,25 +85,27 @@ void scan(const uint8_t *p, size_t n, const GuidSet &set, std::vector<Guid> &out
 	}
 }
 
-// Placements and loop regions of a timeline block (layout in event_table.h): which of the event's
-// instruments loop, start late, or sit past a loop region and so never play while it loops.
-void read_timeline(const uint8_t *p, size_t n, EventTable::Event &ev) {
-	size_t at = 18;
-	if (n < at + 4) {
-		return;
-	}
+// The arrays of a timeline block (layout in event_table.h): placements, markers and loop regions.
+struct TimelineParts {
 	struct Placement {
 		Guid g;
 		uint32_t start, end;
 	};
 	std::vector<Placement> placed;
-	std::vector<std::pair<uint32_t, uint32_t>> regions;
-	bool first = true;
+	std::unordered_map<Guid, uint32_t, GuidHash> marks; // marker or loop region -> its position
+	std::vector<std::pair<Guid, std::pair<uint32_t, uint32_t>>> regions; // loop region -> (start, end field)
+};
+
+void read_timeline_arrays(const uint8_t *p, size_t n, TimelineParts &out) {
+	size_t at = 16;
 	while (at + 2 <= n) {
 		const uint32_t tag = rd16(p + at);
 		at += 2;
 		const size_t count = tag >> 1;
 		if (tag & 1) {
+			if (count == 0) {
+				continue; // an empty fixed array has no element size
+			}
 			if (at + 2 > n) {
 				break;
 			}
@@ -110,11 +114,11 @@ void read_timeline(const uint8_t *p, size_t n, EventTable::Event &ev) {
 			if (size == 0 || count > (n - at) / size) {
 				break;
 			}
-			if (first && size >= 24) {
+			if (size >= 24) {
 				for (size_t i = 0; i < count; i++) {
 					const uint8_t *e = p + at + size * i;
 					const uint32_t start = rd32(e + 16), length = rd32(e + 20);
-					placed.push_back({ guid_at(e), start, start + length });
+					out.placed.push_back({ guid_at(e), start, start + length });
 				}
 			}
 			at += size * count;
@@ -131,8 +135,12 @@ void read_timeline(const uint8_t *p, size_t n, EventTable::Event &ev) {
 					ok = false;
 					break;
 				}
-				if (size == 26) {
-					regions.emplace_back(rd32(p + at + 16), rd32(p + at + 22));
+				if (size >= 22) {
+					const Guid g = guid_at(p + at);
+					out.marks[g] = rd32(p + at + 16);
+					if (size == 26) {
+						out.regions.push_back({ g, { rd32(p + at + 16), rd32(p + at + 22) } });
+					}
 				}
 				at += size;
 			}
@@ -140,9 +148,45 @@ void read_timeline(const uint8_t *p, size_t n, EventTable::Event &ev) {
 				break;
 			}
 		}
-		first = false;
 	}
-	for (const Placement &pl : placed) {
+}
+
+// Conditions in a block of `n` bytes: each known parameter GUID found starts an entry (layout in
+// event_table.h).
+void read_conditions(const uint8_t *p, size_t n, const GuidSet &params, std::vector<EventTable::Condition> &out) {
+	for (size_t i = 0; i + 28 <= n; i++) {
+		const Guid g = guid_at(p + i);
+		if (params.count(g)) {
+			out.push_back({ g, rdf(p + i + 20), rdf(p + i + 24) });
+			i += 27;
+		}
+	}
+}
+
+// The condition block of a chunk at `at`: a u32 byte count, then the entries.
+void read_condition_block(const uint8_t *p, size_t n, size_t at, const GuidSet &params,
+		std::vector<EventTable::Condition> &out) {
+	if (at + 4 > n) {
+		return;
+	}
+	const size_t size = rd32(p + at);
+	if (size > n - at - 4) {
+		return;
+	}
+	read_conditions(p + at + 4, size, params, out);
+}
+
+// What the simple player needs from a timeline: which of the event's instruments loop, start late, or sit
+// past a loop region and so never play while it loops. A loop region ends where a loop-end transition points
+// back to it, else at its second field.
+void apply_timeline(const TimelineParts &parts, const std::unordered_map<Guid, uint32_t, GuidHash> &loop_ends,
+		EventTable::Event &ev) {
+	std::vector<std::pair<uint32_t, uint32_t>> regions;
+	for (const auto &r : parts.regions) {
+		auto e = loop_ends.find(r.first);
+		regions.emplace_back(r.second.first, e != loop_ends.end() ? e->second : r.second.second);
+	}
+	for (const auto &pl : parts.placed) {
 		bool loops = false, past = false;
 		for (const auto &r : regions) {
 			loops = loops || (pl.start < r.second && r.first < pl.end); // overlaps the region
@@ -162,6 +206,43 @@ void read_timeline(const uint8_t *p, size_t n, EventTable::Event &ev) {
 }
 
 } // namespace
+
+// Diagnostics: the types of the objects an event reaches through GUID references (a few levels deep), so a
+// silent event's log line says which kinds of object it uses.
+static std::string reach_types(const std::unordered_map<Guid, Object, GuidHash> &objects, const GuidSet &all, const Guid &root,
+		std::vector<Guid> *r_params = nullptr) {
+	GuidSet seen{ root };
+	std::vector<Guid> level{ root };
+	std::map<std::string, int> counts;
+	for (int depth = 0; depth < 4 && !level.empty() && seen.size() < 512; depth++) {
+		std::vector<Guid> next_level;
+		for (const Guid &g : level) {
+			auto it = objects.find(g);
+			if (it == objects.end()) {
+				continue;
+			}
+			std::vector<Guid> found;
+			for (const Chunk &c : it->second.chunks) {
+				scan(c.body, c.size, all, found);
+			}
+			for (const Guid &f : found) {
+				if (seen.insert(f).second) {
+					next_level.push_back(f);
+					counts[std::string(objects.at(f).type, 4)]++;
+					if (r_params && memcmp(objects.at(f).type, "PARM", 4) == 0) {
+						r_params->push_back(f);
+					}
+				}
+			}
+		}
+		level = std::move(next_level);
+	}
+	std::string s;
+	for (const auto &kv : counts) {
+		s += (s.empty() ? "" : " ") + kv.first + ":" + std::to_string(kv.second);
+	}
+	return s;
+}
 
 bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::string &error) {
 	out = EventTable();
@@ -201,14 +282,21 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 			}
 			Object o;
 			memcpy(o.type, otype, 4);
-			const bool inner = each_chunk(data, size_t(ob - data), size_t(ob - data) + os, [&](const uint8_t *ch, const uint8_t *cb, size_t cs, bool, const uint8_t *) {
-				Chunk c;
-				memcpy(c.id, ch, 4);
-				c.body = cb;
-				c.size = cs;
-				o.chunks.push_back(c);
-				return true;
-			});
+			// Chunks nested in lists inside the object (transitions sit in one) are flattened into its chunks.
+			std::function<bool(const uint8_t *, size_t, int)> collect = [&](const uint8_t *at, size_t n, int depth) {
+				return each_chunk(data, size_t(at - data), size_t(at - data) + n, [&](const uint8_t *ch, const uint8_t *cb, size_t cs, bool clist, const uint8_t *) {
+					if (clist) {
+						return depth < 4 ? collect(cb, cs, depth + 1) : true;
+					}
+					Chunk c;
+					memcpy(c.id, ch, 4);
+					c.body = cb;
+					c.size = cs;
+					o.chunks.push_back(c);
+					return true;
+				});
+			};
+			const bool inner = collect(ob, os, 0);
 			if (!inner) {
 				return true; // an object cut short: skip it
 			}
@@ -223,28 +311,107 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 		out = EventTable();
 		return false;
 	}
-	GuidSet instrument_ids, sheet_ids;
+	GuidSet instrument_ids, sheet_ids, all_ids, param_ids;
+	for (const auto &kv : objects) {
+		all_ids.insert(kv.first);
+		if (memcmp(kv.second.type, "PARM", 4) == 0) {
+			param_ids.insert(kv.first);
+		}
+	}
+	// Parameters: names, ranges, defaults and labels.
+	for (const Guid &g : param_ids) {
+		const Chunk *c = objects[g].find("PRMB");
+		if (!c || c->size < 26) {
+			continue;
+		}
+		const size_t len = rd16(c->body + 24);
+		if (26 + len + 12 > c->size) {
+			continue;
+		}
+		EventTable::Param prm;
+		prm.flags = rd32(c->body + 16);
+		prm.name.assign(reinterpret_cast<const char *>(c->body + 26), len);
+		const uint8_t *f = c->body + 26 + len;
+		prm.min = rdf(f);
+		prm.max = rdf(f + 4);
+		prm.value = rdf(f + 8);
+		if (!(prm.value >= prm.min && prm.value <= prm.max)) {
+			prm.value = prm.min;
+		}
+		// Labels: the last variable array whose elements are (u16 n, n bytes), with sizes n + 2.
+		for (size_t at = 26 + len + 12; at + 2 <= c->size; at++) {
+			const size_t tag = rd16(c->body + at);
+			if (tag == 0 || (tag & 1) || tag / 2 > 64) {
+				continue;
+			}
+			std::vector<std::string> labels;
+			size_t q = at + 2;
+			bool ok = true;
+			for (size_t i = 0; i < tag / 2 && ok; i++) {
+				ok = q + 4 <= c->size && rd16(c->body + q) == rd16(c->body + q + 2) + 2 &&
+						q + 2 + rd16(c->body + q) <= c->size && rd16(c->body + q + 2) > 0;
+				if (ok) {
+					labels.emplace_back(reinterpret_cast<const char *>(c->body + q + 4), rd16(c->body + q + 2));
+					q += 2 + rd16(c->body + q);
+				}
+			}
+			if (ok && q == c->size) {
+				prm.labels = std::move(labels);
+				break;
+			}
+		}
+		out.params.emplace(g, std::move(prm));
+	}
 	for (const auto &kv : objects) {
 		const Object &o = kv.second;
-		const bool wait = memcmp(o.type, "WAIT", 4) == 0, muit = memcmp(o.type, "MUIT", 4) == 0;
+		const bool wait = memcmp(o.type, "WAIT", 4) == 0, muit = memcmp(o.type, "MUIT", 4) == 0,
+				   evit = memcmp(o.type, "EVIT", 4) == 0, spit = memcmp(o.type, "SPIT", 4) == 0,
+				   cmdi = memcmp(o.type, "CMDI", 4) == 0;
 		if (memcmp(o.type, "PMLO", 4) == 0) {
 			sheet_ids.insert(kv.first);
 		}
-		if (!wait && !muit) {
+		if (!wait && !muit && !evit && !spit && !cmdi) {
 			continue;
 		}
 		EventTable::Instrument in;
-		in.multi = muit;
+		in.multi = muit || spit;
 		if (const Chunk *c = o.find("INST"); c && c->size >= 20) {
 			in.volume_db = rdf(c->body + 16);
+			in.loop = c->size >= 28 && rd32(c->body + 24) == 0xffffffffu;
+			read_condition_block(c->body, c->size, 126, param_ids, in.conditions);
 		}
-		if (wait) {
+		if (cmdi) {
+			// Only the kind seen in the game's banks: 2, set a parameter to a value.
+			const Chunk *c = o.find("CMDB");
+			if (!c || c->size < 40 || rd32(c->body + 16) != 2 || !param_ids.count(guid_at(c->body + 20))) {
+				continue;
+			}
+			in.command = true;
+			in.command_param = guid_at(c->body + 20);
+			in.command_value = rdf(c->body + 36);
+		} else if (wait) {
 			const Chunk *c = o.find("WAIB");
 			if (!c || c->size < 32) {
 				continue;
 			}
 			in.wave = guid_at(c->body + 16);
+		} else if (evit) {
+			const Chunk *c = o.find("EVIB");
+			if (!c || c->size < 32) {
+				continue;
+			}
+			in.nested = true;
+			in.event = guid_at(c->body + 16);
 		} else {
+			if (spit) {
+				const Chunk *c = o.find("SPIB");
+				if (!c || c->size < 32) {
+					continue;
+				}
+				in.scatter = true;
+				in.spawn_min = rdf(c->body + 24);
+				in.spawn_max = rdf(c->body + 28);
+			}
 			const Chunk *c = o.find("PLST");
 			if (!c || c->size < 10) {
 				continue;
@@ -279,22 +446,72 @@ bool read_event_table(const uint8_t *data, size_t length, EventTable &out, std::
 				for (const Chunk &c : tl->second.chunks) {
 					scan(c.body, c.size, instrument_ids, ev.instruments);
 				}
+				TimelineParts parts;
 				if (const Chunk *c = tl->second.find("TLNB")) {
-					read_timeline(c->body, c->size, ev);
+					read_timeline_arrays(c->body, c->size, parts);
 				}
+				std::unordered_map<Guid, uint32_t, GuidHash> loop_ends;
+				for (const Chunk &c : tl->second.chunks) {
+					if (memcmp(c.id, "TRNB", 4) != 0 || c.size < 48) {
+						continue;
+					}
+					EventTable::Transition t;
+					const Guid dest = guid_at(c.body + 16);
+					t.start = rd32(c.body + 32);
+					t.end = rd32(c.body + 36);
+					t.kind = int(rd32(c.body + c.size - 4));
+					t.probability = rdf(c.body + c.size - 8);
+					if (c.size > 60) {
+						read_condition_block(c.body, c.size - 8, 40, param_ids, t.conditions);
+					}
+					if (t.kind == EventTable::Transition::LOOP_END) {
+						loop_ends[dest] = t.start;
+					}
+					auto m = parts.marks.find(dest);
+					if (m == parts.marks.end()) {
+						continue;
+					}
+					if (t.kind != EventTable::Transition::LOOP_END) {
+						// Kind 4 (seen with one condition, on spans) acts as a transition region; anything else
+						// unknown is read by its shape.
+						t.kind = t.start == t.end ? EventTable::Transition::MARKER : EventTable::Transition::REGION;
+					}
+					t.destination = m->second;
+					ev.transitions.push_back(std::move(t));
+				}
+				apply_timeline(parts, loop_ends, ev);
+				for (const auto &pl : parts.placed) {
+					auto in = out.instruments.find(pl.g);
+					if (in == out.instruments.end()) {
+						continue;
+					}
+					ev.placements.push_back({ pl.g, pl.start, pl.end - pl.start });
+					ev.length = pl.end > ev.length ? pl.end : ev.length;
+					ev.dynamic = ev.dynamic || !in->second.conditions.empty() || in->second.nested || in->second.scatter ||
+							in->second.command;
+				}
+				ev.dynamic = ev.dynamic || !ev.transitions.empty();
 			}
 		}
 		// Instruments that only a parameter sheet reaches play when nothing else would.
 		if (ev.instruments.empty()) {
 			std::vector<Guid> sheets;
 			scan(b->body, b->size, sheet_ids, sheets);
-			for (const Guid &s : sheets) {
-				for (const Chunk &c : objects[s].chunks) {
+			for (const Guid &sh : sheets) {
+				for (const Chunk &c : objects[sh].chunks) {
 					scan(c.body, c.size, instrument_ids, ev.instruments);
 				}
 			}
 		}
+		ev.refs = reach_types(objects, all_ids, kv.first, &ev.params);
 		out.events.emplace(kv.first, std::move(ev));
+	}
+	std::map<std::string, int> counts;
+	for (const auto &kv : objects) {
+		counts[std::string(kv.second.type, 4)]++;
+	}
+	for (const auto &kv : counts) {
+		out.object_types += (out.object_types.empty() ? "" : " ") + kv.first + ":" + std::to_string(kv.second);
 	}
 	return true;
 }
@@ -323,7 +540,18 @@ void pick(const EventTable &t, const Guid &g, float volume_db, bool loop, float 
 		return;
 	}
 	const EventTable::Instrument &in = it->second;
+	if (in.command) {
+		return; // the timeline player runs commands
+	}
 	volume_db += in.volume_db;
+	loop = loop || in.loop;
+	if (in.nested) {
+		Pick n{ {}, volume_db, loop, delay };
+		n.nested = true;
+		n.event = in.event;
+		out.push_back(n); // the timeline player plays it; resolve_event drops it
+		return;
+	}
 	if (!in.multi) {
 		out.push_back({ in.wave, volume_db, loop, delay });
 		return;
@@ -355,6 +583,16 @@ void pick(const EventTable &t, const Guid &g, float volume_db, bool loop, float 
 
 } // namespace
 
+bool pick_wave(const EventTable &table, const Guid &instrument, uint32_t &rng, Pick &out) {
+	std::vector<Pick> picks;
+	pick(table, instrument, 0, false, 0, rng, 0, picks);
+	if (picks.empty()) {
+		return false;
+	}
+	out = picks.front();
+	return true;
+}
+
 bool resolve_event(const EventTable &table, const Guid &event, uint32_t &rng, std::vector<Pick> &out) {
 	auto it = table.events.find(event);
 	if (it == table.events.end()) {
@@ -374,7 +612,13 @@ bool resolve_event(const EventTable &table, const Guid &event, uint32_t &rng, st
 			delay = d.first == g ? d.second : delay;
 		}
 		if (!skip) {
-			pick(table, g, 0, loop, delay, rng, 0, out);
+			std::vector<Pick> picks;
+			pick(table, g, 0, loop, delay, rng, 0, picks);
+			for (const Pick &p : picks) {
+				if (!p.nested) {
+					out.push_back(p);
+				}
+			}
 		}
 	}
 	return true;

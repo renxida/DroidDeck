@@ -35,8 +35,14 @@
  */
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <poll.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/inotify.h>
+#include <time.h>
 #include <unistd.h>
 
 #define EXPORT __attribute__((visibility("default")))
@@ -287,6 +293,152 @@ EXPORT void *SteamAPI_ISteamClient_GetISteamMusicRemote(void *self, int32_t user
 }
 
 /*
+ * Prestart hold (DROIDDECK_NATIVE_HOLD_DIR; unset, nothing here runs). droiddeck-native-godot's prestart starts the
+ * engine before Steam launches the game, so the engine, .NET and the game's own start-up run while Steam is
+ * still coming up. The game's first Steam call (RestartAppIfNecessary, IsSteamRunning or the init) stops here:
+ * the bridge writes <dir>/held (its pid and the call) and waits for <dir>/release, which `run` writes once Steam
+ * launches the game. release holds that launch's environment changes as NUL-ended entries, "KEY=VALUE" to set
+ * and "KEY" to unset; they are applied before Valve's function is called, so Valve's library reads Steam's
+ * SteamAppId and the rest exactly as if Steam had started the game. Nothing is answered for Steam: the held
+ * call then goes on to Valve's library as usual. With no release within DROIDDECK_NATIVE_HOLD_MAX_S (default
+ * 1800 s) the engine exits with status 75.
+ */
+static int hold_path(char *out, size_t cap, const char *dir, const char *name)
+{
+    int n = snprintf(out, cap, "%s/%s", dir, name);
+    return n > 0 && (size_t)n < cap;
+}
+
+static long now_ms(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return t.tv_sec * 1000L + t.tv_nsec / 1000000L;
+}
+
+/* The release file's entries applied to this process's environment; how many, or -1 if it can't be read. */
+static long apply_release(const char *path)
+{
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0)
+        return -1;
+    size_t cap = 1 << 16, used = 0;
+    char *buf = malloc(cap + 1);
+    for (ssize_t n; buf; used += (size_t)n) {
+        if (used == cap) {
+            char *more = realloc(buf, (cap *= 2) + 1);
+            if (!more)
+                free(buf);
+            buf = more;
+            if (!buf)
+                break;
+        }
+        n = read(fd, buf + used, cap - used);
+        if (n <= 0)
+            break;
+    }
+    close(fd);
+    if (!buf)
+        return -1;
+    buf[used] = 0;
+    long changes = 0;
+    for (char *e = buf, *next; e < buf + used; e = next) {
+        next = e + strlen(e) + 1;  /* before the '=' below is cut */
+        if (!*e)
+            continue;
+        char *eq = strchr(e, '=');
+        if (eq) {
+            *eq = 0;
+            changes += setenv(e, eq + 1, 1) == 0;
+        } else {
+            changes += unsetenv(e) == 0;
+        }
+    }
+    free(buf);
+    return changes;
+}
+
+static void hold(const char *call)
+{
+    static int done;
+    if (__atomic_exchange_n(&done, 1, __ATOMIC_SEQ_CST))
+        return;
+    const char *dir = getenv("DROIDDECK_NATIVE_HOLD_DIR");
+    if (!dir || !*dir)
+        return;
+    char held[4096], tmp[4096], release[4096], released[4096];
+    if (!hold_path(held, sizeof held, dir, "held") || !hold_path(tmp, sizeof tmp, dir, "held.tmp") ||
+        !hold_path(release, sizeof release, dir, "release") || !hold_path(released, sizeof released, dir, "released")) {
+        say("hold folder path too long; not holding", "", "");
+        return;
+    }
+    const char *max_s = getenv("DROIDDECK_NATIVE_HOLD_MAX_S");
+    long limit = max_s && atol(max_s) > 0 ? atol(max_s) * 1000L : 1800L * 1000L;
+    long began = now_ms();
+    int watch = inotify_init1(IN_CLOEXEC | IN_NONBLOCK);
+    if (watch >= 0 && inotify_add_watch(watch, dir, IN_MOVED_TO | IN_CLOSE_WRITE) < 0) {
+        close(watch);
+        watch = -1;
+    }
+    FILE *f = fopen(tmp, "we");
+    if (!f || fprintf(f, "%ld %s\n", (long)getpid(), call) < 0 || fclose(f) != 0 || rename(tmp, held) != 0) {
+        say("could not write the hold file in ", dir, "; not holding");
+        if (watch >= 0)
+            close(watch);
+        return;
+    }
+    say("holding before ", call, " until the launch is released");
+    while (access(release, F_OK) != 0) {
+        long left = limit - (now_ms() - began);
+        if (left <= 0) {
+            say("no release came; quitting (DROIDDECK_NATIVE_HOLD_MAX_S)", "", "");
+            _exit(75);
+        }
+        if (watch >= 0) {
+            struct pollfd p = {watch, POLLIN, 0};
+            if (poll(&p, 1, left < 1000 ? (int)left : 1000) > 0) {
+                char drain[4096];
+                while (read(watch, drain, sizeof drain) > 0)
+                    ;
+            }
+        } else {
+            struct timespec t = {0, 20 * 1000000L};
+            nanosleep(&t, 0);
+        }
+    }
+    if (watch >= 0)
+        close(watch);
+    long changes = apply_release(release);
+    rename(release, released);
+    unsetenv("DROIDDECK_NATIVE_HOLD_DIR");
+    char line[96];
+    snprintf(line, sizeof line, "%ld ms; %ld environment changes applied", now_ms() - began, changes);
+    say("released after ", line, "");
+}
+
+typedef int (*bool_void_fn)(void);
+typedef int (*restart_fn)(uint32_t app);
+
+/* bool in w0; Steamworks.NET reads the low byte. */
+EXPORT int SteamAPI_RestartAppIfNecessary(uint32_t app)
+{
+    hold("SteamAPI_RestartAppIfNecessary");
+    static restart_fn next;
+    if (!next)
+        next = (restart_fn)real("SteamAPI_RestartAppIfNecessary");
+    return next ? next(app) : 0;
+}
+
+EXPORT int SteamAPI_IsSteamRunning(void)
+{
+    hold("SteamAPI_IsSteamRunning");
+    static bool_void_fn next;
+    if (!next)
+        next = (bool_void_fn)real("SteamAPI_IsSteamRunning");
+    return next ? next() : 0;
+}
+
+/*
  * SteamAPI init. Steamworks.NET's InitEx hands Valve's SteamInternal_SteamAPI_Init the list of interface
  * versions it will use, and Valve's init checks them against the client. On the phone (Nov 15) the game's list
  * failed (FailedGeneric, no message) while Valve's own InitFlat, which checks the library's own list, succeeded
@@ -371,6 +523,8 @@ EXPORT int SteamInternal_SteamAPI_Init(const char *versions, char *message)
         next = (init_fn)real("SteamInternal_SteamAPI_Init");
     if (!next)
         return 1;
+    if (depth == 0)
+        hold("SteamAPI_Init");
     if (depth > 0)  /* Valve's InitFlat below may come back through here */
         return next(versions, message);
     int result = next(versions, message);

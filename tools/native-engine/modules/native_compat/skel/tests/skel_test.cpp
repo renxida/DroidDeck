@@ -4,6 +4,7 @@
 #include "../skel.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -113,6 +114,15 @@ static void test_linear_and_bezier() {
 	apply_animation(*sd->find_animation("ease"), sk, -1, 0.25f, false, nullptr, 1, MixBlend::Replace);
 	CHECK(sk.bones[0].x < 10 + 25); // eased in
 	CHECK(sd->find_animation("ease")->duration == 1);
+	// The curve is read as ten straight pieces: (0.082, 2.8) to (0.176, 10.4) at s = 0.1 and 0.2, so halfway
+	// between them is 6.6. Solved exactly the curve gives about 6.2 there.
+	sk.setup_pose();
+	apply_animation(*sd->find_animation("ease"), sk, -1, 0.129f, false, nullptr, 1, MixBlend::Replace);
+	const char *bz = std::getenv("DROIDDECK_NATIVE_SPINE_BEZIER");
+	if (bz && bz[0] == '0' && !bz[1])
+		CHECK(sk.bones[0].x > 10 + 5.9f && sk.bones[0].x < 10 + 6.45f);
+	else if (!bz || std::atoi(bz) == 10)
+		CHECK(std::fabs(sk.bones[0].x - (10 + 6.6f)) < 0.01f);
 }
 
 static void test_slots_events_draw_order_deform() {
@@ -185,6 +195,231 @@ static void test_ik() {
 	sk.update_world_transform();
 	NEAR(sk.bones[1].world_rotation_x(), 0); // arm now points along +x at the target
 	NEAR(sk.bones[2].world_x, 30);
+}
+
+// Skin-required bones and constraints only act while a skin that lists them is set.
+static const char *RIG_SKIN = R"({
+ "skeleton": {"spine": "4.2.43", "hash": "h"},
+ "bones": [
+  {"name": "root"},
+  {"name": "arm", "parent": "root", "length": 20},
+  {"name": "tall", "parent": "root", "y": 400, "skin": true},
+  {"name": "target", "parent": "root", "x": 0, "y": 30}
+ ],
+ "slots": [],
+ "ik": [{"name": "aim", "bones": ["arm"], "target": "target", "skin": true}],
+ "skins": [{"name": "default"}, {"name": "short", "ik": ["aim"]}, {"name": "tall", "bones": ["tall"]}]
+})";
+
+static void test_skin_gating() {
+	auto sd = load(RIG_SKIN);
+	if (!sd) return;
+	CHECK(sd->bones[2].skin_required);
+	CHECK(sd->ik[0].skin_required);
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	CHECK(!sk.bones[2].active);
+	NEAR(sk.bones[2].world_y, 0); // unposed without a skin that lists it
+	NEAR(sk.bones[1].world_rotation_x(), 0); // aim is off without its skin
+	CHECK(sk.set_skin("short"));
+	sk.setup_pose();
+	sk.update_world_transform();
+	NEAR(sk.bones[1].world_rotation_x(), 90); // aim now points the arm at the target
+	CHECK(!sk.bones[2].active);
+	CHECK(sk.set_skin("tall"));
+	sk.setup_pose();
+	sk.update_world_transform();
+	CHECK(sk.bones[2].active);
+	NEAR(sk.bones[2].world_y, 400);
+	NEAR(sk.bones[1].world_rotation_x(), 0);
+}
+
+// A NoScale child under a parent with non-uniform world scale (numbers from the Gardener's fin).
+static void test_noscale_nonuniform_parent() {
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+	  {"name": "root"},
+	  {"name": "stalk", "parent": "root", "rotation": -53.417, "scaleX": 0.8235},
+	  {"name": "fin", "parent": "stalk", "rotation": 308.154, "inherit": "noScale"}]})");
+	if (!sd) return;
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_MODE");
+	const bool aim = !(m && m[0] == '0');
+	NEAR(sk.bones[2].world_rotation_x(), aim ? -110.5157 : -105.263);
+	NEAR(std::hypot(sk.bones[2].a, sk.bones[2].c), 1);
+	if (aim) {
+		// In the game's y-down skeleton (scale y -1) the parent's world matrix is the harness's raw
+		// (0.4908, -0.8030, -0.6613, -0.5960), reflected and stretched; the game's fin reads 3.68 deg.
+		sk.bones[1].rotation = 53.417f;
+		sk.scale_y = -1;
+		sk.update_world_transform();
+		NEAR(sk.bones[1].a, 0.4908);
+		NEAR(sk.bones[1].d, -0.5960);
+		NEAR(std::round(sk.bones[2].world_rotation_x() * 10) / 10, 3.7);
+	}
+}
+
+// A sheared NoScale child under a non-uniform parent aims with its rotation alone (hunter_killer's jaw_r).
+static void test_noscale_sheared_child() {
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+	  {"name": "root"},
+	  {"name": "p", "parent": "root", "rotation": 30, "scaleX": 1.5, "scaleY": 0.6},
+	  {"name": "c", "parent": "p", "rotation": -120, "scaleX": 0.5, "scaleY": 1.1, "shearX": 12, "shearY": 13, "inherit": "noScale"}]})");
+	if (!sd) return;
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_MODE");
+	if (m && m[0] != '1') return;
+	const char *sh = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_AIM_SHEAR");
+	const Bone &b = sk.bones[2];
+	if (sh && sh[0] == '1') {
+		NEAR(b.a, -0.0790);
+		NEAR(b.d, -0.1547);
+		return;
+	}
+	NEAR(b.a, -0.1149);
+	NEAR(b.b, 1.0748);
+	NEAR(b.c, -0.4866);
+	NEAR(b.d, -0.2341);
+}
+
+// Physics model 2: a rotate-only constraint (inertia 0.5) holds back half of its parent's turn at a
+// zero-delta update, then a damped spring pulls it back in fixed 1/60 steps counted from the float clock.
+static void test_physics_model2() {
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+	if (m && m[0] != '2') return;
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+	  {"name": "root"}, {"name": "head", "parent": "root"},
+	  {"name": "ear", "parent": "head", "length": 60}]})");
+	if (!sd) return;
+	PhysicsData pd;
+	pd.bone = 2;
+	pd.rotate = 1;
+	pd.inertia = 0.5f;
+	pd.strength = 100;
+	pd.damping = 0.85f;
+	sd->physics.push_back(pd);
+	Skeleton sk(sd.get());
+	sk.update_world_transform(); // starts at the setup pose
+	sk.bones[1].rotation = 30;
+	sk.update_world_transform(); // zero delta: half the turn is held back
+	NEAR(sk.bones[2].world_rotation_x(), 15);
+	sk.update(1.0f / 60);
+	sk.update_world_transform(); // one step: v = 100 * 15 / 60 deg/s, offset -15 + v / 60
+	NEAR(sk.bones[2].world_rotation_x(), 30 - 15 + 25.0 / 60);
+	// The float clock runs 1, 1, 1, 0, 1, 1, 2 steps over the next updates (as the game's did).
+	std::vector<float> r;
+	for (int i = 0; i < 7; i++) {
+		sk.update(1.0f / 60);
+		sk.update_world_transform();
+		r.push_back(sk.bones[2].world_rotation_x());
+	}
+	NEAR(r[3], r[2]);
+	CHECK(std::fabs(r[6] - r[5]) > 1.5f * std::fabs(r[5] - r[4]));
+}
+
+// A scale-only physics bone (rotate 0) stretches from movement along the bone as drawn: the turn
+// offset it keeps (but does not apply) does not aim its tip.
+static void test_physics_scale_tip() {
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+	if (m && m[0] != '2') return;
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+	  {"name": "root"}, {"name": "head", "parent": "root"},
+	  {"name": "ear", "parent": "head", "length": 60}]})");
+	if (!sd) return;
+	PhysicsData pd;
+	pd.bone = 2;
+	pd.rotate = 0;
+	pd.scale_x = 1;
+	pd.inertia = 0.5f;
+	pd.strength = 100;
+	pd.damping = 0.85f;
+	pd.limit = 5000;
+	sd->physics.push_back(pd);
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	sk.bones[1].rotation = 90;
+	sk.update_world_transform(); // zero delta: the offset holds back half the turn, unapplied
+	sk.bones[1].x = 10; // across the ear, which now points along y
+	sk.update(1.0f / 60);
+	sk.update_world_transform();
+	const Bone &e = sk.bones[2];
+	const float s = std::hypot(e.a, e.c);
+	const char *tip = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_TIP");
+	if (tip && tip[0] == '1') {
+		CHECK(std::fabs(s - 1) > 0.03f);
+	} else {
+		CHECK(std::fabs(s - 1) < 0.01f);
+	}
+}
+
+// A physics bone pointing near 180 degrees whose tip lag crosses the -180/180 seam turns a little,
+// not a full turn (sewer_clam's horn_back_1 swung far off the game's here).
+static void test_physics_seam() {
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+	if (m && m[0] != '2') return;
+	for (float dy : {3.0f, -3.0f}) {
+		auto sd = load(R"({"skeleton": {"spine": "4.2.43"}, "bones": [
+		  {"name": "root"}, {"name": "head", "parent": "root", "rotation": 179.5},
+		  {"name": "ear", "parent": "head", "length": 60}]})");
+		if (!sd) return;
+		PhysicsData pd;
+		pd.bone = 2;
+		pd.rotate = 1;
+		pd.inertia = 0.5f;
+		pd.strength = 100;
+		pd.damping = 0.85f;
+		pd.limit = 5000;
+		sd->physics.push_back(pd);
+		Skeleton sk(sd.get());
+		sk.update_world_transform();
+		float worst = 0;
+		for (int i = 0; i < 6; i++) {
+			sk.bones[1].y += i == 0 ? dy : 0;
+			sk.update(1.0f / 60);
+			sk.update_world_transform();
+			const Bone &e = sk.bones[2];
+			float off = std::fmod(std::fabs(e.world_rotation_x() - 179.5f), 360.0f);
+			off = std::min(off, 360 - off);
+			worst = std::max(worst, off);
+		}
+		const char *seam = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_SEAM");
+		if (!(seam && seam[0] == '0')) CHECK(worst < 5);
+	}
+}
+
+// Wind turns a physics bone by force * length / reference scale (sewer_clam's horns, 77 to 180 long,
+// all matched the game this way): a 100-long bone pointing up under wind 10, strength 100 settles near
+// -0.1 rad off.
+static void test_physics_wind_lever() {
+	const char *m = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+	if (m && m[0] != '2') return;
+	auto sd = load(R"({"skeleton": {"spine": "4.2.43", "referenceScale": 100}, "bones": [
+	  {"name": "root"}, {"name": "stalk", "parent": "root", "rotation": 90, "length": 100}]})");
+	if (!sd) return;
+	CHECK(std::fabs(sd->reference_scale - 100) < 1e-3f);
+	PhysicsData pd;
+	pd.bone = 1;
+	pd.rotate = 1;
+	pd.inertia = 0.5f;
+	pd.strength = 100;
+	pd.damping = 0.85f;
+	pd.limit = 5000;
+	pd.wind = 10;
+	sd->physics.push_back(pd);
+	Skeleton sk(sd.get());
+	sk.update_world_transform();
+	for (int i = 0; i < 600; i++) {
+		sk.update(1.0f / 60);
+		sk.update_world_transform();
+	}
+	const float off = sk.bones[1].world_rotation_x() - 90;
+	const char *wind = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_WIND");
+	if (wind && wind[0] == '0') {
+		CHECK(std::fabs(off) < 0.2f);
+	} else {
+		CHECK(off < -5 && off > -6.5f);
+	}
 }
 
 static void test_spine3_layout() {
@@ -370,7 +605,7 @@ static std::vector<uint8_t> synthetic_binary() {
 
 // Path and physics constraints, a path attachment, a named skin and a path timeline, in the layouts
 // read from real 4.2 files (see skel_binary.cpp).
-static std::vector<uint8_t> synthetic_path_physics() {
+static std::vector<uint8_t> synthetic_path_physics(const std::vector<float> &curve = { -5, 0, 0, 0, 5, 0, 15, 0, 20, 0, 25, 0 }) {
 	BinWriter w;
 	for (int i = 0; i < 8; i++) w.u8(i);
 	w.s("4.2.43");
@@ -393,7 +628,7 @@ static std::vector<uint8_t> synthetic_path_physics() {
 	w.u8(128); w.f(0.75f);
 	w.v(1); w.v(0); w.v(1); w.v(1); // default skin: slot 0, "path"
 	w.u8(4 | 32); w.v(6); // path attachment, constant speed: a straight 20-unit curve from (0, 0) to (20, 0)
-	for (float x : { -5.0f, 0.0f, 0.0f, 0.0f, 5.0f, 0.0f, 15.0f, 0.0f, 20.0f, 0.0f, 25.0f, 0.0f }) w.f(x);
+	for (float x : curve) w.f(x);
 	w.f(20); w.f(40); // one curve length per 3 vertices
 	w.v(1); w.s("alt"); w.v(0); for (int i = 0; i < 4; i++) w.v(0); w.v(0); // named skin, inline name
 	w.v(0); // events
@@ -401,7 +636,7 @@ static std::vector<uint8_t> synthetic_path_physics() {
 	w.v(0); w.v(0); w.v(0); w.v(0); // slot, bone, ik, transform timelines
 	w.v(1); w.v(0); w.v(1); w.u8(0); w.v(2); w.v(0); // path position: 0 -> 1 over 1 s
 	w.f(0); w.f(0.25f); w.f(1); w.f(0.75f); w.u8(0);
-	// Physics: every constraint's mix (target 0) 1 -> 0, then constraint 0's type-5 setting (read, skipped).
+	// Physics: every constraint's mix (target 0) 1 -> 0, then constraint 0's type-5 setting (wind, held at -2).
 	w.v(2);
 	w.v(0); w.v(1); w.u8(7); w.v(2); w.v(0); w.f(0); w.f(1); w.f(1); w.f(0); w.u8(0);
 	w.v(1); w.v(1); w.u8(5); w.v(1); w.v(0); w.f(0); w.f(-2);
@@ -448,15 +683,23 @@ static void test_binary_path_physics() {
 		NEAR(path->lengths[0], 40);
 	}
 	const Animation *anim = sd->find_animation("go");
-	CHECK(anim && anim->timelines.size() == 3);
-	if (anim && anim->timelines.size() == 3) {
+	const char *settings_env = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_SETTINGS");
+	const bool settings = !(settings_env && settings_env[0] == '0');
+	const size_t want = settings ? 4 : 3;
+	CHECK(anim && anim->timelines.size() == want);
+	if (anim && anim->timelines.size() == want) {
 		const Timeline &pos = anim->timelines[0];
 		CHECK(pos.type == TimelineType::PathPosition);
 		NEAR(pos.curve.evaluate(0.5f, 0), 0.5);
 		const Timeline &mix = anim->timelines[1];
 		CHECK(mix.type == TimelineType::PhysicsMix && mix.target == -1);
 		NEAR(mix.curve.evaluate(0.5f, 0), 0.5);
-		const Timeline &def = anim->timelines[2];
+		if (settings) {
+			const Timeline &wind = anim->timelines[2];
+			CHECK(wind.type == TimelineType::PhysicsSetting && wind.target == 0 && wind.setting == 5);
+			NEAR(wind.curve.evaluate(0.5f, 0), -2);
+		}
+		const Timeline &def = anim->timelines[want - 1];
 		CHECK(def.type == TimelineType::Deform && def.deforms.size() == 2 && def.curve.kinds[0] == Curve::STEPPED);
 		if (def.deforms.size() == 2 && def.deforms[1].size() == 6) {
 			NEAR(def.deforms[1][4], 14);
@@ -475,7 +718,9 @@ static void test_binary_path_physics() {
 	Skeleton sk(one.get());
 	sk.update_world_transform();
 	const Bone &b = sk.bones[1];
-	NEAR(b.world_x, 5);
+	// Path eval mode 1 maps distance to the curve parameter through a 10-step table and evaluates the
+	// curve there, so an unevenly parameterized straight curve lands within a few hundredths.
+	CHECK(std::fabs(b.world_x - 5) < 0.05);
 	NEAR(b.world_y, 2);
 	NEAR(b.world_rotation_x(), 0);
 	NEAR(b.rotation, 90); // the animated pose is kept for the next frame
@@ -501,6 +746,104 @@ static void test_binary_path_physics() {
 	}
 	CHECK(std::fabs(c.world_rotation_x()) < 1);
 	NEAR(c.world_y, 20);
+}
+
+// Chain rotation on a bent path. Every mode aims the bone at a point on the curve; what differs is
+// which point. Mode 1 (the default, matching the game) takes the point the gap away along the path's
+// 10-chord table, with length gaps stretched by table length over stored length; mode 2 takes the curve
+// point exactly the gap away in a straight line; mode 0 places by arc without chaining.
+static void test_path_chain_bend() {
+	// One curve from (0, 0) to (20, 20) bending through (20, 0): a sharp turn. Stored length 20.
+	std::vector<uint8_t> bin = synthetic_path_physics({ -5, 0, 0, 0, 20, 0, 20, 0, 20, 20, 20, 25 });
+	std::string err;
+	auto sd = load_binary(bin.data(), bin.size(), 1, err);
+	CHECK(sd != nullptr);
+	if (!sd) {
+		return;
+	}
+	auto bez = [](float t, float &x, float &y) {
+		const float u = 1 - t;
+		x = 3 * u * u * t * 20 + 3 * u * t * t * 20 + t * t * t * 20;
+		y = t * t * t * 20;
+	};
+	// Distance along the 10-chord table to bezier parameter t.
+	float chord[10], table = 0;
+	for (int k = 0; k < 10; k++) {
+		float x0, y0, x1, y1;
+		bez(k / 10.0f, x0, y0);
+		bez((k + 1) / 10.0f, x1, y1);
+		chord[k] = std::hypot(x1 - x0, y1 - y0);
+		table += chord[k];
+	}
+	auto table_dist = [&](float t) {
+		float d = 0;
+		const int k = std::min(int(t * 10), 9);
+		for (int i = 0; i < k; i++) {
+			d += chord[i];
+		}
+		return d + (t * 10 - k) * chord[k];
+	};
+	struct Aim { float miss, straight, along; };
+	// For each place along the bend: how far the bone's ray misses the curve, and the straight and table
+	// distances from the bone's start to the curve point it aims at.
+	auto aims = [&](int spacing_mode) {
+		sd->paths[0].spacing_mode = spacing_mode;
+		Skeleton sk(sd.get());
+		// Length spacing: the bone's 10 plus -5 gives the same 5-unit gap as fixed spacing 5.
+		sk.paths[0].spacing = spacing_mode == 0 ? -5.0f : 5.0f;
+		const Bone &b = sk.bones[1];
+		std::vector<Aim> out;
+		for (float pos : { 0.25f, 0.4f, 0.5f, 0.6f }) {
+			sk.paths[0].position = pos;
+			sk.update_world_transform();
+			const float r = std::atan2(b.c, b.a), dx = std::cos(r), dy = std::sin(r);
+			const float sx = b.world_x, sy = b.world_y * 2 - 4; // undo mix y 0.5 (rest y 4)
+			Aim a { 1e9f, 0, 0 };
+			float start_t = 0, start_miss = 1e9f, hit_t = 0;
+			for (int k = 0; k <= 20000; k++) {
+				const float t = k / 20000.0f;
+				float x, y;
+				bez(t, x, y);
+				const float ox = x - sx, oy = y - sy, ahead = ox * dx + oy * dy;
+				if (std::hypot(ox, oy) < start_miss) {
+					start_miss = std::hypot(ox, oy);
+					start_t = t;
+				}
+				const float miss = std::fabs(ox * dy - oy * dx);
+				if (ahead > 2 && miss < a.miss) {
+					a.miss = miss;
+					a.straight = ahead;
+					hit_t = t;
+				}
+			}
+			a.along = table_dist(hit_t) - table_dist(start_t);
+			out.push_back(a);
+		}
+		return out;
+	};
+	// Fixed spacing keeps arc positions in every mode (the Gardener's stalks sit there in the game).
+	float fixed_off = 0;
+	for (const Aim &a : aims(1)) {
+		fixed_off = std::max(fixed_off, std::fabs(a.straight - 5));
+	}
+	CHECK(fixed_off > 0.05f);
+	const char *mode = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_CHAIN");
+	const char *eval = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_EVAL");
+	const char *stretch = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_STRETCH");
+	if (eval && std::atoi(eval) == 0) {
+		return; // eval 0 walks table chords, not the curve
+	}
+	const int m = mode ? std::atoi(mode) : 1;
+	const float scale = stretch && stretch[0] == '0' ? 1.0f : table / 20;
+	CHECK(table > 25); // the bend is much longer than the stored 20, so the stretch shows
+	for (const Aim &a : aims(0)) {
+		CHECK(a.miss < 0.02f);
+		if (m == 1) {
+			CHECK(std::fabs(a.along - 5 * scale) < 0.03f);
+		} else if (m == 2 && scale == 1) {
+			CHECK(std::fabs(a.straight - 5) < 0.03f);
+		}
+	}
 }
 
 static void test_binary() {
@@ -586,9 +929,17 @@ int main() {
 	test_slots_events_draw_order_deform();
 	test_crossfade();
 	test_ik();
+	test_skin_gating();
+	test_noscale_nonuniform_parent();
+	test_noscale_sheared_child();
+	test_physics_model2();
+	test_physics_scale_tip();
+	test_physics_seam();
+	test_physics_wind_lever();
 	test_spine3_layout();
 	test_binary();
 	test_binary_path_physics();
+	test_path_chain_bend();
 	if (failures) {
 		std::printf("%d failure(s)\n", failures);
 		return 1;

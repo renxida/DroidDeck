@@ -106,6 +106,8 @@ struct Skin {
 	// One map per slot index: attachment key -> attachment.
 	std::vector<std::unordered_map<std::string, std::unique_ptr<Attachment>>> slots;
 	std::vector<int> bones; // bones only active while this skin is on (skin_required bones)
+	// Skin-required constraints this skin turns on, by index into SkeletonData's ik, transforms, paths, physics.
+	std::vector<int> ik, transforms, paths, physics;
 
 	Attachment *find(int slot, const std::string &key) const;
 };
@@ -134,6 +136,7 @@ struct IkData {
 	int target = 0;
 	float mix = 1, softness = 0;
 	bool bend_positive = true, compress = false, stretch = false, uniform = false;
+	bool skin_required = false; // applies only while a skin that lists it is on
 };
 
 // Moves bones toward a target bone's transform. World mode works on world matrices; local mode on
@@ -144,6 +147,7 @@ struct TransformData {
 	std::vector<int> bones;
 	int target = 0;
 	bool local = false, relative = false;
+	bool skin_required = false; // applies only while a skin that lists it is on
 	float offset_rotation = 0, offset_x = 0, offset_y = 0, offset_scale_x = 0, offset_scale_y = 0, offset_shear_y = 0;
 	float mix_rotate = 0, mix_x = 0, mix_y = 0, mix_scale_x = 0, mix_scale_y = 0, mix_shear_y = 0;
 };
@@ -194,7 +198,7 @@ struct Curve {
 enum class TimelineType {
 	Rotate, Translate, TranslateX, TranslateY, Scale, ScaleX, ScaleY, Shear, ShearX, ShearY,
 	Attachment, RGBA, RGB, Alpha, RGBA2, RGB2, Deform, DrawOrder, Event, Ik, Inherit, Transform, Sequence,
-	PathPosition, PathSpacing, PathMix, PhysicsMix
+	PathPosition, PathSpacing, PathMix, PhysicsMix, PhysicsSetting
 };
 
 struct Timeline {
@@ -209,6 +213,7 @@ struct Timeline {
 	std::vector<int> sequence_keys; // sequence: per frame, start index << 4 | SequenceMode
 	std::vector<float> sequence_delays; // sequence: per frame, seconds per image
 	std::vector<uint8_t> flags; // ik: bend_positive, compress, stretch per frame (bit 0, 1, 2); inherit: mode per frame
+	int setting = 0; // physics setting: 0 inertia, 1 strength, 2 damping, 4 mass, 5 wind, 6 gravity
 };
 
 struct Animation {
@@ -221,6 +226,7 @@ struct SkeletonData {
 	std::string version; // e.g. "4.2.43", or "" when unknown
 	std::string hash;
 	float x = 0, y = 0, width = 0, height = 0, fps = 30;
+	float reference_scale = 100; // the header's reference scale (physics wind and gravity are relative to it)
 	std::vector<BoneData> bones;
 	std::vector<SlotData> slots;
 	std::vector<std::unique_ptr<Skin>> skins;
@@ -299,6 +305,8 @@ struct PhysicsConstraint {
 	float origin_x = 0, origin_y = 0; // bone origin at the last step
 	float tip_x = 0, tip_y = 0, tip_vx = 0, tip_vy = 0; // simulated tip (world)
 	float off_x = 0, off_y = 0, off_vx = 0, off_vy = 0; // simulated origin offset (world)
+	// Model 2 (see physics_model() in skel.cpp): angle and stretch offsets, and the pose they lag behind.
+	float last_time = 0, last_angle = 0, rot = 0, rot_v = 0, stretch = 0, stretch_v = 0;
 	void reset() { started = false; }
 };
 
@@ -314,6 +322,8 @@ struct Skeleton {
 	enum ConstraintKind { IK, TRANSFORM, PATH, PHYSICS };
 	std::vector<std::pair<int, int>> constraint_order; // (ConstraintKind, index), by data order
 	float physics_time = 0; // seconds not yet simulated; Skeleton::update adds to it
+	float time = 0; // skeleton clock in seconds (float, as the game keeps it); physics model 2 steps from it
+	int physics_pass = 2; // 0 none, 1 reset, 2 update, 3 pose (the game's physics argument)
 	const Skin *skin = nullptr;
 	Color color;
 	float x = 0, y = 0, scale_x = 1, scale_y = 1;
@@ -327,7 +337,10 @@ struct Skeleton {
 	bool set_attachment(const std::string &slot, const std::string &key);
 	void update_world_transform();
 	// Advances physics by dt seconds at the next update_world_transform.
-	void update(float dt) { physics_time += dt; }
+	void update(float dt) {
+		physics_time += dt;
+		time += dt;
+	}
 	void reset_physics();
 
 	// World-space vertices for a slot's current attachment (x,y pairs). Returns vertex count.
@@ -339,10 +352,15 @@ private:
 	void apply_transform(TransformConstraint &t);
 	void apply_path(PathConstraint &p);
 	void apply_physics(PhysicsConstraint &p, float dt);
+	void apply_physics2(PhysicsConstraint &p);
 	void set_world(Bone &bone, float a, float b, float c, float d, float wx, float wy);
 	void update_after(const std::vector<int> &constrained);
+	// Whether a constraint applies: always, unless it is skin-required and the current skin does not list it.
+	bool constraint_on(int kind, int index) const;
 	std::vector<Bone> pose_; // local values before constraints, restored after the world transform
 	std::vector<float> path_world_, path_points_, path_lengths_; // path constraint scratch
+	bool path_dumped_ = false;
+	void dump_path_once(const PathData &d, const Attachment &att, int n);
 };
 
 enum class MixBlend {

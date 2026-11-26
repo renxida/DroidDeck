@@ -42,8 +42,11 @@ of the game's data folder (names, sizes, mtimes) in ~/.cache/droiddeck/native/ch
 "check pass|fail" line. Exit 0 on pass, 1 on fail. droiddeck-game-env skips the native path while a fresh
 result for the same game files, component and converter says fail.
 
+`prestart` (with DROIDDECK_NATIVE_PRESTART=1 on `run`) starts the engine before Steam launches the game and
+holds it at the game's first Steam call; the next `run` with the same arguments takes it over (see Prestart below).
+
 Usage:
-  droiddeck-native-godot compose|run|check --game-dir DIR (--fetch | --component DIR | --kit DIR --engine FILE)
+  droiddeck-native-godot compose|run|check|prestart --game-dir DIR (--fetch | --component DIR | --kit DIR --engine FILE)
                                            --out DIR [--exe NAME] [--name NAME] [-- ENGINE ARGS...]
 """
 import argparse
@@ -52,6 +55,7 @@ import hashlib
 import json
 import os
 import re
+import select
 import shutil
 import signal
 import struct
@@ -752,6 +756,10 @@ def compose(game_dir, kit, engine, out, exe=None, steam=None, bridge=None):
         except OSError:
             shutil.copy2(engine, target)
         os.chmod(target, 0o755)
+    # The engine's symbol map, when the component has one, sits beside it for the sampling profiler.
+    syms = os.path.join(os.path.dirname(engine), "godot.syms")
+    if os.path.isfile(syms):
+        place(syms, os.path.join(out, "godot.syms"))
     report = {"assembly": asm, "pack": find_pack(game_dir, exe), "engine": target, "data": data,
               "game_assemblies": taken, "patched": patched, "mixed_mode": mixed_refs, "steam_api": steam,
               "steam_api_missing": steam_missing, "steam_bridge": bridge,
@@ -1215,15 +1223,18 @@ NATIVE_GAME_FAILED = "not starting: the game failed at startup in the native eng
 
 
 def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.monotonic, forward_signals=False,
-          on_first_frame=None, steam_failed=STEAM_INIT_FAILED, on_steam_failed=None, game_failed=NATIVE_GAME_FAILED_RE):
+          on_first_frame=None, steam_failed=STEAM_INIT_FAILED, on_steam_failed=None, game_failed=NATIVE_GAME_FAILED_RE,
+          proc=None):
     """Runs the engine in its own process group, passing its output through; returns its exit code, or
     DID_NOT_START if no frame-rate line came within first_frame_s or before it exited, or if the game said its
     Steam init failed (steam_failed) or its startup failed (game_failed; then on_steam_failed(line) is called for
     either, so the launch is remembered as refused). With forward_signals,
     SIGTERM/SIGINT/SIGHUP to this wrapper stop the engine too. on_first_frame, if given, is called once at the
-    first frame (its errors are logged, never raised)."""
-    proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            start_new_session=True, preexec_fn=die_with_parent)
+    first frame (its errors are logged, never raised). proc, if given, is an engine already running (a prestarted
+    one, Adopted) watched in place of starting cmd."""
+    if proc is None:
+        proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, start_new_session=True, preexec_fn=die_with_parent)
     began = clock()
     seen = threading.Event()
     timed_out = threading.Event()
@@ -1451,9 +1462,282 @@ def fresh_check(game_dir, component_tag=None, name=None, check_dir=None):
     return result
 
 
+# --- Prestart (DROIDDECK_NATIVE_PRESTART=1; `prestart`): the engine started before Steam launches the game ---
+#
+# Cedar (via the phone side, Nov 26): "make cold start not cold and instant as well". `prestart` (run by the session
+# when it starts, with the same arguments `run` will get) composes and starts the engine as `run` would, with
+# DROIDDECK_NATIVE_HOLD_DIR set, so the engine, .NET and the game's start-up run while the Steam client is still
+# coming up. The Steam bridge stops the game at its first Steam call (RestartAppIfNecessary, IsSteamRunning or
+# SteamAPI_Init) and waits there for <hold>/release; nothing about Steam is answered before Steam has launched it.
+# When Steam then launches the game, `run` (with DROIDDECK_NATIVE_PRESTART=1) finds the held engine, writes the
+# launch's environment differences into the release (SteamAppId and the rest, applied before Valve's library
+# reads them) and stays alive as the process Steam tracks, passing the engine's output through and its exit code
+# back; Steam stopping `run` stops the engine. The prestart process stays the engine's parent: it forwards the
+# engine's output (to <hold>/engine.log, and once released, to `run` through <hold>/out), kills the engine if
+# `run` disappears, and records its exit code. If anything does not match (other arguments; a different value for
+# a variable read only at start, listed in PRESTART_STARTUP_KEYS; an engine already taken or gone), `run` stops the
+# held engine and starts one the usual way. <hold> is ~/.cache/droiddeck/native/prestart/<hash of --out>.
+
+PRESTART_DIR = os.path.join(CACHE, "prestart")
+# Read once when the engine starts (libraries, .NET, paths, display, driver, locale, our own switches): a launch
+# whose value differs needs a fresh engine.
+PRESTART_STARTUP_KEYS = re.compile(r"^(DROIDDECK_NATIVE_(?!PRESTART|FIRST_FRAME_S)|DROIDDECK_EXP_|DOTNET_|XDG_|HOME$|"
+                                   r"DISPLAY$|WAYLAND_DISPLAY$|GAMESCOPE_|ENABLE_GAMESCOPE|VK_|MESA_|HYBRIS_|GODOT_|"
+                                   r"LANG$|LC_)")
+# Applied late but read by the engine at start too (controller mappings, the loader's paths): logged by name.
+PRESTART_STALE_KEYS = re.compile(r"^(SDL_|LD_)")
+PRESTART_NOISE = {"_", "PWD", "OLDPWD", "SHLVL", "DROIDDECK_NATIVE_HOLD_DIR"}
+
+
+def prestart_on(env=os.environ):
+    return env.get("DROIDDECK_NATIVE_PRESTART", "") == "1"
+
+
+def prestart_dir(out, base=None):
+    base = base or PRESTART_DIR
+    return os.path.join(base, hashlib.sha256(os.path.abspath(out).encode()).hexdigest()[:12])
+
+
+def pid_alive(pid):
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+    return True
+
+
+def write_atomic(path, data):
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(data if isinstance(data, bytes) else data.encode())
+    os.replace(tmp, path)
+
+
+def env_release(held_env, launch_env):
+    """(release bytes, keys needing a fresh engine, keys applied late though read at start): what the launch's
+    environment changes against the one the held engine started with, as the bridge's NUL-ended entries."""
+    entries, startup, stale = [], [], []
+    for key in sorted(set(held_env) | set(launch_env)):
+        if key in PRESTART_NOISE or held_env.get(key) == launch_env.get(key):
+            continue
+        if PRESTART_STARTUP_KEYS.match(key):
+            startup.append(key)
+            continue
+        if PRESTART_STALE_KEYS.match(key):
+            stale.append(key)
+        if "=" in key or "\0" in key or "\0" in launch_env.get(key, ""):
+            continue
+        entries.append(f"{key}={launch_env[key]}" if key in launch_env else key)
+    return b"".join(e.encode() + b"\0" for e in entries), startup, stale
+
+
+def prestart(cmd, env, hold, meta, clock=time.monotonic):
+    """Starts the engine held at its first Steam call and stays its parent until it exits; returns its exit code."""
+    for name in ("held", "release", "released", "owner", "exit", "out", "engine.log"):
+        try:
+            os.unlink(os.path.join(hold, name))
+        except OSError:
+            pass
+    os.mkfifo(os.path.join(hold, "out"))
+    env = dict(env, DROIDDECK_NATIVE_HOLD_DIR=hold)
+    began = clock()
+    proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            start_new_session=True, preexec_fn=die_with_parent)
+
+    def kill(*_):
+        try:
+            os.killpg(proc.pid, 9)
+        except OSError:
+            pass
+
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, lambda n, f: (kill(), sys.exit(128 + n)))
+    signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+    write_atomic(os.path.join(hold, "meta.json"), json.dumps(dict(meta, engine_pid=proc.pid, prestart_pid=os.getpid(),
+                                                                  started=time.time())))
+    log(f"prestart: engine {proc.pid} started; it waits at its first Steam call for a launch to take it ({hold})")
+    release = os.path.join(hold, "release")
+    released = os.path.join(hold, "released")
+    owner = None
+    fifo = None
+
+    def owner_watch(pid):
+        # Kills the engine if the `run` that took it goes away without stopping it (SIGKILL, say).
+        try:
+            fd = os.pidfd_open(pid)
+        except (AttributeError, OSError):
+            fd = None
+        while proc.poll() is None:
+            if fd is not None:
+                select.select([fd], [], [], 60)
+            else:
+                time.sleep(5)
+            if not pid_alive(pid):
+                log(f"prestart: the launch that took the engine ({pid}) is gone; stopping the engine")
+                kill()
+                return
+
+    with open(os.path.join(hold, "engine.log"), "ab", buffering=0) as logf:
+        for line in proc.stdout:
+            logf.write(line)
+            if owner is None and (os.path.exists(release) or os.path.exists(released)):
+                try:
+                    with open(os.path.join(hold, "owner")) as f:
+                        owner = int(f.read().strip())
+                    fifo = os.open(os.path.join(hold, "out"), os.O_WRONLY | os.O_NONBLOCK)
+                    os.set_blocking(fifo, True)
+                    threading.Thread(target=owner_watch, args=(owner,), daemon=True).start()
+                    log(f"prestart: engine {proc.pid} taken by {owner} after {clock() - began:.1f} s")
+                except (OSError, ValueError) as error:
+                    log(f"prestart: released, but the launch can't be reached ({error}); stopping the engine")
+                    owner = -1
+                    kill()
+            if fifo is not None:
+                try:
+                    os.write(fifo, line)
+                except OSError:
+                    log("prestart: the launch stopped reading; stopping the engine")
+                    os.close(fifo)
+                    fifo = None
+                    kill()
+    rc = proc.wait()
+    write_atomic(os.path.join(hold, "exit"), str(rc))
+    if fifo is not None:
+        os.close(fifo)
+    log(f"prestart: engine {proc.pid} exited with {rc} after {clock() - began:.1f} s"
+        + ("" if owner else ", never taken by a launch"))
+    return rc
+
+
+class Adopted:
+    """A prestarted engine, as watch() sees a process: its output (after the release) from <hold>/out, its pid and
+    process group, its exit code from <hold>/exit."""
+
+    def __init__(self, hold, pid, fifo_fd):
+        self.hold, self.pid = hold, pid
+        self.returncode = None
+        # Until the prestart process opens its end, a reader alone would see end-of-file: hold a writer of our own
+        # until the first line comes, or the engine is gone.
+        self._dummy = os.open(os.path.join(hold, "out"), os.O_WRONLY | os.O_NONBLOCK)
+        self._lock = threading.Lock()
+        self.stdout = self._lines(os.fdopen(fifo_fd, "rb"))
+        threading.Thread(target=self._until_connected, daemon=True).start()
+
+    def _drop_dummy(self):
+        with self._lock:
+            if self._dummy is not None:
+                os.close(self._dummy)
+                self._dummy = None
+
+    def _until_connected(self):
+        while self._dummy is not None:
+            if not pid_alive(self.pid) or os.path.exists(os.path.join(self.hold, "exit")):
+                self._drop_dummy()
+                return
+            time.sleep(0.2)
+
+    def _lines(self, f):
+        with f:
+            for line in f:
+                self._drop_dummy()
+                yield line
+        self._drop_dummy()
+
+    def _exit_code(self, wait_s=0.0):
+        end = time.monotonic() + wait_s
+        while True:
+            try:
+                with open(os.path.join(self.hold, "exit")) as f:
+                    return int(f.read().strip())
+            except (OSError, ValueError):
+                pass
+            if time.monotonic() >= end:
+                return None
+            time.sleep(0.05)
+
+    def poll(self):
+        if self.returncode is None and not pid_alive(self.pid):
+            code = self._exit_code(2.0)
+            self.returncode = 1 if code is None else code
+        return self.returncode
+
+    def wait(self):
+        while self.poll() is None:
+            time.sleep(0.1)
+        return self.returncode
+
+
+def adopt(hold, argv_key, launch_env, out=sys.stdout, wait_s=60.0):
+    """(Adopted, meta) for the engine `prestart` holds in hold, released with the launch's environment; or None,
+    with the held engine stopped where it can't be used."""
+    meta_path = os.path.join(hold, "meta.json")
+    end = time.monotonic() + wait_s
+    while True:
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+            break
+        except (OSError, ValueError):
+            pass
+        try:  # a prestart still composing: wait for it rather than compose over it
+            with open(os.path.join(hold, "starting")) as f:
+                starting = int(f.read().strip())
+        except (OSError, ValueError):
+            return None
+        if not pid_alive(starting) or time.monotonic() >= end:
+            return None
+        time.sleep(0.1)
+    pid = meta.get("engine_pid")
+
+    def drop(why):
+        log(f"prestart: not taking the held engine ({why}); starting one the usual way")
+        if pid and pid_alive(pid) and not os.path.exists(os.path.join(hold, "exit")):
+            try:
+                os.killpg(pid, 9)
+            except OSError:
+                pass
+            for _ in range(100):
+                if os.path.exists(os.path.join(hold, "exit")) or not pid_alive(pid):
+                    break
+                time.sleep(0.05)
+        return None
+
+    if not pid or not pid_alive(pid) or os.path.exists(os.path.join(hold, "exit")):
+        return None
+    if any(os.path.exists(os.path.join(hold, n)) for n in ("owner", "release", "released")):
+        return None  # taken by an earlier launch
+    if meta.get("argv") != argv_key:
+        return drop("it was started with other arguments")
+    release, startup, stale = env_release(meta.get("environ") or {}, launch_env)
+    if startup:
+        return drop(f"the launch sets {', '.join(startup[:6])} differently, which the engine reads at start")
+    fifo = os.open(os.path.join(hold, "out"), os.O_RDONLY | os.O_NONBLOCK)
+    os.set_blocking(fifo, True)
+    write_atomic(os.path.join(hold, "owner"), str(os.getpid()))
+    write_atomic(os.path.join(hold, "release"), release)
+    held = os.path.exists(os.path.join(hold, "held"))
+    age = time.time() - meta.get("started", time.time())
+    changes = release.count(b"\0")
+    log(f"prestart: took engine {pid}, started {age:.1f} s ago, " + ("held at its first Steam call" if held else
+        "not yet at its first Steam call") + f"; released with {changes} environment changes"
+        + (f" ({', '.join(stale)} read at start: the engine keeps its own)" if stale else ""))
+    try:  # what it printed while waiting, then watch() takes the rest
+        with open(os.path.join(hold, "engine.log"), "rb") as f:
+            for line in f:
+                out.write(line.decode("utf-8", "replace"))
+        out.flush()
+    except OSError:
+        pass
+    return Adopted(hold, pid, fifo), meta
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("command", choices=("compose", "run", "check"))
+    ap.add_argument("command", choices=("compose", "run", "check", "prestart"))
     ap.add_argument("--name", help="check: the result's name under ~/.cache/droiddeck/native/check (default: the game's assembly)")
     ap.add_argument("--game-dir", required=True)
     ap.add_argument("--fetch", action="store_true", help="use the pinned published component")
@@ -1475,6 +1759,34 @@ def main(argv=None):
         os.environ["LD_PRELOAD"] = clean["LD_PRELOAD"]
     else:
         os.environ.pop("LD_PRELOAD", None)
+    key = list(argv)
+    key.remove(a.command)
+    hold = prestart_dir(a.out) if a.command == "prestart" or (a.command == "run" and prestart_on()) else None
+    if a.command == "run" and hold and os.path.isdir(hold):
+        took = adopt(hold, key, dict(os.environ))
+        if took:
+            proc, meta = took
+            refused = meta.get("refusal")
+            return watch(None, None, forward_signals=True, proc=proc,
+                         on_first_frame=r2r_after_first_frame(meta.get("report") or {}),
+                         on_steam_failed=(lambda line, kind="steam": remember_steam_refusal(refused, line, kind=kind))
+                         if refused else None)
+    if a.command == "prestart":
+        os.makedirs(hold, exist_ok=True)
+        try:
+            with open(os.path.join(hold, "meta.json")) as f:
+                last = json.load(f)
+            if pid_alive(last.get("engine_pid")) and not os.path.exists(os.path.join(hold, "exit")):
+                log(f"prestart: engine {last.get('engine_pid')} is already started for {a.out}")
+                return 0
+        except (OSError, ValueError):
+            pass
+        for name in ("meta.json", "exit"):
+            try:
+                os.unlink(os.path.join(hold, name))
+            except OSError:
+                pass
+        write_atomic(os.path.join(hold, "starting"), str(os.getpid()))
     component = fetch() if a.fetch else a.component
     if component and os.path.lexists(os.path.join(component, "stubs")):
         # Components up to native-engine-38 carried a no-op Steam stand-in in stubs/. Such a component is refused
@@ -1498,7 +1810,8 @@ def main(argv=None):
         return 0 if check(a.game_dir, kit, engine, a.out, a.exe, steam, tag, a.name, bridge=bridge)["result"] == "pass" else 1
     r = compose(a.game_dir, kit, engine, a.out, a.exe, steam, bridge)
     fatal = steam_init_blockers(r.get("steam_api_missing"))
-    if fatal and a.command == "run" and not a.no_steam_preflight:
+    starting = a.command in ("run", "prestart")
+    if fatal and starting and not a.no_steam_preflight:
         log(steam_probe_line(steam_probe(r["steam_api"], os.path.abspath(a.game_dir), dict(os.environ))))
         log(f"not starting: Steam cannot initialise with this game's Steamworks.NET: the library lacks "
             f"{', '.join(fatal)}, which its SteamAPI.Init calls (the game would quit on 'Failed to initialize Steam')")
@@ -1507,13 +1820,13 @@ def main(argv=None):
     # first called, so a missing one is an EntryPointNotFoundException mid-game (Nov 15: IsSteamRunningOnSteamDeck
     # at settings load). A game update that binds a name neither the bridge nor Valve's library has goes to Proton.
     gap = r.get("steam_api_missing") if r.get("steam_bridge") else None
-    if gap and a.command == "run" and not a.no_steam_preflight:
+    if gap and starting and not a.no_steam_preflight:
         log(f"not starting: Steam cannot initialise every call this game's Steamworks.NET makes: the bridge and "
             f"Valve's library lack {len(gap)} ({', '.join(gap[:8])}{', ...' if len(gap) > 8 else ''})")
         return DID_NOT_START
     bridged = sorted(set(STEAM_BRIDGED) & set(steam_api_missing_without_bridge(r)))
     refusal = None
-    if r.get("steam_api") and a.command == "run" and not a.no_steam_preflight:
+    if r.get("steam_api") and starting and not a.no_steam_preflight:
         # Remembered per engine, arm64 Steam client and game files: a failed Steam init, or a startup error the game
         # reported in the native engine, sends the next launches of the same combination straight to Proton.
         tag = COMPONENT["tag"] if a.fetch else (os.path.basename(os.path.normpath(component)) if component else "custom")
@@ -1539,7 +1852,7 @@ def main(argv=None):
             log(f"not starting: the Steam client does not serve {', '.join(refused)}, which this game's "
                 "SteamAPI.Init asks for (it would quit on 'Failed to initialize Steam')")
             return DID_NOT_START
-    if bridged and a.command == "run" and not a.no_steam_preflight:
+    if bridged and starting and not a.no_steam_preflight:
         log(f"Steam bridge: forwarding {', '.join(n.split('GetISteam')[1] for n in bridged)} to the real client; "
             "interface versions older than Valve's library get the library's own (its log lines: 'steam-bridge:')")
     log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
@@ -1565,6 +1878,15 @@ def main(argv=None):
             log(f"ICU: {ICU['package']} from {icu} (app-local)")
     env = dict(engine_env(os.environ, icu, system_icu))
     env["DROIDDECK_NATIVE_GAME"] = "1"  # the app's telemetry counts this process (memory, swap, faults) as the game's
+    if a.command == "prestart":  # the Steam client may not be up yet: no Steam probe; the game waits at its first call
+        try:
+            return prestart(line_buffered(cmd), env, hold, {"argv": key, "environ": dict(os.environ),
+                                                           "refusal": refusal, "report": r})
+        finally:
+            try:
+                os.unlink(os.path.join(hold, "starting"))
+            except OSError:
+                pass
     return watch(line_buffered(cmd), env, forward_signals=True,
                  on_first_frame=r2r_after_first_frame(r),
                  on_steam_failed=(lambda line, kind="steam": remember_steam_refusal(refusal, line, kind=kind))

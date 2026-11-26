@@ -1,0 +1,17 @@
+; Rebuilds a frame from a canvas trace (patches/canvas_trace.py) with placeholder textures, so a real scene's
+; batching can be measured off the phone. No game files: the trace holds only layout, ids and sizes.
+config_version=5
+
+[application]
+config/name="CanvasReplay"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.5", "Mobile")
+
+[display]
+window/size/viewport_width=640
+window/size/viewport_height=480
+
+[rendering]
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+textures/canvas_textures/default_texture_filter=0

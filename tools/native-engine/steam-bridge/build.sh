@@ -14,7 +14,7 @@ gcc -O2 -Wall -Wextra -Werror -fPIC -shared -fvisibility=hidden -o "$out/libstea
     -Wl,-soname,libsteam_api64.so -Wl,-rpath,'$ORIGIN' -Wl,--no-as-needed "$tmp/libsteam_api.so" -Wl,--as-needed -ldl \
     -Wl,-z,defs
 # It defines the 22 ISteamClient accessors Steamworks.NET calls at init, FindOrCreateUserInterface and the init
-# itself (all in front of Valve's), and the flat functions Valve's library dropped. Nothing else.
+# itself, RestartAppIfNecessary and IsSteamRunning (all in front of Valve's), and the flat functions Valve's library dropped. Nothing else.
 nm -D --defined-only "$out/libsteam_api64.so" | awk '{print $3}' | grep -v '^_' | sort > "$tmp/defined"
 nm -D --defined-only "$tmp/libsteam_api.so" | awk '{print $3}' | sort > "$tmp/valve"
 {
@@ -24,6 +24,8 @@ nm -D --defined-only "$tmp/libsteam_api.so" | awk '{print $3}' | sort > "$tmp/va
     done
     echo SteamInternal_FindOrCreateUserInterface
     echo SteamInternal_SteamAPI_Init
+    echo SteamAPI_RestartAppIfNecessary  # the prestart hold (DROIDDECK_NATIVE_HOLD_DIR), then Valve's
+    echo SteamAPI_IsSteamRunning
 } | sort > "$tmp/intercepted"
 comm -23 "$tmp/intercepted" "$tmp/defined" | sed 's/^/the bridge lacks /' | { ! grep .; }
 sort -u "$here/steamworks-net-entrypoints.txt" > "$tmp/entry"

@@ -21,6 +21,25 @@
 //   WAV  (chunk):      GUID, u32 12, u16 0, u32 sound index in the bank's FSB5 block, u32 flags
 // Instrument references are found by matching every 16-byte window of a payload against the known
 // instrument GUIDs, so the exact array layouts around them do not matter.
+//
+// Music and ambience use more (layouts from the game's own Master, ambience and act banks):
+//   TLNB arrays start at byte 16; an odd tag with no elements has no element-size field. Fixed arrays of
+//                      24-byte elements are placements; variable elements of 26 bytes are loop regions
+//                      (GUID, u32 start, ...), other variable ones markers (GUID, u32 position, u16 n, name).
+//   TRNB (in TMLN):    GUID, destination GUID (a marker, or a loop region), u32 start, u32 end, a condition
+//                      block (u32 byte count, then entries), f32 probability (percent), u32 kind:
+//                      0 transition region (jump while inside it), 1 transition marker (jump on reaching it),
+//                      2 the end of a loop region (jump back to its start), 4 seen on spans with one condition
+//                      and read as a transition region. TRNB chunks sit in a LIST inside the TMLN object.
+//   Condition entries: u32 tag, parameter GUID, u16 flags, u16, f32 min, f32 max (value in [min, max)), more.
+//                      Ranges on one parameter are alternatives; different parameters must all hold.
+//   INST:              byte 16 f32 volume dB; byte 24 u32 0xffffffff when the instrument loops; from byte 126
+//                      a condition block (u32 byte count, entries) that triggers the instrument.
+//   EVIT (LIST): EVIB  own GUID, the nested event's GUID: plays that event as an instrument
+//   CMDI (LIST): CMDB  own GUID, u32 kind (2: set a parameter), parameter GUID, f32 value at byte 36
+//   SPIT (LIST): SPIB  own GUID, u32, u32, f32 min and max seconds between spawns; PLST as for MUIT
+//   PARM (LIST): PRMB  own GUID, u32 flags, u32, u16 n, name (n bytes), f32 min, f32 max, f32 default, then
+//                      the labels as a variable array of (u16 n, n chars).
 #pragma once
 
 #include "path_table.h"
@@ -45,22 +64,65 @@ struct GuidHash {
 };
 
 struct EventTable {
+	struct Condition {
+		Guid param{};
+		float min = 0, max = 0; // holds for a value in [min, max); min == max: for that one value
+	};
 	struct Instrument {
 		bool multi = false; // MUIT: picks one playlist entry; WAIT: plays `wave`
 		float volume_db = 0;
 		Guid wave{};
 		std::vector<std::pair<Guid, float>> playlist; // (instrument or waveform GUID, weight)
+		bool loop = false; // plays its sound over and over
+		std::vector<Condition> conditions; // parameter values that trigger it (none: always)
+		bool nested = false; // EVIT: plays the event `event`
+		Guid event{};
+		bool scatter = false; // SPIT: plays a playlist entry every spawn_min..spawn_max seconds
+		float spawn_min = 0, spawn_max = 0;
+		bool command = false; // CMDI: sets parameter `command_param` to `command_value` when reached
+		Guid command_param{};
+		float command_value = 0;
+	};
+	struct Placement {
+		Guid instrument{};
+		uint32_t start = 0, length = 0; // timeline frames
+	};
+	struct Transition {
+		enum Kind { REGION = 0, MARKER = 1, LOOP_END = 2 };
+		int kind = MARKER;
+		uint32_t start = 0, end = 0;
+		uint32_t destination = 0; // timeline frame to jump to
+		float probability = 100;
+		std::vector<Condition> conditions;
+	};
+	struct Param {
+		std::string name;
+		float min = 0, max = 0, value = 0; // value: the default
+		std::vector<std::string> labels; // label i stands for the value i
+		uint32_t flags = 0; // PRMB flags; bit 0 is set on the parameters the game sets globally (Progress, ducking)
+		bool global() const { return flags & 1; }
 	};
 	struct Event {
 		std::vector<Guid> instruments; // all start together
 		std::vector<Guid> looped; // those of them overlapping a timeline loop region
 		std::vector<Guid> unreachable; // placed past a loop region: skipped
 		std::vector<std::pair<Guid, float>> delays; // timeline start, seconds
+		std::string refs; // diagnostics: types of the objects reachable from the event, as "TYPE:count ..."
+		std::vector<Guid> params; // parameters (PARM objects) reachable from the event, for its description
+		// The timeline as a whole, for events that need it played over time (see `dynamic`).
+		std::vector<Placement> placements;
+		std::vector<Transition> transitions;
+		uint32_t length = 0; // end of the last placement
+		// Played by a timeline player rather than as one set of picks: it has transitions, conditional
+		// instruments, nested events or scatterers.
+		bool dynamic = false;
 	};
 	static constexpr float TIMELINE_RATE = 48000;
 	std::unordered_map<Guid, Event, GuidHash> events;
 	std::unordered_map<Guid, Instrument, GuidHash> instruments;
 	std::unordered_map<Guid, uint32_t, GuidHash> waves; // waveform GUID -> sound index in the FSB5 block
+	std::unordered_map<Guid, Param, GuidHash> params;
+	std::string object_types; // diagnostics: the bank's object types, as "TYPE:count ..."
 };
 
 // Reads the object lists of a whole bank file. A file without PROJ objects (a strings bank) gives an
@@ -72,11 +134,43 @@ struct Pick {
 	float volume_db = 0;
 	bool loop = false; // plays until the event stops
 	float delay = 0; // seconds after the start
+	bool nested = false; // a nested event to play (`event`) rather than a waveform
+	Guid event{};
 };
 
 // The sounds one start of the event plays: each instrument in turn, a multi instrument choosing one entry
 // by weight with `rng` (any seed; advanced on each choice). Waveforms may live in another bank, so picks
 // name the waveform GUID. Returns false if the table has no such event.
 bool resolve_event(const EventTable &table, const Guid &event, uint32_t &rng, std::vector<Pick> &out);
+
+// One choice from an instrument: a WAIT gives its waveform, a MUIT or SPIT one playlist entry chosen by weight
+// (recursively). False when it reaches no waveform (a nested event, or a broken reference).
+bool pick_wave(const EventTable &table, const Guid &instrument, uint32_t &rng, Pick &out); // may pick a nested event
+
+// Whether `conditions` hold for parameter values given by `value(param GUID)`.
+template <typename F>
+bool conditions_hold(const std::vector<EventTable::Condition> &conditions, F value) {
+	for (size_t i = 0; i < conditions.size(); i++) {
+		bool first = true;
+		for (size_t j = 0; j < i; j++) {
+			first = first && conditions[j].param != conditions[i].param;
+		}
+		if (!first) {
+			continue; // this parameter was checked with its first range
+		}
+		const float v = value(conditions[i].param);
+		bool any = false;
+		for (size_t j = i; j < conditions.size(); j++) {
+			if (conditions[j].param == conditions[i].param) {
+				const float lo = conditions[j].min, hi = conditions[j].max;
+				any = any || (lo == hi ? v == lo : (v >= lo && v < hi)); // an empty range means that one value
+			}
+		}
+		if (!any) {
+			return false;
+		}
+	}
+	return true;
+}
 
 } // namespace fsb

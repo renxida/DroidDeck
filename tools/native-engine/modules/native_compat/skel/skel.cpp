@@ -4,12 +4,104 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <cstdio>
 
 namespace skel {
 
 namespace {
 
 constexpr float DEG = 3.14159265358979323846f / 180.0f;
+
+// Skins gate skin-required bones and constraints, as the game's renderer does (frame-diff harness, Phantasmal
+// Gardener: its "short" skin turns on five height and scale constraints, "tall" one bone).
+// DROIDDECK_NATIVE_SPINE_SKIN_GATING=0 applies every bone and constraint regardless of skin, as before.
+// NoScale mode 1 (default) aims the local x axis through the parent's full, possibly non-uniform,
+// matrix and keeps only the result's direction: the Gardener harness's raw world matrices match it to
+// 0.01 deg (fins under stretched path bones), where mode 0 (drop the parent's scale first) was off by up
+// to 5.2 deg. Mode 2 also aims the y axis. Path samples is the per-curve arc-length
+// sampling.
+int noscale_mode() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_MODE");
+		return v ? std::atoi(v) : 1;
+	}();
+	return m;
+}
+
+// NoScale mode 1 aims through the parent with the bone's rotation alone; its shear_x stays in the local
+// matrix. hunter_killer's jaw_r (local shear 11.9/12.7 under facel, world scale 1.05 x 0.75) matches
+// Proton's raw matrix to 4 decimals at t0 and t0.5 this way; aiming with rotation + shear_x was 2.2 and
+// 1.7 deg off. DROIDDECK_NATIVE_SPINE_NOSCALE_AIM_SHEAR=1 restores the old aim.
+bool noscale_aim_shear() {
+	static const bool on = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_AIM_SHEAR");
+		return v && v[0] == '1';
+	}();
+	return on;
+}
+
+// Physics model 2 (default) is fitted to the Fool's ear, bell and cape chains in the frame-diff harness
+// (Proton raw world matrices, 46 rotate-only constraints, inertia 0.5): each update holds back the inertia
+// share of the bone's change in world angle (ear_l1/l2/l3 make 0.5/0.25/0.125 of the head's turn at a
+// zero-delta update) and lets its tip lag the same share of the origin's movement, capped at
+// limit * delta (so a zero-delta update moves nothing); a spring of strength * mass_inverse with
+// velocity damped per step (v = v * damping + a * step) pulls the angle offset back at fixed fps steps
+// counted from the float skeleton clock. Fitted: cape chain 0.002 deg rms over 10 frames, ears and bells
+// within 0.65 deg where model 1 was 20-30 deg and 50 px off. DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL=1
+// restores the old point-tip model.
+int physics_model() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+		return v ? std::atoi(v) : 2;
+	}();
+	return m;
+}
+
+// Path evaluation mode 1 (default): a per-curve arc-length table maps a distance to the curve's
+// parameter, and the point and tangent come from the bezier itself at that parameter; a path without
+// constant speed maps distance to the parameter by its stored curve lengths alone. Mode 0 interpolates
+// straight between table points (chords), which the Decimillipede harness showed drifting from the game
+// as the table got finer (16 -> 64 samples: mean 1.17 -> 1.35 px) and wrong in the max as it got coarser.
+int path_eval_mode() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_EVAL");
+		return v ? std::atoi(v) : 1;
+	}();
+	return m;
+}
+
+int path_samples() {
+	static const int n = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_SAMPLES");
+		int k = v ? std::atoi(v) : (path_eval_mode() == 1 ? 10 : 16);
+		return k < 1 ? 16 : (k > 256 ? 256 : k);
+	}();
+	return n;
+}
+
+// Chain rotate modes with length spacing, how far apart the bones sit along the path. 1 (default): each
+// bone aims at its arc position and the next one starts at its tip, so neighbours are exactly a bone
+// length apart and only the first sits on the curve; with the stretched gaps below this matches the
+// game's Decimillipede to 0.0004 px. 2: each next bone sits on the curve a straight bone length from the
+// current one (also a bone length apart, but up to 0.66 px off the game). 0: plain arc-length spacing.
+// Other spacing modes always use 0.
+int path_chain_mode() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_CHAIN");
+		int k = v ? std::atoi(v) : 1;
+		return k < 0 || k > 2 ? 1 : k;
+	}();
+	return m;
+}
+
+bool skin_gating() {
+	static const bool on = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_SKIN_GATING");
+		return !(v && v[0] == '0');
+	}();
+	return on;
+}
 
 float wrap180(float degrees) {
 	degrees = std::fmod(degrees, 360.0f);
@@ -110,6 +202,27 @@ float Curve::evaluate(float t, int channel) const {
 			return v0 + (v1 - v0) * (t - t0) / (t1 - t0);
 		case BEZIER: {
 			const float *b = &beziers[(i * channels + channel) * 4];
+			// The game reads a curve as straight lines between points at s = 1/10, 2/10 ... of the cubic:
+			// sewer_clam's top bone matched Proton to 0.0003 degrees that way, 0.0055 with the exact curve
+			// (hunter_killer's tail compounds that to 2 px). DROIDDECK_NATIVE_SPINE_BEZIER=0 solves exactly,
+			// another number sets how many segments.
+			static const int segments = [] {
+				const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_BEZIER");
+				return v ? std::max(std::atoi(v), 0) : 10;
+			}();
+			if (segments > 0) {
+				float px = t0, py = v0;
+				for (int k = 1; k < segments; k++) {
+					const float s = float(k) / segments;
+					const float x = cubic(t0, b[0], b[2], t1, s), y = cubic(v0, b[1], b[3], v1, s);
+					if (x >= t) {
+						return x > px ? py + (y - py) * (t - px) / (x - px) : y;
+					}
+					px = x;
+					py = y;
+				}
+				return t1 > px ? py + (v1 - py) * (t - px) / (t1 - px) : v1;
+			}
 			// x(s) is monotonic for valid curves; bisect for the s whose x equals t.
 			float lo = 0, hi = 1;
 			for (int k = 0; k < 24; k++) {
@@ -259,6 +372,12 @@ Skeleton::Skeleton(const SkeletonData *d) : data(d) {
 	};
 	std::stable_sort(constraint_order.begin(), constraint_order.end(),
 			[&](const std::pair<int, int> &a, const std::pair<int, int> &b) { return order_of(a) < order_of(b); });
+	if (skin_gating()) {
+		// No skin is on yet, so a skin-required bone stays unposed until set_skin turns it on.
+		for (auto &b : bones) {
+			b.active = !b.data->skin_required;
+		}
+	}
 	setup_pose();
 }
 
@@ -443,6 +562,46 @@ void Skeleton::update_bone(Bone &bone) {
 		bones[bd.parent].local_to_world(bone.x, bone.y, bone.world_x, bone.world_y);
 	}
 	float pa, pb, pc, pd;
+	const bool no_scale = bd.parent >= 0 && (bone.inherit == Inherit::NoScale || bone.inherit == Inherit::NoScaleOrReflection);
+	if (no_scale && noscale_mode() != 0) {
+		const Bone &p = bones[bd.parent];
+		float qa = p.a, qb = p.b, qc = p.c, qd = p.d;
+		if (bone.inherit == Inherit::NoScaleOrReflection && qa * qd - qb * qc < 0) {
+			qb = -qb; // take the reflection out of the parent before aiming through it
+			qd = -qd;
+		}
+		auto aim = [&](float ang, float scale, float &ox, float &oy) {
+			float x = qa * std::cos(ang) + qb * std::sin(ang), y = qc * std::cos(ang) + qd * std::sin(ang);
+			float l = std::hypot(x, y);
+			if (l < 1e-9f) {
+				x = std::cos(ang);
+				y = std::sin(ang);
+				l = 1;
+			}
+			ox = x / l * scale;
+			oy = y / l * scale;
+		};
+		if (noscale_mode() == 2) {
+			aim(rx, bone.scale_x, bone.a, bone.c);
+			aim(ry, bone.scale_y, bone.b, bone.d);
+		} else {
+			float ax, ay;
+			const float r = noscale_aim_shear() ? rx : bone.rotation * DEG;
+			aim(r, 1, ax, ay);
+			float flip = (bone.inherit == Inherit::NoScale && qa * qd - qb * qc < 0) ? -1.0f : 1.0f;
+			// With a kept reflection the basis turns the local angle the other way.
+			float th = std::atan2(ay, ax) - flip * r, cs = std::cos(th), sn = std::sin(th);
+			pa = cs;
+			pb = -sn * flip;
+			pc = sn;
+			pd = cs * flip;
+			bone.a = pa * la + pb * lc;
+			bone.b = pa * lb + pb * ld;
+			bone.c = pc * la + pd * lc;
+			bone.d = pc * lb + pd * ld;
+		}
+		return;
+	}
 	parent_basis(*this, bone, pa, pb, pc, pd);
 	bone.a = pa * la + pb * lc;
 	bone.b = pa * lb + pb * ld;
@@ -682,6 +841,76 @@ void rotate_basis(float &a, float &b, float &c, float &d, float r) {
 
 } // namespace
 
+// DROIDDECK_NATIVE_SPINE_PATH_DUMP=<slot name> prints that slot's path attachment (to stderr, or appended to
+// DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE) the first time a
+// path constraint uses it: flags, stored lengths, how its vertices are bound, and the world vertices it was
+// given. Text for comparing the path evaluation off the device; nothing else changes.
+void Skeleton::dump_path_once(const PathData &d, const Attachment &att, int n) {
+	static const char *want = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP");
+	if (!want || !want[0] || path_dumped_) {
+		return;
+	}
+	if (slots[d.target].data->name != want) {
+		// One line per process naming the first path slot seen, so a run shows the switch reached the engine.
+		static bool noted = false;
+		const char *file = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE");
+		if (!noted && file && file[0]) {
+			noted = true;
+			if (FILE *o = std::fopen(file, "a")) {
+				std::fprintf(o, "SPINE_PATH_DUMP armed for %s, first path slot seen %s\n", want, slots[d.target].data->name.c_str());
+				std::fclose(o);
+			}
+		}
+		return;
+	}
+	path_dumped_ = true;
+	// The engine's stderr is not kept on the device, so DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE names a file to append to.
+	static const char *file = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE");
+	FILE *out = file && file[0] ? std::fopen(file, "a") : nullptr;
+	FILE *f = out ? out : stderr;
+	std::fprintf(f, "SPINE_PATH_DUMP constraint %s order %d slot %s bone %s attachment %s\n", d.name.c_str(), d.order,
+			slots[d.target].data->name.c_str(), data->bones[slots[d.target].data->bone].name.c_str(), att.name.c_str());
+	std::fprintf(f, "SPINE_PATH_DUMP closed %d constant_speed %d vertex_count %d world_points %d weighted %d posmode %d spacingmode %d rotmode %d pos %.6f spacing %.6f offrot %.6f\n",
+			int(att.closed), int(att.constant_speed), att.vertex_count, n, int(att.weighted()), d.position_mode, d.spacing_mode,
+			d.rotate_mode, d.position, d.spacing, d.offset_rotation);
+	std::string line = "SPINE_PATH_DUMP lengths";
+	char buf[64];
+	for (float l : att.lengths) {
+		std::snprintf(buf, sizeof(buf), " %.4f", l);
+		line += buf;
+	}
+	std::fprintf(f, "%s\n", line.c_str());
+	if (att.weighted()) {
+		line = "SPINE_PATH_DUMP bones";
+		for (size_t i = 0; i < att.bones.size();) {
+			const int count = att.bones[i++];
+			line += " [";
+			for (int k = 0; k < count && i < att.bones.size(); k++, i++) {
+				line += (k ? " " : "") + data->bones[att.bones[i]].name;
+			}
+			line += "]";
+		}
+		std::fprintf(f, "%s\n", line.c_str());
+	}
+	line = "SPINE_PATH_DUMP world";
+	for (int i = 0; i < n; i++) {
+		std::snprintf(buf, sizeof(buf), " %.4f,%.4f", path_world_[i * 2], path_world_[i * 2 + 1]);
+		line += buf;
+	}
+	std::fprintf(f, "%s\n", line.c_str());
+	line = "SPINE_PATH_DUMP spine";
+	for (int bi : d.bones) {
+		const Bone &b = bones[bi];
+		std::snprintf(buf, sizeof(buf), " %s:%.4f:%.4f", b.data->name.c_str(), b.data->length, b.world_scale_x());
+		line += buf;
+	}
+	std::fprintf(f, "%s\n", line.c_str());
+	std::fflush(f);
+	if (out) {
+		std::fclose(out);
+	}
+}
+
 // Path vertices are triples (handle in, anchor, handle out). An open path runs anchor to anchor through
 // the handles between them; a closed one also joins the last anchor back to the first. Each curve is
 // sampled into short segments so points can be found by arc length (constant speed along the path).
@@ -695,11 +924,12 @@ void Skeleton::apply_path(PathConstraint &p) {
 		return;
 	}
 	int n = world_vertices(d.target, path_world_);
+	dump_path_once(d, *att, n);
 	int curves = att->closed ? n / 3 : n / 3 - 1;
 	if (curves < 1) {
 		return;
 	}
-	const int samples = 16;
+	const int samples = path_samples();
 	std::vector<float> &pts = path_points_; // per sample: x, y, tangent x, tangent y
 	std::vector<float> &cum = path_lengths_;
 	pts.clear();
@@ -723,10 +953,20 @@ void Skeleton::apply_path(PathConstraint &p) {
 			pts.insert(pts.end(), { x, y, tx, ty });
 		}
 	}
-	float total = cum.back();
+	const bool by_curve = path_eval_mode() == 1;
+	// Mode 1 without constant speed: distances run along the attachment's stored curve lengths.
+	const bool stored = by_curve && !att->constant_speed && int(att->lengths.size()) >= curves;
+	float total = stored ? att->lengths[curves - 1] : cum.back();
 	if (total < 1e-6f) {
 		return;
 	}
+	auto curve_points = [&](int i, float *c) {
+		for (int k = 0; k < 4; k++) {
+			int v = (3 * i + 1 + k) % n;
+			c[k * 2] = path_world_[v * 2];
+			c[k * 2 + 1] = path_world_[v * 2 + 1];
+		}
+	};
 	// Point and tangent at a distance along the path; an open path extends straight past its ends.
 	auto at = [&](float dist, float &x, float &y, float &tx, float &ty) {
 		if (att->closed) {
@@ -734,6 +974,29 @@ void Skeleton::apply_path(PathConstraint &p) {
 			if (dist < 0) {
 				dist += total;
 			}
+		}
+		if (by_curve && dist > 0 && dist < total) {
+			int ci = 0;
+			float t = 0;
+			if (stored) {
+				while (ci < curves - 1 && att->lengths[ci] < dist) {
+					ci++;
+				}
+				const float start = ci > 0 ? att->lengths[ci - 1] : 0, len = att->lengths[ci] - start;
+				t = len > 1e-9f ? (dist - start) / len : 0;
+			} else {
+				// Table entry k of curve ci sits at index ci * samples + k (entry 0 is shared with the previous curve's end).
+				size_t i = size_t(std::upper_bound(cum.begin(), cum.end(), dist) - cum.begin());
+				i = std::max<size_t>(1, std::min(i, cum.size() - 1));
+				const float seg = cum[i] - cum[i - 1];
+				const float f = seg > 1e-9f ? (dist - cum[i - 1]) / seg : 0;
+				ci = std::min(int((i - 1) / size_t(samples)), curves - 1);
+				t = (float(i - 1 - size_t(ci) * size_t(samples)) + f) / samples;
+			}
+			float c[8];
+			curve_points(ci, c);
+			bezier_at(c, std::min(std::max(t, 0.0f), 1.0f), x, y, tx, ty);
+			return;
 		}
 		size_t last = cum.size() - 1;
 		if (dist <= 0 || dist >= total) {
@@ -775,17 +1038,59 @@ void Skeleton::apply_path(PathConstraint &p) {
 			default: return bone_sum > 1e-6f ? len / bone_sum * p.spacing * total : 0.0f; // proportional
 		}
 	};
+	// Straight-line spacing only with length spacing (bones meant to touch): the Gardener's stalks
+	// (proportional spacing, chain scale) sit at arc positions in the game, and moved ~1 px under it.
+	int chain = d.rotate_mode != 0 ? path_chain_mode() : 0;
+	if (chain != 0 && d.spacing_mode != 0) {
+		chain = 0;
+	}
+	// With constant speed, length spacing runs in the attachment's stored lengths: each gap grows by how much
+	// longer the path is now than its stored length. The game's Decimillipede matched that to 0.0004 px on all
+	// twelve spine bones (aiming at those points, each bone starting at the last one's tip); unscaled gaps
+	// drifted to 1.4 px. DROIDDECK_NATIVE_SPINE_PATH_STRETCH=0 leaves the gaps unscaled.
+	static const bool stretch_gaps = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_STRETCH");
+		return !(v && v[0] == '0');
+	}();
+	const float gap_scale = stretch_gaps && by_curve && att->constant_speed && d.spacing_mode == 0 &&
+					int(att->lengths.size()) >= curves && att->lengths[curves - 1] > 1e-6f
+			? cum.back() / att->lengths[curves - 1]
+			: 1.0f;
+	// The distance past `from` where the curve is `step` away in a straight line from (x, y).
+	auto chord_dist = [&](float from, float x, float y, float step) {
+		float s = from + step;
+		if (step <= 1e-6f) {
+			return s;
+		}
+		for (int it = 0; it < 24; it++) {
+			float qx, qy, qtx, qty;
+			at(s, qx, qy, qtx, qty);
+			float short_by = step - std::hypot(qx - x, qy - y);
+			if (std::fabs(short_by) < 1e-4f) {
+				break;
+			}
+			s += short_by;
+		}
+		return s;
+	};
 	float dist = d.position_mode == 1 ? p.position * total : p.position;
+	bool have_tip = false;
+	float tip_x = 0, tip_y = 0;
 	for (size_t i = 0; i < count; i++) {
 		Bone &b = bones[d.bones[i]];
 		float x, y, tx, ty;
 		at(dist, x, y, tx, ty);
-		float step = gap(i);
+		if (chain == 1 && have_tip) {
+			x = tip_x;
+			y = tip_y;
+		}
+		float step = gap(i) * gap_scale;
+		float next = chain == 2 ? chord_dist(dist, x, y, step) : dist + step;
 		float angle = std::atan2(ty, tx);
 		float stretch = 1;
 		if (d.rotate_mode != 0) { // chain: aim at where the next bone starts
 			float nx, ny, ntx, nty;
-			at(dist + step, nx, ny, ntx, nty);
+			at(next, nx, ny, ntx, nty);
 			float dx = nx - x, dy = ny - y;
 			if (std::hypot(dx, dy) > 1e-6f) {
 				angle = std::atan2(dy, dx);
@@ -808,7 +1113,13 @@ void Skeleton::apply_path(PathConstraint &p) {
 		float wx = b.world_x + (x - b.world_x) * p.mix_x;
 		float wy = b.world_y + (y - b.world_y) * p.mix_y;
 		set_world(b, a, bb, c, dd, wx, wy);
-		dist += step;
+		if (chain == 1) {
+			const float len = b.data->length;
+			tip_x = b.world_x + b.a * len;
+			tip_y = b.world_y + b.c * len;
+			have_tip = true;
+		}
+		dist = next;
 	}
 }
 
@@ -901,6 +1212,152 @@ void Skeleton::apply_physics(PhysicsConstraint &p, float dt) {
 	set_world(b, a, bb, c, dd, wx, wy);
 }
 
+void Skeleton::apply_physics2(PhysicsConstraint &p) {
+	const PhysicsData &d = *p.data;
+	Bone &b = bones[d.bone];
+	if (physics_pass == 0) {
+		return;
+	}
+	const float len = b.data->length > 1e-3f ? b.data->length : 1.0f;
+	const float angle = std::atan2(b.c, b.a);
+	if (physics_pass == 1 || !p.started) {
+		p.started = true;
+		p.remaining = 0;
+		p.last_time = time;
+		p.last_angle = angle;
+		p.origin_x = b.world_x;
+		p.origin_y = b.world_y;
+		p.rot = p.rot_v = p.stretch = p.stretch_v = 0;
+		p.off_x = p.off_y = p.off_vx = p.off_vy = 0;
+	}
+	// The game does not cap inertia at 1 (battleworn_dummy's arm_l uses 1.2); DROIDDECK_NATIVE_SPINE_PHYSICS_INERTIA_CLAMP=1
+	// caps it as model 1 did.
+	static const bool clamp_inertia = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_INERTIA_CLAMP");
+		return v && v[0] == '1';
+	}();
+	const float inertia = clamp_inertia ? std::min(std::max(p.inertia, 0.0f), 1.0f) : std::max(p.inertia, 0.0f);
+	const float mix = p.mix;
+	if (physics_pass == 2) {
+		float delta = std::max(time - p.last_time, 0.0f);
+		p.last_time = time;
+		// The inertia share of the turn is held back.
+		p.rot -= inertia * wrap180((angle - p.last_angle) / DEG) * DEG;
+		p.last_angle = angle;
+		// The origin's movement since the last update, capped by limit * delta.
+		float mx = b.world_x - p.origin_x, my = b.world_y - p.origin_y;
+		p.origin_x = b.world_x;
+		p.origin_y = b.world_y;
+		const float move = std::hypot(mx, my), cap = d.limit * delta;
+		if (move > cap) {
+			const float f = move > 0 ? cap / move : 0;
+			mx *= f;
+			my *= f;
+		}
+		if (mx != 0 || my != 0) {
+			// The tip lags the inertia share of the movement: that turns and stretches the bone.
+			// The tip sits along the bone's x axis as last drawn: the offset turns it only by the share
+			// that rotate and shear x apply. The shield on battleworn_dummy (rotate 0, scale x 1) showed
+			// it: aiming the tip by the whole offset made its scale wobble 6% too strong.
+			// DROIDDECK_NATIVE_SPINE_PHYSICS_TIP=1 aims by the whole offset as before.
+			static const bool whole_offset = [] {
+				const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_TIP");
+				return v && v[0] == '1';
+			}();
+			const float a0 = angle + p.rot * mix * (whole_offset ? 1.0f : d.rotate + d.shear_x);
+			const float tx = len * std::cos(a0) - inertia * mx, ty = len * std::sin(a0) - inertia * my;
+			// Across the -180/180 seam atan2 jumps a full turn: take the short way round. sewer_clam's
+			// horn_back_1 sits near 180 and swung 124 degrees off the game's without this.
+			// DROIDDECK_NATIVE_SPINE_PHYSICS_SEAM=0 takes the raw difference as before.
+			static const bool short_way = [] {
+				const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_SEAM");
+				return !(v && v[0] == '0');
+			}();
+			const float turn = std::atan2(ty, tx) - a0;
+			p.rot += short_way ? wrap180(turn / DEG) * DEG : turn;
+			p.stretch += std::hypot(tx, ty) / len - 1;
+			p.off_x -= inertia * mx;
+			p.off_y -= inertia * my;
+		}
+		const float fps = d.fps > 0 ? d.fps : 60, step = 1 / fps;
+		p.remaining = std::min(p.remaining + delta, 0.25f);
+		const float k = p.strength * p.mass_inverse, keep = std::min(std::max(p.damping, 0.0f), 1.0f);
+		// Wind and gravity push the origin and, across the bone, turn it.
+		const float fx = p.wind * p.mass_inverse, fy = -p.gravity * p.mass_inverse;
+		// Their turn grows with the bone's length over the skeleton's reference scale: fitted on sewer_clam's
+		// idle wind, where horns 77 to 180 long all matched Proton with torque = force * length / 100
+		// (reference scale 100). DROIDDECK_NATIVE_SPINE_PHYSICS_WIND=0 divides by the length as before.
+		static const bool wind_by_length = [] {
+			const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_WIND");
+			return !(v && v[0] == '0');
+		}();
+		const float ref = data->reference_scale > 1e-6f ? data->reference_scale : 100.0f;
+		const float lever = wind_by_length ? len / ref : 1 / len;
+		while (p.remaining >= step) {
+			p.remaining -= step;
+			const float a1 = angle + p.rot * mix;
+			const float torque = (-fx * std::sin(a1) + fy * std::cos(a1)) * lever;
+			p.rot_v = p.rot_v * keep + (-k * p.rot + torque) * step;
+			p.rot += p.rot_v * step;
+			p.stretch_v = p.stretch_v * keep - k * p.stretch * step;
+			p.stretch += p.stretch_v * step;
+			p.off_vx = p.off_vx * keep + (-k * p.off_x + fx) * step;
+			p.off_vy = p.off_vy * keep + (-k * p.off_y + fy) * step;
+			p.off_x += p.off_vx * step;
+			p.off_y += p.off_vy * step;
+		}
+	}
+	if (mix <= 0) {
+		return;
+	}
+	float a = b.a, bb = b.b, c = b.c, dd = b.d;
+	if (d.rotate != 0) {
+		rotate_basis(a, bb, c, dd, p.rot * d.rotate * mix);
+	}
+	if (d.shear_x != 0) { // turns the x axis only
+		const float rs = p.rot * d.shear_x * mix, cs = std::cos(rs), sn = std::sin(rs);
+		const float na = cs * a - sn * c, nc = sn * a + cs * c;
+		a = na;
+		c = nc;
+	}
+	if (d.scale_x != 0) {
+		const float s = std::max(1 + p.stretch * d.scale_x * mix, 0.0f);
+		a *= s;
+		c *= s;
+	}
+	set_world(b, a, bb, c, dd, b.world_x + p.off_x * d.x * mix, b.world_y + p.off_y * d.y * mix);
+}
+
+bool Skeleton::constraint_on(int kind, int index) const {
+	if (!skin_gating()) {
+		return true;
+	}
+	bool required = false;
+	const std::vector<int> *listed = nullptr;
+	switch (kind) {
+		case IK:
+			required = data->ik[index].skin_required;
+			listed = skin ? &skin->ik : nullptr;
+			break;
+		case TRANSFORM:
+			required = data->transforms[index].skin_required;
+			listed = skin ? &skin->transforms : nullptr;
+			break;
+		case PATH:
+			required = data->paths[index].skin_required;
+			listed = skin ? &skin->paths : nullptr;
+			break;
+		default:
+			required = data->physics[index].skin_required;
+			listed = skin ? &skin->physics : nullptr;
+			break;
+	}
+	if (!required) {
+		return true;
+	}
+	return listed && std::find(listed->begin(), listed->end(), index) != listed->end();
+}
+
 void Skeleton::update_after(const std::vector<int> &constrained) {
 	if (constrained.empty()) {
 		return;
@@ -908,12 +1365,18 @@ void Skeleton::update_after(const std::vector<int> &constrained) {
 	// Constrained bones changed: recompute them and everything after the first one (children follow parents).
 	int first = *std::min_element(constrained.begin(), constrained.end());
 	for (size_t i = first; i < bones.size(); i++) {
+		if (!bones[i].active && skin_gating()) {
+			continue;
+		}
 		update_bone(bones[i]);
 	}
 }
 
 void Skeleton::update_world_transform() {
 	for (auto &b : bones) {
+		if (!b.active && skin_gating()) {
+			continue; // the game's renderer leaves a bone its skin has not turned on unposed
+		}
 		update_bone(b);
 	}
 	if (constraint_order.empty()) {
@@ -925,6 +1388,9 @@ void Skeleton::update_world_transform() {
 	float dt = physics_time;
 	physics_time = 0;
 	for (const auto &c : constraint_order) {
+		if (!constraint_on(c.first, c.second)) {
+			continue;
+		}
 		switch (c.first) {
 			case TRANSFORM:
 				apply_transform(transforms[c.second]);
@@ -940,7 +1406,11 @@ void Skeleton::update_world_transform() {
 				break;
 			default: {
 				PhysicsConstraint &p = physics[c.second];
-				apply_physics(p, dt);
+				if (physics_model() == 2) {
+					apply_physics2(p);
+				} else {
+					apply_physics(p, dt);
+				}
 				update_after({ p.data->bone });
 				break;
 			}
@@ -1095,6 +1565,17 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 				}
 				float key = b.data->rotation + cv.evaluate(time, 0);
 				if (blend == MixBlend::Replace) {
+					// A full-weight key lands as keyed (the game's engine reads back -206 where a wrapped mix
+					// gave 153); partial weights still take the short way round. DROIDDECK_NATIVE_SPINE_RAW_ROTATE=0
+					// wraps every key as before.
+					static const bool raw_key = [] {
+						const char *v = getenv("DROIDDECK_NATIVE_SPINE_RAW_ROTATE");
+						return !(v && v[0] == '0');
+					}();
+					if (raw_key && alpha >= 1) {
+						b.rotation = key;
+						break;
+					}
 					b.rotation += wrap180(key - b.rotation) * alpha;
 				} else {
 					b.rotation += (key - b.data->rotation) * alpha;
@@ -1254,6 +1735,34 @@ void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float
 					if (tl.target < 0 || int(i) == tl.target) {
 						PhysicsConstraint &p = sk.physics[i];
 						mix_value(p.mix, p.data->mix, v, alpha, blend);
+					}
+				}
+				break;
+			}
+			case TimelineType::PhysicsSetting: {
+				const float v = cv.evaluate(time, 0);
+				// The skeleton-wide timeline drives the constraints whose global flags carry this setting's
+				// bit (inertia 1, strength 2, damping 4, mass 8, wind 16, gravity 32).
+				const int bit = 1 << (tl.setting > 3 ? tl.setting - 1 : tl.setting);
+				for (size_t i = 0; i < sk.physics.size(); i++) {
+					PhysicsConstraint &p = sk.physics[i];
+					if (tl.target < 0 ? !(p.data->global_flags & bit) : int(i) != tl.target) {
+						continue;
+					}
+					const PhysicsData &d = *p.data;
+					switch (tl.setting) {
+						case 0: mix_value(p.inertia, d.inertia, v, alpha, blend); break;
+						case 1: mix_value(p.strength, d.strength, v, alpha, blend); break;
+						case 2: mix_value(p.damping, d.damping, v, alpha, blend); break;
+						case 4: {
+							float mass = 1 / std::max(p.mass_inverse, 1e-6f);
+							mix_value(mass, 1 / std::max(d.mass_inverse, 1e-6f), v, alpha, blend);
+							p.mass_inverse = 1 / std::max(mass, 1e-6f);
+							break;
+						}
+						case 5: mix_value(p.wind, d.wind, v, alpha, blend); break;
+						case 6: mix_value(p.gravity, d.gravity, v, alpha, blend); break;
+						default: break;
 					}
 				}
 				break;

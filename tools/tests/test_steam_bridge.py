@@ -115,7 +115,12 @@ def double_source(serve_old, init_mode=0, typed_null=False):
             " const char *i, uint32_t p, float o, int c) { strcpy(forwarded, \"instant:\"); strcat(forwarded, t); return 1; }",
             "uint64_t SteamAPI_ISteamTimeline_AddRangeTimelineEvent(void *s, const char *t, const char *d,"
             " const char *i, uint32_t p, float o, float n, int c) { strcpy(forwarded, \"range:\"); strcat(forwarded, t); return 2; }",
-            "void SteamAPI_ReleaseCurrentThreadMemory(void) { strcpy(forwarded, \"ReleaseCurrentThreadMemory\"); }"]
+            "void SteamAPI_ReleaseCurrentThreadMemory(void) { strcpy(forwarded, \"ReleaseCurrentThreadMemory\"); }",
+            # What Valve's library reads at RestartAppIfNecessary: the launch's SteamAppId.
+            "char seen_appid[64]; int restart_calls, running_calls;",
+            "int SteamAPI_RestartAppIfNecessary(uint32_t a) { restart_calls++; const char *e = getenv(\"SteamAppId\");"
+            " strncpy(seen_appid, e ? e : \"(unset)\", sizeof seen_appid - 1); return a == 7; }",
+            "int SteamAPI_IsSteamRunning(void) { running_calls++; return 1; }"]
     return "\n".join(out) + "\n"
 
 
@@ -258,6 +263,117 @@ class SteamBridgeTest(unittest.TestCase):
         self.assertEqual(0, self.init(bridge, GAME_INIT)[0])
         self.assertEqual(3, ctypes.c_int.in_dll(valve, "init_calls").value)  # game's, rewritten, InitFlat (no loop)
         self.assertEqual("FLAT ", (ctypes.c_char * 4096).in_dll(valve, "last_list").value.decode())
+
+
+# Run in a child process: the hold blocks, changes the environment and fires once per process.
+HOLD_CHILD = r"""
+import ctypes, os, sys
+bridge = ctypes.CDLL(sys.argv[1]); valve = ctypes.CDLL(sys.argv[2])
+print("restart", bridge.SteamAPI_RestartAppIfNecessary(ctypes.c_uint32(int(sys.argv[3]))), flush=True)
+print("appid", (ctypes.c_char * 64).in_dll(valve, "seen_appid").value.decode(), flush=True)
+libc = ctypes.CDLL(None); libc.getenv.restype = ctypes.c_char_p  # os.environ is Python's own copy
+env = lambda k: (libc.getenv(k.encode()) or b"(unset)").decode()
+print("gone", env("GONE"), "hold", env("DROIDDECK_NATIVE_HOLD_DIR"), "game", env("SteamGameId"), flush=True)
+print("running", bridge.SteamAPI_IsSteamRunning(), flush=True)
+m = ctypes.create_string_buffer(1024)
+print("init", bridge.SteamInternal_SteamAPI_Init(b"SteamUser023\0\0", m), flush=True)
+"""
+
+
+@unittest.skipUnless(shutil.which("gcc"), "gcc required")
+class PrestartHoldTest(unittest.TestCase):
+    """The bridge's prestart hold: the first Steam call waits for <DROIDDECK_NATIVE_HOLD_DIR>/release and applies
+    the launch's environment from it before Valve's function runs."""
+
+    def setUp(self):
+        self.lib = None
+
+    def child(self, hold_dir, env_extra=None, app=1):
+        bridge, valve = self.built
+        env = {k: v for k, v in os.environ.items() if k not in ("SteamAppId", "DROIDDECK_NATIVE_HOLD_DIR")}
+        env["GONE"] = "here"
+        if hold_dir:
+            env["DROIDDECK_NATIVE_HOLD_DIR"] = str(hold_dir)
+        env.update(env_extra or {})
+        return subprocess.Popen(["python3", "-c", HOLD_CHILD, bridge, valve, str(app)], env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    @property
+    def built(self):
+        if self.lib is None:
+            d = Path(tempfile.mkdtemp())
+            self.addCleanup(shutil.rmtree, d)
+            (d / "double.c").write_text(double_source(False))
+            subprocess.run(["gcc", "-shared", "-fPIC", "-o", str(d / "libsteam_api.so"), str(d / "double.c")], check=True)
+            subprocess.run(["gcc", "-O2", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared", "-fvisibility=hidden",
+                            "-o", str(d / "libsteam_api64.so"), str(BRIDGE), "-Wl,-rpath,$ORIGIN", "-Wl,--no-as-needed",
+                            str(d / "libsteam_api.so"), "-Wl,--as-needed", "-ldl", "-Wl,-z,defs"], check=True)
+            self.lib = (str(d / "libsteam_api64.so"), str(d / "libsteam_api.so"))
+        return self.lib
+
+    def wait_for(self, path, proc, seconds=10):
+        import time
+        end = time.monotonic() + seconds
+        while not path.exists():
+            self.assertIsNone(proc.poll(), "the child ended before holding")
+            self.assertLess(time.monotonic(), end, f"no {path.name} after {seconds} s")
+            time.sleep(0.02)
+
+    def test_without_a_hold_folder_nothing_waits(self):
+        proc = self.child(None)
+        out, err = proc.communicate(timeout=20)
+        self.assertEqual(0, proc.returncode, err)
+        self.assertIn("appid (unset)", out)
+        self.assertNotIn("holding", err)
+
+    def test_the_first_steam_call_waits_for_the_release_and_takes_its_environment(self):
+        hold = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, hold)
+        proc = self.child(hold, app=7)
+        self.wait_for(hold / "held", proc)
+        pid, call = (hold / "held").read_text().split()
+        self.assertEqual((str(proc.pid), "SteamAPI_RestartAppIfNecessary"), (pid, call))
+        import time
+        time.sleep(0.3)
+        self.assertIsNone(proc.poll(), "the call returned before the release")
+        (hold / "release.tmp").write_bytes(b"SteamAppId=2868840\0GONE\0SteamGameId=a=b\0")
+        os.rename(hold / "release.tmp", hold / "release")
+        out, err = proc.communicate(timeout=20)
+        self.assertEqual(0, proc.returncode, err)
+        self.assertIn("restart 1", out)  # Valve's answer, passed through
+        self.assertIn("appid 2868840", out)  # applied before Valve's function ran
+        self.assertIn("gone (unset) hold (unset) game a=b", out)
+        self.assertIn("running 1", out)  # later calls don't hold again
+        self.assertIn("init 0", out)
+        self.assertIn("steam-bridge: released after", err)
+        self.assertIn("3 environment changes applied", err)
+        self.assertTrue((hold / "released").exists())
+        self.assertFalse((hold / "release").exists())
+
+    def test_the_init_holds_when_it_is_the_first_call(self):
+        hold = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, hold)
+        bridge, valve = self.built
+        code = ("import ctypes, sys; b = ctypes.CDLL(sys.argv[1]); ctypes.CDLL(sys.argv[2]); m = ctypes.create_string_buffer(64);"
+                " print('init', b.SteamInternal_SteamAPI_Init(b'SteamUser023\\0\\0', m), flush=True)")
+        env = dict(os.environ, DROIDDECK_NATIVE_HOLD_DIR=str(hold))
+        proc = subprocess.Popen(["python3", "-c", code, bridge, valve], env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+        self.wait_for(hold / "held", proc)
+        self.assertEqual("SteamAPI_Init", (hold / "held").read_text().split()[1])
+        (hold / "release").write_bytes(b"")
+        out, err = proc.communicate(timeout=20)
+        self.assertIn("init 0", out, err)
+        self.assertIn("0 environment changes applied", err)
+
+    def test_no_release_quits_after_the_limit(self):
+        hold = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, hold)
+        proc = self.child(hold, {"DROIDDECK_NATIVE_HOLD_MAX_S": "1"})
+        out, err = proc.communicate(timeout=20)
+        self.assertEqual(75, proc.returncode)
+        self.assertIn("no release came", err)
+        self.assertNotIn("appid", out)
 
 
 if __name__ == "__main__":

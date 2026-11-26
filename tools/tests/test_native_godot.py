@@ -1254,6 +1254,399 @@ class CompatClassesInCSharpTest(unittest.TestCase):
         self.assertEqual(1, len(bad))
         self.assertIn("SpineSprite InvalidOperationException", bad[0])
 
+class PipelineCacheSavePatchTest(unittest.TestCase):
+    """The engine build can save the Vulkan pipeline cache once pipeline creation goes quiet (the wrapper stops
+    the engine with SIGKILL, so stock's save-on-close never runs) and log a pipeline/shader census; both off
+    unless their variables are set."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def mod(self):
+        return runpy.run_path(str(self.ROOT / "tools/native-engine/patches/rd_pipeline_cache_save.py"))
+
+    def test_every_anchor_once_and_switches_off_by_default(self):
+        mod = self.mod()
+        src = "".join(old + "\n// gap\n" for _, old, _ in mod["EDITS"])
+        out = mod["patch"](src)
+        self.assertIn("DROIDDECK_NATIVE_PIPELINE_CACHE_QUIET_MS", out)
+        self.assertIn("DROIDDECK_NATIVE_PIPELINE_CENSUS", out)
+        self.assertEqual(out.count("droiddeck_pc_count_pipeline(droiddeck_t0);"), 2)
+        self.assertLess(out.index("droiddeck_pc_dirty.store(true);\n\t\treturn;"), out.index("still_saving") if "still_saving" in out else len(out))
+        with self.assertRaises(SystemExit):
+            mod["patch"](out)  # twice
+        with self.assertRaises(SystemExit):
+            mod["patch"](src.replace(mod["SWAP"], ""))
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:  # against the real 4.5.1 source, after the set-bind patch as the build applies it
+            real = (Path(godot) / "servers/rendering/rendering_device.cpp").read_text()
+            binds = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/rd_skip_redundant_set_binds.py"))
+            self.assertEqual(mod["patch"](binds["patch"](real)).count("Kestrel (rd_pipeline_cache_save.py)"), 9)
+
+    def test_build_applies_it_after_the_set_bind_patch(self):
+        for rel in ("tools/native-engine/devloop/build.sh", ".github/workflows/native-engine-build.yml"):
+            text = (self.ROOT / rel).read_text()
+            self.assertLess(text.index("rd_skip_redundant_set_binds.py"), text.index("rd_pipeline_cache_save.py"), rel)
+
+
+class RenderingMethodEnvPatchTest(unittest.TestCase):
+    """DROIDDECK_NATIVE_RENDERING_METHOD picks mobile or forward_plus in place of the project's renderer, only when
+    the command line names none."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_patch_sits_before_the_method_check(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/main_rendering_method_env.py"))
+        src = '#include "main.h"\n' + mod["ANCHOR"]
+        out = mod["patch"](src)
+        self.assertLess(out.index("DROIDDECK_NATIVE_RENDERING_METHOD"), out.index('if (rendering_method != "forward_plus" &&'))
+        self.assertIn("#include <stdlib.h>", out)
+        with self.assertRaises(SystemExit):
+            mod["patch"](out)
+        with self.assertRaises(SystemExit):
+            mod["patch"]("nothing")
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:
+            real = (Path(godot) / "main/main.cpp").read_text()
+            self.assertIn(mod["MARK"], mod["patch"](real))
+
+
+class LoggerTimePrefixPatchTest(unittest.TestCase):
+    """DROIDDECK_NATIVE_LOG_TIME=1 puts the monotonic time before each engine log line, except "Project FPS:",
+    which the wrapper reads by its line start."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_patch_guards_logv(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/logger_time_prefix.py"))
+        src = mod["INCLUDE"] + mod["ANCHOR"] + "\tvprintf(p_format, p_list);\n}\n"
+        out = mod["patch"](src)
+        self.assertLess(out.index("DROIDDECK_NATIVE_LOG_TIME"), out.index("vprintf(p_format, p_list)"))
+        self.assertIn('"Project FPS:"', out)
+        with self.assertRaises(SystemExit):
+            mod["patch"](out)
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:
+            real = (Path(godot) / "core/io/logger.cpp").read_text()
+            self.assertIn(mod["MARK"], mod["patch"](real))
+
+
+class SkipRedundantSetBindsPatchTest(unittest.TestCase):
+    """The engine build makes RenderingDevice skip binding a uniform set already bound at its index (the phone's
+    Nov 24 vkcount: 810 descriptor-set binds for 604 draws, ~25 us each), with a run-time switch back."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_patch_guards_the_bind_and_needs_its_anchor(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/rd_skip_redundant_set_binds.py"))
+        src = '#include "rendering_device.h"\n' + mod["ANCHOR"]
+        out = mod["patch"](src)
+        self.assertIn("DROIDDECK_RD_REBIND_SETS", out)
+        self.assertIn("#include <stdlib.h>", out)
+        guard = out.index("draw_list.state.sets[p_index].bound && draw_list.state.sets[p_index].uniform_set == p_uniform_set")
+        self.assertLess(guard, out.index("// Needs rebind."))
+        with self.assertRaises(SystemExit):
+            mod["patch"]("nothing here")
+        with self.assertRaises(SystemExit):
+            mod["patch"](src + mod["ANCHOR"])
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:  # against the real 4.5.1 source when it is at hand
+            real = (Path(godot) / "servers/rendering/rendering_device.cpp").read_text()
+            self.assertIn("DROIDDECK_RD_REBIND_SETS", mod["patch"](real))
+
+
+class CanvasBatchCensusPatchTest(unittest.TestCase):
+    """The engine build counts why the 2D renderer starts each batch (every batch is at least one draw, ~37 us of
+    main-thread time each on the phone), credited to the first reason, for the render census line."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def synthetic(self, mod, calls):
+        body = "".join(
+            "\tswitch (c->type) {\n\t\tcase Item::Command::TYPE_RECT: {\n"
+            "\t\t\tif (r_current_batch->tex_info != tex_info) {\n\t\t\t\tr_current_batch = _new_batch(r_batch_broken);\n\t\t\t}\n"
+            for _ in range(calls))
+        return (
+            '#include "renderer_canvas_render_rd.h"\n#include "core/math/geometry_2d.h"\n\nstatic int x;\n'
+            + mod["RENDER_ITEMS"] + "int a) {\n"
+            "\tif (material != current_batch->material) {\n\t\tcurrent_batch = _new_batch(batch_broken);\n\t}\n}\n"
+            "void RendererCanvasRenderRD::_record_item_commands() {\n" + body + "}\n"
+            + mod["DEF"] + "\n\tif (x) {\n\t\treturn nullptr;\n\t}\n" + mod["PUSHED"] + "\treturn nullptr;\n}\n")
+
+    def test_each_call_gets_a_labelled_site_and_only_real_pushes_count(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_batch_census.py"))
+        out, labels = mod["patch_source"](self.synthetic(mod, 10))
+        self.assertEqual(labels[:3], ["draw lists", "material", "rect: texture"])
+        self.assertEqual(len(labels), 12)
+        self.assertIn("_new_batch(batch_broken, 1)", out)
+        self.assertIn("_new_batch(r_batch_broken, 11)", out)
+        self.assertNotIn("_new_batch(r_batch_broken);", out)
+        # The count sits after the early return, so a batch that was already fresh is not counted.
+        definition = out[out.index(mod["DEF_NEW"]):]
+        self.assertLess(definition.index("return nullptr;"), definition.index("droiddeck_canvas_batch_count(p_droiddeck_site);"))
+        self.assertIn("droiddeck_canvas_batch_count(0);", out[out.index(mod["RENDER_ITEMS"]):])
+        # The helpers go after the include block, before any code.
+        self.assertLess(out.index('#include "core/math/geometry_2d.h"'), out.index("droiddeck_canvas_batch_labels[]"))
+        self.assertLess(out.index("droiddeck_canvas_batch_labels[]"), out.index("static int x;"))
+        self.assertIn("DROIDDECK_NATIVE_RENDER_CENSUS", out)
+        self.assertEqual(mod["patch_header"]("x " + mod["DECL"] + " y"), "x " + mod["DECL_NEW"] + " y")
+        with self.assertRaises(SystemExit):
+            mod["patch_source"](self.synthetic(mod, 3))  # too few sites: the source changed under us
+        with self.assertRaises(SystemExit):
+            mod["patch_header"]("nothing")
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:  # against the real 4.5.1 source when it is at hand
+            real = (Path(godot) / "servers/rendering/renderer_rd/renderer_canvas_render_rd.cpp").read_text()
+            out, labels = mod["patch_source"](real)
+            self.assertIn("rect: texture", labels)
+            self.assertIn("material", labels)
+            self.assertFalse([l for l in labels if l.startswith("line ") or ": line " in l], labels)
+
+
+class CanvasReorderPatchTest(unittest.TestCase):
+    """Canvas item reordering (off unless DROIDDECK_NATIVE_CANVAS_REORDER is set) runs before a draw list records
+    its items, only without 2D lights, and composes with the batch census patch."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_reorder_runs_first_in_the_draw_list_and_needs_its_anchor(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_reorder.py"))
+        src = "int a;\n" + mod["RENDER_ITEMS"] + "int x) {\n\tint first;\n}\n"
+        out = mod["patch_source"](src)
+        body = out[out.index(mod["RENDER_ITEMS"]):]
+        self.assertLess(body.index("droiddeck_canvas_reorder(items"), body.index("int first;"))
+        self.assertIn("p_lights == nullptr && !using_directional_lights", body)
+        self.assertLess(out.index("static void droiddeck_canvas_reorder("), out.index(mod["RENDER_ITEMS"]))
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_REORDER", out)
+        with self.assertRaises(SystemExit):
+            mod["patch_source"]("nothing")
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:  # after the census patch, against the real 4.5.1 source, as CI applies them
+            census = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_batch_census.py"))
+            real = (Path(godot) / "servers/rendering/renderer_rd/renderer_canvas_render_rd.cpp").read_text()
+            both = mod["patch_source"](census["patch_source"](real)[0])
+            body = both[both.index(mod["RENDER_ITEMS"]):]
+            self.assertLess(body.index("droiddeck_canvas_reorder(items"), body.index("droiddeck_canvas_batch_count(0);"))
+
+
+class CanvasPolyBatchPatchTest(unittest.TestCase):
+    """Small plain polygons become batched three-point primitives (off unless DROIDDECK_NATIVE_CANVAS_POLY_BATCH is
+    set); the census labels the new batch starts, and the reorder treats a convertible polygon as batchable."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_conversion_is_wired_into_request_free_and_record_and_needs_every_anchor(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_poly_batch.py"))
+        src = ("int a;\n" + mod["REQUEST"] + "int x) {\n" + mod["STORED"] + "}\n" + mod["FREE"] + "}\n" +
+               "switch (c->type) {\n" + mod["RECORD"] + "\t\t\t\tr_current_batch = _new_batch(r_batch_broken);\n}\n")
+        out = mod["patch_source"](src)
+        self.assertLess(out.index("struct DroiddeckPolyCpu"), out.index(mod["REQUEST"]))
+        self.assertIn("droiddeck_poly_remember(id,", out)
+        self.assertLess(out.index(mod["FREE"]), out.index("droiddeck_poly_cpu.erase(p_polygon);"))
+        record = out[out.index(mod["RECORD"]):]
+        self.assertLess(record.index("droiddeck_poly_lookup("), record.index("r_current_batch = _new_batch(r_batch_broken);\n}"))
+        for guard in ("RS::PRIMITIVE_TRIANGLES", "!use_linear_colors", "light_count == 0", "material.is_valid()"):
+            self.assertIn(guard, record.replace("->material).is_valid()", "material.is_valid()"))
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_POLY_BATCH", out)
+        for broken in ("nothing", src.replace(mod["FREE"], "")):
+            with self.assertRaises(SystemExit):
+                mod["patch_source"](broken)
+
+    def test_census_labels_the_converted_batch_starts(self):
+        census = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_batch_census.py"))
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if not godot:
+            self.skipTest("DROIDDECK_GODOT_SRC not set")
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_poly_batch.py"))
+        reorder = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_reorder.py"))
+        real = (Path(godot) / "servers/rendering/renderer_rd/renderer_canvas_render_rd.cpp").read_text()
+        out, labels = census["patch_source"](mod["patch_source"](real))
+        self.assertIn("polygon: as triangles, command type", labels)
+        self.assertIn("polygon: as triangles, texture", labels)
+        out = reorder["patch_source"](out)
+        self.assertLess(out.index("#define DROIDDECK_POLY_BATCH 1"), out.index("#ifdef DROIDDECK_POLY_BATCH"))
+
+
+class CanvasTextureSlotsPatchTest(unittest.TestCase):
+    """Several textures per 2D batch (off unless DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS is set): the shader picks
+    the texture from flags bits 29..31 only when compiled with the define, every texture break may join instead,
+    and the cache key holds the slot textures."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_shader_and_header(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_texture_slots.py"))
+        inc = mod["patch_shader_uniforms"]("x\n" + mod["UNIFORMS_ANCHOR"])
+        self.assertIn("#ifdef DROIDDECK_TEXTURE_SLOTS\n", inc)
+        self.assertIn("binding = 5) uniform texture2D droiddeck_slot_textures[7];", inc)
+        frag = mod["patch_shader"]("{\n" + mod["SAMPLE"] + "}\n")
+        self.assertIn("#else\n" + mod["SAMPLE"] + "#endif\n", frag)
+        self.assertEqual(frag.count("droiddeck_slot_textures["), 7)
+        head = mod["patch_header"](mod["TEX_INFO"] + mod["BATCH_END"] + mod["KEY_FIELDS"] + mod["KEY_EQ"] + mod["KEY_HASH"])
+        self.assertIn("RID droiddeck_slots[7];\n\t\tuint32_t droiddeck_slot_count = 0;", head)
+        self.assertIn("droiddeck_slots[i] != p_val.droiddeck_slots[i]", head)
+        self.assertIn("droiddeck_slots[i].get_id()", head)
+        self.assertIn("TextureInfo *tex_info = nullptr;", head)
+        with self.assertRaises(SystemExit):
+            mod["patch_header"]("nothing")
+        with self.assertRaises(SystemExit):
+            mod["patch_shader"]("nothing")
+        # Flag bits 29..31 must be free: the shadow mask ends at bit 28.
+        self.assertEqual(mod["SLOT_SHIFT"], 29)
+
+    def test_real_source_every_break_may_join_and_census_still_labels_them(self):
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if not godot:
+            self.skipTest("DROIDDECK_GODOT_SRC not set")
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_texture_slots.py"))
+        poly = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_poly_batch.py"))
+        census = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_batch_census.py"))
+        rd = Path(godot) / "servers/rendering/renderer_rd"
+        mod["patch_shader"]((rd / "shaders/canvas.glsl").read_text())
+        mod["patch_shader_uniforms"]((rd / "shaders/canvas_uniforms_inc.glsl").read_text())
+        mod["patch_header"]((rd / "renderer_canvas_render_rd.h").read_text())
+        out, joined = mod["patch_source"](poly["patch_source"]((rd / "renderer_canvas_render_rd.cpp").read_text()))
+        # rect, nine-patch, primitive, polygon as triangles and the debug redraw; never the unbatched polygon.
+        self.assertEqual(joined, 5)
+        self.assertEqual(out.count("!droiddeck_slot_join(r_current_batch, tex_info)"), joined)
+        self.assertEqual(out.count("r_current_batch->tex_info = tex_info;\n"), out.count("droiddeck_slot_reset(r_current_batch);"))
+        self.assertIn("droiddeck_slot_info = nullptr; // texture infos are freed here", out)
+        self.assertIn("state.batch_texture_uniforms.resize(droiddeck_canvas_slots_max() ? 6 : 5);", out)
+        _, labels = census["patch_source"](out)
+        self.assertIn("rect: texture", labels)
+        self.assertIn("polygon: as triangles, texture", labels)
+
+
+class CanvasQuadMergePatchTest(unittest.TestCase):
+    """Rects batch with nine-patches (off unless DROIDDECK_NATIVE_CANVAS_QUAD_MERGE is set): only instances marked
+    as nine-patches get the margin mapping, and rects record into nine-patch batches."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_patches_shader_and_source(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_quad_merge.py"))
+        frag = mod["patch_shader"]("a\n" + mod["NP_BEGIN"] + "\tuv = vec2(1);\n" + mod["NP_END"] + "\n#endif\n")
+        self.assertIn("#ifdef USE_NINEPATCH\n#ifdef DROIDDECK_QUAD_MERGE\n", frag)
+        self.assertLess(frag.index("if (draw_data.pad.x != 0.0) {"), frag.index("int draw_center = 2;"))
+        self.assertLess(frag.index(mod["NP_END"]), frag.index("\t}\n#endif\n\n#endif"))
+        src = mod["INCLUDE"] + mod["DEFINES"] + mod["RECT"] + mod["NP_MARGIN"]
+        out = mod["patch_source"](src)
+        self.assertIn("command_type != droiddeck_rect_batch_type()", out)
+        self.assertIn("instance_data->pad[0] = 1.0;", out)
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_QUAD_MERGE", out)
+        for broken in ("nothing", src.replace(mod["RECT"], "")):
+            with self.assertRaises(SystemExit):
+                mod["patch_source"](broken)
+
+    def test_real_source(self):
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if not godot:
+            self.skipTest("DROIDDECK_GODOT_SRC not set")
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_quad_merge.py"))
+        rd = Path(godot) / "servers/rendering/renderer_rd"
+        mod["patch_shader"]((rd / "shaders/canvas.glsl").read_text())
+        mod["patch_source"]((rd / "renderer_canvas_render_rd.cpp").read_text())
+
+
+class CanvasGroupHoistPatchTest(unittest.TestCase):
+    """Canvas group contents drawn ahead into one back-buffer pass (off unless DROIDDECK_NATIVE_CANVAS_GROUP_HOIST is
+    set): every anchor is patched once, the back buffer starts cleared, clip groups composite unpremultiplied, and a
+    run waits for earlier owners before clearing the back buffer again."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def mod(self):
+        return runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_group_hoist.py"))
+
+    def test_patches_every_anchor(self):
+        mod = self.mod()
+        src = "".join(mod[k] for k in ("INCLUDE", "CTOR", "DTOR", "LOOP", "GROUP", "FRAME_END", "MATERIAL", "BACKBUFFER"))
+        out = mod["patch_source"](src)
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_GROUP_HOIST", out)
+        self.assertIn("COLOR.a *= c.a;", out)
+        self.assertIn("clear_color = Color(0, 0, 0, 0);", out)
+        self.assertIn("droiddeck_hoisted_owners.clear();", out)
+        self.assertLess(out.index("bool earlier_owner = false;"), out.index("droiddeck_bb_clear_next = true;"))
+        self.assertLess(out.index("droiddeck_skip_owner = nullptr; // Kestrel"), out.index("while (ci) {"))
+        self.assertLess(out.index("if (droiddeck_skip_owner != nullptr) {"), out.index(mod["GROUP"]))
+        for broken in ("nothing", src.replace(mod["GROUP"], ""), src + mod["MATERIAL"]):
+            with self.assertRaises(SystemExit):
+                mod["patch_source"](broken)
+
+    def test_real_source(self):
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if not godot:
+            self.skipTest("DROIDDECK_GODOT_SRC not set")
+        mod = self.mod()
+        rd = Path(godot) / "servers/rendering/renderer_rd"
+        out = mod["patch_source"]((rd / "renderer_canvas_render_rd.cpp").read_text())
+        self.assertEqual(out.count("Kestrel (canvas_group_hoist.py)"), 5)
+
+
+class CanvasTraceTest(unittest.TestCase):
+    """The canvas trace hooks request, free and canvas_render_items, is off without DROIDDECK_NATIVE_CANVAS_TRACE,
+    and writes no vertices or pixels; it applies in either order with polygon batching."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_hooks_every_anchor_and_stays_off_by_default(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_trace.py"))
+        poly = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/canvas_poly_batch.py"))
+        src = ("int a;\n" + mod["REQUEST"] + "int x) {\n" + mod["STORED"] + "}\n" + mod["FREE"] + "}\n" +
+               mod["RENDER"] + "}\nswitch (c->type) {\n" + poly["RECORD"] + "}\n")
+        out = mod["patch_source"](src)
+        self.assertLess(out.index("droiddeck_canvas_trace(RID p_target"), out.index(mod["REQUEST"]))
+        self.assertIn("droiddeck_trace_remember_polygon(id,", out)
+        self.assertIn("droiddeck_trace_polygons.erase(p_polygon);", out)
+        self.assertIn(mod["RENDER"] + "\tdroiddeck_canvas_trace(", out)
+        self.assertIn("DROIDDECK_NATIVE_CANVAS_TRACE", out)
+        # Polygons, meshes: bounds and counts only.
+        helpers = mod["HELPERS"]
+        self.assertNotIn("p_points[", helpers)
+        self.assertNotIn("get_data", helpers)
+        both = poly["patch_source"](out)
+        self.assertEqual(both.count("droiddeck_poly_remember(id,"), 1)
+        self.assertEqual(both.count("droiddeck_trace_remember_polygon(id,"), 1)
+        mod["patch_source"](poly["patch_source"](src))
+        for broken in ("nothing", src.replace(mod["RENDER"], "")):
+            with self.assertRaises(SystemExit):
+                mod["patch_source"](broken)
+
+
+class BatchCompareTest(unittest.TestCase):
+    """compare.py judges each arm's frame against stock and reads draws and Vulkan call counts from the logs."""
+
+    COMPARE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "native-engine/batchtest/compare.py"))
+
+    def write(self, d, name, pixels, draws, vk=None):
+        Path(d, name + ".raw").write_bytes((2).to_bytes(4, "little") + (1).to_bytes(4, "little") + bytes(pixels))
+        log = "BATCHTEST %s draws %d size 2x1\n" % (name, draws)
+        if vk:
+            log += ("droiddeck-vkcount: window 1.0s 60 frames 60.0 fps | per frame: 1.0 submits 1.0 cmdbufs %d draws (0 indirect) "
+                    "0.0 dispatches 5 pipeline-binds %d set-binds 9 push-consts 3.0 passes 18.0 barriers 0.0 copies | ms/frame:\n" % vk)
+        Path(d, name + ".log").write_text(log)
+
+    def test_rules_and_draw_counts(self):
+        base = [10, 20, 30, 255, 40, 50, 60, 255]
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "stock-a", base, 10, (10, 14))
+            self.write(d, "stock-b", base, 10)
+            self.write(d, "same", base, 6, (6, 9))
+            self.write(d, "near", [12] + base[1:], 5)
+            self.assertEqual(self.COMPARE["main"]([d, "same=exact", "near=max=3", "--fewer", "same<stock-a", "--fewer", "near<=same"]), 0)
+            self.assertEqual(self.COMPARE["main"]([d, "near=exact"]), 1)
+            self.assertEqual(self.COMPARE["main"]([d, "same=exact", "--fewer", "stock-a<same"]), 1)
+            self.assertEqual(self.COMPARE["vkcount"](d, "same")["set-binds"], 9)
+            self.assertAlmostEqual(self.COMPARE["phone_ms"](self.COMPARE["vkcount"](d, "stock-a")), 0.72)
+            self.assertIsNone(self.COMPARE["vkcount"](d, "near"))
+
+    def test_nondeterministic_stock_passes_with_a_warning(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "stock-a", [1] * 8, 4)
+            self.write(d, "stock-b", [2] * 8, 4)
+            self.write(d, "x", [200] * 8, 4)
+            self.assertEqual(self.COMPARE["main"]([d, "x=exact"]), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -1319,3 +1712,134 @@ class EnginePinTest(unittest.TestCase):
                          "native-engine-65")
         with self.assertRaises(SystemExit):
             self.resolve([self.release(70, gate="failed")], want="native-engine-70")
+
+
+# A stand-in engine for the prestart tests: does what the Steam bridge does at its first Steam call (held, wait for
+# release, apply it), then reports what it sees, draws a "frame" and exits with 3.
+FAKE_HELD_ENGINE = r"""
+import os, sys, time
+print("booting", flush=True)
+d = os.environ.get("DROIDDECK_NATIVE_HOLD_DIR")
+if d:
+    with open(os.path.join(d, "held"), "w") as f:
+        f.write(f"{os.getpid()} SteamAPI_Init")
+    while not os.path.exists(os.path.join(d, "release")):
+        time.sleep(0.02)
+    for e in open(os.path.join(d, "release"), "rb").read().split(b"\0"):
+        if e:
+            k, eq, v = e.decode().partition("=")
+            if eq:
+                os.environ[k] = v
+            else:
+                os.environ.pop(k, None)
+    os.rename(os.path.join(d, "release"), os.path.join(d, "released"))
+    print("steam-bridge: released", flush=True)
+print("appid", os.environ.get("SteamAppId", "(unset)"), "gone", os.environ.get("GONE", "(unset)"), flush=True)
+print("Project FPS: 60 (16.67 mspf)", flush=True)
+time.sleep(float(os.environ.get("FAKE_RUN_S", "0.3")))
+sys.exit(3)
+"""
+
+PRESTART_RUNNER = r"""
+import json, runpy, sys
+ng = runpy.run_path(sys.argv[1])
+sys.exit(ng["prestart"]([sys.executable, "-u", sys.argv[2]], json.loads(sys.argv[4]), sys.argv[3],
+                        {"argv": ["--out", "x"], "environ": json.loads(sys.argv[4]), "refusal": None, "report": {}}))
+"""
+
+
+class PrestartTest(unittest.TestCase):
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d)
+        self.hold = self.d / "hold"
+        self.hold.mkdir()
+        (self.d / "engine.py").write_text(FAKE_HELD_ENGINE)
+        self.env = {k: v for k, v in os.environ.items() if k not in ("SteamAppId", "DROIDDECK_NATIVE_HOLD_DIR")}
+        self.env["GONE"] = "here"
+
+    def start(self, **extra):
+        env = dict(self.env, **extra)
+        p = subprocess.Popen([sys.executable, "-c", PRESTART_RUNNER, str(BIN / "droiddeck-native-godot"),
+                              str(self.d / "engine.py"), str(self.hold), json.dumps(env)],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.addCleanup(p.stderr.close)
+        self.addCleanup(p.stdout.close)
+        self.addCleanup(lambda: p.poll() is None and (p.kill(), p.wait()))
+        end = time.monotonic() + 15
+        while not (self.hold / "held").exists():
+            self.assertIsNone(p.poll(), p.stderr.read() if p.poll() is not None else "")
+            self.assertLess(time.monotonic(), end, "the engine never held")
+            time.sleep(0.02)
+        return p
+
+    def launch_env(self, **changes):
+        env = dict(self.env)
+        for k, v in changes.items():
+            if v is None:
+                env.pop(k, None)
+            else:
+                env[k] = v
+        return env
+
+    def test_a_launch_takes_the_held_engine_with_steams_environment_and_its_exit_code(self):
+        p = self.start()
+        out = io.StringIO()
+        with unittest.mock.patch.dict(NG["adopt"].__globals__, {"log": lambda m: out.write("LOG " + m + "\n")}):
+            took = NG["adopt"](str(self.hold), ["--out", "x"], self.launch_env(SteamAppId="2868840", GONE=None), out=out)
+            self.assertIsNotNone(took, out.getvalue())
+            rc = NG["watch"](None, None, out=out, proc=took[0], first_frame_s=15)
+        self.assertEqual(3, rc, out.getvalue())
+        text = out.getvalue()
+        self.assertIn("booting", text)  # what it printed before the launch, passed on
+        self.assertIn("appid 2868840 gone (unset)", text)  # the release applied before the Steam call went on
+        self.assertIn("released with 2 environment changes", text)
+        self.assertIn("first frame after", text)
+        self.assertEqual(3, p.wait(timeout=15))
+        self.assertEqual("3", (self.hold / "exit").read_text())
+
+    def test_other_arguments_stop_the_held_engine(self):
+        p = self.start()
+        with unittest.mock.patch.dict(NG["adopt"].__globals__, {"log": lambda m: None}):
+            self.assertIsNone(NG["adopt"](str(self.hold), ["--out", "y"], self.launch_env()))
+        p.wait(timeout=15)
+        self.assertTrue((self.hold / "exit").exists())
+
+    def test_a_variable_read_at_start_that_differs_stops_the_held_engine(self):
+        p = self.start()
+        logged = []
+        with unittest.mock.patch.dict(NG["adopt"].__globals__, {"log": logged.append}):
+            self.assertIsNone(NG["adopt"](str(self.hold), ["--out", "x"], self.launch_env(DOTNET_TieredPGO="0")))
+        p.wait(timeout=15)
+        self.assertIn("DOTNET_TieredPGO", " ".join(logged))
+
+    def test_the_engine_stops_when_the_launch_that_took_it_is_gone(self):
+        p = self.start(FAKE_RUN_S="60")
+        owner = subprocess.Popen(["sleep", "60"])
+        reader = os.open(self.hold / "out", os.O_RDONLY | os.O_NONBLOCK)
+        self.addCleanup(os.close, reader)
+        (self.hold / "owner").write_text(str(owner.pid))
+        (self.hold / "release").write_bytes(b"")
+        time.sleep(0.5)
+        self.assertIsNone(p.poll())
+        owner.kill()
+        owner.wait()
+        p.wait(timeout=15)
+        self.assertIn("is gone; stopping the engine", p.stderr.read())
+
+    def test_no_prestart_means_a_usual_start(self):
+        self.assertIsNone(NG["adopt"](str(self.d / "nothing"), ["--out", "x"], self.launch_env(), wait_s=0))
+
+    def test_release_entries(self):
+        release, startup, stale = NG["env_release"](
+            {"A": "1", "B": "2", "DOTNET_X": "1", "SDL_GAMECONTROLLERCONFIG": "a", "PWD": "/"},
+            {"A": "1", "C": "3", "DOTNET_X": "2", "SDL_GAMECONTROLLERCONFIG": "b", "PWD": "/x",
+             "DROIDDECK_NATIVE_PRESTART": "1"})
+        self.assertEqual(b"B\0C=3\0DROIDDECK_NATIVE_PRESTART=1\0SDL_GAMECONTROLLERCONFIG=b\0", release)
+        self.assertEqual(["DOTNET_X"], startup)
+        self.assertEqual(["SDL_GAMECONTROLLERCONFIG"], stale)
+
+    def test_prestart_dir_is_per_launch_folder(self):
+        a, b = NG["prestart_dir"]("/x/a", "/c"), NG["prestart_dir"]("/x/b", "/c")
+        self.assertNotEqual(a, b)
+        self.assertEqual(a, NG["prestart_dir"]("/x/a/", "/c"))
