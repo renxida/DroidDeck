@@ -117,13 +117,17 @@ int main(int argc, char **argv) {
 	droiddeck_prof::tick();
 	droiddeck_prof::report_now();
 	droiddeck_prof::set_sink(capture);
-	burn_light(1.3);
+	burn_light(2.0);
 	droiddeck_prof::set_sink(nullptr);
 	{
 		std::lock_guard<std::mutex> l(sunk_lock);
 		std::printf("%s", sunk.c_str());
-		CHECK(sunk.find("prof no frame for 0.") != std::string::npos);
-		CHECK(sunk.find("prof no frame for 1.") != std::string::npos); // a second window, still no frame
+		// One report per window while no frame comes (the side thread looks every 250 ms, so not exactly 4).
+		int stalls = 0;
+		for (size_t at = sunk.find("prof no frame for "); at != std::string::npos; at = sunk.find("prof no frame for ", at + 1)) {
+			stalls++;
+		}
+		CHECK(stalls >= 2);
 		CHECK(sunk.find("% burn_heavy") != std::string::npos || (syms.empty() && !from_cache));
 		CHECK(sunk.find("prof threads") != std::string::npos);
 	}
