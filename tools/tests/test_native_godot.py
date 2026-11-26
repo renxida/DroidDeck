@@ -1283,6 +1283,28 @@ class PipelineCacheSavePatchTest(unittest.TestCase):
             self.assertLess(text.index("rd_skip_redundant_set_binds.py"), text.index("rd_pipeline_cache_save.py"), rel)
 
 
+class RenderingMethodEnvPatchTest(unittest.TestCase):
+    """DROIDDECK_NATIVE_RENDERING_METHOD picks mobile or forward_plus in place of the project's renderer, only when
+    the command line names none."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_patch_sits_before_the_method_check(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/main_rendering_method_env.py"))
+        src = '#include "main.h"\n' + mod["ANCHOR"]
+        out = mod["patch"](src)
+        self.assertLess(out.index("DROIDDECK_NATIVE_RENDERING_METHOD"), out.index('if (rendering_method != "forward_plus" &&'))
+        self.assertIn("#include <stdlib.h>", out)
+        with self.assertRaises(SystemExit):
+            mod["patch"](out)
+        with self.assertRaises(SystemExit):
+            mod["patch"]("nothing")
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:
+            real = (Path(godot) / "main/main.cpp").read_text()
+            self.assertIn(mod["MARK"], mod["patch"](real))
+
+
 class SkipRedundantSetBindsPatchTest(unittest.TestCase):
     """The engine build makes RenderingDevice skip binding a uniform set already bound at its index (the phone's
     Nov 24 vkcount: 810 descriptor-set binds for 604 draws, ~25 us each), with a run-time switch back."""
