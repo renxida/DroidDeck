@@ -510,6 +510,14 @@ object SessionPrefs {
 
     fun directAudio(context: Context): Boolean = prefs(context).getBoolean("directAudio", true)
 
+    /**
+     * How long a hidden session keeps a running Steam game going before the whole session freezes and pages out,
+     * so coming back resumes the game where it was. Negative keeps the game running while hidden. Only applies
+     * under a suspend policy that freezes a hidden session (native or auto).
+     */
+    fun freezeGameAfterMs(context: Context): Long =
+        prefs(context).getLong("freezeGameAfterMs", SessionSuspendPolicy.FREEZE_GAME_AFTER_MS)
+
     /** Off: games play into a silent PulseAudio sink, so nothing reaches Android's audio output and
      *  a podcast or music app keeps playing alone. Off by default. */
     fun gameSound(context: Context): Boolean = prefs(context).getBoolean("gameSound", false)

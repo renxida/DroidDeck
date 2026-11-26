@@ -85,6 +85,11 @@ class SessionService : Service() {
     /** elapsedRealtime of the last game.exited; see [SessionSuspendPolicy.GAME_EXIT_AWAKE_MS]. */
     private var lastGameExitAt = -1L
     private val gameExitSettled = Runnable { updateSuspendPolicy() }
+    /** elapsedRealtime when the session surface was last hidden, or -1 while it shows. */
+    private var hiddenSince = -1L
+    private val freezeGameDue = Runnable { updateSuspendPolicy() }
+    /** elapsedRealtime of the last resume request, for the session.resumed timing. */
+    private var resumeAskedAt = -1L
     private var steamDownloadsInBackground = false
     private var activityVisible = true
     private var activityDisplayId = Display.DEFAULT_DISPLAY
@@ -1799,10 +1804,20 @@ class SessionService : Service() {
         gameExitKeptAwake = gameExiting && hidden
         val downloadsBlockingSuspend = downloadsKeepAwake() && hidden && !suspendDownloadNow
         val steamMode = SessionState.mode == MODE_STEAM
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!hidden) hiddenSince = -1L else if (hiddenSince < 0) hiddenSince = now
+        val hiddenForMs = if (hiddenSince < 0) 0L else now - hiddenSince
+        val freezeGameAfter = SessionPrefs.freezeGameAfterMs(this)
         val gameKeepsAwake = SessionSuspendPolicy.gameKeepsAwake(
             hidden = hidden, manualHold = manualHold, suspended = SessionState.suspended,
-            steamMode = steamMode, gameRunning = ::steamGameRunning,
+            steamMode = steamMode, hiddenForMs = hiddenForMs, freezeAfterMs = freezeGameAfter,
+            gameRunning = ::steamGameRunning,
         )
+        mainHandler.removeCallbacks(freezeGameDue)
+        if (gameKeepsAwake) {
+            SessionSuspendPolicy.freezeGameDueInMs(hidden, hiddenForMs, freezeGameAfter)
+                ?.let { mainHandler.postDelayed(freezeGameDue, it + 50L) }
+        }
         if (gameKeepsAwake && !gameKeptAwake) SessionEvents.record("session.suspend_skipped", mapOf("reason" to "game_running"))
         gameKeptAwake = gameKeepsAwake
         manualPauseRequested = SessionSuspendPolicy.manualPauseRequested(
@@ -1839,10 +1854,12 @@ class SessionService : Service() {
         if (suspendOperationPending || suspendAttemptFailed || shouldSuspend == SessionState.suspended) return
         val gen = sessionGen
         suspendOperationPending = true
+        if (!shouldSuspend) resumeAskedAt = android.os.SystemClock.elapsedRealtime()
         SessionEvents.record(if (shouldSuspend) "session.suspend_requested" else "session.resume_requested", mapOf(
             "policy" to suspendPolicy, "activityVisible" to activityVisible,
             "screenOn" to screenOn, "display" to sessionDisplayId, "steamSleep" to (steamSleepToken != null),
             "nativeSleep" to (nativeSleepToken != null),
+            "game" to (steamMode && steamGameRunning()), "hiddenMs" to hiddenForMs,
         ))
         if (shouldSuspend) {
             freezePending = true
@@ -1891,7 +1908,9 @@ class SessionService : Service() {
                     if (success) {
                         SessionState.suspended = false
                         SessionState.resumeFailed = false
-                        SessionEvents.transition(SessionEvents.resumePhase(), "session.resumed")
+                        SessionEvents.transition(SessionEvents.resumePhase(), "session.resumed", mapOf(
+                            "ms" to (if (resumeAskedAt < 0) null else android.os.SystemClock.elapsedRealtime() - resumeAskedAt),
+                        ))
                         refreshNotification()
                     } else {
                         suspendAttemptFailed = true
@@ -2509,7 +2528,12 @@ class SessionService : Service() {
         private const val GAME_EXIT_GRACE_MS = 10_000L
         private const val PRESSURE_RECENT_MS = 60_000L
         private const val LMK_POLL_MS = 2_000L
-        private const val FREE_MEMORY_WAIT_MS = 15_000L
+        /**
+         * How long the guest start waits for the session-start memory run. It used to wait for the whole run (up
+         * to 15 s; 3 to 8 s on Nov 25), which held back the container and Steam for nothing: the run keeps going
+         * beside them, its balloon sits below this app in lmkd's order, and Steam's first seconds are CPU, not memory.
+         */
+        private const val FREE_MEMORY_WAIT_MS = 750L
         private const val GAME_EXIT_POLL_MS = 2_000L
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"

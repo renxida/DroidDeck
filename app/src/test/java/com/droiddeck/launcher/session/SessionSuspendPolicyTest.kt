@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -142,4 +143,24 @@ class SessionSuspendPolicyTest {
     private companion object {
         val PAUSING = listOf(SessionPrefs.SUSPEND_MANUAL, SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE)
     }
+
+    @Test
+    fun aHiddenGameFreezesOnceTheWindowPasses() {
+        val after = SessionSuspendPolicy.FREEZE_GAME_AFTER_MS
+        assertTrue(SessionSuspendPolicy.gameKeepsAwake(true, false, false, true, hiddenForMs = after - 1, freezeAfterMs = after) { true })
+        assertFalse(SessionSuspendPolicy.gameKeepsAwake(true, false, false, true, hiddenForMs = after, freezeAfterMs = after) { true })
+        // Negative keeps the game running however long the session stays hidden.
+        assertTrue(SessionSuspendPolicy.gameKeepsAwake(true, false, false, true, hiddenForMs = 3_600_000L, freezeAfterMs = -1L) { true })
+        // Zero freezes a hidden game straight away.
+        assertFalse(SessionSuspendPolicy.gameKeepsAwake(true, false, false, true, hiddenForMs = 0L, freezeAfterMs = 0L) { true })
+    }
+
+    @Test
+    fun theFreezeIsScheduledForTheEndOfTheWindow() {
+        assertEquals(4_000L, SessionSuspendPolicy.freezeGameDueInMs(hidden = true, hiddenForMs = 6_000L, freezeAfterMs = 10_000L))
+        assertNull(SessionSuspendPolicy.freezeGameDueInMs(hidden = false, hiddenForMs = 0L, freezeAfterMs = 10_000L))
+        assertNull(SessionSuspendPolicy.freezeGameDueInMs(hidden = true, hiddenForMs = 10_000L, freezeAfterMs = 10_000L))
+        assertNull(SessionSuspendPolicy.freezeGameDueInMs(hidden = true, hiddenForMs = 0L, freezeAfterMs = -1L))
+    }
+
 }

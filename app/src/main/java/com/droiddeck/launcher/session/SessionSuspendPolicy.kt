@@ -13,15 +13,29 @@ internal object SessionSuspendPolicy {
     fun gameExiting(now: Long, lastGameExitAt: Long, windowMs: Long = GAME_EXIT_AWAKE_MS): Boolean =
         lastGameExitAt >= 0 && now >= lastGameExitAt && now - lastGameExitAt < windowMs
 
-    // A game stopped this way does not always run again after the resume (Nov 13: Slay the
-    // Spire 2 stayed at 0% CPU behind Steam's spinner), so leaving the app keeps a game running.
+    /** How long a hidden session keeps a running game going before it freezes, unless the session pref says otherwise. */
+    const val FREEZE_GAME_AFTER_MS = 10_000L
+
+    // A game stopped this way did not always run again after the resume (Nov 13: Slay the Spire 2,
+    // then under Proton, stayed at 0% CPU behind Steam's spinner while it loaded), so a running game
+    // keeps the session awake. With [freezeAfterMs] at 0 or more, that lasts only until the session
+    // has been hidden that long: the game then freezes with the rest of the session, pages out to
+    // zRAM and resumes where it was when the app shows again, instead of running in the background
+    // or starting over. A negative [freezeAfterMs] keeps the game running for as long as it is hidden.
     fun gameKeepsAwake(
         hidden: Boolean,
         manualHold: Boolean,
         suspended: Boolean,
         steamMode: Boolean,
+        hiddenForMs: Long = 0L,
+        freezeAfterMs: Long = -1L,
         gameRunning: () -> Boolean,
-    ): Boolean = hidden && !manualHold && !suspended && steamMode && gameRunning()
+    ): Boolean = hidden && !manualHold && !suspended && steamMode &&
+        (freezeAfterMs < 0 || hiddenForMs < freezeAfterMs) && gameRunning()
+
+    /** When the game-keeps-awake window above ends, in ms from now, or null when nothing is due. */
+    fun freezeGameDueInMs(hidden: Boolean, hiddenForMs: Long, freezeAfterMs: Long): Long? =
+        if (!hidden || freezeAfterMs < 0 || hiddenForMs >= freezeAfterMs) null else freezeAfterMs - hiddenForMs
 
     fun manualPauseRequested(
         policy: String,
