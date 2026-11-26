@@ -88,6 +88,7 @@ class SessionSuspendControllerTest {
         val fixture = fixture(17)
         fixture.control.writeText("0")
         fixture.swapFreeKb = 4_500_000L
+        fixture.sync()
         fixture.controller.freeze(pageOut = true) { assertTrue(it) }
         assertFalse(fixture.signals.any { it.signal == URG })
         assertTrue(fixture.pagedOut.isEmpty())
