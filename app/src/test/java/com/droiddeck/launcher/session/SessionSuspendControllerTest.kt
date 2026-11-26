@@ -74,6 +74,25 @@ class SessionSuspendControllerTest {
         assertEquals(1, fixture.audioResumes)
     }
 
+    @Test fun aProcessTooLargeToPageOutStaysResident() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.keepResidentOverKb = 786_432L
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+        assertTrue(fixture.pagedOut.isEmpty())
+        assertTrue(fixture.game.threads.all { it.state == 't' })
+    }
+
+    @Test fun nearlyFullSwapIsLeftAlone() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.swapFreeKb = 4_500_000L
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+        assertTrue(fixture.pagedOut.isEmpty())
+    }
+
     @Test fun noPageOutWithoutTheRequestOrTheControlFile() {
         val visible = fixture(17)
         visible.control.writeText("0")
@@ -466,6 +485,9 @@ class SessionSuspendControllerTest {
         var availableKb = 8_000_000L
         var totalKb = 16_000_000L
         var readBackAllowed = true
+        var swapTotalKb = 16_000_000L
+        var swapFreeKb = 16_000_000L
+        var keepResidentOverKb = Long.MAX_VALUE
         private var gameResidentKb = 4_000_000L
         private var gameSwapKb = 0L
         private var pagingOut = false
@@ -488,6 +510,7 @@ class SessionSuspendControllerTest {
             readBackAllowed = { readBackAllowed },
             pagedIn = { processes, swap, swapBefore, _, _ -> pagedIn += Triple(processes, swap, swapBefore) },
             stillStopped = { stuck += it },
+            keepResidentOverKb = { keepResidentOverKb },
         )
 
         init { sync() }
@@ -552,7 +575,10 @@ class SessionSuspendControllerTest {
         }
 
         fun sync() {
-            File(proc, "meminfo").writeText("MemTotal:\t$totalKb kB\nMemFree:\t1000 kB\nMemAvailable:\t$availableKb kB\n")
+            File(proc, "meminfo").writeText(
+                "MemTotal:\t$totalKb kB\nMemFree:\t1000 kB\nMemAvailable:\t$availableKb kB\n" +
+                    "SwapTotal:\t$swapTotalKb kB\nSwapFree:\t$swapFreeKb kB\n",
+            )
             for (group in groups) {
                 val dir = File(proc, group.pid.toString())
                 if (group == root && rootGone) { dir.deleteRecursively(); continue }

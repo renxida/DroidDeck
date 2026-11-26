@@ -25,6 +25,7 @@ internal class SessionSuspendController(
     private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _ -> },
     private val stillStopped: (List<Stuck>) -> Unit = {},
+    private val keepResidentOverKb: () -> Long = { PAGE_OUT_MAX_PROCESS_KB },
 ) {
     /** A process with [threads] of its [total] threads still stopped (states in [states]) after a resume. */
     data class Stuck(val pid: Int, val name: String, val threads: Int, val total: Int, val states: String)
@@ -316,7 +317,7 @@ internal class SessionSuspendController(
             } catch (_: IOException) {
                 false
             }
-        }
+        }.let { pageOutChoice(it) }
         if (targets.isEmpty()) return
         pagedOutTargets = (pagedOutTargets + targets).distinct()
         val acks = targets.associateWith { File(control.parentFile, "${control.name}.ack.${it.pid}") }
@@ -369,6 +370,38 @@ internal class SessionSuspendController(
             Thread.currentThread().interrupt()
         }
         pagedIn(targets.size, swap, before, available, nowMillis() - start)
+    }
+
+    /**
+     * Which processes to squeeze into zRAM before freezing. zRAM on the Pixel is often nearly full while a game
+     * runs, and lmkd starts killing at 7 % free swap, so take the small processes (Steam, its web helpers, X)
+     * smallest first while swap stays above that line with room to spare, and leave anything over
+     * [keepResidentOverKb] (the game) resident: paging a 4 GB game out and back costs about 2.7 s per GB on
+     * resume, while left alone it resumes at once and kswapd only takes the pages it really needs.
+     */
+    private fun pageOutChoice(candidates: List<ProcessRecord>): List<ProcessRecord> {
+        val (swapTotal, swapFree) = swapKb()
+        var budget = swapFree - swapTotal * PAGE_OUT_SWAP_FLOOR_PERCENT / 100 - PAGE_OUT_SWAP_MARGIN_KB
+        val chosen = ArrayList<ProcessRecord>()
+        for ((record, rss) in candidates.map { it to memoryKb(listOf(it)).first }.sortedBy { it.second }) {
+            if (rss > keepResidentOverKb() || rss > budget) continue
+            budget -= rss
+            chosen += record
+        }
+        return chosen
+    }
+
+    private fun swapKb(): Pair<Long, Long> = try {
+        val values = HashMap<String, Long>()
+        File(procRoot, "meminfo").forEachLine { line ->
+            val name = line.substringBefore(':')
+            if (name == "SwapTotal" || name == "SwapFree") {
+                line.substringAfter(':').trim().substringBefore(' ').toLongOrNull()?.let { values[name] = it }
+            }
+        }
+        (values["SwapTotal"] ?: 0L) to (values["SwapFree"] ?: 0L)
+    } catch (_: IOException) {
+        0L to 0L
     }
 
     private fun canTake(swapKb: Long, totalKb: Long, availableKb: Long): Boolean =
@@ -485,6 +518,9 @@ internal class SessionSuspendController(
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L
+        const val PAGE_OUT_MAX_PROCESS_KB = 786_432L
+        const val PAGE_OUT_SWAP_FLOOR_PERCENT = 7L
+        const val PAGE_OUT_SWAP_MARGIN_KB = 262_144L
         const val READ_BACK_POLL_MS = 100L
         const val READ_BACK_STABLE_POLLS = 5
         const val READ_BACK_TIMEOUT_MS = 5_000L
