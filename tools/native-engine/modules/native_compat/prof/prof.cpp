@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -19,9 +20,11 @@
 #include <dlfcn.h>
 #include <link.h>
 #include <map>
+#include <mutex>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/syscall.h>
+#include <thread>
 #include <ucontext.h>
 #include <unistd.h>
 #include <unordered_map>
@@ -53,6 +56,14 @@ int rate_hz = 0;
 double window_sec = 10;
 double window_start = 0;
 
+// Reports normally come from tick(), once a frame. A main thread that makes no frame for a whole window (a
+// blocking load at boot) would report nothing until its next frame, so a side thread writes the report then,
+// through the sink, and says how long the main thread has gone without a frame. The lock keeps tick() and
+// that thread from reading the sample ring or the frame lists at once.
+std::mutex report_lock;
+std::atomic<double> last_tick_wall { 0 };
+void (*report_sink)(const std::vector<std::string> &) = nullptr;
+
 // Frame timing, from tick() (called once a frame): wall and main-thread CPU per frame, and the samples that fell
 // in each frame at or over the hitch threshold, so a slow frame can be told apart as CPU work (and whose) or a
 // wait (little CPU, few samples).
@@ -83,20 +94,40 @@ bool on_stack(uintptr_t p) {
 	return p >= stack_lo && p + 16 <= stack_hi && (p & 7) == 0;
 }
 
+// DROIDDECK_NATIVE_PROF_OTHER=1: also sample the busiest other thread of the last window (a loader, say), on its
+// own CPU clock, into its own ring. Its stack bounds aren't known, so its frame chain is read only within 1 MiB
+// above the interrupted stack pointer.
+constexpr uint32_t OTHER_RING = 1u << 14;
+Sample other_ring[OTHER_RING];
+std::atomic<uint32_t> other_head { 0 };
+uint32_t other_tail = 0;
+bool other_on = false;
+pid_t other_tid = 0;
+std::string other_name;
+timer_t other_timer;
+bool other_timer_set = false;
+pid_t side_tid = 0; // the stall-report thread, never chosen
+
 void on_prof(int, siginfo_t *, void *p_uc) {
 	const int saved = errno;
 	const ucontext_t *uc = static_cast<const ucontext_t *>(p_uc);
+	const bool main = pid_t(syscall(SYS_gettid)) == sampled_tid;
 	Sample s = {};
 #if defined(__aarch64__)
 	s.pc = uintptr_t(uc->uc_mcontext.pc);
 	s.lr = uintptr_t(uc->uc_mcontext.regs[30]);
 	uintptr_t fp = uintptr_t(uc->uc_mcontext.regs[29]);
+	const uintptr_t sp = uintptr_t(uc->uc_mcontext.sp);
 #else
 	s.pc = uintptr_t(uc->uc_mcontext.gregs[REG_RIP]);
 	uintptr_t fp = uintptr_t(uc->uc_mcontext.gregs[REG_RBP]);
+	const uintptr_t sp = uintptr_t(uc->uc_mcontext.gregs[REG_RSP]);
 #endif
+	auto inside = [&](uintptr_t p) {
+		return main ? on_stack(p) : (p >= sp && p + 16 <= sp + (1u << 20) && (p & 7) == 0);
+	};
 	// Only frames that sit on the sampled thread's stack, each above the last, are read.
-	for (int i = 0; i < 3 && on_stack(fp); i++) {
+	for (int i = 0; i < 3 && inside(fp); i++) {
 		const uintptr_t *frame = reinterpret_cast<const uintptr_t *>(fp);
 		s.ret[i] = frame[1];
 		const uintptr_t next = frame[0];
@@ -105,9 +136,15 @@ void on_prof(int, siginfo_t *, void *p_uc) {
 		}
 		fp = next;
 	}
-	const uint32_t at = head.load(std::memory_order_relaxed);
-	ring[at % RING] = s;
-	head.store(at + 1, std::memory_order_release);
+	if (main) {
+		const uint32_t at = head.load(std::memory_order_relaxed);
+		ring[at % RING] = s;
+		head.store(at + 1, std::memory_order_release);
+	} else {
+		const uint32_t at = other_head.load(std::memory_order_relaxed);
+		other_ring[at % OTHER_RING] = s;
+		other_head.store(at + 1, std::memory_order_release);
+	}
 	errno = saved;
 }
 
@@ -330,6 +367,58 @@ void load_maps() {
 	fclose(f);
 }
 
+// Names for JIT'd .NET code, from the runtime's perf map (DOTNET_PerfMapEnabled=3 writes
+// <DOTNET_PerfMapJitDumpPath or /tmp>/perf-<pid>.map: "start size name" per method). Read as it grows.
+std::map<uintptr_t, std::pair<uintptr_t, std::string>> jit_syms; // start -> (size, name)
+long jit_map_offset = 0;
+std::string jit_map_path;
+
+void load_jit_map() {
+	if (jit_map_path.empty()) {
+		const char *dir = getenv("DOTNET_PerfMapJitDumpPath");
+		jit_map_path = std::string(dir && *dir ? dir : "/tmp") + "/perf-" + std::to_string(getpid()) + ".map";
+	}
+	FILE *f = fopen(jit_map_path.c_str(), "r");
+	if (!f) {
+		return;
+	}
+	if (fseek(f, jit_map_offset, SEEK_SET) == 0) {
+		char line[1024];
+		long good = jit_map_offset;
+		while (fgets(line, sizeof(line), f)) {
+			const size_t len = strlen(line);
+			if (len == 0 || line[len - 1] != '\n') {
+				break; // a line still being written: read it next time
+			}
+			good = ftell(f);
+			unsigned long long a = 0, n = 0;
+			int at = 0;
+			if (sscanf(line, "%llx %llx %n", &a, &n, &at) >= 2 && at > 0) {
+				std::string name(line + at, len - size_t(at) - 1);
+				const size_t paren = name.find('(');
+				if (paren != std::string::npos) {
+					name.resize(paren);
+				}
+				if (name.size() > 100) {
+					name.resize(100);
+				}
+				jit_syms[uintptr_t(a)] = std::make_pair(uintptr_t(n), name);
+			}
+		}
+		jit_map_offset = good;
+	}
+	fclose(f);
+}
+
+const char *jit_name(uintptr_t pc) {
+	auto it = jit_syms.upper_bound(pc);
+	if (it == jit_syms.begin()) {
+		return nullptr;
+	}
+	--it;
+	return pc < it->first + it->second.first ? it->second.second.c_str() : nullptr;
+}
+
 const Map *map_of(uintptr_t pc) {
 	auto it = std::upper_bound(maps.begin(), maps.end(), pc, [](uintptr_t v, const Map &m) { return v < m.start; });
 	if (it == maps.begin()) {
@@ -361,6 +450,11 @@ std::string where(uintptr_t pc, std::string *r_module) {
 			}
 		}
 		return m->name;
+	}
+	if (m->name == "[anon exec]" || m->name == "[managed jit]") {
+		if (const char *jn = jit_name(pc)) {
+			return std::string("jit:") + jn;
+		}
 	}
 	if (m->name != "[anon exec]" && m->name != "[managed jit]") {
 		Dl_info info;
@@ -449,6 +543,8 @@ std::string top(const std::unordered_map<std::string, int64_t> &p_counts, int64_
 
 } // namespace
 
+static void watch_stalls();
+
 std::string start(int p_hz, double p_window_sec, const std::string &p_syms) {
 	if (running) {
 		return "native_compat: prof already running";
@@ -467,6 +563,8 @@ std::string start(int p_hz, double p_window_sec, const std::string &p_syms) {
 		pthread_attr_destroy(&attr);
 	}
 	load_syms(p_syms);
+	const char *other = getenv("DROIDDECK_NATIVE_PROF_OTHER");
+	other_on = other && other[0] == '1';
 	struct sigaction sa = {};
 	sa.sa_sigaction = on_prof;
 	sa.sa_flags = SA_SIGINFO | SA_RESTART;
@@ -499,7 +597,9 @@ std::string start(int p_hz, double p_window_sec, const std::string &p_syms) {
 	window_sec = p_window_sec > 0 ? p_window_sec : 10;
 	window_start = now_sec();
 	threads_before = read_threads(process_ticks_before);
+	last_tick_wall.store(window_start);
 	running = true;
+	std::thread(watch_stalls).detach();
 	char w[32];
 	snprintf(w, sizeof(w), "%g", window_sec);
 	return "native_compat: prof sampling the main thread at " + std::to_string(p_hz) + " Hz of its cpu time, a report every " + w +
@@ -524,7 +624,7 @@ bool active() {
 	return running;
 }
 
-std::vector<std::string> report_now() {
+static std::vector<std::string> report_locked(double p_stall_sec) {
 	std::vector<std::string> lines;
 	if (!running) {
 		return lines;
@@ -539,6 +639,7 @@ std::vector<std::string> report_now() {
 		tail = h - RING;
 	}
 	load_maps();
+	load_jit_map();
 	std::unordered_map<std::string, int64_t> modules, self, incl, lib_callers;
 	std::unordered_map<uintptr_t, std::pair<std::string, std::string>> cache; // pc -> (name, module)
 	auto lookup = [&](uintptr_t pc) -> const std::pair<std::string, std::string> & {
@@ -585,6 +686,11 @@ std::vector<std::string> report_now() {
 	char head_line[256];
 	snprintf(head_line, sizeof(head_line), "native_compat: prof %.1fs main thread %lld samples (%.0f/s of its cpu at %d Hz, %u dropped)",
 			span, (long long)n, span > 0 ? double(n) / span : 0.0, rate_hz, dropped);
+	if (p_stall_sec > 0) {
+		char stall[128];
+		snprintf(stall, sizeof(stall), "native_compat: prof no frame for %.1f s (report from a side thread)", p_stall_sec);
+		lines.push_back(stall);
+	}
 	lines.push_back(std::string(head_line) + " | modules: " + top(modules, n, 10));
 	lines.push_back("native_compat: prof self: " + top(self, n, 30));
 	lines.push_back("native_compat: prof inclusive: " + top(incl, n, 30));
@@ -647,16 +753,125 @@ std::vector<std::string> report_now() {
 		t += b;
 	}
 	lines.push_back(t);
+	if (other_on) {
+		// The busiest other thread's samples since the last report, then aim at this window's busiest.
+		const uint32_t oh = other_head.load(std::memory_order_acquire);
+		if (oh - other_tail > OTHER_RING) {
+			other_tail = oh - OTHER_RING;
+		}
+		std::unordered_map<std::string, int64_t> omod, oself, oincl;
+		int64_t on = 0;
+		for (; other_tail != oh; other_tail++) {
+			const Sample os = other_ring[other_tail % OTHER_RING];
+			on++;
+			const auto leaf = lookup(os.pc);
+			omod[leaf.second]++;
+			oself[leaf.first]++;
+			std::vector<std::string> seen { leaf.first };
+			for (uintptr_t a : { os.lr, os.ret[0], os.ret[1], os.ret[2] }) {
+				if (a) {
+					const auto c = lookup(a > 4 ? a - 4 : a);
+					if (std::find(seen.begin(), seen.end(), c.first) == seen.end()) {
+						seen.push_back(c.first);
+					}
+				}
+			}
+			for (const std::string &name : seen) {
+				oincl[name]++;
+			}
+		}
+		if (other_tid) {
+			char ob[200];
+			snprintf(ob, sizeof(ob), "native_compat: prof other thread %s#%d %lld samples (%.0f/s of its cpu)", other_name.c_str(), int(other_tid),
+					(long long)on, span > 0 ? double(on) / span : 0.0);
+			lines.push_back(std::string(ob) + " | modules: " + top(omod, on, 8));
+			if (on) {
+				lines.push_back("native_compat: prof other self: " + top(oself, on, 25));
+				lines.push_back("native_compat: prof other inclusive: " + top(oincl, on, 25));
+			}
+		}
+		pid_t busiest = 0;
+		uint64_t most = 0;
+		for (const auto &th : threads_now) {
+			auto bt = threads_before.find(th.first);
+			const uint64_t d = th.second.ticks - (bt != threads_before.end() ? std::min(bt->second.ticks, th.second.ticks) : 0);
+			if (th.first != sampled_tid && th.first != side_tid && d > most) {
+				most = d;
+				busiest = th.first;
+			}
+		}
+		if (busiest && busiest != other_tid) {
+			if (other_timer_set) {
+				timer_delete(other_timer);
+				other_timer_set = false;
+			}
+			// The thread's own CPU clock (the kernel's per-thread scheduler clock id).
+			const clockid_t cid = clockid_t((~unsigned(busiest)) << 3) | 6;
+			sigevent sev = {};
+			sev.sigev_notify = SIGEV_THREAD_ID;
+			sev.sigev_signo = SIGPROF;
+			sev.sigev_notify_thread_id = busiest;
+			if (timer_create(cid, &sev, &other_timer) == 0) {
+				const long ns = 1000000000L / rate_hz;
+				itimerspec its = {};
+				its.it_interval.tv_sec = ns / 1000000000L;
+				its.it_interval.tv_nsec = ns % 1000000000L;
+				its.it_value = its.it_interval;
+				if (timer_settime(other_timer, 0, &its, nullptr) == 0) {
+					other_timer_set = true;
+					other_tid = busiest;
+					other_name = threads_now[busiest].comm;
+				} else {
+					timer_delete(other_timer);
+				}
+			}
+		}
+	}
 	threads_before.swap(threads_now);
 	process_ticks_before = proc_now;
 	return lines;
+}
+
+std::vector<std::string> report_now() {
+	std::lock_guard<std::mutex> l(report_lock);
+	return report_locked(0);
+}
+
+void set_sink(void (*p_sink)(const std::vector<std::string> &)) {
+	report_sink = p_sink;
+}
+
+static void watch_stalls() {
+	side_tid = pid_t(syscall(SYS_gettid));
+	pthread_setname_np(pthread_self(), "dd-prof");
+	for (;;) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(250));
+		void (*sink)(const std::vector<std::string> &) = report_sink;
+		if (!sink) {
+			continue;
+		}
+		std::vector<std::string> lines;
+		{
+			std::lock_guard<std::mutex> l(report_lock);
+			const double now = now_sec();
+			const double stall = now - last_tick_wall.load();
+			if (stall >= window_sec && now - window_start >= window_sec) {
+				lines = report_locked(stall);
+			}
+		}
+		if (!lines.empty()) {
+			sink(lines);
+		}
+	}
 }
 
 std::vector<std::string> tick() {
 	if (!running || pid_t(syscall(SYS_gettid)) != sampled_tid) {
 		return {};
 	}
+	std::lock_guard<std::mutex> l(report_lock);
 	const double wall = now_sec(), cpu = thread_cpu_sec();
+	last_tick_wall.store(wall);
 	const uint32_t h = head.load(std::memory_order_acquire);
 	if (last_frame_wall > 0) {
 		const float wall_ms = float((wall - last_frame_wall) * 1000.0), cpu_ms = float((cpu - last_frame_cpu) * 1000.0);
@@ -685,7 +900,7 @@ std::vector<std::string> tick() {
 	if (wall - window_start < window_sec) {
 		return {};
 	}
-	return report_now();
+	return report_locked(0);
 }
 
 } // namespace droiddeck_prof
@@ -707,6 +922,8 @@ std::vector<std::string> tick() {
 }
 std::vector<std::string> report_now() {
 	return {};
+}
+void set_sink(void (*)(const std::vector<std::string> &)) {
 }
 } // namespace droiddeck_prof
 

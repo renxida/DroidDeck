@@ -6,6 +6,11 @@
 //                                          tick caps the real rate, often at 250 Hz); unset = off
 //   DROIDDECK_NATIVE_PROF_WINDOW=<s>       seconds per report (default 10)
 //   DROIDDECK_NATIVE_PROF_SYMS=<path>      the engine's symbol map (default: godot.syms next to the executable)
+//   DROIDDECK_NATIVE_PROF_OTHER=1          also sample the busiest other thread of each window (a loader, say)
+//   DOTNET_PerfMapEnabled=3                (the .NET runtime's own switch) names JIT'd methods as jit:<name>
+//
+// A window with no frame at all (a load that blocks the main thread) is reported from a side thread, if a sink
+// is set, with a first line saying how long the main thread has gone without a frame.
 //
 // The engine ships stripped; CI writes godot.syms (nm output with the build id on its first line) beside it so
 // engine addresses come out as function names. Nothing here depends on the engine, so it builds and tests alone.
@@ -26,5 +31,8 @@ bool active();
 std::vector<std::string> tick();
 // The report for whatever has been sampled since the last one, now (for tests and shutdown).
 std::vector<std::string> report_now();
+// Where a report goes when the main thread has made no frame for a whole window: a side thread writes it then
+// (its first line says "no frame for N s"), so a blocking load is split too. Without a sink, nothing is written.
+void set_sink(void (*p_sink)(const std::vector<std::string> &));
 
 } // namespace droiddeck_prof
