@@ -129,6 +129,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/csharp_compat_classes.py" ~/godot-src \
             "$GITHUB_WORKSPACE/tools/native-engine/modules/native_compat/register_types.cpp"
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_skip_redundant_set_binds.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_pipeline_cache_save.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_poly_batch.py" ~/godot-src  # before the census, which labels its batch starts
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_texture_slots.py" ~/godot-src  # before the census too
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_quad_merge.py" ~/godot-src
@@ -388,6 +389,11 @@ jobs:
           print("group hoist: %.1f groups in %.1f back-buffer passes per frame" % (g, p))
           assert g >= 2 * p, (g, p)
           PY
+          # The engine is stopped with SIGKILL, so stock never writes a pipeline cache under 3 MB; with a quiet time
+          # set it saves once pipeline creation stops, and the next launch starts with it. Lavapipe's cache never
+          # grows, so a devloop-only layer stands in for a driver whose cache does.
+          DEVLOOP_PCACHE_SECONDS=12 DEVLOOP_WORK=$PWD/pcache-work DEVLOOP_VULKAN_INCLUDE=$HOME/godot-src/thirdparty/vulkan/include \
+            bash ../devloop/pcache.sh out/BatchTest.arm64 ""
       - name: Steam bridge (Cedar-approved) built, checked and put in the component (Valve's library is not)
         run: |
           set -euo pipefail

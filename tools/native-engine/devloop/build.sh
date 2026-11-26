@@ -21,6 +21,7 @@ cd "$G"
 git checkout -q -- .
 P=$REPO/tools/native-engine/patches
 python3 "$P/rd_skip_redundant_set_binds.py" "$G" > /dev/null
+python3 "$P/rd_pipeline_cache_save.py" "$G" > /dev/null
 python3 "$P/canvas_poly_batch.py" "$G" > /dev/null
 python3 "$P/canvas_texture_slots.py" "$G" > /dev/null
 python3 "$P/canvas_quad_merge.py" "$G" > /dev/null

@@ -1249,6 +1249,40 @@ class CompatClassesInCSharpTest(unittest.TestCase):
         self.assertEqual(1, len(bad))
         self.assertIn("SpineSprite InvalidOperationException", bad[0])
 
+class PipelineCacheSavePatchTest(unittest.TestCase):
+    """The engine build can save the Vulkan pipeline cache once pipeline creation goes quiet (the wrapper stops
+    the engine with SIGKILL, so stock's save-on-close never runs) and log a pipeline/shader census; both off
+    unless their variables are set."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def mod(self):
+        return runpy.run_path(str(self.ROOT / "tools/native-engine/patches/rd_pipeline_cache_save.py"))
+
+    def test_every_anchor_once_and_switches_off_by_default(self):
+        mod = self.mod()
+        src = "".join(old + "\n// gap\n" for _, old, _ in mod["EDITS"])
+        out = mod["patch"](src)
+        self.assertIn("DROIDDECK_NATIVE_PIPELINE_CACHE_QUIET_MS", out)
+        self.assertIn("DROIDDECK_NATIVE_PIPELINE_CENSUS", out)
+        self.assertEqual(out.count("droiddeck_pc_count_pipeline(droiddeck_t0);"), 2)
+        self.assertLess(out.index("droiddeck_pc_dirty.store(true);\n\t\treturn;"), out.index("still_saving") if "still_saving" in out else len(out))
+        with self.assertRaises(SystemExit):
+            mod["patch"](out)  # twice
+        with self.assertRaises(SystemExit):
+            mod["patch"](src.replace(mod["SWAP"], ""))
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:  # against the real 4.5.1 source, after the set-bind patch as the build applies it
+            real = (Path(godot) / "servers/rendering/rendering_device.cpp").read_text()
+            binds = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/rd_skip_redundant_set_binds.py"))
+            self.assertEqual(mod["patch"](binds["patch"](real)).count("Kestrel (rd_pipeline_cache_save.py)"), 9)
+
+    def test_build_applies_it_after_the_set_bind_patch(self):
+        for rel in ("tools/native-engine/devloop/build.sh", ".github/workflows/native-engine-build.yml"):
+            text = (self.ROOT / rel).read_text()
+            self.assertLess(text.index("rd_skip_redundant_set_binds.py"), text.index("rd_pipeline_cache_save.py"), rel)
+
+
 class SkipRedundantSetBindsPatchTest(unittest.TestCase):
     """The engine build makes RenderingDevice skip binding a uniform set already bound at its index (the phone's
     Nov 24 vkcount: 810 descriptor-set binds for 604 draws, ~25 us each), with a run-time switch back."""
