@@ -1269,6 +1269,44 @@ case $mode in
         esac
       done < <(xprop -spy -root "${atoms[@]}" 2>/dev/null)
     ) &
+    # Steam toasts: to show one, Steam sets STEAM_NOTIFICATION=1 on its Big Picture window and
+    # gamescope draws that window over the game. Here the window paints opaque, so everything but
+    # the toast goes black. Until it paints see-through, hide toasts (BL_STEAM_TOASTS=1 shows
+    # them) and keep a running game ahead of Steam (769) in the base layer.
+    if [ "${BL_STEAM_TOASTS:-0}" != 1 ]; then
+      (
+        _bl_toast_off() {
+          xprop -id "$1" STEAM_NOTIFICATION 2>/dev/null | grep -q '= [1-9]' || return 0
+          xprop -id "$1" -f STEAM_NOTIFICATION 32c -set STEAM_NOTIFICATION 0 2>/dev/null \
+            && echo "== steam toast hidden at $(date +%T)"
+        }
+        while :; do
+          w=$(xwininfo -root -children 2>/dev/null | grep '"Steam Big Picture Mode"' | grep -oE '0x[0-9a-f]+' | head -1)
+          if [ -n "$w" ]; then
+            _bl_toast_off "$w"
+            while read -r _; do _bl_toast_off "$w"; done < <(stdbuf -oL xprop -id "$w" -spy STEAM_NOTIFICATION 2>/dev/null)
+          fi
+          sleep 3
+        done
+      ) &
+      (
+        _bl_game_first() {
+          local v g n
+          v=$(xprop -root GAMESCOPECTRL_BASELAYER_APPID 2>/dev/null | sed -n 's/.*= //p' | tr -d ' ')
+          g=$(printf '%s\n' "${v//,/$'\n'}" | grep -vxE '769|413091|0' | head -1)
+          [ -n "$g" ] || return 0
+          [[ ",$v," =~ ,769,(.*,)?$g, ]] || return 0
+          n=$(awk -F, -v g="$g" '{o="";for(i=1;i<=NF;i++){if($i==769)o=o (o?",":"") g; if($i!=g)o=o (o?",":"") $i} print o}' <<< "$v")
+          xprop -root -f GAMESCOPECTRL_BASELAYER_APPID 32c -set GAMESCOPECTRL_BASELAYER_APPID "$n" 2>/dev/null \
+            && echo "== base layer: kept app $g ahead of Steam ($v -> $n)"
+        }
+        while :; do
+          _bl_game_first
+          while read -r _; do _bl_game_first; done < <(stdbuf -oL xprop -root -spy GAMESCOPECTRL_BASELAYER_APPID 2>/dev/null)
+          sleep 3
+        done
+      ) &
+    fi
     steam_hold_launch() {
       local game=$1 shortcut= waited=0 status=0
       _bl_focused() { xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p'; }
