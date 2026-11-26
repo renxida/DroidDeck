@@ -3626,6 +3626,59 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
     return rc, notes + ["native-engine: ran %.0f s natively, exit %d" % (took, rc)]
 
 
+NATIVE_PRESTART = "--native-prestart"
+
+
+def native_prestart(command, env, run=subprocess.run, ng=None):
+    """droiddeck-game-env --native-prestart EXE [ARGS]: starts the native engine for a Godot C# game before Steam
+    launches it (droiddeck-native-godot prestart, with the arguments and environment native_engine() will use), so
+    it boots while the Steam client comes up and waits at the game's first Steam call. native_engine()'s `run` takes
+    it over when Steam then launches the game with DROIDDECK_NATIVE_PRESTART=1. The session runs this with the
+    game's STEAM_COMPAT_DATA_PATH (or SteamAppId) set, in the background; it ends when the engine does. Returns the
+    exit code, 0 when there is nothing to start."""
+    if not experiment(env, "native-engine") or len(command) < 3:
+        print("droiddeck-game-env: prestart: native-engine is off; nothing started", file=sys.stderr, flush=True)
+        return 0
+    exe = os.path.abspath(command[2])
+    folder = os.path.dirname(exe)
+    try:
+        managed = [n for n in os.listdir(folder) if n.startswith("data_") and n.endswith("_windows_x86_64")]
+    except OSError:
+        managed = []
+    if len(managed) != 1:
+        print("droiddeck-game-env: prestart: not a Godot C# game; nothing started", file=sys.stderr, flush=True)
+        return 0
+    if ng is None:
+        ng = load_native_godot()
+    try:
+        result = ng["fresh_check"](folder, name=game_id(env) or "game")
+    except Exception:
+        result = None
+    if result is not None and result.get("result") == "fail":
+        print("droiddeck-game-env: prestart: the last check of these game files failed; nothing started",
+              file=sys.stderr, flush=True)
+        return 0
+    out = os.path.join(os.path.expanduser("~"), ".cache", "droiddeck", "native", "launch", game_id(env) or "game")
+    args = [sys.executable, NATIVE_GODOT, "prestart", "--fetch", "--game-dir", folder, "--exe", os.path.basename(exe),
+            "--out", out, "--"] + list(command[3:])
+    env, notes = native_vulkan_env(env)
+    for note in notes:
+        print("droiddeck-game-env: prestart: " + note, file=sys.stderr, flush=True)
+    return run(args, env=env, stdin=subprocess.DEVNULL).returncode
+
+
+def launch_env(app_id):
+    """The environment a game launch's native engine gets: the session's, game GPU settings, the saved launch
+    configuration (game-environment.json) applied for app_id."""
+    env = without_experiments(game_gpu(os.environ.copy()))
+    try:
+        with (Path.home() / ".config/droiddeck/game-environment.json").open(encoding="utf-8") as source:
+            config = json.load(source)
+    except FileNotFoundError:
+        config = {"version": 1}
+    return apply_config(env, config, app_id)
+
+
 def load_warmup():
     try:
         return runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-warmup"))
@@ -3721,6 +3774,9 @@ def main():
         return 2
     if command[0] == THREAD_CHECK and len(command) == 2:
         return thread_check(command[1])
+    if command[0] == NATIVE_PRESTART and len(command) >= 2:
+        env = os.environ.copy()
+        return native_prestart(["", "waitforexitandrun"] + command[1:], launch_env(game_id(env)))
     env = game_gpu(os.environ.copy())
     steam_experiments = experiments(env)
     env = without_experiments(env)

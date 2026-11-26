@@ -142,3 +142,45 @@ class ProtonMarkerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NativePrestartTest(unittest.TestCase):
+    """droiddeck-game-env --native-prestart starts droiddeck-native-godot prestart with the arguments native_engine()
+    gives run, so run can take the engine over."""
+
+    def call(self, env, check="pass"):
+        ge = runpy.run_path(str(BIN / "droiddeck-game-env"))
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "Game"
+            (game / "data_game_windows_x86_64").mkdir(parents=True)
+            seen = []
+
+            class Done:
+                returncode = 0
+
+            def run(args, **kw):
+                seen.append(args)
+                return Done()
+            ng = {"fresh_check": lambda folder, name=None: {"result": check}, "CHECK_DIR": tmp}
+            with mock.patch("sys.stderr", io.StringIO()):
+                rc = ge["native_prestart"](["", "waitforexitandrun", str(game / "Game.exe"), "-x"], env, run=run, ng=ng)
+            started = []
+
+            def run_native(args, **kw):
+                started.append(args)
+                return Done()
+            with mock.patch("sys.stderr", io.StringIO()):
+                ge["native_engine"](["/proton", "waitforexitandrun", str(game / "Game.exe"), "-x"], env, run=run_native,
+                                    clock=iter([0.0, 500.0]).__next__, popen=lambda *a, **k: None, ng=ng)
+        return rc, seen, started
+
+    def test_prestart_gets_runs_arguments(self):
+        rc, seen, started = self.call({"DROIDDECK_EXP_NATIVE_ENGINE": "1", "STEAM_COMPAT_DATA_PATH": "/c/2868840"})
+        self.assertEqual(0, rc)
+        self.assertEqual("prestart", seen[0][2])
+        self.assertEqual("run", started[0][2])
+        self.assertEqual(seen[0][3:], started[0][3:])
+
+    def test_nothing_starts_with_native_engine_off_or_a_failed_check(self):
+        self.assertEqual([], self.call({"STEAM_COMPAT_DATA_PATH": "/c/1"})[1])
+        self.assertEqual([], self.call({"DROIDDECK_EXP_NATIVE_ENGINE": "1"}, check="fail")[1])

@@ -1707,3 +1707,134 @@ class EnginePinTest(unittest.TestCase):
                          "native-engine-65")
         with self.assertRaises(SystemExit):
             self.resolve([self.release(70, gate="failed")], want="native-engine-70")
+
+
+# A stand-in engine for the prestart tests: does what the Steam bridge does at its first Steam call (held, wait for
+# release, apply it), then reports what it sees, draws a "frame" and exits with 3.
+FAKE_HELD_ENGINE = r"""
+import os, sys, time
+print("booting", flush=True)
+d = os.environ.get("DROIDDECK_NATIVE_HOLD_DIR")
+if d:
+    with open(os.path.join(d, "held"), "w") as f:
+        f.write(f"{os.getpid()} SteamAPI_Init")
+    while not os.path.exists(os.path.join(d, "release")):
+        time.sleep(0.02)
+    for e in open(os.path.join(d, "release"), "rb").read().split(b"\0"):
+        if e:
+            k, eq, v = e.decode().partition("=")
+            if eq:
+                os.environ[k] = v
+            else:
+                os.environ.pop(k, None)
+    os.rename(os.path.join(d, "release"), os.path.join(d, "released"))
+    print("steam-bridge: released", flush=True)
+print("appid", os.environ.get("SteamAppId", "(unset)"), "gone", os.environ.get("GONE", "(unset)"), flush=True)
+print("Project FPS: 60 (16.67 mspf)", flush=True)
+time.sleep(float(os.environ.get("FAKE_RUN_S", "0.3")))
+sys.exit(3)
+"""
+
+PRESTART_RUNNER = r"""
+import json, runpy, sys
+ng = runpy.run_path(sys.argv[1])
+sys.exit(ng["prestart"]([sys.executable, "-u", sys.argv[2]], json.loads(sys.argv[4]), sys.argv[3],
+                        {"argv": ["--out", "x"], "environ": json.loads(sys.argv[4]), "refusal": None, "report": {}}))
+"""
+
+
+class PrestartTest(unittest.TestCase):
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d)
+        self.hold = self.d / "hold"
+        self.hold.mkdir()
+        (self.d / "engine.py").write_text(FAKE_HELD_ENGINE)
+        self.env = {k: v for k, v in os.environ.items() if k not in ("SteamAppId", "DROIDDECK_NATIVE_HOLD_DIR")}
+        self.env["GONE"] = "here"
+
+    def start(self, **extra):
+        env = dict(self.env, **extra)
+        p = subprocess.Popen([sys.executable, "-c", PRESTART_RUNNER, str(BIN / "droiddeck-native-godot"),
+                              str(self.d / "engine.py"), str(self.hold), json.dumps(env)],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.addCleanup(p.stderr.close)
+        self.addCleanup(p.stdout.close)
+        self.addCleanup(lambda: p.poll() is None and (p.kill(), p.wait()))
+        end = time.monotonic() + 15
+        while not (self.hold / "held").exists():
+            self.assertIsNone(p.poll(), p.stderr.read() if p.poll() is not None else "")
+            self.assertLess(time.monotonic(), end, "the engine never held")
+            time.sleep(0.02)
+        return p
+
+    def launch_env(self, **changes):
+        env = dict(self.env)
+        for k, v in changes.items():
+            if v is None:
+                env.pop(k, None)
+            else:
+                env[k] = v
+        return env
+
+    def test_a_launch_takes_the_held_engine_with_steams_environment_and_its_exit_code(self):
+        p = self.start()
+        out = io.StringIO()
+        with unittest.mock.patch.dict(NG["adopt"].__globals__, {"log": lambda m: out.write("LOG " + m + "\n")}):
+            took = NG["adopt"](str(self.hold), ["--out", "x"], self.launch_env(SteamAppId="2868840", GONE=None), out=out)
+            self.assertIsNotNone(took, out.getvalue())
+            rc = NG["watch"](None, None, out=out, proc=took[0], first_frame_s=15)
+        self.assertEqual(3, rc, out.getvalue())
+        text = out.getvalue()
+        self.assertIn("booting", text)  # what it printed before the launch, passed on
+        self.assertIn("appid 2868840 gone (unset)", text)  # the release applied before the Steam call went on
+        self.assertIn("released with 2 environment changes", text)
+        self.assertIn("first frame after", text)
+        self.assertEqual(3, p.wait(timeout=15))
+        self.assertEqual("3", (self.hold / "exit").read_text())
+
+    def test_other_arguments_stop_the_held_engine(self):
+        p = self.start()
+        with unittest.mock.patch.dict(NG["adopt"].__globals__, {"log": lambda m: None}):
+            self.assertIsNone(NG["adopt"](str(self.hold), ["--out", "y"], self.launch_env()))
+        p.wait(timeout=15)
+        self.assertTrue((self.hold / "exit").exists())
+
+    def test_a_variable_read_at_start_that_differs_stops_the_held_engine(self):
+        p = self.start()
+        logged = []
+        with unittest.mock.patch.dict(NG["adopt"].__globals__, {"log": logged.append}):
+            self.assertIsNone(NG["adopt"](str(self.hold), ["--out", "x"], self.launch_env(DOTNET_TieredPGO="0")))
+        p.wait(timeout=15)
+        self.assertIn("DOTNET_TieredPGO", " ".join(logged))
+
+    def test_the_engine_stops_when_the_launch_that_took_it_is_gone(self):
+        p = self.start(FAKE_RUN_S="60")
+        owner = subprocess.Popen(["sleep", "60"])
+        reader = os.open(self.hold / "out", os.O_RDONLY | os.O_NONBLOCK)
+        self.addCleanup(os.close, reader)
+        (self.hold / "owner").write_text(str(owner.pid))
+        (self.hold / "release").write_bytes(b"")
+        time.sleep(0.5)
+        self.assertIsNone(p.poll())
+        owner.kill()
+        owner.wait()
+        p.wait(timeout=15)
+        self.assertIn("is gone; stopping the engine", p.stderr.read())
+
+    def test_no_prestart_means_a_usual_start(self):
+        self.assertIsNone(NG["adopt"](str(self.d / "nothing"), ["--out", "x"], self.launch_env(), wait_s=0))
+
+    def test_release_entries(self):
+        release, startup, stale = NG["env_release"](
+            {"A": "1", "B": "2", "DOTNET_X": "1", "SDL_GAMECONTROLLERCONFIG": "a", "PWD": "/"},
+            {"A": "1", "C": "3", "DOTNET_X": "2", "SDL_GAMECONTROLLERCONFIG": "b", "PWD": "/x",
+             "DROIDDECK_NATIVE_PRESTART": "1"})
+        self.assertEqual(b"B\0C=3\0DROIDDECK_NATIVE_PRESTART=1\0SDL_GAMECONTROLLERCONFIG=b\0", release)
+        self.assertEqual(["DOTNET_X"], startup)
+        self.assertEqual(["SDL_GAMECONTROLLERCONFIG"], stale)
+
+    def test_prestart_dir_is_per_launch_folder(self):
+        a, b = NG["prestart_dir"]("/x/a", "/c"), NG["prestart_dir"]("/x/b", "/c")
+        self.assertNotEqual(a, b)
+        self.assertEqual(a, NG["prestart_dir"]("/x/a/", "/c"))
