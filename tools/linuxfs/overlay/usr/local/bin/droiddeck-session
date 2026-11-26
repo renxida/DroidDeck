@@ -1307,6 +1307,43 @@ case $mode in
         done
       ) &
     fi
+    # DROIDDECK_NATIVE_PRESTART=1: while the Steam client starts, boot a native-engine game up to its first Steam
+    # call (droiddeck-game-env --native-prestart). When Steam then launches that game, the native engine's `run`
+    # takes over the held engine instead of starting from nothing. Stopped if Steam launches a different app.
+    steam_native_prestart() {
+      local game=$1 app lib m dir data exe pid end
+      [ "${DROIDDECK_NATIVE_PRESTART:-}" = 1 ] || return 0
+      [ "${#game}" -le 10 ] || return 0
+      app=$game
+      for lib in "$steam_root/steamapps" /mnt/droiddeck/steamapps /mnt/droiddeck-sd/steamapps \
+                 /mnt/droiddeck-lib/*/steamapps /mnt/droiddeck-lib/*/x86-64/steamapps /root/Games/*/steamapps; do
+        [ -f "$lib/appmanifest_$app.acf" ] && { m=$lib/appmanifest_$app.acf; break; }
+      done
+      [ -n "$m" ] || { echo "== prestart: app $app is not installed"; return 0; }
+      dir=$(sed -n 's/^[[:space:]]*"installdir"[[:space:]]*"\(.*\)".*/\1/p' "$m" | head -n 1)
+      dir=$lib/common/$dir
+      for data in "$dir"/data_*_windows_x86_64; do
+        [ -d "$data" ] || continue
+        exe=${data##*/data_}; exe=${exe%_windows_x86_64}.exe
+        break
+      done
+      [ -n "$exe" ] && [ -f "$dir/$exe" ] || { echo "== prestart: app $app has no Godot C# executable"; return 0; }
+      echo "== prestart: booting $exe ahead of Steam at $(date +%T)"
+      STEAM_COMPAT_DATA_PATH=$lib/compatdata/$app SteamAppId=$app SteamGameId=$app \
+        setsid /usr/local/bin/droiddeck-game-env --native-prestart "$dir/$exe" \
+        > "$BL_LAUNCH_DIR/native-prestart.log" 2>&1 &
+      pid=$!
+      end=$((SECONDS + ${DROIDDECK_NATIVE_HOLD_MAX_S:-1800}))
+      while kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$end" ]; do
+        if pgrep -f 'reaper SteamLaunch AppId=' >/dev/null 2>&1 \
+           && ! pgrep -f "reaper SteamLaunch AppId=$app( |$)" >/dev/null 2>&1; then
+          echo "== prestart: Steam launched another app; stopping the held $exe"
+          kill -TERM -- "-$pid" 2>/dev/null
+          break
+        fi
+        sleep 2
+      done
+    }
     steam_hold_launch() {
       local game=$1 shortcut= waited=0 status=0
       _bl_focused() { xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p'; }
@@ -1426,6 +1463,7 @@ case $mode in
       fi
       if [ -n "$_bl_held" ]; then
         set -- "${_bl_rest[@]}"
+        steam_native_prestart "$_bl_held" &
         steam_hold_launch "$_bl_held" &
       fi
     fi
