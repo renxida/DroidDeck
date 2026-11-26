@@ -1325,6 +1325,30 @@ class LoggerTimePrefixPatchTest(unittest.TestCase):
             self.assertIn(mod["MARK"], mod["patch"](real))
 
 
+class SteamGamePatchTest(unittest.TestCase):
+    """A prestarted engine's X11 windows carry STEAM_GAME=1 while held, then the launch's SteamAppId, so gamescope
+    neither shows it early nor misses it after (devloop under Xvfb, Nov 26: [1] then [2868840]; none unprestarted)."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_patch_marks_windows_only_for_a_prestarted_engine(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/x11_steam_game.py"))
+        out = mod["patch"](mod["INCLUDE"] + "int a;\n" + mod["PID"] + "int b;\n" + mod["EVENTS"] + "}\n")
+        self.assertEqual(3, out.count(mod["MARK"]))
+        self.assertIn("droiddeck_steam_game_prestarted()", out.split(mod["PID"])[1])
+        self.assertIn('"STEAM_GAME"', out)
+        with self.assertRaises(SystemExit):
+            mod["patch"](out)
+        build = (self.ROOT / "tools/native-engine/devloop/build.sh").read_text()
+        ci = (self.ROOT / ".github/workflows/native-engine-build.yml").read_text()
+        self.assertIn("x11_steam_game.py", build)
+        self.assertIn("x11_steam_game.py", ci)
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:
+            real = (Path(godot) / "platform/linuxbsd/x11/display_server_x11.cpp").read_text()
+            self.assertEqual(3, mod["patch"](real).count(mod["MARK"]))
+
+
 class SkipRedundantSetBindsPatchTest(unittest.TestCase):
     """The engine build makes RenderingDevice skip binding a uniform set already bound at its index (the phone's
     Nov 24 vkcount: 810 descriptor-set binds for 604 draws, ~25 us each), with a run-time switch back."""
