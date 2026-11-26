@@ -515,6 +515,12 @@ object SessionPrefs {
      * so coming back resumes the game where it was. Negative keeps the game running while hidden. Only applies
      * under a suspend policy that freezes a hidden session (native or auto).
      */
+    /**
+     * When a Steam game closes, load it again out of sight and freeze the session at its menu instead of closing
+     * Steam, so the next Play is a resume. Needs a suspend policy that freezes (native or auto). Off by default.
+     */
+    fun standbyAfterGame(context: Context): Boolean = prefs(context).getBoolean("standbyAfterGame", false)
+
     fun freezeGameAfterMs(context: Context): Long =
         prefs(context).getLong("freezeGameAfterMs", SessionSuspendPolicy.FREEZE_GAME_AFTER_MS)
 

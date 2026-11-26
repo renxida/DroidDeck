@@ -88,6 +88,8 @@ class SessionService : Service() {
     /** elapsedRealtime when the session surface was last hidden, or -1 while it shows. */
     private var hiddenSince = -1L
     private val freezeGameDue = Runnable { updateSuspendPolicy() }
+    /** elapsedRealtime until which a game relaunched for standby keeps the hidden session awake, or -1. */
+    private var standbyLoadUntil = -1L
     /** elapsedRealtime of the last resume request, for the session.resumed timing. */
     private var resumeAskedAt = -1L
     private var steamDownloadsInBackground = false
@@ -1600,6 +1602,11 @@ class SessionService : Service() {
     private fun returnAfterGame(gameId: String, gen: Int, token: Int) {
         if (token != gameExitWatchToken || gen != sessionGen || !SessionState.running ||
             SessionState.stopRequested || SessionState.mode != MODE_STEAM || !SessionPrefs.returnAfterGame(this)) return
+        if (SessionPrefs.standbyAfterGame(this) &&
+            suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE)) {
+            standbyAfterGame(gameId)
+            return
+        }
         val written = runCatching { File(LinuxRuntime.sessionRoot(this), "steam-stop").writeText("") }
             .onFailure { Log.w(TAG, "could not ask the client to exit after game $gameId", it) }.isSuccess
         if (!written) return
@@ -1608,6 +1615,23 @@ class SessionService : Service() {
     }
 
     private fun steamGameRunning(): Boolean = SteamGameProcess.running()
+
+    /**
+     * Instead of closing Steam when the game closes (which makes the next launch start from nothing, about a
+     * minute), go back to Lanner's front screen, start the game again out of sight, let it load for
+     * [STANDBY_LOAD_MS] and then freeze the whole session. The next Play resumes a game already at its menu.
+     */
+    private fun standbyAfterGame(gameId: String) {
+        SessionEvents.record("steam.standby_after_game", mapOf("gameId" to gameId, "loadMs" to STANDBY_LOAD_MS))
+        Log.i(TAG, "game $gameId closed: loading it again out of sight, then freezing the session")
+        runCatching {
+            startActivity(Intent(this, com.droiddeck.launcher.FrontEndActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }.onFailure { Log.w(TAG, "could not show the front screen for standby", it) }
+        standbyLoadUntil = android.os.SystemClock.elapsedRealtime() + STANDBY_LOAD_MS
+        queueSteamGame(gameId)
+        updateSuspendPolicy()
+    }
 
     private fun resumeSession() {
         if (SessionState.suspended) SessionState.resumeRequested = true
@@ -1808,13 +1832,18 @@ class SessionService : Service() {
         if (!hidden) hiddenSince = -1L else if (hiddenSince < 0) hiddenSince = now
         val hiddenForMs = if (hiddenSince < 0) 0L else now - hiddenSince
         val freezeGameAfter = SessionPrefs.freezeGameAfterMs(this)
-        val gameKeepsAwake = SessionSuspendPolicy.gameKeepsAwake(
+        // A standby load ends early when the player comes back; it never outlives its window.
+        if (!hidden || standbyLoadUntil <= now) standbyLoadUntil = -1L
+        val standbyLoading = standbyLoadUntil > 0 && steamMode && !SessionState.suspended
+        val gameKeepsAwake = standbyLoading || SessionSuspendPolicy.gameKeepsAwake(
             hidden = hidden, manualHold = manualHold, suspended = SessionState.suspended,
             steamMode = steamMode, hiddenForMs = hiddenForMs, freezeAfterMs = freezeGameAfter,
             gameRunning = ::steamGameRunning,
         )
         mainHandler.removeCallbacks(freezeGameDue)
-        if (gameKeepsAwake) {
+        if (standbyLoading) {
+            mainHandler.postDelayed(freezeGameDue, standbyLoadUntil - now + 50L)
+        } else if (gameKeepsAwake) {
             SessionSuspendPolicy.freezeGameDueInMs(hidden, hiddenForMs, freezeGameAfter)
                 ?.let { mainHandler.postDelayed(freezeGameDue, it + 50L) }
         }
@@ -2526,6 +2555,8 @@ class SessionService : Service() {
         private const val GAME_URL_PREFIX = "steam://rungameid/"
         private const val GAME_START_TIMEOUT_MS = 20 * 60_000L
         private const val GAME_EXIT_GRACE_MS = 10_000L
+        /** How long a standby relaunch runs out of sight before the session freezes: start to menu was ~35 s on Nov 25. */
+        private const val STANDBY_LOAD_MS = 120_000L
         private const val PRESSURE_RECENT_MS = 60_000L
         private const val LMK_POLL_MS = 2_000L
         /**
