@@ -1305,6 +1305,26 @@ class RenderingMethodEnvPatchTest(unittest.TestCase):
             self.assertIn(mod["MARK"], mod["patch"](real))
 
 
+class LoggerTimePrefixPatchTest(unittest.TestCase):
+    """DROIDDECK_NATIVE_LOG_TIME=1 puts the monotonic time before each engine log line, except "Project FPS:",
+    which the wrapper reads by its line start."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def test_patch_guards_logv(self):
+        mod = runpy.run_path(str(self.ROOT / "tools/native-engine/patches/logger_time_prefix.py"))
+        src = mod["INCLUDE"] + mod["ANCHOR"] + "\tvprintf(p_format, p_list);\n}\n"
+        out = mod["patch"](src)
+        self.assertLess(out.index("DROIDDECK_NATIVE_LOG_TIME"), out.index("vprintf(p_format, p_list)"))
+        self.assertIn('"Project FPS:"', out)
+        with self.assertRaises(SystemExit):
+            mod["patch"](out)
+        godot = os.environ.get("DROIDDECK_GODOT_SRC")
+        if godot:
+            real = (Path(godot) / "core/io/logger.cpp").read_text()
+            self.assertIn(mod["MARK"], mod["patch"](real))
+
+
 class SkipRedundantSetBindsPatchTest(unittest.TestCase):
     """The engine build makes RenderingDevice skip binding a uniform set already bound at its index (the phone's
     Nov 24 vkcount: 810 descriptor-set binds for 604 draws, ~25 us each), with a run-time switch back."""
