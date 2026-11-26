@@ -132,6 +132,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_pipeline_cache_save.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/main_rendering_method_env.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/logger_time_prefix.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/x11_steam_game.py" ~/godot-src
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_poly_batch.py" ~/godot-src  # before the census, which labels its batch starts
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_texture_slots.py" ~/godot-src  # before the census too
           python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_quad_merge.py" ~/godot-src
