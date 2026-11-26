@@ -10,6 +10,7 @@
 
 #include "core/config/engine.h"
 #include "core/io/json.h"
+#include "core/io/logger.h"
 #include "core/io/resource_loader.h"
 
 #include "core/object/class_db.h"
@@ -19,6 +20,12 @@
 #include "core/object/message_queue.h"
 #include "core/string/print_string.h"
 #include "core/variant/variant.h"
+
+#include <atomic>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "servers/rendering_server.h"
 
 #ifdef __linux__
@@ -138,11 +145,113 @@ static void census_frame() {
 	}
 }
 
+// The boot window: from engine start until the game logs that its main menu is up ("[Startup] Time to main
+// menu"), or DROIDDECK_NATIVE_BOOT_MAX_S (default 30) seconds after start, whichever is first. Unset, nothing
+// changes. Within it:
+//   DROIDDECK_NATIVE_BOOT_TIME_SCALE=<x>  game time runs x times faster (timed intros, tweens and timers finish
+//                                         x times sooner; loading that blocks doesn't move)
+//   DROIDDECK_NATIVE_BOOT_MAX_FPS=<n>     frames are capped at n, so the splash leaves the CPU to the loader
+// At its end each goes back to what it was, unless the game has set its own meanwhile (then it stays).
+static double boot_time_scale = 0;
+static int boot_max_fps = 0, boot_max_fps_before = 0;
+static uint64_t boot_until_ms = 0;
+static std::atomic<bool> boot_on{ false };
+
+static void boot_window_end(const char *p_why) {
+	if (!boot_on.exchange(false)) {
+		return;
+	}
+	Engine *e = Engine::get_singleton();
+	String kept;
+	if (boot_time_scale > 0) {
+		if (e->get_time_scale() == boot_time_scale) {
+			e->set_time_scale(1.0);
+		} else {
+			kept += " time scale";
+		}
+	}
+	if (boot_max_fps > 0) {
+		if (e->get_max_fps() == boot_max_fps) {
+			e->set_max_fps(boot_max_fps_before);
+		} else {
+			kept += " max fps";
+		}
+	}
+	print_line(vformat("native_compat: boot window over at %.1f s (%s)%s", OS::get_singleton()->get_ticks_msec() / 1000.0, p_why,
+			kept.is_empty() ? String() : "; the game had set its own" + kept + ", left as is"));
+}
+
+// Sees every log line (the game's GD.Print included) and ends the boot window at the main-menu line.
+class BootWindowLogger : public Logger {
+public:
+	virtual void logv(const char *p_format, va_list p_list, bool p_err) override {
+		if (p_err || !boot_on.load(std::memory_order_relaxed)) {
+			return;
+		}
+		char buf[256];
+		va_list copy;
+		va_copy(copy, p_list);
+		vsnprintf(buf, sizeof(buf), p_format, copy);
+		va_end(copy);
+		if (strstr(buf, "[Startup] Time to main menu")) {
+			boot_window_end("main menu");
+		}
+	}
+};
+
+static void boot_window_start() {
+	const char *ts = getenv("DROIDDECK_NATIVE_BOOT_TIME_SCALE");
+	const char *fps = getenv("DROIDDECK_NATIVE_BOOT_MAX_FPS");
+	if (ts && *ts) {
+		const double x = atof(ts);
+		if (x > 1.0 && x <= 100.0) {
+			boot_time_scale = x;
+		} else {
+			print_line(vformat("native_compat: DROIDDECK_NATIVE_BOOT_TIME_SCALE=%s ignored (more than 1, at most 100)", ts));
+		}
+	}
+	if (fps && *fps) {
+		const int n = atoi(fps);
+		if (n >= 5 && n <= 1000) {
+			boot_max_fps = n;
+		} else {
+			print_line(vformat("native_compat: DROIDDECK_NATIVE_BOOT_MAX_FPS=%s ignored (5 to 1000)", fps));
+		}
+	}
+	if (boot_time_scale <= 0 && boot_max_fps <= 0) {
+		return;
+	}
+	const char *m = getenv("DROIDDECK_NATIVE_BOOT_MAX_S");
+	const double max_s = m && atof(m) > 0 ? atof(m) : 30.0;
+	boot_until_ms = OS::get_singleton()->get_ticks_msec() + uint64_t(max_s * 1000.0);
+	Engine *e = Engine::get_singleton();
+	if (boot_time_scale > 0) {
+		e->set_time_scale(boot_time_scale);
+	}
+	if (boot_max_fps > 0) {
+		boot_max_fps_before = e->get_max_fps();
+		e->set_max_fps(boot_max_fps);
+	}
+	boot_on.store(true);
+	OS::get_singleton()->add_logger(memnew(BootWindowLogger));
+	print_line(vformat("native_compat: boot window until the main menu (at most %.1f s): time scale %.1f, max fps %d", max_s,
+			boot_time_scale > 0 ? boot_time_scale : 1.0, boot_max_fps));
+}
+
+static void boot_window_frame() {
+	if (boot_on.load(std::memory_order_relaxed)) {
+		if (OS::get_singleton()->get_ticks_msec() >= boot_until_ms) {
+			boot_window_end("time cap");
+		}
+	}
+}
+
 // Once a frame for both: the scene tree's process_frame once the tree exists (it runs headless too, where the
 // rendering server sends no frame signals), the rendering server's frame_pre_draw until then.
 static bool frame_from_tree = false;
 
 static void each_frame() {
+	boot_window_frame();
 	prof_print(droiddeck_prof::tick());
 	census_frame();
 }
@@ -165,12 +274,14 @@ static void frame_hooks_start() {
 	if (!prof.empty()) {
 		print_line(String::utf8(prof.c_str()));
 	}
+	droiddeck_prof::set_sink(prof_print);
 	const std::string census = droiddeck_census::start_from_env();
 	if (!census.empty()) {
 		print_line(String::utf8(census.c_str()));
 		census_thread = Thread::get_caller_id();
 	}
-	if (!droiddeck_prof::active() && !droiddeck_census::active()) {
+	boot_window_start();
+	if (!droiddeck_prof::active() && !droiddeck_census::active() && !boot_on.load()) {
 		return;
 	}
 	if (RenderingServer *rs = RenderingServer::get_singleton()) {
