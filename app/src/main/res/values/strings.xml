@@ -2269,6 +2269,7 @@
     <string name="self_update_ready_named">Update ready: %1$s</string>
     <string name="self_update_installing_named">Installing %1$s…</string>
     <string name="version_line_installed">Lanner %1$s</string>
+    <string name="setup_about_build">Build</string>
     <string name="remote_control">Remote control</string>
     <string name="remote_control_hint">Takes commands from the remote folder of your telemetry repository: start a game, send input, take a screenshot, read logs. Shell commands also need Debugging tools.</string>
     <string name="kadb_install">Install updates over Wireless debugging</string>

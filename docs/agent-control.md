@@ -209,6 +209,8 @@ Automator show them:
 | `game-tab-<about\|launch\|saves\|install>` | the open tab of a game page |
 | `setting-<key>` | every toggle and choice row, by its key (`setting-logs`, `setting-agent-commands`, ...) |
 | `tab-<n>` | a segmented tab strip, by position |
+| `about-build`, `about-build-copy` | Settings › Advanced › About: the installed build line (app, commit, time, engine) and its Copy button |
+| `self-update` | the update line above the rail, only while an update is checked, downloaded or waiting |
 | `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-games`, `-session` | the session drawer's pages |
 | `drawer-stop`, `drawer-stop-confirm`, `drawer-stop-cancel` | stopping a session from the drawer |
 

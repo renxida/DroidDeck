@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
 import android.os.Build
@@ -634,6 +635,7 @@ internal fun SetupPanel(
                                 stringResource(R.string.setup_adb_pair_button), onPairWirelessDebugging,
                             )
                         }
+                        SettingsGroup(stringResource(R.string.game_tab_about)) { AboutBuildRow() }
                     }
                 }
             }
@@ -652,6 +654,31 @@ internal fun SetupPanel(
             },
             dismissButton = { androidx.compose.material3.TextButton(onClick = { deleteSessionLogs = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
+    }
+}
+
+@Composable
+private fun AboutBuildRow() {
+    val colors = MaterialTheme.colorScheme
+    val ctx = LocalContext.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val build = stringResource(R.string.version_line_installed, remember { VersionLine.forThisApp(ctx) })
+    var copied by remember { mutableStateOf(false) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.setup_about_build), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(build, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp).testTag("about-build"))
+            }
+            if (copied) Text(stringResource(R.string.device_info_copied), fontSize = 12.sp, color = colors.onSurfaceVariant)
+        }
+        SecondaryButton(stringResource(R.string.device_info_copy), compact = true, modifier = Modifier.testTag("about-build-copy")) {
+            clipboard.setText(androidx.compose.ui.text.AnnotatedString(build))
+            copied = true
+        }
     }
 }
 
