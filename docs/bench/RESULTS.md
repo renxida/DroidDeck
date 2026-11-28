@@ -12,6 +12,16 @@ Earlier campaigns (menu only), from the linked notes:
 | 2026-11-28 | ae32618 | Proton, PanVK, `pe-align` | menu | 46.5-47.4 | 30.9-32.1 | not measured | 362-550 MB | ~3.0 GB | `docs/research/mali-10a-memory-1.md` |
 | 2026-11-28 | ae32618 | Native 134, PanVK | menu | 40.9-44.8 | 29.9-34.4 | not measured | 690-803 MB | 2.9-3.0 GB | `docs/research/mali-10a-native-1.md` |
 
+## Noise floor
+
+Run-to-run spread of same-configuration repeats: one line per set, added by hand from existing runs or by
+`tools/bench/run.py --mode confirm` (fields in `tools/bench/README.md`). "sd" is the standard deviation within groups of
+identical arms; "p99 seen from" is the animation-p99 difference whose 95 % interval just excludes 0 with that many A/B pairs.
+
+- noise-floor | 2026-11-28 | 21a1157, c56cc02, d1ddd2b | native, bridge | full mode, 5 pairs of same-configuration repeats (lab 1 to 3) | n=10 in 5 groups (df 5) | anim p99 sd 1.96 ms | fps sd 0.1 | over-50 sd 2.67 /min | MemAvailable sd 156 MB | p99 seen from 5.4 / 3.1 / 2.2 ms with 1 / 3 / 6 pairs | `fight-native-bridge-2/3, lab2-fight-native-bridge-1/2, lab3-control-1/2, lab3-zram-late-1/2, lab3-all-1/2`
+- noise-floor | 2026-11-28 | 21a1157 | native, panvk, `present-dmabuf` | full mode, 1 pair | n=2 in 1 groups (df 1) | anim p99 sd 0.64 ms | fps sd 0.07 | over-50 sd 1.91 /min | MemAvailable sd 98 MB | p99 seen from 1.8 / 1.0 / 0.7 ms with 1 / 3 / 6 pairs | `fight-native-panvk-dmabuf-2/3`
+<!-- noise-floor lines are added above this line -->
+
 ## Standard bench rows
 
 "fps" and "p99" are over the whole measured window; the fight-animation columns are over the animation

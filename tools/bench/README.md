@@ -21,9 +21,120 @@ through `adb` and `tools/droiddeckctl`.
 | `--xcheck` | fight: also take the screen-recording cross-check of two real flicks |
 | `--keep-config` | do not put the route and switches back after the run |
 
-A fight arm takes about 7 minutes (8 on Proton), a menu arm about 9. The exit code is 0 for a complete run and 1 for an aborted
+Three modes, one command each (times for the native engine; "INFERRED" ones have not run on the phone yet):
+
+| Mode | Command | Time |
+|---|---|---|
+| `full` (default): one launch, one fight, everything captured | `tools/bench/run.py --scenario fight --path native --route bridge --name fight-1` | 7.3 minutes an arm (measured, 11 runs) |
+| `screen`: "is it promising?" | `tools/bench/run.py --mode screen --scenario fight --path native --route bridge --name screen-1` | INFERRED: 1.4 minutes a fight, so 4.5 minutes for the default 3 fights and 1.6 with `--reps 1`; add 1.5 minutes when it has to start a session, 0.8 when only the game |
+| `confirm`: "is it actually good?" | `tools/bench/run.py --mode confirm --scenario fight --path native --route bridge --a "" --b "godot-render-thread" --name confirm-1` | INFERRED: 10 minutes a pair with 3 fights an arm (5 with `--reps 1`), 3 to 6 pairs |
+
+A full fight arm takes about 7 minutes (8 on Proton), a menu arm about 9. The exit code is 0 for a complete run and 1 for an aborted
 one; an aborted run still stops the session, pulls the logs, restores the switches and writes `summary.json`
 (`ok: false`, `failure`), but adds no row to `RESULTS.md`.
+
+## Screen mode
+
+    tools/bench/run.py --mode screen --scenario fight --path native --route bridge --name screen-1
+    tools/bench/run.py --mode screen --scenario fight --path native --route bridge --name screen-2 --reps 5
+    tools/bench/run.py --mode screen --scenario fight --path native --route bridge --name screen-3 --push-file build/droiddeck-game-env:/usr/local/bin/droiddeck-game-env
+    tools/bench/run.py --mode screen --scenario fight --path native --route bridge --name x --stop
+
+| Option | Meaning |
+|---|---|
+| `--reps N` | measured fights in this arm (default 3) |
+| `--warmup-reps N` | fights played first and not counted (default 0; the first fight of a launch is marked `cold` either way) |
+| `--turns N` | play only the first N turns of the script (a 17 s window with 1; numbers are not comparable across values) |
+| `--with-latency N`, `--with-cpu`, `--with-perfetto`, `--with-pacing` | add the latency probe (N presses), `top -H`, a Perfetto trace or `droiddeckctl pacing` to every fight; all off by default |
+| `--push-file LOCAL:GUEST_PATH` | replace a file in the container before the game is launched (below) |
+| `--restore-pushed` | put every pushed file back, relaunch, then measure |
+| `--stop-after` | quit the game from its menu, stop the session and restore switches, route and pushed files at the end |
+| `--stop` | only do that for what an earlier screen run left running (measures nothing) |
+| `--restart` | start a new session even when the kept one would do |
+| `--max-thermal-status N` | stop when Android's thermal status reaches N (default 2) |
+
+What it does:
+
+1. **Attach.** It needs Debugging tools (per-rep checks, env lines, pushed files) and stops clearly when they are off. With no
+   session (IDLE) it does the full preflight of the default mode, starts Steam, checks the offline icon and launches the
+   game. With a session up it goes on only if that session is the one an earlier screen run recorded in
+   `<output root>/.screen-session.json` (same session id, same build); any other session is left alone and the run
+   fails. Then it compares the recorded configuration with the one asked for and restarts the least that works:
+   **nothing** (same path, route, switches, env lines and pushed files: the game is at its main menu already),
+   **the game** (a launch-level switch, `--path`, a pushed file: Quit from the game's menu, set the switch in
+   Lanner's settings, launch again in the same session), or **the session** (a session-level switch, the route,
+   an env line: stop, restore, full preflight, start). `reuse.level` and `reuse.reasons` in the summary say which and why.
+2. **Each fight:** the cheap rules again (Lanner in front and on power; media volume 0; `steam_offline`, `gameSound`,
+   `bootMovieSound` read from the app's preferences; thermal status), the main menu and the blue badge in a screenshot,
+   Continue, wait for the hand (screenshots every second, 60 s limit), **the enemy's bar must be full** (otherwise
+   "Save and Quit did not put it back" and the run stops), wait for the hand to stop moving, the script, Start,
+   Save and Quit, wait for the main menu (40 s limit). No L+100 s wait, no latency probe, no trace.
+3. **Afterwards** the session's logs are pulled while it runs, Steam's offline lines are checked in them (`steam_offline=true`,
+   the last `Start offline - 1`, a `User is offline` line no older than the game launch), and the session and game
+   stay up at the main menu on the bench profile. Any failure ends the game and the session and restores everything, as
+   the default mode does.
+
+**Why the fight repeats.** The game writes the run's save when the fight starts and Save and Quit does not move it
+(`docs/research/mali-10a-fight-1.md`), and the script never wins, so Continue deals the same fight again. Across game
+launches that is VERIFIED (every full-mode run). Inside one launch it is INFERRED until the lab confirms it; the
+harness checks it on every fight (full bar at the start, the scripted health values, and on the native engine the
+same cards and enemy moves in the game's log: `identical` in the summary) and never restores save files itself.
+
+**Switch levels** (`benchlib.EXPERIMENT_LEVEL`, one entry per experiment in `Experiments.kt`, checked by a test):
+no experiment is re-read by a running game. *Game launch* (read by `droiddeck-game-env` at each launch):
+`native-engine`, `present-dmabuf`, `vk-count`, `vk-blocks-64`, `pe-align`, `godot-render`, `godot-render-thread`,
+`sched`, `fps-30`, `one-limiter`, `native-hz`, the `fex-*` and `dotnet-*` code switches, `tex-*`, `native-r2r`.
+*Session* (read when the session starts): `pad-idle-reports`, `hints-idle`, `zram-game-late`, `bridge-default`,
+`two-frames`, `layer-fence`, `adpf-all`, `quick-tap`, `all`, `compat-quiet`, `memory`, `warmup`, `free-memory`,
+`fex-kestrel`, `fex-stats`, `fex-sample`, `fex-smaps`, `hybris-index-session`, `composite-timing`; also the route
+buttons and every env line. An unknown switch counts as session-level.
+
+**`--push-file LOCAL:GUEST_PATH`** is for engine and overlay iteration without an APK: the local file goes to the app's
+inbox with `adb push`, and a command in the container (the guest agent, so Debugging tools and a running session)
+copies the original to `GUEST_PATH.bench-orig`, puts the new file in its place with the original's mode, and prints
+both sha256 sums, which land in `pushed_files` in the summary. The pushed file's hash must equal the local file's.
+It is done with the game not running and counts as a launch-level change. The target must already exist; paths
+under Steam's library, `userdata`, a Wine prefix, the game's own data folder, or anything that looks like a save
+are refused (`benchlib.push_target_problem`). `--restore-pushed`, `--stop`, `--stop-after`, a failure and every
+session restart put the original back and check its hash. A session start may restage overlay files from the APK
+(INFERRED); the harness pushes again after every session start it makes.
+
+**What a kept session leaves on the phone:** Steam (offline) and the game at its main menu on the bench profile,
+the switches and the route as the last arm set them, `.screen-session.json` on the desktop with what to restore.
+End it with `--stop` before anyone else uses the phone and before a default-mode run (which aborts on a running session and stops it in its teardown).
+
+## Confirm mode
+
+    tools/bench/run.py --mode confirm --scenario fight --path native --route bridge --a "" --b "godot-render-thread" --name confirm-1
+
+`--a` and `--b` are words separated by spaces or commas: `tag` turns an experiment on, `-tag` off, `KEY=VALUE`
+adds an env line, `path:proton` and `route:panvk` replace `--path` and `--route`; `--switch`/`--env` given outside
+apply to both. The arms run A, B, A, B, ... as screen-mode arms named `<name>/p01-a`, `<name>/p01-b`, ...; a
+launch-level difference shares the session and relaunches the game per arm, a session-level one restarts the
+session per arm, identical arms (an A/A noise run; use `--warmup-reps 1`) share the launch.
+
+After each pair it computes B minus A for the animation-window p99 with a 95 % bootstrap interval (pairs
+resampled, then each arm's fights inside a pair; 10 000 draws; `--seed`, default 20261128, so the same values
+give the same interval). It stops when the interval excludes 0, at least `--min-pairs` (3) are done **and** the
+difference is at least what the earlier noise floor lets that many pairs see (`--noise-sd`, default 2.0 ms, the
+pooled run-to-run sd from `docs/bench/RESULTS.md`); otherwise after `--max-pairs` (6). The second condition matters:
+simulated with no real difference, the interval alone stops falsely in 37 % of campaigns, with it in 9 %; a real
+3 ms difference is called in 74 %, a 5 ms one in 99 %. The same intervals are reported for animation fps, frames
+over 50 ms per minute and MemAvailable. At the end it stops the session and restores everything
+(`--keep-running` leaves it).
+
+`<name>/summary.json`: `mode: confirm`, `a`, `b`, `pairs`, `runs`, `share.levels` (each arm's restart level),
+`values.<metric>.a|b` (per pair, per fight), `intervals.<metric>` (`diff`, `low`, `high`, `pairs`, `seed`, `draws`,
+`excludes_zero`), `decision` (`stop`, `why`, `verdict`, `beyond_noise_floor`), `spread.<metric>.a|b`, `ok`,
+`failure`. Metrics: `anim_p99_ms`, `anim_fps`, `over50_per_min`, `mem_available_mb`.
+
+A completed confirm run adds one **noise-floor line** to `docs/bench/RESULTS.md` (above the marker comment in its
+"Noise floor" section; `--no-results-row` skips it):
+
+    - noise-floor | date | build | configuration | source | n=<repeats> in <groups> groups (df <n>) | anim p99 sd <ms> | fps sd | over-50 sd /min | MemAvailable sd MB | p99 seen from <1 pair> / <3> / <6> ms with 1 / 3 / 6 pairs | `run name`
+
+"sd" is the standard deviation within groups of identical arms (for a confirm run: A's fights and B's fights);
+"p99 seen from" is 1.96 x sd x sqrt(2 / pairs).
 
 ## What a run does
 
@@ -137,9 +248,13 @@ counters; open at ui.perfetto.dev), `logs/` (the session's archive from `logs la
 | `lmkd` | kills during the run and since the previous run, with the lowest `oom_score_adj` |
 | `steps` | every scripted step with its presses' phone timestamps and what the check screenshot read |
 | `artifacts`, `checks`, `notes` | paths; `quit_through_game_menu`, `config_restored`, `profile_icon`, `early_access_prompts`, `env_lines_after`; anything odd |
+| `phases` | where the wall time went, every mode: `total_s`, `fixed_sleep_s` (sleeps of a set length), `poll_sleep_s` (pauses between looks at something awaited), `by_name.<phase>` (`count`, `seconds`, `fixed_sleep_s`, `poll_sleep_s`) and `items` (each phase in order: `name`, `rep`, `start_s`, `seconds`, `fixed_sleep_s`, `poll_sleep_s`). Phases: `preflight`, `memory-wait`, `steam-start`, `offline-check`, `launch-to-menu`, `fixed-wait`, `continue`, `fight-ready`, `latency`, `capture-start`, `fight` (its fixed sleeps are the settle times, i.e. the measurement), `menu-window`, `capture-finish`, `save-and-quit`, `quit-game`, `stop-session`, `log-pull`, `restore-config`, `analysis`; screen mode adds `attach`, `rep-checks`, `push-files` |
+| screen mode only | `mode: screen`; `reps` (per fight: `index`, `launch`, `rep_in_launch`, `cold`, `warmup`, `checks`, `enemy_hp_start`, `window_ms`, `steps`, `frames` with `overall`/`animation`/`card_plays`/`enemy_turns`, `memory`, `cards`, `monster_moves`, `enemy_hp_checks`, `thermal_end`); `spread` and `spread_warm` (per metric: `n`, `mean`, `median`, `sd`, `min`, `max`, `range` over the measured fights, and over those that were not the first of a launch); `identical`; `reuse`; `pushed_files`; `offline_evidence`; `left_running`. The top-level `frames` are over all measured fights together |
 
-`benchlib.validate_summary` checks a summary against this table; `tools/tests/test_bench_lib.py` covers the
-frame statistics, window selection, parsers, screenshot features and the schema.
+`benchlib.validate_summary` checks a summary against this table (`validate_phases`, `validate_screen` and
+`validate_confirm` the additions); `tools/tests/test_bench_lib.py` covers the frame statistics, window selection,
+parsers, screenshot features, the schema, the switch-level table, the planning and the interval statistics, and
+`tools/tests/test_bench_modes.py` runs screen and confirm mode against a scripted stand-in for the phone.
 
 ## Setting up the bench profile (once per phone)
 
