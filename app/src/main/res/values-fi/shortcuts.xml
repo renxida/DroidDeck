@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Fyysisten painikkeiden pikavalinnat</string>
-    <string name="shortcuts_dd_menu">Kestrel-valikko</string>
+    <string name="shortcuts_dd_menu">Lanner-valikko</string>
     <string name="shortcuts_capture">Määritä: %1$s</string>
     <string name="shortcuts_press">Paina painiketta ja vapauta se. Määritys tallennetaan automaattisesti.</string>
     <string name="shortcuts_release">Jatka vapauttamalla painike.</string>

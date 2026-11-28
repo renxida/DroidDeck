@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">ทางลัดปุ่มจริง</string>
-    <string name="shortcuts_dd_menu">เมนู Kestrel</string>
+    <string name="shortcuts_dd_menu">เมนู Lanner</string>
     <string name="shortcuts_capture">กำหนด: %1$s</string>
     <string name="shortcuts_press">กดปุ่มแล้วปล่อย การกำหนดปุ่มจะบันทึกโดยอัตโนมัติ</string>
     <string name="shortcuts_release">ปล่อยปุ่มเพื่อดำเนินการต่อ</string>

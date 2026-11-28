@@ -2,7 +2,7 @@
 
 **Question.** Cedar reported that Slay the Spire 2 (StS2, Steam app 2868840) sat on a black
 screen for a long time, and only worked after an "accessibility off switch". What is that switch,
-why does accessibility matter under Proton, and what should Kestrel do by default?
+why does accessibility matter under Proton, and what should Lanner do by default?
 
 **Answer, short.** The switch is Godot's own command-line option `--accessibility disabled`.
 Godot 4.5 added AccessKit, which gives each game window a UI Automation (UIA) provider. Proton
@@ -10,7 +10,7 @@ starts `tabtip.exe` in every prefix, and tabtip is a UIA client that follows foc
 asks the game's window for its provider, AccessKit answers, and from then on tabtip's COM calls
 run inside the game. On a phone (FEX, Adreno) a third party saw the game fault and exit 19-52 s
 after start in every run with tabtip, and in no run with tabtip off or with
-`--accessibility disabled`. Kestrel now does both for Godot builds that contain AccessKit.
+`--accessibility disabled`. Lanner now does both for Godot builds that contain AccessKit.
 
 Marks: **VERIFIED** = read in source or in a primary record; **INFERRED** = reasoned from verified
 facts, not observed. Nothing here was run on a device for this work.
@@ -76,7 +76,7 @@ Source: ValveSoftware/wine `proton_11.0` (e60892cc) and wine-mirror/wine master 
 - In the game, `UiaReturnRawElementProvider` starts Wine's provider thread in the multithreaded
   apartment (`uia_provider.c` 2154-2160, 2264, 2282), so tabtip's property reads arrive as COM calls
   on that thread, beside Godot's main thread.
-- Kestrel turns Proton's Xalia off by default (`PROTON_USE_XALIA=0`,
+- Lanner turns Proton's Xalia off by default (`PROTON_USE_XALIA=0`,
   `SessionService.kt` 925, `SessionPrefs.kt` 548), so tabtip is the UIA client left. No screen
   reader runs in this stack.
 
@@ -104,7 +104,7 @@ Source: ValveSoftware/wine `proton_11.0` (e60892cc) and wine-mirror/wine master 
   UIA; they show that AccessKit failures are fatal and that the option is the accepted workaround.
 - Steam's StS2 threads on Linux black screens (e.g. 802341195824169699, 802341195824315003) are
   about the D3D12 renderer and are fixed by `--rendering-driver vulkan`/`opengl3`; none mentions
-  accessibility. Kestrel already forces Vulkan.
+  accessibility. Lanner already forces Vulkan.
 
 ## 2. Findings
 
@@ -136,7 +136,7 @@ set of builds whose window gets a provider (§1.2), and it never adds the option
 (F7). Reading the import table costs a few small reads of the executable.
 
 User control: a launch option that sets `--accessibility` wins (Godot reads the last value, and
-Kestrel then adds nothing); `tabtip.exe=d` stays, because it is what keeps an `auto`/`always` window
+Lanner then adds nothing); `tabtip.exe=d` stays, because it is what keeps an `auto`/`always` window
 from crashing. A per-game `WINEDLLOVERRIDES` replaces the engine fixes' overrides entirely
 (`apply_config`), which brings tabtip back.
 

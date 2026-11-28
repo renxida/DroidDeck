@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Zkratky fyzických tlačítek</string>
-    <string name="shortcuts_dd_menu">Nabídka Kestrel</string>
+    <string name="shortcuts_dd_menu">Nabídka Lanner</string>
     <string name="shortcuts_capture">Přiřadit: %1$s</string>
     <string name="shortcuts_press">Stiskněte a uvolněte tlačítko. Přiřazení se uloží automaticky.</string>
     <string name="shortcuts_release">Pokračujte uvolněním tlačítka.</string>

@@ -8,11 +8,11 @@ reasoned from those and not yet seen on a device.
 ## 1. Does installing a new test APK over an old one keep the sign-in and the games?
 
 **Yes.** Nothing in the app wipes, re-extracts or re-downloads the runtime, the Steam client, the
-sign-in or `steamapps` because the APK changed. Only uninstalling Kestrel (or Clear storage) does.
+sign-in or `steamapps` because the APK changed. Only uninstalling Lanner (or Clear storage) does.
 
 - VERIFIED. All CI APKs are signed with the committed AOSP testkey (`keystore/testkey.p12`,
   `app/build.gradle:132-157`, `.github/workflows/build.yml:547-573`) under the same
-  `applicationId dev.renxida.kestrel` and `versionCode 19` (`app/build.gradle:96-99`). Android
+  `applicationId chat.comb.lanner` and `versionCode 19` (`app/build.gradle:96-99`). Android
   accepts an equal versionCode as an update and keeps the app's data; only a lower one is refused.
 - VERIFIED. Everything lives in the app's internal storage:
   - Linux runtime: `filesDir/linuxfs` (`runtime/LinuxRuntime.java:45-47`).
@@ -76,7 +76,7 @@ opens a native Android sheet (`SessionActivity.openSignInSheet`):
 
 - Two `EditText`s with `AUTOFILL_HINT_USERNAME` and `AUTOFILL_HINT_PASSWORD` and
   `IMPORTANT_FOR_AUTOFILL_YES`, so Google Password Manager, 1Password, Bitwarden and the like offer
-  to fill them; long-press paste works too. Kestrel does not claim a web domain for them, so the
+  to fill them; long-press paste works too. Lanner does not claim a web domain for them, so the
   first time the manager may ask you to pick the Steam entry.
 - **Type into Steam** copies both fields into char arrays, clears the fields, closes the sheet and,
   400 ms later (once the session window has focus back), types account, Tab, password as evdev
@@ -103,10 +103,10 @@ Steam Support, "I am having trouble with my Steam Guard Mobile Authenticator"
   by hand stays available, e.g. without phone service.
 - VERIFIED (Valve): email codes are the Steam Guard method of accounts without the mobile
   authenticator ("Steam Guard emails are sent to the last email address registered").
-- VERIFIED (source): Kestrel starts the arm64 client as the Deck UI, `-gamepadui -steamdeck
+- VERIFIED (source): Lanner starts the arm64 client as the Deck UI, `-gamepadui -steamdeck
   -steamos3` (`droiddeck-session:1321,1349-1354`), on Valve's `steamdeck_*` channels
   (`droiddeck-steam-install:4-5`), i.e. the client whose sign-in screen gained QR login.
-  INFERRED: the QR code shows on Kestrel's sign-in screen; not seen on a device here.
+  INFERRED: the QR code shows on Lanner's sign-in screen; not seen on a device here.
 - VERIFIED (source): a remembered sign-in is `"RememberPassword" "1"` in `loginusers.vdf` plus the
   `ConnectCache` token in `local.vdf` (`droiddeck-session:1080`, `droiddeck-steam-x64:906,923`),
   both inside the Steam home that survives updates (section 1). The x86-64 client copies the
@@ -117,15 +117,15 @@ One phone:
 | Option | Works from one phone? |
 |---|---|
 | QR code | No: the phone's camera would have to scan its own screen. Needs a second device showing or scanning. |
-| Approve the sign-in in the Steam Mobile App | Yes: type or fill account and password in Kestrel, switch to the Steam app, tap Approve, switch back. INFERRED: if Kestrel pauses the session in the background, Steam finishes the sign-in when you return. |
-| Steam Guard code from the Steam app | Yes: copy it in the Steam app, then **Paste** in Kestrel. |
+| Approve the sign-in in the Steam Mobile App | Yes: type or fill account and password in Lanner, switch to the Steam app, tap Approve, switch back. INFERRED: if Lanner pauses the session in the background, Steam finishes the sign-in when you return. |
+| Steam Guard code from the Steam app | Yes: copy it in the Steam app, then **Paste** in Lanner. |
 | Email code | Yes, slowest: copy it from mail, then **Paste**. |
 
 ## Easiest path for one phone
 
 1. Once, in the Steam Mobile App: turn on the Steam Guard Mobile Authenticator. Sign-ins then ask
    for an approval in the app instead of an email code.
-2. In Kestrel's Steam sign-in screen, tap the account name box, open the PC keyboard and press
+2. In Lanner's Steam sign-in screen, tap the account name box, open the PC keyboard and press
    **Sign in…**. Let the password manager fill both boxes, press **Type into Steam**, then press
    Steam's Sign in.
 3. Switch to the Steam app, tap Approve, switch back.

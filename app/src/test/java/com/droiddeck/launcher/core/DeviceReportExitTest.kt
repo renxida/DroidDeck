@@ -19,8 +19,8 @@ class DeviceReportExitTest {
     }
 
     @Test fun aSummaryNamesTheProcessReasonAndStatus() {
-        val line = DeviceReport.exitSummary("dev.renxida.kestrel", 3, 0, "  low mem & is ok  ")
-        assertTrue(line, line.startsWith("dev.renxida.kestrel  LOW_MEMORY  status=0"))
+        val line = DeviceReport.exitSummary("chat.comb.lanner", 3, 0, "  low mem & is ok  ")
+        assertTrue(line, line.startsWith("chat.comb.lanner  LOW_MEMORY  status=0"))
         assertTrue(line, line.endsWith("low mem & is ok"))
         assertEquals("?  UNKNOWN  status=0", DeviceReport.exitSummary(null, 0, 0, null))
         assertEquals("p  SIGNALED  status=9", DeviceReport.exitSummary("p", 2, 9, "   "))

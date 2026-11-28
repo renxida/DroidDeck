@@ -53,7 +53,7 @@ class QuestExperimentalTest {
     @Test fun questDefaultsSelectBothCompatibilityPathsAndAreAppliedOnlyOnce() {
         ShadowBuild.setModel("Quest 3")
         val standard = object : ContextWrapper(context) {
-            override fun getPackageName() = "dev.renxida.kestrel"
+            override fun getPackageName() = "chat.comb.lanner"
         }
         QuestExperimental.initialize(standard)
         assertEquals(SessionPrefs.GPU_DRIVERS_MANUAL, SessionPrefs.gpuDriverMode(context))

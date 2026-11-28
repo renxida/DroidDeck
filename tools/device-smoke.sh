@@ -4,7 +4,7 @@ export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
 
 usage() {
   cat <<'EOF'
-Smoke test of a Kestrel build on a real device, over plain adb (no python, no root).
+Smoke test of a Lanner build on a real device, over plain adb (no python, no root).
 
 What it does, in order, and restores afterwards:
   1. prints the device (model, Android, kernel, page size, SoC);

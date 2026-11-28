@@ -199,7 +199,7 @@ class PerfReportTest(unittest.TestCase):
             {"t": T0 + 95_000, "event": "game.exited", "sessionId": "x", "app_id": "2868840", "run_s": 3.0,
              "abnormal": False, "how": "process gone"},
             {"t": T0 + 99_000, "event": "app.exit", "sessionId": "x", "reason": "anr", "abnormal": True,
-             "process": "dev.renxida.kestrel", "description": "Input dispatching timed out"},
+             "process": "chat.comb.lanner", "description": "Input dispatching timed out"},
             {"t": T0 + 99_500, "event": "app.exit", "sessionId": "x", "reason": "user_requested", "abnormal": False},
         ))
         rewritten = self.root / "b.zip"
@@ -218,7 +218,7 @@ class PerfReportTest(unittest.TestCase):
         self.assertIn("main-1a2b3c4: 1 session(s), 0 game exit(s), 0 abnormal", section)
         self.assertIn("perf-all-1a2b3c4: 1 session(s), 2 game exit(s), 2 abnormal, 1 FEX fault report(s)", section)
         self.assertIn("game 2868840 exit status 139 signal 11 after 40 s (process gone, wrapper status): droiddeck-fex: SIGILL", section)
-        self.assertIn("app dev.renxida.kestrel anr: Input dispatching timed out", section)
+        self.assertIn("app chat.comb.lanner anr: Input dispatching timed out", section)
         abnormal_row = next(line for line in text.splitlines() if line.strip().startswith("abnormal exits"))
         self.assertIn("worse", abnormal_row)
 

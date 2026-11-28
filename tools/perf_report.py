@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Performance report for Kestrel session telemetry.
+"""Performance report for Lanner session telemetry.
 
 Inputs are share-bundle zips (DroidDeck-<session>-session.zip and friends), telemetry upload zips
 (runs/<build>/<device>/<start>.zip), extracted session folders, or directories holding any of

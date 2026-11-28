@@ -35,7 +35,7 @@ jobs:
             gh run download "$run" -R "$GITHUB_REPOSITORY" -n droiddeck-apk -D "dl/$run"
             apk=$(find "dl/$run" -name '*.apk' | head -1)
             test -n "$apk"
-            cp "$apk" "out/$(printf '%02d' $n)-kestrel-$label.apk"
+            cp "$apk" "out/$(printf '%02d' $n)-lanner-$label.apk"
             echo "$(printf '%02d' $n) $label: run $run" >> notes.txt
           done
           ls -l out

@@ -35,10 +35,12 @@ jobs:
         run: |
           apk=$(find apk -name '*.apk' | head -n1)
           test -n "$apk" || { echo "no .apk in artifact"; exit 1; }
+          cp "$apk" lanner.apk
+          # kestrel.apk is kept as a byte-identical alias so old download links keep working.
           cp "$apk" kestrel.apk
 
       - name: Publish to release "latest"
         run: |
           gh release view latest >/dev/null 2>&1 || \
             gh release create latest --title latest --notes "APK from run $RUN_ID" --target "${{ github.sha }}"
-          gh release upload latest kestrel.apk --clobber
+          gh release upload latest lanner.apk kestrel.apk --clobber

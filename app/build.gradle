@@ -93,7 +93,7 @@ android {
     ndkVersion project.findProperty('ndkVersion') ?: '27.3.13750724'
 
     defaultConfig {
-        applicationId "dev.renxida.kestrel"
+        applicationId "chat.comb.lanner"
         minSdkVersion 26
         targetSdkVersion 28
         versionCode 19
@@ -149,7 +149,7 @@ android {
             def localSuffix = localBuildOptions.getProperty('droiddeck.debugApplicationIdSuffix')
             if (localSuffix) {
                 applicationIdSuffix localSuffix
-                resValue 'string', 'app_name', 'Kestrel Dev'
+                resValue 'string', 'app_name', 'Lanner Dev'
             }
         }
         release {
