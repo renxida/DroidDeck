@@ -105,6 +105,8 @@ class FrontEndState(
     val steamGpuDrawing: Boolean = false,
     val bridgeFellBack: Boolean = false,
     val bridgeFellBackMemory: Boolean = false,
+    /** Why the automatically chosen Mali bridge gave way to the driver pair here ([com.droiddeck.launcher.session.BridgeDefault]); "" if it did not. */
+    val bridgeAutoFailed: String = "",
     val clearCachedApps: Boolean = false,
     val adbPaired: Boolean = false,
     val backgroundAppLimit: Int = -1,

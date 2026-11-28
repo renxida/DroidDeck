@@ -283,6 +283,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         // A Mali pair set by an earlier build put its PanVK Android half on the display, which fails
         // on Mali gralloc. Under Auto the display is the phone's own driver (Android's loader).
         if (gpu.family.mali) {
+            com.droiddeck.launcher.session.BridgeDefault.apply(activity, "driver check")
             // Builds before 0.5.0-nad1 turned the bridge on under Auto without recording it, and
             // left it on for good (it wins over the pair). Under Auto that switch is taken as Auto's.
             if (!SessionPrefs.maliFallbackKnown(activity))
@@ -408,7 +409,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
      */
     private fun useMaliFallback(missing: String?): String {
         val oldVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(activity)
-        val venus = oldVulkan == null && com.droiddeck.launcher.session.VenusComponent.available(activity)
+        val bridgeFirst = com.droiddeck.launcher.session.BridgeDefault.keepsBridge(activity) && !SessionPrefs.venus(activity)
+        val venus = oldVulkan == null && !bridgeFirst && com.droiddeck.launcher.session.VenusComponent.available(activity)
         if (oldVulkan != null) Log.i(TAG, "auto: Mali driver reports Vulkan $oldVulkan; Venus needs 1.2, the bridge stands in")
         if (venus && !SessionPrefs.venus(activity)) {
             SessionPrefs.setVenus(activity, true)
@@ -435,13 +437,21 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
 
     /** A pair is installed for this Mali: the route Auto switched on in its place goes off again. */
     private fun endMaliFallback() {
-        when (SessionPrefs.maliFallbackByAuto(activity)) {
+        val standIn = SessionPrefs.maliFallbackByAuto(activity)
+        if (standIn == "bridge" && com.droiddeck.launcher.session.BridgeDefault.keepsBridge(activity)) {
+            Log.i(TAG, "auto: pair installed; the Mali bridge stays the route (bridge-default) and the pair is its fallback")
+            SessionPrefs.setMaliFallbackByAuto(activity, "")
+            SessionPrefs.setMaliRouteBy(activity, com.droiddeck.launcher.session.BridgeDefault.AUTO)
+            return
+        }
+        when (standIn) {
             "venus" -> SessionPrefs.setVenus(activity, false)
             "bridge" -> SessionPrefs.setVkBridge(activity, false)
             else -> return
         }
-        Log.i(TAG, "auto: pair installed; ${SessionPrefs.maliFallbackByAuto(activity)} (Auto's stand-in) off")
+        Log.i(TAG, "auto: pair installed; $standIn (Auto's stand-in) off")
         SessionPrefs.setMaliFallbackByAuto(activity, "")
+        com.droiddeck.launcher.session.BridgeDefault.apply(activity, "pair installed")
     }
 
     fun selectPair(key: String) {

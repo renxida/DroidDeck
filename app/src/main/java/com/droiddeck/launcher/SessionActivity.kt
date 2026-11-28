@@ -592,6 +592,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         SessionState.screenCreated()
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
+            com.droiddeck.launcher.session.BridgeDefault.apply(this, "session screen")
             val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
             SessionEvents.begin(this, mode, SessionPaths.label(mode, intent.getStringExtra(SessionService.EXTRA_PROGRAM)))

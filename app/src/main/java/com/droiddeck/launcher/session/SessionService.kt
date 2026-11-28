@@ -75,6 +75,10 @@ class SessionService : Service() {
     private var downloadMonitorTask: Runnable? = null
     private var downloadActive = false
     private var clientInstallActive = false
+    @Volatile private var clientInstallSeen = false
+    @Volatile private var bridgeStartedAt = 0L
+    @Volatile private var bridgeShownSince = 0L
+    @Volatile private var bridgeShownMs = 0L
     private var steamLibraryMounts: Map<String, File>
         get() = SessionState.steamLibraryMounts
         set(value) { SessionState.steamLibraryMounts = value }
@@ -266,6 +270,7 @@ class SessionService : Service() {
             ACTION_ACTIVITY_VISIBLE -> {
                 if (!SessionState.pipActive) pipTask = false
                 activityVisible = true
+                bridgeScreen(true)
                 activityDisplayId = intent.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, activityDisplayId)
                 sessionDisplayId = intent.getIntExtra(EXTRA_DISPLAY_ID, sessionDisplayId)
                 screenOn = readScreenOn()
@@ -289,6 +294,7 @@ class SessionService : Service() {
             }
             ACTION_ACTIVITY_HIDDEN -> {
                 activityVisible = false
+                bridgeScreen(false)
                 activityDisplayId = intent.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, activityDisplayId)
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
@@ -354,6 +360,8 @@ class SessionService : Service() {
         runOnDownloadMonitor { steamDownloadMonitor.reset() }
         downloadActive = false
         clientInstallActive = false
+        clientInstallSeen = false
+        bridgeStartedAt = 0L
         steamSleepToken = null
         completeNativeSleep()
         suspendOperationPending = false
@@ -443,6 +451,18 @@ class SessionService : Service() {
         val log = File(last, "session.log").takeIf { it.isFile } ?: return false
         log.useLines { XwaylandFallback.crashedBeforeStop(it) }
     }.getOrDefault(false)
+
+    /** Counts how long a bridge session's screen has been on a display, for [BridgeDefault.drewNothing]. */
+    private fun bridgeScreen(shown: Boolean) {
+        if (bridgeStartedAt == 0L) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (shown) {
+            if (bridgeShownSince == 0L) bridgeShownSince = now
+        } else if (bridgeShownSince > 0L) {
+            bridgeShownMs += now - bridgeShownSince
+            bridgeShownSince = 0L
+        }
+    }
 
     private fun xwaylandFallback(guest: MutableList<String>, bridge: Boolean, venus: Boolean) {
         val route = when {
@@ -560,6 +580,7 @@ class SessionService : Service() {
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
 
         val experiments = Experiments.beginSession(this)
+        BridgeDefault.apply(this, "session start")
         val sessionDir = openSessionFolder()
         Log.i(TAG, "experiments: " + Experiments.line(experiments))
         SessionEvents.record("session.experiments", mapOf("on" to Experiments.line(experiments)))
@@ -1072,6 +1093,9 @@ class SessionService : Service() {
         bridge.attach(this)
         components.add(bridge)
         guest.add("BL_VKBRIDGE=1")
+        bridgeStartedAt = android.os.SystemClock.elapsedRealtime()
+        bridgeShownMs = 0L
+        bridgeShownSince = if (activityVisible) bridgeStartedAt else 0L
         if (SessionPrefs.steamGpuCompositing(this)) guest.add("BL_STEAM_GPU_COMPOSITING=1")
         SessionPrefs.linuxDriver(this).takeIf { it.isNotEmpty() }
             ?.let { runCatching { LinuxVulkanDriver.resolveIcdPath(this, it) }.getOrNull() }
@@ -2170,6 +2194,12 @@ class SessionService : Service() {
             VacDiagnostics.snapshot(this, ended)
             runCatching { File(ended, "session.log").appendText(XwaylandFallback.stopLine(status) + "\n") }
         }
+        if (bridgeStartedAt > 0) {
+            bridgeScreen(false)
+            bridgeStartedAt = 0L
+            if (BridgeDefault.drewNothing(SessionState.firstFrameSeen, bridgeShownMs, clientInstallSeen))
+                runCatching { BridgeDefault.bridgeFailed(this, BridgeDefault.FAILED_NO_FRAME) }
+        }
         val (stopNow, stopAfterGuest) = SessionStopOrder.split(components)
         components.clear()
         stopNow.forEach {
@@ -2503,6 +2533,7 @@ class SessionService : Service() {
                 val wasInstalling = clientInstallActive
                 clientInstallActive = !SessionState.firstFrameSeen &&
                     (clientInstallActive || SteamDownloadMonitor.clientInstallPending(root))
+                if (clientInstallActive) clientInstallSeen = true
                 val receivedBytes = TrafficStats.getUidRxBytes(android.os.Process.myUid())
                 val client = SessionState.steamClientArch
                 val mounts = steamLibraryMounts
