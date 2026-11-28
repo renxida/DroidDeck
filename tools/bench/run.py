@@ -31,6 +31,7 @@ ROUTES = {"panvk": (False, False), "bridge": (True, False), "venus": (False, Tru
 MENU_START_S = 240
 MENU_WINDOW_S = 120
 FIGHT_START_S = 100
+XCHECK_FLICK_MS = 50
 EARLY_ACCESS_PROCEED = (807, 568)  # session-output coordinates of the notice's only button
 
 PERFETTO_CONFIG = """
@@ -459,6 +460,50 @@ class Bench:
         self.log(f"latency {name}: toScreen {keep['toScreen']} ({keep['endsAt']}), statuses {keep['statuses']}")
         return keep
 
+    def xcheck(self, name: str) -> dict | None:
+        """The coarse cross-check: record the screen while two real flicks land on the on-screen swipe pad (each
+        flick is one d-pad press, the way the game is played by hand), with Android's touch dots shown, and
+        read from the recording how long after a dot the picture answered."""
+        if not self.args.xcheck:
+            return None
+        remote = "/sdcard/bench-xcheck.mp4"
+        local = self.dir / f"xcheck-{name}.mp4"
+        before = self.sh("settings get system show_touches").strip()
+        self.sh("settings put system show_touches 1")
+        flicks = []
+        try:
+            recorder = subprocess.Popen(["adb", "-s", self.serial, "shell", f"screenrecord --time-limit 9 --bit-rate 20000000 {remote}"],
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            started = time.time()
+            for at, (x0, x1) in ((3.0, (220, 470)), (6.0, (470, 220))):
+                time.sleep(max(0.0, started + at - time.time()))
+                flicks.append(time.time() - started)
+                self.sh(f"input swipe {x0} 760 {x1} 760 {XCHECK_FLICK_MS}")
+            recorder.wait(timeout=30)
+            time.sleep(1.0)
+            subprocess.run(["adb", "-s", self.serial, "pull", remote, str(local)], capture_output=True, timeout=120)
+        finally:
+            self.sh(f"settings put system show_touches {before if before in ('0', '1') else '0'}; rm -f {remote}")
+        try:
+            width, height = 606, 270
+            probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "frame=pts_time",
+                                    "-of", "csv=p=0", str(local)], capture_output=True, timeout=120)
+            times = [float(value.strip(",")) for value in probe.stdout.decode().split() if value.strip(",")]
+            raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(local), "-fps_mode", "passthrough", "-vf",
+                                  f"scale={width}:{height},format=gray", "-f", "rawvideo", "-"], capture_output=True, timeout=300).stdout
+            frames = [raw[index * width * height:(index + 1) * width * height] for index in range(len(raw) // (width * height))]
+            times = times[:len(frames)]
+            touch = benchlib.region_change(frames, width, (40, 170, 135, 210))
+            answer = benchlib.region_change(frames, width, (165, 150, 450, 215))
+            results = [benchlib.touch_to_picture(times, touch, answer, max(0.0, at - 0.8)) for at in flicks]
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            self.notes.append(f"screen recording cross-check not analysed: {error}")
+            return {"video": str(local), "flicks": None}
+        self.log(f"screen recording cross-check: {results}")
+        return {"video": str(local), "frames": len(frames), "flick_ms": XCHECK_FLICK_MS, "flicks": results,
+                "what": "frame where Android's touch dot appears to the first frame where the hand changes; includes the flick "
+                        "itself (the pad press is sent when the flick is recognised) and one recorded frame of uncertainty at each end"}
+
     def perfetto_start(self, seconds: int) -> None:
         config = PERFETTO_CONFIG % {"package": PACKAGE, "duration_ms": seconds * 1000}
         remote = "/data/misc/perfetto-traces/bench.pftrace"
@@ -573,6 +618,8 @@ class Bench:
 
         self.screen("latency-region")
         self.latency_result = self.latency("fight", self.args.fight_region, "pad:right", "pad:left")
+        self.xcheck_result = self.xcheck("fight")
+        time.sleep(1.0)
         layout = self.screen("after-latency")
         if layout.enemy_hp() is None or abs(layout.enemy_hp() - script["start_enemy_hp"]) > script["hp_tolerance"]:
             raise Abort("the latency presses changed the fight")
@@ -599,16 +646,25 @@ class Bench:
                 record["enemy_hp"] = layout.enemy_hp()
                 record["hand_glow"] = layout.hand_glow()
                 want = step.get("expect_enemy_hp")
-                if want is not None and (record["enemy_hp"] is None or abs(record["enemy_hp"] - want) > script["hp_tolerance"]):
+
+                def as_expected() -> bool:
+                    if want is not None and (record["enemy_hp"] is None or abs(record["enemy_hp"] - want) > script["hp_tolerance"]):
+                        return False
+                    return not (step.get("expect_hand") and record["hand_glow"] < script["hand_glow_min"])
+                retries = 0
+                while not as_expected() and retries < 4:
+                    retries += 1
+                    time.sleep(1.5)
+                    layout = self.screen(f"step-{index:02d}-late{retries}")
+                    record["enemy_hp"] = layout.enemy_hp()
+                    record["hand_glow"] = layout.hand_glow()
+                if retries:
+                    record["late_checks"] = retries
+                    record["settle_ms"] = max(record["settle_ms"], self.now_ms() - record["t_done_ms"])
+                if not as_expected():
                     self.steps.append(record)
-                    raise Abort(f"step {index} ({step.get('name')}): enemy bar {record['enemy_hp']}, expected {want}")
-                if step.get("expect_hand") and record["hand_glow"] < script["hand_glow_min"]:
-                    time.sleep(2.5)
-                    record["hand_glow"] = self.screen(f"step-{index:02d}-retry").hand_glow()
-                    record["late_hand"] = True
-                    if record["hand_glow"] < script["hand_glow_min"]:
-                        self.steps.append(record)
-                        raise Abort(f"step {index}: no new hand after End Turn (glow {record['hand_glow']})")
+                    raise Abort(f"step {index} ({step.get('name')}): enemy bar {record['enemy_hp']} (expected {want}), "
+                                f"hand glow {record['hand_glow']}")
             self.steps.append(record)
             self.log(f"step {index} {step['kind']} {step.get('name') or ''}: enemy {record.get('enemy_hp')} hand {record.get('hand_glow')}")
         self.marks["window_end"] = self.phone_ms()
@@ -789,7 +845,7 @@ class Bench:
             cpu["session_threads"] = benchlib.csv_cpu([row for row in thread_rows if row.get("name") != "*"], start, end,
                                                       ("process", "name"), top=30)
         top_rows = benchlib.parse_top(read(self.dir / "top-threads.txt"))
-        cpu["top_processes"] = dict(list(benchlib.top_by_process(top_rows).items())[:16])
+        cpu["top_processes"] = {name: value for name, value in benchlib.top_by_process(top_rows).items() if value >= 0.5}
         cpu["top_threads"] = top_rows[:40]
 
         lmk_text = read(self.dir / "logcat-lmk.txt")
@@ -889,6 +945,7 @@ def main() -> int:
     parser.add_argument("--latency-count", type=int, default=100, help="presses for the latency probe; 0 skips it")
     parser.add_argument("--menu-region", default="0.36,0.655,0.13,0.09")
     parser.add_argument("--fight-region", default="0.535,0.62,0.03,0.11")
+    parser.add_argument("--xcheck", action="store_true", help="fight: also record the screen during two real flicks (needs ffmpeg here)")
     parser.add_argument("--keep-config", action="store_true", help="leave the route and switches as this run set them")
     parser.add_argument("--no-results-row", action="store_true")
     args = parser.parse_args()

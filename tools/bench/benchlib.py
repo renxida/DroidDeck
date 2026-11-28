@@ -420,6 +420,52 @@ class Layout:
         return round((end - bx0 + 1) / width, 3)
 
 
+# ---------------------------------------------------------------- screen recording cross-check
+
+def region_change(frames: list[bytes], width: int, box: tuple[int, int, int, int]) -> list[float]:
+    """Mean absolute difference of a box between each gray frame and the one before it (0 for the first)."""
+    x0, y0, x1, y1 = box
+    out = [0.0]
+    for index in range(1, len(frames)):
+        total = count = 0
+        before, now = frames[index - 1], frames[index]
+        for y in range(y0, y1, 2):
+            a = before[y * width + x0:y * width + x1:2]
+            b = now[y * width + x0:y * width + x1:2]
+            total += sum(abs(p - q) for p, q in zip(a, b))
+            count += len(a)
+        out.append(total / max(1, count))
+    return out
+
+
+def first_change(change: list[float], start: int, end: int, quiet: list[float], factor: float = 4.0, floor: float = 0.6) -> int | None:
+    """Index of the first frame in [start, end) whose change stands out of the quiet frames' changes."""
+    limit = max(floor, factor * max(quiet, default=0.0))
+    for index in range(start, min(end, len(change))):
+        if change[index] > limit:
+            return index
+    return None
+
+
+def touch_to_picture(times_s: list[float], touch: list[float], answer: list[float], after_s: float, window_s: float = 1.5) -> dict | None:
+    """From a screen recording of one real flick: the frame where the touch dot appears in the touch box (first
+    change at or after after_s) and the first later frame where the answer box changes. Times are frame
+    timestamps, so the result is good to one recorded frame at each end."""
+    begin = next((index for index, at in enumerate(times_s) if at >= after_s), None)
+    if begin is None or begin < 3:
+        return None
+    stop = next((index for index, at in enumerate(times_s) if at >= after_s + window_s), len(times_s))
+    down = first_change(touch, begin, stop, touch[max(1, begin - 30):begin])
+    if down is None:
+        return None
+    seen = first_change(answer, down + 1, stop, answer[max(1, begin - 30):begin])
+    if seen is None:
+        return {"touch_frame_s": round(times_s[down], 4), "answer_frame_s": None, "ms": None}
+    step = times_s[seen] - times_s[seen - 1]
+    return {"touch_frame_s": round(times_s[down], 4), "answer_frame_s": round(times_s[seen], 4),
+            "ms": round((times_s[seen] - times_s[down]) * 1000.0, 1), "frame_ms": round(step * 1000.0, 1)}
+
+
 # ---------------------------------------------------------------- summary
 
 SUMMARY_KEYS = {

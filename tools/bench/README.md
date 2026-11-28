@@ -17,10 +17,11 @@ through `adb` and `tools/droiddeckctl`.
 | `--switch TAG`, `--switch-off TAG` | an experiment to turn on or off for this run (`present-dmabuf`, `vk-count`, ...) |
 | `--env KEY=VALUE` | a session env line for this run; needs Debugging tools |
 | `--name NAME` | the run's folder under the output root (`$BENCH_OUT`, default `~/projects/droiddeck/output/bench`); must be new |
-| `--latency-count N` | presses for the latency probe (default 60; 0 skips it; needs Debugging tools) |
+| `--latency-count N` | presses for the latency probe (default 100; 0 skips it; needs Debugging tools) |
+| `--xcheck` | fight: also take the screen-recording cross-check of two real flicks |
 | `--keep-config` | do not put the route and switches back after the run |
 
-A fight arm takes about 7 minutes, a menu arm about 9. The exit code is 0 for a complete run and 1 for an aborted
+A fight arm takes about 7 minutes (8 on Proton), a menu arm about 9. The exit code is 0 for a complete run and 1 for an aborted
 one; an aborted run still stops the session, pulls the logs, restores the switches and writes `summary.json`
 (`ok: false`, `failure`), but adds no row to `RESULTS.md`.
 
@@ -57,8 +58,8 @@ Nibbit ends on 8 HP), so the save never advances. The bench refuses to run when 
 top menu entry is not where Continue sits.
 
 From L+100 s: focus the top menu entry with the d-pad (checked), A (Continue), wait for the hand. Then the
-latency probe (`pad:right` / `pad:left` moves the focus between the first two cards; nothing is played), then
-the script in `scenarios/fight.json`:
+latency probe (`pad:right` / `pad:left` moves the focus between the first two cards; nothing is played), the
+cross-check when asked for, then the script in `scenarios/fight.json`:
 
 | Turn | Inputs | Enemy after |
 |---|---|---|
@@ -70,16 +71,20 @@ After a step the bench takes one screenshot and checks the enemy's health bar ag
 each End Turn, that a new hand was dealt). A mismatch aborts the run. Then Start, Save and Quit, and the game's
 Quit.
 
-**Animation windows.** For a card: from 250 ms before the first A's bridge call returned until `settle_ms`
-(2 s) after the second A returned; that covers the targeting arrow, the attack or block animation and the
-damage numbers. For End Turn: from 250 ms before Y returned until 6 s after; that covers the discard, the
-enemy's move, the "Player Turn" banner and the new hand. The settle times are fixed so every arm is measured
-over the same game events; they were set from a screen recording of the reference arm. `frames.animation` is
-the frame statistics over all windows, `frames.card_plays` and `frames.enemy_turns` split them, and
-`frames.overall` is everything from the first scripted input to the last window's end (waits between inputs
-included). Each press goes through `content call`, which starts a short-lived process on the phone and takes
-about 1.2 s; the press lands at the end of that call, so a card's window contains one such call (the second
-A). That cost is the same in every arm.
+**Animation windows.** For a card: from its first A being sent until `settle_ms` (2 s) after its second A
+(0.8 s later); that covers the targeting arrow, the attack or block animation and the damage numbers. For End
+Turn: from Y being sent until 6 s after; that covers the discard, the enemy's move, the "Player Turn" banner and
+the new hand. The settle times are fixed so every arm is measured over the same game events. When a check
+screenshot shows the step has not finished (a stall), the bench looks again every 1.5 s, up to four times,
+records `late_checks` on the step and stretches that step's window to the moment the check passed.
+`frames.animation` is the frame statistics over all windows, `frames.card_plays` and `frames.enemy_turns` split
+them, and `frames.overall` is everything from the first scripted input to the last window's end (the short
+waits and check screenshots between steps included).
+
+**Inputs** are pad presses through the app's agent bridge, sent with `cmd activity broadcast` (about 0.1 s, no
+new runtime on the phone). `droiddeckctl input` uses `content call`, which starts an Android runtime per press
+(1.2 s) and costs the game a 30 to 55 ms frame each time, so the bench does not use it inside windows. A press
+is timestamped with the phone's clock just before and just after the broadcast is sent.
 
 **Frame numbers** come from the session's `frames.csv` the way `docs/handoff/phone-tests/fp.sh` reads it:
 `fps` is frames divided by the span, percentiles are `sorted[int(q*n)]`, plus frames over 33 ms and over 50 ms
@@ -88,12 +93,21 @@ per minute. `pacing` is SurfaceFlinger's view of what reached the panel.
 **Press-to-screen** is `droiddeckctl latency` (see `docs/agent-control.md`): from the moment the app injects the
 press to the first game frame whose content changed in the watched region reaching the panel (`endsAt:
 display`) or being queued for it (`endsAt: present`). It does not include the touch controller, Android's input
-dispatch of a real touch, or the panel's response.
+dispatch of a real touch, or the panel's response. In the fight only the presses that start from a quiet patch
+are answered (about 60 of 100); the others are reported as `no-change` because the lifted card's glow is in
+the patch already.
+
+`--xcheck` adds the coarse cross-check in the fight: Android's touch dots are switched on for 9 s, the screen
+is recorded, two real flicks (`input swipe`, 50 ms) land on the on-screen swipe pad, and the recording is read
+for the frame where each dot appears and the first later frame where the hand changes (needs `ffmpeg` and
+`ffprobe` on the desktop). That time includes the flick itself and the real touch path, and is good to one
+recorded frame at each end.
 
 ## Output
 
 `<output root>/<name>/`: `summary.json`, `run.log`, `shots/` (every screenshot the run looked at, numbered),
 `sampler.txt`, `top-threads.txt`, `logcat-lmk.txt`, `pacing.json`, `latency-<scenario>.json` (every sample),
+`xcheck-fight.mp4`,
 `trace.pftrace` (Perfetto: sched, CPU and GPU frequency, gfx/view/input slices, frame timeline, memory
 counters; open at ui.perfetto.dev), `logs/` (the session's archive from `logs latest`), `vkcount.txt` and
 `native-profiler.txt` when those are on. Nothing is written inside the repo except the `RESULTS.md` row.
@@ -128,9 +142,15 @@ choose the empty Save Profile 3, Singleplayer, confirm The Ironclad, answer No t
 first node of the map. A new profile's first run presents its rooms in a set order, so the first fight is the
 Nibbit; the seed is random, and `scenarios/fight.json` is written for the hand of seed `KW6PMT0GVE5V`. With
 another seed, play the fight once by hand and rewrite the steps and expected health values. Then Start, Save
-and Quit. When the campaign is over: Abandon Run from the main menu, and switch back to the owner's profile.
+and Quit. When the campaign is over: Abandon Run from the main menu. Switch back to the owner's profile only by selecting it and then ending
+the session without the game's own Quit (see Limits) until the game versions match.
 
 ## Limits
+
+- **Do not let the game exit from its menu on the owner's profile while the phone's game is older than the
+  owner's saves** (`docs/research/mali-10a-fight-1.md`, section 11): the game then rewrites that profile's
+  progress file in its own, older schema. The fight scenario refuses any profile but the bench one; the `menu`
+  scenario runs on whichever profile is selected and quits from the menu, so select the bench profile first.
 
 - Screenshot checks assume a landscape screenshot of 2424x1080 with the game's 16:9 picture centred (other
   sizes are scaled) and Lanner's on-screen controls in their default places.

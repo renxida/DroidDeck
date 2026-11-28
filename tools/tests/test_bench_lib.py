@@ -157,6 +157,42 @@ class PictureTest(unittest.TestCase):
         self.assertEqual(benchlib.Layout(picture()).hand_glow(), 0.0)
 
 
+class RecordingTest(unittest.TestCase):
+    def frames(self, dot_at, answer_at, count=40, width=20, height=10):
+        out = []
+        for index in range(count):
+            frame = bytearray(width * height)
+            if index >= dot_at:
+                for y in range(0, 4):
+                    frame[y * width:y * width + 4] = b"\xff" * 4
+            if index >= answer_at:
+                for y in range(6, 10):
+                    frame[y * width + 10:y * width + 20] = b"\xc8" * 10
+            out.append(bytes(frame))
+        return out
+
+    def test_touch_dot_to_answer(self):
+        frames = self.frames(dot_at=20, answer_at=26)
+        times = [index / 60.0 for index in range(len(frames))]
+        touch = benchlib.region_change(frames, 20, (0, 0, 4, 4))
+        answer = benchlib.region_change(frames, 20, (10, 6, 20, 10))
+        self.assertGreater(touch[20], 100)
+        self.assertEqual(sum(1 for value in touch if value > 0), 1)
+        result = benchlib.touch_to_picture(times, touch, answer, after_s=0.1)
+        self.assertEqual(result["ms"], 100.0)
+        self.assertEqual(result["frame_ms"], 16.7)
+
+    def test_no_dot_or_no_answer(self):
+        frames = self.frames(dot_at=99, answer_at=99)
+        times = [index / 60.0 for index in range(len(frames))]
+        quiet = benchlib.region_change(frames, 20, (0, 0, 4, 4))
+        self.assertIsNone(benchlib.touch_to_picture(times, quiet, quiet, after_s=0.1))
+        frames = self.frames(dot_at=20, answer_at=99)
+        touch = benchlib.region_change(frames, 20, (0, 0, 4, 4))
+        answer = benchlib.region_change(frames, 20, (10, 6, 20, 10))
+        self.assertIsNone(benchlib.touch_to_picture(times, touch, answer, after_s=0.1)["ms"])
+
+
 class SummaryTest(unittest.TestCase):
     def summary(self):
         stats = benchlib.frame_stats([16.0] * 100, 2000)
