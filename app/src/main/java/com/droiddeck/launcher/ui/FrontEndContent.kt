@@ -101,7 +101,9 @@ private fun Content(
         return
     }
     if (selected == "steam") {
-        SteamHome(s, a, onSelect, modifier)
+        val context = androidx.compose.ui.platform.LocalContext.current
+        remember { HomeDraft.load(context) }
+        if (HomeDraft.on) SteamHomeDraft(s, a, onSelect, modifier) else SteamHome(s, a, onSelect, modifier)
         return
     }
     if (selected == "games" || selected.startsWith("app:")) {

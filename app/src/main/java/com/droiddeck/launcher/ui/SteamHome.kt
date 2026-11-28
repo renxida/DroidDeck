@@ -85,7 +85,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, onSelect: (String) 
 }
 
 @Composable
-private fun HomeGameRow(g: Library.SteamGame, enabled: Boolean, onPlay: () -> Unit, onOpen: () -> Unit, onStable: () -> Unit) {
+internal fun HomeGameRow(g: Library.SteamGame, enabled: Boolean, onPlay: () -> Unit, onOpen: () -> Unit, onStable: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }

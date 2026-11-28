@@ -439,6 +439,8 @@ internal fun SetupPanel(
                                 val railContext = androidx.compose.ui.platform.LocalContext.current
                                 remember { RailLabels.load(railContext) }
                                 ToggleRow(host, "rail-labels", stringResource(R.string.setup_rail_labels), stringResource(R.string.setup_rail_labels_hint), RailLabels.shown) { RailLabels.set(railContext, it) }
+                                remember { HomeDraft.load(railContext) }
+                                ToggleRow(host, "home-draft", stringResource(R.string.setup_home_draft), stringResource(R.string.setup_home_draft_hint), HomeDraft.on) { HomeDraft.set(railContext, it) }
                                 LanguageRow(host, s.language, a.onLanguage)
                             }
                         }

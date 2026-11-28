@@ -840,6 +840,10 @@
     <string name="home_play_game_beta">Play %1$s beta</string>
     <string name="home_games">Your games</string>
     <string name="home_empty">Games you install in Steam show up here.</string>
+    <string name="home_ready">%1$s GB free · ready</string>
+    <string name="home_ready_low">%1$s GB free · close other apps for a smooth start</string>
+    <string name="setup_home_draft">Home game card (draft)</string>
+    <string name="setup_home_draft_hint">Home shows the last game as a card with its art, one Play button and free memory. A draft: off shows the list.</string>
     <string name="games_files">Game files</string>
     <string name="games_prefix">Proton prefix</string>
     <string name="games_never_played">Never played</string>

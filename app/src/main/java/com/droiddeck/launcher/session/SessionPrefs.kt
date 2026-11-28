@@ -216,6 +216,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
+    fun homeDraft(context: Context): Boolean = prefs(context).getBoolean("homeDraft", false)
+
+    fun setHomeDraft(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("homeDraft", on).apply()
+    }
+
     private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
     val LIBRARY_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc")
