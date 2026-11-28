@@ -24,7 +24,7 @@ on:
         required: false
         default: perf/switchboard
       scenario:
-        description: "all (steam-ui, stand-in-game and stand-in-native), regressions (steam-ui-screen-cycle, steam-ui-background, stand-in-background, upgrade), everything, or one scenario"
+        description: "all (steam-ui, stand-in-game and stand-in-native), regressions (steam-ui-screen-cycle, steam-ui-background, steam-ui-restart, stand-in-background, upgrade), everything, or one scenario"
         required: false
         default: all
       guest_vulkan:
@@ -99,7 +99,7 @@ jobs:
         id: scenarios
         run: |
           core='"steam-ui"'; [ -n "${{ steps.standin.outputs.run }}" ] && core='"steam-ui","stand-in-game","stand-in-native"'
-          reg='"steam-ui-screen-cycle","steam-ui-background","upgrade"'
+          reg='"steam-ui-screen-cycle","steam-ui-background","steam-ui-restart","upgrade"'
           [ -n "${{ steps.standin.outputs.run }}" ] && reg="$reg"',"stand-in-background"'
           # A push to this workflow's own branch runs everything; a release or an autofix attempt, the core.
           want="${{ inputs.scenario }}"; [ -z "$want" ] && { [ "${{ github.ref_name }}" = ci/offphone-probe ] && want=everything || want=all; }
