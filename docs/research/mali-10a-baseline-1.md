@@ -142,6 +142,13 @@ Run C found the FEX cache run A wrote (`2 files, 297.3 MB`).
   my first tap used screenshot-scale coordinates, was clamped to the bottom edge and hit nothing.
 - Lanner's on-screen controls drew over the game in both runs. The Steam performance overlay
   (`setting-mangoapp` On) was not visible at the menu.
+  Cause (VERIFIED from the logs of both runs, not from a second run): nothing failed. The setting only makes the
+  overlay available: `droiddeck-session` starts gamescope with `--mangoapp` and a config that says `no_display`
+  (`session.log`: "mangoapp on"), Steam takes the config over (`steam/systemperfmanager.txt`: "Using mangoapp: 1",
+  "Using config: /tmp/droiddeck-mangohud.conf") and writes its own level into it, which was 0 on this account
+  ("switch perf overlay level: 0"), and gamescope reports "mangoapp config now hides the overlay". The level is
+  Steam's: Quick Access menu, Performance, Performance Overlay Level. Not yet seen on this phone: the overlay
+  drawn at a level above 0 (PanVK).
 
 ### 3.5 Memory (VERIFIED numbers, INFERRED risk)
 
