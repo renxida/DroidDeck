@@ -34,6 +34,15 @@ class FrameCsvWriterTest {
         assertEquals(2L, csv.frames)
     }
 
+    @Test fun aFirstFrameIsOneOfThisSessionNotTheRingsLeftovers() {
+        val earlier = longArrayOf(t0 - 670_000_000_000, t0 - 669_983_000_000, 0, 0)
+        assertEquals(null, FrameLogComponent.firstSince(earlier, 2, t0))
+        assertEquals(null, FrameLogComponent.firstSince(longArrayOf(t0), 1, t0))
+        assertEquals(null, FrameLogComponent.firstSince(earlier, 0, t0))
+        val mixed = longArrayOf(t0 - 16_000_000, t0 + 9_950_000_000, t0 + 9_934_000_000, t0 + 99)
+        assertEquals(t0 + 9_934_000_000, FrameLogComponent.firstSince(mixed, 3, t0))
+    }
+
     @Test fun focusInfoIsWrittenOnlyWhenItChanges() {
         val out = StringWriter()
         val csv = FrameCsvWriter(out, t0, 1L shl 20)
