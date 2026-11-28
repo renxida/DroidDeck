@@ -2269,7 +2269,10 @@ class SessionService : Service() {
         SessionEvents.record("memory.lmk_risk", LmkRisk.fields(reading))
         AppCaches.drop(this, "lmk_risk")
         Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, R.string.session_memory_lmk_risk, Toast.LENGTH_LONG).show()
+            val text = if (LmkRisk.swapShort(reading))
+                getString(R.string.session_memory_lmk_risk_swap, reading.availableKb / 1024, reading.swapFreeKb / 1024)
+            else getString(R.string.session_memory_lmk_risk, reading.availableKb / 1024)
+            Toast.makeText(this, text, Toast.LENGTH_LONG).show()
         }
     }
 
