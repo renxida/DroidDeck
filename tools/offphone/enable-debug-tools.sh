@@ -2,7 +2,7 @@
 # Turn on Setup > Diagnostics > Debugging tools on a rooted CI Android (redroid), the same
 # switch a person flips by hand on the phone. Writes the app's "agent" preferences while it is stopped.
 set -euo pipefail
-pkg=${1:-dev.renxida.kestrel}
+pkg=${1:-chat.comb.lanner}
 adb root >/dev/null 2>&1 || true
 adb wait-for-device
 adb shell am force-stop "$pkg"

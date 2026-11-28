@@ -769,7 +769,7 @@ jobs:
           && test "$OFFPHONE_RESULT" = success
 
   build-info:
-    # What this APK is, readable without the GitHub API: release-apk attaches it to "latest" beside kestrel.apk.
+    # What this APK is, readable without the GitHub API: release-apk attaches it to "latest" beside lanner.apk (and its alias kestrel.apk).
     # It exists only for a run whose every gate passed (checks), so "gates": "passed" is literal.
     name: Record what this APK embeds
     needs: [engine, build, checks]

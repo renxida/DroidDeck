@@ -237,9 +237,9 @@ CASES = {
     "steam-segfault-at-exit": (dict(log=[
         "/usr/local/bin/droiddeck-session: line 100:  1234 Segmentation fault         \"${steam_client[@]}\""]), "info"),
     "app-killed": (dict(events=[ev("app.exit", 100, reason="low_memory", abnormal=True, status=9, description="",
-                                   process="dev.renxida.kestrel", pid=1)]), "fail"),
+                                   process="chat.comb.lanner", pid=1)]), "fail"),
     "helper-process-killed": (dict(events=[ev("app.exit", 100, reason="low_memory", abnormal=True, status=9,
-                                              process="dev.renxida.kestrel:shortcuts_sync", pid=2)]), "info"),
+                                              process="chat.comb.lanner:shortcuts_sync", pid=2)]), "info"),
     "zram-full-at-launch": (dict(swap_free=100, memory=[dict(t=s, available_mb=900, swap_used_mb=5700, game_mb=1200,
                                               game_majflt_s=2.0) for s in range(0, 171, 5)]), "info"),
     "memory-thrash": (dict(swap_free=100, memory=[dict(t=s, available_mb=100 if 60 <= s <= 80 else 900, swap_used_mb=5700,

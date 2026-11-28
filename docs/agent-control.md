@@ -8,7 +8,7 @@ and reports every run.
 
 ## How it works
 
-- **The provider** `content://dev.renxida.kestrel.agent` (`agent/AgentBridgeProvider.kt`)
+- **The provider** `content://chat.comb.lanner.agent` (`agent/AgentBridgeProvider.kt`)
   answers each command with JSON. It and the session-start Activity (`AgentStartActivity`) are in
   every build and require `android.permission.DUMP`, held by the ADB shell and privileged or
   explicitly granted callers. The provider checks the calling permission before decoding requests.

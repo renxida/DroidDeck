@@ -15,10 +15,10 @@ class FreeMemoryTest {
         FreeMemory.Sample(availableMb * 1024, swapFreeMb * 1024, fullStallUs)
 
     @Test fun everyOtherPackageIsTriedButThisOneTheLauncherAndTheKeyboard() {
-        val installed = listOf("com.b", "dev.renxida.kestrel", "com.a", "com.launcher", "com.ime", "com.a", "")
+        val installed = listOf("com.b", "chat.comb.lanner", "com.a", "com.launcher", "com.ime", "com.a", "")
         assertEquals(listOf("com.a", "com.b"),
-            FreeMemory.candidates(installed, "dev.renxida.kestrel", setOf("com.launcher", "com.ime")))
-        assertEquals(listOf("com.a", "com.b", "com.ime", "com.launcher"), FreeMemory.candidates(installed, "dev.renxida.kestrel", emptySet()))
+            FreeMemory.candidates(installed, "chat.comb.lanner", setOf("com.launcher", "com.ime")))
+        assertEquals(listOf("com.a", "com.b", "com.ime", "com.launcher"), FreeMemory.candidates(installed, "chat.comb.lanner", emptySet()))
     }
 
     @Test fun theKeyboardPackageComesFromTheDefaultInputMethodSetting() {
@@ -135,8 +135,8 @@ class FreeMemoryTest {
     }
 
     @Test fun aKilledBalloonIsNotAnAbnormalExit() {
-        assertFalse(AppExits.abnormal("low_memory", "dev.renxida.kestrel:balloon"))
-        assertTrue(AppExits.abnormal("low_memory", "dev.renxida.kestrel"))
-        assertFalse(AppExits.abnormal("exit_self", "dev.renxida.kestrel"))
+        assertFalse(AppExits.abnormal("low_memory", "chat.comb.lanner:balloon"))
+        assertTrue(AppExits.abnormal("low_memory", "chat.comb.lanner"))
+        assertFalse(AppExits.abnormal("exit_self", "chat.comb.lanner"))
     }
 }

@@ -38,7 +38,7 @@ interface UpdateInstaller {
 /** The system installer's one-tap confirmation; at targetSdk 28 a self-update always needs it. */
 object PackageInstallerPrompt : UpdateInstaller {
     private const val TAG = "SelfUpdate"
-    internal const val ACTION_STATUS = "dev.renxida.kestrel.SELF_UPDATE_STATUS"
+    internal const val ACTION_STATUS = "chat.comb.lanner.SELF_UPDATE_STATUS"
     internal const val EXTRA_SESSION = "self_update_session"
     private val callbacks = ConcurrentHashMap<Int, (UpdateInstaller.Result) -> Unit>()
 

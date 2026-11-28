@@ -1,1 +1,1 @@
-standard    dev.renxida.kestrel          -
+standard    chat.comb.lanner          -

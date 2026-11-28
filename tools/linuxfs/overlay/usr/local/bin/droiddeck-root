@@ -18,7 +18,7 @@ def socket_name():
                 name = f.read().strip()
         except OSError:
             pass
-    return "\0" + (name or "dev.renxida.kestrel.root")
+    return "\0" + (name or "chat.comb.lanner.root")
 
 
 def frame(sock, kind, payload):

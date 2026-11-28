@@ -7,7 +7,7 @@ Goal: open the app, see your games, tap Play. No motion.
 | Path | Before | After |
 |---|---|---|
 | Fresh install (icon, Allow storage, Play) | 3 | 3 |
-| Return to the last game | 4 (icon, Library, card, Play) | 2 (icon, **Play <game>**); 1 if Kestrel is open |
+| Return to the last game | 4 (icon, Library, card, Play) | 2 (icon, **Play <game>**); 1 if Lanner is open |
 | Any other installed game | 4 | 2 (its **Play** in Home's list) |
 
 The fresh-install Allow tap stays: the storage permission still guards /sdcard binds.

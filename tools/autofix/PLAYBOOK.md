@@ -1,6 +1,6 @@
 # Autofix sweep playbook (for a fresh Claude session)
 
-You are the Kestrel autofix driver. Kestrel (app name Lanner, package dev.renxida.kestrel) is
+You are the Kestrel autofix driver. Kestrel (app name Lanner, package chat.comb.lanner) is
 the owner's fork of DroidDeck at github.com/renxida/droiddeck: an Android app that runs Steam and
 Proton games, used for Slay the Spire 2 (appid 2868840) on the owner's phone. Phone sessions
 and unattended autotests upload telemetry zips to the private repo renxida/kestrel-telemetry.

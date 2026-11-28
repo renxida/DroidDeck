@@ -1,14 +1,14 @@
-# From install to Slay the Spire 2: the Kestrel flow
+# From install to Slay the Spire 2: the Lanner flow
 
 First read from the code on `ux/core-flow` (base c1c6961), then updated for `ux/simplify`
-(see `ux-simplify.md`). Taps count presses on Kestrel's own screens; taps inside Steam's own UI
-are listed but are Steam's, not Kestrel's.
+(see `ux-simplify.md`). Taps count presses on Lanner's own screens; taps inside Steam's own UI
+are listed but are Steam's, not Lanner's.
 
 ## Fresh install to an in-game Slay the Spire 2
 
 Device: Adreno tablet, Android 14, online on Wi-Fi, child-process restrictions still on.
 
-1. Tap the Kestrel icon. `FrontEndActivity` opens on **Home** (`SteamHome`).
+1. Tap the Lanner icon. `FrontEndActivity` opens on **Home** (`SteamHome`).
 2. Android's storage permission dialog (target SDK 28 asks on every launch until granted): **Allow**.
 3. Nothing to tap while the Linux runtime downloads: `autoUpdateRuntime` installs it on its own
    when online, unmetered and the GPU can draw. A runtime chip on Home shows progress and
@@ -26,12 +26,12 @@ Device: Adreno tablet, Android 14, online on Wi-Fi, child-process restrictions s
    confirm, wait, **Play**. About 8 taps in Steam, plus typing if not using the QR code.
 9. In game. The session overlay (Quick Access / hold Back) holds the in-session settings.
 
-Kestrel taps on the critical path: icon, Allow, Open Steam = **3** (plus the one-time gate).
+Lanner taps on the critical path: icon, Allow, Open Steam = **3** (plus the one-time gate).
 The Allow tap stays until the storage permission is deferred (proposal 5).
 
 ## Returning to play an installed game
 
-- Icon → **Play <last game>** on Home = **2** taps (1 tap once Kestrel is open). Before
+- Icon → **Play <last game>** on Home = **2** taps (1 tap once Lanner is open). Before
   `ux/simplify`: icon → Library → card → Play = 4.
 - Any other installed game: icon → its **Play** button in Home's game list = 2 taps.
 
@@ -86,7 +86,7 @@ Need a design decision or a device to judge; not implemented.
    the game without opening its page.
 4. **Carry on after the child-process gate.** When the limit clears, start the launch the user
    asked for instead of returning them to press Play again (one fewer tap). Must not start a
-   session while Kestrel is in the background (the fix runs in Android Settings).
+   session while Lanner is in the background (the fix runs in Android Settings).
 5. **Ask for storage only when needed.** The storage permission is requested on every launch
    until granted; it is only needed for exports to Download/Pictures. Deferring it removes a
    first-run tap, but needs checking which paths break without it on Android 10 and older.
@@ -101,6 +101,6 @@ Need a design decision or a device to judge; not implemented.
    "Interface" or "App" would be clearer. Touches translations in every locale.
 9. *(Done in `ux/simplify`: the readiness card is gone; checks sit under Advanced.)* **Fold the Steam account and integration checks.** On a fresh install the Overview shows
    "Not ready to play yet" with a Steam-account warning that has no action besides pressing
-   Play. Consider counting only checks the user can act on in Kestrel.
+   Play. Consider counting only checks the user can act on in Lanner.
 10. **Translations of the corrected copy.** The strings fixed here now fall back to English in
     other locales until they are retranslated.

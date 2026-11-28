@@ -8,7 +8,9 @@ on:
         required: true
   workflow_run:
     workflows: [Build APK]
-    branches: [perf/switchboard]
+    # GitHub reads a workflow_run trigger from the default branch's copy of this file, so this list
+    # takes effect once that copy carries it.
+    branches: [main, perf/switchboard, perf/lanner-id]
     types: [completed]
 
 permissions:
@@ -35,10 +37,13 @@ jobs:
         run: |
           apk=$(find apk -name '*.apk' | head -n1)
           test -n "$apk" || { echo "no .apk in artifact"; exit 1; }
+          cp "$apk" lanner.apk
+          # kestrel.apk is a byte-identical alias, so links and updaters that ask for the old name keep working.
           cp "$apk" kestrel.apk
+          cmp lanner.apk kestrel.apk
 
       - name: Publish to release "latest"
         run: |
           gh release view latest >/dev/null 2>&1 || \
             gh release create latest --title latest --notes "APK from run $RUN_ID" --target "${{ github.sha }}"
-          gh release upload latest kestrel.apk --clobber
+          gh release upload latest lanner.apk kestrel.apk --clobber

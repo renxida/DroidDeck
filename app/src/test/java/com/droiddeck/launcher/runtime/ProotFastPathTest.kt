@@ -8,7 +8,7 @@ import org.junit.Test
 import java.io.File
 
 class ProotFastPathTest {
-    private val root = File("/data/data/dev.renxida.kestrel/files/linuxfs")
+    private val root = File("/data/data/chat.comb.lanner/files/linuxfs")
 
     @Test fun guestEnvironmentCarriesTheHostAndroidApi() {
         for (sdk in listOf(33, 35, 36)) {

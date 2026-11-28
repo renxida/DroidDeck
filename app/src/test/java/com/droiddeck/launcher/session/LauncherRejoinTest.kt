@@ -98,7 +98,7 @@ class LauncherRejoinTest {
         assertFalse(rejoin(action = null, categories = null))
         assertFalse(rejoin(action = main, categories = null))
         assertFalse(rejoin(action = "android.intent.action.VIEW", categories = setOf("android.intent.category.BROWSABLE")))
-        assertFalse(rejoin(action = "dev.renxida.kestrel.LAUNCH_GAME", categories = setOf("android.intent.category.DEFAULT")))
+        assertFalse(rejoin(action = "chat.comb.lanner.LAUNCH_GAME", categories = setOf("android.intent.category.DEFAULT")))
         assertFalse(rejoin(action = "android.intent.action.CREATE_SHORTCUT", categories = setOf("android.intent.category.DEFAULT")))
     }
 

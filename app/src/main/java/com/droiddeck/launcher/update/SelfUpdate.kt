@@ -49,8 +49,8 @@ object SelfUpdate {
     private const val DECLINED = "declined"
     private const val LAST_OUTCOME = "last_outcome"
     const val TRACK_BRANCH = "perf/switchboard"
-    const val META_COMMIT = "dev.renxida.kestrel.SOURCE_COMMIT"
-    const val META_COMMIT_TIME = "dev.renxida.kestrel.COMMIT_TIME"
+    const val META_COMMIT = "chat.comb.lanner.SOURCE_COMMIT"
+    const val META_COMMIT_TIME = "chat.comb.lanner.COMMIT_TIME"
     private const val CHANNEL = "self_update"
     private const val NOTIFICATION = 0x4b7e5a
 

@@ -54,7 +54,7 @@ class DualScreenPanelOwnerTest {
 
     @Test fun aScreenFromAnotherAppKeepsTheTopScreenAfterABottomScreenTouch() {
         DualScreenPanel.show(app, 2, 10)
-        assertTrue(DualScreenPanel.opensOutside("dev.renxida.kestrel", "com.android.packageinstaller"))
+        assertTrue(DualScreenPanel.opensOutside("chat.comb.lanner", "com.android.packageinstaller"))
         DualScreenPanel.yieldTo(10, true)
         DualScreenPanel.ownerPaused(10, true)
         assertNull(DualScreenPanel.focusTask(fromPanel = true))
@@ -64,8 +64,8 @@ class DualScreenPanelOwnerTest {
     }
 
     @Test fun droidDecksOwnScreensAndUnresolvedIntentsDoNotYield() {
-        assertFalse(DualScreenPanel.opensOutside("dev.renxida.kestrel", "dev.renxida.kestrel"))
-        assertFalse(DualScreenPanel.opensOutside("dev.renxida.kestrel", null))
+        assertFalse(DualScreenPanel.opensOutside("chat.comb.lanner", "chat.comb.lanner"))
+        assertFalse(DualScreenPanel.opensOutside("chat.comb.lanner", null))
     }
 
     @Test fun anotherTasksPauseDoesNotStopThePanelReturningFocus() {

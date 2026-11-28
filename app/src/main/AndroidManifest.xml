@@ -60,8 +60,8 @@
             </intent-filter>
         </receiver>
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
-        <meta-data android:name="dev.renxida.kestrel.SOURCE_COMMIT" android:value="${kestrelCommit}" />
-        <meta-data android:name="dev.renxida.kestrel.COMMIT_TIME" android:value="${kestrelCommitTime}" />
+        <meta-data android:name="chat.comb.lanner.SOURCE_COMMIT" android:value="${kestrelCommit}" />
+        <meta-data android:name="chat.comb.lanner.COMMIT_TIME" android:value="${kestrelCommitTime}" />
         <receiver android:name=".update.SelfUpdateReceiver" android:exported="false" />
 
         <activity
@@ -93,7 +93,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
-                <action android:name="dev.renxida.kestrel.LAUNCH_GAME" />
+                <action android:name="chat.comb.lanner.LAUNCH_GAME" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.CAR_LAUNCHER" />
             </intent-filter>
