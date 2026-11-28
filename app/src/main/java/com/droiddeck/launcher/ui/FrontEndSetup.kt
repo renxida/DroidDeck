@@ -241,7 +241,7 @@ internal fun SetupPanel(
             SettingsGroup(stringResource(R.string.setup_account)) {
                 ToggleRow(
                     menus, "offline", stringResource(R.string.setup_offline),
-                    s.offlineAccount?.let { if (it.isEmpty()) stringResource(R.string.setup_signed_in_unnamed) else stringResource(R.string.setup_signed_in, it) } ?: stringResource(R.string.setup_sign_in_first),
+                    offlineHint(s.offlineAccount, s.offline),
                     s.offline, enabled = s.offlineAccount != null,
                 ) { a.onOffline() }
             }
@@ -655,6 +655,15 @@ internal fun SetupPanel(
             dismissButton = { androidx.compose.material3.TextButton(onClick = { deleteSessionLogs = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
+}
+
+@Composable
+internal fun offlineHint(account: String?, offline: Boolean): String = when {
+    account == null -> stringResource(R.string.setup_sign_in_first)
+    offline && account.isEmpty() -> stringResource(R.string.setup_offline_on_unnamed)
+    offline -> stringResource(R.string.setup_offline_on, account)
+    account.isEmpty() -> stringResource(R.string.setup_signed_in_unnamed)
+    else -> stringResource(R.string.setup_signed_in, account)
 }
 
 @Composable
