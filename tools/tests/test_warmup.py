@@ -370,6 +370,20 @@ class PeAlignTest(unittest.TestCase):
             WARMUP["pe_aligned_exe"](str(src), 0)
             self.assertFalse(os.path.lexists(game / ".droiddeck-aligned" / "steam_api64.dll"))
 
+    def test_too_little_free_space_keeps_the_original_and_says_why(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp, "Game.exe")
+            fake_pe(src, os.urandom(3 << 20))
+            size = src.stat().st_size
+            short = lambda folder: os.statvfs_result((4096, 4096, 0, 0, (size + (512 << 20)) // 4096 - 1, 0, 0, 0, 0, 255))
+            exe, line = WARMUP["pe_aligned_exe"](str(src), 0, statvfs=short)
+            self.assertIsNone(exe)
+            self.assertRegex(line, r"^aligned copy of Game\.exe not made: too little free space "
+                                   r"\(51\d MB free, 51\d MB needed\)$")
+            self.assertFalse(Path(tmp, ".droiddeck-aligned", "Game.exe").exists())
+            enough = lambda folder: os.statvfs_result((4096, 4096, 0, 0, (size + (512 << 20)) // 4096 + 1, 0, 0, 0, 0, 255))
+            self.assertIn("made in", WARMUP["pe_aligned_exe"](str(src), 0, statvfs=enough)[1])
+
 
 if __name__ == "__main__":
     unittest.main()
