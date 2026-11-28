@@ -1,5 +1,5 @@
 {
- "about": "Continue the saved bench run (Ironclad, seed KW6PMT0GVE5V, floor 1, Nibbit 45 HP) and play three turns. The run is saved at the start of the fight and Save and Quit does not advance it, so every run plays the same fight. The enemy ends on 8 HP: the fight is never won.",
+ "about": "Continue the saved bench run (Ironclad, seed KW6PMT0GVE5V, floor 1, Nibbit 45 HP) and play three turns. The run is saved at the start of the fight and Save and Quit does not advance it, so every run plays the same fight. Written for game v0.114.0, which deals this run the hand Strike, Defend, Strike, Bash, Defend (v0.111.1 dealt Bash and four Strikes). The enemy ends on 8 HP: the fight is never won. The enemy bar is only checked after steps that leave the focus on a card whose tooltip does not cover it.",
  "profile_icon": "blue",
  "continue_focus_y": [
   722,
@@ -9,6 +9,17 @@
  "hp_tolerance": 0.035,
  "hand_glow_min": 0.011,
  "steps": [
+  {
+   "kind": "card",
+   "name": "Strike",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000,
+   "expect_enemy_hp": 0.867
+  },
   {
    "kind": "focus",
    "name": "focus right",
@@ -26,19 +37,45 @@
     "a"
    ],
    "between_ms": 800,
-   "settle_ms": 2000,
-   "expect_enemy_hp": 0.867
+   "settle_ms": 2000
+  },
+  {
+   "kind": "focus",
+   "name": "focus left",
+   "pads": [
+    "left"
+   ],
+   "settle_ms": 0,
+   "pause_ms": 400
   },
   {
    "kind": "card",
-   "name": "Strike",
+   "name": "Defend",
    "pads": [
     "a",
     "a"
    ],
    "between_ms": 800,
-   "settle_ms": 2000,
+   "settle_ms": 2000
+  },
+  {
+   "kind": "end_turn",
+   "name": "End Turn 1",
+   "pads": [
+    "y"
+   ],
+   "settle_ms": 6000,
+   "expect_hand": true,
    "expect_enemy_hp": 0.733
+  },
+  {
+   "kind": "focus",
+   "name": "focus right",
+   "pads": [
+    "right"
+   ],
+   "settle_ms": 0,
+   "pause_ms": 400
   },
   {
    "kind": "card",
@@ -52,31 +89,14 @@
    "expect_enemy_hp": 0.6
   },
   {
-   "kind": "end_turn",
-   "name": "End Turn 1",
+   "kind": "card",
+   "name": "Strike",
    "pads": [
-    "y"
+    "a",
+    "a"
    ],
-   "settle_ms": 6000,
-   "expect_hand": true
-  },
-  {
-   "kind": "focus",
-   "name": "focus right",
-   "pads": [
-    "right"
-   ],
-   "settle_ms": 0,
-   "pause_ms": 400
-  },
-  {
-   "kind": "focus",
-   "name": "focus right",
-   "pads": [
-    "right"
-   ],
-   "settle_ms": 0,
-   "pause_ms": 400
+   "between_ms": 800,
+   "settle_ms": 2000
   },
   {
    "kind": "focus",
@@ -90,26 +110,6 @@
   {
    "kind": "card",
    "name": "Strike",
-   "pads": [
-    "a",
-    "a"
-   ],
-   "between_ms": 800,
-   "settle_ms": 2000
-  },
-  {
-   "kind": "card",
-   "name": "Defend",
-   "pads": [
-    "a",
-    "a"
-   ],
-   "between_ms": 800,
-   "settle_ms": 2000
-  },
-  {
-   "kind": "card",
-   "name": "Defend",
    "pads": [
     "a",
     "a"
@@ -134,7 +134,8 @@
     "a"
    ],
    "between_ms": 800,
-   "settle_ms": 2000
+   "settle_ms": 2000,
+   "expect_enemy_hp": 0.311
   },
   {
    "kind": "card",
@@ -147,8 +148,17 @@
    "settle_ms": 2000
   },
   {
+   "kind": "focus",
+   "name": "focus right",
+   "pads": [
+    "right"
+   ],
+   "settle_ms": 0,
+   "pause_ms": 400
+  },
+  {
    "kind": "card",
-   "name": "Strike",
+   "name": "Defend",
    "pads": [
     "a",
     "a"
