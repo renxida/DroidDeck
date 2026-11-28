@@ -830,6 +830,7 @@ internal object EnhancedSessionLogShare {
         "frame-trace.log", "process-trace.log", "game-lifecycle.log", "launches.log", "tools.tsv", "wanted.tsv", "prefixes.json",
         "battlenet.log", "spawned.log", "cef_log.txt", "cef_log.previous.txt",
         "console_log.txt", "webhelper_js.txt", "controller_support.txt", "systemperfmanager.txt",
+        "native-engine.log",
     )
     private val KNOWN_COMPONENT_PATTERNS = listOf(
         Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2,}-[a-z0-9-]{1,24}"),
