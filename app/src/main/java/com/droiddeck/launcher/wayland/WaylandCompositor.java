@@ -184,6 +184,23 @@ public final class WaylandCompositor {
 
     public static native int nativeLatencyDropped();
 
+    /** Region of the game frame the response probe watches, in 1/10000 of its width and height; w or h 0 stops it. */
+    public static native void nativeResponseArm(int x, int y, int w, int h);
+
+    /** Call right after handing the input to the compositor or the pad ring. */
+    public static native void nativeResponseInput(int kind, long eventNanos);
+
+    /** Rows of {@code RESPONSE_FIELDS} longs; returns the number of rows. */
+    public static native int nativeResponseDrain(long[] out);
+
+    /** out: frames seen since arming, the region's noise, whether the last frame could be read. */
+    public static native void nativeResponseState(int[] out);
+
+    public static final int RESPONSE_FIELDS = 13;
+
+    /** The compositor's last "[path]" line (the game's buffers, the screen swapchain, copy or display layer), or null. */
+    public static native String nativePresentPath();
+
     public static native boolean nativeDisplayTiming();
 
     public static native int nativeCompositorTid();

@@ -387,6 +387,67 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(1800, summary["frames"])
         self.assertEqual(3, summary["offCadence"])
 
+    def test_latency_summarises_the_answered_inputs_to_the_screen(self):
+        rows = [{"input": "pad:down", "status": "ok", "injectUs": 90, "firstFrameUs": 9000, "changeUs": 30000 + i * 1000,
+                 "frames": 2, "presentUs": 31000 + i * 1000, "displayUs": 40000 + i * 1000, "refreshUs": 8333,
+                 "noise": 1, "delta": 90 + i} for i in range(100)]
+        rows.append({"input": "pad:up", "status": "no-change", "injectUs": 80, "firstFrameUs": 7000, "changeUs": None,
+                     "frames": 60, "presentUs": None, "displayUs": None, "refreshUs": 0, "noise": 2, "delta": 0})
+        summary = ctl.latency_summary(rows, True)
+        self.assertEqual((101, 100, {"ok": 100, "no-change": 1}), (summary["samples"], summary["answered"], summary["statuses"]))
+        self.assertEqual("display", summary["endsAt"])
+        self.assertEqual({"n": 100, "minMs": 40.0, "p50Ms": 90.0, "p95Ms": 135.0, "p99Ms": 139.0, "maxMs": 139.0},
+                         summary["toScreen"])
+        self.assertEqual((30.0, 129.0), (summary["toChangedFrame"]["minMs"], summary["toChangedFrame"]["p99Ms"]))
+        self.assertEqual(9.0, summary["toFirstFrame"]["p50Ms"])
+        self.assertEqual(2.0, summary["framesToChange"]["p50Ms"])
+        self.assertEqual(["pad:down"], list(summary["byInput"]))
+        self.assertEqual((8.33, 2, 90), (summary["refreshMs"], summary["noise"], summary["smallestDelta"]))
+
+    def test_latency_without_display_timing_ends_at_the_present(self):
+        rows = [{"input": "tap:", "status": "ok", "firstFrameUs": 5000, "changeUs": 20000, "frames": 1,
+                 "presentUs": 21000, "displayUs": None, "refreshUs": 16667, "noise": 0, "delta": 50}]
+        summary = ctl.latency_summary(rows, False)
+        self.assertEqual(("present", 21.0), (summary["endsAt"], summary["toScreen"]["p50Ms"]))
+        self.assertIsNone(ctl.latency_summary([], False)["toScreen"])
+
+    def test_latency_reads_its_inputs_and_region(self):
+        self.assertEqual({"type": "pad", "button": "down"}, ctl.latency_input("pad:down"))
+        self.assertEqual({"type": "key", "key": "TAB"}, ctl.latency_input("key:TAB"))
+        self.assertEqual({"type": "tap", "x": 0.5, "y": 0.25, "space": "fraction"}, ctl.latency_input("tap:0.5,0.25"))
+        for bad in ("pad", "tap:2,0", "tap:x", "swipe:1"):
+            with self.assertRaises(ctl.ControlError):
+                ctl.latency_input(bad)
+        self.assertEqual([0.1, 0.2, 0.3, 0.4], ctl.latency_region("0.1,0.2,0.3,0.4"))
+        for bad in ("0.1,0.2,0.3", "0.8,0,0.3,0.1", "0,0,0,0.5", "a,b,c,d"):
+            with self.assertRaises(ctl.ControlError):
+                ctl.latency_region(bad)
+
+    def test_latency_runs_in_batches_and_alternates_the_inputs(self):
+        def batch(n, nxt):
+            return {"ok": True, "command": "latency", "displayTiming": True, "refreshHz": 120.0, "readable": True,
+                    "next": nxt, "rows": [{"input": "pad:down", "status": "ok", "firstFrameUs": 8000, "changeUs": 24000,
+                                           "frames": 2, "presentUs": 25000, "displayUs": 33000, "refreshUs": 8333,
+                                           "noise": 0, "delta": 77}] * n}
+        self.configure({"access": {"ok": True, "commands": True}, "latency": [batch(10, 0), batch(10, 0), batch(5, 1)]})
+        code, out = self.run_ctl("latency", "--input", "pad:down", "--input", "pad:up", "--region", "0.1,0.4,0.3,0.2",
+                                 "--count", "25", "--gap", "250")
+        self.assertEqual(0, code)
+        self.assertEqual(("latency", 25, 25, 33.0, "display"),
+                         (out["command"], out["samples"], out["answered"], out["toScreen"]["p99Ms"], out["endsAt"]))
+        self.assertNotIn("rows", out)
+        requests = [call["request"] for call in self.calls("latency")]
+        self.assertEqual([10, 10, 5], [request["count"] for request in requests])
+        self.assertEqual([{"type": "pad", "button": "down"}, {"type": "pad", "button": "up"}], requests[0]["inputs"])
+        self.assertEqual(([0.1, 0.4, 0.3, 0.2], 250, 0), (requests[0]["region"], requests[0]["gapMs"], requests[2]["first"]))
+
+    def test_latency_needs_debugging_tools(self):
+        self.configure({"access": {"ok": True, "commands": False}})
+        code, out = self.run_ctl("latency", "--input", "pad:down", "--region", "0,0,1,1")
+        self.assertNotEqual(0, code)
+        self.assertEqual("AGENT_COMMANDS_DISABLED", out["error"]["code"])
+        self.assertEqual([], self.calls("latency"))
+
     def test_pacing_captures_then_turns_timestats_off(self):
         self.configure({}, timestats=TIMESTATS_SURFACEVIEW)
         with unittest.mock.patch.object(ctl.time, "sleep"):

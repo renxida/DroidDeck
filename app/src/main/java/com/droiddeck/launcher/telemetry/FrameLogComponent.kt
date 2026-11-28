@@ -88,7 +88,10 @@ class FrameLogComponent(
                             exits.focus(info[0], engine, steam, System.currentTimeMillis())
                             if (out.info(now, engine, info[0], steam, info[1], info[2], info[3]) && focusEvents < MAX_FOCUS_EVENTS) {
                                 focusEvents++
-                                SessionEvents.record("frames.focus", mapOf("engine" to engine, "pid" to info[0], "steam" to steam))
+                                SessionEvents.record("frames.focus", mapOf("engine" to engine, "pid" to info[0], "steam" to steam,
+                                    "output" to "${info[1]}x${info[2]}@${info[3]}mHz",
+                                    "panelHz" to com.droiddeck.launcher.session.SessionState.refreshHz,
+                                    "path" to runCatching { com.droiddeck.launcher.wayland.WaylandCompositor.nativePresentPath() }.getOrNull()))
                             }
                         }
                         val n = HudFrames.nativePoll(handle, frametimes, times)

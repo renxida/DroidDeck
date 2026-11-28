@@ -18,6 +18,7 @@
 #include "droiddeck_color.h"
 #include "gpu_clock_pin.h"
 #include "latency_probe.h"
+#include "response_probe.h"
 
 extern int droiddeck_wayland_run(void);
 extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
@@ -33,6 +34,9 @@ extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_set_cursor_composite(int on);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
 extern void droiddeck_wayland_input_mark(int kind, int64_t event_ns);
+extern void droiddeck_wayland_response_arm(int x, int y, int w, int h);
+extern int droiddeck_wayland_present_path(char *out, int n);
+extern void droiddeck_wayland_response_input(int kind, int64_t event_ns);
 extern void droiddeck_stream_set(int on);
 extern void droiddeck_stream_frame(AHardwareBuffer *ahb);
 extern unsigned droiddeck_stream_frames(void);
@@ -367,6 +371,45 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLatencyDrain(JNIEnv 
     if (n > 0) (*env)->SetLongArrayRegion(env, out, 0, n * LP_FIELDS, (const jlong *)buf);
     free(buf);
     return n;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativePresentPath(JNIEnv *env, jclass clazz) {
+    char path[320];
+    if (droiddeck_wayland_present_path(path, (int)sizeof(path)) <= 0) return NULL;
+    return (*env)->NewStringUTF(env, path);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResponseArm(JNIEnv *env, jclass clazz, jint x, jint y, jint w, jint h) {
+    droiddeck_wayland_response_arm((int)x, (int)y, (int)w, (int)h);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResponseInput(JNIEnv *env, jclass clazz, jint kind, jlong eventNs) {
+    droiddeck_wayland_response_input((int)kind, (int64_t)eventNs);
+}
+
+JNIEXPORT jint JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResponseDrain(JNIEnv *env, jclass clazz, jlongArray out) {
+    if (!out) return 0;
+    const jsize len = (*env)->GetArrayLength(env, out);
+    const int rows = len / RP_FIELDS;
+    if (rows <= 0) return 0;
+    int64_t *buf = malloc((size_t)rows * RP_FIELDS * sizeof(int64_t));
+    if (!buf) return 0;
+    const int n = rp_drain(buf, rows);
+    if (n > 0) (*env)->SetLongArrayRegion(env, out, 0, n * RP_FIELDS, (const jlong *)buf);
+    free(buf);
+    return n;
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResponseState(JNIEnv *env, jclass clazz, jintArray out) {
+    if (!out || (*env)->GetArrayLength(env, out) < 3) return;
+    jint state[3] = {0, 0, 0};
+    rp_state(&state[0], &state[1], &state[2]);
+    (*env)->SetIntArrayRegion(env, out, 0, 3, state);
 }
 
 JNIEXPORT jint JNICALL

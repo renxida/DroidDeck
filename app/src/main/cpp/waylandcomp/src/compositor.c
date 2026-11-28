@@ -12,6 +12,9 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <poll.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <linux/dma-buf.h>
 #include <sys/timerfd.h>
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
@@ -36,6 +39,7 @@
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
 #include "latency_probe.h"
+#include "response_probe.h"
 
 #define WLOGI(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", __VA_ARGS__)
 #define WLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", __VA_ARGS__)
@@ -786,6 +790,36 @@ extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
 extern void droiddeck_on_game_program(int pid, const char *program);
 
+#define RP_READY_WAIT_MS 8
+
+/* The response probe reads a few thousand pixels of the frame through a CPU mapping of the dma-buf, which
+ * a linear 32-bit buffer from a dma-heap allows. While an input waits for its frame, the read waits for the
+ * buffer's rendering first. */
+static void response_probe_dmabuf(const struct dmabuf_buffer *b, int64_t now) {
+    if (!rp_armed()) return;
+    const uint32_t f = b->format;
+    const int packed32 = f == FOURCC('A', 'R', '2', '4') || f == FOURCC('X', 'R', '2', '4') ||
+                         f == FOURCC('A', 'B', '2', '4') || f == FOURCC('X', 'B', '2', '4');
+    if (!packed32 || b->modifier != 0 || b->n_planes != 1 || b->fd[0] < 0 || b->width <= 0 || b->height <= 0) {
+        rp_frame(NULL, 0, 0, 0, now);
+        return;
+    }
+    struct pollfd ready = { .fd = b->fd[0], .events = POLLIN };
+    if (poll(&ready, 1, rp_waiting() ? RP_READY_WAIT_MS : 0) != 1 && !rp_waiting()) return;
+    const size_t size = (size_t)b->offset[0] + (size_t)b->stride[0] * (size_t)b->height;
+    void *map = mmap(NULL, size, PROT_READ, MAP_SHARED, b->fd[0], 0);
+    if (map == MAP_FAILED) {
+        rp_frame(NULL, 0, 0, 0, now);
+        return;
+    }
+    struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ };
+    ioctl(b->fd[0], DMA_BUF_IOCTL_SYNC, &sync);
+    rp_frame((const uint8_t *)map + b->offset[0], (int)b->stride[0], b->width, b->height, now);
+    sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
+    ioctl(b->fd[0], DMA_BUF_IOCTL_SYNC, &sync);
+    munmap(map, size);
+}
+
 static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_resource *buffer) {
     int32_t w = wl_shm_buffer_get_width(shm), h = wl_shm_buffer_get_height(shm);
     int32_t stride = wl_shm_buffer_get_stride(shm);
@@ -798,6 +832,7 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
     if (s->shm_img) {
         wl_shm_buffer_begin_access(shm);
         vkp_image_upload_shm(s->shm_img, wl_shm_buffer_get_data(shm), stride);
+        if (s == g_hud_shm && rp_armed()) rp_frame(wl_shm_buffer_get_data(shm), stride, w, h, now_ns());
         wl_shm_buffer_end_access(shm);
     }
     send_buffer_release(buffer);
@@ -938,6 +973,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         if (!repeat) {
             g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_hud_new = 1; g_game_frames++;
             lp_commit(g_hud_alive_ns);
+            response_probe_dmabuf(b, g_hud_alive_ns);
             droiddeck_on_game_frame();
         }
     }
@@ -2383,8 +2419,9 @@ static void render_scene(void) {
             g_hud_new = 0;
             hud_frame_shown(t);
         }
-        lp_presented(now_ns(), copy && vkp_present_count() != presents_before ? vkp_last_present_id() : 0,
-                     vkp_swap_pending(), g_refresh_ns);
+        const uint32_t shown_id = copy && vkp_present_count() != presents_before ? vkp_last_present_id() : 0;
+        lp_presented(now_ns(), shown_id, vkp_swap_pending(), g_refresh_ns);
+        rp_presented(now_ns(), shown_id, g_refresh_ns);
         wl_list_for_each(s, &g_surfaces, link) {
             if (s->drawn) feedback_present_all(&s->feedback, t);
             else g_pace.undrawn += feedback_discard_all(&s->feedback);
@@ -2451,10 +2488,16 @@ static void on_commit_idle(void *data) {
     render_scene();
 }
 
+static void probes_displayed(uint32_t present_id, int64_t display_ns) {
+    lp_displayed(present_id, display_ns);
+    rp_displayed(present_id, display_ns);
+}
+
 static void latency_tick(int64_t now) {
-    if (!lp_busy()) return;
-    vkp_poll_display_times(lp_displayed);
+    if (!lp_busy() && !rp_busy()) return;
+    vkp_poll_display_times(probes_displayed);
     lp_expire(now);
+    rp_expire(now);
 }
 
 static void on_vsync(int64_t frame_time_ns) {
@@ -3564,6 +3607,13 @@ static void output_resized(void) {
     wl_display_flush_clients(g_display);
 }
 
+/* The pipe is ordered and the input itself was written before this message, so the input has been handed
+ * to the client by the time this is read. */
+static void response_input_read(const struct input_msg *m) {
+    const int64_t java_ns = ((int64_t)m->p3 << 32) | (uint32_t)m->p4;
+    rp_input(m->p1, java_ns - (int64_t)(uint32_t)m->p2 * 1000, now_ns());
+}
+
 static void input_mark_read(const struct input_msg *m) {
     const int64_t java_ns = ((int64_t)m->p3 << 32) | (uint32_t)m->p4;
     const int64_t event_ns = java_ns - (int64_t)(uint32_t)m->p2 * 1000;
@@ -3595,6 +3645,8 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 21: if (!m.p1) stream_forget_all(); schedule_render(); break;
         case 22: schedule_render(); break;
         case 30: input_mark_read(&m); break;
+        case 31: rp_arm(m.p1, m.p2, m.p3, m.p4); break;
+        case 32: response_input_read(&m); break;
         default: deliver_pointer(&m); break;
         }
     }
@@ -3682,6 +3734,24 @@ void droiddeck_wayland_input_mark(int kind, int64_t event_ns) {
     (void)n;
 }
 
+void droiddeck_wayland_response_arm(int x, int y, int w, int h) {
+    if (g_input_pipe[1] < 0) return;
+    struct input_msg m = { 31, x, y, w, h };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+void droiddeck_wayland_response_input(int kind, int64_t event_ns) {
+    if (g_input_pipe[1] < 0) return;
+    const int64_t java_ns = now_ns();
+    int64_t age_us = (java_ns - event_ns) / 1000;
+    if (age_us < 0 || event_ns <= 0) age_us = 0;
+    if (age_us > 0x7fffffffLL) age_us = 0x7fffffffLL;
+    struct input_msg m = { 32, kind, (int)age_us, (int)(java_ns >> 32), (int)(uint32_t)java_ns };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
 void droiddeck_wayland_set_cursor_composite(int on) {
     const int want = on ? 1 : 0;
     if (atomic_exchange(&g_cursor_composite_want, want) == want) return;
@@ -3717,6 +3787,40 @@ void droiddeck_inject_key(uint32_t evdev, int pressed) { key_event(evdev, presse
 
 
 static struct wl_event_source *g_stats_timer;
+
+/* The path a game frame takes from the client's buffer to the screen, said when it changes and kept for
+ * the app's frames.focus event. */
+static pthread_mutex_t g_path_lock = PTHREAD_MUTEX_INITIALIZER;
+static char g_path[320];
+
+static void present_path_note(unsigned copy_scenes, unsigned zero_copy, unsigned layer_frames) {
+    const struct surface *s = g_hud_surface ? g_hud_surface : g_hud_shm;
+    if (!s || !s->buf_w) return;
+    char line[320], output[128], frames[96];
+    const struct dmabuf_buffer *b = s == g_hud_surface ? s->dmabuf_buf : NULL;
+    if (b)
+        snprintf(frames, sizeof(frames), "%dx%d %c%c%c%c %s dma-buf", b->width, b->height, b->format & 0xff,
+                 (b->format >> 8) & 0xff, (b->format >> 16) & 0xff, (b->format >> 24) & 0xff,
+                 vkp_modifier_name(b->modifier));
+    else
+        snprintf(frames, sizeof(frames), "%dx%d wl_shm (uploaded each frame)", s->buf_w, s->buf_h);
+    vkp_describe_output(output, sizeof(output));
+    snprintf(line, sizeof(line), "game frames %s -> screen %s, %s, vsync ticks at %.0f Hz", frames, output,
+             zero_copy || layer_frames ? "on its own display layer" : copy_scenes ? "copied into the screen swapchain" : "idle",
+             g_refresh_ns > 0 ? 1e9 / (double)g_refresh_ns : 0.0);
+    pthread_mutex_lock(&g_path_lock);
+    const int changed = strcmp(line, g_path) != 0;
+    if (changed) snprintf(g_path, sizeof(g_path), "%s", line);
+    pthread_mutex_unlock(&g_path_lock);
+    if (changed) droiddeck_log("path", "%s", line);
+}
+
+int droiddeck_wayland_present_path(char *out, int n) {
+    pthread_mutex_lock(&g_path_lock);
+    const int len = snprintf(out, (size_t)n, "%s", g_path);
+    pthread_mutex_unlock(&g_path_lock);
+    return len;
+}
 volatile unsigned g_zero_copy_last;
 
 static int on_stats_timer(void *data) {
@@ -3755,6 +3859,7 @@ static int on_stats_timer(void *data) {
                        PERF_MS(g_perf.release_ns, g_perf.releases), (double)g_perf.release_max_ns / 1e6,
                        g_perf.releases, g_perf.releases_held, drops);
 #undef PERF_MS
+        if (g_perf.scenes) present_path_note(g_perf.copy_scenes, zero_copy, layer_frames);
         memset(&g_perf, 0, sizeof(g_perf));
     }
     const uint64_t game = g_game_frames - g_pace.game_frames_seen;
