@@ -42,7 +42,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import com.droiddeck.launcher.session.SessionLogShare
+import com.droiddeck.launcher.session.SessionPaths
+import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.telemetry.FrameLogComponent
+import com.droiddeck.launcher.telemetry.LiveSampler
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.LaunchInfo
@@ -115,7 +125,13 @@ private fun HomeGameCard(g: Library.SteamGame, enabled: Boolean, a: FrontEndActi
     val hot = rememberHot(src)
     val branches = SteamBranch.offered(g.appId)
     var stable by rememberSaveable(g.appId) { mutableStateOf(false) }
-    val art: File? = g.hero ?: g.art
+    val context = LocalContext.current
+    val art by produceState<ImageBitmap?>(null, g.appId, g.hero, g.art) {
+        value = withContext(Dispatchers.IO) {
+            homeCardArt(File(SessionPrefs.activeSteamRoot(context), "appcache/librarycache"), g)
+                ?.let { decodeCardArt(it, CARD_ART_MAX_PX) }?.asImageBitmap()
+        }
+    }
     Column(
         modifier = Modifier.fillMaxWidth().widthIn(max = 720.dp).clip(Shape12).background(colors.surface).border(1.dp, pal.line, Shape12),
     ) {
@@ -125,11 +141,15 @@ private fun HomeGameCard(g: Library.SteamGame, enabled: Boolean, a: FrontEndActi
                 .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onOpen)
                 .controllerConfirm(onClick = onOpen),
         ) {
-            if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            art?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().testTag("home-card-art")) }
         }
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(g.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            playedSpan(g.lastPlayed)?.let {
+                Text(stringResource(R.string.home_last_played, it), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.testTag("home-last-played"))
+            }
             ReadinessLine()
+            LastSessionLine()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PrimaryButton(
                     stringResource(R.string.lib_play), enabled = enabled, main = true, large = true, fill = true,
@@ -164,6 +184,66 @@ private fun ReadinessLine() {
     }
 }
 
+/** The frame rate and 99th-percentile frame time of the game in the newest finished session that kept a frame log. */
+@Composable
+private fun LastSessionLine() {
+    val context = LocalContext.current
+    val frames by produceState<LastSession.Frames?>(null) { value = withContext(Dispatchers.IO) { LastSession.read(context) } }
+    val last = frames ?: return
+    Text(
+        stringResource(R.string.home_last_session, String.format(Locale.getDefault(), "%.0f", last.fps), String.format(Locale.getDefault(), "%.0f", last.p99Ms)),
+        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("home-last-session"),
+    )
+}
+
+private val HEADERS = listOf("library_header.jpg", "header.jpg")
+
+/**
+ * The card's picture, only from files already on the phone: Steam's header for the game in its library cache, else the
+ * hero or capsule the games list found (Steam's cache or the person's own choice).
+ */
+internal fun homeCardArt(cache: File, g: Library.SteamGame): File? = Library.steamCacheImage(cache, g.appId, HEADERS) ?: g.hero ?: g.art
+
+internal fun decodeCardArt(file: File, maxWidth: Int): Bitmap? = runCatching {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.path, bounds)
+    var sample = 1
+    while (bounds.outWidth / (sample * 2) >= maxWidth) sample *= 2
+    BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+}.getOrNull()
+
+internal object LastSession {
+    class Frames(val fps: Double, val p99Ms: Double)
+
+    private var cached: Pair<String, Frames?>? = null
+
+    fun read(context: Context): Frames? {
+        val running = SessionPaths.current().takeIf { SessionState.running }
+        val dir = SessionLogShare.sessions(context).lastOrNull { it != running && File(it, FrameLogComponent.FILE).isFile } ?: return null
+        return of(dir)
+    }
+
+    /** Null when the session drew too few game frames to speak for it, or its log is too long to read for a home screen. */
+    @Synchronized fun of(dir: File): Frames? {
+        val log = File(dir, FrameLogComponent.FILE)
+        val key = "${dir.path}:${log.length()}"
+        cached?.takeIf { it.first == key }?.let { return it.second }
+        val frames = if (log.length() > MAX_LOG_BYTES) null else runCatching {
+            val sample = LiveSampler(dir).sample(System.currentTimeMillis())
+            val fps = sample.game.fps
+            val p99 = sample.game.p99Ms
+            if (sample.gameLabel == GAME && sample.game.frames >= MIN_FRAMES && fps != null && p99 != null) Frames(fps, p99) else null
+        }.getOrNull()
+        cached = key to frames
+        return frames
+    }
+
+    private const val GAME = "game"
+    private const val MIN_FRAMES = 600
+    private const val MAX_LOG_BYTES = 8L shl 20
+}
+
+private const val CARD_ART_MAX_PX = 1280
 private const val CARD_ART_RATIO = 460f / 215f
 private val BRANCH_TOGGLE_WIDTH = 148.dp
 private const val MEMORY_REFRESH_MS = 5_000L
