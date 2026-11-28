@@ -35,7 +35,7 @@ class UpdateCheckTest {
             requests += Request(url, HashMap(headers))
             return when (url) {
                 UpdateCheck.RELEASE_API -> release()
-                UpdateCheck.APK_URL -> apk()
+                UpdateCheck.APK_URL, UpdateCheck.APK_ALIAS_URL -> apk()
                 else -> error("unexpected $url")
             }
         }
@@ -45,10 +45,10 @@ class UpdateCheckTest {
     }
 
     private fun releaseJson(id: Long = 7, updatedAt: String = "2026-11-14T18:47:45Z", size: Int = APK.size,
-                            url: String = UpdateCheck.APK_URL) = """
+                            url: String = UpdateCheck.APK_URL, name: String = UpdateCheck.APK) = """
         {"tag_name": "latest", "body": "APK from run 1",
          "assets": [{"name": "other.txt", "id": 1, "size": 3, "updated_at": "x", "browser_download_url": "https://example.invalid/x"},
-                    {"name": "kestrel.apk", "id": $id, "size": $size, "updated_at": "$updatedAt", "browser_download_url": "$url"}]}
+                    {"name": "$name", "id": $id, "size": $size, "updated_at": "$updatedAt", "browser_download_url": "$url"}]}
     """.trimIndent()
 
     private fun ok(body: ByteArray, etag: String?) = UpdateHttp.Reply(200, etag, body.size.toLong(), ByteArrayInputStream(body))
@@ -148,9 +148,26 @@ class UpdateCheckTest {
         assertEquals(listOf(UpdateCheck.RELEASE_API, UpdateCheck.APK_URL), http.requests.map { it.url })
     }
 
+    @Test fun aReleaseWithOnlyTheOldNameIsFollowedAtItsFixedUrl() {
+        val http = FakeHttp().apply {
+            release = { ok(releaseJson(name = UpdateCheck.APK_ALIAS, url = "https://example.invalid/evil.apk").toByteArray(), "\"r1\"") }
+            apk = { ok(APK, "\"a1\"") }
+        }
+        assertTrue(updateCheck(http).run() is UpdateCheck.Outcome.Ready)
+        assertEquals(listOf(UpdateCheck.RELEASE_API, UpdateCheck.APK_ALIAS_URL), http.requests.map { it.url })
+    }
+
+    @Test fun theNewNameIsPreferredWhenTheReleaseHasBoth() {
+        val both = """
+            {"assets": [{"name": "kestrel.apk", "id": 5, "size": ${APK.size}, "updated_at": "u"},
+                        {"name": "lanner.apk", "id": 6, "size": ${APK.size}, "updated_at": "u"}]}
+        """.trimIndent()
+        assertEquals(UpdateCheck.APK_URL, UpdateCheck.findAsset(org.json.JSONObject(both))!!.url)
+    }
+
     @Test fun aReleaseWithoutTheApkOrAnErrorChangesNothing() {
         val http = FakeHttp().apply { release = { ok("""{"assets": []}""".toByteArray(), "\"r1\"") } }
-        assertEquals("failed: the release has no kestrel.apk", updateCheck(http).run().line())
+        assertEquals("failed: the release has no lanner.apk", updateCheck(http).run().line())
         http.release = { UpdateHttp.Reply(403, null, -1, null) }
         assertEquals("failed: release HTTP 403", updateCheck(http).run().line())
         assertNull(prefs.getString(UpdateCheck.RELEASE_ETAG, null))

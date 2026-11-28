@@ -1701,7 +1701,7 @@ class EnginePinTest(unittest.TestCase):
     """The app build embeds the newest gated engine release; nobody copies its tag (Nov 15: -65 was published and
     the app still pinned -54, so the phone skipped the native engine at the Steam gap)."""
     SHA = "a" * 64
-    URL = "https://github.com/renxida/DroidDeck/releases/download/native-engine-70/native-engine.tar.zst"
+    URL = "https://github.com/familiar-of-cedar/lanner/releases/download/native-engine-70/native-engine.tar.zst"
     RESOLVE = runpy.run_path(str(Path(__file__).resolve().parents[1] / "native-engine/resolve_component.py"))
 
     def pin(self, **over):
@@ -1725,7 +1725,7 @@ class EnginePinTest(unittest.TestCase):
         tag = f"native-engine-{n}"
         sha = hashlib.sha256(tag.encode()).hexdigest()
         assets = [{"name": "native-engine.tar.zst", "digest": "sha256:" + (digest or sha),
-                   "browser_download_url": f"https://github.com/renxida/DroidDeck/releases/download/{tag}/native-engine.tar.zst"}]
+                   "browser_download_url": f"https://github.com/familiar-of-cedar/lanner/releases/download/{tag}/native-engine.tar.zst"}]
         if manifest:
             assets.append({"name": "component.json", "browser_download_url": "m:" + tag,
                            "_body": {"tag": tag, "sha256": sha, "gate": gate,

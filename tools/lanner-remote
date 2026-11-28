@@ -39,7 +39,7 @@ def gh(*args, input=None):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--repo", default="renxida/kestrel-telemetry")
+    p.add_argument("--repo", default="familiar-of-cedar/kestrel-telemetry")
     p.add_argument("method")
     p.add_argument("request", nargs="?", default="{}")
     p.add_argument("--arg")

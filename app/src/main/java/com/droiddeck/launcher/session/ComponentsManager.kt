@@ -29,7 +29,7 @@ object ComponentsManager {
     private const val NIGHTLIES = "The412Banner/Nightlies"
     private const val DD_COMPONENTS = "Droid-Deck/DroidDeck-Components"
     internal const val DD_NIGHTLY = "linux-nightly"
-    internal const val KESTREL_REPO = "renxida/DroidDeck"
+    internal const val KESTREL_REPO = "familiar-of-cedar/lanner"
     internal const val KESTREL_FEX_RELEASE = "kestrel-fex"
     internal const val KESTREL_FEX_PREFIX = "Kestrel-FEXCore-"
     private val RELEASES = linkedMapOf(

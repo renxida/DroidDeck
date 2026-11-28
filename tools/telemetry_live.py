@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-DEFAULT_REPO = "renxida/kestrel-telemetry"
+DEFAULT_REPO = "familiar-of-cedar/kestrel-telemetry"
 SUFFIX = ".live.txt"
 HISTORY = "## history"
 

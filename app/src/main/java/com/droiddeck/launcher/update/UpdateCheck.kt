@@ -149,24 +149,32 @@ internal class UpdateCheck(
 
     companion object {
         private const val TAG = "SelfUpdate"
-        const val REPO = "renxida/DroidDeck"
+        const val REPO = "familiar-of-cedar/lanner"
         const val TAG_NAME = "latest"
-        const val APK = "kestrel.apk"
+        const val APK = "lanner.apk"
+        /** The name the release's APK had before; a release that has only this one is still followed. */
+        const val APK_ALIAS = "kestrel.apk"
         const val RELEASE_API = "https://api.github.com/repos/$REPO/releases/tags/$TAG_NAME"
         const val APK_URL = "https://github.com/$REPO/releases/download/$TAG_NAME/$APK"
+        const val APK_ALIAS_URL = "https://github.com/$REPO/releases/download/$TAG_NAME/$APK_ALIAS"
         const val MAX_APK_BYTES = 512L * 1024 * 1024
         private const val MAX_RELEASE_JSON = 1024 * 1024
         internal const val RELEASE_ETAG = "release_etag"
         internal const val APK_ETAG = "apk_etag"
         internal const val HANDLED = "handled_asset"
 
-        /** The release's kestrel.apk; downloads always go to the fixed [APK_URL], never to a URL the release names. */
+        /**
+         * The release's lanner.apk, or its kestrel.apk when it has no lanner.apk. Downloads always go to the fixed
+         * [APK_URL] or [APK_ALIAS_URL], never to a URL the release names.
+         */
         internal fun findAsset(release: JSONObject): Asset? {
             val assets = release.optJSONArray("assets") ?: return null
-            for (i in 0 until assets.length()) {
-                val a = assets.optJSONObject(i) ?: continue
-                if (a.optString("name") != APK) continue
-                return Asset("${a.optLong("id")}@${a.optString("updated_at")}@${a.optLong("size")}", APK_URL, a.optLong("size", 0L))
+            for ((name, url) in listOf(APK to APK_URL, APK_ALIAS to APK_ALIAS_URL)) {
+                for (i in 0 until assets.length()) {
+                    val a = assets.optJSONObject(i) ?: continue
+                    if (a.optString("name") != name) continue
+                    return Asset("${a.optLong("id")}@${a.optString("updated_at")}@${a.optLong("size")}", url, a.optLong("size", 0L))
+                }
             }
             return null
         }

@@ -1,9 +1,9 @@
 # Autofix sweep playbook (for a fresh Claude session)
 
 You are the Kestrel autofix driver. Kestrel (app name Lanner, package chat.comb.lanner) is
-the owner's fork of DroidDeck at github.com/renxida/droiddeck: an Android app that runs Steam and
+the owner's fork of DroidDeck at github.com/familiar-of-cedar/lanner: an Android app that runs Steam and
 Proton games, used for Slay the Spire 2 (appid 2868840) on the owner's phone. Phone sessions
-and unattended autotests upload telemetry zips to the private repo renxida/kestrel-telemetry.
+and unattended autotests upload telemetry zips to the private repo familiar-of-cedar/kestrel-telemetry.
 Design: docs/development/autofix-loop.md. Your job each firing: turn new failures into tested
 fixes with no step from the owner, and record everything in the ledger.
 
@@ -23,7 +23,7 @@ fixes with no step from the owner, and record everything in the ledger.
 
 ## 1. Setup (about 2 minutes)
 
-- Attach both repos with push access (add_repo renxida/droiddeck and renxida/kestrel-telemetry),
+- Attach both repos with push access (add_repo familiar-of-cedar/lanner and familiar-of-cedar/kestrel-telemetry),
   clone each with --depth 1 to /home/claude/<name>, then in the fork:
   `git fetch --depth=300 origin perf/switchboard && git checkout -B switchboard FETCH_HEAD`.
 - `gh api` works for REST even if `gh auth status` says the token is invalid. GraphQL does not.
@@ -64,7 +64,7 @@ d. **Fix in parallel.** Start 2 to 4 subagents, each with a different hypothesis
    smallest change that addresses its hypothesis, add or extend a test that fails without it,
    run the Python tests that touch the area locally, push the branch (push builds it in CI).
    Brief each subagent with these hard rules verbatim and tell it not to call mcp__hearthbot__.
-e. **Retest.** Wait for each branch's Build APK run (`gh api repos/renxida/droiddeck/actions/runs?branch=...`)
+e. **Retest.** Wait for each branch's Build APK run (`gh api repos/familiar-of-cedar/lanner/actions/runs?branch=...`)
    and its native-startup-gate jobs. For a launch-stage item, also read the newest offphone-rig.yml
    run for that build (its job log prints verdict.json; artifacts can't be downloaded here).
    Record attempt_result in the ledger.
