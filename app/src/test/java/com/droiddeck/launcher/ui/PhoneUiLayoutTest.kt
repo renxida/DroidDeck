@@ -117,7 +117,7 @@ class PhoneUiLayoutTest {
 
     @Test fun advancedEndsWithTheBuildLineAndCopiesIt() {
         showSettings()
-        compose.onAllNodesWithText(context.getString(R.string.setup_tab_advanced)).onFirst().performClick()
+        compose.onAllNodesWithText(context.getString(R.string.setup_tab_advanced)).onFirst().performScrollTo().performClick()
         compose.onNodeWithTag("about-build").performScrollTo().assertIsDisplayed().assertTextEquals(buildLine())
         compose.onNodeWithTag("about-build-copy").performScrollTo().performClick()
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
