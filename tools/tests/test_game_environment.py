@@ -37,7 +37,7 @@ class FreeMemoryRequestTest(unittest.TestCase):
                         token = request.read_text().strip()
                         request.unlink()
                         staged = Path(tmp) / "free-memory-done.tmp"
-                        staged.write_text(token + " method=kill_background+balloon freedMb=1800 availableMb=4100\n")
+                        staged.write_text(token + " method=kill_background+balloon availableMb=1844->2335 swapUsedMb=923->1530\n")
                         os.replace(staged, Path(tmp) / "free-memory-done")
                         return
                     time.sleep(0.01)
@@ -46,7 +46,7 @@ class FreeMemoryRequestTest(unittest.TestCase):
             answering.start()
             answer = MODULE["free_memory"](tmp, "2868840", wait=5, poll=0.01)
             answering.join()
-            self.assertEqual(answer, "method=kill_background+balloon freedMb=1800 availableMb=4100")
+            self.assertEqual(answer, "method=kill_background+balloon availableMb=1844->2335 swapUsedMb=923->1530")
             self.assertFalse((Path(tmp) / "free-memory-done").exists())
 
     def test_without_an_answer_or_a_launch_directory_the_game_goes_on(self):

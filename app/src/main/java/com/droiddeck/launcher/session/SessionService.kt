@@ -1784,7 +1784,7 @@ class SessionService : Service() {
         Thread({
             val summary = if (gen == sessionGen && SessionState.running && Experiments.FREE_MEMORY in Experiments.enabled(app)) {
                 runCatching { FreeMemory.run(app, FreeMemory.GAME_EXEC, FreeMemory.GAME_NEED_MB) }
-                    .map { "method=${it.method} freedMb=${it.freedMb ?: "-"} availableMb=${it.after?.availableKb?.div(1024) ?: "-"}" }
+                    .map(FreeMemory::summary)
                     .getOrElse { "failed" }
             } else "off"
             val staged = File(dir, "${FreeMemory.DONE}.tmp")
