@@ -2229,7 +2229,7 @@ class SessionService : Service() {
         if (!SessionState.running) return
         lastPressureAt = android.os.SystemClock.elapsedRealtime()
         val device = MemoryReadout.device()
-        val (some, full) = runCatching { ExitCause.parsePsi(File("/proc/pressure/memory").readText()) }.getOrDefault(null to null)
+        val (some, full) = MemoryPressure.shared.text()?.let(ExitCause::parsePsi) ?: (null to null)
         val fields = mapOf(
             "level" to level,
             "availableMb" to device?.availableKb?.div(1024),
@@ -2252,8 +2252,7 @@ class SessionService : Service() {
                     val device = MemoryReadout.device() ?: return@runCatching
                     if (!SessionState.running) return@runCatching
                     if (android.os.SystemClock.elapsedRealtime() < FreeMemory.quietUntil) return@runCatching
-                    val (some, full) = runCatching { ExitCause.parsePsi(File("/proc/pressure/memory").readText()) }
-                        .getOrDefault(null to null)
+                    val (some, full) = MemoryPressure.shared.text()?.let(ExitCause::parsePsi) ?: (null to null)
                     val reading = LmkRisk.Reading(device.totalKb, device.availableKb, device.swapTotalKb, device.swapFreeKb, some, full)
                     if (gate.warn(LmkRisk.atRisk(reading), android.os.SystemClock.elapsedRealtime())) warnLmkRisk(reading)
                 }

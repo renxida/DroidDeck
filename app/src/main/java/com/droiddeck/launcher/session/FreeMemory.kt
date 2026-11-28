@@ -266,7 +266,7 @@ internal object FreeMemory {
 
     private fun sample(): Sample? {
         val d = MemoryReadout.device() ?: return null
-        val full = runCatching { parseFullStallUs(File("/proc/pressure/memory").readText()) }.getOrNull()
+        val full = MemoryPressure.shared.text()?.let(::parseFullStallUs)
         return Sample(d.availableKb, d.swapFreeKb, full)
     }
 

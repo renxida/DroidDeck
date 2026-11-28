@@ -674,7 +674,7 @@ internal object MemoryDetail {
             kernelFiles = files,
             gpuKb = files[KGSL_PAGE_ALLOC]?.div(1024),
             vmstat = read("/proc/vmstat")?.let { vmstatCounters(it) }.orEmpty(),
-            psi = read("/proc/pressure/memory")?.let { parsePsi(it) }.orEmpty(),
+            psi = MemoryPressure.shared.text()?.let { parsePsi(it) }.orEmpty(),
             android = app?.let { androidMem(it, withAndroidProcesses) },
             procs = runCatching { processes(app?.packageName) }.getOrDefault(emptyList()),
         )
