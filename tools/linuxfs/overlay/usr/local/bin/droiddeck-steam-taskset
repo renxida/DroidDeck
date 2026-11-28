@@ -3,10 +3,36 @@
 # Valve's ARM64 helper uses `taskset 0x7c /path/to/steamwebhelper ...` and exits
 # before starting the browser when Android denies sched_setaffinity.
 set -u
+# Experiment steam-ui-park: while droiddeck-steam-ui-park keeps its gate file (BL_STEAM_UI_GATE, holding its
+# pid) in place, a web helper the client starts waits here instead of running. It goes on when the gate is
+# removed or its owner is gone, and gives up when the client that started it is gone.
+hold_for_gate() {
+  local gate=${BL_STEAM_UI_GATE:-} owner began=$SECONDS client=$PPID fd
+  [ -n "$gate" ] && [ -e "$gate" ] || return 0
+  echo "DROIDDECK_TIMELINE event=steam_ui_park_hold pid=$$ client=$client wall_ms=$(date +%s%3N)" >&2
+  : > "$gate.held.$$" 2>/dev/null
+  exec {fd}<> <(:)
+  while [ -e "$gate" ]; do
+    owner=
+    read -r owner 2>/dev/null < "$gate" || true
+    case $owner in ''|*[!0-9]*) break ;; esac
+    kill -0 "$owner" 2>/dev/null || break
+    if ! kill -0 "$client" 2>/dev/null; then
+      rm -f "$gate.held.$$"
+      echo "DROIDDECK_TIMELINE event=steam_ui_park_hold_end pid=$$ reason=client_gone held_s=$((SECONDS - began)) wall_ms=$(date +%s%3N)" >&2
+      exit 0
+    fi
+    read -r -t 0.2 -u "$fd" _ 2>/dev/null || :
+  done
+  exec {fd}>&-
+  rm -f "$gate.held.$$"
+  echo "DROIDDECK_TIMELINE event=steam_ui_park_hold_end pid=$$ reason=released held_s=$((SECONDS - began)) wall_ms=$(date +%s%3N)" >&2
+}
 if [ "$#" -ge 2 ] && [[ "$1" =~ ^(0[xX])?[0-9a-fA-F]+$ ]] &&
    [ -n "${BL_STEAM_WEBHELPER:-}" ] && [ "$2" -ef "$BL_STEAM_WEBHELPER" ]; then
   mask=$1
   shift
+  hold_for_gate
   # Pin this wrapper before exec; never retry a helper that has already run.
   if ! /usr/bin/taskset -p "$mask" "$$" >/dev/null 2>&1; then
     echo "droiddeck: Steam helper CPU pinning unavailable; using the allowed CPUs" >&2

@@ -15,6 +15,12 @@
 #                        phone: droiddeck-game-env must start it on the native engine this APK embeds
 #                        (Steam preflight on, Steam's client installed) and it must run to its last frame.
 #                        "Native engine skipped" or a fall back to Proton fails the run.
+# steam-ui-park          steam-ui with the steam-ui-park experiment on. At the sign-in screen the rig asks for a
+#                        park (no game runs here): the web helper must end, the client's restart of it must
+#                        wait in droiddeck-steam-taskset, the client must stay up for two minutes without it,
+#                        and a restore must bring the sign-in screen back.
+# steam-ui-x-soft        steam-ui with the steam-x-soft experiment on: Steam's X server runs without glamor and
+#                        the interface must still reach the screen and its sign-in page.
 # upgrade                The previous kestrel.apk installed and set up first (OLD_APK, already
 #                        installed by the caller), then this APK (NEW_APK) installed over it: a
 #                        setting must survive, then steam-ui.
@@ -29,7 +35,7 @@ ctl="$apptools/droiddeckctl"
 pkg=$("$apptools/app-id")
 fs=/data/user/0/$pkg/files/linuxfs
 case $scenario in
-  steam-ui|steam-ui-screen-cycle|steam-ui-background|upgrade) base=steam-ui ;;
+  steam-ui|steam-ui-screen-cycle|steam-ui-background|upgrade|steam-ui-park|steam-ui-x-soft) base=steam-ui ;;
   stand-in-game|stand-in-background|stand-in-native) base=stand-in-game ;;
   *) echo "unknown scenario $scenario"; exit 2 ;;
 esac
@@ -49,6 +55,37 @@ adb shell settings put global settings_enable_monitor_phantom_procs false >/dev/
 
 guest_env=()
 appuser=
+# Settings > Advanced > Experiments, as the app saves it: the fresh-install set plus the named switches.
+experiments_on() {
+  local uid dir=/data/data/$pkg/shared_prefs ids
+  ids=$(python3 - "$apptools/../app/src/main/java/com/droiddeck/launcher/session/Experiments.kt" "$@" <<'PY'
+import re, sys
+source = open(sys.argv[1]).read()
+names = dict(re.findall(r'const val (\w+) = "([^"]+)"', source))
+defaults = [names[n.strip()] for n in re.search(r"val defaults = setOf\(([^)]*)\)", source).group(1).split(",")]
+missing = [i for i in sys.argv[2:] if i not in names.values()]
+if missing:
+    sys.exit("this APK's commit has no experiment " + ", ".join(missing))
+print("".join("<string>%s</string>" % i for i in defaults + sys.argv[2:]))
+PY
+  ) || { echo "rig: $ids"; exit 2; }
+  adb shell am force-stop "$pkg"
+  uid=$(adb shell stat -c %u "/data/data/$pkg" | tr -d '\r')
+  adb shell "cat > $dir/experiments.xml" <<XML
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <set name="on">$ids</set>
+</map>
+XML
+  adb shell "chown $uid:$uid $dir/experiments.xml && chmod 660 $dir/experiments.xml && restorecon $dir/experiments.xml"
+  echo "rig: experiments on: $*"
+}
+case $scenario in
+  steam-ui-park) experiments_on steam-ui-park ;;
+  # The rig's Steam composites as the session's default does, not as an open driver pair's; the switch is
+  # told to apply anyway.
+  steam-ui-x-soft) experiments_on steam-x-soft; guest_env+=(BL_STEAM_X_SOFT=1) ;;
+esac
 # The app's processes (proot, gamescope, wine, FEX), by CPU time: what a stuck start is doing.
 sample_ps() { # label
   [ -n "$appuser" ] || appuser=$(adb shell "stat -c %U /data/user/0/$pkg" | tr -d '\r')
@@ -238,6 +275,79 @@ while [ $(( $(date +%s) - t0 )) -lt "$limit" ]; do
   fi
   sleep 5
 done
+# What the session log says, on the device (the folder is pulled at the end).
+session_log_has() { adb shell "grep -c -- '$1' ${rigdir%/}/session.log 2>/dev/null" | tr -d '\r' | grep -qv '^0$'; }
+wait_log() { # pattern seconds
+  local end=$(( $(date +%s) + $2 ))
+  while [ "$(date +%s)" -lt "$end" ]; do session_log_has "$1" && return 0; sleep 2; done; return 1
+}
+# The Steam side's processes: web helper count and memory, the client, the X servers.
+steam_ps() { # label
+  [ -n "$appuser" ] || appuser=$(adb shell "stat -c %U /data/user/0/$pkg" | tr -d '\r')
+  adb shell "ps -A -o USER,PID,PPID,TIME,RSS,S,ARGS" | tr -d '\r' | awk -v u="$appuser" '$1==u' \
+    | grep -E 'steamwebhelper|steamrtarm64/steam |Xwayland|gamescope|droiddeck-steam/taskset|droiddeck-steam-ui-park' > "$out/steam-ps-$1.txt"
+  awk -v l="$1" '
+    /steamwebhelper/ && !/steamwebhelper\.sh/ && !/taskset/ { h++; hr += $5 }
+    /taskset/ { held++ }
+    /Xwayland/ { x = x " " $5/1024 "MB" }
+    /steamrtarm64\/steam / && !/child-update-ui/ { c++; ct = $4 }
+    END { printf "rig: %s: web helper processes %d, resident %d MB; held starts %d; Steam client processes %d (cpu %s); Xwayland resident%s\n", l, h, hr/1024, held, c, ct, x }' "$out/steam-ps-$1.txt"
+}
+helper_count() { awk '/steamwebhelper/ && !/steamwebhelper\.sh/ && !/taskset/ { n++ } END { print n + 0 }' "$out/steam-ps-$1.txt"; }
+client_count() { awk '/steamrtarm64\/steam / && !/child-update-ui/ { n++ } END { print n + 0 }' "$out/steam-ps-$1.txt"; }
+rigdir=$(new_dirs | head -1)
+if [ "$scenario" = steam-ui-x-soft ] && [ -n "$login" ] && [ -n "$rigdir" ]; then
+  session_log_has 'event=steam_x_soft applied=1' && rig_event x_soft_applied
+  echo "rig: steam-x-soft lines: $(adb shell "grep -hE 'steam-x-soft|steam_x_soft' ${rigdir%/}/session.log" | tr -d '\r' | cut -c1-200 | tr '\n' '|')"
+  steam_ps x-soft
+  for p in $(adb shell pidof Xwayland | tr -d '\r'); do
+    echo "rig: Xwayland pid $p: $(adb shell "tr '\\0' ' ' < /proc/$p/cmdline | cut -c1-40") glamor off in its environment: $(adb shell "tr '\\0' '\\n' < /proc/$p/environ | grep -c '^XWAYLAND_NO_GLAMOR=1'" | tr -d '\r')"
+  done
+fi
+if [ "$scenario" = steam-ui-park ] && [ -n "$login" ] && [ -n "$rigdir" ]; then
+  sess=/data/user/0/$pkg/files/session
+  uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
+  ask() { adb shell "printf '%s\n' $1 > $sess/steam-ui-park.tmp && chown $uid:$uid $sess/steam-ui-park.tmp && chmod 644 $sess/steam-ui-park.tmp && mv $sess/steam-ui-park.tmp $sess/steam-ui-park"; }
+  session_log_has 'event=steam_ui_park_ready' && rig_event park_ready
+  steam_ps before
+  ask park; asked=$(date +%s)
+  if wait_log 'event=steam_ui_parked' 60; then rig_event ui_parked; fi
+  # The held start says so on its stderr, which may not reach the session log; its marker file is beside the gate.
+  for i in $(seq 1 30); do
+    if session_log_has 'event=steam_ui_park_hold ' || adb shell "ls $sess/steam-ui-gate.held.* 2>/dev/null" | grep -q held; then
+      rig_event ui_held; break
+    fi
+    sleep 2
+  done
+  echo "rig: gate files: $(adb shell "ls $sess | grep steam-ui" | tr -d '\r' | tr '\n' ' ')"
+  echo "rig: parked $(( $(date +%s) - asked ))s after the request"
+  # Two minutes without its web helper: the client must stay up and must not get a helper past the gate.
+  stayed=1
+  for i in 1 2 3 4; do
+    sleep 30; steam_ps "parked-$((i * 30))s"
+    [ "$(client_count "parked-$((i * 30))s")" -ge 1 ] || { stayed=; echo "rig: the Steam client is gone"; }
+    [ "$(helper_count "parked-$((i * 30))s")" -eq 0 ] || { stayed=; echo "rig: a web helper is running while parked"; }
+  done
+  session_log_has 'event=steam_ui_park_hold_missed' && stayed=
+  session_log_has 'event=steam_ui_park_failed' && stayed=
+  [ "$(phase)" = READY ] || { stayed=; echo "rig: session phase $(phase) while parked"; }
+  [ -n "$stayed" ] && grep -q ui_held "$out/rig-events.jsonl" && rig_event ui_stayed_parked
+  ask restore; asked=$(date +%s)
+  if wait_log 'event=steam_ui_restored' 120; then rig_event ui_restored; fi
+  echo "rig: restored $(( $(date +%s) - asked ))s after the request"
+  for i in $(seq 1 30); do
+    t=$("$ctl" cdp targets 2>/dev/null)
+    if jq -e '[.. | objects | .url? // empty | strings | test("/routes/login")] | any' <<<"$t" >/dev/null 2>&1; then
+      echo "$t" > "$out/cdp-targets-restored.json"; rig_event login_screen_again
+      echo "rig: sign-in screen back $(( $(date +%s) - asked ))s after the restore request"; break
+    fi
+    sleep 3
+  done
+  steam_ps restored
+  echo "::group::steam-ui-park lines in the session log"
+  adb shell "grep -hE 'steam_ui_|steam-ui-park|steam: its interface' ${rigdir%/}/session.log" | tr -d '\r' | cut -c1-400
+  echo "::endgroup::"
+fi
 sample_ps end
 [ -n "$perturbed" ] && echo "rig: at the end: top $(top_activity); on screen: $("$ctl" ui dump 2>/dev/null | jq -r '[.. | objects | .text? // empty | strings | select(length > 0)] | unique | join(" | ")' 2>/dev/null | head -c 600)"
 [ "$base" = steam-ui ] && [ -z "$login" ] && { "$ctl" cdp targets > "$out/cdp-targets.json" 2>&1 || true; }

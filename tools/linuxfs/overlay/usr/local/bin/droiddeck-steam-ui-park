@@ -1,0 +1,516 @@
+#!/usr/bin/env python3
+"""Experiment steam-ui-park: Steam's interface out of memory while a game is in front.
+
+droiddeck-session starts this beside the Steam client. The client itself (the process games reach for
+Steamworks: ownership, remote storage, achievements) is never signalled. What goes is its web helper, the
+browser that draws the interface:
+
+  park     once a Steam game has had focus for DWELL_S with no Steam overlay up and no Steam Cloud sync
+           open, the gate file is written and the helper's browser process gets SIGTERM. The client starts
+           the helper again at once; droiddeck-steam-taskset holds that start while the gate exists.
+  restore  the gate is removed when the game exits, loses focus, a cloud sync starts, the Steam or quick
+           access button is pressed, the app asks, or this program ends. The held helper then runs.
+  fallback a helper that is not back RESTORE_S after the gate went asks the session to restart the client
+           (steam-ui-restart), but only once no game is running; with a game running it keeps waiting.
+
+A helper that comes back while the gate is up means the hold is not in the client's start path; parking is
+then switched off for the session. Every step prints one DROIDDECK_TIMELINE event=steam_ui_* line.
+
+The request file steam-ui-park in the launch directory takes `park` (now, without a game; cloud syncs still
+block it), `restore` (and stay restored) or `auto`.
+"""
+import collections
+import json
+import os
+import re
+import signal
+import struct
+import sys
+import time
+import urllib.request
+
+DWELL_S = 20
+PAD_HOLDOFF_S = 60
+TERM_GRACE_S = 15
+SETTLE_S = 10
+RESTORE_S = 60
+RESTORE_RETRY_S = 30
+SYNC_STALE_S = 180
+SCAN_S = 2.0
+FAST_SCAN_S = 0.5
+TICK_S = 0.1
+IDLE_TICK_S = 0.5
+STEAM_APP = 769
+LAUNCHERS = frozenset({b"FEX", b"FEXInterpreter"})
+RING_HEADER, RING_EVENT, RING_CAPACITY = 64, 24, 4096
+RING_SEQ, RING_GENERATION, RING_BUTTONS = 16, 24, 40
+EV_KEY, BTN_MODE = 1, 0x13C
+SNAPSHOT_MODE, SNAPSHOT_QAM = 1 << 10, 1 << 11
+
+WebProc = collections.namedtuple("WebProc", "pid start browser rss swap")
+
+
+def web_key(process):
+    return process.pid, process.start
+
+
+def scan(proc="/proc"):
+    """(web helper processes, app ids Steam is running) from one pass over /proc."""
+    helpers, games = [], set()
+    try:
+        entries = os.listdir(proc)
+    except OSError:
+        return helpers, games
+    for entry in entries:
+        if not entry.isdigit() or int(entry) <= 1 or int(entry) == os.getpid():
+            continue
+        try:
+            with open("%s/%s/cmdline" % (proc, entry), "rb") as f:
+                args = f.read(16384).split(b"\0")
+        except OSError:
+            continue
+        program = args[0]
+        if os.path.basename(program) in LAUNCHERS and len(args) > 1:
+            program = args[1]
+        name = os.path.basename(program)
+        if name == b"reaper":
+            for i, arg in enumerate(args[:-1]):
+                if arg == b"SteamLaunch" and args[i + 1].startswith(b"AppId="):
+                    value = args[i + 1][6:]
+                    if value.isdigit() and int(value) != STEAM_APP:
+                        games.add(int(value))
+            continue
+        if name != b"steamwebhelper":
+            continue
+        try:
+            with open("%s/%s/stat" % (proc, entry), "rb") as f:
+                fields = f.read().rsplit(b")", 1)[1].split()
+            if fields[0] in (b"Z", b"X") or len(fields) < 20:
+                continue
+            with open("%s/%s/status" % (proc, entry), "rb") as f:
+                status = f.read().decode("ascii", "replace")
+        except (OSError, IndexError):
+            continue
+        resident = re.search(r"^VmRSS:\s+(\d+)", status, re.M)
+        swapped = re.search(r"^VmSwap:\s+(\d+)", status, re.M)
+        browser = not any(a.startswith(b"--type=") for a in args[1:])
+        helpers.append(WebProc(int(entry), int(fields[19]), browser, int(resident.group(1)) if resident else 0,
+                               int(swapped.group(1)) if swapped else 0))
+    return helpers, games
+
+
+def meminfo(path="/proc/meminfo"):
+    """MemAvailable, SwapFree and, where the kernel reports it (Mali), Gpu, in MB; -1 when absent."""
+    wanted = {"MemAvailable": -1, "SwapFree": -1, "Gpu": -1}
+    try:
+        with open(path, encoding="ascii", errors="replace") as f:
+            for line in f:
+                key, _, rest = line.partition(":")
+                if key in wanted:
+                    value = rest.split()
+                    if value and value[0].isdigit():
+                        wanted[key] = int(value[0]) // 1024
+    except OSError:
+        pass
+    return wanted
+
+
+def focus(path):
+    """(focused app id or None, whether a Steam overlay is showing or holds the input) from the agent's focus.json."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            snap = json.load(f)
+    except (OSError, ValueError):
+        return None, False
+    overlay = False
+    for shown in (snap.get("displays") or {}).values():
+        for window in shown or []:
+            if window.get("map") == "viewable" and (window.get("overlay") or window.get("inputFocus")):
+                overlay = True
+    app = snap.get("focusedApp")
+    return (app if isinstance(app, int) else None), overlay
+
+
+class CloudLog:
+    """Steam's logs/cloud_log.txt, read as it grows: an app's sync is open from `Starting sync` to the
+    `YldWriteCacheDirectoryToFile` that ends it, or SYNC_STALE_S after its last line."""
+
+    LINE = re.compile(r"\[AppID (\d+)\] (.*)")
+
+    def __init__(self, path, clock=time.monotonic):
+        self.path, self.clock = path, clock
+        self.offset = None
+        self.partial = ""
+        self.open_since = {}
+
+    def poll(self):
+        try:
+            size = os.path.getsize(self.path)
+        except OSError:
+            return
+        if self.offset is None or size < self.offset:
+            self.offset, self.partial = size, ""
+            return
+        if size == self.offset:
+            return
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(max(self.offset, size - (1 << 20)))
+                text = self.partial + f.read().decode("utf-8", "replace")
+        except OSError:
+            return
+        self.offset = size
+        lines = text.split("\n")
+        self.partial = lines.pop()[-4096:]
+        now = self.clock()
+        for line in lines:
+            m = self.LINE.search(line)
+            if not m:
+                continue
+            app, what = m.group(1), m.group(2)
+            if what.startswith("Starting sync"):
+                self.open_since[app] = now
+            elif "YldWriteCacheDirectoryToFile" in what:
+                self.open_since.pop(app, None)
+            elif app in self.open_since:
+                self.open_since[app] = now
+
+    def syncing(self):
+        now = self.clock()
+        for app in [a for a, since in self.open_since.items() if now - since > SYNC_STALE_S]:
+            del self.open_since[app]
+        return sorted(self.open_since)
+
+
+class Pad:
+    """The app's pad rings (FakeInputWriter): whether Steam / Guide or quick access was pressed since the last look."""
+
+    def __init__(self, directory, slots=5, exported=""):
+        """exported is the session's FAKE_EVDEV_MEMFD_PATHS (`slot=path;...`); without it, ring0.. in directory."""
+        self.paths = [item.partition("=")[2] for item in exported.split(";") if item.partition("=")[2]]
+        if not self.paths and directory:
+            self.paths = [os.path.join(directory, "ring%d" % i) for i in range(slots)]
+        self.seen = {}
+
+    def pressed(self):
+        hit = False
+        for path in self.paths:
+            try:
+                with open(path, "rb") as f:
+                    head = f.read(RING_HEADER)
+                    if len(head) < RING_HEADER:
+                        continue
+                    seq, generation = struct.unpack_from("<qq", head, RING_SEQ)
+                    buttons = struct.unpack_from("<I", head, RING_BUTTONS)[0]
+                    if buttons & (SNAPSHOT_MODE | SNAPSHOT_QAM):
+                        hit = True
+                    last = self.seen.get(path)
+                    self.seen[path] = (generation, seq)
+                    if last is None or last[0] != generation or seq < last[1] or seq - last[1] > RING_CAPACITY:
+                        continue
+                    for index in range(last[1], seq):
+                        f.seek(RING_HEADER + (index % RING_CAPACITY) * RING_EVENT)
+                        event = f.read(RING_EVENT)
+                        if len(event) < RING_EVENT:
+                            break
+                        kind, code, value = struct.unpack_from("<HHi", event, 16)
+                        if kind == EV_KEY and code == BTN_MODE and value:
+                            hit = True
+            except (OSError, struct.error):
+                continue
+        return hit
+
+
+def devtools_ready(port, timeout=2):
+    """Whether the client's interface answers: its DevTools lists the shared JavaScript context."""
+    if not port:
+        return False
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:%d/json" % port, timeout=timeout) as r:
+            targets = json.loads(r.read(1 << 20).decode())
+    except (OSError, ValueError):
+        return False
+    return any(isinstance(t, dict) and t.get("title") == "SharedJSContext" for t in targets)
+
+
+class Park:
+    def __init__(self, launch_dir, gate, cloud=None, pad=None, scan=scan, mem=meminfo, focus=focus,
+                 ready=devtools_ready, kill=os.kill, clock=time.monotonic, wall=time.time, out=sys.stderr,
+                 dwell=DWELL_S, port=None):
+        self.launch_dir, self.gate = launch_dir, gate
+        self.cloud, self.pad = cloud, pad
+        self.scan, self.mem, self.focus, self.ready, self.kill = scan, mem, focus, ready, kill
+        self.clock, self.wall, self.out = clock, wall, out
+        self.dwell, self.port = dwell, port
+        self.state = "idle"          # idle, stopping, parked, restoring, off
+        self.mode = "auto"           # auto, park (asked), restore (asked)
+        self.helpers, self.games = [], set()
+        self.scanned = None
+        self.focused_since = None
+        self.holdoff_until = 0
+        self.stopped, self.stop_at, self.before = set(), 0, None
+        self.restore_at, self.restore_reason, self.restore_said = 0, "", 0
+        self.parked_at = 0
+        self.settled = False
+        self.blocked = None
+
+    def say(self, event, fields=""):
+        print("DROIDDECK_TIMELINE event=steam_ui_%s %swall_ms=%d" % (event, fields + " " if fields else "",
+                                                                    int(self.wall() * 1000)), file=self.out, flush=True)
+
+    def usage(self, helpers=None, prefix=""):
+        """The web helper's processes and memory and the device's, as fields; gpu_mb is -1 off Mali."""
+        helpers = self.helpers if helpers is None else helpers
+        mem = self.mem()
+        values = (("procs", len(helpers)), ("rss_mb", sum(p.rss for p in helpers) // 1024),
+                  ("swap_mb", sum(p.swap for p in helpers) // 1024), ("available_mb", mem["MemAvailable"]),
+                  ("swap_free_mb", mem["SwapFree"]), ("gpu_mb", mem["Gpu"]))
+        return " ".join("%s%s=%d" % (prefix, name, value) for name, value in values)
+
+    def held(self):
+        directory, name = os.path.split(self.gate)
+        try:
+            return sum(1 for entry in os.listdir(directory) if entry.startswith(name + ".held."))
+        except OSError:
+            return 0
+
+    def close_gate(self):
+        staged = self.gate + ".tmp"
+        with open(staged, "w", encoding="ascii") as f:
+            f.write("%d\n" % os.getpid())
+        os.replace(staged, self.gate)
+
+    def open_gate(self):
+        try:
+            os.unlink(self.gate)
+        except OSError:
+            pass
+
+    def request(self):
+        path = os.path.join(self.launch_dir, "steam-ui-park")
+        try:
+            with open(path, encoding="ascii", errors="replace") as f:
+                word = f.read(32).strip()
+            os.unlink(path)
+        except OSError:
+            return None
+        if word not in ("park", "restore", "auto"):
+            self.say("park_request_ignored", "value=%s" % (re.sub(r"[^A-Za-z0-9_-]", "_", word)[:16] or "-"))
+            return None
+        self.mode = word
+        self.say("park_request", "value=%s state=%s" % (word, self.state))
+        return word
+
+    def refresh(self, force=False):
+        now = self.clock()
+        if self.scanned is None or now - self.scanned >= (FAST_SCAN_S if force else SCAN_S):
+            self.helpers, self.games = self.scan()
+            self.scanned = now
+            if self.cloud:
+                self.cloud.poll()
+
+    def want_park(self, now):
+        """None when the interface should be parked now, else why not (one word)."""
+        syncing = self.cloud.syncing() if self.cloud else []
+        if syncing:
+            return "cloud_sync"
+        if not any(p.browser for p in self.helpers):
+            return "no_helper"
+        if self.mode == "park":
+            return None
+        if self.mode == "restore":
+            return "asked"
+        app, overlay = self.focus(os.path.join(self.launch_dir, "agent", "focus.json"))
+        if not self.games:
+            self.focused_since = None
+            return "no_game"
+        if app not in self.games:
+            self.focused_since = None
+            return "not_focused"
+        if overlay:
+            self.focused_since = None
+            return "overlay"
+        if self.focused_since is None:
+            self.focused_since = now
+        if now < self.holdoff_until:
+            return "holdoff"
+        if now - self.focused_since < self.dwell:
+            return "dwell"
+        return None
+
+    def want_restore(self, pressed):
+        """Why a parked interface should come back now, or None."""
+        if self.cloud and self.cloud.syncing():
+            return "cloud_sync"
+        if self.mode == "restore":
+            return "asked"
+        if self.mode == "park":
+            return None
+        if pressed:
+            return "steam_button"
+        if not self.games:
+            return "game_exit"
+        app, _ = self.focus(os.path.join(self.launch_dir, "agent", "focus.json"))
+        if app not in self.games:
+            return "focus_left_game"
+        return None
+
+    def begin_park(self, now):
+        browsers = [p for p in self.helpers if p.browser]
+        self.before = self.usage(prefix="before_")
+        self.stopped = {web_key(p) for p in self.helpers}
+        self.close_gate()
+        termed = 0
+        for browser in browsers:
+            try:
+                self.kill(browser.pid, signal.SIGTERM)
+                termed += 1
+            except OSError:
+                pass
+        self.stop_at = now
+        self.state = "stopping"
+        self.say("park_begin", "reason=%s games=%s browsers=%d termed=%d %s" % (
+            "asked" if self.mode == "park" else "game_focused", ",".join(map(str, sorted(self.games))) or "-",
+            len(browsers), termed, self.before))
+
+    def stopping(self, now):
+        self.refresh(force=True)
+        left = [p for p in self.helpers if web_key(p) in self.stopped]
+        browser_left = [p for p in left if p.browser]
+        if browser_left and now - self.stop_at < TERM_GRACE_S:
+            return
+        if browser_left:
+            self.open_gate()
+            self.state = "off"
+            self.say("park_failed", "reason=helper_ignored_sigterm left=%d action=parking_off" % len(left))
+            return
+        killed = 0
+        for process in left:
+            try:
+                self.kill(process.pid, signal.SIGKILL)
+                killed += 1
+            except OSError:
+                pass
+        self.state = "parked"
+        self.parked_at = now
+        self.settled = False
+        if self.pad:
+            self.pad.seen = {}
+            self.pad.pressed()
+        self.say("parked", "took_ms=%d killed=%d held=%d %s %s" % (
+            int((now - self.stop_at) * 1000), killed, self.held(), self.before, self.usage([], "after_")))
+
+    def parked(self, now, pressed):
+        fresh = [p for p in self.helpers if web_key(p) not in self.stopped]
+        if fresh:
+            self.open_gate()
+            self.state = "off"
+            self.say("park_hold_missed", "procs=%d held=%d action=parking_off %s" % (len(fresh), self.held(), self.usage(fresh)))
+            return
+        reason = self.want_restore(pressed)
+        if reason:
+            return self.begin_restore(now, reason)
+        if not self.settled and now - self.parked_at >= SETTLE_S:
+            self.settled = True
+            self.say("park_settled", "held=%d %s %s" % (self.held(), self.before, self.usage([], "after_")))
+
+    def begin_restore(self, now, reason):
+        held = self.held()
+        self.open_gate()
+        self.state = "restoring"
+        self.restore_at, self.restore_reason, self.restore_said = now, reason, now
+        if reason == "steam_button":
+            self.holdoff_until = now + PAD_HOLDOFF_S
+        self.focused_since = None
+        self.say("restore_begin", "reason=%s parked_s=%d held=%d %s" % (reason, int(now - self.parked_at), held, self.usage([])))
+
+    def restoring(self, now):
+        self.refresh(force=True)
+        fresh = [p for p in self.helpers if web_key(p) not in self.stopped]
+        if any(p.browser for p in fresh) and self.ready(self.port):
+            self.state = "idle"
+            self.stopped = set()
+            self.say("restored", "reason=%s took_ms=%d %s" % (self.restore_reason, int((now - self.restore_at) * 1000),
+                                                             self.usage(fresh)))
+            return
+        if now - self.restore_said < (RESTORE_S if self.restore_said == self.restore_at else RESTORE_RETRY_S):
+            return
+        self.restore_said = now
+        if self.games:
+            self.say("restore_late", "waited_s=%d procs=%d action=wait_for_game_exit" % (int(now - self.restore_at), len(fresh)))
+            return
+        try:
+            with open(os.path.join(self.launch_dir, "steam-ui-restart"), "w", encoding="ascii") as f:
+                f.write("steam-ui-park\n")
+            action = "client_restart"
+        except OSError:
+            action = "client_restart_failed"
+        self.state = "off"
+        self.say("restore_failed", "waited_s=%d procs=%d action=%s" % (int(now - self.restore_at), len(fresh), action))
+
+    def step(self):
+        now = self.clock()
+        asked = self.request()
+        pressed = self.state == "parked" and bool(self.pad and self.pad.pressed())
+        if self.state == "off":
+            return
+        if self.state == "stopping":
+            return self.stopping(now)
+        if self.state == "restoring":
+            return self.restoring(now)
+        self.refresh(force=asked is not None or (pressed and self.state == "parked"))
+        if self.state == "parked":
+            return self.parked(now, pressed)
+        why = self.want_park(now)
+        if why is None:
+            self.blocked = None
+            return self.begin_park(now)
+        if why in ("cloud_sync", "overlay") and why != self.blocked and (self.games or self.mode == "park"):
+            self.say("park_waits", "reason=%s" % why)
+        self.blocked = why
+
+    def close(self):
+        if self.state in ("stopping", "parked"):
+            self.say("restore_begin", "reason=controller_exit held=%d" % self.held())
+        self.open_gate()
+
+
+def main(argv):
+    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    gate = os.environ.get("BL_STEAM_UI_GATE", "")
+    if not launch_dir or not gate:
+        print("droiddeck-steam-ui-park: BL_LAUNCH_DIR and BL_STEAM_UI_GATE are required", file=sys.stderr)
+        return 64
+    steam_root = argv[0] if argv else os.path.join(os.environ.get("XDG_DATA_HOME", "/root/.local/share"), "Steam")
+    port = os.environ.get("BL_CDP_PORT", "")
+    dwell = os.environ.get("BL_STEAM_UI_PARK_DWELL_S", "")
+    park = Park(launch_dir, gate, cloud=CloudLog(os.path.join(steam_root, "logs", "cloud_log.txt")),
+                pad=Pad(os.path.join(launch_dir, "dev", "fakeinput-rings"), exported=os.environ.get("FAKE_EVDEV_MEMFD_PATHS", "")),
+                dwell=int(dwell) if dwell.isdigit() else DWELL_S, port=int(port) if port.isdigit() else None)
+
+    def leave(*_):
+        park.close()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, leave)
+    signal.signal(signal.SIGHUP, leave)
+    park.open_gate()
+    park.say("park_ready", "dwell_s=%d gate=%s" % (park.dwell, gate))
+    parent = os.getppid()
+    try:
+        while os.getppid() == parent:
+            try:
+                park.step()
+            except Exception as error:  # the watch must never leave the gate up
+                park.open_gate()
+                park.state = "off"
+                park.say("park_failed", "reason=error detail=%s action=parking_off" % (
+                    re.sub(r"[^A-Za-z0-9_.:/-]+", "_", str(error) or type(error).__name__).strip("_")[:120] or "-"))
+            time.sleep(TICK_S if park.state in ("stopping", "parked", "restoring") else IDLE_TICK_S)
+    finally:
+        park.close()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -46,6 +46,13 @@ SCENARIOS.update({
     "stand-in-native": ["start_requested", "guest_started", "native_engine", "standin_first_frame",
                         "standin_mainloop_ok"],
     "upgrade": ["upgrade_installed", "settings_kept", "runtime_kept"] + STEAM,
+    # Experiment steam-ui-park at the sign-in screen: the web helper ends (droiddeck-steam-ui-park's own line),
+    # the client's restart of it waits in droiddeck-steam-taskset, the client stays up for two minutes with no
+    # helper, and a restore brings the sign-in screen back.
+    "steam-ui-park": STEAM + ["park_ready", "ui_parked", "ui_held", "ui_stayed_parked", "ui_restored", "login_screen_again"],
+    # Experiment steam-x-soft: Steam's X server without glamor still shows the interface (the app's own first
+    # frame of it, steam_ui) and the session log says the switch took the right server.
+    "steam-ui-x-soft": STEAM + ["x_soft_applied"],
 })
 # Seconds after the start request by which a stage must have happened. CI's Steam UI takes about
 # 70 s; the cdabfbd regression made a display change cost minutes.
@@ -54,6 +61,8 @@ DEADLINES = {
     "steam-ui-screen-cycle": {"steam_ui": 180},
     "steam-ui-background": {"steam_ui": 210},
     "upgrade": {"steam_ui": 180},
+    "steam-ui-park": {"steam_ui": 180},
+    "steam-ui-x-soft": {"steam_ui": 180},
 }
 
 

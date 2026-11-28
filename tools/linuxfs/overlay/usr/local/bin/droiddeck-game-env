@@ -85,7 +85,8 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
                "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
-               "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread")
+               "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread",
+               "steam-x-soft", "steam-ui-park")
 
 
 FREE_MEMORY_WAIT_S = 15

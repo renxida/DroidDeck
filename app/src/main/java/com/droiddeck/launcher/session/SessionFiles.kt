@@ -38,6 +38,8 @@ object SessionFiles {
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
             "usr/local/bin/droiddeck-steam-taskset" to "usr/local/libexec/droiddeck-steam/taskset",
+            "usr/local/bin/droiddeck-steam-xwayland" to "usr/local/libexec/droiddeck-steam/Xwayland",
+            "usr/local/bin/droiddeck-steam-ui-park" to "usr/local/bin/droiddeck-steam-ui-park",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",

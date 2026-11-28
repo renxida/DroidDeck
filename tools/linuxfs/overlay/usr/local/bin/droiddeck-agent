@@ -944,13 +944,17 @@ def quit_game(agent_dir, app_id, timeout):
     if not str(app_id).isdigit():
         raise AgentError("INVALID_APP_ID", "appId must be a decimal Steam app id")
     steps = []
+    asked = False
     if game_pids(app_id):
         try:
             cdp_eval(agent_dir, "SteamClient.Apps.TerminateApp(%s, false)" % json.dumps(str(app_id)), timeout=5)
             steps.append("client")
+            asked = True
         except AgentError as e:
             steps.append("client unavailable: %s" % e)
-    deadline = time.monotonic() + timeout
+    # Nobody asked the game to end when the client's interface did not answer (steam-ui-park keeps it away
+    # while a game is in front), so there is nothing to wait for before the signal.
+    deadline = time.monotonic() + (timeout if asked else 0)
     while game_pids(app_id) and time.monotonic() < deadline:
         time.sleep(0.5)
     left = game_pids(app_id)

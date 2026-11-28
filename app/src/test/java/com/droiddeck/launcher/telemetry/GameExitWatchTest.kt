@@ -105,6 +105,11 @@ class GameExitWatchTest {
         val cores = "DROIDDECK_TIMELINE event=game_cores_reset app_id=2868840 from=0-6 to=2-6 action=repin threads=46 next_s=5 wall_ms=1700000174000"
         assertEquals("game.cores_reset" to mapOf("app_id" to "2868840", "from" to "0-6", "to" to "2-6", "action" to "repin",
             "threads" to "46", "next_s" to "5", "wall_ms" to "1700000174000"), GameExitWatch.relaunchEvent(cores))
+        assertEquals("steam.ui_parked" to mapOf("took_ms" to "900", "killed" to "0", "held" to "1", "before_gpu_mb" to "2990",
+            "after_gpu_mb" to "2450", "wall_ms" to "1700000200000"), GameExitWatch.relaunchEvent(
+            "DROIDDECK_TIMELINE event=steam_ui_parked took_ms=900 killed=0 held=1 before_gpu_mb=2990 after_gpu_mb=2450 wall_ms=1700000200000"))
+        assertEquals("steam.x_soft" to mapOf("applied" to "1", "display" to ":0", "game_display" to ":1", "wall_ms" to "1700000001000"),
+            GameExitWatch.relaunchEvent("DROIDDECK_TIMELINE event=steam_x_soft applied=1 display=:0 game_display=:1 wall_ms=1700000001000"))
         watch.line("DROIDDECK_TIMELINE event=game_exec app_id=2868840 wall_ms=1000", 1_000)
         watch.line(failed, 41_000)
         watch.line(cores, 41_500)

@@ -77,6 +77,48 @@ composite_timing() {
   ) &
 }
 
+# Experiment steam-x-soft: Steam's interface draws into its own X server (gamescope starts two), and with an
+# open driver pair that server's glamor held 0.76 to 1.16 GB of GPU memory behind a running game (Mali-G715,
+# PanVK through Zink, Nov 27). gamescope is pointed at droiddeck-steam-xwayland, which starts that one
+# server without glamor; the games' server is left as it is. Applied only where Steam's interface already
+# composites in software (BL_STEAM_SOFT_COMPOSITING=1): with GPU compositing it presents through the X
+# server's GPU path. BL_STEAM_X_SOFT=1 applies it anyway, =0 never.
+steam_x_soft() {
+  local wrapper=/usr/local/libexec/droiddeck-steam/Xwayland why=
+  if [ "${BL_STEAM_X_SOFT:-}" = 0 ]; then why="BL_STEAM_X_SOFT=0"
+  elif [ "${BL_XWAYLAND_COUNT:-2}" -le 1 ]; then why="games share Steam's X server (one Xwayland)"
+  elif [ "${BL_STEAM_UI:-}" = desktop ]; then why="desktop UI"
+  elif [ -n "${XWAYLAND_NO_GLAMOR:-}" ]; then why="every X server already runs without glamor"
+  elif [ -n "${WLR_XWAYLAND:-}" ]; then why="WLR_XWAYLAND is already set"
+  elif [ "${BL_STEAM_X_SOFT:-}" != 1 ] && [ "${BL_STEAM_SOFT_COMPOSITING:-}" != 1 ]; then
+    why="Steam's interface composites on the GPU here"
+  elif [ ! -x "$wrapper" ]; then why="$wrapper is not installed"
+  fi
+  if [ -n "$why" ]; then
+    echo "== steam-x-soft: not applied: $why"
+    echo "DROIDDECK_TIMELINE event=steam_x_soft applied=0 wall_ms=$(date +%s%3N)"
+    return 0
+  fi
+  export BL_X_SOFT_DIR="${XDG_RUNTIME_DIR:-/tmp}/droiddeck-x-soft"
+  rm -rf "$BL_X_SOFT_DIR"
+  mkdir -p "$BL_X_SOFT_DIR"
+  export WLR_XWAYLAND=$wrapper
+  echo "== steam-x-soft: gamescope starts its X servers through $wrapper"
+}
+# Inside gamescope: which server the wrapper took glamor from, against the display Steam was given.
+steam_x_soft_report() {
+  [ -n "${BL_X_SOFT_DIR:-}" ] || return 0
+  local soft=
+  read -r soft 2>/dev/null < "$BL_X_SOFT_DIR/soft" || true
+  if [ -n "$soft" ] && [ "$soft" = "${DISPLAY:-}" ]; then
+    echo "== steam-x-soft: Steam's X server $DISPLAY draws without the GPU; the games' X server ${STEAM_GAME_DISPLAY_0:-?} keeps glamor"
+    echo "DROIDDECK_TIMELINE event=steam_x_soft applied=1 display=$DISPLAY game_display=${STEAM_GAME_DISPLAY_0:--} wall_ms=$(date +%s%3N)"
+  else
+    echo "== steam-x-soft: NOT in effect: glamor was taken from '${soft:-no server}', Steam draws into ${DISPLAY:-?}"
+    echo "DROIDDECK_TIMELINE event=steam_x_soft applied=0 display=${DISPLAY:--} soft=${soft:--} wall_ms=$(date +%s%3N)"
+  fi
+}
+
 start_diagnostic_inventory() {
   [ "${DROIDDECK_ENHANCED_DIAGNOSTICS:-0}" = 1 ] || return 0
   [ -z "${BL_INSIDE:-}" ] || return 0
@@ -551,6 +593,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
     fi
   fi
   if [ "${DROIDDECK_EXP_HYBRIS_INDEX_SESSION:-}" = 1 ]; then hybris_index_session; fi
+  if [ "$mode" = steam ] && [ "${DROIDDECK_EXP_STEAM_X_SOFT:-}" = 1 ]; then steam_x_soft; fi
   backend=${BL_GAMESCOPE_BACKEND:-wayland}
   case "$backend" in
     wayland) ;;
@@ -702,6 +745,7 @@ case $mode in
     ;;
   steam)
     if [ "${DROIDDECK_EXP_COMPOSITE_TIMING:-}" = 1 ]; then composite_timing; fi
+    steam_x_soft_report
     if [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
       export WAYLAND_DISPLAY= XDG_SESSION_TYPE=x11
     fi
@@ -711,6 +755,10 @@ case $mode in
     steam_x64=0
     [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ] && steam_x64=1
     steam_cef_gpu=1
+    if [ "${BL_STEAM_CEF_GPU:-1}" = 0 ]; then
+      steam_cef_gpu=0
+      echo "== steam: BL_STEAM_CEF_GPU=0: the browser UI draws without the GPU (-cef-disable-gpu)"
+    fi
     if [ "$steam_x64" = 1 ]; then
       step "checking the Steam client's arm64 parts (first run downloads them, ~1-2 min)"
       _bl_x64_repair=0
@@ -1547,6 +1595,32 @@ case $mode in
     export BL_CDP_GUARD=$BL_CDP_PORT
     echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
     [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
+    # Experiment steam-ui-park: droiddeck-steam-ui-park ends the client's web helper while a game is in front
+    # and droiddeck-steam-taskset (ahead of taskset on the client's PATH) holds its restart until the gate goes.
+    if [ "${DROIDDECK_EXP_STEAM_UI_PARK:-}" = 1 ]; then
+      if [ "$steam_x64" = 1 ]; then
+        echo "== steam-ui-park: not applied: the x86-64 client starts its web helper another way"
+      elif [ "${BL_STEAM_UI:-}" = desktop ]; then
+        echo "== steam-ui-park: not applied: desktop UI"
+      elif [ -z "${BL_LAUNCH_DIR:-}" ] || [ ! -d "$BL_LAUNCH_DIR" ] || [ ! -x /usr/local/bin/droiddeck-steam-ui-park ] ||
+           [ ! -x /usr/local/libexec/droiddeck-steam/taskset ]; then
+        echo "== steam-ui-park: not applied: no launch directory, or its programs are not installed"
+      else
+        export BL_STEAM_UI_GATE="$BL_LAUNCH_DIR/steam-ui-gate"
+        rm -f "$BL_STEAM_UI_GATE" "$BL_STEAM_UI_GATE".* "$BL_LAUNCH_DIR/steam-ui-park" "$BL_LAUNCH_DIR/steam-ui-restart"
+        case ":$bl_steam_path:" in
+          *:/usr/local/libexec/droiddeck-steam:*) ;;
+          *) bl_steam_path="/usr/local/libexec/droiddeck-steam:$bl_steam_path" ;;
+        esac
+        for _i in "${!steam_client[@]}"; do
+          case ${steam_client[$_i]} in
+            PATH=*) steam_client[$_i]="PATH=/usr/local/libexec/droiddeck-steam:${steam_client[$_i]#PATH=}" ;;
+          esac
+        done
+        /usr/local/bin/droiddeck-steam-ui-park "$steam_root" &
+        echo "== steam-ui-park: on (the web helper is parked while a game has focus; gate $BL_STEAM_UI_GATE)"
+      fi
+    fi
     if [ "$steam_x64" = 1 ]; then
       { droiddeck-steam-compat --files-only "$steam_root" 2>&1 & }
     else
@@ -1804,6 +1878,16 @@ case $mode in
             "${steam_client[@]}" -shutdown >/dev/null 2>&1 || true
             exit 0
           fi
+          if [ -f "$BL_LAUNCH_DIR/steam-ui-restart" ]; then
+            rm -f "$BL_LAUNCH_DIR/steam-ui-restart"
+            if pgrep -f 'reaper SteamLaunch AppId=' >/dev/null 2>&1; then
+              echo "== steam: its interface did not come back (steam-ui-park), but a game is running; not restarting the client"
+            else
+              echo "== steam: its interface did not come back (steam-ui-park); restarting the client"
+              : > "$HOME/.bl-restart-ui"
+              "${steam_client[@]}" -shutdown >/dev/null 2>&1 || true
+            fi
+          fi
           if [ -f "$BL_LAUNCH_DIR/steam-uninstall" ]; then
             uninstall_id=$(cat "$BL_LAUNCH_DIR/steam-uninstall" 2>/dev/null)
             rm -f "$BL_LAUNCH_DIR/steam-uninstall"
@@ -1944,7 +2028,7 @@ case $mode in
     fi
     rm -f "$HOME/.bl-restart-game" "$HOME/.bl-restarted-for"
     while :; do
-      rm -f "$HOME/.bl-restart-once" "$HOME/.bl-restart-lost"
+      rm -f "$HOME/.bl-restart-once" "$HOME/.bl-restart-lost" "$HOME/.bl-restart-ui"
       if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -d "$BL_LAUNCH_DIR/steam-branch" ]; then
         /usr/local/bin/droiddeck-steam-branch apply "$steam_root" "$BL_LAUNCH_DIR/steam-branch" || true
       fi
@@ -2021,6 +2105,12 @@ case $mode in
             continue
             ;;
         esac
+      fi
+      if [ -f "$HOME/.bl-restart-ui" ]; then
+        rm -f "$HOME/.bl-restart-ui"
+        echo "== steam: starting the client again so its interface comes back"
+        set --
+        continue
       fi
       if [ -f "$HOME/.bl-restart-lost" ]; then
         rm -f "$HOME/.bl-restart-lost"

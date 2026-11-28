@@ -1,0 +1,40 @@
+#!/bin/bash
+# Staged as usr/local/libexec/droiddeck-steam/Xwayland. Experiment steam-x-soft: droiddeck-session points
+# gamescope at it with WLR_XWAYLAND, and gamescope runs it once per X server as `Xwayland :N -rootless ...`.
+# The server Steam's interface draws into starts without glamor (XWAYLAND_NO_GLAMOR=1), so it holds no GPU
+# memory and hands gamescope shared-memory buffers; the games' server is started unchanged.
+# gamescope opens its servers' display sockets in order and writes its pid into each /tmp/.X<N>-lock, so
+# Steam's server (the first) is the one with no lower-numbered lock of the same owner.
+set -u
+real=${BL_XWAYLAND_REAL:-/usr/bin/Xwayland}
+locks=${BL_X_LOCK_DIR:-/tmp}
+notes=${BL_X_SOFT_DIR:-}
+display=${1:-}
+soft=0 why=
+case $display in
+  :[0-9]|:[0-9][0-9])
+    n=${display#:}
+    owner=
+    read -r owner 2>/dev/null < "$locks/.X$n-lock" || true
+    if [ -z "$owner" ]; then
+      why="no lock file for $display"
+    else
+      soft=1
+      for ((m = 0; m < n; m++)); do
+        other=
+        read -r other 2>/dev/null < "$locks/.X$m-lock" || continue
+        if [ "$other" = "$owner" ]; then soft=0; why="the games' server (:$m is Steam's)"; break; fi
+      done
+    fi
+    ;;
+  *) why="no display number in the arguments" ;;
+esac
+if [ "$soft" = 1 ]; then
+  export XWAYLAND_NO_GLAMOR=1
+  echo "== steam-x-soft: Xwayland $display (Steam's interface) starts without glamor" >&2
+  [ -n "$notes" ] && printf '%s\n' "$display" > "$notes/soft" 2>/dev/null
+else
+  echo "== steam-x-soft: Xwayland ${display:-?} keeps glamor: $why" >&2
+  [ -n "$notes" ] && printf '%s\n' "$why" > "$notes/glamor.${display#:}" 2>/dev/null
+fi
+exec "$real" "$@"

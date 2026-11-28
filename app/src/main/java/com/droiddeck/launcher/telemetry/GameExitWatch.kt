@@ -169,18 +169,24 @@ class GameExitWatch(private val alive: (Int) -> Boolean) {
         private const val EXPLORER_FAILED = "DROIDDECK_TIMELINE event=game_explorer_failed "
         private const val RELAUNCH = "DROIDDECK_TIMELINE event=game_relaunch "
         private const val CORES_RESET = "DROIDDECK_TIMELINE event=game_cores_reset "
+        private const val STEAM_UI = "DROIDDECK_TIMELINE event=steam_ui_"
+        private const val STEAM_X_SOFT = "DROIDDECK_TIMELINE event=steam_x_soft "
 
         /**
          * The events.jsonl name and fields of droiddeck-game-env's lines that end no game: the explorer watchdog's
          * (Wine's desktop never started for a launch, `action=relaunch` on the first attempt, `none` after, and the
          * launch it then started once more) and the core watch's (the cpuset changed under the game and its
-         * threads were pinned again, `action=repin`, or left where they were).
+         * threads were pinned again, `action=repin`, or left where they were). Also the Steam-interface experiments'
+         * lines: droiddeck-steam-ui-park's `steam_ui_<step>` become `steam.ui_<step>`, and the session's `steam_x_soft`.
          */
         fun relaunchEvent(text: String): Pair<String, Map<String, String>>? {
             val name = when {
                 text.startsWith(EXPLORER_FAILED) -> "game.explorer_failed"
                 text.startsWith(RELAUNCH) -> "game.relaunch"
                 text.startsWith(CORES_RESET) -> "game.cores_reset"
+                text.startsWith(STEAM_X_SOFT) -> "steam.x_soft"
+                text.startsWith(STEAM_UI) -> "steam.ui_" + text.substring(STEAM_UI.length).substringBefore(' ')
+                    .filter { it.isLetterOrDigit() || it == '_' }.take(40)
                 else -> return null
             }
             return name to text.trim().split(' ').drop(2).mapNotNull {

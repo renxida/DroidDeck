@@ -78,6 +78,8 @@ class ExperimentsTest {
             "vk-blocks-64" to "DROIDDECK_EXP_VK_BLOCKS_64",
             "native-r2r" to "DROIDDECK_EXP_NATIVE_R2R",
             "godot-render-thread" to "DROIDDECK_EXP_GODOT_RENDER_THREAD",
+            "steam-x-soft" to "DROIDDECK_EXP_STEAM_X_SOFT",
+            "steam-ui-park" to "DROIDDECK_EXP_STEAM_UI_PARK",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())
