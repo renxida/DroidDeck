@@ -28,6 +28,21 @@ snapshot; a complete decode drops that byte snapshot, and a file timestamp chang
 invalidates the cache. Bulk callers still request all entries. Launch selection,
 prefix/Proton choices and saved settings are unchanged.
 
+Within each record the reader builds only what the launcher uses: `common`'s scalars and
+its Steam Deck runtime, `config.launch`, and `extended.app_mappings` for app 891390. Other
+sections (`depots`, `localization`, `ufs` and the rest) are walked without being built, and a
+record stops being read once those sections are in hand. Session start's full decode for
+Valve's runtime picks costs about 40% of what it did on a synthetic 23 MB cache.
+
+A complete decode from the file also saves each app's entry next to it, in
+`appcache/appinfo.vdf.droiddeck-entries`, keyed on the SHA-1 and change number Steam stores
+in the record's header. The next complete decode, in this process or another one
+(`steam-compatibility`, `droiddeck-steam-shortcuts`, the live `droiddeck-steam-compat`), only
+decodes the records Steam changed since, and those only as far as described above. Records
+without a SHA-1 are always decoded, and the saved entries are dropped whenever
+`steam-compatibility` itself changes. On a synthetic 23 MB
+cache of 5,000 apps a repeat read took 0.07 s instead of 0.44 s.
+
 Each game can also override the stored FEX, DXVK and VKD3D-Proton package used
 by its selected Proton. The launch wrapper applies that game’s component files
 immediately before Proton starts, removes managed files that are absent from the
@@ -247,6 +262,7 @@ values. Custom variables have editable names and literal values.
 | `DXVK_HUD`, `PROTON_LOG` | Optional diagnostics; leave unset for ordinary play. |
 | `PROTON_USE_WINED3D` | D3D9–11 OpenGL fallback for compatibility testing. |
 | `PROTON_USE_XALIA` | Proton's gamepad-navigation helper toggle. |
+| `DROIDDECK_GODOT_RENDERER` | Godot 4 renderer: `auto` (unset), `mobile`, `forward_plus`, `vulkan` or `off`. |
 
 Forcing `12_2` or `6_9` changes reported capabilities; it cannot implement a missing
 Vulkan feature. Remove or unset either entry to use automatic detection for that capability.
@@ -261,6 +277,45 @@ ALSA-server, Box64 and patched async-DXVK options are identified in the editor a
 requiring a different/custom component; custom entries remain allowed. The old
 `DXVK_FRAME_RATE` environment variable was removed from current DXVK, so it is
 not offered as a suggestion. Prefer Steam's Quick Access menu frame limiter for ordinary play.
+
+## Godot 4 renderer
+
+`droiddeck-game-env` reads the project settings of a Godot game from its pack
+(`<game>.pck`, or the pack embedded in the `.exe`) and starts it with the Vulkan
+driver instead of D3D12, which shows a black window through vkd3d-proton.
+`DROIDDECK_GODOT_RENDERER` picks the rest:
+
+- `auto` (the default): a Forward+ project runs with the Mobile renderer on the
+  PowerVR driver and keeps its own renderer elsewhere. A Compatibility project,
+  or a pack that can't be read, gets only `--rendering-driver vulkan`, as before.
+- `mobile` or `forward_plus`: that renderer, on Vulkan.
+- `vulkan`: only the driver, which makes Godot use Forward+.
+- `off`: no Godot arguments and no `override.cfg`.
+
+Godot 4.5 and later also get `--accessibility disabled`. A `--rendering-driver`
+in the game's launch options leaves the renderer alone; a `--rendering-method`
+gets only the Vulkan driver added. The arguments go before a `--` in the launch
+options, where Godot still reads them.
+
+DroidDeck also writes `override.cfg` next to the game's `.exe` (and so next to
+its `.pck`, where the native engine reads it too), so Godot saves its Vulkan
+pipeline cache after each new pipeline instead of every 3 MiB. This happens
+with or without the `godot-render` experiment. A game killed without quitting
+then keeps its compiled pipelines; on a PowerVR phone one new pipeline takes
+about a second, so a lost cache means seconds-long hitches the next time each
+card or effect first appears. A game's own `override.cfg` is left as it is,
+and `off` removes DroidDeck's.
+
+The launch log shows what was chosen and what the last run used:
+
+```
+droiddeck-game-env: Godot 4.5.1 (project: forward_plus on d3d12): mobile on Vulkan (DROIDDECK_GODOT_RENDERER=auto)
+droiddeck-game-env: Godot: pipeline cache saved after each new pipeline (override.cfg)
+droiddeck-game-env: Godot pipeline cache in <prefix>/drive_c/users/steamuser/AppData/Roaming/<user dir>: pipelines.mobile.<device>.cache 1.20 MiB
+droiddeck-game-env: Godot last run: Vulkan 1.3.x - Forward Mobile - Using Device #0: ...
+```
+
+See `docs/research/godot-render-path.md` for the evidence and the experiment plan.
 
 ## Launch path and references
 

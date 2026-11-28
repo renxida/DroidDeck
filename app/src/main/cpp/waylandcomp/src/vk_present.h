@@ -49,6 +49,12 @@ struct vkp_image *vkp_image_create_shm(int w, int h);
 struct AHardwareBuffer;
 struct vkp_image *vkp_image_from_ahb(struct AHardwareBuffer *ahb);
 void vkp_wait_idle(void);
+/* Wait for every screen frame still pending on the GPU. */
+void vkp_frames_settle(void);
+/* 0 one frame in flight and CPU-waited layer blits, 1 two screen frames in flight, 2 fenced layer blits. */
+void vkp_set_present_mode(int mode);
+/* Wait for pending screen frames that read img and pending layer blits that read or write img. */
+void vkp_image_settle(struct vkp_image *img);
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride);
 
 int vkp_image_width(const struct vkp_image *img);
@@ -74,6 +80,13 @@ int vkp_device_lost(void);
 int vkp_completion_unknown(void);
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n);
+
+/* Screen swapchain presents and, with VK_GOOGLE_display_timing, their ids and display times (compositor thread). */
+int vkp_display_timing(void);
+unsigned vkp_present_count(void);
+uint32_t vkp_last_present_id(void);
+int vkp_swap_pending(void);
+int vkp_poll_display_times(void (*shown)(uint32_t id, int64_t display_ns));
 int vkp_render_plain(int scene_w, int scene_h);
 int vkp_base_black(int scene_w, int scene_h);
 
@@ -101,7 +114,9 @@ int vkp_render_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, int n
 int vkp_pass_begin_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *rw, int *rh);
 
-int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd);
+/* With done_fd, a layer slot blit may return before it finishes: *done_fd is then its
+ * completion as a sync fd (or -1 when already done) for the layer's acquire fence. */
+int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd, int *done_fd);
 int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px);
 int vkp_update_map(int scene_w, int scene_h);
 int vkp_map_draw(const struct vkp_draw *d, int out[8]);

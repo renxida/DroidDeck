@@ -17,6 +17,8 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        if (android.os.Build.VERSION.SDK_INT >= 28 &&
+            Application.getProcessName().endsWith(com.droiddeck.launcher.session.MemoryBalloonService.PROCESS_SUFFIX)) return
         Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)
@@ -25,6 +27,7 @@ class App : Application() {
                 .runningAppProcesses?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName
         if (process == "$packageName:shortcuts_sync") return
         com.droiddeck.launcher.telemetry.Timeline.processStarted()
+        registerActivityLifecycleCallbacks(com.droiddeck.launcher.session.LauncherRejoin.Tracker)
         CrashHandler.install(this)
         com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
@@ -36,6 +39,10 @@ class App : Application() {
         com.droiddeck.launcher.runtime.RootSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
         com.droiddeck.launcher.telemetry.TelemetryUploader.flushPending(this)
+        com.droiddeck.launcher.update.KadbInstaller.register(this)
+        com.droiddeck.launcher.session.AutoTest.schedule(this)
+        com.droiddeck.launcher.agent.AgentRemote.start(this)
+        com.droiddeck.launcher.telemetry.DeviceStatus.registerLiveSection(this)
     }
 
     private fun prefetchAddonPacks() {

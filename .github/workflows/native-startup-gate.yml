@@ -1,0 +1,461 @@
+name: Native startup gate (stand-in game through droiddeck-native-godot)
+
+# Catches native-path startup failures off the device. A stand-in Godot 4.5.1 C# game
+# (tools/native-engine/standin: our code plus public NuGet packages, never any game file) is exported for
+# Windows x86_64 in several variants, then each is run on an arm64 runner through the wrapper as checked out
+# (tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot) on the published engine component, the way
+# the phone runs a game. Two self-test rows run older converters and must fail: 7754c57b (before ReadyToRun
+# support; the first phone launch died on it at compose) and d68b35ad (stripped ReadyToRun code but kept its
+# PE layout: .NET refuses the game assembly at load); a third runs f86b8550 (relabel only: refused at load
+# too, on Godot's load_assembly_and_get_function_pointer path). The soak runs only on schedule or by hand.
+#
+# Reusable: `uses: ./.github/workflows/native-startup-gate.yml` with
+#   component: "pinned" (default: the wrapper's COMPONENT, via --fetch) or a release tag on this repository
+#              (e.g. native-engine-40), downloaded from its public release asset and passed as --component.
+#   component_artifact: name of an artifact of the calling run holding native-engine.tar.zst (the build the
+#              caller is about to publish); when set it is gated instead of `component`. With
+#              component_run_id (manual runs) it is taken from that run instead.
+#   soak:      true to also run the soak (non-blocking).
+# It consumes the wrapper from the checkout and the published component; no APK, no game files.
+
+on:
+  workflow_call:
+    inputs:
+      component:
+        description: '"pinned" (the wrapper''s COMPONENT) or a native-engine-N release tag on this repository'
+        type: string
+        default: pinned
+      component_artifact:
+        description: Artifact of the calling run with native-engine.tar.zst; gated instead of component when set
+        type: string
+        default: ''
+      soak:
+        description: Also run the long soak (non-blocking)
+        type: boolean
+        default: false
+      pin:
+        description: The engine pin the calling app build embeds (resolve_component.py's output); empty resolves it here
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      component:
+        description: '"pinned" or a native-engine-N release tag'
+        type: string
+        default: pinned
+      component_artifact:
+        description: Artifact with native-engine.tar.zst (from component_run_id); gated instead of component
+        type: string
+        default: ''
+      component_run_id:
+        description: Run that made component_artifact (empty for this run)
+        type: string
+        default: ''
+      soak:
+        description: Also run the long soak (non-blocking)
+        type: boolean
+        default: false
+      soak_minutes:
+        description: Soak length in minutes
+        type: string
+        default: '45'
+      pin:
+        description: Engine pin JSON to gate as the app's (empty resolves the newest gated release here)
+        type: string
+        default: ''
+  schedule:
+    - cron: '17 9 * * 1'  # weekly soak (runs from the default branch)
+  push:
+    branches: [native/startup-gate, perf/emu-native]
+    paths:
+      - 'tools/native-engine/standin/**'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-game-env'
+      - 'tools/native-engine/resolve_component.py'
+      - '.github/workflows/native-startup-gate.yml'
+
+permissions:
+  contents: read
+  actions: read  # component_artifact from another run
+
+env:
+  GODOT_VER: 4.5.1-stable
+  GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.5.1-stable
+  WRAPPER: tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot
+  # Converters the self-test rows run: before ReadyToRun support (same file as 0aa91a7, which the first phone
+  # launch died on at compose), and the one that stripped ReadyToRun code but kept its layout (refused at load).
+  CONVERTER_7754C57B: 7754c57b092fba510674d202cbceedc04d12eb27
+  CONVERTER_D68B35AD: d68b35ad304995c2d85d3136f9a35be5401483f0
+  # ...and the one that only relabelled ReadyToRun images (hostfxr cannot load the game assembly on Godot's path).
+  CONVERTER_F86B8550: f86b85501500b90f1b007a05b471c4797e108de8
+  GAME_ENV: tools/linuxfs/overlay/usr/local/bin/droiddeck-game-env
+  PIN_FILE: tools/linuxfs/overlay/usr/local/share/droiddeck/native-engine.json
+  # The release the phone skipped on Nov 15 (no Steam bridge): game-env-selftest-54 must see it refused.
+  SELFTEST_54: '{"tag": "native-engine-54", "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-54/native-engine.tar.zst", "sha256": "2d48de6b67c78992557bab42ee06311cae33a4db1281b8465a19e23c59f93b32", "api": 1}'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  export:
+    name: export ${{ matrix.variant }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [r2r-deps-gdext, r2r-deps-nogdext, r2r-nodeps-gdext, r2r-nodeps-nogdext,
+                  il-deps-gdext, il-deps-nogdext, il-nodeps-gdext, il-nodeps-nogdext]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - uses: actions/cache@v4
+        id: godot
+        with:
+          path: ~/godot-451
+          key: godot-451-mono-linux-arm64-editor-windows-templates-v1
+      - name: Fetch the Godot 4.5.1 mono editor (linux arm64) and its Windows export templates
+        if: steps.godot.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot-451 && cd ~/godot-451
+          curl -fsSL -o ed.zip "$GODOT_URL/Godot_v${GODOT_VER}_mono_linux_arm64.zip"
+          unzip -q ed.zip && rm ed.zip
+          curl -fsSL -o t.tpz "$GODOT_URL/Godot_v${GODOT_VER}_mono_export_templates.tpz"
+          unzip -q t.tpz 'templates/windows_*x86_64*' 'templates/version.txt' -d tpl && rm t.tpz
+          ls -la tpl/templates
+      - name: Export the stand-in (${{ matrix.variant }})
+        run: |
+          set -euo pipefail
+          ED=$(find ~/godot-451 -name 'Godot_v*_mono_linux.arm64' -type f | head -1)
+          chmod +x "$ED"
+          T=~/.local/share/godot/export_templates/4.5.1.stable.mono
+          mkdir -p "$T" && cp ~/godot-451/tpl/templates/* "$T"/
+          v=${{ matrix.variant }}
+          case $v in r2r-*) r2r=on ;; *) r2r=off ;; esac
+          case $v in *-nodeps-*) deps=off ;; *) deps=on ;; esac
+          case $v in *-nogdext) gdext=missing ;; *) gdext=present ;; esac
+          GODOT=$ED sh tools/native-engine/standin/build.sh "$RUNNER_TEMP/standin" r2r=$r2r deps=$deps gdext=$gdext
+      - uses: actions/upload-artifact@v4
+        with:
+          name: standin-win-x64-${{ matrix.variant }}
+          path: ${{ runner.temp }}/standin
+          if-no-files-found: error
+          retention-days: 14
+      - name: The off-phone rig's copy (ReadyToRun, NuGet deps, Windows-only GDExtension)
+        if: matrix.variant == 'r2r-deps-gdext'
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-standin-win-x64
+          path: ${{ runner.temp }}/standin
+          if-no-files-found: error
+          retention-days: 30
+
+  steam-exports:
+    # The pinned Valve linux-arm64 libsteam_api.so still exports the interface accessors recorded for it, and
+    # the wrapper refuses to start a game whose Steamworks.NET needs one it lacks (SDK 1.62-era GameSearch).
+    name: steam library exports
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compare the pinned library's accessors with the recorded list
+        run: |
+          set -euo pipefail
+          lib=$(python3 -c 'import runpy, sys; print(runpy.run_path(sys.argv[1])["steam_api"]())' "$WRAPPER")
+          nm -D --defined-only "$lib" | awk '{print $3}' | grep '^SteamAPI_ISteamClient_GetISteam' | sort > have.txt
+          grep -v '^#' tools/native-engine/standin/steam-api-accessors.txt > want.txt
+          diff -u want.txt have.txt
+          python3 - "$WRAPPER" <<'PY'
+          import runpy, sys
+          ng = runpy.run_path(sys.argv[1])
+          blockers = ng["steam_init_blockers"](["SteamAPI_ISteamClient_GetISteamGameSearch", "SteamAPI_ISteamFriends_GetUserRestrictions"])
+          assert blockers == ["SteamAPI_ISteamClient_GetISteamGameSearch"], blockers
+          print("accessors match; a missing accessor stops the native launch")
+          PY
+      - name: The Steam probe runs Valve's arm64 library and answers without a Steam client
+        run: |
+          set -euo pipefail
+          python3 - "$WRAPPER" "$RUNNER_TEMP" <<'PY'
+          import os, runpy, struct, sys
+          ng = runpy.run_path(sys.argv[1])
+          fake = os.path.join(sys.argv[2], "steamclient.so")  # only the cache key; Valve's library finds no client here
+          open(fake, "wb").write(b"\x7fELF" + b"\0" * 14 + struct.pack("<H", 183))
+          env = {k: v for k, v in os.environ.items() if not k.startswith("Steam")}
+          r = ng["steam_probe"](ng["steam_api"](), sys.argv[2], env, os.path.join(sys.argv[2], "cache"), [fake])
+          print(ng["steam_probe_line"](r))
+          assert "unknown" not in r and r["init"] != 0 and r["versions"] == {}, r
+          assert not os.path.exists(os.path.join(sys.argv[2], "cache", "steam-probe")), "a failed init was cached"
+          PY
+
+  app-local-icu:
+    # .NET needs a real ICU, or the game's `new CultureInfo(name)` throws. The wrapper prefers the guest's own ICU
+    # (found by file) and falls back to Microsoft's linux-arm64 ICU (app-local), which .NET must load or fail fast.
+    # Both start from LANG=C, as the guest does: cultures must be real ones (fra, not ivl), French grouping must be
+    # French, and the current culture must be en-US, not invariant.
+    name: ICU (${{ matrix.icu }})
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        icu: [guest, app-local]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: A .NET 9 program finds cultures through the wrapper's ICU
+        env:
+          ICU_MODE: ${{ matrix.icu }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cult" && cd "$RUNNER_TEMP/cult"
+          printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>' > cult.csproj
+          printf '%s\n' 'using System.Globalization;' \
+            'foreach (var n in new[] { "en-US", "fr-FR", "C" }) { var c = new CultureInfo(n); Console.WriteLine($"CULTURE {n} name={c.Name} three={c.ThreeLetterISOLanguageName}"); }' \
+            'Console.WriteLine("N0 fr-FR " + (1234567).ToString("N0", new CultureInfo("fr-FR")).Replace("\u202f", "_").Replace("\u00a0", "_"));' \
+            'Console.WriteLine($"CURRENT name={CultureInfo.CurrentCulture.Name}");' \
+            'Console.WriteLine($"ICU {string.Join(",", System.Diagnostics.Process.GetCurrentProcess().Modules.Cast<System.Diagnostics.ProcessModule>().Select(m => m.FileName).Where(f => f.Contains("icu")))}");' > Program.cs
+          dotnet build -c Release -o out > /dev/null
+          cd "$GITHUB_WORKSPACE"
+          python3 - "$WRAPPER" "$RUNNER_TEMP/cult/out/cult.dll" <<'PY' | tee "$RUNNER_TEMP/cult.log"
+          import os, runpy, subprocess, sys
+          ng = runpy.run_path(sys.argv[1])
+          base = {k: v for k, v in os.environ.items() if not k.startswith(("LC_", "DOTNET_SYSTEM_GLOBALIZATION"))}
+          base["LANG"] = "C"
+          if os.environ["ICU_MODE"] == "guest":
+              guest = ng["guest_icu"]()
+              assert guest, "the runner's own ICU was not found by file"
+              print(f"GUEST {guest}")
+              env = ng["engine_env"](base, None)
+              assert "DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU" not in env and "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" not in env, env
+          else:
+              env = ng["engine_env"](base, ng["icu_libs"](), system_icu="")
+              assert env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] == ng["ICU"]["version"], env
+          sys.stdout.flush()
+          sys.exit(subprocess.run(["dotnet", sys.argv[2]], env=env).returncode)
+          PY
+          grep -q "CULTURE en-US name=en-US three=eng" "$RUNNER_TEMP/cult.log"
+          grep -q "CULTURE fr-FR name=fr-FR three=fra" "$RUNNER_TEMP/cult.log"
+          grep -q "^N0 fr-FR 1_234_567$" "$RUNNER_TEMP/cult.log"
+          grep -q "^CURRENT name=en-US$" "$RUNNER_TEMP/cult.log"
+          if [ "$ICU_MODE" = guest ]; then
+            guest=$(sed -n 's/^GUEST //p' "$RUNNER_TEMP/cult.log")
+            grep -E "^ICU " "$RUNNER_TEMP/cult.log" | grep -q "/$(basename "$guest")"
+          else
+            grep -E "^ICU " "$RUNNER_TEMP/cult.log" | grep -q "/icu/72.1.0.3/libicuuc.so.72"
+          fi
+
+  gate:
+    name: gate ${{ matrix.row }}
+    needs: export
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        row: [r2r-deps-gdext, r2r-deps-nogdext, r2r-nodeps-gdext, r2r-nodeps-nogdext,
+              il-deps-gdext, il-deps-nogdext, il-nodeps-gdext, il-nodeps-nogdext,
+              xvfb-opengl3, xvfb-vulkan, selftest-7754c57b, selftest-d68b35ad, selftest-f86b8550, probe,
+              steam-preflight, game-env-native, game-env-selftest-54,
+              game-env-steam-init]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Which stand-in and how to run it
+        id: row
+        run: |
+          set -euo pipefail
+          row=${{ matrix.row }}
+          variant=$row prefix= args="--headless --max-fps 30 --quit-after-frames 300" extra= deps=
+          case $row in
+            xvfb-opengl3) variant=il-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver opengl3 --max-fps 30 --quit-after-frames 300" ;;
+            xvfb-vulkan) variant=il-deps-gdext prefix="xvfb-run -a -s '-screen 0 1280x720x24'" args="--rendering-driver vulkan --max-fps 30 --quit-after-frames 300" ;;
+            selftest-7754c57b) variant=r2r-deps-gdext extra="--expect-fail compose --timeout 120 --old-converter $RUNNER_TEMP/old-converter" ;;
+            selftest-d68b35ad|selftest-f86b8550) variant=r2r-deps-gdext extra="--expect-fail load --timeout 120 --old-converter $RUNNER_TEMP/old-converter" ;;
+            probe) variant=il-deps-gdext ;;
+            steam-preflight) variant=r2r-deps-gdext extra="--steam-preflight" ;;
+            game-env-*) variant=r2r-deps-gdext ;;
+          esac
+          case $variant in *-nodeps-*) deps=off ;; *) deps=on ;; esac
+          { echo "variant=$variant"; echo "prefix=$prefix"; echo "args=$args"; echo "extra=$extra"; echo "deps=$deps"; } >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: standin-win-x64-${{ steps.row.outputs.variant }}
+          path: ${{ runner.temp }}/standin
+      - name: Runner packages (Xvfb, Mesa)
+        if: startsWith(matrix.row, 'xvfb') || matrix.row == 'probe'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 libglx-mesa0 mesa-vulkan-drivers libvulkan1 vulkan-tools > /dev/null
+      - name: The older converter this self-test runs
+        if: startsWith(matrix.row, 'selftest-')
+        run: |
+          set -euo pipefail
+          case ${{ matrix.row }} in *7754c57b) sha=$CONVERTER_7754C57B ;; *d68b35ad) sha=$CONVERTER_D68B35AD ;; *) sha=$CONVERTER_F86B8550 ;; esac
+          git fetch --no-tags --depth 1 origin "$sha"
+          git show "$sha:$WRAPPER" > "$RUNNER_TEMP/old-converter"
+          sed -n '/^def portable_image/,/^def /p' "$RUNNER_TEMP/old-converter" | grep -nE 'raise|pack_into'
+      - uses: actions/download-artifact@v4
+        if: inputs.component_artifact != ''
+        with:
+          name: ${{ inputs.component_artifact }}
+          path: ${{ runner.temp }}/built-component
+          run-id: ${{ inputs.component_run_id || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: The engine pin the app embeds
+        env:
+          PIN: ${{ inputs.pin }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$PIN_FILE")"
+          if [ "${{ matrix.row }}" = game-env-selftest-54 ]; then
+            printf '%s\n' "$SELFTEST_54" > "$PIN_FILE"
+          elif [ -n "$PIN" ]; then
+            printf '%s\n' "$PIN" > "$PIN_FILE"
+          else
+            python3 tools/native-engine/resolve_component.py --wrapper "$WRAPPER" --out "$PIN_FILE"
+          fi
+          cat "$PIN_FILE"
+      - name: Resolve the engine component
+        id: component
+        env:
+          COMPONENT: ${{ inputs.component_artifact != '' && format('file:{0}/built-component/native-engine.tar.zst', runner.temp) || inputs.component || 'pinned' }}
+        run: |
+          set -euo pipefail
+          args=$(sh tools/native-engine/standin/component.sh "$WRAPPER" "$COMPONENT" "$RUNNER_TEMP/components")
+          echo "$args"
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+      - name: Gate
+        if: matrix.row != 'probe' && !startsWith(matrix.row, 'game-env-')
+        run: |
+          set -euo pipefail
+          eval "set -- ${{ steps.row.outputs.args }}"
+          python3 tools/native-engine/standin/gate.py --wrapper "$WRAPPER" --game-dir "$RUNNER_TEMP/standin" \
+            --work "$RUNNER_TEMP/gate" --name "${{ matrix.row }}" --repeat 3 --deps ${{ steps.row.outputs.deps }} \
+            ${{ steps.component.outputs.args }} --prefix "${{ steps.row.outputs.prefix }}" ${{ steps.row.outputs.extra }} -- "$@"
+      - name: Launch as the phone does (droiddeck-game-env, native-engine on, Steam preflight on)
+        if: startsWith(matrix.row, 'game-env-')
+        run: |
+          set -euo pipefail
+          # droiddeck-game-env always runs a published component (--fetch reads the pin), so before publishing it would
+          # test the previous engine: with a wrapper that needs this build's Steam bridge, game-env-steam-init would
+          # see the old bridge's gap. The app build's own gate runs these rows on the pin it embeds.
+          if [ -n "${{ inputs.component_artifact }}" ] && { [ "${{ matrix.row }}" = game-env-native ] || [ "${{ matrix.row }}" = game-env-steam-init ]; }; then
+            echo "This gate checks a component artifact before it is published; the app build's own gate runs this row on the pin it embeds."
+            exit 0
+          fi
+          # game-env-steam-init: the stand-in calls Steamworks.NET's SteamAPI.InitEx, as Slay the Spire 2 does,
+          # against Valve's real libsteam_api behind the bridge. CI has no Steam client, so the real check fails,
+          # and the launch must stop the native engine and go on to Proton (the phone's Nov 15 "Steam Error!" box).
+          set -- --headless --max-fps 30 --quit-after-frames 300
+          case ${{ matrix.row }} in
+            game-env-selftest-54) expect=("--expect-skip" "Steam library gap") ;;
+            game-env-steam-init) expect=("--expect-skip" "Steam init failed"); set -- "$@" --steam-init ;;
+            *) expect=() ;;
+          esac
+          python3 tools/native-engine/standin/decide.py --game-env "$GAME_ENV" --wrapper "$WRAPPER" \
+            --game-dir "$RUNNER_TEMP/standin" --work "$RUNNER_TEMP/gate/${{ matrix.row }}" "${expect[@]}" -- "$@"
+          if [ "${{ matrix.row }}" = game-env-steam-init ]; then
+            grep -m1 '^STANDIN_STEAM_INIT failed' "$RUNNER_TEMP/gate/${{ matrix.row }}/native-engine.log" \
+              || { echo "the stand-in never reported its SteamAPI.InitEx result"; exit 1; }
+          fi
+      - name: Probe how Godot's frame-rate line reaches the watchdog (informational)
+        if: matrix.row == 'probe'
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          G="python3 tools/native-engine/standin/gate.py --wrapper $WRAPPER --game-dir $RUNNER_TEMP/standin --work $RUNNER_TEMP/gate --deps on ${{ steps.component.outputs.args }}"
+          $G --name probe-headless-300 -- --headless --quit-after-frames 300 || true
+          $G --name probe-headless-maxfps30-900 -- --headless --max-fps 30 --quit-after-frames 900 || true
+          $G --name probe-headless-maxfps30-300 -- --headless --max-fps 30 --quit-after-frames 300 || true
+          $G --name probe-headless-maxfps30-300-stdbuf --prefix "stdbuf -oL" -- --headless --max-fps 30 --quit-after-frames 300 || true
+          $G --name probe-headless-env-quit --prefix "env STANDIN_QUIT_AFTER_FRAMES=300" -- --headless --max-fps 30 || true
+          $G --name probe-xvfb-gl-maxfps30-300 --prefix "xvfb-run -a -s '-screen 0 1280x720x24'" -- --rendering-driver opengl3 --max-fps 30 --quit-after-frames 300 || true
+          python3 - "$RUNNER_TEMP/gate" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import glob, json, os, sys
+          print("| probe | passed | rc | seconds | FPS lines | first FPS line at | MAINLOOP_OK at | FPS line arrived while running |")
+          print("|---|---|---|---|---|---|---|---|")
+          for p in sorted(glob.glob(os.path.join(sys.argv[1], "probe-*.json"))):
+              s = json.load(open(p)); r = s["runs"][0]
+              print(f"| {s['name']} | {s['passed']} | {r['rc']} | {r['seconds']} | {r['fps_lines']} | {r['timing']['fps_first']} | {r['timing']['MAINLOOP_OK']} | {r['fps_line_arrived_while_running']} |")
+          PY
+      - name: Summary
+        if: always() && matrix.row != 'probe' && !startsWith(matrix.row, 'game-env-')
+        run: |
+          python3 - "$RUNNER_TEMP/gate/${{ matrix.row }}.json" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY" || true
+          import json, sys
+          s = json.load(open(sys.argv[1]))
+          print(f"### {s['name']}: {'PASS' if s['passed'] else 'FAIL'}" + (" (expected failure)" if s['expect_fail'] else ""))
+          for r in s["runs"]:
+              print(f"- run {r['run']}: {r['verdict']}, rc {r['rc']}, {r['seconds']} s, FPS lines {r['fps_lines']}, "
+                    f"first FPS line {r['timing']['fps_first']} s, MAINLOOP_OK {r['timing']['MAINLOOP_OK']} s, "
+                    f"FPS line arrived while running: {r['fps_line_arrived_while_running']}")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true  # the verdict is gate.py's; a flaky log upload must not fail a gated publish
+        with:
+          name: gate-logs-${{ matrix.row }}
+          path: |
+            ${{ runner.temp }}/gate/*.json
+            ${{ runner.temp }}/gate/*.log
+            ${{ runner.temp }}/gate/*-launch/native-launch.json
+            ${{ runner.temp }}/gate/game-env-*/decide.json
+            ${{ runner.temp }}/gate/game-env-*/native-engine.log
+          if-no-files-found: warn
+
+  soak:
+    needs: export
+    if: github.event_name == 'schedule' || inputs.soak
+    continue-on-error: true
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: standin-win-x64-il-deps-gdext
+          path: ${{ runner.temp }}/standin
+      - name: Runner packages (Xvfb, Mesa, xdotool)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 libglx-mesa0 xdotool > /dev/null
+      - uses: actions/download-artifact@v4
+        if: inputs.component_artifact != ''
+        with:
+          name: ${{ inputs.component_artifact }}
+          path: ${{ runner.temp }}/built-component
+          run-id: ${{ inputs.component_run_id || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Soak under Xvfb with scripted input, sampling RSS and fds
+        env:
+          MINUTES: ${{ inputs.soak_minutes || '45' }}
+          COMPONENT: ${{ inputs.component_artifact != '' && format('file:{0}/built-component/native-engine.tar.zst', runner.temp) || inputs.component || 'pinned' }}
+        run: |
+          args=$(sh tools/native-engine/standin/component.sh "$WRAPPER" "$COMPONENT" "$RUNNER_TEMP/components")
+          xvfb-run -a -s '-screen 0 1280x720x24' python3 tools/native-engine/standin/soak.py --wrapper "$WRAPPER" \
+            --game-dir "$RUNNER_TEMP/standin" --work "$RUNNER_TEMP/soak" --minutes "$MINUTES" --every 5 --input $args \
+            -- --rendering-driver opengl3 --max-fps 60
+      - uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: soak-samples
+          path: |
+            ${{ runner.temp }}/soak/soak.csv
+            ${{ runner.temp }}/soak/soak.json
+            ${{ runner.temp }}/soak/soak.log
+          if-no-files-found: warn

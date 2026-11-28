@@ -1,0 +1,85 @@
+From 169fc930d2d954e90c3bccfd4c04c75a67dd70f8 Mon Sep 17 00:00:00 2001
+From: Kestrel <kestrel@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 23:54:47 +0000
+Subject: [PATCH] Add InitialCodeBufferMB: the size of the first JIT code
+ buffer
+
+When a code buffer fills, FEX throws away every translated block and starts a buffer twice the
+size, so a program whose code outgrows 16 MB pays to translate (or reload) its hot code again.
+This lets the first buffer start larger. Default unchanged.
+---
+ FEXCore/Source/Interface/Config/Config.json.in        |  9 +++++++++
+ .../Source/Interface/Core/SharedCodeBufferManager.cpp | 11 ++++++++++-
+ .../Source/Interface/Core/SharedCodeBufferManager.h   |  1 +
+ 3 files changed, 20 insertions(+), 1 deletion(-)
+
+diff --git a/FEXCore/Source/Interface/Config/Config.json.in b/FEXCore/Source/Interface/Config/Config.json.in
+index b951382..0e03b44 100644
+--- a/FEXCore/Source/Interface/Config/Config.json.in
++++ b/FEXCore/Source/Interface/Config/Config.json.in
+@@ -350,6 +350,15 @@
+           "Can potentially introduce more stutters."
+         ]
+       },
++      "InitialCodeBufferMB": {
++        "Type": "uint64",
++        "Default": "0",
++        "AffectsCodeGen": "false",
++        "Desc": [
++          "Size of the first JIT code buffer in MB (16 to 128, rounded up to a multiple of 16). 0 keeps 16.",
++          "When a buffer fills, all translated code is thrown away and a buffer twice the size is started."
++        ]
++      },
+       "L1CacheEntries": {
+         "Type": "uint64",
+         "Default": "0",
+diff --git a/FEXCore/Source/Interface/Core/SharedCodeBufferManager.cpp b/FEXCore/Source/Interface/Core/SharedCodeBufferManager.cpp
+index eee5023..18e0845 100644
+--- a/FEXCore/Source/Interface/Core/SharedCodeBufferManager.cpp
++++ b/FEXCore/Source/Interface/Core/SharedCodeBufferManager.cpp
+@@ -6,6 +6,9 @@
+ #include <FEXCore/Utils/AllocatorHooks.h>
+ #include <FEXCore/Utils/LogManager.h>
+ #include <FEXCore/Utils/MathUtils.h>
++#include <FEXCore/Config/Config.h>
++
++#include <algorithm>
+ 
+ #ifndef _WIN32
+ #include <FEXCore/Utils/PrctlUtils.h>
+@@ -54,6 +57,12 @@ SharedCodeBufferManager::SharedCodeBufferManager() {
+   // `perf top` prefers VMA names over the JIT symbols file for some reason.
+   // Breaks memory tracking when naming is enabled, but it's a debug feature so it isn't expected to be enabled by default.
+   NameJITBuffers = !(GlobalJITNaming || LibraryJITNaming || BlockJITNaming);
++
++  // A full buffer throws away every translated block; a larger first buffer avoids that for programs whose code
++  // outgrows 16 MB. Address space is reserved up front, pages are only backed as code is written.
++  FEX_CONFIG_OPT(InitialCodeBufferMB, INITIALCODEBUFFERMB);
++  const uint64_t MB = InitialCodeBufferMB();
++  InitialSize = MB ? std::clamp<size_t>(FEXCore::AlignUp(MB, 16) * 1024 * 1024, INITIAL_CODE_SIZE, MAX_CODE_SIZE) : INITIAL_CODE_SIZE;
+ }
+ 
+ fextl::shared_ptr<CodeBuffer> SharedCodeBufferManager::AllocateNew(size_t Size) {
+@@ -90,7 +99,7 @@ fextl::shared_ptr<CodeBuffer> SharedCodeBufferManager::AllocateNew(size_t Size)
+ 
+ fextl::shared_ptr<CodeBuffer> SharedCodeBufferManager::GetLatest() {
+   if (!Latest) {
+-    AllocateNew(INITIAL_CODE_SIZE);
++    AllocateNew(InitialSize);
+   }
+   return Latest;
+ }
+diff --git a/FEXCore/Source/Interface/Core/SharedCodeBufferManager.h b/FEXCore/Source/Interface/Core/SharedCodeBufferManager.h
+index be7de21..0443161 100644
+--- a/FEXCore/Source/Interface/Core/SharedCodeBufferManager.h
++++ b/FEXCore/Source/Interface/Core/SharedCodeBufferManager.h
+@@ -134,5 +134,6 @@ private:
+   fextl::shared_ptr<CodeBuffer> AllocateNew(size_t Size);
+ 
+   bool NameJITBuffers {true};
++  size_t InitialSize;
+ };
+ } // namespace FEXCore::CPU
+-- 
+2.43.0
+

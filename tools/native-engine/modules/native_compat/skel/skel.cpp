@@ -1,0 +1,2045 @@
+// Clean-room code for DroidDeck/Kestrel: written from scratch from public format notes and first principles.
+// No third-party skeletal-animation runtime source was consulted.
+#include "skel.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <cstdio>
+
+namespace skel {
+
+namespace {
+
+constexpr float DEG = 3.14159265358979323846f / 180.0f;
+
+// Skins gate skin-required bones and constraints, as the game's renderer does (frame-diff harness, Phantasmal
+// Gardener: its "short" skin turns on five height and scale constraints, "tall" one bone).
+// DROIDDECK_NATIVE_SPINE_SKIN_GATING=0 applies every bone and constraint regardless of skin, as before.
+// NoScale mode 1 (default) aims the local x axis through the parent's full, possibly non-uniform,
+// matrix and keeps only the result's direction: the Gardener harness's raw world matrices match it to
+// 0.01 deg (fins under stretched path bones), where mode 0 (drop the parent's scale first) was off by up
+// to 5.2 deg. Mode 2 also aims the y axis. Path samples is the per-curve arc-length
+// sampling.
+int noscale_mode() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_MODE");
+		return v ? std::atoi(v) : 1;
+	}();
+	return m;
+}
+
+// NoScale mode 1 aims through the parent with the bone's rotation alone; its shear_x stays in the local
+// matrix. hunter_killer's jaw_r (local shear 11.9/12.7 under facel, world scale 1.05 x 0.75) matches
+// Proton's raw matrix to 4 decimals at t0 and t0.5 this way; aiming with rotation + shear_x was 2.2 and
+// 1.7 deg off. DROIDDECK_NATIVE_SPINE_NOSCALE_AIM_SHEAR=1 restores the old aim.
+bool noscale_aim_shear() {
+	static const bool on = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_NOSCALE_AIM_SHEAR");
+		return v && v[0] == '1';
+	}();
+	return on;
+}
+
+// Physics model 2 (default) is fitted to the Fool's ear, bell and cape chains in the frame-diff harness
+// (Proton raw world matrices, 46 rotate-only constraints, inertia 0.5): each update holds back the inertia
+// share of the bone's change in world angle (ear_l1/l2/l3 make 0.5/0.25/0.125 of the head's turn at a
+// zero-delta update) and lets its tip lag the same share of the origin's movement, capped at
+// limit * delta (so a zero-delta update moves nothing); a spring of strength * mass_inverse with
+// velocity damped per step (v = v * damping + a * step) pulls the angle offset back at fixed fps steps
+// counted from the float skeleton clock. Fitted: cape chain 0.002 deg rms over 10 frames, ears and bells
+// within 0.65 deg where model 1 was 20-30 deg and 50 px off. DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL=1
+// restores the old point-tip model.
+int physics_model() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_MODEL");
+		return v ? std::atoi(v) : 2;
+	}();
+	return m;
+}
+
+// Path evaluation mode 1 (default): a per-curve arc-length table maps a distance to the curve's
+// parameter, and the point and tangent come from the bezier itself at that parameter; a path without
+// constant speed maps distance to the parameter by its stored curve lengths alone. Mode 0 interpolates
+// straight between table points (chords), which the Decimillipede harness showed drifting from the game
+// as the table got finer (16 -> 64 samples: mean 1.17 -> 1.35 px) and wrong in the max as it got coarser.
+int path_eval_mode() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_EVAL");
+		return v ? std::atoi(v) : 1;
+	}();
+	return m;
+}
+
+int path_samples() {
+	static const int n = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_SAMPLES");
+		int k = v ? std::atoi(v) : (path_eval_mode() == 1 ? 10 : 16);
+		return k < 1 ? 16 : (k > 256 ? 256 : k);
+	}();
+	return n;
+}
+
+// Chain rotate modes with length spacing, how far apart the bones sit along the path. 1 (default): each
+// bone aims at its arc position and the next one starts at its tip, so neighbours are exactly a bone
+// length apart and only the first sits on the curve; with the stretched gaps below this matches the
+// game's Decimillipede to 0.0004 px. 2: each next bone sits on the curve a straight bone length from the
+// current one (also a bone length apart, but up to 0.66 px off the game). 0: plain arc-length spacing.
+// Other spacing modes always use 0.
+int path_chain_mode() {
+	static const int m = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_CHAIN");
+		int k = v ? std::atoi(v) : 1;
+		return k < 0 || k > 2 ? 1 : k;
+	}();
+	return m;
+}
+
+bool skin_gating() {
+	static const bool on = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_SKIN_GATING");
+		return !(v && v[0] == '0');
+	}();
+	return on;
+}
+
+float wrap180(float degrees) {
+	degrees = std::fmod(degrees, 360.0f);
+	if (degrees > 180) {
+		degrees -= 360;
+	} else if (degrees < -180) {
+		degrees += 360;
+	}
+	return degrees;
+}
+
+float cubic(float p0, float p1, float p2, float p3, float s) {
+	float u = 1 - s;
+	return u * u * u * p0 + 3 * u * u * s * p1 + 3 * u * s * s * p2 + s * s * s * p3;
+}
+
+} // namespace
+
+// ---------------------------------------------------------------- attachments and skins
+
+void Attachment::update_region_offsets() {
+	float w = width * scale_x, h = height * scale_y;
+	float l = (trim[0] - 0.5f) * w, b = (trim[1] - 0.5f) * h, r = (trim[2] - 0.5f) * w, t = (trim[3] - 0.5f) * h;
+	float cs = std::cos(rotation * DEG), sn = std::sin(rotation * DEG);
+	const float corners[8] = { l, b, r, b, r, t, l, t }; // BL, BR, TR, TL
+	for (int i = 0; i < 4; i++) {
+		float lx = corners[i * 2], ly = corners[i * 2 + 1];
+		offset[i * 2] = x + lx * cs - ly * sn;
+		offset[i * 2 + 1] = y + lx * sn + ly * cs;
+	}
+}
+
+std::string Sequence::frame_path(const std::string &base, int index) const {
+	std::string n = std::to_string(start + index);
+	while (int(n.size()) < digits) {
+		n.insert(n.begin(), '0');
+	}
+	return base + n;
+}
+
+Attachment *Skin::find(int slot, const std::string &key) const {
+	if (slot < 0 || slot >= int(slots.size())) {
+		return nullptr;
+	}
+	auto it = slots[slot].find(key);
+	return it == slots[slot].end() ? nullptr : it->second.get();
+}
+
+// ---------------------------------------------------------------- curves
+
+void Curve::add(float t, const float *values, Kind kind) {
+	frames.push_back(t);
+	for (int c = 0; c < channels; c++) {
+		frames.push_back(values[c]);
+	}
+	kinds.push_back(kind);
+	beziers.resize(kinds.size() * channels * 4, 0.0f);
+}
+
+void Curve::set_bezier(int frame, int channel, float cx1, float cy1, float cx2, float cy2) {
+	kinds[frame] = BEZIER;
+	float *b = &beziers[(frame * channels + channel) * 4];
+	b[0] = cx1;
+	b[1] = cy1;
+	b[2] = cx2;
+	b[3] = cy2;
+}
+
+int Curve::search(float t) const {
+	int n = frame_count();
+	int lo = 0, hi = n - 1;
+	while (lo < hi) {
+		int mid = (lo + hi + 1) / 2;
+		if (time(mid) <= t) {
+			lo = mid;
+		} else {
+			hi = mid - 1;
+		}
+	}
+	return lo;
+}
+
+float Curve::evaluate(float t, int channel) const {
+	int n = frame_count();
+	if (n == 0) {
+		return 0;
+	}
+	int i = search(t);
+	float v0 = value(i, channel);
+	if (i == n - 1 || t <= time(i)) {
+		return v0;
+	}
+	float t0 = time(i), t1 = time(i + 1), v1 = value(i + 1, channel);
+	switch (kinds[i]) {
+		case STEPPED:
+			return v0;
+		case LINEAR:
+			return v0 + (v1 - v0) * (t - t0) / (t1 - t0);
+		case BEZIER: {
+			const float *b = &beziers[(i * channels + channel) * 4];
+			// The game reads a curve as straight lines between points at s = 1/10, 2/10 ... of the cubic:
+			// sewer_clam's top bone matched Proton to 0.0003 degrees that way, 0.0055 with the exact curve
+			// (hunter_killer's tail compounds that to 2 px). DROIDDECK_NATIVE_SPINE_BEZIER=0 solves exactly,
+			// another number sets how many segments.
+			static const int segments = [] {
+				const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_BEZIER");
+				return v ? std::max(std::atoi(v), 0) : 10;
+			}();
+			if (segments > 0) {
+				float px = t0, py = v0;
+				for (int k = 1; k < segments; k++) {
+					const float s = float(k) / segments;
+					const float x = cubic(t0, b[0], b[2], t1, s), y = cubic(v0, b[1], b[3], v1, s);
+					if (x >= t) {
+						return x > px ? py + (y - py) * (t - px) / (x - px) : y;
+					}
+					px = x;
+					py = y;
+				}
+				return t1 > px ? py + (v1 - py) * (t - px) / (t1 - px) : v1;
+			}
+			// x(s) is monotonic for valid curves; bisect for the s whose x equals t.
+			float lo = 0, hi = 1;
+			for (int k = 0; k < 24; k++) {
+				float mid = (lo + hi) * 0.5f;
+				if (cubic(t0, b[0], b[2], t1, mid) < t) {
+					lo = mid;
+				} else {
+					hi = mid;
+				}
+			}
+			return cubic(v0, b[1], b[3], v1, (lo + hi) * 0.5f);
+		}
+	}
+	return v0;
+}
+
+// ---------------------------------------------------------------- setup data lookups
+
+int SkeletonData::find_bone(const std::string &name) const {
+	for (const auto &b : bones) {
+		if (b.name == name) {
+			return b.index;
+		}
+	}
+	return -1;
+}
+
+int SkeletonData::find_slot(const std::string &name) const {
+	for (const auto &s : slots) {
+		if (s.name == name) {
+			return s.index;
+		}
+	}
+	return -1;
+}
+
+const Skin *SkeletonData::find_skin(const std::string &name) const {
+	for (const auto &s : skins) {
+		if (s->name == name) {
+			return s.get();
+		}
+	}
+	return nullptr;
+}
+
+const Animation *SkeletonData::find_animation(const std::string &name) const {
+	for (const auto &a : animations) {
+		if (a.name == name) {
+			return &a;
+		}
+	}
+	return nullptr;
+}
+
+const EventData *SkeletonData::find_event(const std::string &name) const {
+	for (const auto &e : events) {
+		if (e.name == name) {
+			return &e;
+		}
+	}
+	return nullptr;
+}
+
+int SkeletonData::find_ik(const std::string &name) const {
+	for (size_t i = 0; i < ik.size(); i++) {
+		if (ik[i].name == name) {
+			return int(i);
+		}
+	}
+	return -1;
+}
+
+int SkeletonData::find_transform(const std::string &name) const {
+	for (size_t i = 0; i < transforms.size(); i++) {
+		if (transforms[i].name == name) {
+			return int(i);
+		}
+	}
+	return -1;
+}
+
+int SkeletonData::major_version() const {
+	return version.empty() ? 0 : std::atoi(version.c_str());
+}
+
+// ---------------------------------------------------------------- posed skeleton
+
+void Bone::setup() {
+	x = data->x;
+	y = data->y;
+	rotation = data->rotation;
+	scale_x = data->scale_x;
+	scale_y = data->scale_y;
+	shear_x = data->shear_x;
+	shear_y = data->shear_y;
+	inherit = data->inherit;
+}
+
+float Bone::world_rotation_x() const { return std::atan2(c, a) / DEG; }
+float Bone::world_scale_x() const { return std::sqrt(a * a + c * c); }
+float Bone::world_scale_y() const { return std::sqrt(b * b + d * d); }
+
+void Slot::setup(const Skeleton &skeleton) {
+	color = data->color;
+	dark = data->dark;
+	attachment = data->attachment.empty() ? nullptr : skeleton.attachment(data->index, data->attachment);
+	deform.clear();
+	sequence_index = -1;
+}
+
+Skeleton::Skeleton(const SkeletonData *d) : data(d) {
+	bones.resize(d->bones.size());
+	for (size_t i = 0; i < bones.size(); i++) {
+		bones[i].data = &d->bones[i];
+	}
+	slots.resize(d->slots.size());
+	for (size_t i = 0; i < slots.size(); i++) {
+		slots[i].data = &d->slots[i];
+	}
+	ik.resize(d->ik.size());
+	for (size_t i = 0; i < ik.size(); i++) {
+		ik[i].data = &d->ik[i];
+		constraint_order.push_back({ IK, int(i) });
+	}
+	transforms.resize(d->transforms.size());
+	for (size_t i = 0; i < transforms.size(); i++) {
+		transforms[i].data = &d->transforms[i];
+		constraint_order.push_back({ TRANSFORM, int(i) });
+	}
+	paths.resize(d->paths.size());
+	for (size_t i = 0; i < paths.size(); i++) {
+		paths[i].data = &d->paths[i];
+		constraint_order.push_back({ PATH, int(i) });
+	}
+	physics.resize(d->physics.size());
+	for (size_t i = 0; i < physics.size(); i++) {
+		physics[i].data = &d->physics[i];
+		constraint_order.push_back({ PHYSICS, int(i) });
+	}
+	auto order_of = [&](const std::pair<int, int> &c) {
+		switch (c.first) {
+			case IK: return d->ik[c.second].order;
+			case TRANSFORM: return d->transforms[c.second].order;
+			case PATH: return d->paths[c.second].order;
+			default: return d->physics[c.second].order;
+		}
+	};
+	std::stable_sort(constraint_order.begin(), constraint_order.end(),
+			[&](const std::pair<int, int> &a, const std::pair<int, int> &b) { return order_of(a) < order_of(b); });
+	if (skin_gating()) {
+		// No skin is on yet, so a skin-required bone stays unposed until set_skin turns it on.
+		for (auto &b : bones) {
+			b.active = !b.data->skin_required;
+		}
+	}
+	setup_pose();
+}
+
+void Skeleton::setup_bones() {
+	for (auto &b : bones) {
+		b.setup();
+	}
+	for (auto &k : ik) {
+		k.mix = k.data->mix;
+		k.softness = k.data->softness;
+		k.bend_positive = k.data->bend_positive;
+		k.compress = k.data->compress;
+		k.stretch = k.data->stretch;
+	}
+	for (auto &t : transforms) {
+		const TransformData &d = *t.data;
+		t.mix_rotate = d.mix_rotate;
+		t.mix_x = d.mix_x;
+		t.mix_y = d.mix_y;
+		t.mix_scale_x = d.mix_scale_x;
+		t.mix_scale_y = d.mix_scale_y;
+		t.mix_shear_y = d.mix_shear_y;
+	}
+	for (auto &p : paths) {
+		const PathData &d = *p.data;
+		p.position = d.position;
+		p.spacing = d.spacing;
+		p.mix_rotate = d.mix_rotate;
+		p.mix_x = d.mix_x;
+		p.mix_y = d.mix_y;
+	}
+	for (auto &p : physics) {
+		const PhysicsData &d = *p.data;
+		p.inertia = d.inertia;
+		p.strength = d.strength;
+		p.damping = d.damping;
+		p.mass_inverse = d.mass_inverse;
+		p.wind = d.wind;
+		p.gravity = d.gravity;
+		p.mix = d.mix;
+	}
+}
+
+void Skeleton::reset_physics() {
+	for (auto &p : physics) {
+		p.reset();
+	}
+}
+
+void Skeleton::setup_slots() {
+	draw_order.resize(slots.size());
+	for (size_t i = 0; i < slots.size(); i++) {
+		draw_order[i] = int(i);
+		slots[i].setup(*this);
+	}
+}
+
+void Skeleton::setup_pose() {
+	setup_bones();
+	setup_slots();
+}
+
+const Attachment *Skeleton::attachment(int slot, const std::string &key) const {
+	if (key.empty()) {
+		return nullptr;
+	}
+	if (skin) {
+		if (const Attachment *a = skin->find(slot, key)) {
+			return a;
+		}
+	}
+	return data->default_skin ? data->default_skin->find(slot, key) : nullptr;
+}
+
+bool Skeleton::set_skin(const std::string &name) {
+	const Skin *next = name.empty() ? nullptr : data->find_skin(name);
+	if (!name.empty() && !next) {
+		return false;
+	}
+	skin = next;
+	for (auto &s : slots) {
+		if (!s.data->attachment.empty()) {
+			s.attachment = attachment(s.data->index, s.data->attachment);
+			s.deform.clear();
+		}
+	}
+	for (auto &b : bones) {
+		b.active = !b.data->skin_required;
+	}
+	if (skin) {
+		for (int i : skin->bones) {
+			bones[i].active = true;
+		}
+	}
+	return true;
+}
+
+bool Skeleton::set_attachment(const std::string &slot_name, const std::string &key) {
+	int s = data->find_slot(slot_name);
+	if (s < 0) {
+		return false;
+	}
+	const Attachment *a = key.empty() ? nullptr : attachment(s, key);
+	if (!key.empty() && !a) {
+		return false;
+	}
+	if (slots[s].attachment != a) {
+		slots[s].deform.clear();
+		slots[s].sequence_index = -1;
+	}
+	slots[s].attachment = a;
+	return true;
+}
+
+namespace {
+
+// The matrix a bone's local transform is multiplied by: the skeleton scale for a root, otherwise the
+// parent's world matrix reduced by the bone's inherit mode.
+void parent_basis(const Skeleton &s, const Bone &bone, float &pa, float &pb, float &pc, float &pd) {
+	const BoneData &bd = *bone.data;
+	if (bd.parent < 0) {
+		pa = s.scale_x;
+		pb = 0;
+		pc = 0;
+		pd = s.scale_y;
+		return;
+	}
+	const Bone &p = s.bones[bd.parent];
+	pa = p.a;
+	pb = p.b;
+	pc = p.c;
+	pd = p.d;
+	switch (bone.inherit) {
+		case Inherit::Normal:
+			break;
+		case Inherit::OnlyTranslation:
+			pa = s.scale_x;
+			pb = 0;
+			pc = 0;
+			pd = s.scale_y;
+			break;
+		case Inherit::NoRotationOrReflection: {
+			// Strip the parent's rotation (and any reflection), keep its scale and shear.
+			float th = std::atan2(pc, pa), cs = std::cos(th), sn = std::sin(th);
+			float qa = cs * pa + sn * pc, qb = cs * pb + sn * pd, qd = -sn * pb + cs * pd;
+			if (qa * qd < 0) {
+				qb = -qb;
+				qd = -qd;
+			}
+			pa = qa;
+			pb = qb;
+			pc = 0;
+			pd = qd;
+			break;
+		}
+		case Inherit::NoScale:
+		case Inherit::NoScaleOrReflection: {
+			// Keep only the parent's rotation; NoScale also keeps a reflection.
+			float th = std::atan2(pc, pa), cs = std::cos(th), sn = std::sin(th);
+			float flip = (bd.inherit == Inherit::NoScale && pa * pd - pb * pc < 0) ? -1.0f : 1.0f;
+			pa = cs;
+			pb = -sn * flip;
+			pc = sn;
+			pd = cs * flip;
+			break;
+		}
+	}
+}
+
+} // namespace
+
+void Skeleton::update_bone(Bone &bone) {
+	const BoneData &bd = *bone.data;
+	float rx = (bone.rotation + bone.shear_x) * DEG;
+	float ry = (bone.rotation + 90 + bone.shear_y) * DEG;
+	float la = std::cos(rx) * bone.scale_x, lb = std::cos(ry) * bone.scale_y;
+	float lc = std::sin(rx) * bone.scale_x, ld = std::sin(ry) * bone.scale_y;
+	if (bd.parent < 0) {
+		bone.world_x = bone.x * scale_x + x;
+		bone.world_y = bone.y * scale_y + y;
+	} else {
+		bones[bd.parent].local_to_world(bone.x, bone.y, bone.world_x, bone.world_y);
+	}
+	float pa, pb, pc, pd;
+	const bool no_scale = bd.parent >= 0 && (bone.inherit == Inherit::NoScale || bone.inherit == Inherit::NoScaleOrReflection);
+	if (no_scale && noscale_mode() != 0) {
+		const Bone &p = bones[bd.parent];
+		float qa = p.a, qb = p.b, qc = p.c, qd = p.d;
+		if (bone.inherit == Inherit::NoScaleOrReflection && qa * qd - qb * qc < 0) {
+			qb = -qb; // take the reflection out of the parent before aiming through it
+			qd = -qd;
+		}
+		auto aim = [&](float ang, float scale, float &ox, float &oy) {
+			float x = qa * std::cos(ang) + qb * std::sin(ang), y = qc * std::cos(ang) + qd * std::sin(ang);
+			float l = std::hypot(x, y);
+			if (l < 1e-9f) {
+				x = std::cos(ang);
+				y = std::sin(ang);
+				l = 1;
+			}
+			ox = x / l * scale;
+			oy = y / l * scale;
+		};
+		if (noscale_mode() == 2) {
+			aim(rx, bone.scale_x, bone.a, bone.c);
+			aim(ry, bone.scale_y, bone.b, bone.d);
+		} else {
+			float ax, ay;
+			const float r = noscale_aim_shear() ? rx : bone.rotation * DEG;
+			aim(r, 1, ax, ay);
+			float flip = (bone.inherit == Inherit::NoScale && qa * qd - qb * qc < 0) ? -1.0f : 1.0f;
+			// With a kept reflection the basis turns the local angle the other way.
+			float th = std::atan2(ay, ax) - flip * r, cs = std::cos(th), sn = std::sin(th);
+			pa = cs;
+			pb = -sn * flip;
+			pc = sn;
+			pd = cs * flip;
+			bone.a = pa * la + pb * lc;
+			bone.b = pa * lb + pb * ld;
+			bone.c = pc * la + pd * lc;
+			bone.d = pc * lb + pd * ld;
+		}
+		return;
+	}
+	parent_basis(*this, bone, pa, pb, pc, pd);
+	bone.a = pa * la + pb * lc;
+	bone.b = pa * lb + pb * ld;
+	bone.c = pc * la + pd * lc;
+	bone.d = pc * lb + pd * ld;
+}
+
+namespace {
+
+// Rotation (degrees, in the bone's parent space) that points the bone's x axis at a world point.
+float aim(const Skeleton &s, const Bone &bone, float wx, float wy) {
+	float lx, ly;
+	if (bone.data->parent < 0) {
+		lx = (wx - s.x) / (s.scale_x ? s.scale_x : 1);
+		ly = (wy - s.y) / (s.scale_y ? s.scale_y : 1);
+	} else {
+		const Bone &p = s.bones[bone.data->parent];
+		float det = p.a * p.d - p.b * p.c;
+		if (std::fabs(det) < 1e-9f) {
+			return bone.rotation;
+		}
+		float dx = wx - p.world_x, dy = wy - p.world_y;
+		lx = (dx * p.d - dy * p.b) / det;
+		ly = (dy * p.a - dx * p.c) / det;
+	}
+	return std::atan2(ly - bone.y, lx - bone.x) / DEG - bone.shear_x;
+}
+
+} // namespace
+
+void Skeleton::apply_ik(IkConstraint &k) {
+	const IkData &d = *k.data;
+	if (k.mix <= 0 || d.bones.empty()) {
+		return;
+	}
+	const Bone &target = bones[d.target];
+	Bone &b1 = bones[d.bones[0]];
+	if (d.bones.size() == 1) {
+		float r = aim(*this, b1, target.world_x, target.world_y);
+		b1.rotation += wrap180(r - b1.rotation) * k.mix;
+		if ((k.stretch || k.compress) && b1.data->length > 0) {
+			float dist = std::hypot(target.world_x - b1.world_x, target.world_y - b1.world_y);
+			float len = b1.data->length * b1.world_scale_x();
+			if (len > 1e-6f && ((k.stretch && dist > len) || (k.compress && dist < len))) {
+				float s = (dist / len - 1) * k.mix + 1;
+				b1.scale_x *= s;
+				if (d.uniform) {
+					b1.scale_y *= s;
+				}
+			}
+		}
+		return;
+	}
+	// Two bones: law of cosines on the first, then aim the second at the target.
+	// Lengths are measured in world space from the current pose.
+	Bone &b2 = bones[d.bones[1]];
+	float ax = b1.world_x, ay = b1.world_y;
+	float jx = b2.world_x, jy = b2.world_y;
+	float la = std::hypot(jx - ax, jy - ay);
+	float lb = b2.data->length * b2.world_scale_x();
+	float tx = target.world_x, ty = target.world_y;
+	float dist = std::hypot(tx - ax, ty - ay);
+	float r1 = aim(*this, b1, tx, ty);
+	if (la > 1e-6f && lb > 1e-6f && dist > 1e-6f) {
+		float cosine = (la * la + dist * dist - lb * lb) / (2 * la * dist);
+		cosine = std::max(-1.0f, std::min(1.0f, cosine));
+		float bend = std::acos(cosine) / DEG;
+		// Bending positive turns the second bone counter-clockwise from the first (y up), which puts the
+		// joint on the clockwise side of the reach line. Checked against setup poses of game skeletons,
+		// where the solved chain must reproduce the authored pose.
+		r1 += k.bend_positive ? -bend : bend;
+		// Account for the joint not lying on the first bone's x axis.
+		float jlx = b2.x, jly = b2.y;
+		r1 -= std::atan2(jly * b1.scale_y, jlx * b1.scale_x) / DEG;
+	}
+	b1.rotation += wrap180(r1 - b1.rotation) * k.mix;
+	update_bone(b1);
+	update_bone(b2);
+	float r2 = aim(*this, b2, tx, ty);
+	b2.rotation += wrap180(r2 - b2.rotation) * k.mix;
+}
+
+void Skeleton::set_world(Bone &bone, float a, float b, float c, float d, float wx, float wy) {
+	// Store the world transform as local values, so recomputing the bone (and its children) keeps it.
+	if (bone.data->parent < 0) {
+		bone.x = scale_x ? (wx - x) / scale_x : 0;
+		bone.y = scale_y ? (wy - y) / scale_y : 0;
+	} else {
+		const Bone &p = bones[bone.data->parent];
+		float det = p.a * p.d - p.b * p.c;
+		if (std::fabs(det) > 1e-12f) {
+			float dx = wx - p.world_x, dy = wy - p.world_y;
+			bone.x = (dx * p.d - dy * p.b) / det;
+			bone.y = (dy * p.a - dx * p.c) / det;
+		}
+	}
+	float pa, pb, pc, pd;
+	parent_basis(*this, bone, pa, pb, pc, pd);
+	float det = pa * pd - pb * pc;
+	if (std::fabs(det) > 1e-12f) {
+		float la = (pd * a - pb * c) / det, lb = (pd * b - pb * d) / det;
+		float lc = (pa * c - pc * a) / det, ld = (pa * d - pc * b) / det;
+		float rx = std::atan2(lc, la) / DEG;
+		bone.rotation = rx - bone.shear_x;
+		bone.scale_x = std::hypot(la, lc);
+		bone.scale_y = std::hypot(lb, ld);
+		bone.shear_y = wrap180(std::atan2(ld, lb) / DEG - bone.rotation - 90);
+	}
+	bone.a = a;
+	bone.b = b;
+	bone.c = c;
+	bone.d = d;
+	bone.world_x = wx;
+	bone.world_y = wy;
+}
+
+void Skeleton::apply_transform(TransformConstraint &t) {
+	const TransformData &d = *t.data;
+	const Bone &target = bones[d.target];
+	if (d.local) {
+		for (int i : d.bones) {
+			Bone &b = bones[i];
+			if (!b.active) {
+				continue;
+			}
+			if (d.relative) {
+				b.rotation += (target.rotation + d.offset_rotation) * t.mix_rotate;
+				b.x += (target.x + d.offset_x) * t.mix_x;
+				b.y += (target.y + d.offset_y) * t.mix_y;
+				b.scale_x *= ((target.scale_x - 1 + d.offset_scale_x) * t.mix_scale_x) + 1;
+				b.scale_y *= ((target.scale_y - 1 + d.offset_scale_y) * t.mix_scale_y) + 1;
+				b.shear_y += (target.shear_y + d.offset_shear_y) * t.mix_shear_y;
+			} else {
+				b.rotation += wrap180(target.rotation + d.offset_rotation - b.rotation) * t.mix_rotate;
+				b.x += (target.x + d.offset_x - b.x) * t.mix_x;
+				b.y += (target.y + d.offset_y - b.y) * t.mix_y;
+				b.scale_x += (target.scale_x + d.offset_scale_x - b.scale_x) * t.mix_scale_x;
+				b.scale_y += (target.scale_y + d.offset_scale_y - b.scale_y) * t.mix_scale_y;
+				b.shear_y += wrap180(target.shear_y + d.offset_shear_y - b.shear_y) * t.mix_shear_y;
+			}
+		}
+		return;
+	}
+	float ta = target.a, tb = target.b, tc = target.c, td = target.d;
+	// A reflected target turns its offsets the other way.
+	float sign = ta * td - tb * tc < 0 ? -1.0f : 1.0f;
+	float off_rotation = d.offset_rotation * DEG * sign, off_shear = d.offset_shear_y * DEG * sign;
+	float target_rotation = std::atan2(tc, ta);
+	for (int i : d.bones) {
+		Bone &b = bones[i];
+		if (!b.active) {
+			continue;
+		}
+		float a = b.a, bb = b.b, c = b.c, dd = b.d, wx = b.world_x, wy = b.world_y;
+		if (t.mix_rotate != 0) {
+			float r = d.relative ? target_rotation + off_rotation : target_rotation - std::atan2(c, a) + off_rotation;
+			r = wrap180(r / DEG) * DEG * t.mix_rotate;
+			float cs = std::cos(r), sn = std::sin(r);
+			float na = cs * a - sn * c, nb = cs * bb - sn * dd, nc = sn * a + cs * c, nd = sn * bb + cs * dd;
+			a = na;
+			bb = nb;
+			c = nc;
+			dd = nd;
+		}
+		if (t.mix_x != 0 || t.mix_y != 0) {
+			float tx, ty;
+			target.local_to_world(d.offset_x, d.offset_y, tx, ty);
+			if (d.relative) {
+				wx += (tx - target.world_x) * t.mix_x;
+				wy += (ty - target.world_y) * t.mix_y;
+			} else {
+				wx += (tx - wx) * t.mix_x;
+				wy += (ty - wy) * t.mix_y;
+			}
+		}
+		if (t.mix_scale_x != 0) {
+			float s = std::hypot(a, c);
+			if (s > 1e-5f) {
+				float ts = std::hypot(ta, tc);
+				float k = d.relative ? ((ts - 1 + d.offset_scale_x) * t.mix_scale_x + 1) : (s + (ts - s + d.offset_scale_x) * t.mix_scale_x) / s;
+				a *= k;
+				c *= k;
+			}
+		}
+		if (t.mix_scale_y != 0) {
+			float s = std::hypot(bb, dd);
+			if (s > 1e-5f) {
+				float ts = std::hypot(tb, td);
+				float k = d.relative ? ((ts - 1 + d.offset_scale_y) * t.mix_scale_y + 1) : (s + (ts - s + d.offset_scale_y) * t.mix_scale_y) / s;
+				bb *= k;
+				dd *= k;
+			}
+		}
+		if (t.mix_shear_y != 0) {
+			// Angle between the y and x axes, matched to the target's.
+			float by = std::atan2(dd, bb), bx = std::atan2(c, a);
+			float tshear = std::atan2(td, tb) - target_rotation;
+			float r = d.relative ? tshear - 0.5f * 3.14159265f + off_shear : tshear - (by - bx) + off_shear;
+			r = wrap180(r / DEG) * DEG * t.mix_shear_y;
+			float len = std::hypot(bb, dd), ang = by + r;
+			bb = std::cos(ang) * len;
+			dd = std::sin(ang) * len;
+		}
+		set_world(b, a, bb, c, dd, wx, wy);
+	}
+}
+
+namespace {
+
+// Point and unit tangent on a cubic bezier at s.
+void bezier_at(const float *c, float s, float &x, float &y, float &tx, float &ty) {
+	float u = 1 - s;
+	x = u * u * u * c[0] + 3 * u * u * s * c[2] + 3 * u * s * s * c[4] + s * s * s * c[6];
+	y = u * u * u * c[1] + 3 * u * u * s * c[3] + 3 * u * s * s * c[5] + s * s * s * c[7];
+	tx = 3 * u * u * (c[2] - c[0]) + 6 * u * s * (c[4] - c[2]) + 3 * s * s * (c[6] - c[4]);
+	ty = 3 * u * u * (c[3] - c[1]) + 6 * u * s * (c[5] - c[3]) + 3 * s * s * (c[7] - c[5]);
+	float len = std::hypot(tx, ty);
+	if (len > 1e-9f) {
+		tx /= len;
+		ty /= len;
+	} else {
+		tx = 1;
+		ty = 0;
+	}
+}
+
+// Rotates a bone's world basis by r radians.
+void rotate_basis(float &a, float &b, float &c, float &d, float r) {
+	float cs = std::cos(r), sn = std::sin(r);
+	float na = cs * a - sn * c, nc = sn * a + cs * c;
+	float nb = cs * b - sn * d, nd = sn * b + cs * d;
+	a = na;
+	b = nb;
+	c = nc;
+	d = nd;
+}
+
+} // namespace
+
+// DROIDDECK_NATIVE_SPINE_PATH_DUMP=<slot name> prints that slot's path attachment (to stderr, or appended to
+// DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE) the first time a
+// path constraint uses it: flags, stored lengths, how its vertices are bound, and the world vertices it was
+// given. Text for comparing the path evaluation off the device; nothing else changes.
+void Skeleton::dump_path_once(const PathData &d, const Attachment &att, int n) {
+	static const char *want = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP");
+	if (!want || !want[0] || path_dumped_) {
+		return;
+	}
+	if (slots[d.target].data->name != want) {
+		// One line per process naming the first path slot seen, so a run shows the switch reached the engine.
+		static bool noted = false;
+		const char *file = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE");
+		if (!noted && file && file[0]) {
+			noted = true;
+			if (FILE *o = std::fopen(file, "a")) {
+				std::fprintf(o, "SPINE_PATH_DUMP armed for %s, first path slot seen %s\n", want, slots[d.target].data->name.c_str());
+				std::fclose(o);
+			}
+		}
+		return;
+	}
+	path_dumped_ = true;
+	// The engine's stderr is not kept on the device, so DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE names a file to append to.
+	static const char *file = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_DUMP_FILE");
+	FILE *out = file && file[0] ? std::fopen(file, "a") : nullptr;
+	FILE *f = out ? out : stderr;
+	std::fprintf(f, "SPINE_PATH_DUMP constraint %s order %d slot %s bone %s attachment %s\n", d.name.c_str(), d.order,
+			slots[d.target].data->name.c_str(), data->bones[slots[d.target].data->bone].name.c_str(), att.name.c_str());
+	std::fprintf(f, "SPINE_PATH_DUMP closed %d constant_speed %d vertex_count %d world_points %d weighted %d posmode %d spacingmode %d rotmode %d pos %.6f spacing %.6f offrot %.6f\n",
+			int(att.closed), int(att.constant_speed), att.vertex_count, n, int(att.weighted()), d.position_mode, d.spacing_mode,
+			d.rotate_mode, d.position, d.spacing, d.offset_rotation);
+	std::string line = "SPINE_PATH_DUMP lengths";
+	char buf[64];
+	for (float l : att.lengths) {
+		std::snprintf(buf, sizeof(buf), " %.4f", l);
+		line += buf;
+	}
+	std::fprintf(f, "%s\n", line.c_str());
+	if (att.weighted()) {
+		line = "SPINE_PATH_DUMP bones";
+		for (size_t i = 0; i < att.bones.size();) {
+			const int count = att.bones[i++];
+			line += " [";
+			for (int k = 0; k < count && i < att.bones.size(); k++, i++) {
+				line += (k ? " " : "") + data->bones[att.bones[i]].name;
+			}
+			line += "]";
+		}
+		std::fprintf(f, "%s\n", line.c_str());
+	}
+	line = "SPINE_PATH_DUMP world";
+	for (int i = 0; i < n; i++) {
+		std::snprintf(buf, sizeof(buf), " %.4f,%.4f", path_world_[i * 2], path_world_[i * 2 + 1]);
+		line += buf;
+	}
+	std::fprintf(f, "%s\n", line.c_str());
+	line = "SPINE_PATH_DUMP spine";
+	for (int bi : d.bones) {
+		const Bone &b = bones[bi];
+		std::snprintf(buf, sizeof(buf), " %s:%.4f:%.4f", b.data->name.c_str(), b.data->length, b.world_scale_x());
+		line += buf;
+	}
+	std::fprintf(f, "%s\n", line.c_str());
+	std::fflush(f);
+	if (out) {
+		std::fclose(out);
+	}
+}
+
+// Path vertices are triples (handle in, anchor, handle out). An open path runs anchor to anchor through
+// the handles between them; a closed one also joins the last anchor back to the first. Each curve is
+// sampled into short segments so points can be found by arc length (constant speed along the path).
+void Skeleton::apply_path(PathConstraint &p) {
+	const PathData &d = *p.data;
+	if (d.bones.empty() || (p.mix_rotate <= 0 && p.mix_x <= 0 && p.mix_y <= 0)) {
+		return;
+	}
+	const Attachment *att = slots[d.target].attachment;
+	if (!att || att->type != AttachmentType::Path) {
+		return;
+	}
+	int n = world_vertices(d.target, path_world_);
+	dump_path_once(d, *att, n);
+	int curves = att->closed ? n / 3 : n / 3 - 1;
+	if (curves < 1) {
+		return;
+	}
+	const int samples = path_samples();
+	std::vector<float> &pts = path_points_; // per sample: x, y, tangent x, tangent y
+	std::vector<float> &cum = path_lengths_;
+	pts.clear();
+	cum.clear();
+	for (int i = 0; i < curves; i++) {
+		float c[8];
+		for (int k = 0; k < 4; k++) {
+			int v = (3 * i + 1 + k) % n;
+			c[k * 2] = path_world_[v * 2];
+			c[k * 2 + 1] = path_world_[v * 2 + 1];
+		}
+		for (int k = (i == 0 ? 0 : 1); k <= samples; k++) {
+			float x, y, tx, ty;
+			bezier_at(c, float(k) / samples, x, y, tx, ty);
+			if (!cum.empty()) {
+				size_t last = pts.size() - 4;
+				cum.push_back(cum.back() + std::hypot(x - pts[last], y - pts[last + 1]));
+			} else {
+				cum.push_back(0);
+			}
+			pts.insert(pts.end(), { x, y, tx, ty });
+		}
+	}
+	const bool by_curve = path_eval_mode() == 1;
+	// Mode 1 without constant speed: distances run along the attachment's stored curve lengths.
+	const bool stored = by_curve && !att->constant_speed && int(att->lengths.size()) >= curves;
+	float total = stored ? att->lengths[curves - 1] : cum.back();
+	if (total < 1e-6f) {
+		return;
+	}
+	auto curve_points = [&](int i, float *c) {
+		for (int k = 0; k < 4; k++) {
+			int v = (3 * i + 1 + k) % n;
+			c[k * 2] = path_world_[v * 2];
+			c[k * 2 + 1] = path_world_[v * 2 + 1];
+		}
+	};
+	// Point and tangent at a distance along the path; an open path extends straight past its ends.
+	auto at = [&](float dist, float &x, float &y, float &tx, float &ty) {
+		if (att->closed) {
+			dist = std::fmod(dist, total);
+			if (dist < 0) {
+				dist += total;
+			}
+		}
+		if (by_curve && dist > 0 && dist < total) {
+			int ci = 0;
+			float t = 0;
+			if (stored) {
+				while (ci < curves - 1 && att->lengths[ci] < dist) {
+					ci++;
+				}
+				const float start = ci > 0 ? att->lengths[ci - 1] : 0, len = att->lengths[ci] - start;
+				t = len > 1e-9f ? (dist - start) / len : 0;
+			} else {
+				// Table entry k of curve ci sits at index ci * samples + k (entry 0 is shared with the previous curve's end).
+				size_t i = size_t(std::upper_bound(cum.begin(), cum.end(), dist) - cum.begin());
+				i = std::max<size_t>(1, std::min(i, cum.size() - 1));
+				const float seg = cum[i] - cum[i - 1];
+				const float f = seg > 1e-9f ? (dist - cum[i - 1]) / seg : 0;
+				ci = std::min(int((i - 1) / size_t(samples)), curves - 1);
+				t = (float(i - 1 - size_t(ci) * size_t(samples)) + f) / samples;
+			}
+			float c[8];
+			curve_points(ci, c);
+			bezier_at(c, std::min(std::max(t, 0.0f), 1.0f), x, y, tx, ty);
+			return;
+		}
+		size_t last = cum.size() - 1;
+		if (dist <= 0 || dist >= total) {
+			size_t i = dist <= 0 ? 0 : last;
+			float over = dist <= 0 ? dist : dist - total;
+			tx = pts[i * 4 + 2];
+			ty = pts[i * 4 + 3];
+			x = pts[i * 4] + tx * over;
+			y = pts[i * 4 + 1] + ty * over;
+			return;
+		}
+		size_t i = size_t(std::upper_bound(cum.begin(), cum.end(), dist) - cum.begin());
+		i = std::max<size_t>(1, std::min(i, last));
+		float seg = cum[i] - cum[i - 1];
+		float s = seg > 1e-9f ? (dist - cum[i - 1]) / seg : 0;
+		const float *a = &pts[(i - 1) * 4], *b = &pts[i * 4];
+		x = a[0] + (b[0] - a[0]) * s;
+		y = a[1] + (b[1] - a[1]) * s;
+		tx = a[2] + (b[2] - a[2]) * s;
+		ty = a[3] + (b[3] - a[3]) * s;
+		float len = std::hypot(tx, ty);
+		if (len > 1e-9f) {
+			tx /= len;
+			ty /= len;
+		}
+	};
+	size_t count = d.bones.size();
+	float bone_sum = 0;
+	for (int bi : d.bones) {
+		bone_sum += bones[bi].data->length * bones[bi].world_scale_x();
+	}
+	auto gap = [&](size_t i) {
+		const Bone &b = bones[d.bones[i]];
+		float len = b.data->length * b.world_scale_x();
+		switch (d.spacing_mode) {
+			case 0: return len + p.spacing; // length
+			case 1: return p.spacing; // fixed
+			case 2: return p.spacing * total; // percent
+			default: return bone_sum > 1e-6f ? len / bone_sum * p.spacing * total : 0.0f; // proportional
+		}
+	};
+	// Straight-line spacing only with length spacing (bones meant to touch): the Gardener's stalks
+	// (proportional spacing, chain scale) sit at arc positions in the game, and moved ~1 px under it.
+	int chain = d.rotate_mode != 0 ? path_chain_mode() : 0;
+	if (chain != 0 && d.spacing_mode != 0) {
+		chain = 0;
+	}
+	// With constant speed, length spacing runs in the attachment's stored lengths: each gap grows by how much
+	// longer the path is now than its stored length. The game's Decimillipede matched that to 0.0004 px on all
+	// twelve spine bones (aiming at those points, each bone starting at the last one's tip); unscaled gaps
+	// drifted to 1.4 px. DROIDDECK_NATIVE_SPINE_PATH_STRETCH=0 leaves the gaps unscaled.
+	static const bool stretch_gaps = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PATH_STRETCH");
+		return !(v && v[0] == '0');
+	}();
+	const float gap_scale = stretch_gaps && by_curve && att->constant_speed && d.spacing_mode == 0 &&
+					int(att->lengths.size()) >= curves && att->lengths[curves - 1] > 1e-6f
+			? cum.back() / att->lengths[curves - 1]
+			: 1.0f;
+	// The distance past `from` where the curve is `step` away in a straight line from (x, y).
+	auto chord_dist = [&](float from, float x, float y, float step) {
+		float s = from + step;
+		if (step <= 1e-6f) {
+			return s;
+		}
+		for (int it = 0; it < 24; it++) {
+			float qx, qy, qtx, qty;
+			at(s, qx, qy, qtx, qty);
+			float short_by = step - std::hypot(qx - x, qy - y);
+			if (std::fabs(short_by) < 1e-4f) {
+				break;
+			}
+			s += short_by;
+		}
+		return s;
+	};
+	float dist = d.position_mode == 1 ? p.position * total : p.position;
+	bool have_tip = false;
+	float tip_x = 0, tip_y = 0;
+	for (size_t i = 0; i < count; i++) {
+		Bone &b = bones[d.bones[i]];
+		float x, y, tx, ty;
+		at(dist, x, y, tx, ty);
+		if (chain == 1 && have_tip) {
+			x = tip_x;
+			y = tip_y;
+		}
+		float step = gap(i) * gap_scale;
+		float next = chain == 2 ? chord_dist(dist, x, y, step) : dist + step;
+		float angle = std::atan2(ty, tx);
+		float stretch = 1;
+		if (d.rotate_mode != 0) { // chain: aim at where the next bone starts
+			float nx, ny, ntx, nty;
+			at(next, nx, ny, ntx, nty);
+			float dx = nx - x, dy = ny - y;
+			if (std::hypot(dx, dy) > 1e-6f) {
+				angle = std::atan2(dy, dx);
+			}
+			float len = b.data->length * b.world_scale_x();
+			if (d.rotate_mode == 2 && len > 1e-6f) {
+				stretch = std::hypot(dx, dy) / len;
+			}
+		}
+		angle += d.offset_rotation * DEG;
+		float a = b.a, bb = b.b, c = b.c, dd = b.d;
+		float current = std::atan2(c, a);
+		float r = wrap180((angle - current) / DEG) * DEG * p.mix_rotate;
+		rotate_basis(a, bb, c, dd, r);
+		if (stretch != 1) {
+			float s = 1 + (stretch - 1) * p.mix_rotate;
+			a *= s;
+			c *= s;
+		}
+		float wx = b.world_x + (x - b.world_x) * p.mix_x;
+		float wy = b.world_y + (y - b.world_y) * p.mix_y;
+		set_world(b, a, bb, c, dd, wx, wy);
+		if (chain == 1) {
+			const float len = b.data->length;
+			tip_x = b.world_x + b.a * len;
+			tip_y = b.world_y + b.c * len;
+			have_tip = true;
+		}
+		dist = next;
+	}
+}
+
+void Skeleton::apply_physics(PhysicsConstraint &p, float dt) {
+	const PhysicsData &d = *p.data;
+	Bone &b = bones[d.bone];
+	float len = b.data->length > 1e-3f ? b.data->length : 1.0f;
+	float target_x = b.world_x + b.a * len, target_y = b.world_y + b.c * len;
+	if (!p.started) {
+		p.started = true;
+		p.remaining = 0;
+		p.origin_x = b.world_x;
+		p.origin_y = b.world_y;
+		p.tip_x = target_x;
+		p.tip_y = target_y;
+		p.tip_vx = p.tip_vy = p.off_x = p.off_y = p.off_vx = p.off_vy = 0;
+	}
+	float fps = d.fps > 0 ? d.fps : 60;
+	float step = 1 / fps;
+	p.remaining = std::min(p.remaining + std::max(dt, 0.0f), 0.25f);
+	// The bone's movement since the last step, capped by the limit (units per second); a jump larger
+	// than that (a teleport) is mostly absorbed instead of flinging the spring.
+	float mx = b.world_x - p.origin_x, my = b.world_y - p.origin_y;
+	p.origin_x = b.world_x;
+	p.origin_y = b.world_y;
+	float move = std::hypot(mx, my), cap = d.limit * std::max(dt, step);
+	if (move > cap && move > 0) {
+		mx *= cap / move;
+		my *= cap / move;
+	}
+	// Inertia is the share of the movement the simulated points do not follow at once.
+	float follow = 1 - std::min(std::max(p.inertia, 0.0f), 1.0f);
+	// The tip keeps its world place except for the followed share; the origin offset lags the rest.
+	p.tip_x += mx * follow;
+	p.tip_y += my * follow;
+	p.off_x -= mx * (1 - follow);
+	p.off_y -= my * (1 - follow);
+	float k = p.strength * p.mass_inverse;
+	float keep = std::min(std::max(p.damping, 0.0f), 1.0f);
+	while (p.remaining >= step) {
+		p.remaining -= step;
+		float ax = (target_x - p.tip_x) * k + p.wind * p.mass_inverse;
+		float ay = (target_y - p.tip_y) * k - p.gravity * p.mass_inverse;
+		p.tip_vx = (p.tip_vx + ax * step) * keep;
+		p.tip_vy = (p.tip_vy + ay * step) * keep;
+		p.tip_x += p.tip_vx * step;
+		p.tip_y += p.tip_vy * step;
+		float ox = -p.off_x * k + p.wind * p.mass_inverse;
+		float oy = -p.off_y * k - p.gravity * p.mass_inverse;
+		p.off_vx = (p.off_vx + ox * step) * keep;
+		p.off_vy = (p.off_vy + oy * step) * keep;
+		p.off_x += p.off_vx * step;
+		p.off_y += p.off_vy * step;
+	}
+	// Keep the simulated tip within a few bone lengths so a bad frame cannot leave it far away.
+	float reach = std::hypot(target_x - b.world_x, target_y - b.world_y);
+	float far = std::max(reach, 1.0f) * 4;
+	float ex = p.tip_x - target_x, ey = p.tip_y - target_y, e = std::hypot(ex, ey);
+	if (e > far) {
+		p.tip_x = target_x + ex * far / e;
+		p.tip_y = target_y + ey * far / e;
+	}
+	float mix = p.mix;
+	if (mix <= 0) {
+		return;
+	}
+	float a = b.a, bb = b.b, c = b.c, dd = b.d;
+	float sx = p.tip_x - b.world_x, sy = p.tip_y - b.world_y;
+	float tx = target_x - b.world_x, ty = target_y - b.world_y;
+	if (std::hypot(sx, sy) > 1e-6f && reach > 1e-6f) {
+		float r = wrap180((std::atan2(sy, sx) - std::atan2(ty, tx)) / DEG) * DEG;
+		if (d.rotate != 0) {
+			rotate_basis(a, bb, c, dd, r * d.rotate * mix);
+		}
+		if (d.shear_x != 0) { // turns the x axis only
+			float rs = r * d.shear_x * mix, cs = std::cos(rs), sn = std::sin(rs);
+			float na = cs * a - sn * c, nc = sn * a + cs * c;
+			a = na;
+			c = nc;
+		}
+		if (d.scale_x != 0) {
+			float s = 1 + (std::hypot(sx, sy) / reach - 1) * d.scale_x * mix;
+			s = std::max(s, 0.0f);
+			a *= s;
+			c *= s;
+		}
+	}
+	float wx = b.world_x + p.off_x * d.x * mix;
+	float wy = b.world_y + p.off_y * d.y * mix;
+	set_world(b, a, bb, c, dd, wx, wy);
+}
+
+void Skeleton::apply_physics2(PhysicsConstraint &p) {
+	const PhysicsData &d = *p.data;
+	Bone &b = bones[d.bone];
+	if (physics_pass == 0) {
+		return;
+	}
+	const float len = b.data->length > 1e-3f ? b.data->length : 1.0f;
+	const float angle = std::atan2(b.c, b.a);
+	if (physics_pass == 1 || !p.started) {
+		p.started = true;
+		p.remaining = 0;
+		p.last_time = time;
+		p.last_angle = angle;
+		p.origin_x = b.world_x;
+		p.origin_y = b.world_y;
+		p.rot = p.rot_v = p.stretch = p.stretch_v = 0;
+		p.off_x = p.off_y = p.off_vx = p.off_vy = 0;
+	}
+	// The game does not cap inertia at 1 (battleworn_dummy's arm_l uses 1.2); DROIDDECK_NATIVE_SPINE_PHYSICS_INERTIA_CLAMP=1
+	// caps it as model 1 did.
+	static const bool clamp_inertia = [] {
+		const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_INERTIA_CLAMP");
+		return v && v[0] == '1';
+	}();
+	const float inertia = clamp_inertia ? std::min(std::max(p.inertia, 0.0f), 1.0f) : std::max(p.inertia, 0.0f);
+	const float mix = p.mix;
+	if (physics_pass == 2) {
+		float delta = std::max(time - p.last_time, 0.0f);
+		p.last_time = time;
+		// The inertia share of the turn is held back.
+		p.rot -= inertia * wrap180((angle - p.last_angle) / DEG) * DEG;
+		p.last_angle = angle;
+		// The origin's movement since the last update, capped by limit * delta.
+		float mx = b.world_x - p.origin_x, my = b.world_y - p.origin_y;
+		p.origin_x = b.world_x;
+		p.origin_y = b.world_y;
+		const float move = std::hypot(mx, my), cap = d.limit * delta;
+		if (move > cap) {
+			const float f = move > 0 ? cap / move : 0;
+			mx *= f;
+			my *= f;
+		}
+		if (mx != 0 || my != 0) {
+			// The tip lags the inertia share of the movement: that turns and stretches the bone.
+			// The tip sits along the bone's x axis as last drawn: the offset turns it only by the share
+			// that rotate and shear x apply. The shield on battleworn_dummy (rotate 0, scale x 1) showed
+			// it: aiming the tip by the whole offset made its scale wobble 6% too strong.
+			// DROIDDECK_NATIVE_SPINE_PHYSICS_TIP=1 aims by the whole offset as before.
+			static const bool whole_offset = [] {
+				const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_TIP");
+				return v && v[0] == '1';
+			}();
+			const float a0 = angle + p.rot * mix * (whole_offset ? 1.0f : d.rotate + d.shear_x);
+			const float tx = len * std::cos(a0) - inertia * mx, ty = len * std::sin(a0) - inertia * my;
+			// Across the -180/180 seam atan2 jumps a full turn: take the short way round. sewer_clam's
+			// horn_back_1 sits near 180 and swung 124 degrees off the game's without this.
+			// DROIDDECK_NATIVE_SPINE_PHYSICS_SEAM=0 takes the raw difference as before.
+			static const bool short_way = [] {
+				const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_SEAM");
+				return !(v && v[0] == '0');
+			}();
+			const float turn = std::atan2(ty, tx) - a0;
+			p.rot += short_way ? wrap180(turn / DEG) * DEG : turn;
+			p.stretch += std::hypot(tx, ty) / len - 1;
+			p.off_x -= inertia * mx;
+			p.off_y -= inertia * my;
+		}
+		const float fps = d.fps > 0 ? d.fps : 60, step = 1 / fps;
+		p.remaining = std::min(p.remaining + delta, 0.25f);
+		const float k = p.strength * p.mass_inverse, keep = std::min(std::max(p.damping, 0.0f), 1.0f);
+		// Wind and gravity push the origin and, across the bone, turn it.
+		const float fx = p.wind * p.mass_inverse, fy = -p.gravity * p.mass_inverse;
+		// Their turn grows with the bone's length over the skeleton's reference scale: fitted on sewer_clam's
+		// idle wind, where horns 77 to 180 long all matched Proton with torque = force * length / 100
+		// (reference scale 100). DROIDDECK_NATIVE_SPINE_PHYSICS_WIND=0 divides by the length as before.
+		static const bool wind_by_length = [] {
+			const char *v = std::getenv("DROIDDECK_NATIVE_SPINE_PHYSICS_WIND");
+			return !(v && v[0] == '0');
+		}();
+		const float ref = data->reference_scale > 1e-6f ? data->reference_scale : 100.0f;
+		const float lever = wind_by_length ? len / ref : 1 / len;
+		while (p.remaining >= step) {
+			p.remaining -= step;
+			const float a1 = angle + p.rot * mix;
+			const float torque = (-fx * std::sin(a1) + fy * std::cos(a1)) * lever;
+			p.rot_v = p.rot_v * keep + (-k * p.rot + torque) * step;
+			p.rot += p.rot_v * step;
+			p.stretch_v = p.stretch_v * keep - k * p.stretch * step;
+			p.stretch += p.stretch_v * step;
+			p.off_vx = p.off_vx * keep + (-k * p.off_x + fx) * step;
+			p.off_vy = p.off_vy * keep + (-k * p.off_y + fy) * step;
+			p.off_x += p.off_vx * step;
+			p.off_y += p.off_vy * step;
+		}
+	}
+	if (mix <= 0) {
+		return;
+	}
+	float a = b.a, bb = b.b, c = b.c, dd = b.d;
+	if (d.rotate != 0) {
+		rotate_basis(a, bb, c, dd, p.rot * d.rotate * mix);
+	}
+	if (d.shear_x != 0) { // turns the x axis only
+		const float rs = p.rot * d.shear_x * mix, cs = std::cos(rs), sn = std::sin(rs);
+		const float na = cs * a - sn * c, nc = sn * a + cs * c;
+		a = na;
+		c = nc;
+	}
+	if (d.scale_x != 0) {
+		const float s = std::max(1 + p.stretch * d.scale_x * mix, 0.0f);
+		a *= s;
+		c *= s;
+	}
+	set_world(b, a, bb, c, dd, b.world_x + p.off_x * d.x * mix, b.world_y + p.off_y * d.y * mix);
+}
+
+bool Skeleton::constraint_on(int kind, int index) const {
+	if (!skin_gating()) {
+		return true;
+	}
+	bool required = false;
+	const std::vector<int> *listed = nullptr;
+	switch (kind) {
+		case IK:
+			required = data->ik[index].skin_required;
+			listed = skin ? &skin->ik : nullptr;
+			break;
+		case TRANSFORM:
+			required = data->transforms[index].skin_required;
+			listed = skin ? &skin->transforms : nullptr;
+			break;
+		case PATH:
+			required = data->paths[index].skin_required;
+			listed = skin ? &skin->paths : nullptr;
+			break;
+		default:
+			required = data->physics[index].skin_required;
+			listed = skin ? &skin->physics : nullptr;
+			break;
+	}
+	if (!required) {
+		return true;
+	}
+	return listed && std::find(listed->begin(), listed->end(), index) != listed->end();
+}
+
+void Skeleton::update_after(const std::vector<int> &constrained) {
+	if (constrained.empty()) {
+		return;
+	}
+	// Constrained bones changed: recompute them and everything after the first one (children follow parents).
+	int first = *std::min_element(constrained.begin(), constrained.end());
+	for (size_t i = first; i < bones.size(); i++) {
+		if (!bones[i].active && skin_gating()) {
+			continue;
+		}
+		update_bone(bones[i]);
+	}
+}
+
+void Skeleton::update_world_transform() {
+	for (auto &b : bones) {
+		if (!b.active && skin_gating()) {
+			continue; // the game's renderer leaves a bone its skin has not turned on unposed
+		}
+		update_bone(b);
+	}
+	if (constraint_order.empty()) {
+		return;
+	}
+	// Constraints solve by changing local values. Keep the animated pose and put it back afterwards,
+	// so the next frame's keys mix from the pose and not from the constraint output.
+	pose_ = bones;
+	float dt = physics_time;
+	physics_time = 0;
+	for (const auto &c : constraint_order) {
+		if (!constraint_on(c.first, c.second)) {
+			continue;
+		}
+		switch (c.first) {
+			case TRANSFORM:
+				apply_transform(transforms[c.second]);
+				update_after(transforms[c.second].data->bones);
+				break;
+			case IK:
+				apply_ik(ik[c.second]);
+				update_after(ik[c.second].data->bones);
+				break;
+			case PATH:
+				apply_path(paths[c.second]);
+				update_after(paths[c.second].data->bones);
+				break;
+			default: {
+				PhysicsConstraint &p = physics[c.second];
+				if (physics_model() == 2) {
+					apply_physics2(p);
+				} else {
+					apply_physics(p, dt);
+				}
+				update_after({ p.data->bone });
+				break;
+			}
+		}
+	}
+	for (size_t i = 0; i < bones.size(); i++) {
+		Bone &b = bones[i];
+		const Bone &p = pose_[i];
+		b.x = p.x;
+		b.y = p.y;
+		b.rotation = p.rotation;
+		b.scale_x = p.scale_x;
+		b.scale_y = p.scale_y;
+		b.shear_x = p.shear_x;
+		b.shear_y = p.shear_y;
+	}
+}
+
+int Skeleton::world_vertices(int slot_index, std::vector<float> &out) const {
+	const Slot &slot = slots[slot_index];
+	const Attachment *a = slot.drawn();
+	out.clear();
+	if (!a) {
+		return 0;
+	}
+	const Bone &bone = bones[slot.data->bone];
+	if (a->type == AttachmentType::Region) {
+		out.resize(8);
+		for (int i = 0; i < 4; i++) {
+			bone.local_to_world(a->offset[i * 2], a->offset[i * 2 + 1], out[i * 2], out[i * 2 + 1]);
+		}
+		return 4;
+	}
+	if (a->type == AttachmentType::Point) {
+		out.resize(2);
+		bone.local_to_world(a->x, a->y, out[0], out[1]);
+		return 1;
+	}
+	const std::vector<float> &def = slot.deform;
+	out.resize(a->vertex_count * 2);
+	if (!a->weighted()) {
+		bool has = def.size() == a->vertices.size();
+		for (int v = 0; v < a->vertex_count; v++) {
+			float lx = a->vertices[v * 2] + (has ? def[v * 2] : 0);
+			float ly = a->vertices[v * 2 + 1] + (has ? def[v * 2 + 1] : 0);
+			bone.local_to_world(lx, ly, out[v * 2], out[v * 2 + 1]);
+		}
+		return a->vertex_count;
+	}
+	bool has = def.size() == a->vertices.size() / 3 * 2;
+	size_t bi = 0, vi = 0;
+	for (int v = 0; v < a->vertex_count; v++) {
+		int count = a->bones[bi++];
+		float wx = 0, wy = 0;
+		for (int k = 0; k < count; k++, bi++, vi++) {
+			const Bone &inf = bones[a->bones[bi]];
+			float lx = a->vertices[vi * 3] + (has ? def[vi * 2] : 0);
+			float ly = a->vertices[vi * 3 + 1] + (has ? def[vi * 2 + 1] : 0);
+			float w = a->vertices[vi * 3 + 2];
+			float px, py;
+			inf.local_to_world(lx, ly, px, py);
+			wx += px * w;
+			wy += py * w;
+		}
+		out[v * 2] = wx;
+		out[v * 2 + 1] = wy;
+	}
+	return a->vertex_count;
+}
+
+// ---------------------------------------------------------------- applying animations
+
+namespace {
+
+void mix_value(float &value, float setup, float key, float alpha, MixBlend blend) {
+	if (blend == MixBlend::Replace) {
+		value += (key - value) * alpha;
+	} else {
+		value += (key - setup) * alpha;
+	}
+}
+
+void mix_color(Color &c, const Color &setup, float r, float g, float b, float a, bool rgb, bool alpha_channel,
+		float alpha, MixBlend blend) {
+	if (rgb) {
+		mix_value(c.r, setup.r, r, alpha, blend);
+		mix_value(c.g, setup.g, g, alpha, blend);
+		mix_value(c.b, setup.b, b, alpha, blend);
+	}
+	if (alpha_channel) {
+		mix_value(c.a, setup.a, a, alpha, blend);
+	}
+}
+
+void fire_events(const Timeline &tl, float last, float time, float duration, bool loop, std::vector<Event> *out) {
+	if (!out || tl.events.empty()) {
+		return;
+	}
+	auto range = [&](float from, float to, bool inclusive_from) {
+		for (const Event &e : tl.events) {
+			if ((inclusive_from ? e.time >= from : e.time > from) && e.time <= to) {
+				out->push_back(e);
+			}
+		}
+	};
+	if (last < 0) {
+		range(0, time, true);
+	} else if (loop && time < last) {
+		range(last, duration, false);
+		range(0, time, true);
+	} else if (time > last) {
+		range(last, time, false);
+	}
+}
+
+} // namespace
+
+void apply_animation(const Animation &anim, Skeleton &sk, float last_time, float time, bool loop,
+		std::vector<Event> *events, float alpha, MixBlend blend, bool discrete) {
+	for (const Timeline &tl : anim.timelines) {
+		if (tl.type == TimelineType::Event) {
+			fire_events(tl, last_time, time, anim.duration, loop, events);
+			continue;
+		}
+		if (tl.type == TimelineType::DrawOrder) {
+			if (!discrete || tl.draw_orders.empty()) {
+				continue;
+			}
+			int i = tl.curve.search(time);
+			if (time < tl.curve.time(0)) {
+				continue;
+			}
+			const auto &order = tl.draw_orders[i];
+			if (order.empty()) {
+				for (size_t s = 0; s < sk.draw_order.size(); s++) {
+					sk.draw_order[s] = int(s);
+				}
+			} else {
+				sk.draw_order = order;
+			}
+			continue;
+		}
+		if (tl.curve.frame_count() == 0 || time < tl.curve.time(0)) {
+			continue;
+		}
+		const Curve &cv = tl.curve;
+		switch (tl.type) {
+			case TimelineType::Rotate: {
+				Bone &b = sk.bones[tl.target];
+				if (!b.active) {
+					break;
+				}
+				float key = b.data->rotation + cv.evaluate(time, 0);
+				if (blend == MixBlend::Replace) {
+					// A full-weight key lands as keyed (the game's engine reads back -206 where a wrapped mix
+					// gave 153); partial weights still take the short way round. DROIDDECK_NATIVE_SPINE_RAW_ROTATE=0
+					// wraps every key as before.
+					static const bool raw_key = [] {
+						const char *v = getenv("DROIDDECK_NATIVE_SPINE_RAW_ROTATE");
+						return !(v && v[0] == '0');
+					}();
+					if (raw_key && alpha >= 1) {
+						b.rotation = key;
+						break;
+					}
+					b.rotation += wrap180(key - b.rotation) * alpha;
+				} else {
+					b.rotation += (key - b.data->rotation) * alpha;
+				}
+				break;
+			}
+			case TimelineType::Translate:
+			case TimelineType::TranslateX:
+			case TimelineType::TranslateY:
+			case TimelineType::Shear:
+			case TimelineType::ShearX:
+			case TimelineType::ShearY: {
+				Bone &b = sk.bones[tl.target];
+				if (!b.active) {
+					break;
+				}
+				bool shear = tl.type == TimelineType::Shear || tl.type == TimelineType::ShearX || tl.type == TimelineType::ShearY;
+				float &vx = shear ? b.shear_x : b.x;
+				float &vy = shear ? b.shear_y : b.y;
+				float sx = shear ? b.data->shear_x : b.data->x;
+				float sy = shear ? b.data->shear_y : b.data->y;
+				bool both = tl.type == TimelineType::Translate || tl.type == TimelineType::Shear;
+				bool only_y = tl.type == TimelineType::TranslateY || tl.type == TimelineType::ShearY;
+				if (both || !only_y) {
+					mix_value(vx, sx, sx + cv.evaluate(time, 0), alpha, blend);
+				}
+				if (both) {
+					mix_value(vy, sy, sy + cv.evaluate(time, 1), alpha, blend);
+				} else if (only_y) {
+					mix_value(vy, sy, sy + cv.evaluate(time, 0), alpha, blend);
+				}
+				break;
+			}
+			case TimelineType::Scale:
+			case TimelineType::ScaleX:
+			case TimelineType::ScaleY: {
+				Bone &b = sk.bones[tl.target];
+				if (!b.active) {
+					break;
+				}
+				if (tl.type != TimelineType::ScaleY) {
+					mix_value(b.scale_x, b.data->scale_x, b.data->scale_x * cv.evaluate(time, 0), alpha, blend);
+				}
+				if (tl.type == TimelineType::Scale) {
+					mix_value(b.scale_y, b.data->scale_y, b.data->scale_y * cv.evaluate(time, 1), alpha, blend);
+				} else if (tl.type == TimelineType::ScaleY) {
+					mix_value(b.scale_y, b.data->scale_y, b.data->scale_y * cv.evaluate(time, 0), alpha, blend);
+				}
+				break;
+			}
+			case TimelineType::Attachment: {
+				if (!discrete) {
+					break;
+				}
+				Slot &s = sk.slots[tl.target];
+				if (!sk.bones[s.data->bone].active) {
+					break;
+				}
+				const Attachment *a = sk.attachment(tl.target, tl.names[cv.search(time)]);
+				if (a != s.attachment) {
+					s.deform.clear();
+					s.sequence_index = -1;
+				}
+				s.attachment = a;
+				break;
+			}
+			case TimelineType::RGBA:
+			case TimelineType::RGB:
+			case TimelineType::Alpha:
+			case TimelineType::RGBA2:
+			case TimelineType::RGB2: {
+				Slot &s = sk.slots[tl.target];
+				const SlotData &sd = *s.data;
+				float v[7];
+				for (int c = 0; c < cv.channels && c < 7; c++) {
+					v[c] = cv.evaluate(time, c);
+				}
+				if (tl.type == TimelineType::Alpha) {
+					mix_color(s.color, sd.color, 0, 0, 0, v[0], false, true, alpha, blend);
+				} else if (tl.type == TimelineType::RGB) {
+					mix_color(s.color, sd.color, v[0], v[1], v[2], 1, true, false, alpha, blend);
+				} else if (tl.type == TimelineType::RGBA) {
+					mix_color(s.color, sd.color, v[0], v[1], v[2], v[3], true, true, alpha, blend);
+				} else if (tl.type == TimelineType::RGBA2) {
+					mix_color(s.color, sd.color, v[0], v[1], v[2], v[3], true, true, alpha, blend);
+					mix_color(s.dark, sd.dark, v[4], v[5], v[6], 1, true, false, alpha, blend);
+				} else {
+					mix_color(s.color, sd.color, v[0], v[1], v[2], 1, true, false, alpha, blend);
+					mix_color(s.dark, sd.dark, v[3], v[4], v[5], 1, true, false, alpha, blend);
+				}
+				break;
+			}
+			case TimelineType::Deform: {
+				Slot &s = sk.slots[tl.target];
+				if (!s.attachment || s.attachment->timeline_attachment != tl.attachment) {
+					break;
+				}
+				// The curve's single channel holds the frame index, so it yields frame + eased fraction.
+				float f = cv.evaluate(time, 0);
+				int i = std::min(int(f), int(tl.deforms.size()) - 1);
+				float p = f - float(i);
+				const std::vector<float> &d0 = tl.deforms[i];
+				const std::vector<float> &d1 = tl.deforms[std::min(i + 1, int(tl.deforms.size()) - 1)];
+				size_t n = d0.size();
+				if (s.deform.size() != n) {
+					s.deform.assign(n, 0.0f);
+				}
+				for (size_t k = 0; k < n; k++) {
+					float key = d0[k] + (d1[k] - d0[k]) * p;
+					mix_value(s.deform[k], 0, key, alpha, blend);
+				}
+				break;
+			}
+			case TimelineType::Ik: {
+				IkConstraint &k = sk.ik[tl.target];
+				mix_value(k.mix, k.data->mix, cv.evaluate(time, 0), alpha, blend);
+				mix_value(k.softness, k.data->softness, cv.evaluate(time, 1), alpha, blend);
+				if (discrete) {
+					uint8_t fl = tl.flags[cv.search(time)];
+					k.bend_positive = fl & 1;
+					k.compress = fl & 2;
+					k.stretch = fl & 4;
+				}
+				break;
+			}
+			case TimelineType::Transform: {
+				TransformConstraint &k = sk.transforms[tl.target];
+				const TransformData &d = *k.data;
+				mix_value(k.mix_rotate, d.mix_rotate, cv.evaluate(time, 0), alpha, blend);
+				mix_value(k.mix_x, d.mix_x, cv.evaluate(time, 1), alpha, blend);
+				mix_value(k.mix_y, d.mix_y, cv.evaluate(time, 2), alpha, blend);
+				mix_value(k.mix_scale_x, d.mix_scale_x, cv.evaluate(time, 3), alpha, blend);
+				mix_value(k.mix_scale_y, d.mix_scale_y, cv.evaluate(time, 4), alpha, blend);
+				mix_value(k.mix_shear_y, d.mix_shear_y, cv.evaluate(time, 5), alpha, blend);
+				break;
+			}
+			case TimelineType::PathPosition: {
+				PathConstraint &k = sk.paths[tl.target];
+				mix_value(k.position, k.data->position, cv.evaluate(time, 0), alpha, blend);
+				break;
+			}
+			case TimelineType::PathSpacing: {
+				PathConstraint &k = sk.paths[tl.target];
+				mix_value(k.spacing, k.data->spacing, cv.evaluate(time, 0), alpha, blend);
+				break;
+			}
+			case TimelineType::PathMix: {
+				PathConstraint &k = sk.paths[tl.target];
+				mix_value(k.mix_rotate, k.data->mix_rotate, cv.evaluate(time, 0), alpha, blend);
+				mix_value(k.mix_x, k.data->mix_x, cv.evaluate(time, 1), alpha, blend);
+				mix_value(k.mix_y, k.data->mix_y, cv.evaluate(time, 2), alpha, blend);
+				break;
+			}
+			case TimelineType::PhysicsMix: {
+				const float v = cv.evaluate(time, 0);
+				for (size_t i = 0; i < sk.physics.size(); i++) {
+					if (tl.target < 0 || int(i) == tl.target) {
+						PhysicsConstraint &p = sk.physics[i];
+						mix_value(p.mix, p.data->mix, v, alpha, blend);
+					}
+				}
+				break;
+			}
+			case TimelineType::PhysicsSetting: {
+				const float v = cv.evaluate(time, 0);
+				// The skeleton-wide timeline drives the constraints whose global flags carry this setting's
+				// bit (inertia 1, strength 2, damping 4, mass 8, wind 16, gravity 32).
+				const int bit = 1 << (tl.setting > 3 ? tl.setting - 1 : tl.setting);
+				for (size_t i = 0; i < sk.physics.size(); i++) {
+					PhysicsConstraint &p = sk.physics[i];
+					if (tl.target < 0 ? !(p.data->global_flags & bit) : int(i) != tl.target) {
+						continue;
+					}
+					const PhysicsData &d = *p.data;
+					switch (tl.setting) {
+						case 0: mix_value(p.inertia, d.inertia, v, alpha, blend); break;
+						case 1: mix_value(p.strength, d.strength, v, alpha, blend); break;
+						case 2: mix_value(p.damping, d.damping, v, alpha, blend); break;
+						case 4: {
+							float mass = 1 / std::max(p.mass_inverse, 1e-6f);
+							mix_value(mass, 1 / std::max(d.mass_inverse, 1e-6f), v, alpha, blend);
+							p.mass_inverse = 1 / std::max(mass, 1e-6f);
+							break;
+						}
+						case 5: mix_value(p.wind, d.wind, v, alpha, blend); break;
+						case 6: mix_value(p.gravity, d.gravity, v, alpha, blend); break;
+						default: break;
+					}
+				}
+				break;
+			}
+			case TimelineType::Sequence: {
+				Slot &s = sk.slots[tl.target];
+				if (!s.attachment || s.attachment->timeline_attachment != tl.attachment || !s.attachment->has_sequence) {
+					break;
+				}
+				int i = cv.search(time);
+				int key = tl.sequence_keys[i];
+				int mode = key & 15, index = key >> 4;
+				int count = s.attachment->sequence.count;
+				if (count <= 0) {
+					break;
+				}
+				float delay = tl.sequence_delays[i];
+				if (mode != int(SequenceMode::Hold) && delay > 0) {
+					index += int((time - cv.time(i)) / delay + 1e-4f);
+				}
+				int bounce = 2 * count - 2;
+				switch (SequenceMode(mode)) {
+					case SequenceMode::Hold:
+						break;
+					case SequenceMode::Once:
+						index = std::min(index, count - 1);
+						break;
+					case SequenceMode::Loop:
+						index %= count;
+						break;
+					case SequenceMode::PingPong:
+						index = bounce ? index % bounce : 0;
+						if (index >= count) index = bounce - index;
+						break;
+					case SequenceMode::OnceReverse:
+						index = std::max(count - 1 - index, 0);
+						break;
+					case SequenceMode::LoopReverse:
+						index = count - 1 - index % count;
+						break;
+					case SequenceMode::PingPongReverse:
+						index = bounce ? (index + count - 1) % bounce : 0;
+						if (index >= count) index = bounce - index;
+						break;
+				}
+				s.sequence_index = std::max(0, std::min(index, count - 1));
+				break;
+			}
+			case TimelineType::Inherit: {
+				if (discrete) {
+					sk.bones[tl.target].inherit = Inherit(tl.flags[cv.search(time)]);
+				}
+				break;
+			}
+			default:
+				break;
+		}
+	}
+}
+
+// ---------------------------------------------------------------- animation state
+
+float TrackEntry::animation_time() const {
+	float duration = animation ? animation->duration : 0;
+	if (duration <= 0) {
+		return 0;
+	}
+	if (loop) {
+		return std::fmod(track_time, duration);
+	}
+	return std::min(track_time, duration);
+}
+
+float AnimationStateData::mix(const Animation *from, const Animation *to) const {
+	if (from && to) {
+		auto it = mixes.find(from->name + "\n" + to->name);
+		if (it != mixes.end()) {
+			return it->second;
+		}
+	}
+	return default_mix;
+}
+
+void AnimationStateData::set_mix(const std::string &from, const std::string &to, float duration) {
+	mixes[from + "\n" + to] = duration;
+}
+
+std::shared_ptr<TrackEntry> AnimationState::current(int track) const {
+	return track >= 0 && track < int(tracks.size()) ? tracks[track] : nullptr;
+}
+
+std::shared_ptr<TrackEntry> AnimationState::start(int track, const Animation *animation, bool loop) {
+	if (track >= int(tracks.size())) {
+		tracks.resize(track + 1);
+	}
+	auto e = std::make_shared<TrackEntry>();
+	e->animation = animation;
+	e->loop = loop;
+	auto prev = tracks[track];
+	if (prev) {
+		e->from = prev;
+		prev->next.reset();
+		e->mix_duration = data->mix(prev->animation, animation);
+		pending.push_back({ StateEvent::Interrupt, track, prev->animation, {}, prev });
+		if (e->mix_duration <= 0) {
+			e->from.reset();
+			pending.push_back({ StateEvent::End, track, prev->animation, {}, prev });
+		}
+	}
+	tracks[track] = e;
+	pending.push_back({ StateEvent::Start, track, animation, {}, e });
+	return e;
+}
+
+std::shared_ptr<TrackEntry> AnimationState::set_animation(int track, const std::string &name, bool loop) {
+	const Animation *a = data->skeleton->find_animation(name);
+	if (!a) {
+		return nullptr;
+	}
+	return start(track, a, loop);
+}
+
+std::shared_ptr<TrackEntry> AnimationState::add_animation(int track, const std::string &name, bool loop, float delay) {
+	const Animation *a = data->skeleton->find_animation(name);
+	if (!a) {
+		return nullptr;
+	}
+	auto last = current(track);
+	if (!last) {
+		auto e = start(track, a, loop);
+		e->delay = delay > 0 ? delay : 0;
+		return e;
+	}
+	while (last->next) {
+		last = last->next;
+	}
+	auto e = std::make_shared<TrackEntry>();
+	e->animation = a;
+	e->loop = loop;
+	e->mix_duration = data->mix(last->animation, a);
+	// A non-positive delay queues relative to the end of the previous animation.
+	e->delay = delay > 0 ? delay : std::max(0.0f, (last->animation ? last->animation->duration : 0) + delay - e->mix_duration);
+	last->next = e;
+	return e;
+}
+
+std::shared_ptr<TrackEntry> AnimationState::set_empty(int track, float mix_duration) {
+	auto e = start(track, nullptr, false);
+	e->mix_duration = mix_duration;
+	if (mix_duration > 0 && !e->from && track < int(tracks.size())) {
+		// nothing to fade from
+	}
+	return e;
+}
+
+void AnimationState::clear_track(int track) {
+	if (track < int(tracks.size()) && tracks[track]) {
+		for (auto f = tracks[track]->from; f; f = f->from) {
+			pending.push_back({ StateEvent::End, track, f->animation, {}, f });
+		}
+		pending.push_back({ StateEvent::End, track, tracks[track]->animation, {}, tracks[track] });
+		tracks[track].reset();
+	}
+}
+
+void AnimationState::clear_tracks() {
+	for (size_t i = 0; i < tracks.size(); i++) {
+		clear_track(int(i));
+	}
+}
+
+void AnimationState::update(float dt) {
+	dt *= time_scale;
+	for (size_t t = 0; t < tracks.size(); t++) {
+		auto e = tracks[t];
+		if (!e) {
+			continue;
+		}
+		float step = dt * e->time_scale;
+		if (e->delay > 0) {
+			e->delay -= step;
+			if (e->delay > 0) {
+				continue;
+			}
+			step = -e->delay;
+			e->delay = 0;
+		}
+		float before = e->track_time;
+		e->track_time += step;
+		float duration = e->animation ? e->animation->duration : 0;
+		if (duration > 0 && std::floor(e->track_time / duration) > std::floor(before / duration) && (e->loop || !e->complete_fired)) {
+			e->complete_fired = true;
+			pending.push_back({ StateEvent::Complete, int(t), e->animation, {}, e });
+		} else if (duration <= 0 && !e->complete_fired && e->animation) {
+			e->complete_fired = true;
+			pending.push_back({ StateEvent::Complete, int(t), e->animation, {}, e });
+		}
+		if (e->from) {
+			e->mix_time += dt;
+			for (auto f = e->from; f; f = f->from) {
+				f->last_time = f->track_time;
+				f->track_time += dt * f->time_scale;
+			}
+			if (e->mix_time >= e->mix_duration) {
+				for (auto f = e->from; f; f = f->from) {
+					pending.push_back({ StateEvent::End, int(t), f->animation, {}, f });
+				}
+				e->from.reset();
+			}
+		}
+		if (e->next && e->track_time - e->delay >= e->next->delay) {
+			auto n = e->next;
+			float over = e->track_time - n->delay;
+			n->delay = 0;
+			n->from = n->mix_duration > 0 ? e : nullptr;
+			pending.push_back({ StateEvent::Interrupt, int(t), e->animation, {}, e });
+			if (!n->from) {
+				pending.push_back({ StateEvent::End, int(t), e->animation, {}, e });
+			}
+			e->next.reset();
+			n->track_time = std::max(0.0f, over);
+			tracks[t] = n;
+			pending.push_back({ StateEvent::Start, int(t), n->animation, {}, n });
+		}
+	}
+}
+
+namespace {
+
+float wrapped(const TrackEntry &e, float track_time) {
+	float duration = e.animation ? e.animation->duration : 0;
+	if (track_time < 0) {
+		return -1;
+	}
+	if (duration <= 0) {
+		return 0;
+	}
+	return e.loop ? std::fmod(track_time, duration) : std::min(track_time, duration);
+}
+
+void apply_entry(const std::shared_ptr<TrackEntry> &entry, Skeleton &sk, float alpha, MixBlend blend, bool discrete, int track,
+		std::vector<StateEvent> &pending) {
+	const TrackEntry &e = *entry;
+	if (e.from) {
+		float m = e.mix_duration > 0 ? std::min(1.0f, e.mix_time / e.mix_duration) : 1;
+		apply_entry(e.from, sk, alpha * (1 - m), blend, false, track, pending);
+		alpha *= m;
+		blend = MixBlend::Add;
+	}
+	if (!e.animation || alpha <= 0) {
+		return;
+	}
+	std::vector<Event> fired;
+	apply_animation(*e.animation, sk, wrapped(e, e.last_time), wrapped(e, e.track_time), e.loop, &fired, alpha * e.alpha, blend, discrete);
+	for (const Event &ev : fired) {
+		pending.push_back({ StateEvent::Fire, track, e.animation, ev, entry });
+	}
+}
+
+} // namespace
+
+void AnimationState::apply(Skeleton &sk) {
+	if (reset_to_setup) {
+		sk.setup_bones();
+		for (auto &s : sk.slots) {
+			s.color = s.data->color;
+			s.dark = s.data->dark;
+		}
+	}
+	for (size_t t = 0; t < tracks.size(); t++) {
+		auto e = tracks[t];
+		if (!e || e->delay > 0) {
+			continue;
+		}
+		apply_entry(e, sk, 1, MixBlend::Replace, true, int(t), pending);
+		e->last_time = e->track_time;
+	}
+}
+
+} // namespace skel

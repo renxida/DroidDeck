@@ -74,6 +74,15 @@ class GameEnvironmentTest {
         assertEquals("fps", GameEnvironmentOptions.toggle("", "fps"))
     }
 
+    @Test fun godotRendererIsAnOptionalChoiceDefaultingToAuto() {
+        val option = GameEnvironmentOptions.find("DROIDDECK_GODOT_RENDERER")!!
+        assertEquals(GameEnvironmentOptions.Type.CHOICE, option.type)
+        assertEquals("auto", option.value)
+        assertEquals(listOf("auto", "mobile", "forward_plus", "vulkan", "off"), option.choices)
+        assertFalse(GameEnvironment.defaults("").containsKey("DROIDDECK_GODOT_RENDERER"))
+        assertTrue(GameEnvironment.supported("DROIDDECK_GODOT_RENDERER"))
+    }
+
     @Test fun switchingPresetDropsOldPresetOnlyVariables() {
         val config = GameEnvironment.Config()
         assertEquals("none", GameEnvironment.effective(config, "EXTREME", "")["FEX_SMCCHECKS"])

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A small game-shaped program for checking droiddeck-dotnet-r2r end to end: published as a self-contained
+       win-x64 app like a .NET 9 game, its own assembly is IL-only and is the one the tool precompiles. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>r2r-check</AssemblyName>
+    <RootNamespace>R2RCheck</RootNamespace>
+    <Nullable>disable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>

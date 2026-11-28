@@ -1,0 +1,9 @@
+; A native extension with a Windows library only, like a game's audio, animation or crash-report
+; extensions. On linux-arm64 Godot finds no library for the platform, logs it and goes on.
+; The library is a placeholder that build.sh writes (not a real DLL; nothing loads it).
+[configuration]
+entry_symbol="winonly_library_init"
+compatibility_minimum="4.1"
+
+[libraries]
+windows.x86_64="res://addons/winonly/bin/winonly.windows.x86_64.dll"

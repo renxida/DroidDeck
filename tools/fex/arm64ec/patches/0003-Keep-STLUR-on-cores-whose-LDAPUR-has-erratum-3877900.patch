@@ -1,0 +1,91 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 13 Nov 2026 03:44:48 +0000
+Subject: [PATCH 3/3] Keep STLUR on cores whose LDAPUR has erratum 3877900
+
+Erratum 3877900 (Cortex-X3/X4/X925, Neoverse V2/V3, C1-Ultra/Premium) only makes
+LDAPUR* stricter than required. FEX dropped all of FEAT_LRCPC2 on those cores,
+so displaced TSO stores also lost STLUR and need an ADD before STLR. Track the
+store form separately and keep it.
+---
+ FEXCore/Source/Interface/Core/JIT/MemoryOps.cpp  | 4 ++--
+ FEXCore/Source/Interface/Core/OpcodeDispatcher.h | 2 +-
+ FEXCore/include/FEXCore/Core/HostFeatures.h      | 4 +++-
+ Source/Common/HostFeatures.cpp                   | 8 ++++++++
+ 4 files changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/FEXCore/Source/Interface/Core/JIT/MemoryOps.cpp b/FEXCore/Source/Interface/Core/JIT/MemoryOps.cpp
+index 08c84d7..51f19e2 100644
+--- a/FEXCore/Source/Interface/Core/JIT/MemoryOps.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/MemoryOps.cpp
+@@ -1793,12 +1793,12 @@ DEF_OP(StoreMemTSO) {
+   const auto MemReg = GetReg(Op->Addr);
+ 
+   if (Op->Class == IR::RegClass::GPR) {
+-    LOGMAN_THROW_A_FMT(Op->Offset.IsInvalid() || CTX->HostFeatures.SupportsTSOImm9, "unexpected offset");
++    LOGMAN_THROW_A_FMT(Op->Offset.IsInvalid() || CTX->HostFeatures.SupportsTSOStoreImm9, "unexpected offset");
+     LOGMAN_THROW_A_FMT(Op->OffsetScale == 1, "unexpected offset scale");
+     LOGMAN_THROW_A_FMT(Op->OffsetType == IR::MemOffsetType::SXTX, "unexpected offset type");
+   }
+ 
+-  if (CTX->HostFeatures.SupportsTSOImm9 && Op->Class == IR::RegClass::GPR) {
++  if (CTX->HostFeatures.SupportsTSOStoreImm9 && Op->Class == IR::RegClass::GPR) {
+     const auto Src = GetZeroableReg(Op->Value);
+     uint64_t Offset = 0;
+     if (!Op->Offset.IsInvalid()) {
+diff --git a/FEXCore/Source/Interface/Core/OpcodeDispatcher.h b/FEXCore/Source/Interface/Core/OpcodeDispatcher.h
+index 4477c72..3e71f95 100644
+--- a/FEXCore/Source/Interface/Core/OpcodeDispatcher.h
++++ b/FEXCore/Source/Interface/Core/OpcodeDispatcher.h
+@@ -2682,7 +2682,7 @@ private:
+ 
+   Ref _StoreMemAutoTSO(RegClass Class, OpSize Size, const AddressMode& A, Ref Value, OpSize Align = OpSize::i8Bit) {
+     const bool AtomicTSO = IsTSOEnabled(Class) && !A.NonTSO;
+-    const auto B = SelectAddressMode(this, A, GetGPROpSize(), CTX->HostFeatures.SupportsTSOImm9, AtomicTSO, Class != RegClass::GPR, Size);
++    const auto B = SelectAddressMode(this, A, GetGPROpSize(), CTX->HostFeatures.SupportsTSOStoreImm9, AtomicTSO, Class != RegClass::GPR, Size);
+ 
+     if (AtomicTSO) {
+       return _StoreMemTSO(Class, Size, Value, B.Base, B.Index, Align, B.IndexType, B.IndexScale);
+diff --git a/FEXCore/include/FEXCore/Core/HostFeatures.h b/FEXCore/include/FEXCore/Core/HostFeatures.h
+index 0073b58..0eccac7 100644
+--- a/FEXCore/include/FEXCore/Core/HostFeatures.h
++++ b/FEXCore/include/FEXCore/Core/HostFeatures.h
+@@ -120,9 +120,11 @@ struct HostFeatures {
+   uint32_t SupportsAFP                 : 1 {}; // [32]
+   uint32_t SupportsFloatExceptions     : 1 {}; // [33]
+   uint32_t SupportsBF16                : 1 {}; // [34]
++  // FEAT_LRCPC2 STLUR is usable. Separate from SupportsTSOImm9 (LDAPUR), whose erratum 3877900 only affects loads.
++  uint32_t SupportsTSOStoreImm9        : 1 {}; // [35]
+   // Flag if this is InstCountCI
+   uint32_t IsInstCountCI : 1 {};  // [38]
+-  uint32_t pad           : 28 {}; // [63:35]
++  uint32_t pad           : 27 {}; // [63:36]
+ 
+   // This affects codegen, but it isn't machine state
+   ProcessFeaturesHash ProcessFeatures {};
+diff --git a/Source/Common/HostFeatures.cpp b/Source/Common/HostFeatures.cpp
+index d7ff4d1..b289cdf 100644
+--- a/Source/Common/HostFeatures.cpp
++++ b/Source/Common/HostFeatures.cpp
+@@ -361,6 +361,13 @@ static void OverrideFeatures(FEXCore::HostFeatures* Features, uint64_t ForceSVEW
+   ENABLE_DISABLE_OPTION(SupportsAFP, AFP, AFP);
+   ENABLE_DISABLE_OPTION(SupportsRCPC, LRCPC, LRCPC);
+   ENABLE_DISABLE_OPTION(SupportsTSOImm9, LRCPC2, LRCPC2);
++  // DISABLELRCPC2 is the usual workaround for erratum 3877900, which only affects LDAPUR: keep STLUR unless LRCPC is off entirely.
++  if (Features->SupportsTSOImm9) {
++    Features->SupportsTSOStoreImm9 = true;
++  }
++  if (!Features->SupportsRCPC) {
++    Features->SupportsTSOStoreImm9 = false;
++  }
+   ENABLE_DISABLE_OPTION(SupportsCSSC, CSSC, CSSC);
+   ENABLE_DISABLE_OPTION(SupportsPMULL_128Bit, PMULL128, PMULL128);
+   ENABLE_DISABLE_OPTION(SupportsRAND, RNG, RNG);
+@@ -501,6 +508,7 @@ void FetchHostFeatures(FEX::CPUFeatures& Features, FEXCore::HostFeatures& HostFe
+   HostFeatures.SupportsAFP = Features.Supports(CPUFeatures::Feature::AFP);
+   HostFeatures.SupportsRCPC = Features.Supports(CPUFeatures::Feature::LRCPC);
+   HostFeatures.SupportsTSOImm9 = Features.Supports(CPUFeatures::Feature::LRCPC2);
++  HostFeatures.SupportsTSOStoreImm9 = Features.Supports(CPUFeatures::Feature::LRCPC2);
+   HostFeatures.SupportsPMULL_128Bit = Features.Supports(CPUFeatures::Feature::PMULL);
+   HostFeatures.SupportsCSSC = Features.Supports(CPUFeatures::Feature::CSSC);
+   HostFeatures.SupportsFCMA = Features.Supports(CPUFeatures::Feature::FCMA);

@@ -1,0 +1,204 @@
+package com.droiddeck.launcher.session
+
+import android.content.Context
+import android.util.Log
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
+
+/**
+ * Settings > Advanced > Experiments. Each id is the perf/ branch the change came from and reaches the
+ * guest as DROIDDECK_EXP_<ID>=1. A fresh install starts with [defaults]; all off is main. Game-level parts follow the saved
+ * switches at each game launch; Steam-side and app-side parts follow the switches the session started with.
+ */
+object Experiments {
+    private const val TAG = "Experiments"
+
+    const val GODOT_RENDER = "godot-render"
+    const val WARMUP = "warmup"
+    const val LAUNCH = "all"
+    const val COMPAT_QUIET = "compat-quiet"
+    const val MEMORY = "memory"
+    const val ADPF_ALL = "adpf-all"
+    const val TWO_FRAMES = "two-frames"
+    const val LAYER_FENCE = "layer-fence"
+    const val SCHED = "sched"
+    const val ONE_LIMITER = "one-limiter"
+    const val NATIVE_HZ = "native-hz"
+    const val QUICK_TAP = "quick-tap"
+    const val FEX_CODEGEN = "fex-codegen"
+    const val FEX_MEMCPY_TSO = "fex-memcpy-tso"
+    const val FEX_VECTOR_TSO = "fex-vector-tso"
+    const val FEX_TSO = "fex-tso"
+    const val FEX_FAST = "fex-fast"
+    const val DOTNET_TRACE = "dotnet-trace"
+    const val DOTNET_GEN0 = "dotnet-gen0"
+    const val DOTNET_GC_STOCK = "dotnet-gc-stock"
+    /** Games use Kestrel's own FEX build (tools/fex/arm64ec) through the Auto component line instead of DD-FEXCore. */
+    const val FEX_KESTREL = "fex-kestrel"
+    /** FEX keeps its per-thread counters (FEX_PROFILESTATS=1) and the app logs them to fex.csv. */
+    const val FEX_STATS = "fex-stats"
+    const val WAYLAND_PRESENT = "wayland-present"
+    const val VK_COUNT = "vk-count"
+    const val NATIVE_INVENTORY = "native-inventory"
+    const val FREE_MEMORY = "free-memory"
+    const val HYBRIS_INDEX = "hybris-index"
+    /** FEX's per-thread block lookup cache at a fixed size from the start: 4 MB with Kestrel's FEX, 16 MB otherwise. */
+    const val FEX_L1 = "fex-l1"
+    const val HYBRIS_INDEX_SESSION = "hybris-index-session"
+    /** Godot C# games run on Kestrel's own linux-arm64 engine (droiddeck-native-godot), skipping Wine and FEX; Proton if it fails to start. */
+    const val NATIVE_ENGINE = "native-engine"
+    /** PowerVR: 64-bit Direct3D games use DXVK built as ARM64EC (native) instead of x86-64 (translated by FEX). */
+    const val DXVK_ARM64EC = "dxvk-arm64ec"
+    /** Measurement only: gamescope logs the GPU time of its composite pass to session.log (log_composite_timing debug). */
+    const val COMPOSITE_TIMING = "composite-timing"
+    /** .NET games run their own assemblies as x64 ReadyToRun code compiled on the phone (droiddeck-dotnet-r2r). */
+    const val DOTNET_R2R = "dotnet-r2r"
+    /** Kestrel's FEX starts its code buffer at 64 MB, not 16, so a session stops throwing its translated code away once it fills. */
+    const val FEX_CODE_BUFFER = "fex-code-buffer"
+    /** Kestrel's FEX samples where each emulated thread spends its CPU time; the app logs it to fex-samples.csv. */
+    const val FEX_SAMPLE = "fex-sample"
+    /** As dotnet-r2r, and the framework's generics over the game's types (JSON, async) are precompiled into the game's images too. */
+    const val DOTNET_R2R_GENERICS = "dotnet-r2r-generics"
+    /** As dotnet-r2r-generics, in one version bubble with the game's framework copy: covers more, but crossgen2 calls it unsupported. Wins if both are on. */
+    const val DOTNET_R2R_BUBBLE = "dotnet-r2r-bubble"
+    /** Slay the Spire 2 capped at 30 fps instead of 60: steady frames over peak frame rate. */
+    const val FPS_30 = "fps-30"
+    /** While a game runs, ask steamwebhelper over DevTools to free memory twice, then end it once so Steam starts a fresh one; logs before/after. */
+    const val WEBHELPER_TRIM = "webhelper-trim"
+    const val FEX_SMAPS = "fex-smaps"
+    /** Godot games log every resource they load (--verbose); the upload lists them. */
+    const val GODOT_VERBOSE = "godot-verbose"
+    /** Godot games: --render-thread separate, so Vulkan recording and submission leave the main thread. */
+    const val GODOT_RENDER_THREAD = "godot-render-thread"
+    /** Godot games: textures re-encoded to ASTC (the GPU's own format) inside the game's pack on this device; off puts the
+     *  original textures back and keeps the build for the next time it is on. */
+    const val TEX_ASTC = "tex-astc"
+    /** As tex-astc, and textures over 1024 px on a side stored at half resolution. */
+    const val TEX_HALF = "tex-half"
+    /** Kestrel's FEX lets threads that sat idle for 30 s give back their block caches and the old code buffers they held. */
+    const val FEX_TRIM = "fex-trim"
+    /** The Vulkan layer refuses the game's memory-allocator blocks over 64 MB, so they stop growing there (Godot: 256 MB). */
+    const val VK_BLOCKS_64 = "vk-blocks-64"
+    const val NATIVE_R2R = "native-r2r"
+    /** FEX's disk cache keeps the last two FEX builds' folders, so switching between stock and Kestrel FEX keeps both warm. */
+    const val FEX_CACHE_KEEP = "fex-cache-keep"
+    /** The game runs from a copy of its .exe laid out so Wine maps the embedded game data from the file instead of copying it into memory. */
+    const val PE_ALIGN = "pe-align"
+
+    class Switch(val id: String, @StringRes val label: Int)
+
+    val toggles = listOf(
+        Switch(GODOT_RENDER, R.string.exp_godot_render),
+        Switch(WARMUP, R.string.exp_warmup),
+        Switch(LAUNCH, R.string.exp_launch),
+        Switch(COMPAT_QUIET, R.string.exp_compat_quiet),
+        Switch(MEMORY, R.string.exp_memory),
+        Switch(ADPF_ALL, R.string.exp_adpf_all),
+        Switch(SCHED, R.string.exp_sched),
+        Switch(ONE_LIMITER, R.string.exp_one_limiter),
+        Switch(NATIVE_HZ, R.string.exp_native_hz),
+        Switch(QUICK_TAP, R.string.exp_quick_tap),
+        Switch(FEX_CODEGEN, R.string.exp_fex_codegen),
+        Switch(DOTNET_TRACE, R.string.exp_dotnet_trace),
+        Switch(DOTNET_GEN0, R.string.exp_dotnet_gen0),
+        Switch(DOTNET_GC_STOCK, R.string.exp_dotnet_gc_stock),
+        Switch(FEX_KESTREL, R.string.exp_fex_kestrel),
+        Switch(FEX_STATS, R.string.exp_fex_stats),
+        Switch(WAYLAND_PRESENT, R.string.exp_wayland_present),
+        Switch(VK_COUNT, R.string.exp_vk_count),
+        Switch(NATIVE_INVENTORY, R.string.exp_native_inventory),
+        Switch(FREE_MEMORY, R.string.exp_free_memory),
+        Switch(HYBRIS_INDEX, R.string.exp_hybris_index),
+        Switch(FEX_L1, R.string.exp_fex_l1),
+        Switch(HYBRIS_INDEX_SESSION, R.string.exp_hybris_index_session),
+        Switch(NATIVE_ENGINE, R.string.exp_native_engine),
+        Switch(NATIVE_R2R, R.string.exp_native_r2r),
+        Switch(DXVK_ARM64EC, R.string.exp_dxvk_arm64ec),
+        Switch(COMPOSITE_TIMING, R.string.exp_composite_timing),
+        Switch(DOTNET_R2R, R.string.exp_dotnet_r2r),
+        Switch(FEX_CODE_BUFFER, R.string.exp_fex_code_buffer),
+        Switch(FEX_SAMPLE, R.string.exp_fex_sample),
+        Switch(DOTNET_R2R_GENERICS, R.string.exp_dotnet_r2r_generics),
+        Switch(DOTNET_R2R_BUBBLE, R.string.exp_dotnet_r2r_bubble),
+        Switch(FPS_30, R.string.exp_fps_30),
+        Switch(WEBHELPER_TRIM, R.string.exp_webhelper_trim),
+        Switch(FEX_SMAPS, R.string.exp_fex_smaps),
+        Switch(GODOT_VERBOSE, R.string.exp_godot_verbose),
+        Switch(GODOT_RENDER_THREAD, R.string.exp_godot_render_thread),
+        Switch(TEX_ASTC, R.string.exp_tex_astc),
+        Switch(TEX_HALF, R.string.exp_tex_half),
+        Switch(FEX_TRIM, R.string.exp_fex_trim),
+        Switch(VK_BLOCKS_64, R.string.exp_vk_blocks_64),
+        Switch(FEX_CACHE_KEEP, R.string.exp_fex_cache_keep),
+        Switch(PE_ALIGN, R.string.exp_pe_align),
+    )
+
+    /** At most one of each group is on. */
+    val present = listOf(Switch(TWO_FRAMES, R.string.exp_two_frames), Switch(LAYER_FENCE, R.string.exp_layer_fence))
+    val fexOrder = listOf(
+        Switch(FEX_MEMCPY_TSO, R.string.exp_fex_memcpy_tso),
+        Switch(FEX_VECTOR_TSO, R.string.exp_fex_vector_tso),
+        Switch(FEX_TSO, R.string.exp_fex_tso),
+        Switch(FEX_FAST, R.string.exp_fex_fast),
+    )
+    private val groups = listOf(present.map { it.id }, fexOrder.map { it.id })
+
+    /** The order the guest's droiddeck-game-env lists them in. */
+    val ids = listOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, LAYER_FENCE,
+        SCHED, ONE_LIMITER, NATIVE_HZ, QUICK_TAP, FEX_CODEGEN, FEX_MEMCPY_TSO, FEX_VECTOR_TSO, FEX_TSO, FEX_FAST,
+        DOTNET_TRACE, DOTNET_GEN0, DOTNET_GC_STOCK, FEX_KESTREL, FEX_STATS,
+        WAYLAND_PRESENT, VK_COUNT,
+        NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE,
+        DXVK_ARM64EC, COMPOSITE_TIMING, DOTNET_R2R, FEX_CODE_BUFFER, FEX_SAMPLE, DOTNET_R2R_GENERICS, DOTNET_R2R_BUBBLE,
+        FPS_30, WEBHELPER_TRIM, FEX_SMAPS, GODOT_VERBOSE, TEX_ASTC, TEX_HALF, FEX_TRIM,
+        FEX_CACHE_KEEP, PE_ALIGN, VK_BLOCKS_64, NATIVE_R2R, GODOT_RENDER_THREAD)
+
+    /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
+    val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
+        QUICK_TAP, FEX_CODEGEN, FEX_FAST, FEX_STATS, FREE_MEMORY)
+
+    fun envName(id: String) = "DROIDDECK_EXP_" + id.uppercase().replace('-', '_')
+
+    fun env(on: Set<String>): Map<String, String> = ids.filter { it in on }.associate { envName(it) to "1" }
+
+    fun line(on: Set<String>): String = ids.filter { it in on }.joinToString(",").ifEmpty { "none" }
+
+    /** [on] with [id] switched; turning one of a group on turns the rest of its group off. */
+    fun with(on: Set<String>, id: String, value: Boolean): Set<String> {
+        require(id in ids)
+        if (!value) return on - id
+        return on - groups.firstOrNull { id in it }.orEmpty().toSet() + id
+    }
+
+    fun presentMode(on: Set<String>): Int = when {
+        TWO_FRAMES in on -> 1
+        LAYER_FENCE in on -> 2
+        else -> 0
+    }
+
+    private fun prefs(context: Context) = context.getSharedPreferences("experiments", Context.MODE_PRIVATE)
+
+    fun enabled(context: Context): Set<String> =
+        (prefs(context).getStringSet("on", null) ?: defaults).filterTo(LinkedHashSet()) { it in ids }
+
+    fun set(context: Context, on: Set<String>) {
+        val kept = on.filterTo(LinkedHashSet()) { it in ids }
+        prefs(context).edit().putStringSet("on", kept).apply()
+        Log.i(TAG, "saved: ${line(kept)}" + (session?.let { "; this session started with: ${line(it)}" } ?: ""))
+        runCatching { GameEnvironmentStore.publish(context) }
+            .onFailure { Log.e(TAG, "Could not update game environment", it) }
+    }
+
+    fun setOne(context: Context, id: String, value: Boolean) = set(context, with(enabled(context), id, value))
+
+    /** The switches the running session started with. */
+    @Volatile var session: Set<String>? = null
+        private set
+
+    fun beginSession(context: Context): Set<String> = enabled(context).also { session = it }
+
+    fun endSession() { session = null }
+
+    /** For the app-side parts: the session's switches while one runs, the saved ones otherwise. */
+    fun on(context: Context, id: String): Boolean = id in (session ?: enabled(context))
+}

@@ -4,6 +4,8 @@ import android.os.Looper
 import android.view.InputDevice
 import android.view.MotionEvent
 import java.time.Duration
+import com.droiddeck.launcher.telemetry.InputLatency
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,6 +32,73 @@ class DirectTouchHoldTest {
         override fun up(pointerId: Int, x: Float, y: Float) { touches += "up $pointerId at $x,$y" }
         override fun cancel() { touches += "cancel" }
     }).also { it.configure(TouchGestureConfig(longPressEnabled = true, longPressDelay = 500)) }
+
+    @After fun noSink() { InputLatency.sink = null }
+
+    @Test fun quickTapSendsTheDownWhenTheFingerLands() {
+        hold.quickLift = true
+        touch(MotionEvent.ACTION_DOWN)
+        assertEquals(listOf("down 0 at 40.0,30.0"), touches)
+        advance(100)
+        touch(MotionEvent.ACTION_UP, 50f)
+        assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 50.0,30.0"), touches)
+        advance(600)
+        assertTrue(buttons.isEmpty())
+    }
+
+    @Test fun quickTapLiftsTwentyMsAfterTheDownReachesTheGame() {
+        hold.quickLift = true
+        touch(MotionEvent.ACTION_DOWN)
+        advance(5)
+        touch(MotionEvent.ACTION_UP, 50f)
+        assertEquals(listOf("down 0 at 40.0,30.0"), touches)
+        advance(14)
+        assertEquals(listOf("down 0 at 40.0,30.0"), touches)
+        advance(1)
+        assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 50.0,30.0"), touches)
+    }
+
+    @Test fun quickTapLongPressCancelsTheTouchThenClicksRight() {
+        hold.quickLift = true
+        touch(MotionEvent.ACTION_DOWN)
+        advance(500)
+        assertEquals(listOf("down 0 at 40.0,30.0", "cancel"), touches)
+        assertEquals(listOf("true at 40.0,30.0"), buttons)
+        touch(MotionEvent.ACTION_UP)
+        advance(100)
+        assertEquals(listOf("down 0 at 40.0,30.0", "cancel"), touches)
+    }
+
+    @Test fun quickTapDragKeepsTheTouch() {
+        hold.quickLift = true
+        touch(MotionEvent.ACTION_DOWN)
+        touch(MotionEvent.ACTION_MOVE, 44f)
+        touch(MotionEvent.ACTION_MOVE, 60f)
+        advance(600)
+        assertTrue(buttons.isEmpty())
+        touch(MotionEvent.ACTION_UP, 60f)
+        assertEquals(listOf("down 0 at 40.0,30.0", "move 0 at 44.0,30.0", "move 0 at 60.0,30.0", "up 0 at 60.0,30.0"), touches)
+    }
+
+    @Test fun quickTapLiftsAtOnceWhenTheDownHasBeenInTheGameLongEnough() {
+        hold.quickLift = true
+        hold.configure(TouchGestureConfig(directHoldBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_NONE))
+        touch(MotionEvent.ACTION_DOWN)
+        advance(30)
+        touch(MotionEvent.ACTION_UP, 60f)
+        assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 60.0,30.0"), touches)
+    }
+
+    @Test fun eachForwardedDownAndLiftIsMarkedWithItsAndroidEventTime() {
+        val marks = mutableListOf<Pair<Int, Long>>()
+        InputLatency.sink = { kind, ns -> marks += kind to ns }
+        touch(MotionEvent.ACTION_DOWN, at = 1000)
+        advance(100)
+        touch(MotionEvent.ACTION_UP, 50f, at = 1100)
+        assertEquals(listOf(InputLatency.TOUCH_DOWN to 1_000_000_000L), marks)
+        advance(50)
+        assertEquals(listOf(InputLatency.TOUCH_DOWN to 1_000_000_000L, InputLatency.TOUCH_UP to 1_100_000_000L), marks)
+    }
 
     @Test fun holdClicksRightWithoutTouchingTheGame() {
         touch(MotionEvent.ACTION_DOWN)
@@ -202,8 +271,8 @@ class DirectTouchHoldTest {
     }
 
     private fun advance(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
-    private fun touch(action: Int, x: Float = 40f): Boolean {
-        val event = MotionEvent.obtain(0, 0, action, x, 30f, 0)
+    private fun touch(action: Int, x: Float = 40f, at: Long = 0): Boolean {
+        val event = MotionEvent.obtain(0, at, action, x, 30f, 0)
         return hold.onTouch(event).also { event.recycle() }
     }
     private fun multi(action: Int, index: Int, vararg points: Pair<Int, Float>): Boolean {

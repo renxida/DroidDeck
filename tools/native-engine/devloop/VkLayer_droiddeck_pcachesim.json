@@ -1,0 +1,11 @@
+{
+    "file_format_version": "1.2.0",
+    "layer": {
+        "name": "VK_LAYER_DROIDDECK_pcachesim",
+        "type": "GLOBAL",
+        "library_path": "./libVkLayer_droiddeck_pcachesim.so",
+        "api_version": "1.3.0",
+        "implementation_version": "1",
+        "description": "Devloop only: makes lavapipe's pipeline cache grow like a real driver's"
+    }
+}

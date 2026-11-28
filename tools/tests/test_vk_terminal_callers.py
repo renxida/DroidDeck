@@ -135,6 +135,27 @@ int __android_log_print(int, const char *, const char *, ...);
     def test_pass_copy_and_abort_terminal_entry(self):
         self.run_scenario('pass-terminal')
 
+    def test_two_frames_in_flight(self):
+        self.run_scenario('two-in-flight')
+
+    def test_two_frames_in_flight_device_lost(self):
+        self.run_scenario('two-in-flight-device-lost')
+
+    def test_two_frames_in_flight_timeout(self):
+        self.run_scenario('two-in-flight-timeout')
+
+    def test_layer_blit_hands_its_fence_to_the_display(self):
+        self.run_scenario('layer-fence')
+
+    def test_layer_blit_fence_device_lost(self):
+        self.run_scenario('layer-fence-device-lost')
+
+    def test_layer_blit_fence_timeout(self):
+        self.run_scenario('layer-fence-timeout')
+
+    def test_without_an_experiment_frames_and_layer_blits_are_waited_for(self):
+        self.run_scenario('present-mode-off')
+
 
 if __name__ == '__main__':
     unittest.main()

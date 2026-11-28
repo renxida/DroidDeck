@@ -30,4 +30,24 @@ class GameThreadHintsTest {
         assertFalse(GameThreadHints.holdsPace(105.0, 120.0))
         assertFalse(GameThreadHints.holdsPace(3.0, 120.0))
     }
+
+    @Test fun `a frame cap sets the target to one frame and holds pace at the cap`() {
+        assertEquals(16_666_666L, GameThreadHints.targetFor(60))
+        assertEquals(25_000_000L, GameThreadHints.targetFor(40))
+        assertEquals(10_000_000L, GameThreadHints.targetFor(0))
+        assertEquals("target 16.7 ms, reporting 25.0 ms every 50 ms", GameThreadHints.targetText(GameThreadHints.targetFor(60)))
+        assertEquals("target 25 ms, reporting 37.5 ms every 50 ms", GameThreadHints.targetText(GameThreadHints.targetFor(40)))
+        assertTrue(GameThreadHints.holdsPace(44.5, 120.0, cap = 45))
+        assertFalse(GameThreadHints.holdsPace(44.5, 120.0))
+    }
+
+    @Test fun `the log names the hinted threads and the target duration`() {
+        assertEquals(
+            "boosting SlayTheSpire2.e/1234 82% (target 10 ms, reporting 15 ms every 50 ms) (game 58 fps)",
+            GameThreadHints.boostLine(listOf("SlayTheSpire2.e/1234 82%"), sessionMissing = false, fps = 58, paced = false))
+        assertEquals(
+            "no session for a/1 70% (target 10 ms, reporting 15 ms every 50 ms) (game 30 fps, holding pace)",
+            GameThreadHints.boostLine(listOf("a/1 70%"), sessionMissing = true, fps = 30, paced = true))
+        assertEquals("boosting nothing (game 60 fps)", GameThreadHints.boostLine(emptyList(), sessionMissing = true, fps = 60, paced = false))
+    }
 }

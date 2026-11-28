@@ -411,6 +411,34 @@ class AgentTest(unittest.TestCase):
         with patch.object(agent, "cdp_eval", return_value={"value": False}):
             self.assertFalse(agent.steam_ready(self.dir))
 
+    def test_run_game_starts_an_installed_app_through_the_clients_local_launch(self):
+        answer = {"state": "started", "selected": "8812", "local": "0"}
+        with patch.object(agent, "cdp_eval", return_value={"value": answer}) as evaluate:
+            self.assertEqual(answer, agent.steam_run_game(self.dir, "2868840"))
+        expression = evaluate.call_args.args[1]
+        self.assertIn("GetAppOverviewByAppID(2868840)", expression)
+        self.assertIn("local_per_client_data", expression)
+        self.assertIn("installed !== true", expression)
+        self.assertIn("apps.RunGame(\"2868840\", '', -1, 100)", expression)
+        self.assertFalse(evaluate.call_args.kwargs["await_promise"])
+        with patch.object(agent, "cdp_eval", return_value={"value": None}):
+            with self.assertRaises(agent.AgentError):
+                agent.steam_run_game(self.dir, "2868840")
+        for bad in ("0", "-1", "12a", str(1 << 32), str((3551182975 << 32) | 0x02000000)):
+            with self.subTest(app_id=bad), self.assertRaises(agent.AgentError):
+                agent.steam_run_game(self.dir, bad)
+
+    def test_run_game_command_exits_with_whether_the_client_started_it(self):
+        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+            for answer, code in (({"state": "started", "selected": "0", "local": "0"}, 0),
+                                 ({"state": "started", "selected": "8812", "local": "0"}, 0),
+                                 ({"state": "not-installed"}, 1), ({"state": "unavailable"}, 1)):
+                with self.subTest(answer=answer), patch.object(agent, "steam_run_game", return_value=answer):
+                    self.assertEqual(code, agent.main(["--steam-run-game", "2868840"]))
+            with patch.object(agent, "steam_run_game", side_effect=agent.AgentError("NO_DEVTOOLS", "down")):
+                self.assertEqual(2, agent.main(["--steam-run-game", "2868840"]))
+            self.assertEqual(2, agent.main(["--steam-run-game"]))
+
     def test_pending_interstitial_is_continued_by_steam(self):
         with patch.object(agent, "cdp_eval", return_value={"value": True}) as evaluate:
             self.assertTrue(agent.steam_clear_pending_interstitial(self.dir, "3551182975"))

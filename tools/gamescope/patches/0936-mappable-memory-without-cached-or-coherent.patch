@@ -1,0 +1,166 @@
+diff --git a/src/mappable_memory_type.hpp b/src/mappable_memory_type.hpp
+new file mode 100644
+index 0000000..b91b414
+--- /dev/null
++++ b/src/mappable_memory_type.hpp
+@@ -0,0 +1,32 @@
++#pragma once
++#include <vulkan/vulkan_core.h>
++#include <cstdint>
++
++namespace gamescope
++{
++// A mappable texture asks for HOST_VISIBLE|HOST_COHERENT|HOST_CACHED. When no type has all three,
++// drop HOST_CACHED, then HOST_COHERENT (the reader must then invalidate the mapping). Returns the
++// type index, or -1; *pChosen gets the properties that were matched.
++inline int32_t MappableMemoryTypeFallback( const VkPhysicalDeviceMemoryProperties &memory,
++    VkMemoryPropertyFlags properties, uint32_t typeBits, VkMemoryPropertyFlags *pChosen )
++{
++    if ( !( properties & VK_MEMORY_PROPERTY_HOST_CACHED_BIT ) )
++        return -1;
++    auto find = [&]( VkMemoryPropertyFlags wanted ) -> int32_t
++    {
++        for ( uint32_t i = 0; i < memory.memoryTypeCount; i++ )
++        {
++            if ( ( typeBits & ( 1u << i ) ) && ( memory.memoryTypes[ i ].propertyFlags & wanted ) == wanted )
++            {
++                *pChosen = wanted;
++                return int32_t( i );
++            }
++        }
++        return -1;
++    };
++    int32_t nType = find( properties & ~VK_MEMORY_PROPERTY_HOST_CACHED_BIT );
++    if ( nType < 0 && ( properties & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ) )
++        nType = find( properties & ~VK_MEMORY_PROPERTY_HOST_COHERENT_BIT );
++    return nType;
++}
++}
+diff --git a/src/pipewire.cpp b/src/pipewire.cpp
+index 76b3ea8..d6082a8 100644
+--- a/src/pipewire.cpp
++++ b/src/pipewire.cpp
+@@ -224,6 +224,7 @@ static void copy_buffer(struct pipewire_state *state, struct pipewire_buffer *bu
+ 		chunk->stride = buffer->shm.stride;
+ 
+ 		if (!needs_reneg) {
++			tex->invalidateMappedData();
+ 			uint8_t *pMappedData = tex->mappedData();
+ 
+ 			if (state->video_info.format == SPA_VIDEO_FORMAT_NV12) {
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index 0835bfe..3254813 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -14,6 +14,7 @@
+ #include "vulkan_include.h"
+ #include "nested_swapchain.hpp"
+ #include "dmabuf_import.hpp"
++#include "mappable_memory_type.hpp"
+ #include "nested_surface_format.hpp"
+ #include "Utils/Algorithm.h"
+ 
+@@ -1400,6 +1401,23 @@ int32_t CVulkanDevice::findMemoryType( VkMemoryPropertyFlags properties, uint32_
+ 			return nFallback;
+ 	}
+ 
++	// PowerVR D-Series has HOST_VISIBLE|HOST_COHERENT and HOST_VISIBLE|HOST_CACHED but no type with
++	// both, so the screenshot texture found none and acquire_pooled_texture asserted.
++	VkMemoryPropertyFlags chosen = 0;
++	int32_t nMappable = gamescope::MappableMemoryTypeFallback( m_memoryProperties, properties, requiredTypeBits, &chosen );
++	if ( nMappable >= 0 )
++	{
++		static bool s_bMappableLogged = false;
++		if ( !s_bMappableLogged )
++		{
++			s_bMappableLogged = true;
++			vk_log.infof( "no memory type with properties 0x%x in type bits 0x%x; using type %d with 0x%x (without %s)",
++				properties, requiredTypeBits, nMappable, chosen,
++				( chosen & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ) ? "HOST_CACHED" : "HOST_COHERENT, mapped reads invalidate" );
++		}
++		return nMappable;
++	}
++
+ 	vk_log.errorf( "findMemoryType: no memory type with properties 0x%x in type bits 0x%x (%u types)", properties, requiredTypeBits, m_memoryProperties.memoryTypeCount );
+ 	for ( uint32_t i = 0; i < m_memoryProperties.memoryTypeCount; i++ )
+ 		vk_log.errorf( "  memory type %u: flags 0x%x heap %u", i, m_memoryProperties.memoryTypes[ i ].propertyFlags, m_memoryProperties.memoryTypes[ i ].heapIndex );
+@@ -2865,6 +2883,7 @@ bool CVulkanTexture::BInit( uint32_t width, uint32_t height, uint32_t depth, uin
+ 		if (pExistingImageToReuseMemory)
+ 		{
+ 			m_pMappedData = pExistingImageToReuseMemory->m_pMappedData;
++			m_vkNonCoherentMemory = pExistingImageToReuseMemory->m_vkNonCoherentMemory;
+ 		}
+ 		else
+ 		{
+@@ -2876,6 +2895,8 @@ bool CVulkanTexture::BInit( uint32_t width, uint32_t height, uint32_t depth, uin
+ 				return false;
+ 			}
+ 			m_pMappedData = (uint8_t*)pData;
++			if ( !( g_device.memoryProperties().memoryTypes[ memoryType ].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ) )
++				m_vkNonCoherentMemory = memoryHandle;
+ 		}
+ 	}
+ 	
+@@ -2980,6 +3001,21 @@ CVulkanTexture::CVulkanTexture( void )
+ {
+ }
+ 
++void CVulkanTexture::invalidateMappedData()
++{
++	if ( m_vkNonCoherentMemory == VK_NULL_HANDLE )
++		return;
++	VkMappedMemoryRange range = {
++		.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
++		.memory = m_vkNonCoherentMemory,
++		.offset = 0,
++		.size = VK_WHOLE_SIZE,
++	};
++	VkResult res = g_device.vk.InvalidateMappedMemoryRanges( g_device.device(), 1, &range );
++	if ( res != VK_SUCCESS )
++		vk_errorf( res, "vkInvalidateMappedMemoryRanges failed" );
++}
++
+ CVulkanTexture::~CVulkanTexture( void )
+ {
+ 	wlr_dmabuf_attributes_finish( &m_dmabuf );
+diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
+index e0ede11..8d64bcb 100644
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -182,6 +182,8 @@ public:
+ 	inline uint32_t rowPitch() { return m_unRowPitch; }
+ 	inline gamescope::IBackendFb* GetBackendFb() { return m_pBackendFb.get(); }
+ 	inline uint8_t *mappedData() { return m_pMappedData; }
++	// Before the CPU reads mappedData(): a no-op unless its memory is not HOST_COHERENT.
++	void invalidateMappedData();
+ 	inline VkFormat format() const { return m_format; }
+ 	inline const struct wlr_dmabuf_attributes& dmabuf() { return m_dmabuf; }
+ 	inline VkImage vkImage() { return m_vkImage; }
+@@ -245,6 +247,7 @@ private:
+ 	gamescope::OwningRc<gamescope::IBackendFb> m_pBackendFb;
+ 
+ 	uint8_t *m_pMappedData = nullptr;
++	VkDeviceMemory m_vkNonCoherentMemory = VK_NULL_HANDLE;
+ 
+ 	VkFormat m_format = VK_FORMAT_UNDEFINED;
+ 
+@@ -795,6 +798,7 @@ static inline uint32_t div_roundup(uint32_t x, uint32_t y)
+ 	VK_FUNC(GetQueryPoolResults) \
+ 	VK_FUNC(GetSemaphoreCounterValue) \
+ 	VK_FUNC(GetSwapchainImagesKHR) \
++	VK_FUNC(InvalidateMappedMemoryRanges) \
+ 	VK_FUNC(MapMemory) \
+ 	VK_FUNC(QueuePresentKHR) \
+ 	VK_FUNC(QueueSubmit) \
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 38b304b..7019ef2 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -3955,6 +3955,7 @@ paint_all( global_focus_t *pFocus, bool async )
+ 			std::thread screenshotThread = std::thread([=] {
+ 				pthread_setname_np( pthread_self(), "gamescope-scrsh" );
+ 
++				pScreenshotTexture->invalidateMappedData();
+ 				const uint8_t *mappedData = pScreenshotTexture->mappedData();
+ 				const uint32_t width = pScreenshotTexture->width();
+ 				const uint32_t height = pScreenshotTexture->height();

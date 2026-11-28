@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Fizikai gombok parancsikonjai</string>
-    <string name="shortcuts_dd_menu">Kestrel-menü</string>
+    <string name="shortcuts_dd_menu">Lanner-menü</string>
     <string name="shortcuts_capture">Hozzárendelés: %1$s</string>
     <string name="shortcuts_press">Nyomj meg és engedj fel egy gombot. A hozzárendelés automatikusan mentődik.</string>
     <string name="shortcuts_release">A folytatáshoz engedje fel a gombot.</string>

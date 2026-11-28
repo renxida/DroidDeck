@@ -1,0 +1,217 @@
+name: Off-phone launch rig
+
+# Runs the real APK on an arm64 Android in docker (redroid) on a free GitHub arm64 runner and
+# drives it through the launch path a phone takes: install, runtime, proot, gamescope, the Steam
+# client up to its sign-in screen (never past it), and a stand-in game (our own Godot code, no
+# game files) through Proton and FEX. See tools/offphone/README.md.
+#
+# Every scenario leaves rig-session/ (the app's own session folder), verdict.json
+# ({stage_reached, ok, seconds_to_each_stage}) and the logs; the job fails unless the
+# scenario's target stage was reached.
+
+on:
+  push:
+    # autofix/** attempts get a verdict on their own APK (the plan waits for build.yml on the
+    # same commit). GitHub reads this trigger from the pushed branch's copy of this file.
+    branches: [ci/offphone-probe, 'autofix/**']
+  workflow_dispatch:
+    inputs:
+      apk_run_id:
+        description: build.yml run whose droiddeck-apk to test (default the newest green build of ref)
+        required: false
+      ref:
+        description: branch whose newest green build.yml APK to test when apk_run_id is empty
+        required: false
+        default: perf/switchboard
+      scenario:
+        description: "all (steam-ui, stand-in-game and stand-in-native), regressions (steam-ui-screen-cycle, steam-ui-background, stand-in-background, upgrade), everything, or one scenario"
+        required: false
+        default: all
+      guest_vulkan:
+        description: "How the guest gets Vulkan: lavapipe or venus"
+        required: false
+        default: lavapipe
+      image:
+        description: redroid image
+        required: false
+        default: redroid/redroid:14.0.0_64only-latest
+  workflow_call:
+    inputs:
+      apk_run_id: { type: string, required: false }
+      ref: { type: string, required: false, default: perf/switchboard }
+      scenario: { type: string, required: false, default: all }
+      guest_vulkan: { type: string, required: false, default: lavapipe }
+      image: { type: string, required: false, default: redroid/redroid:14.0.0_64only-latest }
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      apk_run: ${{ steps.apk.outputs.run }}
+      apk_sha: ${{ steps.apk.outputs.sha }}
+      standin_run: ${{ steps.standin.outputs.run }}
+      scenarios: ${{ steps.scenarios.outputs.list }}
+    steps:
+      - name: Find the APK build
+        id: apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=${{ inputs.apk_run_id }}
+          ref=${{ inputs.ref || 'perf/switchboard' }}
+          # build.yml calls the rig with its own run id; waiting for that run here would wait on itself.
+          [ -n "$run" ] || case "${{ github.event_name }}:${{ github.ref_name }}" in
+            push:autofix/*)
+              # This commit's own build: wait for build.yml on the same sha (up to 40 minutes).
+              for i in $(seq 1 80); do
+                r=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/runs?head_sha=${{ github.sha }}&per_page=1" --jq '.workflow_runs[0] | "\(.id) \(.status) \(.conclusion)"')
+                case $r in *" completed success") run=${r%% *}; break;; *" completed "*) echo "build.yml failed for this commit: $r"; exit 1;; esac
+                sleep 30
+              done
+              [ -n "$run" ] || { echo "no finished build.yml run for ${{ github.sha }}"; exit 1; } ;;
+            push:ci/offphone-probe)
+              # tools/offphone/probe-apk-run on this branch, when present, names the build run to test.
+              run=$(gh api "repos/${GITHUB_REPOSITORY}/contents/tools/offphone/probe-apk-run?ref=${{ github.sha }}" --jq .content 2>/dev/null | base64 -d 2>/dev/null | tr -dc 0-9) || true ;;
+          esac
+          if [ -z "$run" ]; then
+            run=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/runs?branch=$ref&status=success&per_page=1" --jq '.workflow_runs[0].id')
+          fi
+          [ -n "$run" ] && [ "$run" != null ] || { echo "no green build.yml run for $ref"; exit 1; }
+          sha=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$run" --jq .head_sha)
+          echo "run=$run" >> "$GITHUB_OUTPUT"; echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "APK from build run $run (commit ${sha::8})" >> "$GITHUB_STEP_SUMMARY"
+      - name: Find the stand-in game build
+        id: standin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The newest native-startup-gate run that still has the stand-in artifact.
+          for run in $(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/native-startup-gate.yml/runs?status=success&per_page=10" --jq '.workflow_runs[].id'); do
+            if gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$run/artifacts" --jq '.artifacts[] | select(.name=="native-standin-win-x64" and .expired==false) | .id' | grep -q .; then
+              echo "run=$run" >> "$GITHUB_OUTPUT"; echo "stand-in from run $run" >> "$GITHUB_STEP_SUMMARY"; break
+            fi
+          done
+      - name: Scenarios
+        id: scenarios
+        run: |
+          core='"steam-ui"'; [ -n "${{ steps.standin.outputs.run }}" ] && core='"steam-ui","stand-in-game","stand-in-native"'
+          reg='"steam-ui-screen-cycle","steam-ui-background","upgrade"'
+          [ -n "${{ steps.standin.outputs.run }}" ] && reg="$reg"',"stand-in-background"'
+          # A push to this workflow's own branch runs everything; a release or an autofix attempt, the core.
+          want="${{ inputs.scenario }}"; [ -z "$want" ] && { [ "${{ github.ref_name }}" = ci/offphone-probe ] && want=everything || want=all; }
+          case "$want" in
+            all) list="[$core]" ;;
+            regressions) list="[$reg]" ;;
+            everything) list="[$core,$reg]" ;;
+            *) list="[\"$want\"]" ;;
+          esac
+          # The stand-in comes from native-startup-gate's artifact, which expires after 30 days;
+          # without one the stand-in scenarios are skipped with a warning rather than blocking.
+          if [ -z "${{ steps.standin.outputs.run }}" ]; then
+            echo "::warning::no unexpired native-standin-win-x64 artifact: stand-in scenarios skipped (re-run native-startup-gate)"
+            echo "stand-in scenarios skipped: no unexpired stand-in artifact" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "list=$list" >> "$GITHUB_OUTPUT"; echo "scenarios: $list" >> "$GITHUB_STEP_SUMMARY"
+
+  rig:
+    needs: plan
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ${{ fromJSON(needs.plan.outputs.scenarios) }}
+    env:
+      ANDROID_SERIAL: 127.0.0.1:5555
+      REDROID_IMAGE: ${{ inputs.image || 'redroid/redroid:14.0.0_64only-latest' }}
+      DD_APP_TOOLS: ${{ github.workspace }}/tools
+    steps:
+      # The APK's own commit, for the app's tools (droiddeckctl, app-id, device-smoke.sh) ...
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.apk_sha }}
+          persist-credentials: false
+      # ... and the rig from the commit that runs this workflow (main, when a release calls it).
+      - uses: actions/checkout@v4
+        with:
+          path: rig
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: droiddeck-apk
+          run-id: ${{ needs.plan.outputs.apk_run }}
+          # Without a token the action reads the current run, where build.yml's own APK is (the
+          # API's artifact list is not relied on for a run that has not finished).
+          github-token: ${{ needs.plan.outputs.apk_run != github.run_id && github.token || '' }}
+          path: apk
+      - uses: actions/download-artifact@v4
+        if: startsWith(matrix.scenario, 'stand-in') && needs.plan.outputs.standin_run != ''
+        with:
+          name: native-standin-win-x64
+          run-id: ${{ needs.plan.outputs.standin_run }}
+          github-token: ${{ github.token }}
+          path: standin
+      - name: Host tools and the rig's Vulkan layer
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq adb libvulkan-dev mesa-vulkan-drivers >/dev/null
+          rig/tools/offphone/cpusync/build.sh cpusync
+          # The layer is checked against the runner's own lavapipe before it goes near the device.
+          gcc -O1 -Wall -o cpusync/test rig/tools/offphone/cpusync/test.c -lvulkan
+          mkdir -p cpusync/il
+          sed "s#/usr/local/lib/offphone/#$PWD/cpusync/#" cpusync/VkLayer_offphone_cpu_sync.json > cpusync/il/layer.json
+          VK_ICD_FILENAMES=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1) VK_LAYER_PATH=$PWD/cpusync/il \
+            VK_INSTANCE_LAYERS=VK_LAYER_OFFPHONE_cpu_sync timeout 60 cpusync/test
+      - name: Boot Android
+        run: rig/tools/offphone/redroid-up.sh
+      - name: The previous release (upgrade only)
+        if: matrix.scenario == 'upgrade'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # kestrel.apk as people have it now; the APK under test is installed over it in drive.sh.
+          gh release download latest -R "$GITHUB_REPOSITORY" -p kestrel.apk -D old
+          mv "$(ls apk/*.apk | head -1)" new.apk && mv old/kestrel.apk apk/kestrel-previous.apk
+          echo "NEW_APK=$PWD/new.apk" >> "$GITHUB_ENV"
+      - name: Install and open the app
+        run: |
+          apk=$(ls apk/*.apk | head -1)
+          tools/device-smoke.sh --apk "$apk" --no-fold 2>&1 | tee smoke.txt
+          pkg=$(tools/app-id)
+          adb install -r -g "$apk" >/dev/null
+          adb shell pm grant "$pkg" android.permission.POST_NOTIFICATIONS || true
+          adb shell am force-stop "$pkg"
+          act=$(adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$pkg" | tr -d '\r' | tail -1)
+          adb shell am start -W -n "$act"
+          sleep 5
+          echo "top: $(adb shell dumpsys activity activities | grep -m1 topResumedActivity)"
+      - name: Drive ${{ matrix.scenario }}
+        run: rig/tools/offphone/drive.sh "${{ matrix.scenario }}" out "${{ inputs.guest_vulkan || 'lavapipe' }}" 900 standin
+      - name: Verdict and logs
+        if: always()
+        run: |
+          {
+            echo "### ${{ matrix.scenario }}"
+            echo '```json'; cat out/verdict.json 2>/dev/null || echo '{"ok": false, "stage_reached": null}'; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Printed in full, because the job log is readable where artifacts are not.
+          for f in events.jsonl session.log crash.log graphics-report.txt frames.csv; do
+            [ -f "out/rig-session/$f" ] || continue
+            echo "::group::session $f"; tail -c 30000 "out/rig-session/$f"; echo; echo "::endgroup::"
+          done
+          echo "::group::logcat (app, errors, SELinux)"
+          timeout 120 adb logcat -d -v time | grep -E "SessionService|AgentStart|AgentBridge|LinuxRuntime|kestrel|avc: *denied| E/| F/" | tail -400
+          echo "::endgroup::"
+          timeout 60 adb exec-out screencap -p > out/screen.png 2>/dev/null || true
+          timeout 120 adb logcat -d > out/logcat.txt 2>&1 || true
+          timeout 60 docker logs kestrel-android > out/redroid.txt 2>&1 || true
+          cp smoke.txt out/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rig-${{ matrix.scenario }}
+          path: out
+          retention-days: 14

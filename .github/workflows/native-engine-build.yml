@@ -1,0 +1,516 @@
+name: Native engine build (Godot 4.5.1 mono template, linux arm64, with our compat modules)
+
+# Builds our own Godot 4.5.1 linux-arm64 mono export template with the
+# clean-room compat modules under tools/native-engine/modules, then swaps it into
+# the bench export and checks it starts and loads the module, runs the bench's
+# Windows export through droiddeck-native-godot, and packs the engine component.
+# No game files, no Spine or FMOD code: the modules are written from scratch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the engine component as a release on this repository
+        type: boolean
+        default: false
+  push:
+    branches: [perf/emu-native]
+    paths:
+      - 'tools/native-engine/modules/**'
+      - 'tools/native-engine/skeltest/**'
+      - 'tools/native-engine/bench/**'
+      - 'tools/native-engine/r2r-check/**'
+      - 'tools/native-engine/patches/**'
+      - 'tools/native-engine/batchtest/**'
+      - 'tools/native-engine/replay/**'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot'
+      - 'tools/tests/test_native_godot.py'
+      - '.github/workflows/native-engine-build.yml'
+      - '.github/workflows/native-startup-gate.yml'  # the gate this build must pass before it may publish
+      - 'tools/native-engine/standin/**'
+      - 'tools/native-engine/steam-bridge/**'
+      - 'tools/native-engine/resolve_component.py'
+
+permissions:
+  contents: write  # only the publish job uses it
+  actions: read    # the gate downloads this run's component artifact
+
+env:
+  GODOT_VER: 4.5.1-stable
+  GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.5.1-stable
+
+jobs:
+  template:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Host tests for the clean-room skeleton core
+        run: sh tools/native-engine/modules/native_compat/skel/tests/run_tests.sh
+      - name: Host tests for the clean-room FSB5 sound reader
+        run: sh tools/native-engine/modules/native_compat/fsb/tests/run_tests.sh
+      - name: Host tests for the sampling profiler
+        run: sh tools/native-engine/modules/native_compat/prof/tests/run_tests.sh
+      - name: Windows x64 assemblies (IL-only and ReadyToRun), made portable, run on arm64 .NET
+        # A small public library published win-x64 with and without ReadyToRun (R2R: IL-only clear, like the
+        # game's DLLs), and Microsoft's own R2R System.Linq.dll from the public win-x64 runtime pack. Each
+        # patched copy must load and run here; the untouched x64 library must be refused. No game files.
+        run: |
+          set -euo pipefail
+          W=$RUNNER_TEMP/r2r && mkdir -p "$W/patched"
+          curl -fsSL -o "$W/rt.nupkg" https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.win-x64/9.0.7/microsoft.netcore.app.runtime.win-x64.9.0.7.nupkg
+          unzip -oq "$W/rt.nupkg" runtimes/win-x64/lib/net9.0/System.Linq.dll -d "$W"
+          dotnet publish tools/native-engine/r2r-check/lib -c Release -r win-x64 --self-contained false -o "$W/il" -p:PublishReadyToRun=false > /dev/null
+          dotnet publish tools/native-engine/r2r-check/lib -c Release -r win-x64 --self-contained false -o "$W/r2r" -p:PublishReadyToRun=true > /dev/null
+          python3 - "$W" <<'PY'
+          import os, runpy, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          w = sys.argv[1]
+          for tag, src in (("il", "il/ProbeLib.dll"), ("r2r", "r2r/ProbeLib.dll"), ("linq", "runtimes/win-x64/lib/net9.0/System.Linq.dll")):
+              data = open(os.path.join(w, src), "rb").read()
+              info = ng["pe_info"](data)
+              img, note = ng["portable_image"](data)
+              print("%s: machine %#x flags %#x ready_to_run %s -> %s" % (src, info["machine"], info["flags"], info["ready_to_run"], note))
+              os.makedirs(os.path.join(w, "patched", tag), exist_ok=True)
+              open(os.path.join(w, "patched", tag, os.path.basename(src)), "wb").write(img)
+          PY
+          dotnet run -c Release --project tools/native-engine/r2r-check/host -- \
+            "ok:$W/patched/il/ProbeLib.dll" "ok:$W/patched/r2r/ProbeLib.dll" "ok:$W/patched/linq/System.Linq.dll" \
+            "refused:$W/r2r/ProbeLib.dll" "refused:$W/il/ProbeLib.dll"
+          # Godot's own load path for the game assembly: hostfxr load_assembly_and_get_function_pointer. The
+          # patched R2R image must load and answer; a relabel-only copy (the old converter) must be refused,
+          # which is what the startup gate saw as "Failed to get GodotPlugins initialization function pointer".
+          python3 - "$W" <<'PY'
+          import os, runpy, struct, sys
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          w = sys.argv[1]
+          data = bytearray(open(w + "/r2r/ProbeLib.dll", "rb").read())
+          struct.pack_into("<H", data, ng["pe_info"](bytes(data))["machine_at"], 0xAA64)
+          os.makedirs(w + "/relabel-only", exist_ok=True)
+          open(w + "/relabel-only/ProbeLib.dll", "wb").write(data)
+          PY
+          FXR=$(ls -d "$DOTNET_ROOT"/host/fxr/9.* | sort -V | tail -1)/libhostfxr.so
+          printf '{"runtimeOptions":{"tfm":"net9.0","framework":{"name":"Microsoft.NETCore.App","version":"9.0.0"}}}' > "$W/probe.runtimeconfig.json"
+          bad=0
+          for want in ok:patched/r2r/ProbeLib.dll ok:patched/il/ProbeLib.dll refused:relabel-only/ProbeLib.dll; do
+            got=$(python3 tools/native-engine/r2r-check/fxrhost.py "$W/${want#*:}" "$W/probe.runtimeconfig.json" "$FXR" 2>&1 | tail -1)
+            echo "$got"
+            case "$got" in "FXR_CHECK ${want%%:*} "*) ;; *) echo "FXR_CHECK FAIL: expected ${want%%:*} for ${want#*:}"; bad=1 ;; esac
+          done
+          exit $bad
+      - name: Valve's linux-arm64 libsteam_api.so (what the wrapper fetches) loads and answers on arm64
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ctypes, runpy, tempfile
+          ng = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")
+          path = ng["steam_api"](cache=tempfile.mkdtemp())
+          lib = ctypes.CDLL(path)
+          for name in ("SteamAPI_InitFlat", "SteamAPI_RestartAppIfNecessary", "SteamAPI_RunCallbacks", "SteamAPI_Shutdown"):
+              getattr(lib, name)
+          print(path, "loads; SteamAPI_IsSteamRunning() =", lib.SteamAPI_IsSteamRunning(), "(no Steam client on the runner)")
+          PY
+      - name: Build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential scons pkg-config libx11-dev libxcursor-dev \
+            libxinerama-dev libgl1-mesa-dev libglu1-mesa-dev libasound2-dev libpulse-dev libudev-dev \
+            libxi-dev libxrandr-dev libwayland-dev
+      - name: Fetch Godot 4.5.1 source
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$GODOT_VER" https://github.com/godotengine/godot.git ~/godot-src
+          cd ~/godot-src && git log -1 --oneline
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/csharp_compat_classes.py" ~/godot-src \
+            "$GITHUB_WORKSPACE/tools/native-engine/modules/native_compat/register_types.cpp"
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_skip_redundant_set_binds.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/rd_pipeline_cache_save.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/main_rendering_method_env.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/logger_time_prefix.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/x11_steam_game.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_poly_batch.py" ~/godot-src  # before the census, which labels its batch starts
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_texture_slots.py" ~/godot-src  # before the census too
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_quad_merge.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_group_hoist.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_batch_census.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_reorder.py" ~/godot-src
+          python3 "$GITHUB_WORKSPACE/tools/native-engine/patches/canvas_trace.py" ~/godot-src
+          # Link unstripped so the build can write a symbol map (godot.syms) for the sampling profiler; the binary is
+          # stripped right after, so what ships is the same size as before.
+          grep -q 'env.AppendUnique(LINKFLAGS=\["-s"\])' SConstruct
+          sed -i 's/env.AppendUnique(LINKFLAGS=\["-s"\])/pass  # droiddeck: stripped after the symbol map is written/' SConstruct
+      - uses: actions/cache@v4
+        with:
+          path: ~/scons-cache
+          key: scons-451-linux-arm64-mono-tr-${{ hashFiles('tools/native-engine/modules/**', 'tools/native-engine/patches/**') }}
+          restore-keys: scons-451-linux-arm64-mono-tr-
+      - name: Build template_release (mono, arm64) with custom modules
+        timeout-minutes: 150
+        run: |
+          set -euo pipefail
+          cd ~/godot-src
+          export SCONS_CACHE=~/scons-cache SCONS_CACHE_LIMIT=4096
+          scons platform=linuxbsd arch=arm64 target=template_release module_mono_enabled=yes \
+            custom_modules="$GITHUB_WORKSPACE/tools/native-engine/modules" \
+            debug_symbols=no -j"$(nproc)" 2>&1 | tail -40
+          B=bin/godot.linuxbsd.template_release.arm64.mono
+          { echo "# buildid $(readelf -n "$B" | awk '/Build ID/{print $3}')"
+            nm -C -n -S --defined-only "$B" | awk '$2 ~ /^[tTwW]$/ || $3 ~ /^[tTwW]$/'; } > bin/godot.syms
+          strip "$B"
+          wc -l bin/godot.syms; head -1 bin/godot.syms
+          ls -la bin/
+          file bin/godot.linuxbsd.template_release.arm64.mono
+          grep -c native_compat <(strings bin/godot.linuxbsd.template_release.arm64.mono) || true
+      - name: Fetch official editor + templates (for the bench export)
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSL -o ed.zip "$GODOT_URL/Godot_v${GODOT_VER}_mono_linux_arm64.zip"
+          unzip -q ed.zip
+          ED=$(find "$PWD" -name 'Godot_v*_mono_linux.arm64' -type f | head -1)
+          chmod +x "$ED"; echo "GODOT=$ED" >> "$GITHUB_ENV"
+          curl -fsSL -o t.tpz "$GODOT_URL/Godot_v${GODOT_VER}_mono_export_templates.tpz"
+          T=~/.local/share/godot/export_templates/4.5.1.stable.mono
+          mkdir -p "$T" && unzip -q t.tpz -d tt && mv tt/templates/* "$T"/
+      - name: Export the bench, swap in our template, run it
+        timeout-minutes: 30
+        working-directory: tools/native-engine/bench
+        run: |
+          set -euo pipefail
+          export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
+          timeout 600 dotnet build NativeBench.csproj -c ExportRelease 2>&1 | tail -5
+          timeout 300 "$GODOT" --headless --path . --import > /dev/null 2>&1 || true
+          mkdir -p out/arm64
+          timeout 900 "$GODOT" --headless --path . --export-release arm64 out/arm64/NativeBench.arm64 > export.log 2>&1 || echo "export exit $?"
+          ls -la out/arm64 || true; test -d out/arm64/data_NativeBench_linuxbsd_arm64 || { tail -40 export.log; exit 1; }
+          cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono out/arm64/NativeBench.arm64
+          chmod +x out/arm64/NativeBench.arm64
+          set +e
+          DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 300 out/arm64/NativeBench.arm64 --headless --verbose > run.log 2>&1
+          rc=$?
+          set -e
+          echo "exit $rc"
+          grep -E "native_compat|BENCH|ERROR|\.NET|hostfxr" run.log | head -40
+          grep -q "native_compat: module loaded" run.log
+          grep -q "BENCH" run.log
+          # The sampling profiler under the .NET runtime: it starts, finds the symbol map, reports and the bench
+          # still exits as it did.
+          cp ~/godot-src/bin/godot.syms out/arm64/godot.syms
+          set +e
+          DROIDDECK_NATIVE_PROF=250 DROIDDECK_NATIVE_PROF_WINDOW=1 DROIDDECK_NATIVE_RENDER_CENSUS=1 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 \
+            timeout 300 out/arm64/NativeBench.arm64 --headless --verbose > prof-run.log 2>&1
+          prc=$?
+          set -e
+          echo "exit with profiler $prc (without $rc)"
+          grep -E "native_compat: (prof|census|render census)" prof-run.log | cut -c1-2000
+          test "$prc" = "$rc"
+          grep -q "native_compat: census | [0-9]* viewports \[root " prof-run.log
+          grep -q "native_compat: census | .* | batches per frame over [0-9]* frames: " prof-run.log
+          grep -q "native_compat: prof sampling the main thread at 250 Hz.*engine symbols" prof-run.log
+          grep -q "native_compat: prof threads" prof-run.log
+          grep -q "native_compat: prof frames [0-9]*: wall p50" prof-run.log
+          grep -q "BENCH" prof-run.log
+      - name: Run the bench's Windows export through droiddeck-native-godot on our template
+        timeout-minutes: 30
+        working-directory: tools/native-engine/bench
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/tools/tests/test_native_godot.py"
+          mkdir -p out/windows
+          timeout 900 "$GODOT" --headless --path . --export-release windows out/windows/NativeBench.exe > export-win.log 2>&1 || echo "export exit $?"
+          ls -la out/windows || true
+          test -d out/windows/data_NativeBench_windows_x86_64 || { tail -40 export-win.log; exit 1; }
+          # The component: our engine and the kit (the arm64 export's data dir, minus its own app files). No Steam
+          # stand-in: on the device the wrapper fetches Valve's own linux-arm64 libsteam_api.so.
+          C=$GITHUB_WORKSPACE/out/component
+          rm -rf "$C" && mkdir -p "$C"
+          cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono "$C/godot"
+          cp ~/godot-src/bin/godot.syms "$C/godot.syms"
+          cp -a out/arm64/data_NativeBench_linuxbsd_arm64 "$C/kit"
+          python3 -c 'import json,os,sys; k=sys.argv[1]; json.dump({"app":[n for n in os.listdir(k) if n.startswith("NativeBench.")], "deps": "NativeBench.deps.json", "runtimeconfig": "NativeBench.runtimeconfig.json"}, open(os.path.join(k,"kit.json"),"w"))' "$C/kit"
+          echo "${GITHUB_SHA}" > "$C/VERSION"
+          KIT=$C/kit
+          set +e
+          timeout 300 "$GITHUB_WORKSPACE/tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot" run \
+            --game-dir out/windows --component "$C" \
+            --out "$PWD/out/native-launch" --exe NativeBench.exe -- --headless --verbose > win-run.log 2>&1
+          rc=$?
+          set -e
+          echo "exit $rc"
+          python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print({k: v for k, v in r.items() if k != "skipped"}, len(r["skipped"]), "skipped")' out/native-launch/native-launch.json || true
+          grep -E "droiddeck-native-godot|native_compat|BENCH|ERROR|\.NET|hostfxr" win-run.log | head -40
+          if ! grep -q "BENCH" win-run.log; then
+            echo "--- diagnostics"
+            python3 - out/windows/data_NativeBench_windows_x86_64/NativeBench.dll "$KIT/NativeBench.dll" <<'PY' || true
+          import struct, sys
+          for p in sys.argv[1:]:
+              b = open(p, "rb").read()
+              pe = struct.unpack_from("<I", b, 0x3C)[0]
+              machine = struct.unpack_from("<H", b, pe + 4)[0]
+              opt = pe + 24
+              magic = struct.unpack_from("<H", b, opt)[0]
+              rva, size = struct.unpack_from("<II", b, opt + (112 if magic == 0x20B else 96) + 14 * 8)
+              nsec = struct.unpack_from("<H", b, pe + 6)[0]
+              sec = opt + struct.unpack_from("<H", b, pe + 20)[0]
+              off = None
+              for i in range(nsec):
+                  vs, va, raw_size, raw = struct.unpack_from("<IIII", b, sec + i * 40 + 8)
+                  if va <= rva < va + max(vs, raw_size):
+                      off = rva - va + raw
+              flags = struct.unpack_from("<I", b, off + 16)[0]
+              native_hdr = struct.unpack_from("<II", b, off + 64)
+              print(p, "machine=%#x" % machine, "corflags=%#x" % flags, "managed_native_header=", native_hdr, "size", len(b))
+          PY
+            cat out/native-launch/native-launch.json | head -40
+            for f in out/windows/data_NativeBench_windows_x86_64/NativeBench.runtimeconfig.json "$KIT/NativeBench.runtimeconfig.json" out/native-launch/data_NativeBench_linuxbsd_arm64/NativeBench.runtimeconfig.json; do echo "== $f"; cat "$f"; echo; done
+            COREHOST_TRACE=1 COREHOST_TRACE_VERBOSITY=4 COREHOST_TRACEFILE=$PWD/host.log DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 \
+              out/native-launch/NativeBench --main-pack "$PWD/out/windows/NativeBench.pck" --headless > /dev/null 2>&1 || true
+            grep -iE "error|fail|exception|could not|not found|Godot" host.log | tail -40
+            exit 1
+          fi
+      - name: Draw a test skeleton with our template (NativeSkeleton2D, two frames, checked)
+        timeout-minutes: 20
+        working-directory: tools/native-engine/skeltest
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 > /dev/null
+          timeout 300 "$GODOT" --headless --path . --import > import.log 2>&1 || true
+          mkdir -p out
+          timeout 600 "$GODOT" --headless --path . --export-release arm64 out/SkelTest.arm64 > export.log 2>&1 || echo "export exit $?"
+          test -f out/SkelTest.pck || { tail -40 export.log; exit 1; }
+          cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono out/SkelTest.arm64
+          chmod +x out/SkelTest.arm64
+          set +e
+          SKELTEST_OUT=$PWD/out DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 xvfb-run -a -s "-screen 0 256x256x24" \
+            out/SkelTest.arm64 --rendering-driver opengl3 --verbose > skel.log 2>&1
+          rc=$?
+          set -e
+          echo "exit $rc"
+          grep -E "SKELTEST|NativeSkeleton2D|native_compat|spine_compat|fmod_compat|ERROR|OpenGL" skel.log | head -60
+          grep -q "SKELTEST binary load 0 .* same=true" skel.log
+          grep -q "SKELTEST sound .* ok=true" skel.log
+          grep -q "SKELTEST paths .* ok=true" skel.log
+          grep -q "SKELTEST fmod .* ok=true" skel.log
+          grep -q "SKELTEST spine .* ok=true" skel.log
+          python3 check.py out
+      - name: Batch census on a real Vulkan renderer (lavapipe), so the reasons are counted off the phone
+        # Information for the phone A/B, not a gate on the release: lavapipe on a hosted runner can be missing.
+        continue-on-error: true
+        timeout-minutes: 10
+        working-directory: tools/native-engine/skeltest
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1 > /dev/null
+          set +e
+          DROIDDECK_NATIVE_RENDER_CENSUS=0.5 SKELTEST_OUT=$PWD/out-vk DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 timeout 120 \
+            xvfb-run -a -s "-screen 0 256x256x24" out/SkelTest.arm64 --rendering-method mobile --rendering-driver vulkan --verbose > skel-vk.log 2>&1
+          echo "exit $?"
+          set -e
+          grep -E "native_compat: (census|render census)|Vulkan|ERROR" skel-vk.log | cut -c1-2000 | head -20
+          # At least one census saw the canvas renderer record a draw list.
+          grep -E "native_compat: census \| .* batches per frame over [0-9]+ frames: [0-9.]*[1-9][0-9.]* draw lists" skel-vk.log
+      - name: Canvas reordering, texture slots and quad merge keep every pixel, polygon batching and group hoisting every pixel to within three steps, and each cuts draws or passes; a traced frame replays (synthetic scene, lavapipe)
+        timeout-minutes: 25
+        working-directory: tools/native-engine/batchtest
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq xvfb mesa-vulkan-drivers libvulkan1 > /dev/null
+          for proj in . ../replay; do
+            timeout 300 "$GODOT" --headless --path $proj --import > $proj/import.log 2>&1 || true
+            mkdir -p $proj/out
+            name=$(sed -n 's/^config\/name="\(.*\)"/\1/p' $proj/project.godot)
+            timeout 600 "$GODOT" --headless --path $proj --export-release arm64 out/$name.arm64 > $proj/export.log 2>&1 || echo "export exit $?"
+            test -f $proj/out/$name.pck || { tail -40 $proj/export.log; exit 1; }
+            cp ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono $proj/out/$name.arm64
+            chmod +x $proj/out/$name.arm64
+          done
+          mkdir -p trace
+          run() { # binary, name, then env assignments
+            local b=$1 n=$2; shift 2
+            env BATCHTEST_OUT=${OUT:-$PWD/out} DROIDDECK_NATIVE_RENDER_CENSUS=0.05 DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 "$@" BATCHTEST_NAME=$n \
+              timeout 120 xvfb-run -a -s "-screen 0 640x480x24" $b --rendering-method mobile --rendering-driver vulkan \
+              --verbose > $n.log 2>&1 || { echo "$n exit $?"; tail -30 $n.log; exit 1; }
+            grep -E "BATCHTEST|REPLAY|native_compat: census" $n.log | cut -c1-1500 | tail -4
+          }
+          run out/BatchTest.arm64 stock-a
+          run out/BatchTest.arm64 stock-b DROIDDECK_NATIVE_CANVAS_TRACE=$PWD/trace DROIDDECK_NATIVE_CANVAS_TRACE_EVERY=0.2 BATCHTEST_SECONDS=1
+          run out/BatchTest.arm64 reorder DROIDDECK_NATIVE_CANVAS_REORDER=16
+          run out/BatchTest.arm64 poly DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
+          run out/BatchTest.arm64 both DROIDDECK_NATIVE_CANVAS_REORDER=16 DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256
+          run out/BatchTest.arm64 slots DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS=7
+          run out/BatchTest.arm64 quad DROIDDECK_NATIVE_CANVAS_QUAD_MERGE=1
+          run out/BatchTest.arm64 all DROIDDECK_NATIVE_CANVAS_REORDER=16 DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256 DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS=7 \
+            DROIDDECK_NATIVE_CANVAS_QUAD_MERGE=1
+          # Polygon batching stores colour times modulate as half floats (as Godot does for every primitive), so a
+          # channel may move by a step or two, which nobody can see (Cedar, Nov 24: "Invisible is fine"). A wrong
+          # triangle, texture or order moves pixels by far more, so anything past three steps fails.
+          # Texture slots draw several textures in one batch and quad merge draws rects with the nine-patch variant;
+          # each pixel samples the same texture at the same UV, so both keep every pixel.
+          python3 compare.py out --logs . reorder=exact poly=max=3 both=max=3 slots=exact quad=exact all=max=3 \
+            --fewer "reorder<stock-a" --fewer "poly<=stock-a" --fewer "both<reorder" --fewer "slots<stock-a" --fewer "quad<=stock-a" \
+            --fewer "all<both"
+          grep -E "reorder look-ahead 16: [0-9.]*[1-9][0-9.]* items moved" reorder.log > /dev/null
+          grep -E "polygon batching up to 256 triangles: [0-9.]*[1-9][0-9.]* polygons batched" poly.log > /dev/null
+          grep -E "texture slots 7: [0-9.]*[1-9][0-9.]* joins" slots.log > /dev/null
+          # The trace writer saw the scene, and its replay batches like the scene itself (within 5 draws).
+          T=$(grep -l "^end calls 1$" trace/*.trace | tail -1)
+          mkdir -p rp
+          for arm in stock-a:  stock-b:  reorder:DROIDDECK_NATIVE_CANVAS_REORDER=16  slots:DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS=7 \
+                     quad:DROIDDECK_NATIVE_CANVAS_QUAD_MERGE=1; do
+            n=${arm%%:*}; e=${arm#*:}
+            (cd ../replay && run out/CanvasReplay.arm64 $n REPLAY_TRACE=$OLDPWD/$T BATCHTEST_OUT=$OLDPWD/rp $e)
+            mv ../replay/$n.log rp/$n.log
+          done
+          python3 compare.py rp reorder=exact slots=exact quad=exact --fewer "reorder<stock-a" --fewer "slots<stock-a" --fewer "quad<=stock-a"
+          python3 - <<'PY'
+          import re
+          d = {k: int(re.search(r"BATCHTEST \S+ draws (\d+)", open(p).read()).group(1)) for k, p in
+               (("scene", "stock-a.log"), ("replay", "rp/stock-a.log"))}
+          print("draws: scene", d["scene"], "replay of its trace", d["replay"])
+          assert abs(d["scene"] - d["replay"]) <= 5, d
+          PY
+          # The scene again with what a fight adds: canvas groups and clip_children masks, some overlapping, one nested.
+          # Group hoisting draws their contents into the back buffer ahead, a few groups per pass, instead of three
+          # passes each; plain groups composite as stock and clip groups to within a step or two.
+          mkdir -p fight
+          for arm in stock-a:  stock-b:  hoist:DROIDDECK_NATIVE_CANVAS_GROUP_HOIST=64 \
+                     all:DROIDDECK_NATIVE_CANVAS_GROUP_HOIST=64:DROIDDECK_NATIVE_CANVAS_REORDER=16:DROIDDECK_NATIVE_CANVAS_POLY_BATCH=256:DROIDDECK_NATIVE_CANVAS_TEXTURE_SLOTS=7:DROIDDECK_NATIVE_CANVAS_QUAD_MERGE=1; do
+            n=${arm%%:*}; e=${arm#*:}
+            OUT=$PWD/fight run out/BatchTest.arm64 $n BATCHTEST_FIGHT=1 ${e//:/ }
+            mv $n.log fight/$n.log
+          done
+          python3 compare.py fight hoist=max=3 all=max=3 --fewer "hoist<=stock-a" --fewer "all<hoist"
+          grep -E "group hoist 64: [0-9.]*[1-9][0-9.]* groups in" fight/hoist.log > /dev/null
+          python3 - <<'PY'
+          import re
+          g, p = map(float, re.findall(r"group hoist 64: ([\d.]+) groups in ([\d.]+) back-buffer passes", open("fight/hoist.log").read())[-1])
+          print("group hoist: %.1f groups in %.1f back-buffer passes per frame" % (g, p))
+          assert g >= 2 * p, (g, p)
+          PY
+          # The engine is stopped with SIGKILL, so stock never writes a pipeline cache under 3 MB; with a quiet time
+          # set it saves once pipeline creation stops, and the next launch starts with it. Lavapipe's cache never
+          # grows, so a devloop-only layer stands in for a driver whose cache does.
+          DEVLOOP_PCACHE_SECONDS=12 DEVLOOP_WORK=$PWD/pcache-work DEVLOOP_VULKAN_INCLUDE=$HOME/godot-src/thirdparty/vulkan/include \
+            bash ../devloop/pcache.sh out/BatchTest.arm64 ""
+      - name: Steam bridge (Cedar-approved) built, checked and put in the component (Valve's library is not)
+        run: |
+          set -euo pipefail
+          valve=$(python3 -c 'import runpy, sys, tempfile; print(runpy.run_path(sys.argv[1])["steam_api"](cache=tempfile.mkdtemp()))' \
+            tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot)
+          sh tools/native-engine/steam-bridge/build.sh "$valve" out/component/steam-bridge
+          # The bridge now links the C library (dlsym): it must not need a newer glibc than the engine itself.
+          newest() { objdump -T "$1" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1; }
+          b=$(newest out/component/steam-bridge/libsteam_api64.so) e=$(newest ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono)
+          echo "glibc: bridge needs $b, engine needs $e"
+          test "$(printf '%s\n%s\n' "$b" "$e" | sort -V | tail -1)" = "$e"
+          T=$(mktemp -d) && cp out/component/steam-bridge/libsteam_api64.so "$T/" && cp "$valve" "$T/libsteam_api.so"
+          python3 - "$T/libsteam_api64.so" <<'PY'
+          import ctypes, sys
+          lib = ctypes.CDLL(sys.argv[1])  # what .NET does for "steam_api64": dlopen, then dlsym on that handle
+          for name in ("SteamAPI_ISteamClient_GetISteamGameSearch", "SteamAPI_ISteamClient_GetISteamMusicRemote",
+                       "SteamAPI_InitFlat", "SteamAPI_ISteamClient_GetISteamUser", "SteamAPI_ISteamApps_BIsSubscribedApp",
+                       "SteamAPI_ISteamUser_GetAuthSessionTicket", "SteamAPI_RestartAppIfNecessary", "SteamAPI_Shutdown"):
+              getattr(lib, name)
+          err = ctypes.create_string_buffer(1024)
+          rc = lib.SteamAPI_InitFlat(err)
+          print("bridge resolves its two accessors and Valve's names through its dependency; InitFlat =", rc, err.value.decode())
+          assert rc != 0  # no Steam client on the runner: Valve's library says so, nothing here answers for it
+          PY
+          ls -la out/component/steam-bridge
+          test "$(ls out/component/steam-bridge)" = libsteam_api64.so
+      - name: Pack the component
+        run: |
+          set -euo pipefail
+          cd out/component
+          tar --owner=0 --group=0 -c . | zstd -q -19 -T0 -o "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
+          ls -la "$GITHUB_WORKSPACE/out/native-engine.tar.zst"
+          sha256sum "$GITHUB_WORKSPACE/out/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-engine-component
+          path: out/native-engine.tar.zst
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: godot-451-linux-arm64-mono-template
+          path: |
+            ~/godot-src/bin/godot.linuxbsd.template_release.arm64.mono
+            tools/native-engine/bench/run.log
+            tools/native-engine/bench/win-run.log
+            tools/native-engine/bench/host.log
+            tools/native-engine/bench/out/native-launch/native-launch.json
+            tools/native-engine/skeltest/out/*.png
+            tools/native-engine/skeltest/skel.log
+          if-no-files-found: warn
+
+  # The startup gate runs the stand-in Windows game through droiddeck-native-godot on the component this run
+  # built, so a component whose stand-in never reaches a first frame cannot be published.
+  gate:
+    needs: template
+    uses: ./.github/workflows/native-startup-gate.yml
+    with:
+      component_artifact: native-engine-component
+
+  publish:
+    needs: [template, gate]
+    # A push to perf/emu-native publishes once the gate passes, like release-apk.yml does for kestrel.apk;
+    # a manual run publishes only when asked.
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write  # starts the app build that picks this release up
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-engine-component
+          path: out
+      - name: Publish the component
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/component && zstd -dc out/native-engine.tar.zst | tar -C out/component -x --wildcards './kit/*.runtimeconfig.json'
+          tag="native-engine-${GITHUB_RUN_NUMBER}"
+          sha=$(sha256sum out/native-engine.tar.zst | cut -d' ' -f1)
+          printf 'Godot 4.5.1 linux-arm64 mono engine with Kestrel compat modules, .NET %s linux-arm64 kit, no Steam stand-in.\nCommit %s. sha256 %s\nNo game files.\n' \
+            "$(cat out/component/kit/*.runtimeconfig.json | python3 -c 'import json,sys; print([f.get("version") for f in json.load(sys.stdin)["runtimeOptions"].get("includedFrameworks",[])])')" \
+            "$GITHUB_SHA" "$sha" > notes.txt
+          # component.json is how app builds find this release (tools/native-engine/resolve_component.py): only a
+          # release that says it passed this run's gate, with the component layout the wrapper takes, is embedded.
+          python3 - "$tag" "$sha" > component.json <<'PY'
+          import json, os, runpy, sys
+          api = runpy.run_path("tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot")["COMPONENT_API"]
+          print(json.dumps({"tag": sys.argv[1], "sha256": sys.argv[2], "api": api, "gate": "passed",
+                            "gate_run": int(os.environ["GITHUB_RUN_ID"]), "source_sha": os.environ["GITHUB_SHA"]}, indent=1))
+          PY
+          gh release create "$tag" out/native-engine.tar.zst component.json -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$tag" --notes-file notes.txt --prerelease
+          echo "COMPONENT tag=$tag sha256=$sha url=https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/native-engine.tar.zst" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Start the app build that embeds it
+        # Build APK on perf/switchboard resolves the newest gated engine release (this one), runs every gate on
+        # the APK, and release-apk puts it on "latest" only if all pass. Only once perf/switchboard's build
+        # resolves engine releases (it has the resolver); before that a rebuild there would not pick this up.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh api "repos/$GITHUB_REPOSITORY/contents/tools/native-engine/resolve_component.py?ref=perf/switchboard" --silent 2>/dev/null; then
+            echo "::warning::perf/switchboard does not resolve engine releases yet; not starting its app build" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh workflow run build.yml -R "$GITHUB_REPOSITORY" --ref perf/switchboard
+          echo "Started Build APK on perf/switchboard to embed native-engine-${GITHUB_RUN_NUMBER}" | tee -a "$GITHUB_STEP_SUMMARY"

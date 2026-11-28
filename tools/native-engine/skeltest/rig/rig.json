@@ -1,0 +1,23 @@
+{
+ "skeleton": {"spine": "4.2.0", "hash": "skeltest"},
+ "bones": [
+  {"name": "root"},
+  {"name": "arm", "parent": "root", "rotation": 90, "length": 100},
+  {"name": "tip", "parent": "arm", "x": 100}
+ ],
+ "slots": [
+  {"name": "arm", "bone": "arm", "attachment": "box"},
+  {"name": "head", "bone": "tip", "attachment": "head"}
+ ],
+ "skins": [{"name": "default", "attachments": {
+  "arm": {"box": {"x": 50, "width": 100, "height": 20}},
+  "head": {"head": {"width": 32, "height": 32}}
+ }}],
+ "events": {"step": {"int": 1}},
+ "animations": {
+  "wave": {
+   "bones": {"arm": {"rotate": [{"time": 0, "value": 0}, {"time": 0.5, "value": -60}, {"time": 1, "value": 0}]}},
+   "events": [{"time": 0.25, "name": "step", "int": 5}]
+  }
+ }
+}

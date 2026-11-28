@@ -1,0 +1,387 @@
+import json
+import os
+from pathlib import Path
+import runpy
+import subprocess
+import sys
+import tempfile
+from unittest import mock
+import unittest
+
+BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
+MODULE = runpy.run_path(str(BIN / "droiddeck-game-env"))
+
+TENSOR_G5_CAPACITY = {0: 260, 1: 260, 2: 620, 3: 620, 4: 620, 5: 620, 6: 620, 7: 1024}
+TENSOR_G5_CLOCKS = {0: 2253000, 1: 2253000, 2: 3053000, 3: 3053000, 4: 3053000, 5: 3053000, 6: 3053000, 7: 3782000}
+GEN3_CLOCKS = {0: 2265600, 1: 2265600, 2: 2956800, 3: 2956800, 4: 3148800, 5: 3148800, 6: 3148800, 7: 3302400}
+ELITE_CLOCKS = {0: 3532800, 1: 3532800, 2: 3532800, 3: 3532800, 4: 3532800, 5: 3532800, 6: 4320000, 7: 4320000}
+
+
+def budget(value, speeds, cores=(7, 2, 3, 4, 5, 6, 0, 1)):
+    with mock.patch.dict(MODULE["thread_budget"].__globals__, {"core_speeds": lambda cores: speeds}), \
+            mock.patch.object(sys, "stderr", new_callable=lambda: __import__("io").StringIO()) as said:
+        kept = MODULE["thread_budget"](value, list(cores))
+    return kept, said.getvalue()
+
+
+class ThreadBudgetTest(unittest.TestCase):
+    def test_big_leaves_out_the_little_cores_by_capacity_or_clock(self):
+        for speeds in (TENSOR_G5_CAPACITY, TENSOR_G5_CLOCKS):
+            kept, said = budget("big", speeds)
+            self.assertEqual(kept, [7, 2, 3, 4, 5, 6])
+            self.assertIn("thread budget big: game threads on 6 of 8 cores (7,2,3,4,5,6), left out 0,1", said)
+
+    def test_big_by_clock_leaves_out_a520s_clocked_close_to_the_rest(self):
+        kept, _ = budget("big", GEN3_CLOCKS, cores=(7, 4, 5, 6, 2, 3, 0, 1))
+        self.assertEqual(kept, [7, 4, 5, 6, 2, 3])
+
+    def test_big_keeps_performance_cores_that_are_only_clocked_lower(self):
+        kept, said = budget("big", ELITE_CLOCKS, cores=(6, 7, 0, 1, 2, 3, 4, 5))
+        self.assertEqual(kept, [6, 7, 0, 1, 2, 3, 4, 5])
+        self.assertIn("all 8 cores kept", said)
+
+    def test_a_count_keeps_that_many_of_the_fastest(self):
+        self.assertEqual(budget("4", TENSOR_G5_CAPACITY)[0], [7, 2, 3, 4])
+        self.assertEqual(budget("1", TENSOR_G5_CAPACITY)[0], [7, 2])
+
+    def test_unknown_values_and_unreadable_speeds_keep_every_core(self):
+        every = [7, 2, 3, 4, 5, 6, 0, 1]
+        kept, said = budget("half", TENSOR_G5_CAPACITY)
+        self.assertEqual(kept, every)
+        self.assertIn("not understood", said)
+        kept, said = budget("big", None)
+        self.assertEqual(kept, every)
+        self.assertIn("core speeds unreadable", said)
+
+    def test_windows_sees_and_runs_on_only_the_budgeted_cores(self):
+        os_mod = MODULE["os"]
+        cases = [
+            ({"DROIDDECK_GAME_CPU_BUDGET": "big"}, "6:7,2,3,4,5,6"),
+            ({"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FASTEST_CORES": "0"}, "6:7,2,3,4,5,6"),
+            ({"DROIDDECK_GAME_CPU_BUDGET": "3"}, "3:7,2,3"),
+            ({"DROIDDECK_GAME_CPU_BUDGET": "all"}, "8:7,2,3,4,5,6,0,1"),
+            ({"DROIDDECK_GAME_CPU_BUDGET": "all", "DROIDDECK_FASTEST_CORES": "0"}, None),
+            ({"DROIDDECK_GAME_CPU_BUDGET": "big", "WINE_CPU_TOPOLOGY": "2:0,1"}, "2:0,1"),
+            ({"DROIDDECK_GAME_CPU_BUDGET": "big", "BL_GAME_CPUS": "0,1,7"}, "2:7,0"),
+        ]
+        every = set(range(8))
+        for env, expected in cases:
+            env["STEAM_COMPAT_DATA_PATH"] = "/steam/compatdata/2868840"
+            affinity = MODULE["parse_cores"](env.get("BL_GAME_CPUS", "0-7"))
+            with mock.patch.dict(MODULE["cpu_topology"].__globals__, {"online_cores": lambda: every}), \
+                    mock.patch.dict(MODULE["fastest_first"].__globals__, {"core_speeds": lambda cores: TENSOR_G5_CAPACITY}), \
+                    mock.patch.object(os_mod, "sched_getaffinity", return_value=affinity, create=True), \
+                    mock.patch.object(sys, "stderr"):
+                MODULE["cpu_topology"](env, ["/missing/proton", "waitforexitandrun", "/game/game.exe"])
+            self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
+
+
+class FrameCapTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        folder = Path(self.tmp.name) / "SlayTheSpire2"
+        folder.mkdir()
+        self.godot = folder / "SlayTheSpire2.exe"
+        self.godot.write_bytes(b"MZ")
+        (folder / "SlayTheSpire2.pck").write_bytes(b"GDPC")
+        self.other = Path(self.tmp.name) / "other.exe"
+        self.other.write_bytes(b"MZ")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def cap(self, args, env):
+        return MODULE["frame_cap"](["/proton", "waitforexitandrun", *args], env)
+
+    def test_godot_gets_max_fps_ahead_of_its_user_arguments(self):
+        env = {"DROIDDECK_FPS_CAP": "60"}
+        command, note = self.cap([str(self.godot), "--rendering-driver", "vulkan", "--", "--mod"], env)
+        self.assertEqual(command[3:], ["--rendering-driver", "vulkan", "--max-fps", "60", "--", "--mod"])
+        self.assertEqual(note, "frame cap 60 fps (Godot --max-fps)")
+
+    def test_godot_is_capped_in_one_place_only(self):
+        env = {"DROIDDECK_FPS_CAP": "60", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 2048"}
+        self.cap([str(self.godot)], env)
+        self.assertEqual(env, {"DROIDDECK_FPS_CAP": "60", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 2048"})
+
+    def test_one_limiter_turns_godots_vsync_off_under_the_cap(self):
+        env = {"DROIDDECK_FPS_CAP": "60", "DROIDDECK_EXP_ONE_LIMITER": "1"}
+        command, note = self.cap([str(self.godot), "--", "--mod"], env)
+        self.assertEqual(command[3:], ["--max-fps", "60", "--disable-vsync", "--", "--mod"])
+        self.assertEqual(note, "frame cap 60 fps (Godot --max-fps, vsync off)")
+        command, note = self.cap([str(self.godot), "--disable-vsync"], dict(env))
+        self.assertEqual(command[3:], ["--disable-vsync", "--max-fps", "60"])
+        self.assertEqual(note, "frame cap 60 fps (Godot --max-fps)")
+        command, _ = self.cap([str(self.godot), "--max-fps", "90"], dict(env))
+        self.assertEqual(command[3:], ["--max-fps", "90"])
+        command, _ = self.cap([str(self.other)], dict(env))
+        self.assertEqual(command[3:], [])
+
+    def test_godot_presents_are_paced_by_the_layer_when_the_system_layers_are_in_use(self):
+        layer_dir = Path(self.tmp.name) / "vkcount"
+        layer_dir.mkdir()
+        env = {"DROIDDECK_FPS_CAP": "30", "VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration",
+               "VK_LAYER_PATH": "/sys/wsi", "BL_LOG": "/data/session/7/session.log"}
+        with mock.patch.dict(MODULE["present_pacing"].__globals__, {"VKCOUNT_DIR": str(layer_dir)}):
+            _, note = self.cap([str(self.godot)], dict(env))
+            self.assertEqual(note, "frame cap 30 fps (Godot --max-fps, present pacing: layer not installed)")
+            (layer_dir / "libVkLayer_droiddeck_vkcount.so").write_bytes(b"")
+            paced = dict(env)
+            _, note = self.cap([str(self.godot)], paced)
+            self.assertEqual(note, "frame cap 30 fps (Godot --max-fps, presents paced)")
+            self.assertEqual(paced["VK_INSTANCE_LAYERS"], "VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration")
+            self.assertEqual(paced["VK_LAYER_PATH"], str(layer_dir) + ":/sys/wsi")
+            self.assertEqual(paced["DROIDDECK_VKCOUNT_SECONDS"], "0")
+            self.assertEqual(paced["DROIDDECK_PACE_FPS"], "30")
+            self.assertEqual(paced["DROIDDECK_PACE_FILE"], "/data/session/7/pace")
+            counted = dict(env, VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration",
+                           DROIDDECK_PACE_FILE="/x/pace")
+            self.cap([str(self.godot)], counted)
+            self.assertNotIn("DROIDDECK_VKCOUNT_SECONDS", counted)
+            self.assertEqual(counted["DROIDDECK_PACE_FILE"], "/x/pace")
+            # vk-count adds its layer later, in system_graphics_launch: pacing must not turn its reports off
+            early = dict(env, DROIDDECK_EXP_VK_COUNT="1")
+            self.cap([str(self.godot)], early)
+            self.assertNotIn("DROIDDECK_VKCOUNT_SECONDS", early)
+            off = dict(env, DROIDDECK_PACE="0")
+            _, note = self.cap([str(self.godot)], off)
+            self.assertNotIn("DROIDDECK_PACE_FPS", off)
+            self.assertEqual(note, "frame cap 30 fps (Godot --max-fps)")
+            other = dict(env)
+            self.cap([str(self.other)], other)
+            self.assertNotIn("DROIDDECK_PACE_FPS", other)
+
+    def test_slay_the_spire_2_settings_save_gets_the_cap_and_keeps_everything_else(self):
+        prefix = Path(self.tmp.name) / "compat"
+        users = prefix / "pfx" / MODULE["STS2_SETTINGS"]
+        (users / "76561198000000001").mkdir(parents=True)
+        (users / "76561198000000002").mkdir()
+        (users / "logs").mkdir()
+        saved = users / "76561198000000001" / "settings.save"
+        saved.write_text(json.dumps({"fps_limit": 60, "language": "eng", "schema_version": 8, "vsync": "adaptive"}))
+        env = {"DROIDDECK_FPS_CAP": "30", "STEAM_COMPAT_DATA_PATH": str(prefix), "DROIDDECK_EXP_ONE_LIMITER": "1"}
+        note = MODULE["sts2_settings_cap"](["/proton", "waitforexitandrun", str(self.godot)], env)
+        self.assertEqual(note, "Slay the Spire 2 settings.save: fps_limit 30, vsync off (written, created)")
+        self.assertEqual(json.loads(saved.read_text()),
+                         {"fps_limit": 30, "language": "eng", "schema_version": 8, "vsync": "off"})
+        self.assertEqual(json.loads((users / "76561198000000002" / "settings.save").read_text()),
+                         {"schema_version": 8, "fps_limit": 30, "vsync": "off"})
+        self.assertFalse((users / "logs" / "settings.save").exists())
+        note = MODULE["sts2_settings_cap"](["/proton", "waitforexitandrun", str(self.godot)], env)
+        self.assertEqual(note, "Slay the Spire 2 settings.save: fps_limit 30, vsync off (already set, already set)")
+        without = dict(env)
+        del without["DROIDDECK_EXP_ONE_LIMITER"]
+        saved.write_text("{not json")
+        note = MODULE["sts2_settings_cap"](["/proton", "waitforexitandrun", str(self.godot)], without)
+        self.assertEqual(note, "Slay the Spire 2 settings.save: fps_limit 30 (not JSON, left alone, already set)")
+        self.assertEqual(saved.read_text(), "{not json")
+        for command, e in ((["/proton", "waitforexitandrun", str(self.godot), "--max-fps", "60"], env),
+                           (["/proton", "waitforexitandrun", str(self.other)], env),
+                           (["/proton", "waitforexitandrun", str(self.godot)], dict(env, DROIDDECK_FPS_CAP="0"))):
+            self.assertIsNone(MODULE["sts2_settings_cap"](command, e))
+
+    def test_godot_verbose_logs_resource_loads_ahead_of_user_arguments_only_for_godot(self):
+        verbose = MODULE["godot_verbose"]
+        env = {"DROIDDECK_EXP_GODOT_VERBOSE": "1"}
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.godot), "--max-fps", "30", "--", "--mod"], env)
+        self.assertEqual(command[3:], ["--max-fps", "30", "--verbose", "--", "--mod"])
+        self.assertEqual(note, "Godot verbose log on (resource loads named)")
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.godot), "-v"], env)
+        self.assertEqual(command[3:], ["-v"])
+        self.assertEqual(note, "Godot verbose log already on")
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.other)], env)
+        self.assertEqual((command[3:], note), ([], None))
+        command, note = verbose(["/proton", "waitforexitandrun", str(self.godot)], {})
+        self.assertEqual((command[3:], note), ([], None))
+
+    def test_test_experiments_add_game_level_switches_for_one_launch_only(self):
+        add = MODULE["test_experiments"]
+        env = {"DROIDDECK_TEST_EXPERIMENTS": "hybris-index, godot-render-thread,two-frames,bogus"}
+        self.assertEqual(add(env), "test experiments for this launch: hybris-index,godot-render-thread; "
+                                   "refused two-frames,bogus")
+        self.assertEqual(env["DROIDDECK_EXP_HYBRIS_INDEX"], "1")
+        self.assertEqual(env["DROIDDECK_EXP_GODOT_RENDER_THREAD"], "1")
+        self.assertNotIn("DROIDDECK_EXP_TWO_FRAMES", env)
+        self.assertIsNone(add({}))
+
+    def test_godot_render_thread_goes_ahead_of_user_arguments_and_yields_to_theirs(self):
+        thread = MODULE["godot_render_thread"]
+        env = {"DROIDDECK_EXP_GODOT_RENDER_THREAD": "1"}
+        self.assertEqual(thread(["--max-fps", "30", "--", "--mod"], env),
+                         (["--max-fps", "30", "--render-thread", "separate", "--", "--mod"], "Godot render thread: separate"))
+        self.assertEqual(thread(["--render-thread", "safe"], env),
+                         (["--render-thread", "safe"], "Godot render thread left to the launch options"))
+        self.assertEqual(thread(["--", "--render-thread", "safe"], env),
+                         (["--render-thread", "separate", "--", "--render-thread", "safe"], "Godot render thread: separate"))
+        self.assertEqual(thread(["--max-fps", "30"], {}), (["--max-fps", "30"], None))
+
+    def test_a_capped_game_gets_three_gamescope_swapchain_images_not_eight(self):
+        env = {"DROIDDECK_FPS_CAP": "60", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8"}
+        _, note = self.cap([str(self.godot)], env)
+        self.assertEqual(env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "3")
+        self.assertEqual(note, "frame cap 60 fps (Godot --max-fps, 3 swapchain images)")
+        env = {"DROIDDECK_FPS_CAP": "60", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "5"}
+        self.cap([str(self.other)], env)
+        self.assertEqual(env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "5")
+        env = {"GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8"}
+        self.cap([str(self.other)], env)
+        self.assertEqual(env["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "8")
+
+    def test_settings_the_player_made_are_kept(self):
+        env = {"DROIDDECK_FPS_CAP": "30", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 2048;", "VKD3D_FRAME_RATE": "45"}
+        command, note = self.cap([str(self.godot), "--max-fps", "90"], env)
+        self.assertEqual(command[3:], ["--max-fps", "90"])
+        self.assertEqual(note, "frame cap 30 fps (Godot --max-fps from the launch options kept)")
+        command, note = self.cap([str(self.other)], env)
+        self.assertEqual(env["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 30")
+        self.assertEqual(env["VKD3D_FRAME_RATE"], "45")
+        self.assertEqual(note, "frame cap 30 fps (DXVK)")
+        env = {"DROIDDECK_FPS_CAP": "30", "DXVK_CONFIG": "dxvk.maxFrameRate = 120", "VKD3D_FRAME_RATE": "45"}
+        self.assertEqual(self.cap([str(self.other)], env)[1], "frame cap 30 fps (already set)")
+
+    def test_other_games_are_capped_through_dxvk_and_vkd3d_only(self):
+        env = {"DROIDDECK_FPS_CAP": "40"}
+        command, note = self.cap([str(self.other), "-windowed"], env)
+        self.assertEqual(command[3:], ["-windowed"])
+        self.assertEqual(env["DXVK_CONFIG"], "dxvk.maxFrameRate = 40")
+        self.assertEqual(env["VKD3D_FRAME_RATE"], "40")
+        self.assertEqual(note, "frame cap 40 fps (DXVK, VKD3D)")
+
+    def test_no_cap_or_a_bad_value_leaves_the_launch_alone(self):
+        for value in (None, "", "0"):
+            env = {} if value is None else {"DROIDDECK_FPS_CAP": value}
+            self.assertEqual(self.cap([str(self.godot)], env), (["/proton", "waitforexitandrun", str(self.godot)], None))
+            self.assertNotIn("DXVK_CONFIG", env)
+        env = {"DROIDDECK_FPS_CAP": "sixty"}
+        command, note = self.cap([str(self.godot)], env)
+        self.assertEqual(command[3:], [])
+        self.assertIn("not understood", note)
+        self.assertEqual(env, {"DROIDDECK_FPS_CAP": "sixty"})
+
+    def test_slay_the_spire_2_gets_the_budget_and_cap_by_default(self):
+        game = mock.Mock(stem="slaythespire2", files={"slaythespire2.pck", "godotsharp.dll"}, env={"DROIDDECK_EXP_SCHED": "1"})
+        self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="slaythespire2", files=game.files, env={})))
+        env, extra, note = MODULE["slay_the_spire_2_pacing"](game)
+        self.assertEqual(env, {"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": "60"})
+        self.assertEqual(extra, [])
+        self.assertTrue(note.startswith("Slay the Spire 2:"))
+        self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="slaythespire2", files=set(), env=game.env)))
+        self.assertIsNone(MODULE["slay_the_spire_2_pacing"](mock.Mock(stem="brotato", files={"brotato.pck"}, env=game.env)))
+
+    def test_slay_the_spire_2_caps_at_30_under_fps_30(self):
+        game = mock.Mock(stem="slaythespire2", files={"slaythespire2.pck", "godotsharp.dll"},
+                         env={"DROIDDECK_EXP_SCHED": "1", "DROIDDECK_EXP_FPS_30": "1"})
+        env, extra, note = MODULE["slay_the_spire_2_pacing"](game)
+        self.assertEqual(env, {"DROIDDECK_GAME_CPU_BUDGET": "big", "DROIDDECK_FPS_CAP": "30"})
+        self.assertIn("30 fps cap", note)
+
+    def test_launch_applies_the_cap_and_a_game_profile_can_undo_it(self):
+        home = Path(self.tmp.name)
+        proton = home / "fake-proton"
+        proton.write_text("#!" + sys.executable + "\nimport json, os, sys\n"
+                          "print(json.dumps([sys.argv[1:], os.environ.get('DROIDDECK_FPS_CAP'), os.environ.get('VKD3D_FRAME_RATE')]))\n")
+        proton.chmod(0o755)
+        config = home / ".config/droiddeck/game-environment.json"
+        config.parent.mkdir(parents=True)
+        env = dict(os.environ, HOME=str(home), STEAM_COMPAT_DATA_PATH="/compatdata/2868840", WINE_CPU_TOPOLOGY="")
+        for name in ("DROIDDECK_FPS_CAP", "DROIDDECK_GAME_CPU_BUDGET", "VKD3D_FRAME_RATE", "DXVK_CONFIG",
+                     "DROIDDECK_FPS_GOVERNOR", "DROIDDECK_PACING_ADPF", "DROIDDECK_PACING_DISPLAY"):
+            env.pop(name, None)
+        cases = (({}, {}, ["--max-fps", "60"], "60", 1), ({"DROIDDECK_FPS_CAP": "0"}, {}, [], "0", 1),
+                 ({"DROIDDECK_FPS_CAP": "30", "DROIDDECK_FPS_GOVERNOR": "0"}, {}, ["--max-fps", "30"], "30", 1),
+                 ({}, {"DROIDDECK_EXP_ONE_LIMITER": "1", "DROIDDECK_EXP_NATIVE_HZ": "1"},
+                  ["--max-fps", "60", "--disable-vsync"], "60", 0),
+                 ({"DROIDDECK_PACING_DISPLAY": "1"}, {"DROIDDECK_EXP_NATIVE_HZ": "1"}, ["--max-fps", "60"], "60", 1))
+        for profile, switches, args, cap, display in cases:
+            with self.subTest(profile=profile, switches=switches):
+                config.write_text(json.dumps({"version": 1, "shared": {"DROIDDECK_EXP_SCHED": "1", **switches},
+                                              "games": {"2868840": profile}}))
+                result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
+                                         str(proton), "waitforexitandrun", str(self.godot)],
+                                        env=env, text=True, capture_output=True, check=True)
+                argv, seen_cap, vkd3d = json.loads(result.stdout.strip().splitlines()[-1])
+                self.assertEqual(argv, ["waitforexitandrun", str(self.godot), "--rendering-driver", "vulkan", *args])
+                self.assertEqual(seen_cap, cap)
+                self.assertEqual(vkd3d, None)
+                self.assertIn("Slay the Spire 2: game threads kept off the little cores", result.stderr)
+                ways = "Godot --max-fps" + (", vsync off" if "--disable-vsync" in args else "") + ", 3 swapchain images"
+                self.assertEqual("droiddeck-game-env: frame cap %s fps (%s)" % (cap, ways) in result.stderr,
+                                 cap != "0", result.stderr)
+                pacing = [line for line in result.stderr.splitlines() if line.startswith("DROIDDECK_PACING ")]
+                exits = [line for line in result.stderr.splitlines() if line.startswith("DROIDDECK_TIMELINE event=game_exit ")]
+                if cap == "0":
+                    self.assertEqual(pacing, [])
+                else:
+                    governor = 0 if profile.get("DROIDDECK_FPS_GOVERNOR") == "0" else 1
+                    self.assertEqual(pacing, ["DROIDDECK_PACING app_id=2868840 cap=%s adpf=1 display=%d governor=%d"
+                                              % (cap, display, governor)])
+                self.assertEqual(len(exits), 1, result.stderr)
+                self.assertIn("app_id=2868840 status=0 ", exits[0])
+
+
+class PacingLineTest(unittest.TestCase):
+    def test_names_the_cap_and_which_parts_of_the_pacing_are_on(self):
+        line = MODULE["pacing_line"]
+        self.assertEqual(line({"DROIDDECK_FPS_CAP": "60"}, "2868840"),
+                         "DROIDDECK_PACING app_id=2868840 cap=60 adpf=1 display=1 governor=1")
+        self.assertEqual(line({"DROIDDECK_FPS_CAP": "40", "DROIDDECK_PACING_ADPF": "0", "DROIDDECK_PACING_DISPLAY": "off",
+                               "DROIDDECK_FPS_GOVERNOR": "1"}, "7"),
+                         "DROIDDECK_PACING app_id=7 cap=40 adpf=0 display=0 governor=1")
+        for env in ({}, {"DROIDDECK_FPS_CAP": "0"}, {"DROIDDECK_FPS_CAP": "fast"}):
+            self.assertIsNone(line(env, "7"))
+        self.assertIsNone(line({"DROIDDECK_FPS_CAP": "60"}, None))
+
+    def test_native_hz_leaves_the_display_at_its_own_rate_unless_the_profile_asks(self):
+        line = MODULE["pacing_line"]
+        native = {"DROIDDECK_FPS_CAP": "60", "DROIDDECK_EXP_NATIVE_HZ": "1"}
+        self.assertEqual(line(native, "7"), "DROIDDECK_PACING app_id=7 cap=60 adpf=1 display=0 governor=1")
+        self.assertEqual(line({**native, "DROIDDECK_PACING_DISPLAY": "1"}, "7"),
+                         "DROIDDECK_PACING app_id=7 cap=60 adpf=1 display=1 governor=1")
+
+    def test_a_pacing_line_makes_the_launch_wait_unless_the_exit_watch_is_switched_off(self):
+        watch = MODULE["exit_watch"]
+        self.assertFalse(watch("7", {}))
+        self.assertTrue(watch("7", {}, pacing=True))
+        self.assertFalse(watch("7", {"DROIDDECK_GAME_EXIT_WATCH": "0"}, pacing=True))
+        self.assertTrue(watch("7", {"DROIDDECK_GAME_EXIT_WATCH": "1"}))
+        self.assertTrue(watch("2868840", {}))
+
+
+class ThreadPlacementTest(unittest.TestCase):
+    def test_reports_where_the_game_threads_may_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = Path(tmp)
+            stat_tail = " ".join(["S"] + ["0"] * 10 + ["{u}", "{s}"] + ["0"] * 23 + ["{cpu}"] + ["0"] * 5)
+            for pid, comm, tasks in (("100", "SlayTheSpire2.e", (("100", "2-7", 7, 50, 10), ("101", "2-7", 3, 5, 5),
+                                                               ("102", "0-7", 0, 1, 0))),
+                                     ("200", "steam", (("200", "0-7", 1, 9, 9),))):
+                (proc / pid).mkdir()
+                (proc / pid / "comm").write_text(comm + "\n")
+                for tid, allowed, cpu, user, system in tasks:
+                    task = proc / pid / "task" / tid
+                    task.mkdir(parents=True)
+                    (task / "status").write_text("Name:\t%s\nCpus_allowed_list:\t%s\n" % (comm, allowed))
+                    (task / "stat").write_text("%s (%s) %s\n" % (tid, comm, stat_tail.format(u=user, s=system, cpu=cpu)))
+            (proc / "self").mkdir()
+            line = MODULE["thread_placement"]("SlayTheSpire2.exe", proc)
+            self.assertEqual(line, "thread placement: SlayTheSpire2.exe pid 100, 3 threads, allowed 2-7 (2) 0-7 (1), "
+                                   "cpu ticks by last core 0:1 3:10 7:60")
+            self.assertEqual(MODULE["thread_placement"]("Other.exe", proc), "thread placement: Other.exe not running")
+
+    def test_the_check_reports_twice_and_stops_when_the_launch_ends(self):
+        slept, parents = [], iter([10] + [10] * 89 + [1])
+        with mock.patch.dict(MODULE["thread_check"].__globals__, {"thread_placement": lambda name: "thread placement: x"}), \
+                mock.patch.object(sys, "stderr", new_callable=lambda: __import__("io").StringIO()) as said:
+            self.assertEqual(MODULE["thread_check"]("x.exe", sleep=slept.append, parent=lambda: 10), 0)
+            self.assertEqual(said.getvalue(), "droiddeck-game-env: thread placement: x after 60 s\n"
+                                              "droiddeck-game-env: thread placement: x after 180 s\n")
+            self.assertEqual(sum(slept), 180)
+            slept.clear()
+            self.assertEqual(MODULE["thread_check"]("x.exe", sleep=slept.append, parent=lambda: next(parents)), 0)
+            self.assertEqual(sum(slept), 180)
+            self.assertEqual(said.getvalue().count("after 60 s"), 2)
+            self.assertEqual(said.getvalue().count("after 180 s"), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

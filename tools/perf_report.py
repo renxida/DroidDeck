@@ -14,6 +14,7 @@ Read from each session (by base name, inside an optional <session>/ folder):
   frames.csv                                              per-frame times (t_ms,frametime_us)
   clocks.log                                              CPU/GPU clocks, thermal status, battery
   memory.csv                                              memory samples
+  power.csv                                               battery power samples (tools/power_report.py)
   crash-lines.txt, crash.log                              crash output from guest stderr, Android's crash buffer
 
 Every run ends with crashes and abnormal exits per build: game.exited events with abnormal set
@@ -32,12 +33,13 @@ from pathlib import Path
 
 KNOWN = (
     "build.txt", "device.txt", "graphics-report.txt", "upload.txt", "events.jsonl", "session.log",
-    "frames.csv", "clocks.log", "memory.csv", "crash-lines.txt", "crash.log",
+    "frames.csv", "clocks.log", "memory.csv", "power.csv", "crash-lines.txt", "crash.log",
 )
 SNIFF = (
     ("== clocks:", "clocks.log"),
     ("# frames ", "frames.csv"),
     ("build_label:", "build.txt"),
+    ("t_wall_ms,current_ua,", "power.csv"),
     ("t_wall_ms,", "memory.csv"),
     ("== graphics report", "graphics-report.txt"),
 )
@@ -393,8 +395,23 @@ def parse_memory(text: str) -> dict:
         values = line.split(",")
         if len(values) != len(header):
             continue
-        rows.append({k: int(v) for k, v in zip(header, values) if v.strip().lstrip("-").isdigit()})
+        row = {}
+        for k, v in zip(header, values):
+            v = v.strip()
+            if v.lstrip("-").isdigit():
+                row[k] = int(v)
+            elif k.endswith("_s") and v:
+                try:
+                    row[k] = float(v)
+                except ValueError:
+                    pass
+        rows.append(row)
     out = {"samples": len(rows)}
+    for key in ("game_majflt_s", "swapin_mb_s", "swapout_mb_s"):
+        values = [r[key] for r in rows if key in r]
+        if values:
+            out[f"{key}_avg"] = round(sum(values) / len(values), 1)
+            out[f"{key}_max"] = round(max(values), 1)
     for key, agg in (("game_mb", max), ("droiddeck_mb", max), ("app_mb", max), ("swap_used_mb", max), ("available_mb", min)):
         values = [r[key] for r in rows if key in r]
         if values:
@@ -578,7 +595,7 @@ def report(s: dict) -> str:
                 out.append(f"  p{pol} max: {steps}")
     mem = s["memory"]
     if mem.get("samples"):
-        out.append("memory:  " + ", ".join(f"{k} {v} MB" for k, v in mem.items() if k != "samples"))
+        out.append("memory:  " + ", ".join(f"{k} {v}" + ("/s" if "_s_" in k else " MB") for k, v in mem.items() if k != "samples"))
     cr = s["crashes"]
     out.append(f"exits:   {cr['game_exits']} game, {len(cr['abnormal'])} abnormal, {cr['fex_faults']} FEX fault reports,"
                f" {cr['android_crash_entries']} Android crash-buffer entries")

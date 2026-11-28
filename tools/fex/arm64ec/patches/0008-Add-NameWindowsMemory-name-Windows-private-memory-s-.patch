@@ -1,0 +1,527 @@
+From 3b8ba7f03c32978eef1b8548988019cf8de6ed4a Mon Sep 17 00:00:00 2001
+From: Kestrel <kestrel@invalid>
+Date: Sat, 14 Nov 2026 06:49:43 +0000
+Subject: [PATCH 8/9] Add NameWindowsMemory: name Windows private memory's
+ mappings by owner (default off)
+
+Every NameWindowsMemory seconds a FEX-internal thread walks committed Windows
+private memory and names its Linux mappings (PR_SET_VMA_ANON_NAME): win:heap
+(Wine heaps: each heap, its subheaps and large blocks), win:stack (guard page),
+win:exec (executable), win:gc (reservation of 16 GB or more), win:big (256 MB or
+more), win:private. Ranges FEX named for itself are recorded and never
+relabelled (kept in a fixed array: recording must not allocate, since FEX's
+allocator names its own maps through the same call); a refused name no longer turns FEX's own naming off. The worker starts
+with the process's second thread, never during process init, and its first pass
+waits at least 30 s. Heaps are found with ntdll's RtlGetProcessHeaps and
+RtlLockHeap: the emulator DLL must import nothing but ntdll, since it loads
+before kernelbase.
+---
+ .../Source/Interface/Config/Config.json.in    |   9 +
+ Source/Windows/ARM64EC/CMakeLists.txt         |   1 +
+ Source/Windows/ARM64EC/MemoryNames.cpp        | 242 ++++++++++++++++++
+ Source/Windows/ARM64EC/MemoryNames.h          |  14 +
+ Source/Windows/ARM64EC/Module.cpp             |   3 +
+ Source/Windows/Common/FEXUnixLib.cpp          | 102 ++++++++
+ Source/Windows/Common/FEXUnixLib.h            |   6 +
+ Source/Windows/include/winternl.h             |   3 +
+ 8 files changed, 380 insertions(+)
+ create mode 100644 Source/Windows/ARM64EC/MemoryNames.cpp
+ create mode 100644 Source/Windows/ARM64EC/MemoryNames.h
+
+diff --git a/FEXCore/Source/Interface/Config/Config.json.in b/FEXCore/Source/Interface/Config/Config.json.in
+index b4ca487..734e6f7 100644
+--- a/FEXCore/Source/Interface/Config/Config.json.in
++++ b/FEXCore/Source/Interface/Config/Config.json.in
+@@ -589,6 +589,15 @@
+           "By default telemetry data is stored in {$FEX_APP_DATA_LOCATION,{$XDG_DATA_HOME,$HOME}/fex-emu/Telemetry/}"
+         ]
+       },
++      "NameWindowsMemory": {
++        "Type": "uint32",
++        "Default": "0",
++        "AffectsCodeGen": "false",
++        "Desc": [
++          "ARM64EC under Wine: every this many seconds, name Windows private memory's Linux mappings by owner (0 = off). The first pass waits at least 30 s.",
++          "/proc/<pid>/smaps then shows [anon:win:heap], win:stack, win:exec, win:gc, win:big and win:private."
++        ]
++      },
+       "SampleHz": {
+         "Type": "uint32",
+         "Default": "0",
+diff --git a/Source/Windows/ARM64EC/CMakeLists.txt b/Source/Windows/ARM64EC/CMakeLists.txt
+index c92282a..aec460f 100644
+--- a/Source/Windows/ARM64EC/CMakeLists.txt
++++ b/Source/Windows/ARM64EC/CMakeLists.txt
+@@ -2,6 +2,7 @@ add_library(arm64ecfex SHARED
+   Module.cpp
+   Module.S
+   Sampler.cpp
++  MemoryNames.cpp
+   libarm64ecfex.def
+   $<TARGET_OBJECTS:FEXCore_object>)
+ 
+diff --git a/Source/Windows/ARM64EC/MemoryNames.cpp b/Source/Windows/ARM64EC/MemoryNames.cpp
+new file mode 100644
+index 0000000..261b49d
+--- /dev/null
++++ b/Source/Windows/ARM64EC/MemoryNames.cpp
+@@ -0,0 +1,242 @@
++// SPDX-License-Identifier: MIT
++#include "ARM64EC/MemoryNames.h"
++#include "Windows/Common/FEXUnixLib.h"
++
++#include <FEXCore/Config/Config.h>
++#include <FEXCore/Utils/LogManager.h>
++#include <FEXCore/Utils/Threads.h>
++#include <FEXCore/fextl/map.h>
++#include <FEXCore/fextl/memory.h>
++#include <FEXCore/fextl/set.h>
++#include <FEXCore/fextl/vector.h>
++
++#include <algorithm>
++#include <atomic>
++#include <chrono>
++#include <cstdint>
++#include <cstring>
++
++#include <windef.h>
++#include <winbase.h>
++#include <winternl.h>
++#include <winnt.h>
++#include <memoryapi.h>
++#include <sysinfoapi.h>
++
++namespace FEX::Windows::MemoryNames {
++namespace {
++  uint32_t IntervalS {};
++  fextl::unique_ptr<FEXCore::Threads::Thread> Worker;
++  // What the last pass named: region base -> (size, label), so an unchanged region isn't renamed every pass.
++  fextl::map<uint64_t, std::pair<uint64_t, const char*>> Named;
++
++  constexpr uint64_t GiB = 1ULL << 30;
++  constexpr uint64_t MiB = 1ULL << 20;
++
++  // Wine's heap (dlls/ntdll/heap.c since Wine 8, win64 layout): magic 'HEAP' at 0xc0, its subheap list at 0x90 and
++  // large-block list at 0xa0, each a doubly linked struct list { next, prev } whose nodes sit inside the subheap or
++  // the large block's own allocation. Checked against the magic before use; any other layout only labels the heap's
++  // first allocation.
++  constexpr size_t HeapSubheapList = 0x90;
++  constexpr size_t HeapLargeList = 0xa0;
++  constexpr size_t HeapMagicOffset = 0xc0;
++  constexpr uint32_t HeapMagic = 'H' | ('E' << 8) | ('A' << 16) | ('P' << 24);
++  constexpr size_t MaxListWalk = 1 << 16;
++
++  uint64_t AllocationBase(const void* Ptr) {
++    MEMORY_BASIC_INFORMATION Info {};
++    if (!Ptr || !VirtualQuery(Ptr, &Info, sizeof(Info)) || Info.State != MEM_COMMIT) {
++      return 0;
++    }
++    return reinterpret_cast<uint64_t>(Info.AllocationBase);
++  }
++
++  void WalkList(const uint8_t* Head, fextl::set<uint64_t>& Bases) {
++    struct Link {
++      Link* Next;
++      Link* Prev;
++    };
++    auto* HeadLink = reinterpret_cast<const Link*>(Head);
++    const Link* It = HeadLink->Next;
++    for (size_t i = 0; It && It != HeadLink && i < MaxListWalk; ++i) {
++      const uint64_t Base = AllocationBase(It);
++      if (!Base) {
++        break;
++      }
++      Bases.insert(Base);
++      It = It->Next;
++    }
++  }
++
++  // Allocation bases of every Windows heap's memory: the heap itself, its other subheaps and its large blocks.
++  // ntdll calls only: this DLL is loaded before kernelbase, and importing from kernelbase makes the loader map and
++  // initialize it while the emulator itself is still loading (Wine crashes or hangs at process start).
++  fextl::set<uint64_t> HeapBases() {
++    fextl::set<uint64_t> Bases;
++    fextl::vector<HANDLE> Heaps(256);
++    ULONG Count = RtlGetProcessHeaps(Heaps.size(), Heaps.data());
++    if (Count > Heaps.size()) {
++      Heaps.resize(Count + 16);
++      Count = RtlGetProcessHeaps(Heaps.size(), Heaps.data());
++    }
++    Heaps.resize(std::min<size_t>(Count, Heaps.size()));
++    for (HANDLE Heap : Heaps) {
++      const uint64_t Base = AllocationBase(Heap);
++      if (!Base) {
++        continue;
++      }
++      Bases.insert(Base);
++      const auto* Bytes = reinterpret_cast<const uint8_t*>(Heap);
++      uint32_t Magic {};
++      memcpy(&Magic, Bytes + HeapMagicOffset, sizeof(Magic));
++      if (Magic != HeapMagic || !RtlLockHeap(Heap)) {
++        continue;
++      }
++      WalkList(Bytes + HeapSubheapList, Bases);
++      WalkList(Bytes + HeapLargeList, Bases);
++      RtlUnlockHeap(Heap);
++    }
++    return Bases;
++  }
++
++  struct Region {
++    uint64_t Base, Size, Alloc;
++    DWORD State, Type, Protect;
++  };
++
++  struct Allocation {
++    uint64_t End {};
++    bool Guard {};
++  };
++
++  const char* Label(const Region& R, const Allocation& A, const fextl::set<uint64_t>& Heaps) {
++    if (Heaps.contains(R.Alloc)) {
++      return "win:heap";
++    }
++    if (A.Guard) {
++      return "win:stack";
++    }
++    if (R.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY)) {
++      return "win:exec";
++    }
++    const uint64_t Span = A.End - R.Alloc;
++    if (Span >= 16 * GiB) {
++      return "win:gc";
++    }
++    if (Span >= 256 * MiB) {
++      return "win:big";
++    }
++    return "win:private";
++  }
++
++  struct PassStats {
++    size_t Regions, Calls, Failed;
++    double Ms;
++  };
++
++  PassStats Pass() {
++    const auto Began = std::chrono::steady_clock::now();
++    const auto Heaps = HeapBases();
++
++    SYSTEM_INFO Sys {};
++    GetSystemInfo(&Sys);
++    fextl::vector<Region> Regions;
++    fextl::map<uint64_t, Allocation> Allocs;
++    auto Addr = reinterpret_cast<uint64_t>(Sys.lpMinimumApplicationAddress);
++    const auto Max = reinterpret_cast<uint64_t>(Sys.lpMaximumApplicationAddress);
++    while (Addr < Max) {
++      MEMORY_BASIC_INFORMATION Info {};
++      if (!VirtualQuery(reinterpret_cast<void*>(Addr), &Info, sizeof(Info)) || !Info.RegionSize) {
++        break;
++      }
++      const auto Base = reinterpret_cast<uint64_t>(Info.BaseAddress);
++      const auto Alloc = reinterpret_cast<uint64_t>(Info.AllocationBase);
++      if (Info.State != MEM_FREE && Info.Type == MEM_PRIVATE) {
++        auto& A = Allocs[Alloc];
++        A.End = std::max(A.End, Base + Info.RegionSize);
++        A.Guard |= (Info.Protect & PAGE_GUARD) != 0;
++        if (Info.State == MEM_COMMIT) {
++          Regions.push_back({Base, Info.RegionSize, Alloc, Info.State, Info.Type, Info.Protect});
++        }
++      }
++      Addr = Base + Info.RegionSize;
++    }
++
++    PassStats Stats {Regions.size(), 0, 0, 0};
++    fextl::map<uint64_t, std::pair<uint64_t, const char*>> Now;
++    // Adjacent regions with the same label are named in one call.
++    uint64_t RunBase {}, RunEnd {};
++    const char* RunLabel {};
++    auto Flush = [&] {
++      if (!RunLabel) {
++        return;
++      }
++      Now[RunBase] = {RunEnd - RunBase, RunLabel};
++      auto Old = Named.find(RunBase);
++      if (Old == Named.end() || Old->second.first != RunEnd - RunBase || Old->second.second != RunLabel) {
++        ++Stats.Calls;
++        if (!UnixLib::TryVirtualName(RunLabel, reinterpret_cast<void*>(RunBase), RunEnd - RunBase)) {
++          ++Stats.Failed;
++        }
++      }
++      RunLabel = nullptr;
++    };
++    for (const auto& R : Regions) {
++      const uint64_t End = R.Base + R.Size;
++      if (UnixLib::OverlapsFEXNamed(R.Base, End)) {
++        Flush();
++        continue;
++      }
++      const char* L = Label(R, Allocs[R.Alloc], Heaps);
++      if (RunLabel && (L != RunLabel || R.Base != RunEnd)) {
++        Flush();
++      }
++      if (!RunLabel) {
++        RunBase = R.Base;
++        RunLabel = L;
++      }
++      RunEnd = End;
++    }
++    Flush();
++    Named = std::move(Now);
++    Stats.Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - Began).count();
++    return Stats;
++  }
++
++  // The first pass waits at least this long, so process start (loader, runtime init, the first frames) is never
++  // walked or named.
++  constexpr uint32_t FirstPassMinS = 30;
++
++  void* WorkerMain(void*) {
++    for (uint64_t N = 0;; ++N) {
++      const uint32_t WaitS = N == 0 ? std::max(IntervalS, FirstPassMinS) : IntervalS;
++      LARGE_INTEGER Delay {.QuadPart = -int64_t(WaitS) * 10'000'000LL};
++      NtDelayExecution(FALSE, &Delay);
++      const auto S = Pass();
++      if (N < 3 || N % 10 == 0) {
++        LogMan::Msg::IFmt("NameWindowsMemory: {} committed private regions, {} named, {} refused, {:.1f} ms", S.Regions, S.Calls,
++                          S.Failed, S.Ms);
++      }
++    }
++    return nullptr;
++  }
++} // namespace
++
++void ProcessInit() {
++  FEX_CONFIG_OPT(NameWindowsMemory, NAMEWINDOWSMEMORY);
++  if (UnixLib::Available()) {
++    IntervalS = NameWindowsMemory();
++  }
++}
++
++// The worker is never created during process init (Wine is still setting up the ARM64EC process and a thread created
++// then can hang it at start), only once a second thread initializes, and outside FEX's locks.
++void ThreadInit() {
++  static std::atomic<uint32_t> Inits {};
++  static std::atomic<bool> Started {};
++  if (!IntervalS || Inits.fetch_add(1) == 0 || Started.exchange(true)) {
++    return;
++  }
++  Worker = FEXCore::Threads::Thread::Create(WorkerMain, nullptr, {.LowPriority = true, .Internal = true}, "FEX memory names");
++}
++} // namespace FEX::Windows::MemoryNames
+diff --git a/Source/Windows/ARM64EC/MemoryNames.h b/Source/Windows/ARM64EC/MemoryNames.h
+new file mode 100644
+index 0000000..b9fc3fc
+--- /dev/null
++++ b/Source/Windows/ARM64EC/MemoryNames.h
+@@ -0,0 +1,14 @@
++// SPDX-License-Identifier: MIT
++#pragma once
++
++// Config NameWindowsMemory (seconds, 0 = off): every that many seconds a FEX-internal thread walks the process's
++// committed Windows private memory and names its Linux mappings by owner (PR_SET_VMA_ANON_NAME), so /proc/<pid>/smaps
++// can say what the anonymous memory is: [anon:win:heap] (Windows heaps: Wine's RtlHeap, which Godot, the .NET runtime
++// and Wine malloc from), win:stack (thread stacks), win:exec (executable: .NET JIT code and stubs), win:gc (inside a
++// reservation of 16 GB or more: the .NET regions GC heap), win:big (other reservations of 256 MB or more),
++// win:private (the rest). FEX's own named memory is never relabelled.
++namespace FEX::Windows::MemoryNames {
++void ProcessInit();
++// At the start of every thread's init, before FEX's locks: starts the worker with the process's second thread.
++void ThreadInit();
++} // namespace FEX::Windows::MemoryNames
+diff --git a/Source/Windows/ARM64EC/Module.cpp b/Source/Windows/ARM64EC/Module.cpp
+index d6c9d03..ef818ce 100644
+--- a/Source/Windows/ARM64EC/Module.cpp
++++ b/Source/Windows/ARM64EC/Module.cpp
+@@ -50,6 +50,7 @@ $end_info$
+ #include "BTInterface.h"
+ #include "Windows/Common/SHMStats.h"
+ #include "ARM64EC/Sampler.h"
++#include "ARM64EC/MemoryNames.h"
+ 
+ #include <cstdint>
+ #include <cstdio>
+@@ -820,6 +821,7 @@ NTSTATUS ProcessInit() {
+   }
+   if (IsWine) {
+     FEX::Windows::Sampler::ProcessInit();
++    FEX::Windows::MemoryNames::ProcessInit();
+   }
+ 
+   if (StartupSleep() && (StartupSleepProcName().empty() || AppConfigName == StartupSleepProcName())) {
+@@ -1193,6 +1195,7 @@ void BTCpu64NotifyReadFile(HANDLE Handle, void* Address, SIZE_T Size, BOOL After
+ }
+ 
+ NTSTATUS ThreadInit() {
++  FEX::Windows::MemoryNames::ThreadInit();
+   std::scoped_lock Lock(ThreadCreationMutex);
+   FEX::Windows::InitCRTThread();
+   const auto CPUArea = GetCPUArea();
+diff --git a/Source/Windows/Common/FEXUnixLib.cpp b/Source/Windows/Common/FEXUnixLib.cpp
+index 061431a..d31422b 100644
+--- a/Source/Windows/Common/FEXUnixLib.cpp
++++ b/Source/Windows/Common/FEXUnixLib.cpp
+@@ -3,6 +3,8 @@
+ #include <FEXCore/Utils/LogManager.h>
+ 
+ #include <cstdint>
++#include <algorithm>
++#include <cstring>
+ #include <windef.h>
+ #include <winbase.h>
+ #define __WINESRC__
+@@ -134,7 +136,107 @@ void VirtualTHPControl(const void* Ptr, size_t Size, FEXCore::Allocator::THPCont
+   Call(FEXUnixLibFunctions::Madvise, &Args);
+ }
+ 
++// Every range FEX names for itself, coalesced and sorted by begin, so NameWindowsMemory never relabels FEX's memory.
++// A fixed array: recording must not allocate, because FEX's allocator names the memory it maps through VirtualName and
++// would come back in here (with the lock held). When full, the two closest neighbours are merged into one range.
++namespace {
++  struct FEXRange {
++    uint64_t Begin, End;
++  };
++  constexpr size_t MaxFEXNamed = 4096;
++  SRWLOCK FEXNamedLock = SRWLOCK_INIT;
++  FEXRange FEXNamed[MaxFEXNamed];
++  size_t FEXNamedCount;
++
++  // First index whose Begin is greater than Value.
++  size_t UpperBound(uint64_t Value) {
++    size_t Lo = 0, Hi = FEXNamedCount;
++    while (Lo < Hi) {
++      size_t Mid = (Lo + Hi) / 2;
++      if (FEXNamed[Mid].Begin <= Value) {
++        Lo = Mid + 1;
++      } else {
++        Hi = Mid;
++      }
++    }
++    return Lo;
++  }
++
++  void RecordFEXNamed(uint64_t Begin, uint64_t End) {
++    AcquireSRWLockExclusive(&FEXNamedLock);
++    size_t First = UpperBound(Begin);
++    if (First > 0 && FEXNamed[First - 1].End >= Begin) {
++      --First;
++    }
++    size_t Last = First; // One past the last range that touches [Begin, End].
++    while (Last < FEXNamedCount && FEXNamed[Last].Begin <= End) {
++      ++Last;
++    }
++    if (Last > First) {
++      Begin = std::min(Begin, FEXNamed[First].Begin);
++      End = std::max(End, FEXNamed[Last - 1].End);
++    }
++    if (Last == First && FEXNamedCount == MaxFEXNamed) {
++      // Full: merge the pair with the smallest gap to make room.
++      size_t Best = 0;
++      for (size_t i = 1; i + 1 < FEXNamedCount; ++i) {
++        if (FEXNamed[i + 1].Begin - FEXNamed[i].End < FEXNamed[Best + 1].Begin - FEXNamed[Best].End) {
++          Best = i;
++        }
++      }
++      FEXNamed[Best].End = FEXNamed[Best + 1].End;
++      memmove(&FEXNamed[Best + 1], &FEXNamed[Best + 2], (FEXNamedCount - Best - 2) * sizeof(FEXRange));
++      --FEXNamedCount;
++      ReleaseSRWLockExclusive(&FEXNamedLock);
++      RecordFEXNamed(Begin, End);
++      return;
++    }
++    // Replace [First, Last) with the one merged range.
++    const size_t Tail = FEXNamedCount - Last;
++    const size_t NewLast = First + 1;
++    memmove(&FEXNamed[NewLast], &FEXNamed[Last], Tail * sizeof(FEXRange));
++    FEXNamed[First] = {Begin, End};
++    FEXNamedCount = NewLast + Tail;
++    ReleaseSRWLockExclusive(&FEXNamedLock);
++  }
++} // namespace
++
++bool OverlapsFEXNamed(uint64_t Begin, uint64_t End) {
++  AcquireSRWLockShared(&FEXNamedLock);
++  const size_t i = [&] {
++    // Last range whose Begin is below End.
++    size_t Lo = 0, Hi = FEXNamedCount;
++    while (Lo < Hi) {
++      size_t Mid = (Lo + Hi) / 2;
++      if (FEXNamed[Mid].Begin < End) {
++        Lo = Mid + 1;
++      } else {
++        Hi = Mid;
++      }
++    }
++    return Lo;
++  }();
++  const bool Overlaps = i > 0 && FEXNamed[i - 1].End > Begin;
++  ReleaseSRWLockShared(&FEXNamedLock);
++  return Overlaps;
++}
++
++bool TryVirtualName(const char* Name, const void* Ptr, size_t Size) {
++  if (!SupportsVirtualName || !Available()) {
++    return false;
++  }
++  FEXUnixLib_SetVMAName Args {
++    .Addr = Ptr,
++    .Size = Size,
++    .Name = Name,
++  };
++  return Call(FEXUnixLibFunctions::SetVMAName, &Args) == STATUS_SUCCESS;
++}
++
+ void VirtualName(const char* Name, const void* Ptr, size_t Size) {
++  if (Ptr && Size) {
++    RecordFEXNamed(reinterpret_cast<uint64_t>(Ptr), reinterpret_cast<uint64_t>(Ptr) + Size);
++  }
+   if (!SupportsVirtualName || !Available()) {
+     return;
+   }
+diff --git a/Source/Windows/Common/FEXUnixLib.h b/Source/Windows/Common/FEXUnixLib.h
+index 22ea6b1..a0c4852 100644
+--- a/Source/Windows/Common/FEXUnixLib.h
++++ b/Source/Windows/Common/FEXUnixLib.h
+@@ -40,6 +40,12 @@ bool SetKernelUnalignedAtomicControl(uint64_t Flags);
+ void VirtualTHPControl(const void* Ptr, size_t Size, FEXCore::Allocator::THPControl Control);
+ void VirtualName(const char* Name, const void* Ptr, size_t Size);
+ 
++// Names a range without turning FEX's own naming off when the kernel refuses (a hole, a file mapping). For labelling
++// memory FEX doesn't own (NameWindowsMemory).
++bool TryVirtualName(const char* Name, const void* Ptr, size_t Size);
++// True if [Begin, End) overlaps a range FEX named for itself through VirtualName.
++bool OverlapsFEXNamed(uint64_t Begin, uint64_t End);
++
+ struct SHMSlotResult {
+   void* SHMBase;
+   uint32_t MappedSize;
+diff --git a/Source/Windows/include/winternl.h b/Source/Windows/include/winternl.h
+index 2534ee4..918e92a 100644
+--- a/Source/Windows/include/winternl.h
++++ b/Source/Windows/include/winternl.h
+@@ -569,6 +569,7 @@ NTSTATUS WINAPI RtlDeleteCriticalSection(RTL_CRITICAL_SECTION*);
+ NTSTATUS WINAPI RtlEnterCriticalSection(RTL_CRITICAL_SECTION*);
+ ULONG WINAPI RtlFindClearBitsAndSet(PRTL_BITMAP, ULONG, ULONG);
+ ULONG WINAPI RtlGetCurrentDirectory_U(ULONG, LPWSTR);
++ULONG WINAPI RtlGetProcessHeaps(ULONG, HANDLE*);
+ PIMAGE_NT_HEADERS WINAPI RtlImageNtHeader(HMODULE);
+ PVOID WINAPI RtlImageDirectoryEntryToData(HMODULE, BOOL, WORD, ULONG*);
+ PIMAGE_SECTION_HEADER WINAPI RtlImageRvaToSection(const IMAGE_NT_HEADERS*, HMODULE, DWORD);
+@@ -576,6 +577,7 @@ void WINAPI RtlInitializeConditionVariable(RTL_CONDITION_VARIABLE*);
+ NTSTATUS WINAPI RtlInitializeCriticalSection(RTL_CRITICAL_SECTION*);
+ void WINAPI RtlInitializeSRWLock(RTL_SRWLOCK*);
+ NTSTATUS WINAPI RtlLeaveCriticalSection(RTL_CRITICAL_SECTION*);
++BOOLEAN WINAPI RtlLockHeap(HANDLE);
+ void* WINAPI RtlLocateExtendedFeature(CONTEXT_EX*, ULONG, ULONG*);
+ NTSTATUS WINAPI RtlMultiByteToUnicodeN(LPWSTR, DWORD, LPDWORD, LPCSTR, DWORD);
+ NTSTATUS WINAPI RtlMultiByteToUnicodeSize(DWORD*, LPCSTR, ULONG);
+@@ -587,6 +589,7 @@ NTSTATUS WINAPI RtlSleepConditionVariableSRW(RTL_CONDITION_VARIABLE*, RTL_SRWLOC
+ BOOLEAN WINAPI RtlTryAcquireSRWLockExclusive(RTL_SRWLOCK*);
+ BOOL WINAPI RtlTryEnterCriticalSection(RTL_CRITICAL_SECTION*);
+ NTSTATUS WINAPI RtlUnicodeToMultiByteN(LPSTR, DWORD, LPDWORD, LPCWSTR, DWORD);
++BOOLEAN WINAPI RtlUnlockHeap(HANDLE);
+ void WINAPI RtlWakeAllConditionVariable(RTL_CONDITION_VARIABLE*);
+ void WINAPI RtlWakeConditionVariable(RTL_CONDITION_VARIABLE*);
+ NTSTATUS WINAPI RtlWow64GetCurrentCpuArea(USHORT*, void**, void**);
+-- 
+2.43.0
+

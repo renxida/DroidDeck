@@ -372,6 +372,17 @@ object SessionPrefs {
 
     fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
 
+    /**
+     * Whether the on-screen gamepad starts folded (only its + button and the keyboard key) while [game] is in front.
+     * A game starts folded until the person unfolds the pad during it: many games are played by touch, and the pad
+     * would cover what they tap. The choice is kept per game.
+     */
+    fun padFolded(context: Context, game: String, default: Boolean = true): Boolean = prefs(context).getBoolean("padFolded.$game", default)
+
+    fun setPadFolded(context: Context, game: String, folded: Boolean) {
+        prefs(context).edit().putBoolean("padFolded.$game", folded).apply()
+    }
+
     fun setOscMode(context: Context, mode: String) {
         prefs(context).edit().putString("osc", mode).apply()
     }
@@ -498,6 +509,28 @@ object SessionPrefs {
 
 
     fun directAudio(context: Context): Boolean = prefs(context).getBoolean("directAudio", true)
+
+    /**
+     * How long a hidden session keeps a running Steam game going before the whole session freezes and pages out,
+     * so coming back resumes the game where it was. Negative keeps the game running while hidden. Only applies
+     * under a suspend policy that freezes a hidden session (native or auto).
+     */
+    /**
+     * When a Steam game closes, load it again out of sight and freeze the session at its menu instead of closing
+     * Steam, so the next Play is a resume. Needs a suspend policy that freezes (native or auto). Off by default.
+     */
+    fun standbyAfterGame(context: Context): Boolean = prefs(context).getBoolean("standbyAfterGame", false)
+
+    fun freezeGameAfterMs(context: Context): Long =
+        prefs(context).getLong("freezeGameAfterMs", SessionSuspendPolicy.FREEZE_GAME_AFTER_MS)
+
+    /** Off: games play into a silent PulseAudio sink, so nothing reaches Android's audio output and
+     *  a podcast or music app keeps playing alone. Off by default. */
+    fun gameSound(context: Context): Boolean = prefs(context).getBoolean("gameSound", false)
+
+    fun setGameSound(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("gameSound", on).apply()
+    }
 
     fun setDirectAudio(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("directAudio", on).apply()
@@ -1046,7 +1079,7 @@ object SessionPrefs {
         prefs(context).edit().putString("gameFolderBinds", binds.distinctBy { it.first }.joinToString("\n") { "${it.first}\t${it.second}" }).apply()
     }
 
-    fun theme(context: Context): String = prefs(context).getString("theme", "graphite") ?: "graphite"
+    fun theme(context: Context): String = prefs(context).getString("theme", "lanner") ?: "lanner"
 
     fun setTheme(context: Context, id: String) {
         prefs(context).edit().putString("theme", id).apply()

@@ -1,0 +1,58 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 13 Nov 2026 03:45:38 +0000
+Subject: [PATCH 2/3] Add VolatileMetadataWholeBlocks (default off)
+
+Apply volatile metadata to every block inside a metadata valid range, not only
+blocks that contain a listed access, as Microsoft's volatile metadata describes.
+---
+ FEXCore/Source/Interface/Config/Config.json.in | 9 +++++++++
+ FEXCore/Source/Interface/Context/Context.h     | 1 +
+ FEXCore/Source/Interface/Core/Core.cpp         | 2 ++
+ 3 files changed, 12 insertions(+)
+
+diff --git a/FEXCore/Source/Interface/Config/Config.json.in b/FEXCore/Source/Interface/Config/Config.json.in
+index 602b2a5..126e7a7 100644
+--- a/FEXCore/Source/Interface/Config/Config.json.in
++++ b/FEXCore/Source/Interface/Config/Config.json.in
+@@ -663,6 +663,15 @@
+           "When metadata is unavailable falls back to the currently enabled TSO options."
+         ]
+       },
++      "VolatileMetadataWholeBlocks": {
++        "Type": "bool",
++        "Default": "false",
++        "AffectsCodeGen": "true",
++        "Desc": [
++          "Apply volatile metadata to every block inside a metadata range, not only to blocks that contain a listed volatile access.",
++          "Unlisted accesses in those blocks then run without TSO, as Microsoft's volatile metadata describes."
++        ]
++      },
+       "X87ReducedPrecision": {
+         "Type": "bool",
+         "Default": "false",
+diff --git a/FEXCore/Source/Interface/Context/Context.h b/FEXCore/Source/Interface/Context/Context.h
+index 9b91055..632767e 100644
+--- a/FEXCore/Source/Interface/Context/Context.h
++++ b/FEXCore/Source/Interface/Context/Context.h
+@@ -372,6 +372,7 @@ public:
+     FEX_CONFIG_OPT(StrictInProcessSplitLocks, STRICTINPROCESSSPLITLOCKS);
+     FEX_CONFIG_OPT(MonoHacks, MONOHACKS);
+     FEX_CONFIG_OPT(JITFeatures, JITFEATURES);
++    FEX_CONFIG_OPT(VolatileMetadataWholeBlocks, VOLATILEMETADATAWHOLEBLOCKS);
+   } Config;
+ 
+   bool SoftwareRNGEnabled() const {
+diff --git a/FEXCore/Source/Interface/Core/Core.cpp b/FEXCore/Source/Interface/Core/Core.cpp
+index 1946dc9..dbc7f7c 100644
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -585,6 +585,8 @@ ContextImpl::GenerateIR(FEXCore::Core::InternalThreadState* Thread, uint64_t Gue
+         if (auto It = ForceTSOInstructions.lower_bound(Block.Entry); It != ForceTSOInstructions.end() && *It < Block.Entry + Block.Size) {
+           InstForceTSOIt = It;
+           BlockInForceTSOValidRange = true;
++        } else if (Config.VolatileMetadataWholeBlocks) {
++          BlockInForceTSOValidRange = true;
+         }
+       }
+ 

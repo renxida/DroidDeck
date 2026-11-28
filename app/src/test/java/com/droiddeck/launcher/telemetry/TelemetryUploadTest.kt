@@ -43,6 +43,7 @@ class TelemetryUploadTest {
         resolve("clocks.log").writeText("== clocks: test\nstart: wall_ms=1762941600000 tz_offset_min=0\n10:00:02 p0 1800/1800\n")
         resolve(FrameLogComponent.FILE).writeText("# frames t0_wall_ms=1762941600000 t0_mono_ns=1 source=gamescope\nt_ms,frametime_us\n10,16666\n")
         resolve("memory.csv").writeText("t_wall_ms,used_mb\n1762941600000,4000\n")
+        resolve(LatencyLogComponent.FILE).writeText("# latency t0_wall_ms=1762941600000 t0_mono_ns=1\n${LatencyCsvWriter.COLUMNS}\n5,touch_up,40,9000,9500,25000,7,2,8333,60\n")
         resolve("device.txt").writeText("Model: test\n")
         BuildInfo.write(app, this)
     }
@@ -76,7 +77,7 @@ class TelemetryUploadTest {
         val dir = session()
         val sessionZip = EnhancedSessionLogShare.create(app, dir).single { it.name.endsWith("-session.zip") }
         ZipFile(sessionZip).use { archive ->
-            listOf("clocks.log", FrameLogComponent.FILE, "events.jsonl", BuildInfo.FILE, "memory.csv").forEach {
+            listOf("clocks.log", FrameLogComponent.FILE, LatencyLogComponent.FILE, "events.jsonl", BuildInfo.FILE, "memory.csv").forEach {
                 assertNotNull(it, archive.getEntry("${dir.name}/$it"))
             }
         }
@@ -89,7 +90,7 @@ class TelemetryUploadTest {
         assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint"))
         ZipFile(upload).use { archive ->
             val names = archive.entries().toList().map { it.name }.toSet()
-            assertTrue(names.containsAll(listOf("upload.txt", BuildInfo.FILE, FrameLogComponent.FILE, "clocks.log",
+            assertTrue(names.containsAll(listOf("upload.txt", BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log",
                 "memory.csv", "events.jsonl", "device.txt", "session.log")))
             val log = archive.getInputStream(archive.getEntry("session.log")).bufferedReader().readText()
             assertTrue(log.startsWith("first line\n"))
@@ -99,11 +100,26 @@ class TelemetryUploadTest {
         }
     }
 
+    @Test fun theUploadBundleCarriesTheMemoryDetail() {
+        val dir = session()
+        val row = "{\"t\":1762941600000,\"kind\":\"prelaunch\",\"meminfo\":{\"MemTotal\":15612844}}"
+        dir.resolve(com.droiddeck.launcher.session.MemoryDetail.FILE).writeText(row + "\n")
+        dir.resolve(com.droiddeck.launcher.session.MemoryDetail.PRELAUNCH_FILE).writeText("# Lanner memory before launch\nram: total 15246\n")
+        val upload = File(tmp.root, "upload.zip")
+        assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint"))
+        ZipFile(upload).use { archive ->
+            assertEquals(row, archive.getInputStream(archive.getEntry(com.droiddeck.launcher.session.MemoryDetail.FILE)).bufferedReader().readLines().single())
+            assertTrue(archive.getInputStream(archive.getEntry(com.droiddeck.launcher.session.MemoryDetail.PRELAUNCH_FILE)).bufferedReader().readText()
+                .contains("ram: total 15246"))
+        }
+    }
+
     @Test fun theUploadBundleCarriesCrashEvidenceNewestFirst() {
         val dir = session()
         dir.resolve("session.log").appendText("droiddeck-fex: SIGILL at 0x00007f0000001000 (si_code 01), offset 0x00001000\n" +
             "  in 7f0000000000-7f0000100000 r-xp 00000000 00:00 0 /game/libmono.so\nordinary line\n")
         dir.resolve("crash.log").writeText("--------- beginning of crash\nF libc: Fatal signal 11\n")
+        dir.resolve("native-engine.log").writeText("ValueError: mixed-mode (native C++) assembly; it cannot run on arm64\n")
         dir.resolve("${AppExits.TRACE_PREFIX}1762941700000-anr.txt").writeText("\"main\" prio=5 tid=1 Blocked\n")
         dir.resolve("games/20251112-100000-abc-2868840").mkdirs()
         dir.resolve("games/20251112-100000-abc-2868840/steam-2868840.log").writeText("wine: Unhandled page fault on read access\n")
@@ -134,6 +150,7 @@ class TelemetryUploadTest {
             assertTrue(lines.contains("steam-x64.log: Unhandled exception."))
             assertFalse(lines.contains("ordinary line"))
             assertTrue(text("crash.log").contains("Fatal signal 11"))
+            assertTrue(text("native-engine.log").contains("mixed-mode"))
             assertTrue(names.contains("${AppExits.TRACE_PREFIX}1762941700000-anr.txt"))
             assertFalse(text("steam-x64.log").contains("before the session"))
             assertTrue(text("proton/20251112-100000-abc-2868840/steam-2868840.log").contains("Unhandled page fault"))
@@ -146,6 +163,37 @@ class TelemetryUploadTest {
             assertFalse(names.contains("steam-logs/arm64/content_log.txt"))
             assertFalse(names.any { it.endsWith("webhelper.txt") })
         }
+    }
+
+    @Test fun theUploadBundleCarriesTheSessionScreenshotAsIs() {
+        val dir = session()
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()) + ByteArray(2048) { it.toByte() } +
+            byteArrayOf(0xFF.toByte(), 0xD9.toByte())
+        dir.resolve(com.droiddeck.launcher.session.SessionScreenshot.FILE).writeBytes(jpeg)
+        val upload = File(tmp.root, "upload.zip")
+        assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint", TelemetryBundle.Sources(1762941600000L, null, -1, emptyList())))
+        ZipFile(upload).use { archive ->
+            val entry = archive.getEntry(com.droiddeck.launcher.session.SessionScreenshot.FILE)
+            assertNotNull(entry)
+            assertTrue(jpeg.contentEquals(archive.getInputStream(entry).readBytes()))
+        }
+    }
+
+    @Test fun theUploadBundleCarriesGuestSampleFilesAsIsOnlyWhenWrittenThisSession() {
+        val dir = session()
+        val bytes = ByteArray(4096) { (it * 7).toByte() }
+        val fresh = File(tmp.root, "native-samples.zip").apply { writeBytes(bytes) }
+        val start = fresh.lastModified() - 1000
+        val upload = File(tmp.root, "upload.zip")
+        assertTrue(TelemetryBundle.write(app, dir, upload, 4096, "kind: checkpoint",
+            TelemetryBundle.Sources(start, null, -1, emptyList(), guestFiles = listOf("native-samples.zip" to fresh))))
+        ZipFile(upload).use { archive ->
+            assertTrue(bytes.contentEquals(archive.getInputStream(archive.getEntry("native-samples.zip")).readBytes()))
+        }
+        val stale = File(tmp.root, "upload2.zip")
+        assertTrue(TelemetryBundle.write(app, dir, stale, 4096, "kind: checkpoint",
+            TelemetryBundle.Sources(fresh.lastModified() + 3_600_000, null, -1, emptyList(), guestFiles = listOf("native-samples.zip" to fresh))))
+        ZipFile(stale).use { assertNull(it.getEntry("native-samples.zip")) }
     }
 
     @Test fun theFirstUploadNamesNoBranchSoAnEmptyRepositoryGetsItsFirstCommit() {

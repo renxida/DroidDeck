@@ -10,6 +10,12 @@ object SessionState {
     @Volatile
     var phase = SessionPhase.IDLE
 
+    /** [android.os.SystemClock.elapsedRealtime] of the player's last touch, key, controller or remote input. */
+    @Volatile
+    var lastInputMs = 0L
+
+    fun input() { lastInputMs = android.os.SystemClock.elapsedRealtime() }
+
     @Volatile
     var sessionId: String? = null
 
@@ -42,6 +48,12 @@ object SessionState {
 
     @Volatile
     var stopRequested = false
+
+    /** Set when Stop is tapped on the session notification: the session screen closes at once, as the
+     *  drawer's Stop does, instead of showing the game until teardown ends (Cedar, Nov 15: "nothing seems
+     *  to happen"). */
+    @Volatile
+    var closeScreenForStop = false
 
     @Volatile
     var running = false

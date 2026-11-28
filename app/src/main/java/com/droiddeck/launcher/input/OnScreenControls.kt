@@ -19,6 +19,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY, haptics = dock != null)
     private var layout: SavedInputLayout? = null
     private val safe = Rect()
+    private val cutout = Rect()
     private var viewWidth = 0
     private var viewHeight = 0
     private val placements = object : LinkedHashMap<Placement, List<InputSurfaceElement>>(4, .75f, true) {
@@ -32,6 +33,15 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     var isPinnedOnly = false
         private set
     val hasPinned get() = layout?.elements?.any { it.alwaysShown } == true
+    /** Folds the pad (as the − button does) when a finger lifts from a gesture that started on the game, not on the pad. */
+    var foldOnGameTap = false
+    /** Called when the person folds or unfolds the pad: with the − / + button or by playing on the game itself. */
+    var onFoldChanged: ((Boolean) -> Unit)? = null
+    private var gameGesture = false
+    private var padGesture = false
+    private var lastPadTouch = Long.MIN_VALUE / 2
+    // View.post holds the action until the view is attached; the fold must not wait on that.
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     var onTouchMiss: ((MotionEvent) -> Unit)?
         get() = surface.onTouchMiss
         set(value) { surface.onTouchMiss = value }
@@ -93,7 +103,49 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         quickToggle.alpha = style.opacity / 100f
         quickToggle.visibility = if (isButtonsOnly || isPinnedOnly || layout == null || dock != null) GONE else VISIBLE
         quickToggle.invalidate()
+        placeQuickToggle()
     }
+
+    /** Slay the Spire 2 keeps its draw pile in the bottom-left corner, so its pad has the toggle at the top of the empty bar beside the picture. */
+    private fun placeQuickToggle() {
+        val top = Sts2Pad.owns(layout)
+        val offset = ((QUICK_CENTER_DP - QUICK_HIT_DP) * resources.displayMetrics.density).toInt()
+        val params = quickToggle.layoutParams as LayoutParams
+        val gravity = Gravity.START or (if (top) Gravity.TOP else Gravity.BOTTOM)
+        val left = if (top) offset else cutout.left + offset
+        val topMargin = if (top) cutout.top + offset else 0
+        val bottomMargin = if (top) 0 else cutout.bottom + offset
+        if (params.gravity == gravity && params.leftMargin == left && params.topMargin == topMargin && params.bottomMargin == bottomMargin) return
+        params.gravity = gravity
+        params.leftMargin = left
+        params.topMargin = topMargin
+        params.bottomMargin = bottomMargin
+        quickToggle.layoutParams = params
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                padGesture = takesTouchAt(event.x, event.y)
+                gameGesture = !padGesture
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> if (takesTouchAt(event.getX(event.actionIndex), event.getY(event.actionIndex))) padGesture = true
+        }
+        if (padGesture) lastPadTouch = event.eventTime
+        val handled = super.dispatchTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_UP -> {
+                if (gameGesture && !padGesture && foldsOnGameTap() && event.eventTime - lastPadTouch >= FOLD_QUIET_MS) mainHandler.post {
+                    if (foldsOnGameTap()) { setQuickHidden(true); onFoldChanged?.invoke(true) }
+                }
+                gameGesture = false; padGesture = false
+            }
+            MotionEvent.ACTION_CANCEL -> { gameGesture = false; padGesture = false }
+        }
+        return handled
+    }
+
+    private fun foldsOnGameTap() = foldOnGameTap && !isQuickHidden && !isButtonsOnly && !isPinnedOnly && quickToggle.visibility == VISIBLE
 
     fun takesTouchAt(x: Float, y: Float) = surface.takesTouchAt(x, y) ||
         quickToggle.visibility == VISIBLE && x >= quickToggle.left && x < quickToggle.right && y >= quickToggle.top && y < quickToggle.bottom
@@ -115,15 +167,8 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-        val offset = ((QUICK_CENTER_DP - QUICK_HIT_DP) * resources.displayMetrics.density).toInt()
-        val params = quickToggle.layoutParams as LayoutParams
-        val left = (cutout?.safeInsetLeft ?: 0) + offset
-        val bottom = (cutout?.safeInsetBottom ?: 0) + offset
-        if (params.leftMargin != left || params.bottomMargin != bottom) {
-            params.leftMargin = left
-            params.bottomMargin = bottom
-            quickToggle.layoutParams = params
-        }
+        this.cutout.set(cutout?.safeInsetLeft ?: 0, cutout?.safeInsetTop ?: 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
+        placeQuickToggle()
         val fresh = Rect(cutout?.safeInsetLeft ?: 0, if (dock == null) cutout?.safeInsetTop ?: 0 else 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
         if (fresh != safe) {
             safe.set(fresh)
@@ -166,6 +211,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
                     if (armed && event.x in 0f..width.toFloat() && event.y in 0f..height.toFloat()) {
                         performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         setQuickHidden(!isQuickHidden)
+                        onFoldChanged?.invoke(isQuickHidden)
                     }
                     armed = false
                 }
@@ -179,5 +225,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         const val QUICK_HIT_DP = 26f
         const val QUICK_RADIUS_DP = 18f
         const val PLACEMENT_CACHE = 4
+        /** A touch on the game this soon after the last touch on the pad is taken as a slip, not as leaving the pad. */
+        const val FOLD_QUIET_MS = 3000L
     }
 }

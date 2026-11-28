@@ -37,6 +37,7 @@ import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
 import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.PadBridge
+import com.droiddeck.launcher.input.SwipePadDetector
 import com.droiddeck.launcher.input.pcKeyLabel
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlin.math.atan2
@@ -166,6 +167,8 @@ class InputSurfaceView(
         elementSources.forEach { it.release() }
     }
 
+    private fun edge(size: Int, at: Float) = kotlin.math.round(size * at).toInt()
+
     override fun onVisibilityChanged(changedView: View, visibility: Int) {
         super.onVisibilityChanged(changedView, visibility)
         if (visibility != VISIBLE) releaseInputs()
@@ -178,15 +181,19 @@ class InputSurfaceView(
                 val w = MeasureSpec.getSize(widthMeasureSpec)
                 val h = MeasureSpec.getSize(heightMeasureSpec)
                 setMeasuredDimension(w, h)
-                for (i in layout.indices) getChildAt(i).measure(MeasureSpec.makeMeasureSpec((w * layout[i].width).toInt(), MeasureSpec.EXACTLY),
-                    MeasureSpec.makeMeasureSpec((h * layout[i].height).toInt(), MeasureSpec.EXACTLY))
+                // Edges are rounded on their own, not sizes, so buttons laid edge to edge leave no pixel between them.
+                for (i in layout.indices) {
+                    val e = layout[i]
+                    getChildAt(i).measure(MeasureSpec.makeMeasureSpec(edge(w, e.x + e.width) - edge(w, e.x), MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(edge(h, e.y + e.height) - edge(h, e.y), MeasureSpec.EXACTLY))
+                }
             }
             override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
                 val layout = customLayout
                 for (i in layout.indices) {
                     val e = layout[i]
                     val child = getChildAt(i)
-                    val x = (width * e.x).toInt(); val y = (height * e.y).toInt()
+                    val x = edge(width, e.x); val y = edge(height, e.y)
                     child.layout(x, y, x + child.measuredWidth, y + child.measuredHeight)
                 }
             }
@@ -198,6 +205,7 @@ class InputSurfaceView(
                 InputElementKind.STICK -> StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
                 InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, source = source)
                 InputElementKind.DPAD -> DirectionPad(context, element, source)
+                InputElementKind.SWIPE -> SwipePad(context, element, source)
                 else -> HoldButton(context, element, source)
             }.apply { tag = element; contentDescription = element.name; styleElement(this); source?.onStateChanged = { postInvalidate() } })
         }
@@ -679,6 +687,84 @@ class InputSurfaceView(
         }
     }
 
+    /** A zone where each flick presses the d-pad once in its direction; see [SwipePadDetector]. */
+    private inner class SwipePad(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource?) : Surface(context) {
+        private val millimetre = density * 160f / 25.4f
+        private val detector = SwipePadDetector(SwipePadDetector.FLICK_MM * millimetre, SwipePadDetector.REST_MM * millimetre, ::send)
+        private val timer = android.os.Handler(android.os.Looper.getMainLooper())
+        private val tick = Runnable { detector.advance(android.os.SystemClock.uptimeMillis()); schedule() }
+        private var pointer = -1
+        private var lit: InputControl? = null
+        private val zone = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val arrow = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        override fun onDraw(canvas: Canvas) {
+            val color = tint ?: TEXT
+            val inset = density
+            rect.set(inset, inset, width - inset, height - inset)
+            val radius = SWIPE_CORNER * density
+            zone.style = Paint.Style.FILL
+            zone.color = (color and 0x00ffffff) or ((if (lit != null) 0x38 else 0x12) shl 24)
+            canvas.drawRoundRect(rect, radius, radius, zone)
+            zone.style = Paint.Style.STROKE
+            zone.strokeWidth = density
+            zone.color = (color and 0x00ffffff) or (0x70 shl 24)
+            canvas.drawRoundRect(rect, radius, radius, zone)
+            lit?.let { arrow.color = (color and 0x00ffffff) or (0xc0 shl 24); drawArrow(canvas, width / 2f, height / 2f, 18 * density, DIRECTIONS.indexOf(it), arrow) }
+            if (!element.showLabel) return
+            captionPaint.textSize = 12 * density
+            captionPaint.color = (color and 0x00ffffff) or (0x90 shl 24)
+            canvas.drawText(element.name.lowercase(), width / 2f, 22 * density, captionPaint)
+        }
+
+        @SuppressLint("ClickableViewAccessibility")
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { pointer = event.getPointerId(0); detector.down(event.x, event.y, event.eventTime) }
+                MotionEvent.ACTION_MOVE -> {
+                    val i = event.findPointerIndex(pointer)
+                    if (i >= 0) {
+                        for (h in 0 until event.historySize) detector.move(event.getHistoricalX(i, h), event.getHistoricalY(i, h), event.getHistoricalEventTime(h))
+                        detector.move(event.getX(i), event.getY(i), event.eventTime)
+                    }
+                }
+                MotionEvent.ACTION_POINTER_UP -> if (event.getPointerId(event.actionIndex) == pointer) { detector.up(event.eventTime); pointer = -1 }
+                MotionEvent.ACTION_UP -> {
+                    if (event.flags and MotionEvent.FLAG_CANCELED != 0) detector.cancel(event.eventTime) else detector.up(event.eventTime)
+                    pointer = -1
+                }
+                MotionEvent.ACTION_CANCEL -> { detector.cancel(event.eventTime); pointer = -1 }
+            }
+            schedule()
+            return true
+        }
+
+        private fun send(direction: InputControl, down: Boolean) {
+            if (down) { lit = direction; feedback(this, HapticFeedbackConstants.VIRTUAL_KEY) } else if (lit == direction) lit = null
+            val (x, y) = if (!down) 0f to 0f else when (direction) {
+                InputControl.UP -> 0f to -1f
+                InputControl.DOWN -> 0f to 1f
+                InputControl.LEFT -> -1f to 0f
+                else -> 1f to 0f
+            }
+            source?.update(x, y)
+            invalidate()
+        }
+
+        private fun schedule() {
+            timer.removeCallbacks(tick)
+            val at = detector.deadline
+            if (at != Long.MAX_VALUE) timer.postAtTime(tick, at)
+        }
+
+        override fun onDetachedFromWindow() {
+            detector.cancel(android.os.SystemClock.uptimeMillis())
+            timer.removeCallbacks(tick)
+            pointer = -1
+            super.onDetachedFromWindow()
+        }
+    }
+
     companion object {
         private const val CLICK_MS = 300L
         private const val STICK_TAP_MS = 200L
@@ -691,6 +777,7 @@ class InputSurfaceView(
 
         private const val CORNER = 20f
         private const val CORNER_PILL = 22f
+        private const val SWIPE_CORNER = 16f
         private val ACCENT = Color.rgb(0x1A, 0x9F, 0xFF)
         private val ACCENT_WASH = Color.argb(0x2E, 0x1A, 0x9F, 0xFF)
         private val ACCENT_GLOW = Color.argb(0x66, 0x1A, 0x9F, 0xFF)

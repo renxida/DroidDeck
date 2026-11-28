@@ -1,7 +1,9 @@
 import hashlib
 import io
+import hashlib
 import json
 import os
+import re
 import shutil
 import struct
 from pathlib import Path
@@ -10,6 +12,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from unittest import mock
 import unittest
 from unittest.mock import patch
@@ -19,6 +22,47 @@ MODULE = runpy.run_path(str(BIN / "droiddeck-game-env"))
 COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
 STATE = tempfile.TemporaryDirectory()
 COMPAT["main"].__globals__["COMPAT_DIR"] = STATE.name
+
+
+class FreeMemoryRequestTest(unittest.TestCase):
+    def test_the_game_waits_for_the_apps_answer_to_its_own_request(self):
+        import threading
+        with tempfile.TemporaryDirectory() as tmp:
+            request = Path(tmp) / "free-memory"
+            (Path(tmp) / "free-memory-done").write_text("2868840-stale method=none\n")
+
+            def app():
+                for _ in range(200):
+                    if request.exists():
+                        token = request.read_text().strip()
+                        request.unlink()
+                        staged = Path(tmp) / "free-memory-done.tmp"
+                        staged.write_text(token + " method=kill_background+balloon freedMb=1800 availableMb=4100\n")
+                        os.replace(staged, Path(tmp) / "free-memory-done")
+                        return
+                    time.sleep(0.01)
+
+            answering = threading.Thread(target=app)
+            answering.start()
+            answer = MODULE["free_memory"](tmp, "2868840", wait=5, poll=0.01)
+            answering.join()
+            self.assertEqual(answer, "method=kill_background+balloon freedMb=1800 availableMb=4100")
+            self.assertFalse((Path(tmp) / "free-memory-done").exists())
+
+    def test_without_an_answer_or_a_launch_directory_the_game_goes_on(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(MODULE["free_memory"](tmp, "2868840", wait=0.05, poll=0.01), "no answer in 0 s")
+            token = (Path(tmp) / "free-memory").read_text().strip()
+            self.assertRegex(token, r"^2868840-[0-9a-f]{16}$")
+        self.assertEqual(MODULE["free_memory"]("", "2868840"), "no launch directory")
+        self.assertEqual(MODULE["free_memory"]("/nonexistent/launch", "2868840"), "no launch directory")
+
+    def test_the_guest_lists_the_same_experiments_as_the_app(self):
+        source = (Path(__file__).resolve().parents[2] /
+                  "app/src/main/java/com/droiddeck/launcher/session/Experiments.kt").read_text()
+        names = dict(re.findall(r'const val (\w+) = "([^"]+)"', source))
+        ids = re.search(r"val ids = listOf\(([^)]*)\)", source).group(1)
+        self.assertEqual(tuple(names[n.strip()] for n in ids.split(",")), MODULE["EXPERIMENTS"])
 
 
 class SupergiantDotnetReporterTest(unittest.TestCase):
@@ -523,6 +567,41 @@ class EgoCorePlanTest(unittest.TestCase):
         self.assertIn("added a copy of its 4-core plan", result.stderr)
 
 
+def fake_wayland_server(path, interfaces):
+    """A Wayland server that answers one client's get_registry and sync with these globals, then the done."""
+    import socket
+    import threading
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(str(path))
+    server.listen(4)
+
+    def message(obj, opcode, body):
+        return struct.pack("=II", obj, ((8 + len(body)) << 16) | opcode) + body
+
+    def serve():
+        while True:
+            try:
+                conn, _ = server.accept()
+            except OSError:
+                return
+            with conn:
+                data = b""
+                while len(data) < 24:
+                    chunk = conn.recv(64)
+                    if not chunk:
+                        break
+                    data += chunk
+                registry, callback = struct.unpack_from("=I", data, 8)[0], struct.unpack_from("=I", data, 20)[0]
+                out = b""
+                for number, name in enumerate(interfaces, 1):
+                    text = name.encode() + b"\0"
+                    text += b"\0" * (-len(text) % 4)
+                    out += message(registry, 0, struct.pack("=II", number, len(name) + 1) + text + struct.pack("=I", 1))
+                conn.sendall(out + message(callback, 0, struct.pack("=I", 0)))
+    threading.Thread(target=serve, daemon=True).start()
+    return path
+
+
 class SystemGraphicsLaunchTest(unittest.TestCase):
     def test_start_configures_ubisoft_with_proton_before_wrapping_the_game(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -554,6 +633,118 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             target.write_bytes(b"component")
         (runtime / "run-proton.py").chmod(0o755)
         return runtime, files
+
+    def test_wayland_present_names_gamescope_socket_only_with_a_wayland_capable_layer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime, _ = self.runtime(Path(tmp))
+            manifest = runtime / "wsi" / "VkLayer_window_system_integration.json"
+            full = fake_wayland_server(Path(tmp) / "gamescope-0", ("wl_compositor", "wl_subcompositor", "xdg_wm_base",
+                                                                  "wl_shm", "wl_seat"))
+            fake_wayland_server(Path(tmp) / "gamescope-1", ("wl_compositor", "xdg_wm_base", "wl_shm", "wl_seat"))
+            base = {"DROIDDECK_POWERVR_RUNTIME": str(runtime), "STEAM_COMPAT_DATA_PATH": "/compatdata/42",
+                    "WAYLAND_DISPLAY": "", "GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0", "XDG_RUNTIME_DIR": tmp}
+            command = ["/proton", "waitforexitandrun", "game.exe"]
+            on = dict(base, DROIDDECK_EXP_WAYLAND_PRESENT="1")
+            cases = [
+                ("off", base, '{"name": "VK_KHR_wayland_surface"}', None),
+                ("x11-only layer", on, '{"name": "VK_KHR_xcb_surface"}', None),
+                ("no socket", dict(on, GAMESCOPE_WAYLAND_DISPLAY=""), '{"name": "VK_KHR_wayland_surface"}', None),
+                ("no wl_subcompositor", dict(on, GAMESCOPE_WAYLAND_DISPLAY="gamescope-1"),
+                 '{"name": "VK_KHR_wayland_surface"}', None),
+                ("nobody listening", dict(on, GAMESCOPE_WAYLAND_DISPLAY="gamescope-9"),
+                 '{"name": "VK_KHR_wayland_surface"}', None),
+                ("on", on, '{"name": "VK_KHR_wayland_surface"}', "gamescope-0"),
+            ]
+            self.assertEqual(MODULE["wayland_globals"](str(full), {}),
+                             {"wl_compositor", "wl_subcompositor", "xdg_wm_base", "wl_shm", "wl_seat"})
+            for name, env, text, socket in cases:
+                with self.subTest(name), mock.patch("sys.stderr", new=io.StringIO()):
+                    manifest.write_text(text)
+                    _, result = MODULE["system_graphics_launch"](command, env)
+                    if socket:
+                        self.assertEqual(result["WAYLAND_DISPLAY"], socket)
+                        self.assertEqual(result["PROTON_ENABLE_WAYLAND"], "1")
+                        self.assertEqual(result["DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER"], "1")
+                    else:
+                        self.assertEqual(result["WAYLAND_DISPLAY"], "")
+                        self.assertNotIn("PROTON_ENABLE_WAYLAND", result)
+                        self.assertNotIn("DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER", result)
+                    self.assertEqual(env.get("WAYLAND_DISPLAY"), "")
+
+    def test_vk_count_puts_its_layer_first_only_when_on_and_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layer_dir = Path(tmp) / "vkcount"
+            layer_dir.mkdir()
+            base = {"VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat",
+                    "VK_LAYER_PATH": "/rt/wsi:/rt/lib"}
+            env = dict(base)
+            self.assertIsNone(MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env, base)
+            env = dict(base, DROIDDECK_EXP_VK_COUNT="1")
+            self.assertIn("not installed", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"], base["VK_INSTANCE_LAYERS"])
+            (layer_dir / "libVkLayer_droiddeck_vkcount.so").write_bytes(b"\x7fELF")
+            self.assertIn("counting", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"],
+                             "VK_LAYER_DROIDDECK_vkcount:VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+            # frame_cap ran first and paced presents: counting keeps its reports on, pacing alone loads the layer quiet
+            env = dict(base, DROIDDECK_EXP_VK_COUNT="1", DROIDDECK_PACE_FPS="30", DROIDDECK_VKCOUNT_SECONDS="0")
+            self.assertIn("counting", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertNotIn("DROIDDECK_VKCOUNT_SECONDS", env)
+            env = dict(base, DROIDDECK_PACE_FPS="30")
+            self.assertIn("present pacing", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"].split(":")[0], "VK_LAYER_DROIDDECK_vkcount")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+            self.assertEqual(env["DROIDDECK_VKCOUNT_SECONDS"], "0")
+            self.assertNotIn("DROIDDECK_VK_BLOCK_MB", env)
+            env = dict(base, DROIDDECK_EXP_VK_BLOCKS_64="1")
+            self.assertIn("capped at 64 MB", MODULE["vk_count"](env, str(layer_dir)))
+            self.assertEqual(env["DROIDDECK_VK_BLOCK_MB"], "64")
+            self.assertEqual(env["DROIDDECK_VKCOUNT_SECONDS"], "0")
+            self.assertEqual(env["VK_INSTANCE_LAYERS"].count("VK_LAYER_DROIDDECK_vkcount"), 1)
+
+    def test_hybris_index_swaps_in_its_compat_layer_only_when_on_and_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layer_dir = Path(tmp) / "hybris-compat"
+            layer_dir.mkdir()
+            base = {"VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat",
+                    "VK_LAYER_PATH": "/rt/wsi:/rt/lib"}
+            env = dict(base)
+            self.assertIsNone(MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env, base)
+            env = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1")
+            self.assertIn("not installed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"], base["VK_INSTANCE_LAYERS"])
+            (layer_dir / "libVkLayer_droiddeck_hybris_compat.so").write_bytes(b"\x7fELF")
+            self.assertIn("indexed", MODULE["hybris_index"](env, str(layer_dir)))
+            self.assertEqual(env["VK_INSTANCE_LAYERS"],
+                             "VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertEqual(env["VK_LAYER_PATH"], str(layer_dir) + ":/rt/wsi:/rt/lib")
+            xclipse = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_xclipse")
+            self.assertIn("no hybris compat", MODULE["hybris_index"](xclipse, str(layer_dir)))
+            session = dict(base, DROIDDECK_EXP_HYBRIS_INDEX="1",
+                           VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:VK_LAYER_DROIDDECK_hybris_compat")
+            self.assertIn("already indexed", MODULE["hybris_index"](session, str(layer_dir)))
+            self.assertEqual(session["VK_LAYER_PATH"], base["VK_LAYER_PATH"])
+
+    def test_dxvk_arm64ec_picks_its_payload_only_when_on_complete_and_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = Path(tmp)
+            self.assertIsNone(MODULE["dxvk_arm64ec"](runtime, {}))
+            env = {"DROIDDECK_EXP_DXVK_ARM64EC": "1"}
+            self.assertIn("not in this runtime", MODULE["dxvk_arm64ec"](runtime, env))
+            self.assertNotIn("DROIDDECK_HYBRIS_DXVK", env)
+            for arch in ("x32", "x64"):
+                (runtime / "dxvk-arm64ec" / arch).mkdir(parents=True)
+                for name in ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"):
+                    (runtime / "dxvk-arm64ec" / arch / (name + ".dll")).write_bytes(b"MZ")
+            self.assertIn("native ARM64EC", MODULE["dxvk_arm64ec"](runtime, env))
+            self.assertEqual(env["DROIDDECK_HYBRIS_DXVK"], "dxvk-arm64ec")
+            xclipse = {"DROIDDECK_EXP_DXVK_ARM64EC": "1", "DROIDDECK_HYBRIS_DXVK": "dxvk-2.6.2"}
+            self.assertIn("kept the dxvk-2.6.2", MODULE["dxvk_arm64ec"](runtime, xclipse))
+            self.assertEqual(xclipse["DROIDDECK_HYBRIS_DXVK"], "dxvk-2.6.2")
 
     def test_other_gpus_and_non_game_calls_keep_the_original_launch(self):
         command = ["/proton", "waitforexitandrun", "game.exe"]
@@ -1222,7 +1413,15 @@ class GameEnvironmentTest(unittest.TestCase):
             for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll", "data_game_windows_x86_64/coreclr.dll"):
                 (game / name).touch()
             env, extra, notes = MODULE["engine_fixes"](str(game / "Game.exe"), [])
-            self.assertEqual(env["FEX_TSOENABLED"], "1")
+            tso = ("FEX_TSOENABLED", "FEX_VECTORTSOENABLED", "FEX_MEMCPYSETTSOENABLED", "FEX_HALFBARRIERTSOENABLED")
+            self.assertEqual([env[name] for name in tso], ["1", "1", "1", "1"])
+            self.assertNotIn("DOTNET_gcConcurrent", env)
+            for experiment, values, gc in (("FEX_MEMCPY_TSO", ["1", "1", "0", "1"], None), ("FEX_VECTOR_TSO", ["1", "0", "1", "1"], None),
+                                           ("FEX_TSO", ["1", "0", "0", "1"], None), ("FEX_FAST", ["1", "0", "0", "1"], "0")):
+                with self.subTest(experiment=experiment):
+                    found = MODULE["engine_fixes"](str(game / "Game.exe"), [], {"DROIDDECK_EXP_" + experiment: "1"})[0]
+                    self.assertEqual([found[name] for name in tso], values)
+                    self.assertEqual(found.get("DOTNET_gcConcurrent"), gc)
             self.assertNotIn("FEX_MULTIBLOCK", env)
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
@@ -1238,6 +1437,104 @@ class GameEnvironmentTest(unittest.TestCase):
             other.mkdir()
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
+
+    def test_the_experiments_line_lists_what_is_in_effect(self):
+        line = MODULE["experiments_line"]
+        self.assertEqual(line([], []), "experiments: none")
+        everything = ["godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-all", "two-frames", "fex-codegen", "fex-fast"]
+        self.assertEqual(line(everything, everything), "experiments: " + ",".join(everything))
+        # Saved after the session started: the game-level ones apply now, the session-level ones wait.
+        self.assertEqual(line(everything, []),
+                         "experiments: godot-render,warmup,memory(game),fex-codegen,fex-fast; saved but needs a new session: "
+                         "all on, compat-quiet on, memory(app) on, adpf-all on, two-frames on")
+        self.assertEqual(line([], everything),
+                         "experiments: all,compat-quiet,memory(app),adpf-all,two-frames; saved but needs a new session: "
+                         "all off, compat-quiet off, memory(app) off, adpf-all off, two-frames off")
+        self.assertEqual(line(["layer-fence", "sched"], ["two-frames", "sched"]),
+                         "experiments: two-frames,sched; saved but needs a new session: two-frames off, layer-fence on")
+
+    def test_launch_logs_the_tso_settings_the_game_runs_with(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "Slay the Spire 2"
+            (game / "data").mkdir(parents=True)
+            for name in ("SlayTheSpire2.exe", "data/coreclr.dll"):
+                (game / name).touch()
+            proton = Path(tmp) / "proton"
+            proton.write_text("#!" + sys.executable + "\nimport os\n"
+                              "print(os.environ.get('FEX_VECTORTSOENABLED'), os.environ.get('FEX_MEMCPYSETTSOENABLED'))\n")
+            proton.chmod(0o755)
+            home = Path(tmp) / "home"
+            (home / ".config/droiddeck").mkdir(parents=True)
+            command = [sys.executable, str(BIN / "droiddeck-game-env"), str(proton), "waitforexitandrun", str(game / "SlayTheSpire2.exe")]
+            prefix = Path(tmp) / "compatdata/2868840"
+            prefix.mkdir(parents=True)
+            env = {**os.environ, "HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(prefix)}
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.split(), ["1", "1"])
+            self.assertIn("FEX TSO for this game: FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=1 "
+                          "FEX_HALFBARRIERTSOENABLED=1 DOTNET_gcConcurrent=unset", result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: none\n", result.stderr)
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_FAST": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.split(), ["0", "0"])
+            self.assertIn("FEX TSO for this game: FEX_TSOENABLED=1 FEX_VECTORTSOENABLED=0 FEX_MEMCPYSETTSOENABLED=0 "
+                          "FEX_HALFBARRIERTSOENABLED=1 DOTNET_gcConcurrent=0", result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-fast\n", result.stderr)
+            # Game-level switches follow the saved settings, session-level ones the Steam session's environment.
+            result = subprocess.run(command, env={**env, "DROIDDECK_EXP_FEX_FAST": "1", "DROIDDECK_EXP_TWO_FRAMES": "1"},
+                                    text=True, capture_output=True)
+            self.assertIn("droiddeck-game-env: experiments: two-frames,fex-fast; saved but needs a new session: two-frames off\n",
+                          result.stderr)
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps({"version": 1}))
+            result = subprocess.run(command, env={**env, "DROIDDECK_EXP_FEX_FAST": "1"}, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["1", "1"])
+            self.assertIn("droiddeck-game-env: experiments: none\n", result.stderr)
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_FAST": "1"}, "games": {"2868840": {"FEX_VECTORTSOENABLED": "1"}}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.split(), ["1", "0"])
+            self.assertIn("FEX_VECTORTSOENABLED=1 FEX_MEMCPYSETTSOENABLED=0", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_DYNAMICL1CACHE'), os.environ.get('FEX_L1CACHEENTRIES'))\n")
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None", "None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_L1": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["0", "262144"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-l1\n", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_INITIALCODEBUFFERMB'))\n")
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_CODE_BUFFER": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["64"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-code-buffer\n", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_SAMPLEHZ'))\n")
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps({"version": 1}))
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_SAMPLE": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["250"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-sample\n", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_NAMEWINDOWSMEMORY'))\n")
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_SMAPS": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["60"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-smaps\n", result.stderr)
+            proton.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('FEX_TRIMIDLETHREADS'))\n")
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps({"version": 1}))
+            self.assertEqual(subprocess.run(command, env=env, text=True, capture_output=True).stdout.split(), ["None"])
+            (home / ".config/droiddeck/game-environment.json").write_text(json.dumps(
+                {"version": 1, "shared": {"DROIDDECK_EXP_FEX_TRIM": "1"}}))
+            result = subprocess.run(command, env=env, text=True, capture_output=True)
+            self.assertEqual(result.stdout.split(), ["30"], result.stderr)
+            self.assertIn("droiddeck-game-env: experiments: fex-trim\n", result.stderr)
 
     def test_easy_anti_cheat_games_start_offline_only_when_opted_in(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1710,7 +2007,7 @@ class GameEnvironmentTest(unittest.TestCase):
             on = {"BL_DEBUG_DIR": tmp, "BL_GAME_LOGS": "1"}
             with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
                 result = game_logs(command, on, "2868840", now=0)
-            self.assertEqual(result["WINEDEBUG"], "+timestamp,+pid,+tid,+threadname,+loaddll")
+            self.assertEqual(result["WINEDEBUG"], "+timestamp,+pid,+tid,+threadname,+loaddll,fixme-ntdll")
             self.assertNotIn("unwind", result["WINEDEBUG"])
             self.assertIn("+seh,+unwind default stays off", err.getvalue())
             self.assertEqual(result["DROIDDECK_GAME_LOG_DIR"], result["PROTON_LOG_DIR"])
@@ -1730,6 +2027,26 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIn("DOTNET_GCConserveMemory=5", final)
             self.assertNotIn("HOME=", final)
             MODULE["record_final_env"](["/proton", "run"], {"VK_X": "1"})
+
+    def test_launch_txt_names_the_fex_build_the_game_loads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton = Path(tmp, "proton-dir")
+            dll = proton / "files/lib/wine/aarch64-windows/libarm64ecfex.dll"
+            dll.parent.mkdir(parents=True)
+            (proton / "proton").write_text("")
+            data = b"MZ\0\0FEX-2611\0..FEX-Kestrel-ab135df09-1cbcab5e\0rest"
+            dll.write_bytes(data)
+            env = {"DROIDDECK_GAME_LOG_DIR": tmp}
+            MODULE["record_final_env"](["/runtime/run-proton.py", "/proton"], env, str(proton / "proton"))
+            text = Path(tmp, "launch.txt").read_text()
+            self.assertIn("fex: FEX-Kestrel-ab135df09-1cbcab5e %d bytes sha256 %s\n" % (
+                len(data), hashlib.sha256(data).hexdigest()[:12]), text)
+            dll.write_bytes(b"MZ no name")
+            MODULE["record_final_env"](["/x"], env, str(proton / "proton"))
+            self.assertIn("fex: (no version name) 10 bytes", Path(tmp, "launch.txt").read_text())
+            dll.unlink()
+            MODULE["record_final_env"](["/x"], env, str(proton / "proton"))
+            self.assertIn("fex: no files/lib/wine/aarch64-windows/libarm64ecfex.dll", Path(tmp, "launch.txt").read_text())
 
     def test_rapid_game_launches_keep_separate_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
@@ -2974,6 +3291,207 @@ class KeepCallerEnvTest(unittest.TestCase):
             self.assertIn("droiddeck-game-env: kept the caller's FEX_VECTORTSOENABLED=" + kept, result.stderr)
 
 
+def godot_variant(value):
+    if isinstance(value, bool):
+        return struct.pack("<II", 1, int(value))
+    if isinstance(value, int):
+        return struct.pack("<Ii", 2, value)
+    data = value.encode()
+    return struct.pack("<II", 4, len(data)) + data + b"\0" * (-len(data) % 4)
+
+
+def godot_pack(settings=None, version=(4, 5, 1), fmt=3, flags=2, path="project.binary", file_flags=0):
+    """A Godot data pack holding only project.binary, laid out as core/io/file_access_pack.cpp reads it."""
+    binary = b"ECFG" + struct.pack("<I", len(settings or {}))
+    for key, value in (settings or {}).items():
+        encoded = godot_variant(value)
+        binary += struct.pack("<I", len(key)) + key.encode() + struct.pack("<I", len(encoded)) + encoded
+    name = path.encode() + b"\0" * (-len(path) % 4)
+    directory = struct.pack("<II", 1, len(name)) + name + struct.pack("<QQ", 0, len(binary)) + b"\0" * 16 + struct.pack("<I", file_flags)
+    header_size = 4 + 20 + 8 + (8 if fmt == 3 else 0) + 64
+    if fmt == 3:
+        file_base = header_size
+        header = struct.pack("<6IQQ", 0x43504447, fmt, *version, flags, file_base, file_base + len(binary)) + b"\0" * 64
+        return header + binary + directory
+    file_base = header_size + len(directory)
+    return struct.pack("<6IQ", 0x43504447, fmt, *version, flags, file_base) + b"\0" * 64 + directory + binary
+
+
+STS2_SETTINGS = {
+    "application/config/name": "Slay the Spire 2",
+    "application/config/use_custom_user_dir": True,
+    "application/config/custom_user_dir_name": "SlayTheSpire2",
+    "rendering/rendering_device/driver.windows": "d3d12",
+    "rendering/textures/vram_compression/import_etc2_astc": False,
+    "display/window/size/viewport_width": 1920,
+}
+POWERVR = {"HYBRIS_VULKAN_HAL": "/vendor/lib64/hw/vulkan.powervr.so"}
+GODOT_RENDER = {"DROIDDECK_EXP_GODOT_RENDER": "1"}
+
+
+class GodotRendererTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(MODULE["GODOT_PROJECTS"].clear)
+        MODULE["GODOT_PROJECTS"].clear()
+
+    def game(self, pack, name="SlayTheSpire2", embedded=False):
+        folder = Path(self.tmp.name) / name
+        (folder / "data_sts2_windows_x86_64").mkdir(parents=True, exist_ok=True)
+        (folder / "data_sts2_windows_x86_64/GodotSharp.dll").touch()
+        exe = folder / (name + ".exe")
+        if embedded:
+            exe.write_bytes(b"MZ" + b"\0" * 62 + pack + struct.pack("<QI", len(pack), 0x43504447))
+        else:
+            exe.write_bytes(b"MZ" + b"\0" * 62)
+            (folder / (name + ".pck")).write_bytes(pack)
+        return str(exe)
+
+    def args(self, exe, env=None, args=()):
+        return MODULE["engine_fixes"](exe, list(args), dict(GODOT_RENDER, **(env or {})))
+
+    def test_with_the_experiment_off_godot_games_get_mains_vulkan_driver_only(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        self.assertEqual(MODULE["engine_fixes"](exe, [], POWERVR), ({}, ["--rendering-driver", "vulkan"], ["Godot: Vulkan renderer"]))
+        self.assertEqual(MODULE["engine_fixes"](exe, ["--rendering-driver", "d3d12"], POWERVR), ({}, [], []))
+
+    def test_the_pack_gives_the_version_and_project_settings(self):
+        project = MODULE["godot_project"](self.game(godot_pack(STS2_SETTINGS)))
+        self.assertEqual(project["version"], (4, 5, 1))
+        self.assertEqual(project["settings"], {
+            "application/config/name": "Slay the Spire 2",
+            "application/config/use_custom_user_dir": True,
+            "application/config/custom_user_dir_name": "SlayTheSpire2",
+            "rendering/rendering_device/driver.windows": "d3d12",
+        })
+        for pack, embedded in ((godot_pack(STS2_SETTINGS, fmt=2), False), (godot_pack(STS2_SETTINGS), True),
+                               (godot_pack(STS2_SETTINGS, path="res://project.binary"), False)):
+            MODULE["GODOT_PROJECTS"].clear()
+            with self.subTest(embedded=embedded):
+                project = MODULE["godot_project"](self.game(pack, "Other", embedded))
+                self.assertEqual(project["settings"]["rendering/rendering_device/driver.windows"], "d3d12")
+        self.assertNotIn("settings", MODULE["godot_project"](self.game(godot_pack(STS2_SETTINGS, flags=3), "Encrypted")))
+        self.assertNotIn("settings", MODULE["godot_project"](self.game(godot_pack(STS2_SETTINGS, file_flags=1), "EncryptedFile")))
+        self.assertIsNone(MODULE["godot_project"](self.game(b"not a pack", "Broken")))
+
+    def test_forward_plus_projects_keep_their_renderer_on_vulkan_and_use_mobile_on_powervr(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        env, extra, notes = self.args(exe)
+        self.assertEqual(extra, ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan"])
+        self.assertIn("Godot 4.5.1 (project: forward_plus on d3d12): forward_plus on Vulkan (DROIDDECK_GODOT_RENDERER=auto)", notes)
+        env, extra, notes = self.args(exe, POWERVR)
+        self.assertEqual(extra[:4], ["--rendering-method", "mobile", "--rendering-driver", "vulkan"])
+        self.assertIn("Godot 4.5.1 (project: forward_plus on d3d12): mobile on Vulkan (DROIDDECK_GODOT_RENDERER=auto)", notes)
+        for choice, expected in (("mobile", ["--rendering-method", "mobile", "--rendering-driver", "vulkan"]),
+                                 ("forward_plus", ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan"]),
+                                 ("vulkan", ["--rendering-driver", "vulkan"]), ("junk", ["--rendering-method", "mobile", "--rendering-driver", "vulkan"])):
+            with self.subTest(choice=choice):
+                self.assertEqual(self.args(exe, dict(POWERVR, DROIDDECK_GODOT_RENDERER=choice))[1], expected)
+        self.assertEqual(self.args(exe, dict(POWERVR, DROIDDECK_GODOT_RENDERER="off")), ({}, [], []))
+
+    def test_launch_options_and_other_projects_choose_for_themselves(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        self.assertEqual(self.args(exe, POWERVR, ["--rendering-driver", "d3d12"])[1], [])
+        self.assertEqual(self.args(exe, POWERVR, ["--rendering-method", "gl_compatibility"])[1], [])
+        self.assertEqual(self.args(exe, POWERVR, ["--rendering-method", "mobile", "--accessibility", "auto"])[1], ["--rendering-driver", "vulkan"])
+        compatibility = self.game(godot_pack({"rendering/renderer/rendering_method": "gl_compatibility"}, (4, 3, 0)), "Compat")
+        env, extra, notes = self.args(compatibility, POWERVR)
+        self.assertEqual(extra, ["--rendering-driver", "vulkan"])
+        self.assertIn("Godot 4.3.0 (project: gl_compatibility on OpenGL): forward_plus on Vulkan (DROIDDECK_GODOT_RENDERER=auto)", notes)
+        mobile = self.game(godot_pack({"rendering/renderer/rendering_method": "mobile"}, (4, 4, 1)), "Mobile")
+        self.assertEqual(self.args(mobile)[1], ["--rendering-method", "mobile", "--rendering-driver", "vulkan"])
+        self.assertEqual(self.args(self.game(godot_pack({}, (3, 5, 3)), "Godot3"), POWERVR)[1], [])
+
+    def test_engine_arguments_go_before_the_games_own(self):
+        with_args = MODULE["with_args"]
+        self.assertEqual(with_args(["proton", "waitforexitandrun", "g.exe", "-a"], ["--x"]), ["proton", "waitforexitandrun", "g.exe", "-a", "--x"])
+        self.assertEqual(with_args(["proton", "waitforexitandrun", "g.exe", "-a", "--", "--b"], ["--x", "1"]),
+                         ["proton", "waitforexitandrun", "g.exe", "-a", "--x", "1", "--", "--b"])
+        self.assertEqual(with_args(["proton", "waitforexitandrun", "g.exe", "++", "b"], ["--x"]), ["proton", "waitforexitandrun", "g.exe", "--x", "++", "b"])
+
+    def test_override_cfg_saves_the_pipeline_cache_in_small_steps_and_is_removed_when_off(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        override = Path(exe).with_name("override.cfg")
+        game = MODULE["Game"](exe, [], GODOT_RENDER)
+        self.assertEqual(MODULE["godot_override"](game), "Godot: pipeline cache saved after each new pipeline (override.cfg)")
+        text = override.read_text()
+        self.assertIn("[rendering]\n\nrendering_device/pipeline_cache/save_chunk_size_mb=0.0\n", text)
+        self.assertTrue(text.startswith("; ") and "\nconfig_version=5\n" in text)
+        stamp = override.stat().st_mtime_ns
+        MODULE["godot_override"](game)
+        self.assertEqual(override.stat().st_mtime_ns, stamp)
+        self.assertEqual(sorted(p.name for p in override.parent.iterdir() if p.name.startswith(".")), [])
+        off = MODULE["Game"](exe, [], dict(GODOT_RENDER, DROIDDECK_GODOT_RENDERER="off"))
+        self.assertEqual(MODULE["godot_override"](off), "Godot: DroidDeck's override.cfg removed")
+        self.assertFalse(override.exists())
+        # Kept without the godot-render experiment too: the cache matters on every path, native included.
+        self.assertEqual(MODULE["godot_override"](MODULE["Game"](exe, [], {})),
+                         "Godot: pipeline cache saved after each new pipeline (override.cfg)")
+        self.assertTrue(override.exists())
+        MODULE["godot_override"](off)
+        self.assertFalse(override.exists())
+        override.write_text("[display]\nwindow/vsync/vsync_mode=0\n")
+        self.assertIn("own override.cfg left as is", MODULE["godot_override"](game))
+        self.assertIsNone(MODULE["godot_override"](off))
+        self.assertEqual(override.read_text(), "[display]\nwindow/vsync/vsync_mode=0\n")
+        godot3 = MODULE["Game"](self.game(godot_pack({}, (3, 5, 3)), "Godot3"), [], GODOT_RENDER)
+        self.assertIsNone(MODULE["godot_override"](godot3))
+        self.assertFalse(Path(godot3.exe).with_name("override.cfg").exists())
+
+    def test_a_launch_applies_the_games_renderer_setting_and_logs_it(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        home = Path(self.tmp.name)
+        config = home / ".config/droiddeck/game-environment.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"version": 1, "shared": GODOT_RENDER,
+                                      "games": {"2868840": {"DROIDDECK_GODOT_RENDERER": "forward_plus"}}}))
+        started = []
+        stubs = {
+            "game_gpu": lambda env: env, "mark_install_scripts": lambda command, env: [],
+            "win_components": lambda *args: "", "repair_foreign_system_dlls": lambda *args: [],
+            "game_images": lambda env: None, "ubisoft_overlay_off": lambda env: None,
+            "dirt_ws2_wanted": lambda *args: None, "offline_without_anticheat": lambda command, env: command,
+            "game_logs": lambda command, env, app_id: env, "game_cores": lambda env: None,
+            "cpu_topology": lambda env, command: None, "ego_core_plan": lambda *args: None, "load_sync": lambda: {},
+            "select_sync": lambda command, env, sync: (command, env),
+            "start": lambda command, env, *args: started.append(command) or 0,
+        }
+        environment = dict(POWERVR, HOME=str(home), STEAM_COMPAT_DATA_PATH=str(home / "compatdata/2868840"))
+        command = ["/stock/proton", "waitforexitandrun", exe, "--", "--mod"]
+        err = io.StringIO()
+        with patch.dict(os.environ, environment, clear=True), patch.object(sys, "argv", ["game-env", *command]), \
+                patch.dict(MODULE["main"].__globals__, stubs), patch.object(sys, "stderr", err):
+            self.assertEqual(MODULE["main"](), 0)
+        self.assertEqual(started[0][3:], ["--rendering-method", "forward_plus", "--rendering-driver", "vulkan", "--", "--mod"])
+        self.assertIn("droiddeck-game-env: Godot 4.5.1 (project: forward_plus on d3d12): forward_plus on Vulkan "
+                      "(DROIDDECK_GODOT_RENDERER=forward_plus)\n", err.getvalue())
+        self.assertIn("droiddeck-game-env: Godot: pipeline cache saved after each new pipeline (override.cfg)\n", err.getvalue())
+        self.assertIn("/SlayTheSpire2: none yet\n", err.getvalue())
+        self.assertTrue(Path(exe).with_name("override.cfg").is_file())
+
+    def test_the_pipeline_cache_and_last_renderer_are_logged_from_the_prefix(self):
+        exe = self.game(godot_pack(STS2_SETTINGS))
+        prefix = Path(self.tmp.name) / "compatdata/2868840"
+        user = prefix / "pfx/drive_c/users/steamuser/AppData/Roaming/SlayTheSpire2"
+        game = MODULE["Game"](exe, [], dict(GODOT_RENDER, STEAM_COMPAT_DATA_PATH=str(prefix) + "/"))
+        self.assertEqual(MODULE["godot_user_dir"](game), user)
+        notes = MODULE["godot_files"](game)
+        self.assertIn("Godot pipeline cache in %s: none yet" % user, notes)
+        (user / "vulkan").mkdir(parents=True)
+        (user / "vulkan/pipelines.mobile.powervr_d-series_dxt-48-1536.cache").write_bytes(b"\0" * (3 << 19))
+        (user / "logs").mkdir()
+        (user / "logs/godot.log").write_text("Godot Engine v4.5.1.stable.mono.official.f62fdbde1 - https://godotengine.org\n"
+                                             "Vulkan 1.3.277 - Forward Mobile - Using Device #0: ImgTec - PowerVR D-Series DXT-48-1536\n\n")
+        notes = MODULE["godot_files"](game)
+        self.assertIn("Godot pipeline cache in %s: pipelines.mobile.powervr_d-series_dxt-48-1536.cache 1.50 MiB" % user, notes)
+        self.assertIn("Godot last run: Vulkan 1.3.277 - Forward Mobile - Using Device #0: ImgTec - PowerVR D-Series DXT-48-1536", notes)
+        plain = {"application/config/name": "My: Game."}
+        MODULE["GODOT_PROJECTS"].clear()
+        other = MODULE["Game"](self.game(godot_pack(plain), "Plain"), [], {"STEAM_COMPAT_DATA_PATH": str(prefix)})
+        self.assertEqual(MODULE["godot_user_dir"](other), prefix / "pfx/drive_c/users/steamuser/AppData/Roaming/Godot/app_userdata/My- Game")
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -3000,3 +3518,87 @@ class ForceSsbsTest(unittest.TestCase):
                 self.assertEqual(MODULE["force_ssbs"]([str(x86 / "proton")], on), on)
             finally:
                 g["SSBS_LIB"] = old
+
+
+class NativeEngineCheckTest(unittest.TestCase):
+    """native-engine consults droiddeck-native-godot's `check` result and schedules a new one off the launch path."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.game = self.root / "Game"
+        (self.game / "data_game_windows_x86_64").mkdir(parents=True)
+        self.cmd = ["/proton", "waitforexitandrun", str(self.game / "Game.exe")]
+        self.env = {"DROIDDECK_EXP_NATIVE_ENGINE": "1", "STEAM_COMPAT_DATA_PATH": "/compat/42",
+                    "LD_PRELOAD": "/x/gameoverlayrenderer.so"}
+        self.runs, self.spawned, self.asked = [], [], []
+
+    def hook(self, result, ng=True):
+        def fresh_check(folder, name=None):
+            self.asked.append((folder, name))
+            return result
+
+        class Done:
+            returncode = 0
+
+        ng = {"fresh_check": fresh_check, "CHECK_DIR": str(self.root / "check")} if ng else None
+        times = iter([10.0, 910.0])
+        return MODULE["native_engine"](self.cmd, self.env, run=lambda args, **kw: self.runs.append(args) or Done(),
+                                       clock=lambda: next(times),
+                                       popen=lambda args, **kw: self.spawned.append((args, kw)), ng=ng)
+
+    def test_a_failed_check_skips_native_up_front(self):
+        rc, notes = self.hook({"result": "fail", "reasons": ["compose stopped: game.dll: mixed-mode"]})
+        self.assertIsNone(rc)
+        self.assertEqual([], self.runs)
+        self.assertEqual([], self.spawned)
+        self.assertIn("last check of these game files failed (compose stopped: game.dll: mixed-mode)", notes[-1])
+        self.assertTrue(notes[-1].endswith("Proton"))
+        self.assertEqual([(str(self.game), "42")], self.asked)
+
+    def test_a_passed_check_runs_native_without_a_new_check(self):
+        rc, notes = self.hook({"result": "pass"})
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(self.runs))
+        self.assertEqual([], self.spawned)
+        self.assertIn("native-engine: the last check of these game files passed", notes)
+
+    def test_no_result_runs_native_and_schedules_a_check_after_the_session(self):
+        rc, notes = self.hook(None)
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(self.runs))
+        (args, kw), = self.spawned
+        self.assertEqual(["sh", "-c", MODULE["NATIVE_CHECK_LATER"], "sh", str(os.getpid())], args[:5])
+        scratch = str(self.root / "check" / "42.launch")
+        self.assertEqual(scratch, args[5])
+        self.assertEqual(["nice", "-n", "19"], args[6:9])
+        self.assertEqual(["check", "--fetch", "--game-dir", str(self.game), "--exe", "Game.exe", "--out", scratch,
+                          "--name", "42"], args[11:])
+        self.assertTrue(kw["start_new_session"])
+        self.assertNotIn("LD_PRELOAD", kw["env"])
+        self.assertTrue(any("one runs after this session" in n for n in notes))
+
+    def test_the_later_check_waits_for_the_launch_then_cleans_up(self):
+        gone = subprocess.Popen(["true"])
+        gone.wait()
+        scratch = self.root / "check" / "42.launch"
+        scratch.mkdir(parents=True)
+        marker = self.root / "ran"
+        subprocess.run(["sh", "-c", MODULE["NATIVE_CHECK_LATER"], "sh", str(gone.pid), str(scratch),
+                        "sh", "-c", 'echo checked; touch "$0"', str(marker)], check=True, timeout=30)
+        self.assertTrue(marker.exists())
+        self.assertFalse(scratch.exists())
+        self.assertEqual("checked\n", (self.root / "check" / "42.launch.log").read_text())
+
+    def test_without_the_check_tool_native_runs_as_before(self):
+        g = MODULE["native_engine"].__globals__
+        old = g["NATIVE_GODOT"]
+        g["NATIVE_GODOT"] = str(self.root / "missing")
+        try:
+            rc, _ = self.hook(None, ng=False)
+        finally:
+            g["NATIVE_GODOT"] = old
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(self.runs))
+        self.assertEqual([], self.spawned)

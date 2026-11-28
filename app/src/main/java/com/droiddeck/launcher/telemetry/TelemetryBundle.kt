@@ -11,9 +11,10 @@ import java.util.zip.ZipOutputStream
 
 /**
  * The compact per-session zip the uploader sends: the app's own telemetry files as written, the
- * session's text reports, crash evidence ([CrashEvidence]: crash-lines.txt, crash.log, app exit
- * traces, the x86_64 Steam's output, Proton logs and the games' own logs, newest first within
- * [EVIDENCE_BYTES]) and an excerpt of session.log, all text through the share bundle's redactor.
+ * session's text reports, power-summary.txt (game-phase battery cost from power.csv), crash
+ * evidence ([CrashEvidence]: crash-lines.txt, crash.log, app exit traces, the x86_64 Steam's output,
+ * Proton logs and the games' own logs, newest first within [EVIDENCE_BYTES]) and an excerpt of
+ * session.log, all text through the share bundle's redactor.
  * Over [MAX_ZIP_BYTES] it drops session.log, then keeps only the tail of frames.csv.
  */
 object TelemetryBundle {
@@ -25,15 +26,35 @@ object TelemetryBundle {
     private const val X64_LOG_BYTES = 2L shl 20
     private const val X64_LOG_UNKNOWN_START = 2L shl 20
     private const val STEAM_LOG_BYTES = 256L shl 10
-    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, "clocks.log", "memory.csv", "processes.csv")
+    internal const val POWER_SUMMARY = "power-summary.txt"
+    private val RAW = listOf(BuildInfo.FILE, FrameLogComponent.FILE, LatencyLogComponent.FILE, "clocks.log", PowerRow.FILE, "memory.csv", "processes.csv", com.droiddeck.launcher.session.ThreadLog.FILE, com.droiddeck.launcher.session.FexStatsLog.FILE, com.droiddeck.launcher.session.FexStatsLog.SAMPLES_FILE, com.droiddeck.launcher.session.SmapsRollup.FILE,
+        com.droiddeck.launcher.session.MemoryDetail.FILE, RemoteConfig.SETTINGS_FILE, com.droiddeck.launcher.session.SessionScreenshot.FILE)
     /** The Steam client's own logs that time shader pre-caching, downloads and compatibility-tool picks. */
     internal val STEAM_LOGS = listOf("shader_log.txt", "content_log.txt", "compat_log.txt", "bootstrap_log.txt", "console_log.txt")
-    private val SCRUBBED = listOf("events.jsonl", "device.txt", GraphicsReport.FILE)
+    internal const val NATIVE_ENGINE_LOG = "native-engine.log"
+    private val SCRUBBED = listOf("events.jsonl", "device.txt", GraphicsReport.FILE, com.droiddeck.launcher.session.MemoryDetail.PRELAUNCH_FILE)
     @Volatile private var learned = false
 
     /** Where the evidence comes from: [x64LogFrom] is the x86_64 Steam log's length at the session start (-1: unknown). */
     class Sources(val sinceMs: Long, val x64Log: File?, val x64LogFrom: Long, val compatdata: List<File>,
-                  val steamLogDirs: List<Pair<String, File>> = emptyList())
+                  val steamLogDirs: List<Pair<String, File>> = emptyList(),
+                  val guestReports: List<Pair<String, File>> = emptyList(),
+                  val guestFiles: List<Pair<String, File>> = emptyList())
+
+    /** Reports guest tools write for upload, as (zip name, path under the Linux root); taken when written this session. */
+    internal val GUEST_REPORTS = listOf(
+        "native-inventory.txt" to "var/tmp/droiddeck/native-inventory.txt",
+        "texpack.txt" to "var/tmp/droiddeck/texpack.txt",
+        "texpack-build.log" to "var/tmp/droiddeck/texpack-build.log",
+    )
+    private const val GUEST_REPORT_BYTES = 4L shl 20
+    /**
+     * Binary files guest tools write for upload, copied as they are (not text, so not through the redactor):
+     * native-samples.zip holds a few of a Godot game's skeleton, atlas and sound bank files for the native-engine
+     * work (Cedar agreed on Nov 13; only to the telemetry repository). Taken when written this session.
+     */
+    internal val GUEST_FILES = listOf("native-samples.zip" to "var/tmp/droiddeck/native-samples.zip")
+    private const val GUEST_FILE_BYTES = 4L shl 20
 
     fun sources(context: Context, sessionDir: File, x64LogFrom: Long = -1): Sources = Sources(
         sessionStartMs(sessionDir), CrashEvidence.x64Log(context), x64LogFrom,
@@ -45,6 +66,8 @@ object TelemetryBundle {
             "arm64" to File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs"),
             "x86_64" to File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/.local/share/Steam/logs"),
         ),
+        GUEST_REPORTS.map { (name, path) -> name to File(LinuxRuntime.rootDir(context), path) },
+        GUEST_FILES.map { (name, path) -> name to File(LinuxRuntime.rootDir(context), path) },
     )
 
     /** Steam client logs written since [sinceMs], as (zip name, file). */
@@ -99,12 +122,22 @@ object TelemetryBundle {
                 }
                 zip.closeEntry()
             }
+            powerSummary(dir)?.let {
+                zip.putNextEntry(ZipEntry(POWER_SUMMARY))
+                zip.write(it.toByteArray())
+                zip.closeEntry()
+            }
             for (name in SCRUBBED) scrubbed(zip, File(dir, name), name, Long.MAX_VALUE, scratch)
             runCatching { evidence(zip, dir, scratch, sources) }
             if (logBytes > 0) scrubbed(zip, File(dir, "session.log"), "session.log", logBytes, scratch)
         }
         tmp.renameTo(out)
     }.getOrDefault(false)
+
+    /** power-summary.txt: game-phase power, mAh and drain from power.csv ([PowerStats]); null without power.csv. */
+    internal fun powerSummary(dir: File): String? = runCatching {
+        File(dir, PowerRow.FILE).takeIf { it.isFile }?.let { PowerStats.of(it.readText(Charsets.ISO_8859_1)).summaryText() }
+    }.getOrNull()
 
     private fun evidence(zip: ZipOutputStream, dir: File, scratch: File, sources: Sources) {
         val seen = HashSet<String>()
@@ -129,12 +162,33 @@ object TelemetryBundle {
             f.delete()
         }
         add(File(dir, "crash.log"), "crash.log", EVIDENCE_FILE_BYTES)
+        // The native engine's own log (why it fell back to Proton); game-env writes it beside session.log when the
+        // detailed game logs are off, and into games/<launch>/ (taken below) when they are on.
+        add(File(dir, NATIVE_ENGINE_LOG), NATIVE_ENGINE_LOG, EVIDENCE_FILE_BYTES)
         dir.listFiles { f -> f.isFile && f.name.startsWith(AppExits.TRACE_PREFIX) }?.sortedByDescending { it.lastModified() }?.take(4)
             ?.forEach { add(it, it.name, 256L shl 10) }
         if (x64 != null && x64From >= 0 && x64.length() > x64From) add(x64, "steam-x64.log", X64_LOG_BYTES, x64From)
         for ((name, file) in steamLogs(sources.steamLogDirs, sources.sinceMs)) add(file, name, STEAM_LOG_BYTES)
+        for ((name, file) in sources.guestReports)
+            if (file.isFile && file.lastModified() >= sources.sinceMs - 60_000) add(file, name, GUEST_REPORT_BYTES)
+        for ((name, file) in sources.guestFiles)
+            if (file.isFile && file.length() in 1..GUEST_FILE_BYTES && file.lastModified() >= sources.sinceMs - 60_000 && seen.add(name))
+                runCatching {
+                    zip.putNextEntry(ZipEntry(name))
+                    file.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
         var budget = EVIDENCE_BYTES
-        val logs = CrashEvidence.protonLogs(dir) + runCatching { CrashEvidence.gameLogs(sources.compatdata, sources.sinceMs) }.getOrDefault(emptyList())
+        val games = runCatching { CrashEvidence.gameLogs(sources.compatdata, sources.sinceMs) }.getOrDefault(emptyList())
+        // Only a live log: Godot 4 copies the last run's godot.log to godot<date>.log at start, so the copy is new on disk
+        // but holds the previous session's loads.
+        games.filterNot { CrashEvidence.rotatedGodotLog(it.second.name) }
+            .firstNotNullOfOrNull { (name, file) -> CrashEvidence.resourceLoads(file)?.let { name to it } }?.let { (name, text) ->
+            val f = File(scratch, CrashEvidence.RESOURCE_LOADS_FILE).apply { writeText("# from $name\n$text") }
+            add(f, CrashEvidence.RESOURCE_LOADS_FILE, Long.MAX_VALUE)
+            f.delete()
+        }
+        val logs = CrashEvidence.protonLogs(dir) + games
         for ((name, file) in logs.sortedByDescending { it.second.lastModified() }) {
             if (budget <= 0) break
             val take = minOf(EVIDENCE_FILE_BYTES, budget, file.length())

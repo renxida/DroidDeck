@@ -13,7 +13,7 @@ object ComponentUpdates {
     const val BOOTED_SECONDS = 60L
     const val FAILED_BOOTS_BEFORE_ROLLBACK = 2
 
-    data class Line(val key: String, val comp: String, val prefix: String)
+    data class Line(val key: String, val comp: String, val prefix: String, val release: String = ComponentsManager.DD_NIGHTLY)
 
     val LINES = listOf(
         Line("dxvk", "dxvk", "DD-dxvk-"),
@@ -22,6 +22,9 @@ object ComponentUpdates {
         Line("vkd3d-arm64ec", "vkd3d", "DD-vkd3d-proton-arm64ec-"),
         Line("fex", "fex", "DD-FEXCore-"),
     )
+
+    /** Kestrel's own FEX for games, published by .github/workflows/build-fex-arm64ec.yml; used under the fex-kestrel experiment. */
+    val KESTREL_FEX = Line("fex-kestrel", "fex", ComponentsManager.KESTREL_FEX_PREFIX, ComponentsManager.KESTREL_FEX_RELEASE)
 
     private val OWN_PREFIX = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }.prefix
 
@@ -53,7 +56,7 @@ object ComponentUpdates {
 
     fun pick(items: List<ComponentsManager.CatalogItem>, line: Line, bad: Set<String>): ComponentsManager.CatalogItem? {
         val newestBad = bad.filter { belongs(it, line) }.maxWithOrNull { a, b -> ProtonExtras.compareVersions(a, b) }
-        return items.filter { it.release == ComponentsManager.DD_NIGHTLY && it.comp == line.comp && belongs(it.file, line) }
+        return items.filter { it.release == line.release && it.comp == line.comp && belongs(it.file, line) }
             .filter { newestBad == null || ProtonExtras.compareVersions(it.file, newestBad) > 0 }
             .maxWithOrNull { a, b -> ProtonExtras.compareVersions(a.file, b.file) }
     }
@@ -153,6 +156,15 @@ object ComponentUpdates {
 
     fun keep(current: String, previous: String, selected: Set<String>): Set<String> =
         (setOf(current, previous) + selected) - ORIGINAL
+
+    /**
+     * A file another of Auto's lines put in place (Kestrel's FEX while the stock line is wanted, or the other way
+     * round) is never a hand choice: switching the fex-kestrel experiment off must take Kestrel's build out even
+     * though the stock line still remembers what it applied before (a Kestrel build that hung Steam stayed in,
+     * Nov 14).
+     */
+    fun fromOtherLine(file: String?, mine: Set<String>, others: Set<String>): Boolean =
+        file != null && !file.startsWith("original ") && file !in mine && file in others
 
     fun manual(choice: ComponentsManager.Choice?, applied: String?, auto: Set<String>, current: String? = null): Boolean =
         choice != null && !choice.auto && !choice.file.startsWith("original ") && choice.file != current &&

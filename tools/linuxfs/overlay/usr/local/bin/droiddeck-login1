@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import uuid
 
 import gi
@@ -24,6 +25,10 @@ AGENT = Path(__file__).resolve().with_name("droiddeck-agent")
 ASLEEP_WAIT = 6
 INHIBIT_WAIT = 12
 RELEASE_RETRIES = 8
+# When Steam can't say whether it is asleep (its DevTools aren't up yet, as while it starts), replay at most one
+# sleep/wake pair this often: every display change on the phone asked for a wake, and 46 replays while Steam was
+# starting made its interface take 150 s instead of 25 (Nov 14).
+UNKNOWN_REPLAY_GAP_S = 60
 INTROSPECTION = """
 <node>
   <interface name="org.freedesktop.login1.Manager">
@@ -62,6 +67,7 @@ class LoginManager:
         self.inhibit_lock = threading.Lock()
         self.release = None
         self.generation = 0
+        self.unknown_replayed_at = None
         info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION).interfaces[0]
         self.registration = bus.register_object(ROOT, info, self.method, self.property, None)
         upower_info = Gio.DBusNodeInfo.new_for_xml(UPOWER_INTROSPECTION).interfaces[0]
@@ -260,6 +266,11 @@ class LoginManager:
         if asleep is False and self.pending is None:
             print("== login1: Steam is awake; no sleep/wake replay", flush=True)
             return False
+        if asleep is None and self.pending is None:
+            now = time.monotonic()
+            if self.unknown_replayed_at is not None and now - self.unknown_replayed_at < UNKNOWN_REPLAY_GAP_S:
+                return False
+            self.unknown_replayed_at = now
         self.resume(force=True)
         return False
 

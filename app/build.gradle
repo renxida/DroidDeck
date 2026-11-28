@@ -59,6 +59,11 @@ def escapedBuildLabel = buildLabel.replace('\\', '\\\\').replace('"', '\\"')
 
 def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getOrNull()
     ?: providers.environmentVariable('GITHUB_SHA').getOrNull() ?: gitValue(['rev-parse', 'HEAD']) ?: ''
+// A fork's CI publishes the add-on packs it builds to its own releases (build.yml, fork-packs); upstream's go to
+// DroidDeck-Components. Empty for upstream and for local builds.
+def packForkRepo = (providers.environmentVariable('GITHUB_REPOSITORY').getOrNull() ?: '').with {
+    it ==~ /[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+/ && !it.equalsIgnoreCase('Droid-Deck/DroidDeck') ? it : ''
+}
 def prNumber = (providers.environmentVariable('DROIDDECK_PR_NUMBER').getOrNull() ?: '0').with { it.isInteger() ? it : '0' }
 def prTitle = providers.environmentVariable('DROIDDECK_PR_TITLE').getOrNull() ?: ''
 def buildBranch = providers.environmentVariable('GITHUB_HEAD_REF').getOrNull()?.trim()
@@ -101,11 +106,14 @@ android {
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
+        buildConfigField "String", "PACK_FORK_REPO", "\"${escapeJava(packForkRepo)}\""
         buildConfigField "String", "PR_TITLE", "\"${escapeJava(prTitle)}\""
         buildConfigField "String", "BUILD_BRANCH", "\"${escapeJava(buildBranch)}\""
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
+        // Read back from a downloaded APK by the self-updater; the prefixes keep aapt from storing them as numbers.
+        manifestPlaceholders = [kestrelCommit: "sha:${sourceCommit}".toString(), kestrelCommitTime: "t:${commitTime}".toString()]
         buildConfigField "String", "SGDB_API_KEY", "\"${System.getenv("SGDB_API_KEY") ?: project.findProperty("sgdbApiKey") ?: ""}\""
         addonPacks.each { name, pack ->
             buildConfigField "String", "PACK_${name.toUpperCase()}_SHA256", "\"${pack.sha256}\""
@@ -149,7 +157,7 @@ android {
             def localSuffix = localBuildOptions.getProperty('droiddeck.debugApplicationIdSuffix')
             if (localSuffix) {
                 applicationIdSuffix localSuffix
-                resValue 'string', 'app_name', 'Kestrel Dev'
+                resValue 'string', 'app_name', 'Lanner Dev'
             }
         }
         release {
@@ -195,6 +203,10 @@ android {
             maxParallelForks = 2
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
+            def repoUrl = providers.systemProperty('robolectric.dependency.repo.url').orNull
+            if (repoUrl != null) systemProperty 'robolectric.dependency.repo.url', repoUrl
+            def hostProot = providers.environmentVariable('KESTREL_TEST_PROOT').orNull
+            if (hostProot != null) environment 'KESTREL_TEST_PROOT', hostProot
         }
     }
 
@@ -210,6 +222,48 @@ android {
 // No instrumented tests; the unused androidTest variant breaks the VS Code Kotlin import.
 androidComponents {
     beforeVariants(selector().all()) { it.androidTest.enable = false }
+}
+
+// AppStartSmokeTest launches the real FrontEndActivity, and something it starts outlives the activity and keeps the
+// shared main looper busy, so the Compose tests that later share its JVM fork fail with AppNotIdleException. Run it in
+// a JVM of its own: each test<Variant>UnitTest excludes it and is finalized by test<Variant>AppStartSmokeTest, which
+// runs only that class with the same classpath and settings, so `testReleaseUnitTest` still runs it and fails on it.
+def appStartSmokeTestClass = 'com.droiddeck.launcher.AppStartSmokeTest'
+afterEvaluate {
+    tasks.names.findAll { it ==~ /test\w+UnitTest/ }.each { unitTestName ->
+        def unitTest = tasks.named(unitTestName, Test)
+        def smokeTest = tasks.register(unitTestName.replace('UnitTest', 'AppStartSmokeTest'), Test) { smoke ->
+            def source = unitTest.get()
+            smoke.group = 'verification'
+            smoke.description = "Runs ${appStartSmokeTestClass} in its own JVM after ${unitTestName}."
+            smoke.testClassesDirs = source.testClassesDirs
+            smoke.classpath = source.classpath
+            smoke.useJUnit()
+            smoke.filter.includeTestsMatching(appStartSmokeTestClass)
+            smoke.maxHeapSize = source.maxHeapSize
+            smoke.systemProperties(source.systemProperties)
+            smoke.jvmArgs(source.jvmArgs)
+            smoke.jvmArgumentProviders.addAll(source.jvmArgumentProviders)
+            smoke.workingDir = source.workingDir
+            def hostProot = providers.environmentVariable('KESTREL_TEST_PROOT').orNull
+            if (hostProot != null) smoke.environment 'KESTREL_TEST_PROOT', hostProot
+            smoke.binaryResultsDirectory = layout.buildDirectory.dir("test-results/${smoke.name}/binary")
+            smoke.reports.junitXml.outputLocation = layout.buildDirectory.dir("test-results/${smoke.name}")
+            smoke.reports.html.outputLocation = layout.buildDirectory.dir("reports/tests/${smoke.name}")
+            smoke.testLogging {
+                events 'passed', 'skipped', 'failed'
+                exceptionFormat 'full'
+            }
+            if (ciBuild) {
+                smoke.outputs.upToDateWhen { false }
+                smoke.outputs.doNotCacheIf('CI executes the test suite on every run') { true }
+            }
+        }
+        unitTest.configure {
+            exclude '**/AppStartSmokeTest*'
+            finalizedBy smokeTest
+        }
+    }
 }
 
 def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {

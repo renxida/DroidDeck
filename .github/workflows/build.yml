@@ -4,7 +4,7 @@ run-name: ${{ github.event_name == 'pull_request' && format('building pr {0} on 
 on:
   push:
     # main, plus the fork's work branches so each can be built and installed without a PR.
-    branches: [ main, 'perf/**', 'cleanup/**', 'ux/**', 'test/**' ]
+    branches: [ main, 'perf/**', 'cleanup/**', 'ux/**', 'test/**', 'autofix/**' ]
     paths-ignore:
       - '**/*.md'
       - 'LICENSE'
@@ -77,6 +77,42 @@ jobs:
       - name: Record pinned source tree
         id: source
         run: echo "tree-sha=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+
+  engine:
+    # Which native engine release this build embeds: the newest one that passed its startup gate and fits this
+    # wrapper (tools/native-engine/resolve_component.py), else the wrapper's committed pin. Nobody copies a tag.
+    name: Pick the native engine release
+    needs: source
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      pin: ${{ steps.pin.outputs.pin }}
+      tag: ${{ steps.pin.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          sparse-checkout: |
+            tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot
+            tools/native-engine/resolve_component.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - id: pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/native-engine/resolve_component.py --wrapper tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot \
+            --out "$RUNNER_TEMP/engine/native-engine.json" --report "$RUNNER_TEMP/engine/engine-report.json" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "pin=$(jq -c . "$RUNNER_TEMP/engine/native-engine.json")" >> "$GITHUB_OUTPUT"
+          echo "tag=$(jq -r .tag "$RUNNER_TEMP/engine/native-engine.json")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-pin
+          path: ${{ runner.temp }}/engine/
+          if-no-files-found: error
+          retention-days: 30
 
   components-runner:
     needs: source
@@ -214,18 +250,27 @@ jobs:
         if: steps.proot.outputs.cache-hit != 'true'
         run: python3 tools/components/prepare.py proot
 
-      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse layer)
+      - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, texture converter, Xclipse, vkcount and indexed hybris compat layers)
         run: |
           set -euo pipefail
-          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan-dev
           D=app/src/main/assets/linuxfs
           mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
             -o "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
           install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$D/usr/local/lib/droiddeck-xclipse/"
+          mkdir -p "$D/usr/local/lib/droiddeck-vkcount"
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -o "$D/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so" tools/linuxfs/vkcount-layer/vkcount_layer.c
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so"
+          install -m644 tools/linuxfs/vkcount-layer/VkLayer_droiddeck_vkcount.json "$D/usr/local/lib/droiddeck-vkcount/"
+          bash tools/hybris/compat-layer/build.sh "$D/usr/local/lib/droiddeck-hybris-compat"
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-hybris-compat/libVkLayer_droiddeck_hybris_compat.so"
           aarch64-linux-gnu-gcc -O2 -Wall -o "$D/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-glprobe"
+          bash tools/linuxfs/texpack/build.sh "$D/usr/local/bin/droiddeck-ctex-astc" aarch64-linux-gnu-g++
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-ctex-astc"
 
       - name: Check the preloads
         run: |
@@ -266,7 +311,7 @@ jobs:
       RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
 
   build:
-    needs: [source, components, build-runner]
+    needs: [source, components, build-runner, engine]
     name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
@@ -497,7 +542,19 @@ jobs:
           D=app/src/main/assets/linuxfs/usr/local/lib/droiddeck-tso-litmus
           bash tools/tso-litmus/build.sh "$D" --smoke 20
           test -f "$D/tso-litmus.exe" && test -f "$D/tso-litmus.dll"
+      - name: Fetch crossgen2 for droiddeck-dotnet-r2r (MIT, Microsoft.NETCore.App.Crossgen2.linux-arm64)
+        run: bash tools/dotnet-r2r/fetch-crossgen2.sh app/src/main/assets/linuxfs/usr/local/lib/droiddeck-crossgen2
 
+      - name: Embed the native engine pin
+        env:
+          PIN: ${{ needs.engine.outputs.pin }}
+        run: |
+          set -euo pipefail
+          for d in app/src/main/assets/linuxfs/usr/local/share/droiddeck tools/linuxfs/overlay/usr/local/share/droiddeck; do
+            mkdir -p "$d" && printf '%s\n' "$PIN" > "$d/native-engine.json"
+          done
+          python3 -c 'import runpy, sys; c = runpy.run_path(sys.argv[1])["COMPONENT"]; assert c["tag"] == sys.argv[2], c; print("embedding", c["tag"])' \
+            tools/linuxfs/overlay/usr/local/bin/droiddeck-native-godot "${{ needs.engine.outputs.tag }}"
       - name: Build
         id: build
         env:
@@ -521,6 +578,25 @@ jobs:
           python3 tools/release/check_android_libraries.py app/build/outputs/apk/release/app-release.apk \
             --readelf "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
 
+      - name: Build a host proot for the suspend tests (tools/proot/build-host.sh)
+        run: |
+          set -euo pipefail
+          if [ ! -f /usr/include/talloc.h ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libtalloc-dev
+          fi
+          bash tools/proot/build-host.sh "$RUNNER_TEMP/host-proot"
+          echo "KESTREL_TEST_PROOT=$RUNNER_TEMP/host-proot/proot" >> "$GITHUB_ENV"
+
+      - name: Cache Robolectric Android jars
+        # Robolectric fetches its android-all jars from Maven Central on first use; Central
+        # answers 429 under load, which failed every Robolectric test class at once.
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('app/build.gradle', 'app/src/test/resources/robolectric.properties') }}
+          restore-keys: robolectric-
+
       - name: Unit tests
         id: unit-tests
         env:
@@ -529,7 +605,10 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p app/build
-          ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
+          # Google's mirror of Maven Central: Central itself answers 429 to Robolectric's jar fetches.
+          ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr \
+            -Drobolectric.dependency.repo.url=https://maven-central.storage-download.googleapis.com/maven2 \
+            -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
 
       - name: Upload unit test diagnostics
         id: unit-test-diagnostics
@@ -642,9 +721,39 @@ jobs:
       - name: Steam import and game environment tests
         run: bash tools/ci/run-python-tests.sh
 
+  native-startup-gate:
+    # The APK ships droiddeck-native-godot: run it on arm64 against the engine release this build embeds with a
+    # stand-in C# game (no game files), so a wrapper change that breaks native startup never reaches the phone.
+    # Its game-env rows launch the stand-in through droiddeck-game-env with native-engine on and the Steam
+    # preflight on, as the phone does: a launch that would show "Native engine skipped" fails the build.
+    needs: [source, engine]
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/native-startup-gate.yml
+    with:
+      component: pinned
+      pin: ${{ needs.engine.outputs.pin }}
+
+  offphone-steam-ui:
+    # This run's own APK on arm64 Android in docker (redroid, tools/offphone): install, runtime,
+    # gamescope and the Steam client up to its sign-in screen, where it stops (nothing signs in);
+    # and the stand-in game (our own Godot code, no game files) through Proton and FEX to a clean
+    # exit. Either failing fails the run, so release-apk does not publish it.
+    needs: build
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/offphone-rig.yml
+    with:
+      apk_run_id: ${{ github.run_id }}
+      scenario: all
+
   checks:
     name: Compile and test APK
-    needs: [build, python-tests]
+    needs: [build, python-tests, native-startup-gate, offphone-steam-ui]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -653,7 +762,59 @@ jobs:
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           PYTHON_RESULT: ${{ needs.python-tests.result }}
-        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success
+          NATIVE_GATE_RESULT: ${{ needs.native-startup-gate.result }}
+          OFFPHONE_RESULT: ${{ needs.offphone-steam-ui.result }}
+        run: >-
+          test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success && test "$NATIVE_GATE_RESULT" = success
+          && test "$OFFPHONE_RESULT" = success
+
+  build-info:
+    # What this APK is, readable without the GitHub API: release-apk attaches it to "latest" beside kestrel.apk.
+    # It exists only for a run whose every gate passed (checks), so "gates": "passed" is literal.
+    name: Record what this APK embeds
+    needs: [engine, build, checks]
+    if: ${{ needs.checks.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: droiddeck-apk
+          path: apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: engine-pin
+          path: engine
+      - name: build-info.json
+        env:
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          EVENT: ${{ github.event_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          apk=$(find apk -name '*.apk' | head -n1)
+          python3 - "$apk" engine/engine-report.json > build-info.json <<'PY2'
+          import datetime, hashlib, json, os, sys
+          apk, report = sys.argv[1], json.load(open(sys.argv[2]))
+          print(json.dumps({
+              "app_sha": os.environ["SHA"], "ref": os.environ["REF"], "event": os.environ["EVENT"],
+              "run_id": int(os.environ["GITHUB_RUN_ID"]), "run_url": os.environ["RUN_URL"],
+              "built_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "apk_sha256": hashlib.sha256(open(apk, "rb").read()).hexdigest(),
+              "native_engine": {k: report.get(k) for k in ("tag", "sha256", "source", "committed", "source_sha", "gate_run")},
+              "gates": "passed",
+              "gate_jobs": ["compile and unit tests", "python tests", "native startup gate (incl. game-env launch, Steam preflight on)",
+                            "off-phone rig"],
+          }, indent=1))
+          PY2
+          cat build-info.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-info
+          path: build-info.json
+          if-no-files-found: error
+          retention-days: 30
 
   sign:
     needs: [build, checks]
@@ -689,6 +850,55 @@ jobs:
       actions: read
     uses: ./.github/workflows/publish-packs.yml
     secrets: inherit
+
+  fork-packs:
+    needs: [build, checks]
+    # A fork's APK downloads each add-on pack from upstream's DroidDeck-Components release, then from the fork's own
+    # release of the same tag (AddonPack.urls). A pack the fork changed exists only here, so publish it to the fork.
+    if: github.event_name == 'push' && github.event.repository.fork
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: fork-packs
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: droiddeck-packs
+          path: packs
+
+      - name: Publish this build's packs to the fork's releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for name in proot directaudio powervr; do
+            file="packs/$name.tar.zst"
+            [ -f "$file" ] || { echo "::error::$name.tar.zst is missing from this run's packs"; exit 1; }
+            sha=$(sha256sum "$file" | cut -d' ' -f1)
+            tag="pack-$name-${sha:0:16}"
+            if curl -fsIL -o /dev/null "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$tag/$name.tar.zst"; then
+              echo "$tag: upstream has it"
+              continue
+            fi
+            if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "$tag: already on the fork; published tags are never replaced"
+              continue
+            fi
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "$tag" --notes "$name add-on pack built by Build APK run $GITHUB_RUN_ID ($GITHUB_SHA). sha256 $sha" \
+              "$file"
+            echo "$tag: published"
+          done
+          for name in proot directaudio powervr; do
+            sha=$(sha256sum "packs/$name.tar.zst" | cut -d' ' -f1)
+            tag="pack-$name-${sha:0:16}"
+            curl -fsIL -o /dev/null "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$tag/$name.tar.zst" ||
+              curl -fsIL -o /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$name.tar.zst" ||
+              { echo "::error::$tag is not downloadable from upstream or the fork; this APK's setup would fail"; exit 1; }
+          done
 
   announce:
     needs: [build, sign, packs]

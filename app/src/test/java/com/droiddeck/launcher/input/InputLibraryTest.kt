@@ -22,8 +22,8 @@ class InputLibraryTest {
     @Test fun freshLibraryHasTheMainGamepadAndTheStockLowerScreenLayouts() {
         val library = InputLibraries.read(context)
         assertEquals(listOf("game", "desktop"), library.profiles.map { it.id })
-        assertEquals(setOf(InputLibraries.OVERLAY, InputLibraries.TRACKPAD) + DeckPanel.entries.map { it.layout }, library.layouts.map { it.id }.toSet())
-        assertEquals(10, library.bindings.size)
+        assertEquals(setOf(InputLibraries.OVERLAY, InputLibraries.TRACKPAD, Sts2Pad.LAYOUT) + DeckPanel.entries.map { it.layout }, library.layouts.map { it.id }.toSet())
+        assertEquals(11, library.bindings.size)
         for (panel in DeckPanel.entries) assertEquals(panel.layout, library.panelLayout(panel.bindings)?.id)
         assertEquals(InputLibraries.DECK, library.activeLayout(InputRole.SECONDARY)?.id)
         assertEquals(InputLibraries.TRACKPAD, library.layout("desktop", InputRole.SECONDARY)?.id)
@@ -548,7 +548,7 @@ class InputLibraryTest {
         val fresh = InputLibraries.read(context)
         val stock = InputStockLayouts.layouts()
         var old = fresh.copy(layouts = fresh.layouts.filter { it.id == InputLibraries.OVERLAY || it.id == InputLibraries.DECK || it.id == InputLibraries.TRACKPAD },
-            bindings = fresh.bindings.filter { b -> DeckPanel.entries.none { it != DeckPanel.BOTH && it.bindings == b.id } })
+            bindings = fresh.bindings.filter { b -> b.id != Sts2Pad.BINDINGS && DeckPanel.entries.none { it != DeckPanel.BOTH && it.bindings == b.id } })
         old = old.withLayout(versionElevenPanel(stock.single { it.id == InputLibraries.DECK }, listOf(2, 3, 0)))
             .withLayout(versionElevenPanel(stock.single { it.id == InputLibraries.TRACKPAD }, listOf(0, 1)))
         old = old.copy(bindings = old.bindings.map { b ->

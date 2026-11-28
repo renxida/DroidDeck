@@ -31,5 +31,13 @@ for sym in vkNegotiateLoaderLayerInterfaceVersion vkGetInstanceProcAddr vkGetDev
   grep -qx "$sym" <<<"$XCLIPSE" || { echo "::error::the Xclipse layer does not export $sym"; exit 1; }
 done
 test -f "$D/usr/local/lib/droiddeck-xclipse/VkLayer_droiddeck_xclipse.json"
+VKCOUNT=$(syms "$D/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so")
+for sym in vkNegotiateLoaderLayerInterfaceVersion vkGetInstanceProcAddr vkGetDeviceProcAddr; do
+  grep -qx "$sym" <<<"$VKCOUNT" || { echo "::error::the vkcount layer does not export $sym"; exit 1; }
+done
+test -f "$D/usr/local/lib/droiddeck-vkcount/VkLayer_droiddeck_vkcount.json"
+HYBRIS_COMPAT=$(syms "$D/usr/local/lib/droiddeck-hybris-compat/libVkLayer_droiddeck_hybris_compat.so")
+grep -qx vkNegotiateLoaderLayerInterfaceVersion <<<"$HYBRIS_COMPAT" || { echo "::error::the indexed hybris compat layer does not export vkNegotiateLoaderLayerInterfaceVersion"; exit 1; }
+test -f "$D/usr/local/lib/droiddeck-hybris-compat/VkLayer_droiddeck_hybris_compat.json"
 test -f "$D/usr/local/bin/droiddeck-session"
 test -f "$D/usr/local/bin/droiddeck-proton-extra"

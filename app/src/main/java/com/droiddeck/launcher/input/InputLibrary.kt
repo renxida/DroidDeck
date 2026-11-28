@@ -294,7 +294,7 @@ fun newInputId(): String = UUID.randomUUID().toString()
 internal fun InputAction.validFor(element: InputSurfaceElement): Boolean = when {
     this !is InputAction.Native -> validFor(element.control)
     element.id.startsWith("legacy:") -> validFor(element.control)
-    element.kind == InputElementKind.DPAD -> target == null
+    element.kind == InputElementKind.DPAD || element.kind == InputElementKind.SWIPE -> target == null
     target == null -> false
     element.kind == InputElementKind.TRACKPAD -> target.isTrackpad
     element.kind == InputElementKind.STICK -> target == InputControl.LS || target == InputControl.RS

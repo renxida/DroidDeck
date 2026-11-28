@@ -33,3 +33,9 @@ __pycache__/
 app/src/main/assets/directaudio/
 app/src/main/assets/hybris/
 /tools/vr/out/
+fex-ec/
+fex-linux/
+bench-out/
+bench-bin/
+# CI writes the engine pin it resolved here (tools/native-engine/resolve_component.py); the committed pin is in droiddeck-native-godot.
+tools/linuxfs/overlay/usr/local/share/droiddeck/native-engine.json

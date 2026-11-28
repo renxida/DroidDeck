@@ -29,6 +29,9 @@ object ComponentsManager {
     private const val NIGHTLIES = "The412Banner/Nightlies"
     private const val DD_COMPONENTS = "Droid-Deck/DroidDeck-Components"
     internal const val DD_NIGHTLY = "linux-nightly"
+    internal const val KESTREL_REPO = "renxida/DroidDeck"
+    internal const val KESTREL_FEX_RELEASE = "kestrel-fex"
+    internal const val KESTREL_FEX_PREFIX = "Kestrel-FEXCore-"
     private val RELEASES = linkedMapOf(
         "FexCore-Linux" to "fex",
         "Dxvk-Linux" to "dxvk",
@@ -37,13 +40,14 @@ object ComponentsManager {
         "Vkd3d-proton-Linux" to "vkd3d",
     )
     private val NIGHTLY_PREFIXES = linkedMapOf("DD-dxvk-" to "dxvk", "DD-vkd3d-proton-" to "vkd3d", "DD-FEXCore-" to "fex")
-    private val SOURCES = RELEASES.keys.map { NIGHTLIES to it } + (DD_COMPONENTS to DD_NIGHTLY)
-    private val DOWNLOAD_REPOS = listOf(NIGHTLIES, DD_COMPONENTS)
+    private val SOURCES = RELEASES.keys.map { NIGHTLIES to it } + (DD_COMPONENTS to DD_NIGHTLY) + (KESTREL_REPO to KESTREL_FEX_RELEASE)
+    private val DOWNLOAD_REPOS = listOf(NIGHTLIES, DD_COMPONENTS, KESTREL_REPO)
     private val TYPES = mapOf("FEXCore-Linux" to "fex", "DXVK-Linux" to "dxvk", "VKD3D-Linux" to "vkd3d")
     private val TYPE_OF = mapOf("fex" to "FEXCore-Linux", "dxvk" to "DXVK-Linux", "vkd3d" to "VKD3D-Linux")
     val COMPONENTS = listOf("fex", "dxvk", "vkd3d")
     val LABEL = mapOf("fex" to "FEX", "dxvk" to "DXVK", "vkd3d" to "VKD3D-Proton")
 
+    private val SHA256_HEX = Regex("[0-9a-f]{64}")
     private const val WINE = "files/lib/wine"
     private val FEX_FILES = listOf(
         "$WINE/aarch64-windows/libarm64ecfex.dll",
@@ -316,7 +320,7 @@ object ComponentsManager {
         val dll = File(dir, FEX_FILES[0])
         if (!dll.isFile) return ""
         val text = runCatching { String(dll.readBytes(), Charsets.ISO_8859_1) }.getOrDefault("")
-        return Regex("FEX-\\d{4}(?:\\.\\d+)?(?:-\\d+-g[0-9a-f]{6,})?").findAll(text).map { it.value }.maxByOrNull { it.length }
+        return Regex("FEX-Kestrel-[0-9a-f]{6,}-[0-9a-f]{8}|FEX-\\d{4}(?:\\.\\d+)?(?:-\\d+-g[0-9a-f]{6,})?").findAll(text).map { it.value }.maxByOrNull { it.length }
             ?: unnamed
     }
 
@@ -549,6 +553,28 @@ object ComponentsManager {
             return unpacked
         }
 
+        val digestsByKey = HashMap<String, Map<String, String>>()
+
+        // Unpacked store files never change, so their digests are kept beside them and only
+        // recomputed for a file whose size or modification time differs.
+        fun digests(key: String, base: File, files: Map<String, File>): Map<String, String> = digestsByKey.getOrPut(key) {
+            val sidecar = File(base, ".sha256")
+            val saved = runCatching { sidecar.readLines() }.getOrDefault(emptyList())
+                .map { it.split('\t') }
+                .filter { it.size == 4 && it[3].matches(SHA256_HEX) }
+                .associate { "${it[0]}\t${it[1]}\t${it[2]}" to it[3] }
+            val stamps = files.mapValues { (rel, file) -> "$rel\t${file.length()}\t${file.lastModified()}" }
+            val found = files.mapValues { (rel, file) -> saved[stamps.getValue(rel)] ?: Hashes.sha256(file) }
+            if (stamps.size != saved.size || stamps.values.any { it !in saved }) {
+                val tmp = File(base, ".sha256.tmp")
+                runCatching {
+                    tmp.writeText(stamps.entries.joinToString("") { (rel, stamp) -> "$stamp\t${found.getValue(rel)}\n" })
+                    check(tmp.renameTo(sidecar))
+                }.onFailure { tmp.delete() }
+            }
+            found
+        }
+
         fun managed(comp: String): Set<String> = if (comp == "fex") FEX_FILES.toSet() else buildSet {
             for (arch in PE_ARCHES) for (dll in COMP_DLLS.getValue(comp)) add("${COMP_DIR.getValue(comp)}/$arch/$dll")
         }
@@ -559,6 +585,8 @@ object ComponentsManager {
                 File(base, "files").walkTopDown().filter { it.isFile }.map { it.relativeTo(base).invariantSeparatorsPath }
                     .filter { owned(comp, it) }.associateWith { File(base, it) }
             }
+            val sums = if (Experiments.on(context, Experiments.LAUNCH)) digests(key, unpacked, files)
+                else files.mapValues { Hashes.sha256(it.value) }
             for (rel in managed(comp) - files.keys) {
                 lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
                     .append('\t').append(rel).append("\t-\t-\n")
@@ -566,7 +594,7 @@ object ComponentsManager {
             for ((rel, src) in files) {
                 val guestSrc = "/" + src.relativeTo(root(context)).invariantSeparatorsPath
                 lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
-                    .append('\t').append(rel).append('\t').append(Hashes.sha256(src)).append('\t').append(guestSrc).append('\n')
+                    .append('\t').append(rel).append('\t').append(sums.getValue(rel)).append('\t').append(guestSrc).append('\n')
             }
         }
 
@@ -1012,7 +1040,11 @@ object ComponentsManager {
     }
 
     internal fun assetComp(release: String, name: String): String? =
-        RELEASES[release] ?: if (release == DD_NIGHTLY) NIGHTLY_PREFIXES.entries.firstOrNull { name.startsWith(it.key) }?.value else null
+        RELEASES[release] ?: when (release) {
+            DD_NIGHTLY -> NIGHTLY_PREFIXES.entries.firstOrNull { name.startsWith(it.key) }?.value
+            KESTREL_FEX_RELEASE -> if (name.startsWith(KESTREL_FEX_PREFIX)) "fex" else null
+            else -> null
+        }
 
     internal val CATALOG_ORDER: Comparator<CatalogItem> =
         compareBy<CatalogItem> { it.comp }.thenBy { it.release == DD_NIGHTLY }.then(newestFirst { it.file })

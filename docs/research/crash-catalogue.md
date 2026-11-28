@@ -85,8 +85,9 @@ oom score to 900 [R oomadj.c:1-7]; a 10 s memory log (`MemoryReadout.kt` `Memory
 **Fixes.** (a) *new* every app death is classified on next start: `DROIDDECK_EXIT_CAUSE scope=app
 class=lmk` (I2). (b) *new* `onTrimMemory` writes `DROIDDECK_MEMORY_PRESSURE level=...
 availableMb=... swapFreeMb=... psiSomeAvg10=... psiFullAvg10=...` so the lead-up to a kill is in the
-logs (I3). (c) Proposed, not built: shrink the game's managed heap (C6) and, with measurements,
-stop only the game when the PSI trend predicts an lmkd kill (issue [D2510] asks for exactly this).
+logs (I3). (c) Shrinking the game's managed heap (C6) and a save-now warning before a likely lmkd kill are
+in `memory-footprint.md`; stopping only the game, which issue [D2510] asks for, is shown there not
+to be safe.
 Nothing an app can do changes its own oom_score_adj below what Android assigns.
 
 ### C2. Phantom process killer (outcome B or C)
@@ -277,8 +278,8 @@ accessibility layer is worth an A/B on PowerVR (E6).
 | I3 | Memory-pressure trail (`DROIDDECK_MEMORY_PRESSURE`, `memory.trim` event) | **built** (`SessionService.onTrimMemory`) | shows how close lmkd was before C1 | negligible | Android 14+ may deliver fewer running-level trims (unverified) |
 | I4 | Game exit classification (`DROIDDECK_GAME_EXIT`) | **built**: on every waited launch; waiting is the default for StS2 only, `DROIDDECK_GAME_EXIT_WATCH=1/0` per game | first per-game crash statistics for StS2 (C3-C5) | ~10 MB RSS, +1 process for StS2 | StS2's process tree under Steam's reaper gains a parent (same shape as the existing enhanced-diagnostics path) |
 | I5 | Keep-alive guard test for a future targetSdk raise | **built** (`test_session_keepalive.py`) | prevents a silent SecurityException on API 34+ | none | none |
-| I6 | StS2 managed-heap tuning: `DOTNET_GCConserveMemory=5`, then a measured `DOTNET_GCHeapHardLimit` | proposed (E3) | lowers peak RSS, fewer C1 kills on the 12 GB Pixel 10 | per-game env | too low a limit is an `OutOfMemoryException` crash |
-| I7 | Stop only the game (not the session) when PSI full avg10 and swap headroom predict an lmkd kill | proposed | converts A into C: Steam and the session survive | moderate | false positives lose game progress; needs E2 data first |
+| I6 | StS2 managed-heap tuning: `DOTNET_GCConserveMemory=5`, then a measured `DOTNET_GCHeapHardLimit` | **built on `perf/memory`** (`memory-footprint.md` section 2; `DROIDDECK_DOTNET_HEAP`) | lowers peak RSS, fewer C1 kills on the 12 GB Pixel 10 | per-game env | too low a limit is an `OutOfMemoryException` crash |
+| I7 | Stop only the game (not the session) when PSI and swap predict an lmkd kill | **rejected**: lmkd polls every 10 ms once swap is low and spares adj 0-200 unless stalled, so an app-side stop is either too late or kills games lmkd would spare (`memory-footprint.md` section 4); a save-now warning (`DROIDDECK_LMK_RISK`) is built instead | - | - | - |
 | I8 | Test the GC-suspension hypothesis (C4) with `DOTNET_gcConcurrent=0`, FEX `SMCChecks=full` | proposed (E4) | if confirmed, a per-game default that removes the CoreCLR corruption class | env only | slower GC pauses |
 
 ## 5. What the new code does on a device
@@ -289,6 +290,7 @@ accessibility layer is worth an A/B on PowerVR (E6).
 | `SessionArtifacts: DROIDDECK_EXIT_CAUSE scope=app class=<lmk,excessive_cpu,app_crash,app_native_crash,anr,freezer,user,sigkill,device_reboot,unknown> ...` + `exit.classified` in the dead session's folder, and the same line appended to `ended-without-teardown.txt` | first app start after a session died with the app |
 | `SessionService: DROIDDECK_MEMORY_PRESSURE level=L availableMb=... swapFreeMb=... psiSomeAvg10=... psiFullAvg10=...` + `memory.trim` | Android calls `onTrimMemory` during a session |
 | `DROIDDECK_GAME_EXIT app=ID status=N class=... seconds=S detail="..."` (stderr of the compat tool, in `session.log`; also kept in the telemetry bundle's `crash-lines.txt`) | a Proton `waitforexitandrun` exit the wrapper waited for: StS2 by default, any game with `DROIDDECK_GAME_EXIT_WATCH=1`, enhanced diagnostics |
+| `DROIDDECK_TIMELINE event=game_explorer_failed app_id=ID attempt=N action=<relaunch,none> run_ms=... wall_ms=...` + `game.explorer_failed`; `DROIDDECK_TIMELINE event=game_relaunch app_id=ID attempt=2 reason=explorer_failed ended_by=<wineserver,tree,wineserver+tree> wall_ms=...` + `game.relaunch` (both also in `crash-lines.txt`) | in the first 5 minutes of a waited launch, Wine printed `The explorer process failed to start.` (win32u `nodrv_CreateWindow`: the desktop never registered a display driver, and the game would wait in user32 with no window). On the first attempt the wrapper runs `wineserver -k` for the prefix (then kills the Proton process tree if that did not end it) and starts the game once more; a second failure, or any SIGINT/SIGTERM/SIGHUP to the wrapper, is only reported. `DROIDDECK_EXPLORER_WATCHDOG=0` turns it off. Without `PROTON_LOG` the wrapper relays Proton's stderr to scan it and adds `err+winediag` to `WINEDEBUG` (Proton's default `-all` hides the line); with `PROTON_LOG` it reads `steam-<id>.log` once a second and keeps the failed attempt's log as `steam-<id>-explorer-failed.log` |
 
 The telemetry work on main records the raw facts these lines interpret: `app.exit` events
 (ApplicationExitInfo, `telemetry/AppExits.kt`), `game.exited` (gamescope's focused pid leaving

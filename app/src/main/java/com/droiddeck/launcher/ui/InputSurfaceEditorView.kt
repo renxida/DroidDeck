@@ -29,7 +29,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     var onBeginEdit: () -> Unit = {}
     var onChange: (InputSurfaceElement) -> Unit = {}
     private val preview = InputSurfaceView(context)
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(26, 159, 255); strokeWidth = 2 * resources.displayMetrics.density }
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(224, 112, 58); strokeWidth = 2 * resources.displayMetrics.density }
     private val radius = 14 * resources.displayMetrics.density
     private var original: InputSurfaceElement? = null
     private var downX = 0f

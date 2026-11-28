@@ -36,16 +36,18 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
             "exit \"$last\"\n")
         self.agent.chmod(0o755)
 
-    def launch_game(self, states, focusable="769", extra=None, client=None):
+    def launch_game(self, states, focusable="769", extra=None, client=None, game=GAME):
         xprop = self.bin / "xprop"
         xprop.write_text("#!/bin/sh\necho 'GAMESCOPE_FOCUSABLE_APPS(CARDINAL) = %s'\n" % focusable)
         xprop.chmod(0o755)
         script = "nap() { :; }\nsteam_root=%s\n%s%s\nsteam_launch_game %s\n" % (
             self.root / "steam", "steam_client=(%s --exec)\n" % client if client else "",
-            FUNCTIONS.replace("/usr/local/bin/droiddeck-agent", str(self.agent)), GAME)
+            FUNCTIONS.replace("/usr/local/bin/droiddeck-agent", str(self.agent)), game)
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"], STEAM_LOG=str(self.steam_log),
-                   AGENT_COUNT=str(self.root / "agent-count"), AGENT_STATES=states, **(extra or {}))
+                   AGENT_COUNT=str(self.root / "agent-count"), AGENT_STATES=states)
+        env.pop("DROIDDECK_EXP_ALL", None)
+        env.update(extra or {})
         result = subprocess.run(["bash", "-c", script], env=env, text=True, capture_output=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stderr)
         steam = self.steam_log.read_text().splitlines() if self.steam_log.exists() else []
@@ -110,6 +112,35 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
         self.assertEqual(["steam://rungameid/" + GAME], steam)
         self.assertIsNone(restart)
         self.assertEqual("1", (self.root / "agent-count").read_text().strip())
+
+    def test_the_launch_experiment_starts_an_installed_steam_game_in_the_client(self):
+        steam, restart, out = self.launch_game("3 0", game="413150", extra={"DROIDDECK_EXP_ALL": "1"})
+        self.assertEqual([], steam)
+        self.assertIsNone(restart)
+        self.assertEqual("2", (self.root / "agent-count").read_text().strip())
+        self.assertIn("== steam: 413150 ", out)
+
+    def test_a_game_the_client_cannot_start_directly_falls_back_to_the_url(self):
+        for status in ("1", "2"):
+            with self.subTest(status=status):
+                if self.steam_log.exists():
+                    self.steam_log.unlink()
+                (self.root / "agent-count").unlink(missing_ok=True)
+                steam, _, out = self.launch_game("3 " + status, game="413150", extra={"DROIDDECK_EXP_ALL": "1"})
+                self.assertEqual(["steam://rungameid/413150"], steam)
+                self.assertIn("not started directly", out)
+                self.assertEqual("2", (self.root / "agent-count").read_text().strip())
+
+    def test_without_the_launch_experiment_steam_games_keep_the_url(self):
+        steam, _, out = self.launch_game("3 0", game="413150")
+        self.assertEqual(["steam://rungameid/413150"], steam)
+        self.assertEqual("1", (self.root / "agent-count").read_text().strip())
+
+    def test_shortcuts_keep_the_url_under_the_launch_experiment(self):
+        steam, restart, _ = self.launch_game("0", extra={"DROIDDECK_EXP_ALL": "1"})
+        self.assertEqual(["steam://rungameid/" + GAME], steam)
+        self.assertIsNone(restart)
+        self.assertEqual("9", (self.root / "agent-count").read_text().strip())
 
     def check_exits(self, listings, states, beats):
         pgrep = self.bin / "pgrep"

@@ -269,6 +269,23 @@ class AwakeSteamTest(FakeAgentCase):
 
 
 @unittest.skipUnless(Gio and os.environ.get("DBUS_SESSION_BUS_ADDRESS"), "requires dbus-run-session and PyGObject")
+class UnknownSteamTest(FakeAgentCase):
+    AGENT_EXIT = 3
+
+    def test_repeated_wakes_while_steam_cannot_answer_replay_one_pair(self):
+        self.request_wake()
+        self.wait_for(lambda: self.signals == [True, False])
+        for n in range(2, 5):
+            self.request_wake()
+            self.wait_for(lambda: self.asked().count("--steam-asleep") == n)
+        deadline = time.monotonic() + 1.5
+        while time.monotonic() < deadline:
+            self.wait_for(lambda: True)
+            time.sleep(0.05)
+        self.assertEqual([True, False], self.signals)
+
+
+@unittest.skipUnless(Gio and os.environ.get("DBUS_SESSION_BUS_ADDRESS"), "requires dbus-run-session and PyGObject")
 class AsleepSteamTest(FakeAgentCase):
     AGENT_EXIT = 0
 

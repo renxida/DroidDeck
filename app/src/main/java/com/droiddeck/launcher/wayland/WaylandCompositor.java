@@ -178,6 +178,14 @@ public final class WaylandCompositor {
 
     public static native void nativeVsync(long frameTimeNanos);
 
+    public static native void nativeInputMark(int kind, long eventNanos);
+
+    public static native int nativeLatencyDrain(long[] out);
+
+    public static native int nativeLatencyDropped();
+
+    public static native boolean nativeDisplayTiming();
+
     public static native int nativeCompositorTid();
 
     private static native String nativeCompositorFault();
@@ -305,6 +313,9 @@ public final class WaylandCompositor {
     public static native void nativeSetFpsLimit(int fps);
 
     public static native void nativeSetRenderOnCommit(boolean on);
+
+    /** 0 one frame in flight, 1 two screen frames in flight, 2 fenced layer blits. */
+    public static native void nativeSetPresentMode(int mode);
 
     public static native void nativeSetGpuTurbo(boolean on);
 

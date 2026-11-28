@@ -5,6 +5,7 @@ import android.os.HandlerThread
 import android.os.Process
 import android.view.Choreographer
 import android.view.Surface
+import com.droiddeck.launcher.session.Experiments
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 
@@ -52,6 +53,7 @@ object CompositorHost {
     ): Boolean {
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
+        WaylandCompositor.nativeSetPresentMode(Experiments.run { presentMode(session ?: enabled(context)) })
         pace(refreshHz, fpsLimit)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
@@ -70,16 +72,16 @@ object CompositorHost {
         return true
     }
 
-    private fun pace(refreshHz: Float, fpsLimit: Int) {
+    private fun pace(refreshHz: Float, fpsLimit: Int, vote: Int = fpsLimit) {
         WaylandCompositor.nativeSetFpsLimit(fpsLimit)
-        WaylandCompositor.nativeSetLayerFrameRate(if (fpsLimit > 0) fpsLimit.toFloat() else refreshHz)
+        WaylandCompositor.nativeSetLayerFrameRate(if (vote > 0) vote.toFloat() else refreshHz)
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         SessionState.refreshHz = refreshHz
     }
 
     @Synchronized
-    fun updatePacing(refreshHz: Float, fpsLimit: Int) {
-        if (started) pace(refreshHz, fpsLimit)
+    fun updatePacing(refreshHz: Float, fpsLimit: Int, vote: Int = fpsLimit) {
+        if (started) pace(refreshHz, fpsLimit, vote)
     }
 
     @Synchronized

@@ -145,10 +145,19 @@ docker run --rm --platform "${docker_platform}" \
             -o "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
         install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$d/usr/local/lib/droiddeck-xclipse/"
+        mkdir -p "$d/usr/local/lib/droiddeck-vkcount"
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -o "$d/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so" tools/linuxfs/vkcount-layer/vkcount_layer.c
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-vkcount/libVkLayer_droiddeck_vkcount.so"
+        install -m644 tools/linuxfs/vkcount-layer/VkLayer_droiddeck_vkcount.json "$d/usr/local/lib/droiddeck-vkcount/"
+        bash tools/hybris/compat-layer/build.sh "$d/usr/local/lib/droiddeck-hybris-compat"
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-hybris-compat/libVkLayer_droiddeck_hybris_compat.so"
         mkdir -p "$d/usr/local/bin"
         external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
         aarch64-linux-gnu-gcc -O2 -Wall -o "$d/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-glprobe"
+        bash tools/linuxfs/texpack/build.sh "$d/usr/local/bin/droiddeck-ctex-astc" aarch64-linux-gnu-g++
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-ctex-astc"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
         for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do

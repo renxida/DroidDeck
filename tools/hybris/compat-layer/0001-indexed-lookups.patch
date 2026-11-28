@@ -1,0 +1,537 @@
+Index the PowerVR compat layer's per-call lookups.
+
+Every recorded vkCmdBindPipeline, vkCmdBindDescriptorSets, vkCmdPushConstants and
+vkCmdPipelineBarrier took a global lock and walked every live command buffer to
+find its own, every image barrier walked every image the game ever created, every
+push walked the pipeline-layout list and allocated a journal entry, and each call
+asked the next layer for its entry point by name. Command buffers, images and
+layouts now have hash indexes beside their lists, entry points are cached per
+device, and a push or compute bind with the same shape as the previous journal
+entry overwrites it in place (replay leaves the same state).
+
+On lavapipe with 64 command buffers, 3000 images and 300 layouts: push 1886 -> 138
+ns, bind 334 -> 106 ns, image barrier 10192 -> 202 ns. The upstream BC image probe
+prints the same output before and after.
+
+diff --git a/hybris/vulkan/compat/bc_barriers.c b/hybris/vulkan/compat/bc_barriers.c
+index f46825b..85c4e6b 100644
+--- a/hybris/vulkan/compat/bc_barriers.c
++++ b/hybris/vulkan/compat/bc_barriers.c
+@@ -3,7 +3,7 @@
+ #include "bc_context.h"
+ #include <string.h>
+ 
+-#define PROC(name) PFN_vk##name name = (PFN_vk##name)device->resolver(device->handle, "vk" #name)
++#define PROC(name) PFN_vk##name name = (PFN_vk##name)hybris_bc_device_proc(device, "vk" #name)
+ static uint32_t level_count(const struct hybris_bc_image *image, const VkImageSubresourceRange *range)
+ {
+     return range->levelCount == VK_REMAINING_MIP_LEVELS ? image->mip_levels - range->baseMipLevel : range->levelCount;
+@@ -138,10 +138,10 @@ static void barrier_or_set2(VkCommandBuffer handle, VkEvent event, const VkDepen
+     VkBufferMemoryBarrier2 *translated = prepare2(device, command, info, &translated_info);
+     if (command->state.error == VK_SUCCESS) {
+         if (set_event) {
+-            PFN_vkCmdSetEvent2 record = (PFN_vkCmdSetEvent2)device->resolver(device->handle, name);
++            PFN_vkCmdSetEvent2 record = (PFN_vkCmdSetEvent2)hybris_bc_device_proc(device, name);
+             record(handle, event, &translated_info);
+         } else {
+-            PFN_vkCmdPipelineBarrier2 record = (PFN_vkCmdPipelineBarrier2)device->resolver(device->handle, name);
++            PFN_vkCmdPipelineBarrier2 record = (PFN_vkCmdPipelineBarrier2)hybris_bc_device_proc(device, name);
+             record(handle, &translated_info);
+         }
+     }
+@@ -166,7 +166,7 @@ static void wait_events2(VkCommandBuffer handle, uint32_t count, const VkEvent *
+         for (uint32_t i = 0; i < count && command->state.error == VK_SUCCESS; ++i)
+             owned[i] = prepare2(device, command, &infos[i], &translated[i]);
+         if (command->state.error == VK_SUCCESS) {
+-            PFN_vkCmdWaitEvents2 record = (PFN_vkCmdWaitEvents2)device->resolver(device->handle, name);
++            PFN_vkCmdWaitEvents2 record = (PFN_vkCmdWaitEvents2)hybris_bc_device_proc(device, name);
+             record(handle, count, events, translated);
+         }
+     }
+diff --git a/hybris/vulkan/compat/bc_command_state.c b/hybris/vulkan/compat/bc_command_state.c
+index 7264edf..2c2c5da 100644
+--- a/hybris/vulkan/compat/bc_command_state.c
++++ b/hybris/vulkan/compat/bc_command_state.c
+@@ -56,6 +56,7 @@ VkResult hybris_bc_layout_add(struct hybris_bc_layouts *layouts, VkPipelineLayou
+     pthread_mutex_lock(&layouts->guard);
+     layout->next = layouts->head;
+     layouts->head = layout;
++    hybris_handle_map_put(&layouts->index, hybris_handle_key((const void *)handle), layout);
+     pthread_mutex_unlock(&layouts->guard);
+     return VK_SUCCESS;
+ }
+@@ -66,7 +67,10 @@ void hybris_bc_layout_remove(struct hybris_bc_layouts *layouts, VkPipelineLayout
+     struct hybris_bc_layout **link = &layouts->head;
+     while (*link && (*link)->handle != handle) link = &(*link)->next;
+     struct hybris_bc_layout *layout = *link;
+-    if (layout) *link = layout->next;
++    if (layout) {
++        *link = layout->next;
++        hybris_handle_map_remove(&layouts->index, hybris_handle_key((const void *)handle));
++    }
+     pthread_mutex_unlock(&layouts->guard);
+     if (layout) release_layout(layouts, layout);
+ }
+@@ -75,6 +79,7 @@ void hybris_bc_layouts_finish(struct hybris_bc_layouts *layouts)
+ {
+     /* All command-buffer journals must have been retired first. */
+     while (layouts->head) hybris_bc_layout_remove(layouts, layouts->head->handle);
++    hybris_handle_map_free(&layouts->index);
+     pthread_mutex_destroy(&layouts->guard);
+ }
+ 
+@@ -97,29 +102,49 @@ void hybris_bc_command_state_reset(struct hybris_bc_command_state *state)
+     hybris_bc_command_state_init(state, state->layouts);
+ }
+ 
++/* Journal one descriptor bind or push. An entry with the same kind, layout and
++ * shape as the previous entry overwrites it in place: replaying both in order
++ * leaves exactly what the later one sets, and nothing was recorded between. */
+ static struct hybris_bc_saved_command *save(struct hybris_bc_command_state *state,
+-    VkPipelineLayout handle, size_t bytes)
++    VkPipelineLayout handle, size_t bytes, enum saved_kind kind, uint32_t first, uint32_t count,
++    uint32_t offset_count, VkShaderStageFlags stages)
+ {
+     if (state->error != VK_SUCCESS) return NULL;
+     if (bytes > SIZE_MAX - sizeof(struct hybris_bc_saved_command)) {
+         state->error = VK_ERROR_OUT_OF_HOST_MEMORY;
+         return NULL;
+     }
+-    struct hybris_bc_saved_command *saved = calloc(1, sizeof(*saved) + bytes);
+-    if (!saved) { state->error = VK_ERROR_OUT_OF_HOST_MEMORY; return NULL; }
++    struct hybris_bc_saved_command *last = state->last;
+     pthread_mutex_lock(&state->layouts->guard);
+-    struct hybris_bc_layout *layout = state->layouts->head;
+-    while (layout && layout->handle != handle) layout = layout->next;
+-    if (layout && layout->references != SIZE_MAX) {
+-        ++layout->references;
+-        saved->layout = layout;
++    struct hybris_bc_layout *layout;
++    if (!state->layouts->index.broken)
++        layout = hybris_handle_map_get(&state->layouts->index, hybris_handle_key((const void *)handle));
++    else
++        for (layout = state->layouts->head; layout && layout->handle != handle; layout = layout->next) {}
++    if (layout && last && last->layout == layout && last->kind == kind && last->first == first &&
++        last->count == count && last->offset_count == offset_count && last->stages == stages) {
++        pthread_mutex_unlock(&state->layouts->guard);
++        return last;
+     }
++    int referenced = layout && layout->references != SIZE_MAX;
++    if (referenced) ++layout->references;
+     pthread_mutex_unlock(&state->layouts->guard);
+-    if (!saved->layout) {
+-        free(saved);
++    if (!referenced) {
+         state->error = layout ? VK_ERROR_OUT_OF_HOST_MEMORY : VK_ERROR_INITIALIZATION_FAILED;
+         return NULL;
+     }
++    struct hybris_bc_saved_command *saved = calloc(1, sizeof(*saved) + bytes);
++    if (!saved) {
++        release_layout(state->layouts, layout);
++        state->error = VK_ERROR_OUT_OF_HOST_MEMORY;
++        return NULL;
++    }
++    saved->layout = layout;
++    saved->kind = kind;
++    saved->first = first;
++    saved->count = count;
++    saved->offset_count = offset_count;
++    saved->stages = stages;
+     if (state->last) state->last->next = saved;
+     else state->first = saved;
+     state->last = saved;
+@@ -140,12 +165,9 @@ void hybris_bc_save_descriptors(struct hybris_bc_command_state *state,
+     if (bind_point != VK_PIPELINE_BIND_POINT_COMPUTE || !count) return;
+     uint64_t bytes = (uint64_t)count * sizeof(*sets) + (uint64_t)offset_count * sizeof(*offsets);
+     if (bytes > SIZE_MAX) { state->error = VK_ERROR_OUT_OF_HOST_MEMORY; return; }
+-    struct hybris_bc_saved_command *saved = save(state, layout, (size_t)bytes);
++    struct hybris_bc_saved_command *saved = save(state, layout, (size_t)bytes, SAVED_DESCRIPTORS,
++        first_set, count, offset_count, 0);
+     if (!saved) return;
+-    saved->kind = SAVED_DESCRIPTORS;
+-    saved->first = first_set;
+-    saved->count = count;
+-    saved->offset_count = offset_count;
+     memcpy(saved->data, sets, (size_t)count * sizeof(*sets));
+     if (offset_count)
+         memcpy(saved->data + (size_t)count * sizeof(*sets), offsets, (size_t)offset_count * sizeof(*offsets));
+@@ -156,12 +178,8 @@ void hybris_bc_save_push(struct hybris_bc_command_state *state, VkPipelineLayout
+ {
+     /* Keep all stages in order: a range may cover graphics and compute, and
+      * replay must preserve later graphics writes to the same byte positions. */
+-    struct hybris_bc_saved_command *saved = save(state, layout, size);
++    struct hybris_bc_saved_command *saved = save(state, layout, size, SAVED_PUSH, offset, size, 0, stages);
+     if (!saved) return;
+-    saved->kind = SAVED_PUSH;
+-    saved->stages = stages;
+-    saved->first = offset;
+-    saved->count = size;
+     if (size) memcpy(saved->data, values, size);
+ }
+ 
+diff --git a/hybris/vulkan/compat/bc_command_state.h b/hybris/vulkan/compat/bc_command_state.h
+index 79960b0..f62766b 100644
+--- a/hybris/vulkan/compat/bc_command_state.h
++++ b/hybris/vulkan/compat/bc_command_state.h
+@@ -3,6 +3,7 @@
+ #define HYBRIS_BC_COMMAND_STATE_H
+ #include <vulkan/vulkan.h>
+ #include <pthread.h>
++#include "handle_map.h"
+ 
+ struct hybris_bc_layout;
+ struct hybris_bc_saved_command;
+@@ -12,6 +13,7 @@ struct hybris_bc_layouts {
+     PFN_vkGetDeviceProcAddr resolver;
+     pthread_mutex_t guard;
+     struct hybris_bc_layout *head;
++    struct hybris_handle_map index;
+ };
+ /* Owned by one command buffer, externally synchronized with its recording.
+  * Reset/free only after Vulkan permits retiring the recorded commands. */
+diff --git a/hybris/vulkan/compat/bc_commands.c b/hybris/vulkan/compat/bc_commands.c
+index cf62d7d..d236629 100644
+--- a/hybris/vulkan/compat/bc_commands.c
++++ b/hybris/vulkan/compat/bc_commands.c
+@@ -4,7 +4,7 @@
+ #include <string.h>
+ #include <stdio.h>
+ 
+-#define PROC(name) PFN_vk##name name = (PFN_vk##name)device->resolver(device->handle, "vk" #name)
++#define PROC(name) PFN_vk##name name = (PFN_vk##name)hybris_bc_device_proc(device, "vk" #name)
+ static VkResult VKAPI_CALL allocate_commands(VkDevice handle, const VkCommandBufferAllocateInfo *info,
+     VkCommandBuffer *handles)
+ {
+@@ -35,6 +35,7 @@ static VkResult VKAPI_CALL allocate_commands(VkDevice handle, const VkCommandBuf
+         first->handle = handles[i];
+         first->next = device->commands;
+         device->commands = first;
++        hybris_handle_map_put(&device->command_index, hybris_handle_key(first->handle), first);
+         first = next;
+     }
+     pthread_mutex_unlock(&device->guard);
+@@ -46,7 +47,10 @@ static void remove_command(struct hybris_bc_device *device, VkCommandBuffer hand
+     struct hybris_bc_command **link = &device->commands;
+     while (*link && (*link)->handle != handle) link = &(*link)->next;
+     struct hybris_bc_command *command = *link;
+-    if (command) *link = command->next;
++    if (command) {
++        *link = command->next;
++        hybris_handle_map_remove(&device->command_index, hybris_handle_key(handle));
++    }
+     pthread_mutex_unlock(&device->guard);
+     if (command) { hybris_bc_command_retire(command); hybris_bc_free(device, command); }
+ }
+@@ -105,6 +109,7 @@ static struct hybris_bc_command *detach_pool(struct hybris_bc_device *device, Vk
+         struct hybris_bc_command *command = *link;
+         if (command->pool != pool) { link = &command->next; continue; }
+         *link = command->next;
++        hybris_handle_map_remove(&device->command_index, hybris_handle_key(command->handle));
+         command->next = retired;
+         retired = command;
+     }
+@@ -126,6 +131,7 @@ static VkResult VKAPI_CALL reset_pool(VkDevice handle, VkCommandPool pool, VkCom
+         struct hybris_bc_command *next = retired->next;
+         retired->next = device->commands;
+         device->commands = retired;
++        hybris_handle_map_put(&device->command_index, hybris_handle_key(retired->handle), retired);
+         retired = next;
+     }
+     pthread_mutex_unlock(&device->guard);
+@@ -205,7 +211,7 @@ static void bind_descriptors2(VkCommandBuffer handle, const VkBindDescriptorSets
+     struct hybris_bc_device *device;
+     struct hybris_bc_command *command = hybris_bc_command_find(handle, &device);
+     if (!command) return;
+-    PFN_vkCmdBindDescriptorSets2 call = (void *)device->resolver(device->handle, name);
++    PFN_vkCmdBindDescriptorSets2 call = (void *)hybris_bc_device_proc(device, name);
+     call(handle, info);
+     if (device->format_mask && (info->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT))
+         hybris_bc_save_descriptors(&command->state, VK_PIPELINE_BIND_POINT_COMPUTE,
+@@ -221,7 +227,7 @@ static void push_constants2(VkCommandBuffer handle, const VkPushConstantsInfo *i
+     struct hybris_bc_device *device;
+     struct hybris_bc_command *command = hybris_bc_command_find(handle, &device);
+     if (!command) return;
+-    PFN_vkCmdPushConstants2 call = (void *)device->resolver(device->handle, name);
++    PFN_vkCmdPushConstants2 call = (void *)hybris_bc_device_proc(device, name);
+     call(handle, info);
+     if (device->format_mask)
+         hybris_bc_save_push(&command->state, info->layout, info->stageFlags,
+diff --git a/hybris/vulkan/compat/bc_context.c b/hybris/vulkan/compat/bc_context.c
+index 2247d23..0fff370 100644
+--- a/hybris/vulkan/compat/bc_context.c
++++ b/hybris/vulkan/compat/bc_context.c
+@@ -62,7 +62,10 @@ struct hybris_bc_command *hybris_bc_command_find(VkCommandBuffer handle, struct
+     pthread_mutex_lock(&guard);
+     for (struct hybris_bc_device *device = devices; device && !command; device = device->next) {
+         pthread_mutex_lock(&device->guard);
+-        for (command = device->commands; command && command->handle != handle; command = command->next) {}
++        if (!device->command_index.broken)
++            command = hybris_handle_map_get(&device->command_index, hybris_handle_key(handle));
++        else
++            for (command = device->commands; command && command->handle != handle; command = command->next) {}
+         if (command) *owner = device;
+         pthread_mutex_unlock(&device->guard);
+     }
+@@ -72,11 +75,30 @@ struct hybris_bc_command *hybris_bc_command_find(VkCommandBuffer handle, struct
+ struct hybris_bc_resource *hybris_bc_resource_find(struct hybris_bc_device *device, VkImage handle)
+ {
+     pthread_mutex_lock(&device->guard);
+-    struct hybris_bc_resource *image = device->images;
+-    while (image && image->handle != handle) image = image->next;
++    struct hybris_bc_resource *image;
++    if (!device->image_index.broken)
++        image = hybris_handle_map_get(&device->image_index, hybris_handle_key((const void *)handle));
++    else
++        for (image = device->images; image && image->handle != handle; image = image->next) {}
+     pthread_mutex_unlock(&device->guard);
+     return image;
+ }
++PFN_vkVoidFunction hybris_bc_device_proc(struct hybris_bc_device *device, const char *name)
++{
++    uint32_t slot = (uint32_t)(((uintptr_t)name >> 3) * 2654435761u) >> 26;
++    const char *seen = atomic_load_explicit(&device->procs[slot].name, memory_order_acquire);
++    if (seen == name) return device->procs[slot].function;
++    PFN_vkVoidFunction function = device->resolver(device->handle, name);
++    if (function && !seen) {
++        pthread_mutex_lock(&device->guard);
++        if (!atomic_load_explicit(&device->procs[slot].name, memory_order_relaxed)) {
++            device->procs[slot].function = function;
++            atomic_store_explicit(&device->procs[slot].name, name, memory_order_release);
++        }
++        pthread_mutex_unlock(&device->guard);
++    }
++    return function;
++}
+ void hybris_bc_command_retire(struct hybris_bc_command *command)
+ {
+     hybris_bc_command_state_reset(&command->state);
+@@ -106,6 +128,8 @@ void hybris_bc_device_remove(VkDevice handle)
+         hybris_bc_free(device, device->images);
+         device->images = next;
+     }
++    hybris_handle_map_free(&device->command_index);
++    hybris_handle_map_free(&device->image_index);
+     hybris_bc_layouts_finish(&device->layouts);
+     if (device->decoder.device) hybris_bc_decoder_destroy(&device->decoder, NULL);
+     pthread_mutex_destroy(&device->guard);
+diff --git a/hybris/vulkan/compat/bc_context.h b/hybris/vulkan/compat/bc_context.h
+index c9c6482..3f0edcd 100644
+--- a/hybris/vulkan/compat/bc_context.h
++++ b/hybris/vulkan/compat/bc_context.h
+@@ -2,6 +2,8 @@
+ #ifndef HYBRIS_BC_CONTEXT_H
+ #define HYBRIS_BC_CONTEXT_H
+ #include "bc_transfer.h"
++#include "handle_map.h"
++#include <stdatomic.h>
+ 
+ struct hybris_bc_command {
+     VkCommandBuffer handle;
+@@ -34,8 +36,15 @@ struct hybris_bc_device {
+     pthread_mutex_t guard;
+     struct hybris_bc_resource *images;
+     struct hybris_bc_command *commands;
++    /* Indexes over images and commands, guarded by guard like the lists. */
++    struct hybris_handle_map image_index, command_index;
++    /* Next-layer entry points by name pointer; filled once, read without a lock. */
++    struct { const char *_Atomic name; PFN_vkVoidFunction function; } procs[64];
+     struct hybris_bc_device *next;
+ };
++/* The next layer's entry point for name, cached per device. name must be a
++ * string with static storage; device procedures never change for a device. */
++PFN_vkVoidFunction hybris_bc_device_proc(struct hybris_bc_device *device, const char *name);
+ VkResult hybris_bc_device_add(VkDevice handle, PFN_vkGetDeviceProcAddr resolver,
+     const VkPhysicalDeviceMemoryProperties *memory, const VkPhysicalDeviceProperties *properties,
+     unsigned format_mask, unsigned rgb_mask, const VkAllocationCallbacks *allocator);
+diff --git a/hybris/vulkan/compat/bc_image_copy.c b/hybris/vulkan/compat/bc_image_copy.c
+index 876763c..d7a1f0c 100644
+--- a/hybris/vulkan/compat/bc_image_copy.c
++++ b/hybris/vulkan/compat/bc_image_copy.c
+@@ -3,7 +3,7 @@
+ #include "bc_context.h"
+ #include <string.h>
+ 
+-#define PROC(name) PFN_vk##name name = (PFN_vk##name)device->resolver(device->handle, "vk" #name)
++#define PROC(name) PFN_vk##name name = (PFN_vk##name)hybris_bc_device_proc(device, "vk" #name)
+ /* Copy-compatible color formats: sizes/extents from the Khronos vk.xml format
+  * registry. Two compressed formats must have identical block extents. */
+ static uint32_t block_geometry(VkFormat format, VkExtent3D *block)
+@@ -194,7 +194,7 @@ static void copy_image2(VkCommandBuffer handle, const VkCopyImageInfo2 *info, co
+     struct hybris_bc_resource *src = hybris_bc_resource_find(device, info->srcImage);
+     struct hybris_bc_resource *dst = hybris_bc_resource_find(device, info->dstImage);
+     if (!(src && src->emulated.image) && !(dst && dst->emulated.image)) {
+-        PFN_vkCmdCopyImage2 copy = (PFN_vkCmdCopyImage2)device->resolver(device->handle, name);
++        PFN_vkCmdCopyImage2 copy = (PFN_vkCmdCopyImage2)hybris_bc_device_proc(device, name);
+         copy(handle, info);
+         return;
+     }
+diff --git a/hybris/vulkan/compat/bc_record.c b/hybris/vulkan/compat/bc_record.c
+index aaebaa7..fbd4a33 100644
+--- a/hybris/vulkan/compat/bc_record.c
++++ b/hybris/vulkan/compat/bc_record.c
+@@ -3,7 +3,7 @@
+ #include "bc_context.h"
+ #include <string.h>
+ 
+-#define PROC(name) PFN_vk##name name = (PFN_vk##name)device->resolver(device->handle, "vk" #name)
++#define PROC(name) PFN_vk##name name = (PFN_vk##name)hybris_bc_device_proc(device, "vk" #name)
+ static void copy_buffer_image(VkCommandBuffer handle, VkBuffer buffer, VkImage image,
+     VkImageLayout layout, uint32_t count, const VkBufferImageCopy *regions, int to_image)
+ {
+@@ -38,10 +38,10 @@ static void copy_buffer_image2(VkCommandBuffer handle, VkBuffer buffer, VkImage
+     struct hybris_bc_resource *resource = hybris_bc_resource_find(device, image);
+     if (!resource || !resource->emulated.image) {
+         if (to_image) {
+-            PFN_vkCmdCopyBufferToImage2 copy = (PFN_vkCmdCopyBufferToImage2)device->resolver(device->handle, name);
++            PFN_vkCmdCopyBufferToImage2 copy = (PFN_vkCmdCopyBufferToImage2)hybris_bc_device_proc(device, name);
+             copy(handle, info);
+         } else {
+-            PFN_vkCmdCopyImageToBuffer2 copy = (PFN_vkCmdCopyImageToBuffer2)device->resolver(device->handle, name);
++            PFN_vkCmdCopyImageToBuffer2 copy = (PFN_vkCmdCopyImageToBuffer2)hybris_bc_device_proc(device, name);
+             copy(handle, info);
+         }
+         return;
+diff --git a/hybris/vulkan/compat/bc_resources.c b/hybris/vulkan/compat/bc_resources.c
+index 74cc0c9..5974ec7 100644
+--- a/hybris/vulkan/compat/bc_resources.c
++++ b/hybris/vulkan/compat/bc_resources.c
+@@ -4,7 +4,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-#define PROC(name) PFN_vk##name name = (PFN_vk##name)device->resolver(device->handle, "vk" #name)
++#define PROC(name) PFN_vk##name name = (PFN_vk##name)hybris_bc_device_proc(device, "vk" #name)
+ static int emulates(struct hybris_bc_device *device, VkFormat format)
+ {
+     return format >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && format <= VK_FORMAT_BC7_SRGB_BLOCK &&
+@@ -44,6 +44,7 @@ static VkResult VKAPI_CALL create_image(VkDevice handle, const VkImageCreateInfo
+     pthread_mutex_lock(&device->guard);
+     resource->next = device->images;
+     device->images = resource;
++    hybris_handle_map_put(&device->image_index, hybris_handle_key((const void *)resource->handle), resource);
+     pthread_mutex_unlock(&device->guard);
+     return VK_SUCCESS;
+ }
+@@ -55,7 +56,10 @@ static void VKAPI_CALL destroy_image(VkDevice handle, VkImage image, const VkAll
+     struct hybris_bc_resource **link = &device->images;
+     while (*link && (*link)->handle != image) link = &(*link)->next;
+     struct hybris_bc_resource *resource = *link;
+-    if (resource) *link = resource->next;
++    if (resource) {
++        *link = resource->next;
++        hybris_handle_map_remove(&device->image_index, hybris_handle_key((const void *)image));
++    }
+     pthread_mutex_unlock(&device->guard);
+     if (resource && resource->emulated.image) hybris_bc_image_destroy(&resource->emulated, allocator);
+     else { PROC(DestroyImage); DestroyImage(handle, image, allocator); }
+diff --git a/hybris/vulkan/compat/handle_map.h b/hybris/vulkan/compat/handle_map.h
+new file mode 100644
+index 0000000..6dbae0f
+--- /dev/null
++++ b/hybris/vulkan/compat/handle_map.h
+@@ -0,0 +1,105 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#ifndef HYBRIS_HANDLE_MAP_H
++#define HYBRIS_HANDLE_MAP_H
++#include <stdint.h>
++#include <stdlib.h>
++
++/* Open-addressed index from a Vulkan handle to its compat record, kept beside
++ * the owning list so hot recording hooks need not walk every live object.
++ * Callers serialize all access with the lock that guards the list. A removed
++ * entry keeps its key with a null value until the next rehash. If memory runs
++ * out the map marks itself broken and callers walk their list from then on. */
++struct hybris_handle_map {
++    uint64_t *keys;
++    void **values;
++    uint32_t capacity, used, count;
++    int broken;
++};
++
++static inline uint64_t hybris_handle_key(const void *handle) { return (uint64_t)(uintptr_t)handle; }
++
++static inline uint32_t hybris_handle_slot(uint64_t key, uint32_t mask)
++{
++    key ^= key >> 33;
++    key *= 0xff51afd7ed558ccdull;
++    key ^= key >> 33;
++    return (uint32_t)key & mask;
++}
++
++static inline void *hybris_handle_map_get(const struct hybris_handle_map *map, uint64_t key)
++{
++    if (!map->capacity || !key) return NULL;
++    uint32_t mask = map->capacity - 1;
++    for (uint32_t i = hybris_handle_slot(key, mask);; i = (i + 1) & mask) {
++        if (!map->keys[i]) return NULL;
++        if (map->keys[i] == key) return map->values[i];
++    }
++}
++
++static inline int hybris_handle_map_rehash(struct hybris_handle_map *map, uint32_t capacity)
++{
++    uint64_t *keys = calloc(capacity, sizeof(*keys));
++    void **values = calloc(capacity, sizeof(*values));
++    if (!keys || !values) { free(keys); free(values); return 0; }
++    for (uint32_t i = 0; i < map->capacity; ++i) {
++        if (!map->keys[i] || !map->values[i]) continue;
++        uint32_t slot = hybris_handle_slot(map->keys[i], capacity - 1);
++        while (keys[slot]) slot = (slot + 1) & (capacity - 1);
++        keys[slot] = map->keys[i];
++        values[slot] = map->values[i];
++    }
++    free(map->keys);
++    free(map->values);
++    map->keys = keys;
++    map->values = values;
++    map->capacity = capacity;
++    map->used = map->count;
++    return 1;
++}
++
++static inline void hybris_handle_map_put(struct hybris_handle_map *map, uint64_t key, void *value)
++{
++    if (map->broken || !key || !value) return;
++    if ((uint64_t)(map->used + 1) * 4 > (uint64_t)map->capacity * 3) {
++        uint32_t capacity = map->capacity ? map->capacity : 64;
++        while ((uint64_t)(map->count + 1) * 2 > capacity && capacity < (1u << 30)) capacity *= 2;
++        if (!hybris_handle_map_rehash(map, capacity)) { map->broken = 1; return; }
++    }
++    uint32_t mask = map->capacity - 1, tombstone = UINT32_MAX;
++    for (uint32_t i = hybris_handle_slot(key, mask);; i = (i + 1) & mask) {
++        if (map->keys[i] == key) {
++            if (!map->values[i]) ++map->count;
++            map->values[i] = value;
++            return;
++        }
++        if (!map->keys[i]) {
++            if (tombstone != UINT32_MAX) i = tombstone;
++            else ++map->used;
++            map->keys[i] = key;
++            map->values[i] = value;
++            ++map->count;
++            return;
++        }
++        if (!map->values[i] && tombstone == UINT32_MAX) tombstone = i;
++    }
++}
++
++static inline void hybris_handle_map_remove(struct hybris_handle_map *map, uint64_t key)
++{
++    if (map->broken || !map->capacity || !key) return;
++    uint32_t mask = map->capacity - 1;
++    for (uint32_t i = hybris_handle_slot(key, mask); map->keys[i]; i = (i + 1) & mask)
++        if (map->keys[i] == key) {
++            if (map->values[i]) --map->count;
++            map->values[i] = NULL;
++            return;
++        }
++}
++
++static inline void hybris_handle_map_free(struct hybris_handle_map *map)
++{
++    free(map->keys);
++    free(map->values);
++    *map = (struct hybris_handle_map){0};
++}
++#endif

@@ -7,6 +7,9 @@ grep -q '^DisableSandbox' /etc/pacman.conf || sed -i 's/^\[options\]/[options]\n
 { for m in https://ca.us.mirror.archlinuxarm.org https://fl.us.mirror.archlinuxarm.org https://de3.mirror.archlinuxarm.org https://nl.mirror.archlinuxarm.org; do echo "Server = $m/\$arch/\$repo"; done; cat /etc/pacman.d/mirrorlist; } > /etc/pacman.d/mirrorlist.new
 mv /etc/pacman.d/mirrorlist.new /etc/pacman.d/mirrorlist
 pacman -Syu --noconfirm --needed git zstd binutils cmake ninja clang lld llvm python squashfs-tools file patchelf xxhash
+{ set +x; } 2>/dev/null
+echo "toolchain: $(clang --version | head -1); gcc $(gcc -dumpfullversion); $(cmake --version | head -1); $(pacman -Q glibc)"
+set -x
 
 THUNKS=${FEX_THUNKS:-0}
 X86ROOT=$WORK/x86root
@@ -56,7 +59,7 @@ cmake -S fex-src -B fex-build -G Ninja \
   -DTUNE_CPU=none -DTUNE_ARCH=armv8-a \
   -DBUILD_TESTING=OFF -DBUILD_FEXCONFIG=OFF -DENABLE_ASSERTIONS=OFF \
   $( [ "$THUNKS" = 1 ] && echo "-DBUILD_THUNKS=ON -DX86_DEV_ROOTFS=$X86ROOT" || echo "-DBUILD_THUNKS=OFF" ) \
-  -DENABLE_CCACHE=OFF -DENABLE_OFFLINE_TELEMETRY=OFF \
+  -DENABLE_CCACHE=OFF -DENABLE_OFFLINE_TELEMETRY=OFF -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
   ${FEX_EXTRA_CXXFLAGS:+-DCMAKE_CXX_FLAGS="$FEX_EXTRA_CXXFLAGS"}
 ninja -C fex-build
 DESTDIR="$WORK/out" ninja -C fex-build install

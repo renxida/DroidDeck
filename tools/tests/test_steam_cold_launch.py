@@ -45,7 +45,8 @@ class SteamColdLaunchTest(unittest.TestCase):
             "exit \"$AGENT_STATUS\"\n")
         agent.chmod(0o755)
         sleep = self.bin / "sleep"
-        sleep.write_text("#!/bin/sh\nprintf '%s\n' \"$@\" >> \"$SLEEP_ARGS\"\n")
+        sleep.write_text("#!/bin/sh\nprintf '%s\n' \"$@\" >> \"$SLEEP_ARGS\"\n"
+                         "[ -z \"${REMOVE_ON_SLEEP:-}\" ] || rm -f \"$REMOVE_ON_SLEEP\"\n")
         sleep.chmod(0o755)
         pgrep = self.bin / "pgrep"
         pgrep.write_text(
@@ -56,13 +57,18 @@ class SteamColdLaunchTest(unittest.TestCase):
         pgrep.chmod(0o755)
         self.block = LAUNCH_BLOCK.replace("/usr/local/bin/droiddeck-agent", str(agent))
 
-    def run_launch(self, target, focus="769", helper_status=0, running_after=999, ready_status=0):
+    def run_launch(self, target, focus="769", helper_status=0, running_after=999, ready_status=0, warmup=False,
+                   extra=None):
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch_dir),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    AGENT_ARGS=str(self.agent_args), SLEEP_ARGS=str(self.sleep_args),
                    AGENT_COUNT=str(self.agent_count), AGENT_STATUS=str(helper_status),
                    FOCUS=focus, FOCUS_COUNT=str(self.focus_count), RUNNING_AFTER=str(running_after),
                    READY_STATUS=str(ready_status))
+        env.pop("DROIDDECK_EXP_WARMUP", None)
+        if warmup:
+            env["DROIDDECK_EXP_WARMUP"] = "1"
+        env.update(extra or {})
         script = self.block + "\nprintf 'ARG:%s\n' \"$@\"\nwait\n"
         url = target if target.startswith("steam://") else "steam://rungameid/" + target
         result = subprocess.run(["bash", "-c", script, "cold-launch", url],
@@ -100,6 +106,11 @@ class SteamColdLaunchTest(unittest.TestCase):
         # 30 readiness polls, then one second before the client reports the launch action.
         self.assertEqual(["1"] * 31, self.sleep_args.read_text().split())
 
+    def test_the_warmup_experiment_polls_steam_more_often(self):
+        result = self.run_launch("413150", ready_status=1, warmup=True)
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertEqual(["0.5"] * 60 + ["1"], self.sleep_args.read_text().split())
+
     def test_a_focus_change_does_not_end_the_readiness_wait(self):
         result = self.run_launch("413150", focus="769 4242", ready_status=1)
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
@@ -125,6 +136,11 @@ class SteamColdLaunchTest(unittest.TestCase):
         self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
         self.assertNotIn("clearing the pending launch interstitial", result.stdout)
         self.assertNotIn("launching the requested game again", result.stdout)
+
+    def test_the_hand_off_line_gives_the_time_steam_took(self):
+        result = self.run_launch("413150")
+        self.assertRegex(result.stdout, r"== steam: interface up after \d+ ms \(Steam in front after \d+ ms\); "
+                                        r"launching the requested game 413150")
 
     def test_native_app_id_keeps_the_short_delay_and_is_handed_over_once(self):
         result = self.run_launch("413150")
@@ -167,6 +183,40 @@ class SteamColdLaunchTest(unittest.TestCase):
         result = subprocess.run(["bash", "-c", script, "restart"], env=env, text=True, capture_output=True, timeout=10, check=True)
         self.assertEqual(SHORTCUT, (self.launch_dir / "steam-game").read_text().strip(), result.stdout)
         self.assertEqual(2, len(self.hand_offs(result)), result.stdout)
+
+    def test_the_hand_off_waits_for_the_redistributable_marks_seeded_beside_the_client(self):
+        marker = self.launch_dir / "redists-seeding"
+        marker.write_text("%d\n" % os.getpid())
+        result = self.run_launch("413150", extra={"REMOVE_ON_SLEEP": str(marker)})
+        self.assertEqual(["0.5", "1"], self.sleep_args.read_text().split())
+        self.assertIn("waited 500 ms for the redistributable marks", result.stdout)
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+
+    def test_the_redistributable_wait_is_bounded(self):
+        marker = self.launch_dir / "redists-seeding"
+        marker.write_text("%d\n" % os.getpid())
+        result = self.run_launch("413150")
+        self.assertEqual(["0.5"] * 40 + ["1"], self.sleep_args.read_text().split())
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+
+    def test_a_marker_left_by_a_finished_seeder_does_not_hold_the_launch(self):
+        dead = subprocess.Popen(["true"])
+        dead.wait()
+        (self.launch_dir / "redists-seeding").write_text("%d\n" % dead.pid)
+        result = self.run_launch("413150")
+        self.assertEqual(["1"], self.sleep_args.read_text().split())
+        self.assertNotIn("redistributable", result.stdout)
+
+    def test_redistributables_are_seeded_beside_the_client_only_under_the_launch_experiment(self):
+        setup = SOURCE[SOURCE.index('    step "registering the app\'s game library with Steam"'):
+                       SOURCE.index('    echo "== steam setup before the client starts: $_bl_setup"')]
+        background = setup[setup.index('if [ "${DROIDDECK_EXP_ALL:-}" = 1 ]'):setup.index("    else\n")]
+        self.assertIn('droiddeck-seed-redists "$steam_root" || true', background)
+        self.assertIn("} &", background)
+        self.assertIn('rm -f "$BL_LAUNCH_DIR/redists-seeding"', background)
+        foreground = setup[setup.index("    else\n"):]
+        self.assertIn('droiddeck-seed-redists "$steam_root" || true\n      _bl_setup_mark redists', foreground)
+        self.assertLess(SOURCE.index('_bl_setup_mark "redists (background)"'), SOURCE.index('steam_hold_launch "$_bl_held" &'))
 
     def test_non_game_steam_urls_remain_on_the_original_startup_arguments(self):
         url = "steam://open/library"

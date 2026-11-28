@@ -47,6 +47,7 @@ static int wl_event_source_timer_update(struct wl_event_source *source, int ms) 
 static int vkp_framegen_active(void) { return framegen; }
 static int vkp_apply_window_request(void) { return window_requests; }
 static int vkp_effects_sync(void) { return effects_changes; }
+static void latency_tick(int64_t now) { (void)now; }
 static void render_scene(void) { renders++; g_dirty = 0; g_dirty_since_ns = 0; g_rendered_tick_ns = g_tick_vsync_ns; g_tick_held = 0; }
 static int on_fallback_timer(void *data) { return 0; }
 static void on_commit_idle(void *data);

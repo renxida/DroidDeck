@@ -26,6 +26,10 @@ internal object AppExits {
     /** Exits that mean something went wrong, as opposed to the user or the app closing it. */
     val ABNORMAL = setOf("crash", "crash_native", "anr", "low_memory", "signaled", "initialization_failure", "excessive_resource_usage")
 
+    /** The memory balloon is meant to be killed by lmkd when memory runs short. */
+    internal fun abnormal(reason: String, process: String?): Boolean =
+        reason in ABNORMAL && process?.endsWith(com.droiddeck.launcher.session.MemoryBalloonService.PROCESS_SUFFIX) != true
+
     fun record(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val am = context.getSystemService(ActivityManager::class.java) ?: return
@@ -43,7 +47,7 @@ internal object AppExits {
             val reason = reasonName(info.reason)
             val dir = folders.lastOrNull { it != current && wasActive(it, info.timestamp) }
             val fields = linkedMapOf<String, Any?>(
-                "reason" to reason, "abnormal" to (reason in ABNORMAL), "status" to info.status,
+                "reason" to reason, "abnormal" to abnormal(reason, info.processName), "status" to info.status,
                 "description" to info.description?.take(300), "process" to info.processName, "pid" to info.pid,
                 "importance" to info.importance, "pss_kb" to info.pss, "rss_kb" to info.rss,
             )

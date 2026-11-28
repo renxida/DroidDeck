@@ -171,6 +171,7 @@ class FrontEndActivity : ComponentActivity() {
     private var phantomProcessStatus by mutableStateOf(PhantomProcessStatus.NOT_APPLICABLE)
     private var showPhantomGate by mutableStateOf(false)
     private var directAudio by mutableStateOf(false)
+    private var gameSound by mutableStateOf(false)
     private var picturePosition by mutableStateOf("center")
     private var stretch16x9 by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
@@ -399,7 +400,7 @@ class FrontEndActivity : ComponentActivity() {
     private var bootMovieCustomName by mutableStateOf<String?>(null)
     private var bootMovieImporting by mutableStateOf(false)
     private var bootMovieProgress by mutableStateOf(-1)
-    private var theme by mutableStateOf("graphite")
+    private var theme by mutableStateOf("lanner")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
     private var upscaler by mutableStateOf(0)
@@ -666,11 +667,14 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
-    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false): Boolean {
+    private fun launchGame(
+        game: Library.SteamGame, returnHome: Boolean = false, branch: String = com.droiddeck.launcher.session.SteamBranch.BETA,
+    ): Boolean {
         if (pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
+        com.droiddeck.launcher.session.SteamBranch.request(this, game.appId, branch)
         if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, game)) return launchWithoutSteam(game, returnHome)
         if (SessionState.running) {
             if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
@@ -789,8 +793,29 @@ class FrontEndActivity : ComponentActivity() {
         finish()
     }
 
+    /**
+     * The launcher icon opened a fresh front screen on top of a session the player had been watching start or run
+     * (see [com.droiddeck.launcher.session.LauncherRejoin]): go back to that session the way "Open Steam" does, which
+     * also brings it out of picture-in-picture. Skips this activity's own start gating, which waits out installs that
+     * the live session itself is doing.
+     */
+    private fun rejoinLiveSession(request: Intent): Boolean {
+        if (!com.droiddeck.launcher.session.LauncherRejoin.shouldRejoin(request.action, request.categories)) return false
+        Log.i("MainActivity", "launcher icon while the session is live (${SessionState.phase}): back to the session")
+        super.startActivity(Intent(this, SessionActivity::class.java))
+        overridePendingTransition(0, 0)
+        return true
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Stacked over the session: step aside. As the task's root (the session's task was swiped away), stay as the
+        // library underneath it.
+        if (savedInstanceState == null && rejoinLiveSession(intent) && !isTaskRoot) {
+            finish()
+            overridePendingTransition(0, 0)
+            return
+        }
         window.decorView.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
             override fun onPreDraw(): Boolean {
                 window.decorView.viewTreeObserver.removeOnPreDrawListener(this)
@@ -913,6 +938,12 @@ class FrontEndActivity : ComponentActivity() {
                             else if (g.gameIdString !in preparingGames) {
                                 preparingGames = preparingGames + g.gameIdString
                                 prepareAndLaunch(g, g.gameIdString)
+                            }
+                        },
+                        onSteamGameStable = { g ->
+                            if (g.gameIdString !in preparingGames) {
+                                preparingGames = preparingGames + g.gameIdString
+                                prepareAndLaunch(g, g.gameIdString, com.droiddeck.launcher.session.SteamBranch.STABLE)
                             }
                         },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
@@ -1219,6 +1250,7 @@ class FrontEndActivity : ComponentActivity() {
                     ),
                     page = page,
                 )
+                com.droiddeck.launcher.ui.SelfUpdateBar()
                 showNonAdreno?.let { release ->
                     ConfirmDialog(
                         title = androidx.compose.ui.res.stringResource(R.string.main_non_adreno_title),
@@ -1307,6 +1339,7 @@ class FrontEndActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (rejoinLiveSession(intent)) return
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
             pendingGameLink = null
@@ -1420,12 +1453,21 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onPause() {
         compatLaunchVisible = false
+        com.droiddeck.launcher.update.SelfUpdate.onFrontPaused()
         if (android.os.Build.VERSION.SDK_INT >= 29) com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, true)
         super.onPause()
     }
 
     override fun onResume() {
+        // Before super.onResume: that records this screen as the last one shown.
+        if (com.droiddeck.launcher.session.LauncherRejoin.shouldExpandPip()) {
+            Log.i("MainActivity", "front screen came forward while the session floats: back to the session")
+            super.startActivity(Intent(this, SessionActivity::class.java))
+            overridePendingTransition(0, 0)
+        }
         super.onResume()
+        if (!SessionState.running) com.droiddeck.launcher.telemetry.RemoteConfig.refreshAsync(this)
+        com.droiddeck.launcher.update.SelfUpdate.onFrontResumed(this)
         integrationState = readIntegration()
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
         compatLaunchVisible = true
@@ -1504,13 +1546,13 @@ class FrontEndActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) state.getParcelable(key, Intent::class.java)
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
-    private fun prepareAndLaunch(g: Library.SteamGame, key: String) {
+    private fun prepareAndLaunch(g: Library.SteamGame, key: String, branch: String = com.droiddeck.launcher.session.SteamBranch.BETA) {
         val request = gameLaunchRequest.incrementAndGet()
         val done = { preparingGames = preparingGames - key }
         com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g, onBlocked = done) {
             if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) { done(); return@beforeLaunch }
             done()
-            launchGame(g)
+            launchGame(g, branch = branch)
         }
     }
 
@@ -1534,7 +1576,7 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
-        val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
+        val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) runCatching { display?.displayId }.getOrNull() ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
         dualScreenMode = SessionPrefs.dualScreenMode(this)
         secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
         dualScreenDevice = com.droiddeck.launcher.input.DualScreen.anyDisplay(displayManager, ownDisplayId) != null
@@ -1728,6 +1770,7 @@ class FrontEndActivity : ComponentActivity() {
                 backHold = backHold,
                 backActionsInverted = backActionsInverted,
                 directAudio = directAudio,
+                gameSound = gameSound,
                 picturePosition = picturePosition,
                 stretch16x9 = stretch16x9,
                 mic = mic,
@@ -1782,6 +1825,7 @@ class FrontEndActivity : ComponentActivity() {
                     backActionsInverted = inverted
                 },
                 onDirectAudio = { on -> SessionPrefs.setDirectAudio(this, on); directAudio = on },
+                onGameSound = { on -> SessionPrefs.setGameSound(this, on); gameSound = on },
                 onPicturePosition = { value -> SessionPrefs.setPicturePosition(this, value); picturePosition = value },
                 onStretch16x9 = { on -> SessionPrefs.setStretch16x9(this, on); stretch16x9 = on },
                 onMic = { on ->
@@ -1978,6 +2022,7 @@ class FrontEndActivity : ComponentActivity() {
         backHold = SessionPrefs.backHold(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         directAudio = SessionPrefs.directAudio(this)
+        gameSound = SessionPrefs.gameSound(this)
         picturePosition = SessionPrefs.picturePosition(this)
         stretch16x9 = SessionPrefs.stretch16x9(this)
         mic = SessionPrefs.micEnabled(this)

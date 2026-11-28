@@ -1,0 +1,1917 @@
+#!/usr/bin/env python3
+"""Run a Windows Godot 4 C# game on Kestrel's own linux-arm64 engine, skipping Wine and FEX.
+
+The game's managed code (its own DLLs) is portable IL, so it can run on a linux-arm64 .NET runtime.
+This tool builds a launch folder next to our engine binary:
+
+    <launch>/<engine>                          our Godot 4.5.1 linux-arm64 mono template
+    <launch>/data_<asm>_linuxbsd_arm64/        the "kit" (linux-arm64 .NET runtime + stock GodotSharp)
+                                               plus the game's own managed DLLs, hardlinked from the game
+                                               folder (they never leave the device)
+
+and starts the engine on the game's pack. Game files stay where Steam put them; nothing is uploaded.
+
+`run` watches the engine for its first frames: it asks Godot to print its frame rate (--print-fps), whose
+first "Project FPS" line comes a few seconds into the main loop, and logs "first frame" when it does. If none
+comes within FIRST_FRAME_S of the engine's start (timed after any fetch), or the engine exits before one,
+the engine did not start: `run` kills it and exits with DID_NOT_START (86), so the caller can fall back.
+After the first frame the engine's own exit code passes through. Frame-rate lines are thinned to one a minute.
+
+The engine and kit come as one component (`--component DIR`, or `--fetch` for the pinned release on
+the fork, cached under ~/.cache/droiddeck/native/<tag>/):
+
+    godot                  the engine
+    kit/                   kit.json + the linux-arm64 data folder of a stock C# export
+
+Steam: the game's Steamworks.NET talks to the real Steam client in the session through Valve's own linux-arm64
+libsteam_api.so, downloaded on the device from the public Steamworks.NET NuGet package (STEAM_API, sha256
+pinned) and placed as libsteam_api64.so, the name a Windows build asks for. A component with
+steam-bridge/libsteam_api64.so (Cedar approved it, 2026-11-15) puts that bridge there instead and Valve's library
+beside it as libsteam_api.so: the bridge defines the interface accessors Steamworks.NET calls at SteamAPI.Init.
+A version the game asks for that Valve's library shares goes through unchanged; an older one gets the real
+client's interface in the library's own version (the layout its flat functions use; Cedar, 2026-11-15, on the
+game's "Steam failed to initialize": "Don't ask just do"); GameSearch and MusicRemote, whose accessors and
+functions Valve dropped, go to GetISteamGenericInterface, with a placeholder if the client serves neither.
+Init, the user, ownership, licences and tickets all resolve in Valve's library. Nothing fakes Steam: an older component that carries a stubs/
+folder (a no-op Steamworks stand-in, up to native-engine-38) is refused.
+
+`check` is a dry run for the phone, off the launch path: it composes into --out, checks the launch folder is
+one the engine can start (the game's assembly there, every game assembly loadable-shaped, deps.json and
+runtimeconfig.json written, the engine in place) and records pass/fail with the component tag and a fingerprint
+of the game's data folder (names, sizes, mtimes) in ~/.cache/droiddeck/native/check/<name>.json, logging one
+"check pass|fail" line. Exit 0 on pass, 1 on fail. droiddeck-game-env skips the native path while a fresh
+result for the same game files, component and converter says fail.
+
+`prestart` (with DROIDDECK_NATIVE_PRESTART=1 on `run`) starts the engine before Steam launches the game and
+holds it at the game's first Steam call; the next `run` with the same arguments takes it over (see Prestart below).
+
+Usage:
+  droiddeck-native-godot compose|run|check|prestart --game-dir DIR (--fetch | --component DIR | --kit DIR --engine FILE)
+                                           --out DIR [--exe NAME] [--name NAME] [-- ENGINE ARGS...]
+"""
+import argparse
+import ctypes.util
+import hashlib
+import json
+import os
+import re
+import select
+import shutil
+import signal
+import struct
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.request
+
+# The published component. Built by .github/workflows/native-engine-build.yml (publish=true).
+COMPONENT = {"tag": "native-engine-126",
+             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-126/native-engine.tar.zst",
+             "sha256": "722423be6eb30202a430311c4afa37097d182535fcb5fec2c01e395c041a53e8"}
+# The component layout this wrapper understands. A release declares its own in component.json; CI's resolver
+# (tools/native-engine/resolve_component.py) only pins releases whose api matches.
+COMPONENT_API = 1
+# The build writes the newest gated engine release it found here (next to this file in the guest:
+# /usr/local/share/droiddeck/native-engine.json), so a published engine reaches the app with no one copying its
+# tag. COMPONENT above is the fallback when the file is missing or unusable.
+PIN_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "share", "droiddeck",
+                        "native-engine.json")
+COMPONENT_URL = re.compile(r"https://github\.com/renxida/DroidDeck/releases/download/(native-engine-\d+)/native-engine\.tar\.zst")
+
+
+def pinned_component(path=PIN_FILE, fallback=None):
+    """The component the build pinned in PIN_FILE, or fallback (COMPONENT) when there is none or it is unusable."""
+    fallback = COMPONENT if fallback is None else fallback
+    try:
+        with open(path, encoding="utf-8") as f:
+            pin = json.load(f)
+    except (OSError, ValueError):
+        return fallback
+    if not isinstance(pin, dict):
+        return fallback
+    url = COMPONENT_URL.fullmatch(str(pin.get("url", "")))
+    if (pin.get("api") != COMPONENT_API or not url or url.group(1) != pin.get("tag")
+            or not re.fullmatch(r"[0-9a-f]{64}", str(pin.get("sha256", "")))):
+        return fallback
+    return {"tag": pin["tag"], "url": pin["url"], "sha256": pin["sha256"]}
+
+
+COMPONENT = pinned_component()
+# Valve's linux-arm64 Steamworks library, as packaged by Steamworks.NET on nuget.org (Steamworks SDK 1.63+).
+STEAM_API = {"package": "Steamworks.NET.AnyCPU 2026.165.3",
+             "url": "https://api.nuget.org/v3-flatcontainer/steamworks.net.anycpu/2026.165.3/"
+                    "steamworks.net.anycpu.2026.165.3.nupkg",
+             "sha256": "254b06a1d88ee7fe3a47ca107c3ca3fb13b0d81a0cde4b4efd872467d682f2db",
+             "member": "runtimes/linux-arm64/native/libsteam_api.so",
+             "member_sha256": "6010ff5049f0154a270092cb93729f1fc691d28e3b8a6f5fc6f8fcccfbd1e508"}
+STEAM_API_NAMES = ("libsteam_api64.so", "libsteam_api.so")
+# Microsoft's own ICU build for .NET (app-local ICU), as packaged on nuget.org, for a guest without ICU. In
+# invariant mode the game's `new CultureInfo(name)` throws (MEASURED on the phone, native-engine-54: its loc setup
+# and error dialog both died on CultureNotFoundException).
+ICU = {"package": "Microsoft.ICU.ICU4C.Runtime.linux-arm64 72.1.0.3",
+       "url": "https://api.nuget.org/v3-flatcontainer/microsoft.icu.icu4c.runtime.linux-arm64/72.1.0.3/"
+              "microsoft.icu.icu4c.runtime.linux-arm64.72.1.0.3.nupkg",
+       "sha256": "1f090fc45429292ae21f9199d5b956ad3570c38a7778ea4085258641727eefaf",
+       "version": "72.1.0.3",
+       "members": {"libicudata.so.72.1.0.3": "900d44dddc886bfb22c926f3e11d875c734ff59bd603efe7f790d24ebff7a78e",
+                   "libicuuc.so.72.1.0.3": "aa6e27e0e3b4f634787535404d72689a743f74889283f515a96878a629b476e2",
+                   "libicui18n.so.72.1.0.3": "515ecc70c21f0e0a5b790fe460c2ef3459efbc8efd36d4863347d3629cf320b3"}}
+DID_NOT_START = 86
+FIRST_FRAME_S = float(os.environ.get("DROIDDECK_NATIVE_FIRST_FRAME_S", "90"))
+FPS_EVERY_S = 60
+CACHE = os.path.join(os.path.expanduser("~"), ".cache", "droiddeck", "native")
+
+# Files the game's data folder may hold that must come from the kit (runtime- or engine-specific).
+ENGINE_ASSEMBLIES = {"godotsharp.dll", "godotsharp.xml", "godotplugins.dll"}
+
+
+def log(msg):
+    print("droiddeck-native-godot: " + msg, file=sys.stderr, flush=True)
+
+
+AMD64, ARM64 = 0x8664, 0xAA64
+ILONLY, IL_LIBRARY = 0x1, 0x4
+EXCEPTION_DIRECTORY, BASE_RELOCATIONS = 3, 5  # PE data directory entries
+READY_TO_RUN = b"RTR\0"  # signature at the start of a ReadyToRun header
+
+
+class MixedMode(ValueError):
+    """An assembly with native x64 code beside its IL (C++/CLI), which no arm64 runtime can load."""
+
+
+def pe_info(data):
+    """Where the fields we read or patch live in a PE image, or None if it isn't a .NET assembly."""
+    if data[:2] != b"MZ" or len(data) < 0x40:
+        return None
+    pe = struct.unpack_from("<I", data, 0x3C)[0]
+    if data[pe:pe + 4] != b"PE\0\0" or len(data) < pe + 24:
+        return None
+    machine, nsec = struct.unpack_from("<HH", data, pe + 4)
+    opt_size = struct.unpack_from("<H", data, pe + 20)[0]
+    opt = pe + 24
+    if len(data) < opt + 2:
+        return None
+    magic = struct.unpack_from("<H", data, opt)[0]
+    dirs = {0x10B: 96, 0x20B: 112}.get(magic)
+    if dirs is None or opt_size < dirs + 15 * 8 or len(data) < opt + opt_size:
+        return None
+    rva, size = struct.unpack_from("<II", data, opt + dirs + 14 * 8)
+    if not rva or not size:
+        return None
+    cli = None
+    for i in range(nsec):
+        sec = opt + opt_size + 40 * i
+        if len(data) < sec + 40:
+            return None
+        vsize, va, raw_size, raw = struct.unpack_from("<IIII", data, sec + 8)
+        if va <= rva < va + max(vsize, raw_size):
+            cli = rva - va + raw
+    if cli is None or len(data) < cli + 72:
+        return None
+    flags = struct.unpack_from("<I", data, cli + 16)[0]
+    vtable_fixups = struct.unpack_from("<II", data, cli + 56)
+    native = struct.unpack_from("<II", data, cli + 64)
+    r2r = False
+    if native[0]:
+        for i in range(nsec):
+            sec = opt + opt_size + 40 * i
+            vsize, va, raw_size, raw = struct.unpack_from("<IIII", data, sec + 8)
+            if va <= native[0] < va + max(vsize, raw_size):
+                at = native[0] - va + raw
+                r2r = data[at:at + 4] == READY_TO_RUN
+    return {"machine": machine, "machine_at": pe + 4, "flags": flags, "flags_at": cli + 16, "directories_at": opt + dirs,
+            "vtable_fixups": vtable_fixups, "native_header": native, "native_header_at": cli + 64,
+            "ready_to_run": r2r}
+
+
+def is_managed(path):
+    """True when the file is a PE image with a CLI (.NET) header."""
+    try:
+        with open(path, "rb") as f:
+            return pe_info(f.read()) is not None
+    except OSError:
+        return False
+
+
+def portable_image(data):
+    """(bytes, note) for a Windows x64 build of an assembly that arm64 .NET will load, or (None, None) when it
+    loads as it is.
+
+    CoreCLR refuses an assembly whose PE machine is AMD64 on arm64 ("not compatible with the current process
+    architecture"). When the code inside is plain IL the machine field is only a label, so it is relabelled
+    ARM64.
+
+    A ReadyToRun image (crossgen2 output: no IL-only mark, a ManagedNativeHeader with an RTR signature) holds
+    Windows x64 code that .NET on Linux can never use, and .NET on Linux refuses the image itself whenever it is
+    loaded the way Godot loads a game (hostfxr load_assembly_and_get_function_pointer) or through the default
+    load context: BadImageFormatException, relabelled or not. Its IL and metadata are complete, so it is turned
+    into the plain IL image it was compiled from: the R2R header is cleared, the IL-only mark set and the
+    IL_LIBRARY (precompiled) mark cleared, and the two data directories that only the native code used, the x64
+    exception table and the base relocations, are emptied; an IL-only image may have neither. Each step alone
+    still fails ("Bad IL format"); all of them load and run on every path. MEASURED with the same win-x64 R2R
+    library and app on .NET 8 linux-x64 (default context, hostfxr component load) and in CI on arm64 .NET 9.
+    Anything else without the IL-only mark (C++/CLI: vtable fixups, no RTR header) raises MixedMode."""
+    info = pe_info(data)
+    if info is None or info["machine"] != AMD64:
+        return None, None
+    r2r = info["ready_to_run"] and info["vtable_fixups"] == (0, 0)
+    if not info["flags"] & ILONLY and not r2r:
+        raise MixedMode("mixed-mode (native C++) assembly; it cannot run on arm64")
+    out = bytearray(data)
+    struct.pack_into("<H", out, info["machine_at"], ARM64)
+    if not r2r:
+        return bytes(out), "relabelled x64 -> arm64"
+    struct.pack_into("<I", out, info["flags_at"], (info["flags"] | ILONLY) & ~IL_LIBRARY)
+    struct.pack_into("<II", out, info["native_header_at"], 0, 0)
+    for entry in (EXCEPTION_DIRECTORY, BASE_RELOCATIONS):
+        struct.pack_into("<II", out, info["directories_at"] + 8 * entry, 0, 0)
+    return bytes(out), "relabelled x64 -> arm64, ReadyToRun x64 code dropped (plain IL; arm64 .NET JITs it)"
+
+
+def referenced_by(name, paths):
+    """Which of these assemblies name `name` (an assembly's simple name) in their metadata strings."""
+    needle = b"\0" + name.encode() + b"\0"
+    found = []
+    for path in paths:
+        try:
+            with open(path, "rb") as f:
+                if needle in f.read():
+                    found.append(os.path.basename(path))
+        except OSError:
+            pass
+    return found
+
+
+def windows_data_dir(game_dir):
+    """(assembly name, path) of the game's data_<asm>_windows_x86_64 folder."""
+    found = []
+    for name in sorted(os.listdir(game_dir)):
+        if name.startswith("data_") and name.endswith("_windows_x86_64") and os.path.isdir(os.path.join(game_dir, name)):
+            found.append((name[len("data_"):-len("_windows_x86_64")], os.path.join(game_dir, name)))
+    if len(found) != 1:
+        raise SystemExit(f"expected one data_*_windows_x86_64 folder in {game_dir}, found {[f[0] for f in found]}")
+    return found[0]
+
+
+def find_pack(game_dir, exe):
+    stem = os.path.splitext(exe)[0] if exe else None
+    if stem and os.path.isfile(os.path.join(game_dir, stem + ".pck")):
+        return os.path.join(game_dir, stem + ".pck")
+    packs = [n for n in os.listdir(game_dir) if n.endswith(".pck")]
+    if len(packs) == 1:
+        return os.path.join(game_dir, packs[0])
+    if exe and os.path.isfile(os.path.join(game_dir, exe)):
+        return os.path.join(game_dir, exe)  # pack embedded in the executable
+    raise SystemExit(f"no Godot pack found in {game_dir}")
+
+
+def kit_manifest(kit):
+    """kit.json: {"app": [the kit's own stand-in app files], "deps": "<app>.deps.json", "runtimeconfig": "<app>.runtimeconfig.json"}."""
+    manifest = os.path.join(kit, "kit.json")
+    if not os.path.isfile(manifest):
+        return {"app": []}
+    with open(manifest) as f:
+        return json.load(f)
+
+
+def kit_files(kit):
+    """The kit's files, minus its own stand-in app."""
+    skip = {"kit.json"} | {n.lower() for n in kit_manifest(kit).get("app", [])}
+    return {n: os.path.join(kit, n) for n in os.listdir(kit) if n.lower() not in skip}
+
+
+def game_deps(kit_deps, asm, assemblies):
+    """The kit app's deps.json, with its project entry renamed to the game and listing the game's assemblies.
+
+    The runtime pack entries (linux-arm64 libcoreclr.so and the framework) stay as the kit built them, so
+    hostpolicy resolves the runtime exactly as it does for the kit's own app."""
+    deps = json.loads(json.dumps(kit_deps))
+    target = deps["runtimeTarget"]["name"]
+    libs = deps["libraries"]
+    app = next(k for k, v in libs.items() if v.get("type") == "project" and k in deps["targets"][target]
+               and not k.lower().startswith(("godotsharp/", "godotplugins/")))
+    new = f"{asm}/1.0.0"
+    for tname, tlibs in deps["targets"].items():
+        if app in tlibs:
+            entry = tlibs.pop(app)
+            if tname == target:
+                entry["runtime"] = {a: {} for a in assemblies}
+            tlibs[new] = entry
+    libs[new] = libs.pop(app)
+    return deps
+
+
+def game_runtimeconfig(kit_cfg, game_cfg):
+    """The kit's runtimeconfig (built for linux-arm64) with the game's own runtime switches on top."""
+    cfg = json.loads(json.dumps(kit_cfg))
+    props = cfg.setdefault("runtimeOptions", {}).setdefault("configProperties", {})
+    props.update((game_cfg or {}).get("runtimeOptions", {}).get("configProperties", {}))
+    return cfg
+
+
+def place(src, dst):
+    """Hardlink (copy across filesystems). Not a symlink: the .NET host resolves the main assembly's real
+    path and looks for the runtime next to it, so a symlinked game DLL sends it to the Windows folder."""
+    if os.path.lexists(dst):
+        os.unlink(dst)
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
+def fetch(component=COMPONENT, cache=CACHE, opener=urllib.request.urlopen):
+    """The pinned component's folder, downloading and checking it the first time."""
+    if not component.get("url"):
+        raise SystemExit("no native engine component is published yet")
+    folder = os.path.join(cache, component["tag"])
+    if os.path.isfile(os.path.join(folder, ".complete")):
+        return folder
+    os.makedirs(cache, exist_ok=True)
+    tmp = tempfile.mkdtemp(dir=cache)
+    try:
+        archive = os.path.join(tmp, "component.tar.zst")
+        digest = hashlib.sha256()
+        with opener(component["url"], timeout=60) as source, open(archive, "wb") as f:
+            for block in iter(lambda: source.read(1 << 20), b""):
+                digest.update(block)
+                f.write(block)
+        if digest.hexdigest() != component["sha256"]:
+            raise SystemExit("native engine download did not match its checksum")
+        root = os.path.join(tmp, "root")
+        os.mkdir(root)
+        unpack = subprocess.run(["sh", "-c", 'zstd -dc "$1" | tar -C "$2" -x', "sh", archive, root])
+        if unpack.returncode != 0:
+            raise SystemExit("native engine archive did not unpack")
+        open(os.path.join(root, ".complete"), "w").close()
+        if os.path.isdir(folder):
+            shutil.rmtree(folder)
+        os.rename(root, folder)
+        prune_engines(cache, component["tag"])
+        return folder
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+ENGINE_FOLDER = re.compile(r"native-engine-\d+")
+
+
+def prune_engines(cache, keep):
+    """Remove engine folders other than [keep] (about 170 MB each): only the pinned one is ever run, and a
+    pin that moves back downloads its engine again. Called only once a new engine has landed."""
+    for name in os.listdir(cache):
+        if name != keep and ENGINE_FOLDER.fullmatch(name):
+            shutil.rmtree(os.path.join(cache, name), ignore_errors=True)
+
+
+def steam_api(spec=STEAM_API, cache=CACHE, opener=urllib.request.urlopen):
+    """Path of Valve's linux-arm64 libsteam_api.so, downloading and checking it the first time."""
+    folder = os.path.join(cache, "steam-api", spec["member_sha256"][:16])
+    path = os.path.join(folder, "libsteam_api.so")
+    if os.path.isfile(path):
+        return path
+    os.makedirs(cache, exist_ok=True)
+    tmp = tempfile.mkdtemp(dir=cache)
+    try:
+        package = os.path.join(tmp, "package.nupkg")
+        digest = hashlib.sha256()
+        with opener(spec["url"], timeout=60) as source, open(package, "wb") as f:
+            for block in iter(lambda: source.read(1 << 20), b""):
+                digest.update(block)
+                f.write(block)
+        if digest.hexdigest() != spec["sha256"]:
+            raise SystemExit("Steamworks package download did not match its checksum")
+        import zipfile
+        with zipfile.ZipFile(package) as z:
+            data = z.read(spec["member"])
+        if hashlib.sha256(data).hexdigest() != spec["member_sha256"]:
+            raise SystemExit("libsteam_api.so in the Steamworks package did not match its checksum")
+        os.makedirs(folder, exist_ok=True)
+        staged = os.path.join(tmp, "libsteam_api.so")
+        with open(staged, "wb") as f:
+            f.write(data)
+        os.chmod(staged, 0o755)
+        os.replace(staged, path)
+        return path
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def icu_libs(spec=ICU, cache=CACHE, opener=urllib.request.urlopen):
+    """Folder holding Microsoft's linux-arm64 ICU (and the soname links its libraries load each other by),
+    downloading and checking it the first time."""
+    folder = os.path.join(cache, "icu", spec["version"])
+    names = list(spec["members"])
+    if all(os.path.isfile(os.path.join(folder, n)) for n in names):
+        return folder
+    os.makedirs(cache, exist_ok=True)
+    tmp = tempfile.mkdtemp(dir=cache)
+    try:
+        package = os.path.join(tmp, "package.nupkg")
+        digest = hashlib.sha256()
+        with opener(spec["url"], timeout=60) as source, open(package, "wb") as f:
+            for block in iter(lambda: source.read(1 << 20), b""):
+                digest.update(block)
+                f.write(block)
+        if digest.hexdigest() != spec["sha256"]:
+            raise SystemExit("ICU package download did not match its checksum")
+        import zipfile
+        staged = os.path.join(tmp, "icu")
+        os.mkdir(staged)
+        with zipfile.ZipFile(package) as z:
+            for name, sha in spec["members"].items():
+                data = z.read("runtimes/linux-arm64/native/" + name)
+                if hashlib.sha256(data).hexdigest() != sha:
+                    raise SystemExit(f"{name} in the ICU package did not match its checksum")
+                with open(os.path.join(staged, name), "wb") as f:
+                    f.write(data)
+                os.chmod(os.path.join(staged, name), 0o755)
+                os.symlink(name, os.path.join(staged, name.split(".so.")[0] + ".so." + name.split(".so.")[1].split(".")[0]))
+        os.makedirs(os.path.dirname(folder), exist_ok=True)
+        if os.path.isdir(folder):
+            shutil.rmtree(folder)
+        os.rename(staged, folder)
+        return folder
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# Lookarounds, not consumed NULs: names sit next to each other in the string heap, and a pattern that ate the NUL
+# between two names skipped every second one (Nov 15: 42 of 285 missing names found, SteamAPI_ISteamUtils_
+# IsSteamRunningOnSteamDeck among the unseen, and the game quit on it).
+STEAM_ENTRY = re.compile(rb"(?<=\0)(Steam(?:API|Internal|GameServer)_[A-Za-z0-9_]+|SteamClient|SteamGameServerClient)(?=\0)")
+# Steamworks.NET names that match STEAM_ENTRY but are delegate types, not functions it binds.
+STEAM_NOT_ENTRY = {"SteamAPI_CheckCallbackRegistered_t"}
+# Steamworks.NET's CSteamAPIContext.Init fetches every interface through these accessors, so one the library lacks
+# is an EntryPointNotFoundException at SteamAPI.Init: the game reports Steam as failed and quits. MEASURED on the
+# phone (native-engine-54, 2026-11-14): Valve's linux-arm64 libraries (SDK 1.64+) lack GetISteamGameSearch and
+# GetISteamMusicRemote, which SDK 1.63 removed and 1.62-era Steamworks.NET still calls.
+STEAM_ACCESSOR = "SteamAPI_ISteamClient_GetISteam"
+
+
+def steam_api_missing(steamworks_dll, library):
+    """Steam flat-API names the game's Steamworks.NET mentions that the library (or libraries: the bridge and
+    Valve's, which the bridge depends on) does not export (by name)."""
+    try:
+        with open(steamworks_dll, "rb") as f:
+            wanted = {m.decode() for m in STEAM_ENTRY.findall(f.read())} - STEAM_NOT_ENTRY
+        have = b""
+        for path in ([library] if isinstance(library, str) else library):
+            with open(path, "rb") as f:
+                have += f.read()
+    except OSError:
+        return []
+    return sorted(n for n in wanted if b"\0" + n.encode() + b"\0" not in have)
+
+
+# The bridge (tools/native-engine/steam-bridge): placed as libsteam_api64.so in front of Valve's libsteam_api.so,
+# it serves the interface accessors (these two Valve dropped, and the rest by version) and answers every other flat
+# function the game's Steamworks.NET binds that Valve's library dropped (build.sh fails the build if any is left).
+STEAM_BRIDGE = "steam-bridge/libsteam_api64.so"
+STEAM_BRIDGED = {"SteamAPI_ISteamClient_GetISteamGameSearch": "SteamMatchGameSearch",
+                 "SteamAPI_ISteamClient_GetISteamMusicRemote": "STEAMMUSICREMOTE_INTERFACE_VERSION"}
+# Every interface version constant in a Steamworks.NET (UTF-16 string literals such as SteamUser023,
+# STEAMTIMELINE_INTERFACE_V001, STEAMHTMLSURFACE_INTERFACE_VERSION_005). Its SteamAPI.InitEx fetches each client
+# interface after Steam's own init succeeds and reports a bare FailedGeneric if any comes back null (Slay the
+# Spire 2's "Steam failed to initialize" with empty details), so the probe asks the client for all of them.
+STEAM_VERSION = re.compile(r"(?<![A-Za-z0-9_])((?:Steam|STEAM)[A-Za-z]*?(?:_INTERFACE_VERSION_?|_INTERFACE_V)?)(\d{3})"
+                           r"(?![A-Za-z0-9_])")
+# Not client interfaces a game's SteamAPI.InitEx fetches: the client itself and the game-server side.
+STEAM_NOT_CLIENT = re.compile(r"SteamClient\d|SteamGameServer|STEAMAPPTICKET_")
+
+
+def steam_versions(steamworks_dll):
+    """The client interface versions the game's Steamworks.NET asks Steam for, in the order its constants appear."""
+    try:
+        with open(steamworks_dll, "rb") as f:
+            text = f.read().decode("utf-16-le", "replace")
+    except OSError:
+        return []
+    found = []
+    for m in STEAM_VERSION.finditer(text):
+        v = m.group(0)
+        if v not in found and not STEAM_NOT_CLIENT.match(v):
+            found.append(v)
+    return found
+
+
+# Read-only probe for the forwarding question: does the phone's arm64 steamclient still serve the interface
+# versions behind the two missing accessors? It changes nothing about what runs: missing accessors still mean the
+# game is not started here. Valve's own library, in the environment Steam set for this launch (no appid file, no
+# invented variables); handles and the client interface only, then SteamAPI_Shutdown; once per steamclient.so.
+STEAM_PROBE_VERSIONS = ("SteamMatchGameSearch001", "STEAMMUSICREMOTE_INTERFACE_VERSION001", "SteamInput006",
+                        "STEAMREMOTEPLAY_INTERFACE_VERSION003")
+STEAM_PROBE_TIMEOUT_S = 30
+STEAM_PROBE_CHILD = r"""
+import ctypes, json, sys, time
+t0 = time.monotonic()
+lib = ctypes.CDLL(sys.argv[1])
+err = ctypes.create_string_buffer(1024)
+lib.SteamAPI_InitFlat.restype = ctypes.c_int
+lib.SteamAPI_InitFlat.argtypes = [ctypes.c_char_p]
+init = lib.SteamAPI_InitFlat(err)
+out = {"init": init, "init_message": err.value.decode("utf-8", "replace")[:200], "versions": {}}
+if init == 0:
+    try:
+        lib.SteamInternal_CreateInterface.restype = ctypes.c_void_p
+        lib.SteamInternal_CreateInterface.argtypes = [ctypes.c_char_p]
+        lib.SteamAPI_GetHSteamUser.restype = ctypes.c_int32
+        lib.SteamAPI_GetHSteamPipe.restype = ctypes.c_int32
+        get = lib.SteamAPI_ISteamClient_GetISteamGenericInterface
+        get.restype = ctypes.c_void_p
+        get.argtypes = [ctypes.c_void_p, ctypes.c_int32, ctypes.c_int32, ctypes.c_char_p]
+        client = lib.SteamInternal_CreateInterface(b"SteamClient021")
+        user, pipe = lib.SteamAPI_GetHSteamUser(), lib.SteamAPI_GetHSteamPipe()
+        out["client"] = bool(client)
+        for v in sys.argv[2:]:
+            out["versions"][v] = bool(client) and bool(get(client, user, pipe, v.encode()))
+        # The typed accessors Steamworks.NET's CSteamAPIContext calls, as Valve's library answers them for the
+        # versions the game asks (Nov 15: one came back NULL right after STEAMAPPS though the generic one served).
+        out["typed_null"] = []
+        typed = {"SteamUser": "User", "SteamFriends": "Friends", "SteamMatchMaking": "Matchmaking",
+                 "SteamMatchMakingServers": "MatchmakingServers", "STEAMUSERSTATS_INTERFACE_VERSION": "UserStats",
+                 "STEAMAPPS_INTERFACE_VERSION": "Apps", "SteamNetworking": "Networking",
+                 "STEAMREMOTESTORAGE_INTERFACE_VERSION": "RemoteStorage",
+                 "STEAMSCREENSHOTS_INTERFACE_VERSION": "Screenshots", "STEAMHTTP_INTERFACE_VERSION": "HTTP",
+                 "STEAMUGC_INTERFACE_VERSION": "UGC", "STEAMMUSIC_INTERFACE_VERSION": "Music",
+                 "STEAMHTMLSURFACE_INTERFACE_VERSION_": "HTMLSurface", "STEAMINVENTORY_INTERFACE_V": "Inventory",
+                 "STEAMVIDEO_INTERFACE_V": "Video", "STEAMPARENTALSETTINGS_INTERFACE_VERSION": "ParentalSettings",
+                 "SteamInput": "Input", "SteamParties": "Parties", "STEAMREMOTEPLAY_INTERFACE_VERSION": "RemotePlay"}
+        for v in sys.argv[2:] if client else []:
+            iface = typed.get(v.rstrip("0123456789"))
+            f = getattr(lib, "SteamAPI_ISteamClient_GetISteam" + iface, None) if iface else None
+            if f is None:
+                continue
+            f.restype = ctypes.c_void_p
+            f.argtypes = [ctypes.c_void_p, ctypes.c_int32, ctypes.c_int32, ctypes.c_char_p]
+            if not f(client, user, pipe, v.encode()):
+                out["typed_null"].append(v)
+    finally:
+        lib.SteamAPI_Shutdown()
+    # Which of these versions does Valve's init itself refuse? (Steamworks.NET hands init its whole list; one
+    # refused entry fails the game's init with FailedGeneric and no message.) One init and shutdown per version.
+    init = lib.SteamInternal_SteamAPI_Init
+    init.restype = ctypes.c_int
+    init.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    out["init_each"] = {}
+    for v in sys.argv[2:]:
+        if time.monotonic() - t0 > 20:
+            break
+        r = init(v.encode() + b"\0\0", err)
+        out["init_each"][v] = r
+        if r == 0:
+            lib.SteamAPI_Shutdown()
+out["seconds"] = round(time.monotonic() - t0, 3)
+print("STEAMPROBE " + json.dumps(out), flush=True)
+"""
+
+
+def arm64_steamclients(home=None, env=None):
+    """The aarch64 steamclient.so files Valve's library may load, by real path."""
+    home = home or os.path.expanduser("~")
+    env = os.environ if env is None else env
+    roots = [os.path.join(home, ".steam", "sdkarm64"), os.path.join(home, ".steam", "steam", "linuxarm64")]
+    for base in (env.get("XDG_DATA_HOME") or os.path.join(home, ".local", "share"),):
+        roots += [os.path.join(base, "Steam", "linuxarm64"), os.path.join(base, "Steam", "steamrtarm64")]
+    found = []
+    for root in roots:
+        path = os.path.realpath(os.path.join(root, "steamclient.so"))
+        try:
+            with open(path, "rb") as f:
+                head = f.read(20)
+        except OSError:
+            continue
+        if head[:4] == b"\x7fELF" and struct.unpack_from("<H", head, 18)[0] == 183 and path not in found:
+            found.append(path)
+    return found
+
+
+def steam_api_missing_without_bridge(report):
+    """The names the game wants that Valve's library alone lacks (what the bridge, if placed, supplies)."""
+    data = report.get("data") or ""
+    sw = next((n for n in report.get("game_assemblies") or [] if n.lower() == "steamworks.net.dll"), None)
+    if not (report.get("steam_api") and sw):
+        return []
+    return steam_api_missing(os.path.join(data, sw), report["steam_api"])
+
+
+def steam_probe(library, cwd, env, cache=CACHE, clients=None, timeout=STEAM_PROBE_TIMEOUT_S, runner=subprocess.run,
+                versions=STEAM_PROBE_VERSIONS):
+    """Ask the phone's steamclient, through Valve's library, whether it serves STEAM_PROBE_VERSIONS. Cached per
+    steamclient.so contents; any error or timeout is {"unknown": why} (and the decision stays: not started)."""
+    clients = arm64_steamclients(env=env) if clients is None else clients
+    if not clients:
+        return {"unknown": "no arm64 steamclient.so found"}
+    digest = hashlib.sha256()
+    for path in clients:
+        with open(path, "rb") as f:
+            digest.update(hashlib.sha256(f.read()).digest())
+    digest.update(b"probe-3\0" + "\0".join(versions).encode())  # probe-3: also init per version and typed accessors
+    key = digest.hexdigest()
+    path = os.path.join(cache, "steam-probe", key + ".json")
+    try:
+        with open(path) as f:
+            return dict(json.load(f), cached=True)
+    except (OSError, ValueError):
+        pass
+    t0 = time.monotonic()
+    try:
+        done = runner([sys.executable, "-I", "-c", STEAM_PROBE_CHILD, library] + list(versions),
+                      cwd=cwd, env=without_x86_preloads(env), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                      timeout=timeout)
+        line = next((l for l in done.stdout.decode("utf-8", "replace").splitlines() if l.startswith("STEAMPROBE ")), None)
+        if line is None:
+            return {"unknown": f"probe exited {done.returncode} without an answer"}
+        result = json.loads(line[len("STEAMPROBE "):])
+    except subprocess.TimeoutExpired:
+        return {"unknown": f"probe timed out after {timeout} s"}
+    except (OSError, ValueError) as error:
+        return {"unknown": f"probe failed: {error}"}
+    result.update(steamclient=clients, steamclient_key=key, wall_seconds=round(time.monotonic() - t0, 3))
+    if result.get("init") == 0:  # only a probe that reached the client is worth keeping
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w") as f:
+            json.dump(result, f)
+        os.replace(path + ".tmp", path)
+    return result
+
+
+def steam_probe_line(result):
+    if "unknown" in result:
+        return f"Steam probe: unknown ({result['unknown']})"
+    if result.get("init") != 0:
+        return f"Steam probe: SteamAPI_InitFlat returned {result['init']} ({result.get('init_message', '')}), {result.get('wall_seconds')} s"
+    versions = result.get("versions") or {}
+    null = [v for v, ok in versions.items() if not ok]
+    served = f"{len(versions) - len(null)} of {len(versions)} interface versions non-null" + (
+        f" (null: {', '.join(null)})" if null else "")
+    each = result.get("init_each") or {}
+    refused = [f"{v} ({r})" for v, r in each.items() if r != 0]
+    init = (f"; Valve's init refuses {', '.join(refused)} of {len(each)} checked one by one" if refused
+            else f"; Valve's init takes each of {len(each)} one by one" if each else "")
+    typed_null = result.get("typed_null") or []
+    if typed_null:
+        init += f"; typed accessors NULL for {', '.join(typed_null)}"
+    return (f"Steam probe: {served}; client {'non-null' if result.get('client') else 'null'}{init}; "
+            f"{result.get('wall_seconds')} s" + (" (cached)" if result.get("cached") else ""))
+
+
+def steam_init_blockers(missing):
+    """The missing names that stop SteamAPI.Init itself: interface accessors (see STEAM_ACCESSOR)."""
+    return [n for n in (missing or []) if n.startswith(STEAM_ACCESSOR)]
+
+
+def compose(game_dir, kit, engine, out, exe=None, steam=None, bridge=None):
+    game_dir, kit, engine, out = (os.path.abspath(p) for p in (game_dir, kit, engine, out))
+    asm, win = windows_data_dir(game_dir)
+    data = os.path.join(out, f"data_{asm}_linuxbsd_arm64")
+    if os.path.isdir(data):
+        shutil.rmtree(data)
+    os.makedirs(data)
+    kit_map = kit_files(kit)
+    kit_lower = {n.lower() for n in kit_map}
+    for name, path in kit_map.items():
+        place(os.path.abspath(path), os.path.join(data, name))
+    taken, skipped, patched, mixed, game_cfg = [], [], {}, [], None
+    for name in sorted(os.listdir(win)):
+        src = os.path.join(win, name)
+        low = name.lower()
+        if not os.path.isfile(src):
+            continue
+        if low == f"{asm.lower()}.runtimeconfig.json":
+            with open(src) as f:
+                game_cfg = json.load(f)
+            skipped.append(name)
+        elif low == f"{asm.lower()}.deps.json":
+            skipped.append(name)  # describes the win-x64 runtime; rebuilt from the kit's below
+        elif low in ENGINE_ASSEMBLIES or low in kit_lower:
+            skipped.append(name)
+        elif is_managed(src):
+            with open(src, "rb") as f:
+                try:
+                    fixed, note = portable_image(f.read())
+                except MixedMode as error:
+                    if low == f"{asm.lower()}.dll":
+                        raise SystemExit(f"{name}: {error}")
+                    mixed.append(name)
+                    skipped.append(name)
+                    continue
+            if fixed is None:
+                place(os.path.abspath(src), os.path.join(data, name))
+            else:
+                with open(os.path.join(data, name), "wb") as f:
+                    f.write(fixed)
+                patched[name] = note
+            taken.append(name)
+        else:
+            skipped.append(name)  # native Windows libraries and data the runtime doesn't need
+    # The game itself is IL; a mixed-mode file beside it (a Windows-only helper, say) is left out. If the game
+    # does reach for it, .NET fails that one load, which the first-frame watchdog catches.
+    mixed_refs = {}
+    for name in mixed:
+        users = referenced_by(os.path.splitext(name)[0], [os.path.join(data, n) for n in taken])
+        mixed_refs[name] = users
+        log(f"left out {name}: mixed-mode (native x64) assembly; "
+            + (f"named by {', '.join(users)}" if users else "no game assembly names it"))
+    steam_missing, steam_wants = None, []
+    if steam:
+        if bridge:
+            place(os.path.abspath(steam), os.path.join(data, "libsteam_api.so"))
+            place(os.path.abspath(bridge), os.path.join(data, "libsteam_api64.so"))
+        else:
+            for name in STEAM_API_NAMES:
+                place(os.path.abspath(steam), os.path.join(data, name))
+        sw = next((n for n in taken if n.lower() == "steamworks.net.dll"), None)
+        if sw:
+            steam_missing = steam_api_missing(os.path.join(data, sw), [steam, bridge] if bridge else steam)
+            steam_wants = steam_versions(os.path.join(data, sw))
+            log(("Steam: the bridge (interface accessors: shared versions unchanged, older ones get the library's own; "
+                 "GameSearch and MusicRemote to the client) in front of Valve's libsteam_api.so; " if bridge else "Steam: Valve's libsteam_api.so; ")
+                + (f"{len(steam_missing)} names the game's Steamworks.NET mentions are not exported "
+                   f"({', '.join(steam_missing[:8])})" if steam_missing else "it exports every name the game's Steamworks.NET mentions"))
+    manifest = kit_manifest(kit)
+    if manifest.get("deps"):
+        with open(os.path.join(kit, manifest["deps"])) as f:
+            deps = game_deps(json.load(f), asm, [n for n in taken if n.lower().endswith(".dll")])
+        with open(os.path.join(data, f"{asm}.deps.json"), "w") as f:
+            json.dump(deps, f, indent=1)
+    if manifest.get("runtimeconfig"):
+        with open(os.path.join(kit, manifest["runtimeconfig"])) as f:
+            cfg = game_runtimeconfig(json.load(f), game_cfg)
+    else:
+        cfg = game_cfg
+    if cfg is not None:
+        with open(os.path.join(data, f"{asm}.runtimeconfig.json"), "w") as f:
+            json.dump(cfg, f, indent=1)
+    # The engine finds its data folder next to its real path, so the binary itself lives in the launch dir.
+    target = os.path.join(out, asm)
+    if not (os.path.isfile(target) and os.path.getsize(target) == os.path.getsize(engine)
+            and os.path.getmtime(target) >= os.path.getmtime(engine)):
+        try:
+            if os.path.lexists(target):
+                os.unlink(target)
+            os.link(engine, target)
+        except OSError:
+            shutil.copy2(engine, target)
+        os.chmod(target, 0o755)
+    # The engine's symbol map, when the component has one, sits beside it for the sampling profiler.
+    syms = os.path.join(os.path.dirname(engine), "godot.syms")
+    if os.path.isfile(syms):
+        place(syms, os.path.join(out, "godot.syms"))
+    report = {"assembly": asm, "pack": find_pack(game_dir, exe), "engine": target, "data": data,
+              "game_assemblies": taken, "patched": patched, "mixed_mode": mixed_refs, "steam_api": steam,
+              "steam_api_missing": steam_missing, "steam_bridge": bridge,
+              "steam_versions": steam_wants, "skipped": skipped, "kit_files": len(kit_map)}
+    if r2r_on():
+        report["r2r"] = r2r_compose(data, win, taken, kit)
+    with open(os.path.join(out, "native-launch.json"), "w") as f:
+        json.dump(report, f, indent=1)
+    return report
+
+
+# --- Experiment native-r2r (DROIDDECK_EXP_NATIVE_R2R=1): linux-arm64 ReadyToRun for the game's assemblies ---
+#
+# A Windows build's precompiled code is for Windows x64, which arm64 CoreCLR ignores, so it JITs every method
+# the game runs. With the experiment on, compose puts a cached linux-arm64 ReadyToRun image (crossgen2 output,
+# same IL and metadata) in place of each relabelled copy. What is not cached yet is compiled after the engine's first
+# frame by one detached, niced background job (crossgen2, 2 threads, one job at a time), for the next launch.
+# Each image is compiled on its own (per-assembly version bubble) against the kit's framework and the game's
+# other assemblies as references, so it stays valid while those only change within the runtime's major
+# version; the runtime JITs any method whose precompiled code it rejects. Nothing here may stop a launch: on
+# any failure the game runs on the JIT as before.
+#
+# Cache: R2R_CACHE/<tag>/<sha256 of the IL that crossgen2 compiles>.dll, plus a .json beside each image
+# written once it was checked (crossgen2 exit 0, a ReadyToRun header, Linux arm64 machine). <tag> names the
+# target and mode, the kit's .NET version (and component VERSION) and the crossgen2 version. compile.log
+# (one line per job) and compile.lock sit in R2R_CACHE.
+
+R2R_TARGET = "linux-arm64-single"
+R2R_THREADS = os.environ.get("DROIDDECK_NATIVE_R2R_THREADS", "2")
+R2R_TIMEOUT_S = 1200
+R2R_RUNTIME_MAJOR = 9
+CROSSGEN2_DEFAULT = "/usr/local/lib/droiddeck-crossgen2"
+LINUX_ARM64_R2R = ARM64 ^ 0x7B79  # a ReadyToRun image for Linux carries its machine XOR the OS's value (0xD11D)
+
+
+def r2r_on(env=os.environ):
+    return env.get("DROIDDECK_EXP_NATIVE_R2R") == "1"
+
+
+def r2r_cache(env=os.environ):
+    return env.get("DROIDDECK_NATIVE_R2R_CACHE") or os.path.join(CACHE, "r2r")
+
+
+def r2r_pristine_root(env=os.environ):
+    """Where droiddeck-dotnet-r2r (the Proton path) keeps the original IL of the files it swapped."""
+    return env.get("DROIDDECK_R2R_CACHE") or os.path.join(os.path.expanduser("~"), ".cache", "droiddeck-r2r")
+
+
+def find_crossgen2(env=os.environ):
+    """The crossgen2 binary named by DROIDDECK_CROSSGEN2 (the binary, or a folder holding it or its nuget
+    package's tools/), else the one the image ships; None if there is none."""
+    value = env.get("DROIDDECK_CROSSGEN2") or CROSSGEN2_DEFAULT
+    paths = [os.path.join(value, "crossgen2"), os.path.join(value, "tools", "crossgen2")] if os.path.isdir(value) else [value]
+    for path in paths:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
+
+
+def crossgen2_jit(binary):
+    """The code generator crossgen2 needs to emit arm64 code (beside it, as in the nuget package's tools/)."""
+    import platform
+    host = {"aarch64": "arm64", "arm64": "arm64", "x86_64": "x64", "amd64": "x64"}.get(platform.machine().lower(), "arm64")
+    return os.path.join(os.path.dirname(binary), f"libclrjit_universal_arm64_{host}.so")
+
+
+def crossgen2_version(binary, run=subprocess.run):
+    """'9.0.23' from `crossgen2 --version` ('9.0.23+<commit>'), or None."""
+    try:
+        out = run([binary, "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                  timeout=30).stdout.decode(errors="replace").strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    version = out.splitlines()[0].split("+")[0].strip() if out else ""
+    return version if version[:1].isdigit() else None
+
+
+def kit_runtime_version(kit):
+    """The version of the kit's Microsoft.NETCore.App (from its runtimeconfig, else its deps.json), or None."""
+    names = [kit_manifest(kit).get("runtimeconfig")] + sorted(n for n in os.listdir(kit) if n.endswith(".runtimeconfig.json"))
+    for name in filter(None, names):
+        try:
+            with open(os.path.join(kit, name)) as f:
+                options = json.load(f).get("runtimeOptions", {})
+            for fw in options.get("includedFrameworks") or options.get("frameworks") or [options.get("framework") or {}]:
+                if fw.get("name") == "Microsoft.NETCore.App" and fw.get("version"):
+                    return fw["version"]
+        except (OSError, ValueError, AttributeError):
+            continue
+    for name in sorted(n for n in os.listdir(kit) if n.endswith(".deps.json")):
+        try:
+            with open(os.path.join(kit, name)) as f:
+                targets = json.load(f).get("targets", {})
+            for target in targets.values():
+                for key in target:
+                    if key.startswith(("runtimepack.Microsoft.NETCore.App.Runtime", "Microsoft.NETCore.App.Runtime")):
+                        return key.split("/")[-1]
+        except (OSError, ValueError, AttributeError):
+            continue
+    return None
+
+
+def r2r_tag(kit, crossgen2):
+    """The cache folder name for images compiled by this crossgen2 version against this kit."""
+    tag = f"{R2R_TARGET}__fx{kit_runtime_version(kit)}"
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(kit)), "VERSION")) as f:
+            component = f.read().strip()[:12]
+        tag += f"-{component}" if component else ""
+    except OSError:
+        pass
+    return re.sub(r"[^A-Za-z0-9._+-]", "_", f"{tag}__cg{crossgen2}")
+
+
+def _sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def is_linux_arm64_r2r(data):
+    info = pe_info(data)
+    return bool(info and info["ready_to_run"] and info["machine"] == LINUX_ARM64_R2R)
+
+
+def r2r_cached(image):
+    """True when a cached image is there whole: its record exists and the file matches it."""
+    try:
+        with open(image[:-len(".dll")] + ".json") as f:
+            meta = json.load(f)
+        if os.path.getsize(image) != meta["size"]:
+            return False
+        with open(image, "rb") as f:
+            return is_linux_arm64_r2r(f.read())
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def r2r_pristine_manifest(root):
+    try:
+        with open(os.path.join(root, "manifest.json")) as f:
+            manifest = json.load(f)
+        return manifest if isinstance(manifest, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def crossgen2_input(data):
+    """The IL image crossgen2 is given for an assembly, or None for one it cannot compile (not managed,
+    mixed-mode). crossgen2 refuses an image that is already ReadyToRun, so a Windows build's R2R image has its
+    ReadyToRun header cleared and is marked IL-only (and relabelled arm64). This copy only ever goes to crossgen2;
+    the launch folder gets portable_image's plain-IL copy, which crossgen2 also accepts."""
+    info = pe_info(data)
+    if info is None:
+        return None
+    r2r = info["ready_to_run"] and info["vtable_fixups"] == (0, 0)
+    if not info["flags"] & ILONLY and not r2r:
+        return None
+    out = bytearray(data)
+    if info["machine"] == AMD64:
+        struct.pack_into("<H", out, info["machine_at"], ARM64)
+    flags = info["flags"]
+    if info["native_header"] != (0, 0):
+        struct.pack_into("<II", out, info["native_header_at"], 0, 0)
+        flags &= ~IL_LIBRARY
+    struct.pack_into("<I", out, info["flags_at"], flags | ILONLY)
+    return bytes(out)
+
+
+def r2r_input(src, manifest, root):
+    """(path the IL came from, the IL image crossgen2 compiles) for a game file, or (src, None) if there is none.
+
+    If droiddeck-dotnet-r2r swapped its own win-x64 image in there, its pristine original is used. Either way
+    crossgen2_input makes the copy crossgen2 takes."""
+    with open(src, "rb") as f:
+        data = f.read()
+    used = src
+    entry = manifest.get(os.path.realpath(src))
+    if isinstance(entry, dict) and entry.get("il") and _sha256(data) == entry.get("r2r"):
+        original = os.path.join(root, entry["il"] + ".il.dll")
+        try:
+            with open(original, "rb") as f:
+                pristine = f.read()
+            if _sha256(pristine) == entry["il"]:
+                data, used = pristine, original
+        except OSError:
+            pass
+    return used, crossgen2_input(data)
+
+
+def r2r_compose(data_dir, win, taken, kit, env=os.environ):
+    """Puts cached linux-arm64 ReadyToRun images in place of the game's composed assemblies. Returns what it
+    did and what is left to compile (r2r_after_first_frame starts that), or None if it could not look."""
+    try:
+        return _r2r_compose(data_dir, win, taken, kit, env)
+    except Exception as error:  # never stop a launch over this
+        log(f"native-r2r: cache lookup failed ({type(error).__name__}: {error}); running on the JIT")
+        return None
+
+
+def _r2r_compose(data_dir, win, taken, kit, env):
+    crossgen2 = find_crossgen2(env)
+    if not crossgen2:
+        log(f"native-r2r: no crossgen2 at {env.get('DROIDDECK_CROSSGEN2') or CROSSGEN2_DEFAULT}; running on the JIT")
+        return None
+    version, fx = crossgen2_version(crossgen2), kit_runtime_version(kit)
+    if not version or not fx or version.split(".")[0] != fx.split(".")[0] or fx.split(".")[0] != str(R2R_RUNTIME_MAJOR):
+        log(f"native-r2r: crossgen2 {version} does not fit the kit's .NET {fx}; running on the JIT")
+        return None
+    cache = r2r_cache(env)
+    tag = r2r_tag(kit, version)
+    folder = os.path.join(cache, tag)
+    root = r2r_pristine_root(env)
+    manifest = r2r_pristine_manifest(root)
+    cached, missing = [], []
+    for name in taken:
+        if not name.lower().endswith(".dll"):
+            continue
+        used, image = r2r_input(os.path.join(win, name), manifest, root)
+        if image is None:
+            continue
+        key = _sha256(image)
+        path = os.path.join(folder, key + ".dll")
+        if r2r_cached(path):
+            place(path, os.path.join(data_dir, name))
+            cached.append(name)
+        else:
+            missing.append({"name": name, "source": os.path.abspath(used), "key": key})
+    jit = crossgen2_jit(crossgen2)
+    can_compile = os.path.isfile(jit)
+    log(f"native-r2r: {len(cached)} of {len(cached) + len(missing)} game assemblies from the linux-arm64 "
+        f"ReadyToRun cache ({tag})"
+        + ("" if not missing else f"; {len(missing)} to compile after the first frame" if can_compile
+           else f"; cannot compile the other {len(missing)}: crossgen2 lacks {os.path.basename(jit)}"))
+    return {"tag": tag, "folder": folder, "cache": cache, "crossgen2": crossgen2, "pristine": root, "data": data_dir,
+            "cached": cached, "missing": missing, "can_compile": can_compile}
+
+
+def r2r_after_first_frame(report, env=os.environ):
+    """What watch() calls at the engine's first frame: start the background compile, if there is one to do."""
+    r2r = report.get("r2r") or {}
+    if not r2r.get("missing") or not r2r.get("can_compile"):
+        return None
+    return lambda: r2r_spawn(r2r, env)
+
+
+R2R_JOB = "import runpy, sys; sys.exit(runpy.run_path(sys.argv[1])['r2r_job'](sys.argv[2]))"
+
+
+def r2r_spawn(r2r, env=os.environ):
+    """Starts r2r_job detached (own session, output appended to compile.log); returns at once."""
+    try:
+        os.makedirs(r2r["cache"], exist_ok=True)
+        plan = os.path.join(r2r["cache"], f"plan-{os.getpid()}.json")
+        with open(plan, "w") as f:
+            json.dump(r2r, f)
+        logfile = os.path.join(r2r["cache"], "compile.log")
+        with open(logfile, "a") as out:
+            proc = subprocess.Popen([sys.executable, "-I", "-c", R2R_JOB, os.path.abspath(__file__), plan],
+                                    env=dict(env), stdin=subprocess.DEVNULL, stdout=out, stderr=out,
+                                    start_new_session=True, close_fds=True)
+        log(f"native-r2r: compiling {len(r2r['missing'])} assemblies in the background (pid {proc.pid}); log in {logfile}")
+        return proc
+    except Exception as error:
+        log(f"native-r2r: could not start the background compile ({type(error).__name__}: {error})")
+        return None
+
+
+def r2r_job(plan_path, run=subprocess.run, clock=time.monotonic):
+    """The background compile: every missing image in the plan, one crossgen2 run each, checked and cached.
+    Appends one result line to compile.log. Exit status 0 when nothing failed."""
+    import fcntl
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+    with open(plan_path) as f:
+        plan = json.load(f)
+    try:
+        os.unlink(plan_path)
+    except OSError:
+        pass
+    cache, folder, tag = plan["cache"], plan["folder"], plan["tag"]
+
+    def note(line):
+        with open(os.path.join(cache, "compile.log"), "a") as f:
+            f.write(time.strftime("%Y-%m-%dT%H:%M:%S ") + line + "\n")
+
+    os.makedirs(cache, exist_ok=True)
+    lock = open(os.path.join(cache, "compile.lock"), "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock.close()
+        note(f"native-r2r {tag}: another compile is running; nothing compiled")
+        return 0
+    work = tempfile.mkdtemp(prefix="job-", dir=cache)
+    compiled, failed, size_in, size_out = [], [], 0, 0
+    began = clock()
+    try:
+        # The next launch may rebuild the launch folder while this runs: compile against links to today's files.
+        refs = os.path.join(work, "refs")
+        os.makedirs(refs)
+        os.makedirs(folder, exist_ok=True)
+        for name in sorted(os.listdir(plan["data"])):
+            path = os.path.join(plan["data"], name)
+            if name.lower().endswith(".dll") and is_managed(path):
+                place(path, os.path.join(refs, name))
+        references = sorted(os.listdir(refs))
+        manifest = r2r_pristine_manifest(plan["pristine"])
+        for item in plan["missing"]:
+            name, key = item["name"], item["key"]
+            image = os.path.join(folder, key + ".dll")
+            if r2r_cached(image):
+                continue
+            try:
+                _, il = r2r_input(item["source"], manifest, plan["pristine"])
+            except OSError:
+                il = None
+            if il is None or _sha256(il) != key:
+                failed.append(f"{name} (changed since the launch)")
+                continue
+            source, output = os.path.join(work, "in-" + name), os.path.join(work, "out-" + name)
+            with open(source, "wb") as f:
+                f.write(il)
+            cmd = ([plan["crossgen2"], source, "-o", output, "--targetos", "linux", "--targetarch", "arm64", "-O",
+                    "--parallelism", R2R_THREADS]
+                   + [arg for ref in references if ref.lower() != name.lower() for arg in ("-r", os.path.join(refs, ref))])
+            try:
+                result = run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             timeout=R2R_TIMEOUT_S)
+                code, lines = result.returncode, (result.stdout or b"").decode(errors="replace").strip().splitlines()
+            except (OSError, subprocess.SubprocessError) as error:
+                code, lines = None, [f"{type(error).__name__}: {error}"]
+            out = b""
+            if code == 0 and os.path.isfile(output):
+                with open(output, "rb") as f:
+                    out = f.read()
+            if code == 0 and is_linux_arm64_r2r(out):
+                os.chmod(output, 0o444)
+                os.replace(output, image)
+                record = image[:-len(".dll")] + ".json"
+                with open(record + ".tmp", "w") as f:
+                    json.dump({"name": name, "size": len(out), "sha256": _sha256(out), "il_size": len(il),
+                               "source": item["source"], "tag": tag}, f)
+                os.replace(record + ".tmp", record)
+                compiled.append(name)
+                size_in += len(il)
+                size_out += len(out)
+            else:
+                errors = [line.strip() for line in lines if line.lstrip().startswith("Error")] or lines[-1:]
+                why = ("; ".join(errors[:3]) if code != 0 else "no output" if not out
+                       else "output is not a Linux arm64 ReadyToRun image")
+                failed.append(f"{name} (exit {code}: {why})")
+        if compiled:  # a new kit or compiler: images for the old one are no longer looked up
+            for other in os.listdir(cache):
+                if other.startswith(R2R_TARGET + "__") and other != tag:
+                    shutil.rmtree(os.path.join(cache, other), ignore_errors=True)
+        note(f"native-r2r {tag}: compiled {len(compiled)} of {len(plan['missing'])} "
+             f"({size_in / 2**20:.1f} MB IL -> {size_out / 2**20:.1f} MB) in {clock() - began:.0f} s"
+             + (f"; failed {len(failed)}: " + ", ".join(failed) if failed else ""))
+    except Exception as error:
+        note(f"native-r2r {tag}: compile stopped ({type(error).__name__}: {error}) after {clock() - began:.0f} s")
+        failed.append(str(error))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+        lock.close()
+    return 1 if failed else 0
+
+
+def without_x86_preloads(env):
+    """Steam's LD_PRELOAD names its x86 overlay (gameoverlayrenderer.so), which no arm64 process can load; every
+    child would print an ld.so error for it. Returns the environment with those entries dropped."""
+    env = dict(env)
+    if "LD_PRELOAD" in env:
+        keep = [p for p in env["LD_PRELOAD"].replace(":", " ").split() if "gameoverlayrenderer" not in p]
+        if keep:
+            env["LD_PRELOAD"] = " ".join(keep)
+        else:
+            del env["LD_PRELOAD"]
+    return env
+
+
+GUEST_LIB_DIRS = ("/usr/lib", "/usr/lib64", "/usr/lib/aarch64-linux-gnu", "/lib/aarch64-linux-gnu")
+C_LOCALES = ("", "C", "POSIX", "C.UTF-8", "C.utf8")
+
+
+def guest_icu(dirs=GUEST_LIB_DIRS):
+    """The guest's own ICU as the soname .NET dlopens (libicuuc.so.<major>), or None. Looked for by file, not with
+    ctypes.util.find_library, which needs ldconfig or gcc and finds nothing in the guest's proot. All three of
+    libicuuc, libicui18n and libicudata must be there for the same major."""
+    import glob
+    for d in dirs:
+        majors = sorted((int(m.group(1)) for m in (re.fullmatch(r"libicuuc\.so\.(\d+)", os.path.basename(p))
+                                                    for p in glob.glob(os.path.join(d, "libicuuc.so.*"))) if m),
+                        reverse=True)
+        for major in majors:
+            if all(os.path.exists(os.path.join(d, f"lib{n}.so.{major}")) for n in ("icuuc", "icui18n", "icudata")):
+                return os.path.join(d, f"libicuuc.so.{major}")
+    return None
+
+
+def engine_env(env, icu=None, system_icu=None):
+    """.NET needs ICU unless told to run culture-invariant, where the game's `new CultureInfo(name)` throws. The
+    guest's own ICU comes first (system_icu, default guest_icu()): .NET finds it by soname and it costs nothing.
+    Without it, icu (icu_libs()'s folder) gives .NET Microsoft's ICU (app-local ICU); without either, .NET runs
+    culture-invariant. With a real ICU, a C or unset locale becomes en_US.UTF-8, or .NET's current culture would
+    be the invariant one."""
+    env = without_x86_preloads(env)
+    if "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" in env or "DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU" in env:
+        return env
+    if system_icu is None:
+        system_icu = guest_icu()
+    if system_icu:
+        pass
+    elif icu:
+        env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] = ICU["version"]
+        env["LD_LIBRARY_PATH"] = icu + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
+    else:
+        env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1"
+        return env
+    if env.get("LC_ALL", "") in C_LOCALES and env.get("LANG", "") in C_LOCALES:
+        env.pop("LC_ALL", None)
+        env["LANG"] = "en_US.UTF-8"
+    return env
+    if icu:
+        env["DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU"] = ICU["version"]
+        env["LD_LIBRARY_PATH"] = icu + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
+    else:
+        env["DOTNET_SYSTEM_GLOBALIZATION_INVARIANT"] = "1"
+    return env
+
+
+def die_with_parent():
+    """In the engine's child process: it gets SIGKILL if this wrapper dies (Linux prctl PR_SET_PDEATHSIG)."""
+    try:
+        ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGKILL, 0, 0, 0)
+    except (OSError, AttributeError):
+        pass
+
+
+def line_buffered(cmd, which=shutil.which):
+    """The engine's command run under coreutils' stdbuf -oL -eL when the guest has it. A release Godot flushes
+    stdout only at exit or every ~4 KB (application/run/flush_stdout_on_print is off outside debug builds, and an
+    override.cfg beside the engine is not read with --main-pack), so through a pipe its first "Project FPS:" line
+    reached watch() only when the engine quit: a quiet game would be killed as "did not start". MEASURED in the
+    startup gate (run 43632484157, arm64): FPS line at 30.4 s for a 30 s run, at 4.1 s under stdbuf -oL."""
+    stdbuf = which("stdbuf")
+    return [stdbuf, "-oL", "-eL"] + list(cmd) if stdbuf else list(cmd)
+
+
+# A game's own words for "SteamAPI.Init failed" (it then shows an error and quits). Natively that leaves the
+# player at an error box; on Proton the same game, Steam and account work, so the wrapper stops the engine and
+# the launch goes on to Proton (droiddeck-game-env) instead. Slay the Spire 2, then the stand-in's own line.
+STEAM_INIT_FAILED = re.compile(r"Steamworks initialization failed|^STANDIN_STEAM_INIT failed", re.M)
+NATIVE_STEAM_INIT = "not starting: Steam did not initialise in the native engine"
+# The game's own words for a failed start that Proton would not have (Nov 15: Slay the Spire 2's "Encountered error
+# on game startup!" box for an EntryPointNotFoundException in steam_api64). Not every EntryPointNotFoundException:
+# the Sentry plugin's own one (in 'sentry-godot') is logged and harmless. Then the stand-in's own line.
+NATIVE_GAME_FAILED_RE = re.compile(r"Encountered error on game startup|EntryPointNotFoundException:.*'steam_api64'"
+                                   r"|^STANDIN_STARTUP_ERROR", re.M)
+NATIVE_GAME_FAILED = "not starting: the game failed at startup in the native engine"
+
+
+def watch(cmd, env, first_frame_s=FIRST_FRAME_S, out=sys.stdout, clock=time.monotonic, forward_signals=False,
+          on_first_frame=None, steam_failed=STEAM_INIT_FAILED, on_steam_failed=None, game_failed=NATIVE_GAME_FAILED_RE,
+          proc=None):
+    """Runs the engine in its own process group, passing its output through; returns its exit code, or
+    DID_NOT_START if no frame-rate line came within first_frame_s or before it exited, or if the game said its
+    Steam init failed (steam_failed) or its startup failed (game_failed; then on_steam_failed(line) is called for
+    either, so the launch is remembered as refused). With forward_signals,
+    SIGTERM/SIGINT/SIGHUP to this wrapper stop the engine too. on_first_frame, if given, is called once at the
+    first frame (its errors are logged, never raised). proc, if given, is an engine already running (a prestarted
+    one, Adopted) watched in place of starting cmd."""
+    if proc is None:
+        proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, start_new_session=True, preexec_fn=die_with_parent)
+    began = clock()
+    seen = threading.Event()
+    timed_out = threading.Event()
+
+    def kill():
+        try:
+            os.killpg(proc.pid, 9)
+        except OSError:
+            pass
+
+    def stopped():
+        """The engine is frozen (SIGSTOP from the session hiding it): that time is not loading time."""
+        try:
+            with open(f"/proc/{proc.pid}/stat") as f:
+                return f.read().rsplit(")", 1)[1].split()[0] in ("T", "t")
+        except (OSError, IndexError):
+            return False
+
+    def guard():
+        # Counts only time the engine could run: a session frozen while the game loads (hidden, or a standby
+        # load) must not read as a hang and send the game to Proton. A jump longer than a tick (this wrapper
+        # frozen too, or the phone asleep) counts as one tick.
+        left = first_frame_s
+        last = time.monotonic()
+        while left > 0:
+            if seen.wait(min(1.0, left)):
+                return
+            now = time.monotonic()
+            if not stopped():
+                left -= min(now - last, 2.0)
+            last = now
+        if proc.poll() is None:
+            timed_out.set()
+            log(f"no first frame after {first_frame_s:.0f} s; stopping the engine")
+            kill()
+
+    threading.Thread(target=guard, daemon=True).start()
+    if forward_signals:
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            signal.signal(sig, lambda n, f: (kill(), sys.exit(128 + n)))
+    last_fps = None
+    steam_line = None
+    failed_as_last = NATIVE_STEAM_INIT
+    for raw in proc.stdout:
+        line = raw.decode("utf-8", "replace")
+        failed_as = None
+        if steam_line is None and steam_failed is not None and steam_failed.search(line):
+            failed_as = NATIVE_STEAM_INIT
+        elif steam_line is None and game_failed is not None and game_failed.search(line):
+            failed_as = NATIVE_GAME_FAILED
+        if failed_as:
+            failed_as_last = failed_as
+            steam_line = line.strip()
+            out.write(line)
+            out.flush()
+            log(f"{failed_as} ({steam_line[:160]}); stopping it so the game starts on Proton")
+            if on_steam_failed:
+                try:
+                    if failed_as == NATIVE_GAME_FAILED:
+                        on_steam_failed(steam_line, kind="game")
+                    else:
+                        on_steam_failed(steam_line)
+                except Exception as error:
+                    log(f"after the Steam failure: {type(error).__name__}: {error}")
+            kill()
+            continue
+        if line.startswith("Project FPS:"):
+            now = clock()
+            if not seen.is_set():
+                seen.set()
+                log(f"first frame after {now - began:.1f} s")
+                if on_first_frame:
+                    try:
+                        on_first_frame()
+                    except Exception as error:
+                        log(f"after the first frame: {type(error).__name__}: {error}")
+            elif last_fps is not None and now - last_fps < FPS_EVERY_S:
+                continue
+            last_fps = now
+        out.write(line)
+        out.flush()
+    proc.stdout.close()
+    rc = proc.wait()
+    if steam_line is not None:  # again, last: the caller reads only the log's tail
+        log(f"{failed_as_last} (engine stopped with {rc}); Proton")
+        return DID_NOT_START
+    if timed_out.is_set():
+        return DID_NOT_START
+    if not seen.is_set():
+        log(f"engine exited with {rc} after {clock() - began:.1f} s, before its first frame")
+        return DID_NOT_START
+    return rc if rc >= 0 else 128 - rc
+
+
+CHECK_DIR = os.path.join(CACHE, "check")
+
+
+def game_fingerprint(game_dir):
+    """sha256 over the names, sizes and mtimes of the files in the game's data_<asm>_windows_x86_64 folder:
+    changes when Steam updates the game's managed code."""
+    _, win = windows_data_dir(game_dir)
+    digest = hashlib.sha256()
+    for name in sorted(os.listdir(win)):
+        try:
+            st = os.stat(os.path.join(win, name))
+        except OSError:
+            continue
+        if os.path.isfile(os.path.join(win, name)):
+            digest.update(f"{name}\0{st.st_size}\0{st.st_mtime_ns}\n".encode())
+    return digest.hexdigest()
+
+
+STEAM_REFUSED_DIR = os.path.join(CACHE, "steam-refused")
+
+
+def steam_refusal_path(tag, game_dir, env=None, clients=None, cache_dir=None):
+    """Where a failed native Steam init is remembered: per engine component, arm64 steamclient.so contents and game
+    files, so a new engine, Steam client update or game update tries the native engine again."""
+    clients = arm64_steamclients(env=env) if clients is None else clients
+    digest = hashlib.sha256(tag.encode() + b"\0")
+    for path in clients:
+        try:
+            with open(path, "rb") as f:
+                digest.update(hashlib.sha256(f.read()).digest())
+        except OSError:
+            pass
+    digest.update(game_fingerprint(game_dir).encode())
+    return os.path.join(cache_dir or STEAM_REFUSED_DIR, digest.hexdigest() + ".json")
+
+
+def remember_steam_refusal(path, line, clock=time.time, kind="steam"):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w") as f:
+        json.dump({"line": line[:300], "at": int(clock()), "kind": kind}, f)
+    os.replace(path + ".tmp", path)
+
+
+def tool_fingerprint():
+    """sha256 of this script: a check made by an older converter says nothing about this one."""
+    try:
+        with open(os.path.abspath(__file__), "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except (NameError, OSError):
+        return None
+
+
+def check_name(game_dir, name=None):
+    return name or windows_data_dir(game_dir)[0]
+
+
+def check_path(game_dir, name=None, check_dir=None):
+    return os.path.join(check_dir or CHECK_DIR, check_name(game_dir, name) + ".json")
+
+
+def loadable_shape(path):
+    """None when the launch folder's copy of an assembly is something arm64 .NET will load, else why not."""
+    try:
+        with open(path, "rb") as f:
+            info = pe_info(f.read())
+    except OSError as error:
+        return f"unreadable ({error.strerror})"
+    if info is None:
+        return "not a .NET assembly"
+    if info["machine"] == AMD64:
+        return "still labelled x64"
+    if not info["flags"] & ILONLY and not info["ready_to_run"]:
+        return "mixed-mode (native code, no ReadyToRun header)"
+    return None
+
+
+def check(game_dir, kit, engine, out, exe=None, steam=None, component_tag=None, name=None, check_dir=None,
+          bridge=None):
+    """Composes the launch folder and checks it is one the engine can start: the game's own assembly is there,
+    every game assembly is loadable-shaped, deps.json and runtimeconfig.json are written, the engine is in
+    place. Writes the verdict, the component tag and the game's fingerprint to <check_dir>/<name>.json. Left-out
+    mixed-mode helpers do not fail it (only a load that reaches them fails, which the run's watchdog catches)."""
+    game_dir = os.path.abspath(game_dir)
+    asm = check_name(game_dir)
+    name = check_name(game_dir, name)
+    reasons, rejected, report = [], [], None
+    try:
+        report = compose(game_dir, kit, engine, out, exe, steam, bridge)
+    except SystemExit as error:
+        reasons.append(f"compose stopped: {error}")
+        rejected = [str(error).split(":", 1)[0]] if ":" in str(error) else []
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+        reasons.append(f"compose failed: {type(error).__name__}: {error}")
+        rejected = [str(error).split(":", 1)[0]] if isinstance(error, ValueError) and ":" in str(error) else []
+    if report:
+        data = report["data"]
+        main_dll = f"{asm}.dll"
+        if not any(n.lower() == main_dll.lower() for n in report["game_assemblies"]):
+            reasons.append(f"{main_dll} missing from the launch folder")
+            rejected.append(main_dll)
+        for n in report["game_assemblies"]:
+            if not n.lower().endswith((".dll", ".exe")):
+                continue
+            why = loadable_shape(os.path.join(data, n))
+            if why:
+                reasons.append(f"{n}: {why}")
+                rejected.append(n)
+        for n in (f"{asm}.deps.json", f"{asm}.runtimeconfig.json"):
+            path = os.path.join(data, n)
+            try:
+                with open(path) as f:
+                    json.load(f)
+            except (OSError, ValueError):
+                reasons.append(f"{n} not written")
+        if not (os.path.isfile(report["engine"]) and os.access(report["engine"], os.X_OK)):
+            reasons.append("engine not in place")
+    result = {"result": "fail" if reasons else "pass", "name": name, "assembly": asm, "game_dir": game_dir,
+              "fingerprint": game_fingerprint(game_dir), "component": component_tag, "tool": tool_fingerprint(),
+              "reasons": reasons, "rejected": rejected, "checked_at": int(time.time())}
+    if report:
+        result.update(game_assemblies=len(report["game_assemblies"]), patched=len(report["patched"]),
+                      left_out=report["mixed_mode"])
+    check_dir = check_dir or CHECK_DIR
+    os.makedirs(check_dir, exist_ok=True)
+    path = os.path.join(check_dir, name + ".json")
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(result, f, indent=1)
+    os.replace(tmp, path)
+    log(f"check {result['result']} {name} (component {component_tag}): "
+        + ("; ".join(reasons) if reasons else
+           f"{result['game_assemblies']} game files loadable, {result['patched']} relabelled"
+           + (f", left out {', '.join(report['mixed_mode'])}" if report["mixed_mode"] else ""))
+        + f" -> {path}")
+    return result
+
+
+def fresh_check(game_dir, component_tag=None, name=None, check_dir=None):
+    """The stored check result for this game if it still applies (same game files, component and converter),
+    else None."""
+    component_tag = component_tag or COMPONENT["tag"]
+    try:
+        with open(check_path(game_dir, name, check_dir)) as f:
+            result = json.load(f)
+        fingerprint = game_fingerprint(game_dir)
+    except (OSError, ValueError, SystemExit):
+        return None
+    if (result.get("fingerprint") != fingerprint or result.get("component") != component_tag
+            or result.get("tool") != tool_fingerprint() or result.get("result") not in ("pass", "fail")):
+        return None
+    return result
+
+
+# --- Prestart (DROIDDECK_NATIVE_PRESTART=1; `prestart`): the engine started before Steam launches the game ---
+#
+# Cedar (via the phone side, Nov 26): "make cold start not cold and instant as well". `prestart` (run by the session
+# when it starts, with the same arguments `run` will get) composes and starts the engine as `run` would, with
+# DROIDDECK_NATIVE_HOLD_DIR set, so the engine, .NET and the game's start-up run while the Steam client is still
+# coming up. The Steam bridge stops the game at its first Steam call (RestartAppIfNecessary, IsSteamRunning or
+# SteamAPI_Init) and waits there for <hold>/release; nothing about Steam is answered before Steam has launched it.
+# When Steam then launches the game, `run` (with DROIDDECK_NATIVE_PRESTART=1) finds the held engine, writes the
+# launch's environment differences into the release (SteamAppId and the rest, applied before Valve's library
+# reads them) and stays alive as the process Steam tracks, passing the engine's output through and its exit code
+# back; Steam stopping `run` stops the engine. The prestart process stays the engine's parent: it forwards the
+# engine's output (to <hold>/engine.log, and once released, to `run` through <hold>/out), kills the engine if
+# `run` disappears, and records its exit code. If anything does not match (other arguments; a different value for
+# a variable read only at start, listed in PRESTART_STARTUP_KEYS; an engine already taken or gone), `run` stops the
+# held engine and starts one the usual way. <hold> is ~/.cache/droiddeck/native/prestart/<hash of --out>.
+
+PRESTART_DIR = os.path.join(CACHE, "prestart")
+# Read once when the engine starts (libraries, .NET, paths, display, driver, locale, our own switches): a launch
+# whose value differs needs a fresh engine.
+PRESTART_STARTUP_KEYS = re.compile(r"^(DROIDDECK_NATIVE_(?!PRESTART|FIRST_FRAME_S)|DROIDDECK_EXP_|DOTNET_|XDG_|HOME$|"
+                                   r"DISPLAY$|WAYLAND_DISPLAY$|GAMESCOPE_|ENABLE_GAMESCOPE|VK_|MESA_|HYBRIS_|GODOT_|"
+                                   r"LANG$|LC_)")
+# Applied late but read by the engine at start too (controller mappings, the loader's paths): logged by name.
+PRESTART_STALE_KEYS = re.compile(r"^(SDL_|LD_)")
+PRESTART_NOISE = {"_", "PWD", "OLDPWD", "SHLVL", "DROIDDECK_NATIVE_HOLD_DIR"}
+
+
+def prestart_on(env=os.environ):
+    return env.get("DROIDDECK_NATIVE_PRESTART", "") == "1"
+
+
+def prestart_dir(out, base=None):
+    base = base or PRESTART_DIR
+    return os.path.join(base, hashlib.sha256(os.path.abspath(out).encode()).hexdigest()[:12])
+
+
+def pid_alive(pid):
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+    return True
+
+
+def write_atomic(path, data):
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(data if isinstance(data, bytes) else data.encode())
+    os.replace(tmp, path)
+
+
+def env_release(held_env, launch_env):
+    """(release bytes, keys needing a fresh engine, keys applied late though read at start): what the launch's
+    environment changes against the one the held engine started with, as the bridge's NUL-ended entries."""
+    entries, startup, stale = [], [], []
+    for key in sorted(set(held_env) | set(launch_env)):
+        if key in PRESTART_NOISE or held_env.get(key) == launch_env.get(key):
+            continue
+        if PRESTART_STARTUP_KEYS.match(key):
+            startup.append(key)
+            continue
+        if PRESTART_STALE_KEYS.match(key):
+            stale.append(key)
+        if "=" in key or "\0" in key or "\0" in launch_env.get(key, ""):
+            continue
+        entries.append(f"{key}={launch_env[key]}" if key in launch_env else key)
+    return b"".join(e.encode() + b"\0" for e in entries), startup, stale
+
+
+def prestart(cmd, env, hold, meta, clock=time.monotonic):
+    """Starts the engine held at its first Steam call and stays its parent until it exits; returns its exit code."""
+    for name in ("held", "release", "released", "owner", "exit", "out", "engine.log"):
+        try:
+            os.unlink(os.path.join(hold, name))
+        except OSError:
+            pass
+    os.mkfifo(os.path.join(hold, "out"))
+    env = dict(env, DROIDDECK_NATIVE_HOLD_DIR=hold)
+    began = clock()
+    proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            start_new_session=True, preexec_fn=die_with_parent)
+
+    def kill(*_):
+        try:
+            os.killpg(proc.pid, 9)
+        except OSError:
+            pass
+
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, lambda n, f: (kill(), sys.exit(128 + n)))
+    signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+    write_atomic(os.path.join(hold, "meta.json"), json.dumps(dict(meta, engine_pid=proc.pid, prestart_pid=os.getpid(),
+                                                                  started=time.time())))
+    log(f"prestart: engine {proc.pid} started; it waits at its first Steam call for a launch to take it ({hold})")
+    release = os.path.join(hold, "release")
+    released = os.path.join(hold, "released")
+    owner = None
+    fifo = None
+
+    def owner_watch(pid):
+        # Kills the engine if the `run` that took it goes away without stopping it (SIGKILL, say).
+        try:
+            fd = os.pidfd_open(pid)
+        except (AttributeError, OSError):
+            fd = None
+        while proc.poll() is None:
+            if fd is not None:
+                select.select([fd], [], [], 60)
+            else:
+                time.sleep(5)
+            if not pid_alive(pid):
+                log(f"prestart: the launch that took the engine ({pid}) is gone; stopping the engine")
+                kill()
+                return
+
+    with open(os.path.join(hold, "engine.log"), "ab", buffering=0) as logf:
+        for line in proc.stdout:
+            logf.write(line)
+            if owner is None and (os.path.exists(release) or os.path.exists(released)):
+                try:
+                    with open(os.path.join(hold, "owner")) as f:
+                        owner = int(f.read().strip())
+                    fifo = os.open(os.path.join(hold, "out"), os.O_WRONLY | os.O_NONBLOCK)
+                    os.set_blocking(fifo, True)
+                    threading.Thread(target=owner_watch, args=(owner,), daemon=True).start()
+                    log(f"prestart: engine {proc.pid} taken by {owner} after {clock() - began:.1f} s")
+                except (OSError, ValueError) as error:
+                    log(f"prestart: released, but the launch can't be reached ({error}); stopping the engine")
+                    owner = -1
+                    kill()
+            if fifo is not None:
+                try:
+                    os.write(fifo, line)
+                except OSError:
+                    log("prestart: the launch stopped reading; stopping the engine")
+                    os.close(fifo)
+                    fifo = None
+                    kill()
+    rc = proc.wait()
+    write_atomic(os.path.join(hold, "exit"), str(rc))
+    if fifo is not None:
+        os.close(fifo)
+    log(f"prestart: engine {proc.pid} exited with {rc} after {clock() - began:.1f} s"
+        + ("" if owner else ", never taken by a launch"))
+    return rc
+
+
+class Adopted:
+    """A prestarted engine, as watch() sees a process: its output (after the release) from <hold>/out, its pid and
+    process group, its exit code from <hold>/exit."""
+
+    def __init__(self, hold, pid, fifo_fd):
+        self.hold, self.pid = hold, pid
+        self.returncode = None
+        # Until the prestart process opens its end, a reader alone would see end-of-file: hold a writer of our own
+        # until the first line comes, or the engine is gone.
+        self._dummy = os.open(os.path.join(hold, "out"), os.O_WRONLY | os.O_NONBLOCK)
+        self._lock = threading.Lock()
+        self.stdout = self._lines(os.fdopen(fifo_fd, "rb"))
+        threading.Thread(target=self._until_connected, daemon=True).start()
+
+    def _drop_dummy(self):
+        with self._lock:
+            if self._dummy is not None:
+                os.close(self._dummy)
+                self._dummy = None
+
+    def _until_connected(self):
+        while self._dummy is not None:
+            if not pid_alive(self.pid) or os.path.exists(os.path.join(self.hold, "exit")):
+                self._drop_dummy()
+                return
+            time.sleep(0.2)
+
+    def _lines(self, f):
+        with f:
+            for line in f:
+                self._drop_dummy()
+                yield line
+        self._drop_dummy()
+
+    def _exit_code(self, wait_s=0.0):
+        end = time.monotonic() + wait_s
+        while True:
+            try:
+                with open(os.path.join(self.hold, "exit")) as f:
+                    return int(f.read().strip())
+            except (OSError, ValueError):
+                pass
+            if time.monotonic() >= end:
+                return None
+            time.sleep(0.05)
+
+    def poll(self):
+        if self.returncode is None and not pid_alive(self.pid):
+            code = self._exit_code(2.0)
+            self.returncode = 1 if code is None else code
+        return self.returncode
+
+    def wait(self):
+        while self.poll() is None:
+            time.sleep(0.1)
+        return self.returncode
+
+
+def adopt(hold, argv_key, launch_env, out=sys.stdout, wait_s=60.0):
+    """(Adopted, meta) for the engine `prestart` holds in hold, released with the launch's environment; or None,
+    with the held engine stopped where it can't be used."""
+    meta_path = os.path.join(hold, "meta.json")
+    end = time.monotonic() + wait_s
+    while True:
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+            break
+        except (OSError, ValueError):
+            pass
+        try:  # a prestart still composing: wait for it rather than compose over it
+            with open(os.path.join(hold, "starting")) as f:
+                starting = int(f.read().strip())
+        except (OSError, ValueError):
+            return None
+        if not pid_alive(starting) or time.monotonic() >= end:
+            return None
+        time.sleep(0.1)
+    pid = meta.get("engine_pid")
+
+    def drop(why):
+        log(f"prestart: not taking the held engine ({why}); starting one the usual way")
+        if pid and pid_alive(pid) and not os.path.exists(os.path.join(hold, "exit")):
+            try:
+                os.killpg(pid, 9)
+            except OSError:
+                pass
+            for _ in range(100):
+                if os.path.exists(os.path.join(hold, "exit")) or not pid_alive(pid):
+                    break
+                time.sleep(0.05)
+        return None
+
+    if not pid or not pid_alive(pid) or os.path.exists(os.path.join(hold, "exit")):
+        return None
+    if any(os.path.exists(os.path.join(hold, n)) for n in ("owner", "release", "released")):
+        return None  # taken by an earlier launch
+    if meta.get("argv") != argv_key:
+        return drop("it was started with other arguments")
+    release, startup, stale = env_release(meta.get("environ") or {}, launch_env)
+    if startup:
+        return drop(f"the launch sets {', '.join(startup[:6])} differently, which the engine reads at start")
+    fifo = os.open(os.path.join(hold, "out"), os.O_RDONLY | os.O_NONBLOCK)
+    os.set_blocking(fifo, True)
+    write_atomic(os.path.join(hold, "owner"), str(os.getpid()))
+    write_atomic(os.path.join(hold, "release"), release)
+    held = os.path.exists(os.path.join(hold, "held"))
+    age = time.time() - meta.get("started", time.time())
+    changes = release.count(b"\0")
+    log(f"prestart: took engine {pid}, started {age:.1f} s ago, " + ("held at its first Steam call" if held else
+        "not yet at its first Steam call") + f"; released with {changes} environment changes"
+        + (f" ({', '.join(stale)} read at start: the engine keeps its own)" if stale else ""))
+    try:  # what it printed while waiting, then watch() takes the rest
+        with open(os.path.join(hold, "engine.log"), "rb") as f:
+            for line in f:
+                out.write(line.decode("utf-8", "replace"))
+        out.flush()
+    except OSError:
+        pass
+    return Adopted(hold, pid, fifo), meta
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("command", choices=("compose", "run", "check", "prestart"))
+    ap.add_argument("--name", help="check: the result's name under ~/.cache/droiddeck/native/check (default: the game's assembly)")
+    ap.add_argument("--game-dir", required=True)
+    ap.add_argument("--fetch", action="store_true", help="use the pinned published component")
+    ap.add_argument("--component")
+    ap.add_argument("--kit")
+    ap.add_argument("--engine")
+    ap.add_argument("--icu", help="folder with Microsoft's linux-arm64 ICU libraries (default with --fetch: download them)")
+    ap.add_argument("--no-steam-bridge", action="store_true", help="place Valve's library alone, without the bridge")
+    ap.add_argument("--no-steam-preflight", action="store_true",
+                    help="run even when Steam could not initialise (for programs that never call SteamAPI.Init)")
+    ap.add_argument("--steam-api", help="Valve's linux-arm64 libsteam_api.so (default with --fetch: download it)")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--exe")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    rest = argv[argv.index("--") + 1:] if "--" in argv else []
+    a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
+    clean = without_x86_preloads(os.environ)
+    if "LD_PRELOAD" in clean:
+        os.environ["LD_PRELOAD"] = clean["LD_PRELOAD"]
+    else:
+        os.environ.pop("LD_PRELOAD", None)
+    key = list(argv)
+    key.remove(a.command)
+    hold = prestart_dir(a.out) if a.command == "prestart" or (a.command == "run" and prestart_on()) else None
+    if a.command == "run" and hold and os.path.isdir(hold):
+        took = adopt(hold, key, dict(os.environ))
+        if took:
+            proc, meta = took
+            refused = meta.get("refusal")
+            return watch(None, None, forward_signals=True, proc=proc,
+                         on_first_frame=r2r_after_first_frame(meta.get("report") or {}),
+                         on_steam_failed=(lambda line, kind="steam": remember_steam_refusal(refused, line, kind=kind))
+                         if refused else None)
+    if a.command == "prestart":
+        os.makedirs(hold, exist_ok=True)
+        try:
+            with open(os.path.join(hold, "meta.json")) as f:
+                last = json.load(f)
+            if pid_alive(last.get("engine_pid")) and not os.path.exists(os.path.join(hold, "exit")):
+                log(f"prestart: engine {last.get('engine_pid')} is already started for {a.out}")
+                return 0
+        except (OSError, ValueError):
+            pass
+        for name in ("meta.json", "exit"):
+            try:
+                os.unlink(os.path.join(hold, name))
+            except OSError:
+                pass
+        write_atomic(os.path.join(hold, "starting"), str(os.getpid()))
+    component = fetch() if a.fetch else a.component
+    if component and os.path.lexists(os.path.join(component, "stubs")):
+        # Components up to native-engine-38 carried a no-op Steam stand-in in stubs/. Such a component is refused
+        # outright, not just ignored, so it can never run; the game then starts on Proton.
+        log(f"refusing the native engine component in {component}: it carries a Steam stand-in (stubs/); "
+            "a component without one has to be published")
+        return DID_NOT_START
+    bridge = None
+    if component:
+        kit, engine = (os.path.join(component, n) for n in ("kit", "godot"))
+        bridge = os.path.join(component, STEAM_BRIDGE)
+        bridge = bridge if os.path.isfile(bridge) and not a.no_steam_bridge else None
+    elif a.kit and a.engine:
+        kit, engine = a.kit, a.engine
+    else:
+        ap.error("give --fetch, --component, or --kit and --engine")
+    os.makedirs(a.out, exist_ok=True)
+    steam = a.steam_api or (steam_api() if a.fetch else None)
+    if a.command == "check":
+        tag = COMPONENT["tag"] if a.fetch else (os.path.basename(os.path.normpath(component)) if component else "custom")
+        return 0 if check(a.game_dir, kit, engine, a.out, a.exe, steam, tag, a.name, bridge=bridge)["result"] == "pass" else 1
+    r = compose(a.game_dir, kit, engine, a.out, a.exe, steam, bridge)
+    fatal = steam_init_blockers(r.get("steam_api_missing"))
+    starting = a.command in ("run", "prestart")
+    if fatal and starting and not a.no_steam_preflight:
+        log(steam_probe_line(steam_probe(r["steam_api"], os.path.abspath(a.game_dir), dict(os.environ))))
+        log(f"not starting: Steam cannot initialise with this game's Steamworks.NET: the library lacks "
+            f"{', '.join(fatal)}, which its SteamAPI.Init calls (the game would quit on 'Failed to initialize Steam')")
+        return DID_NOT_START
+    # With the bridge, every name the game's Steamworks.NET binds must resolve: .NET looks each one up when it is
+    # first called, so a missing one is an EntryPointNotFoundException mid-game (Nov 15: IsSteamRunningOnSteamDeck
+    # at settings load). A game update that binds a name neither the bridge nor Valve's library has goes to Proton.
+    gap = r.get("steam_api_missing") if r.get("steam_bridge") else None
+    if gap and starting and not a.no_steam_preflight:
+        log(f"not starting: Steam cannot initialise every call this game's Steamworks.NET makes: the bridge and "
+            f"Valve's library lack {len(gap)} ({', '.join(gap[:8])}{', ...' if len(gap) > 8 else ''})")
+        return DID_NOT_START
+    bridged = sorted(set(STEAM_BRIDGED) & set(steam_api_missing_without_bridge(r)))
+    refusal = None
+    if r.get("steam_api") and starting and not a.no_steam_preflight:
+        # Remembered per engine, arm64 Steam client and game files: a failed Steam init, or a startup error the game
+        # reported in the native engine, sends the next launches of the same combination straight to Proton.
+        tag = COMPONENT["tag"] if a.fetch else (os.path.basename(os.path.normpath(component)) if component else "custom")
+        try:
+            refusal = steam_refusal_path(tag, a.game_dir, env=dict(os.environ))
+            with open(refusal) as f:
+                last = json.load(f)
+            said = NATIVE_GAME_FAILED if last.get("kind") == "game" else NATIVE_STEAM_INIT
+            log(f"{said} last time with this engine, Steam client and game ({last.get('line', '')[:160]}); Proton")
+            return DID_NOT_START
+        except (OSError, ValueError):
+            pass
+    if r.get("steam_versions") and a.command == "run" and not a.no_steam_preflight:
+        # Steamworks.NET's SteamAPI.InitEx fetches every client interface it knows once Steam's own init succeeds,
+        # and fails if the client serves any of them as null; a client that answers so goes to Proton instead.
+        probe = steam_probe(r["steam_api"], os.path.abspath(a.game_dir), dict(os.environ), versions=r["steam_versions"])
+        log(steam_probe_line(probe))
+        refused = [v for v, ok in (probe.get("versions") or {}).items() if not ok]
+        if probe.get("init") == 0 and refused and r.get("steam_bridge"):
+            log(f"Steam bridge: the client does not serve {', '.join(refused)}; the bridge hands the game the "
+                "library's own versions of those instead")
+        elif probe.get("init") == 0 and refused:
+            log(f"not starting: the Steam client does not serve {', '.join(refused)}, which this game's "
+                "SteamAPI.Init asks for (it would quit on 'Failed to initialize Steam')")
+            return DID_NOT_START
+    if bridged and starting and not a.no_steam_preflight:
+        log(f"Steam bridge: forwarding {', '.join(n.split('GetISteam')[1] for n in bridged)} to the real client; "
+            "interface versions older than Valve's library get the library's own (its log lines: 'steam-bridge:')")
+    log(f"composed {r['assembly']}: {len(r['game_assemblies'])} game files ({len(r['patched'])} relabelled for arm64), "
+        f"{r['kit_files']} kit files, skipped {len(r['skipped'])}"
+        + (f" (left out {len(r['mixed_mode'])} mixed-mode: {', '.join(r['mixed_mode'])})" if r["mixed_mode"] else ""))
+    if a.command == "compose":
+        print(json.dumps(r))
+        return 0
+    cmd = [r["engine"], "--main-pack", r["pack"], "--print-fps"] + rest
+    log("run " + " ".join(cmd))
+    os.chdir(os.path.abspath(a.game_dir))
+    icu, system_icu = a.icu, guest_icu()
+    if system_icu and icu is None:
+        log(f"ICU: the guest's {system_icu}")
+    else:
+        system_icu = ""
+        if icu is None and a.fetch:
+            try:
+                icu = icu_libs()
+            except (Exception, SystemExit) as error:
+                log(f"ICU unavailable ({error}); .NET runs culture-invariant")
+        if icu:
+            log(f"ICU: {ICU['package']} from {icu} (app-local)")
+    env = dict(engine_env(os.environ, icu, system_icu))
+    env["DROIDDECK_NATIVE_GAME"] = "1"  # the app's telemetry counts this process (memory, swap, faults) as the game's
+    if a.command == "prestart":  # the Steam client may not be up yet: no Steam probe; the game waits at its first call
+        try:
+            return prestart(line_buffered(cmd), env, hold, {"argv": key, "environ": dict(os.environ),
+                                                           "refusal": refusal, "report": r})
+        finally:
+            try:
+                os.unlink(os.path.join(hold, "starting"))
+            except OSError:
+                pass
+    return watch(line_buffered(cmd), env, forward_signals=True,
+                 on_first_frame=r2r_after_first_frame(r),
+                 on_steam_failed=(lambda line, kind="steam": remember_steam_refusal(refusal, line, kind=kind))
+                 if refusal else None)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

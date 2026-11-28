@@ -128,7 +128,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
     val bindingUsers = library.usersOfBindings(savedBindings.id).size
     val draft = remember {
         val (display, metrics) = InputLibraries.primaryDisplay(context)
-        val gamepad = savedLayout.elements.takeIf { e -> e.any { it.id.startsWith("legacy:") } }?.let {
+        val gamepad = savedLayout.elements.takeIf { e -> !Sts2Pad.owns(savedLayout) && e.any { it.id.startsWith("legacy:") } }?.let {
             val (w, h) = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels) ?: (metrics.widthPixels to metrics.heightPixels)
             GamepadScaler(display, w, h)
         }
@@ -352,6 +352,7 @@ private fun InputElementKind.label() = when (this) {
     InputElementKind.TRACKPAD -> R.string.input_element_trackpad
     InputElementKind.DPAD -> R.string.input_element_dpad
     InputElementKind.TRIGGER -> R.string.input_element_trigger
+    InputElementKind.SWIPE -> R.string.input_element_swipe
 }
 
 private class SurfaceEditorPresentation(private val host: ComponentActivity, display: Display, private val transparent: Boolean, private val content: @Composable () -> Unit) : Presentation(host, display) {

@@ -1,0 +1,76 @@
+name: Build DXVK for PowerVR (ARM64EC)
+
+# Builds tools/dxvk/build_arm64ec.sh (64-bit DXVK as ARM64EC, 32-bit as i686) and publishes the zip that
+# tools/powervr/release.json pins as the dxvk-arm64ec payload. Published tags are never replaced: a new
+# recipe gets a new tag.
+on:
+  push:
+    branches: [ 'emu/graphics' ]
+    paths:
+      - 'tools/dxvk/**'
+      - '.github/workflows/build-dxvk-arm64ec.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dxvk-arm64ec-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  LLVM_MINGW: llvm-mingw-20261104-ucrt-ubuntu-22.04-x86_64
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Toolchains
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ninja-build meson glslang-tools zstd zip \
+            gcc-mingw-w64-i686 g++-mingw-w64-i686 >/dev/null
+          sudo update-alternatives --set i686-w64-mingw32-gcc /usr/bin/i686-w64-mingw32-gcc-posix
+          sudo update-alternatives --set i686-w64-mingw32-g++ /usr/bin/i686-w64-mingw32-g++-posix
+          curl -fsSL -o "$RUNNER_TEMP/lm.tar.xz" "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$LLVM_MINGW.tar.xz"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/lm.tar.xz"
+          echo "$RUNNER_TEMP/$LLVM_MINGW/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: bash tools/dxvk/build_arm64ec.sh out
+      - name: Package
+        id: package
+        run: |
+          set -euo pipefail
+          recipe=$(cat tools/dxvk/build_arm64ec.sh tools/dxvk/source.env tools/dxvk/patches/* | sha256sum | cut -c1-8)
+          source=$(cut -c1-7 out/source-commit)
+          echo "tag=dxvk-arm64ec-$source-$recipe" >> "$GITHUB_OUTPUT"
+          cd out
+          find . -type f -exec touch -d '2026-11-13 00:00:00 UTC' {} +
+          zip -X -q -r ../dxvk-arm64ec.zip LICENSE SHA256SUMS downstream.patch source-commit source.tar.zst submodules.txt x32 x64
+          cd ..
+          sha256sum dxvk-arm64ec.zip | tee dxvk-arm64ec.zip.sha256
+          cat out/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dxvk-arm64ec
+          path: |
+            dxvk-arm64ec.zip
+            dxvk-arm64ec.zip.sha256
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.package.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$TAG is already published; published tags are never replaced"
+            exit 0
+          fi
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title "$TAG" \
+            --notes "doitsujin/dxvk $(cat out/source-commit) plus tools/dxvk/patches, built by tools/dxvk/build_arm64ec.sh: x64 as ARM64EC (llvm-mingw), x32 as i686 ($GITHUB_REPOSITORY $GITHUB_SHA, run $GITHUB_RUN_ID). zlib; source.tar.zst and downstream.patch inside. sha256 $(cut -d' ' -f1 dxvk-arm64ec.zip.sha256)" \
+            dxvk-arm64ec.zip dxvk-arm64ec.zip.sha256
