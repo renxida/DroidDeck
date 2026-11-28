@@ -46,6 +46,12 @@ SCENARIOS.update({
     "stand-in-native": ["start_requested", "guest_started", "native_engine", "standin_first_frame",
                         "standin_mainloop_ok"],
     "upgrade": ["upgrade_installed", "settings_kept", "runtime_kept"] + STEAM,
+    # After the first session: a stop with no screen open, a second start that keeps its screen and starts
+    # without glamor (planted crash), stopped before its first frame, then a third start with glamor that
+    # reaches READY, and a resume that reopens the session screen.
+    "steam-ui-restart": STEAM + ["stopped_without_screen", "noglamor_applied", "restart_kept_its_screen",
+                                 "stopped_before_first_frame", "restart_ready", "noglamor_guard_cleared",
+                                 "resume_opened_screen"],
 })
 # Seconds after the start request by which a stage must have happened. CI's Steam UI takes about
 # 70 s; the cdabfbd regression made a display change cost minutes.
@@ -54,6 +60,7 @@ DEADLINES = {
     "steam-ui-screen-cycle": {"steam_ui": 180},
     "steam-ui-background": {"steam_ui": 210},
     "upgrade": {"steam_ui": 180},
+    "steam-ui-restart": {"steam_ui": 180},
 }
 
 

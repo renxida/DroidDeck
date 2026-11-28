@@ -75,6 +75,10 @@ class SessionService : Service() {
     private var downloadMonitorTask: Runnable? = null
     private var downloadActive = false
     private var clientInstallActive = false
+    @Volatile private var clientInstallSeen = false
+    @Volatile private var bridgeStartedAt = 0L
+    @Volatile private var bridgeShownSince = 0L
+    @Volatile private var bridgeShownMs = 0L
     private var steamLibraryMounts: Map<String, File>
         get() = SessionState.steamLibraryMounts
         set(value) { SessionState.steamLibraryMounts = value }
@@ -266,6 +270,7 @@ class SessionService : Service() {
             ACTION_ACTIVITY_VISIBLE -> {
                 if (!SessionState.pipActive) pipTask = false
                 activityVisible = true
+                bridgeScreen(true)
                 activityDisplayId = intent.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, activityDisplayId)
                 sessionDisplayId = intent.getIntExtra(EXTRA_DISPLAY_ID, sessionDisplayId)
                 screenOn = readScreenOn()
@@ -289,6 +294,7 @@ class SessionService : Service() {
             }
             ACTION_ACTIVITY_HIDDEN -> {
                 activityVisible = false
+                bridgeScreen(false)
                 activityDisplayId = intent.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, activityDisplayId)
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
@@ -354,6 +360,8 @@ class SessionService : Service() {
         runOnDownloadMonitor { steamDownloadMonitor.reset() }
         downloadActive = false
         clientInstallActive = false
+        clientInstallSeen = false
+        bridgeStartedAt = 0L
         steamSleepToken = null
         completeNativeSleep()
         suspendOperationPending = false
@@ -437,13 +445,44 @@ class SessionService : Service() {
         return a.toInt() < major || (a.toInt() == major && b.toInt() < minor)
     }
 
-    /** Whether the newest finished session's log shows Xwayland itself crashing. */
+    /** Whether the newest finished session's log shows Xwayland itself crashing while the session ran. */
     private fun lastXwaylandCrashed(): Boolean = runCatching {
         val last = SessionPaths.sessionFolders(this).filter { it != SessionPaths.current() }.lastOrNull() ?: return false
         val log = File(last, "session.log").takeIf { it.isFile } ?: return false
-        log.useLines { lines -> lines.any { it.contains("(EE) Segmentation fault") } } &&
-            log.useLines { lines -> lines.any { it.contains("X11 I/O error") || it.contains("Xwayland", ignoreCase = true) } }
+        log.useLines { XwaylandFallback.crashedBeforeStop(it) }
     }.getOrDefault(false)
+
+    /** Counts how long a bridge session's screen has been on a display, for [BridgeDefault.drewNothing]. */
+    private fun bridgeScreen(shown: Boolean) {
+        if (bridgeStartedAt == 0L) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (shown) {
+            if (bridgeShownSince == 0L) bridgeShownSince = now
+        } else if (bridgeShownSince > 0L) {
+            bridgeShownMs += now - bridgeShownSince
+            bridgeShownSince = 0L
+        }
+    }
+
+    private fun xwaylandFallback(guest: MutableList<String>, bridge: Boolean, venus: Boolean) {
+        val route = when {
+            bridge -> XwaylandFallback.Route.BRIDGE
+            venus -> XwaylandFallback.Route.VENUS
+            com.droiddeck.launcher.core.DeviceSupport.openDriverActive(this) -> XwaylandFallback.Route.OPEN_PAIR
+            else -> XwaylandFallback.Route.OTHER
+        }
+        XwaylandFallback.onFirstFrame = null
+        val undrawn = SessionPrefs.noGlamorUndrawn(this)
+        if (undrawn) SessionPrefs.setNoGlamorUndrawn(this, false)
+        val decision = XwaylandFallback.decide(
+            com.droiddeck.launcher.core.DeviceSupport.adreno(), route, lastXwaylandCrashed(), undrawn)
+        XwaylandFallback.line(decision, route)?.let { Log.w(TAG, it) }
+        if (decision != XwaylandFallback.Decision.APPLY) return
+        guest.add(XwaylandFallback.ENV)
+        SessionPrefs.setNoGlamorUndrawn(this, true)
+        val app = applicationContext
+        XwaylandFallback.onFirstFrame = { SessionPrefs.setNoGlamorUndrawn(app, false) }
+    }
 
     private fun tuDebugOverride(): String? = File(Environment.getExternalStorageDirectory(), TU_DEBUG_SWITCH)
         .takeIf { it.isFile }?.let { FileUtils.readString(it)?.trim() }?.takeIf { it.isNotEmpty() }
@@ -541,6 +580,7 @@ class SessionService : Service() {
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
 
         val experiments = Experiments.beginSession(this)
+        BridgeDefault.apply(this, "session start")
         val sessionDir = openSessionFolder()
         Log.i(TAG, "experiments: " + Experiments.line(experiments))
         SessionEvents.record("session.experiments", mapOf("on" to Experiments.line(experiments)))
@@ -974,10 +1014,7 @@ class SessionService : Service() {
         }
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
-        if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
-            guest.add("XWAYLAND_NO_GLAMOR=1")
-            Log.w(TAG, "xwayland: the last session's Xwayland crashed; glamor off for this one (XWAYLAND_NO_GLAMOR=1)")
-        }
+        xwaylandFallback(guest, bridge, venus)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) guest.add("BL_RAISE_NOFILE=1")
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             val kernel = System.getProperty("os.version").orEmpty()
@@ -1056,6 +1093,9 @@ class SessionService : Service() {
         bridge.attach(this)
         components.add(bridge)
         guest.add("BL_VKBRIDGE=1")
+        bridgeStartedAt = android.os.SystemClock.elapsedRealtime()
+        bridgeShownMs = 0L
+        bridgeShownSince = if (activityVisible) bridgeStartedAt else 0L
         if (SessionPrefs.steamGpuCompositing(this)) guest.add("BL_STEAM_GPU_COMPOSITING=1")
         SessionPrefs.linuxDriver(this).takeIf { it.isNotEmpty() }
             ?.let { runCatching { LinuxVulkanDriver.resolveIcdPath(this, it) }.getOrNull() }
@@ -2045,6 +2085,7 @@ class SessionService : Service() {
                     Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
                     return@post
                 }
+                SessionState.stopFinished()
                 SessionState.suspended = false
                 SessionState.resumeRequested = false
                 SessionState.resuming = false
@@ -2151,15 +2192,35 @@ class SessionService : Service() {
         suspendController = null
         if (ended != null) {
             VacDiagnostics.snapshot(this, ended)
+            runCatching { File(ended, "session.log").appendText(XwaylandFallback.stopLine(status) + "\n") }
         }
-        components.reversed().forEach {
+        if (bridgeStartedAt > 0) {
+            bridgeScreen(false)
+            bridgeStartedAt = 0L
+            if (BridgeDefault.drewNothing(SessionState.firstFrameSeen, bridgeShownMs, clientInstallSeen))
+                runCatching { BridgeDefault.bridgeFailed(this, BridgeDefault.FAILED_NO_FRAME) }
+        }
+        val (stopNow, stopAfterGuest) = SessionStopOrder.split(components)
+        components.clear()
+        stopNow.forEach {
             try {
                 it.stop()
             } catch (e: Exception) {
                 Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
             }
         }
-        components.clear()
+        val stopGuestServers = {
+            // A session that started meanwhile owns the bridge's socket path now.
+            val superseded = stoppedGen != sessionGen || SessionState.running
+            stopAfterGuest.forEach {
+                try {
+                    if (superseded && it is com.droiddeck.launcher.gpu.VkBridgeComponent) it.kill() else it.stop()
+                } catch (e: Exception) {
+                    Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
+                }
+            }
+            if (stopAfterGuest.isNotEmpty()) Log.i(TAG, "stopped after the guest: " + stopAfterGuest.joinToString { it.javaClass.simpleName })
+        }
         val collectEnded = {
             if (ended != null) Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
         }
@@ -2173,10 +2234,12 @@ class SessionService : Service() {
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
+                    stopGuestServers()
                     pruneSystemVulkanRuntime()
                     finishSessionStop(status, stoppedGen, collectEnded)
                 }, "session-teardown").start()
             } else {
+                stopGuestServers()
                 Thread({ pruneSystemVulkanRuntime() }, "system-vulkan-prune").start()
                 Thread({
                     finishSessionStop(status, stoppedGen, collectEnded)
@@ -2188,9 +2251,7 @@ class SessionService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (rootIntent?.component?.className in setOf(
-                com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
-                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
+        if (!taskCarriesTheSession(rootIntent?.component?.className)) return
         if (pipTask) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false
@@ -2470,6 +2531,7 @@ class SessionService : Service() {
                 val wasInstalling = clientInstallActive
                 clientInstallActive = !SessionState.firstFrameSeen &&
                     (clientInstallActive || SteamDownloadMonitor.clientInstallPending(root))
+                if (clientInstallActive) clientInstallSeen = true
                 val receivedBytes = TrafficStats.getUidRxBytes(android.os.Process.myUid())
                 val client = SessionState.steamClientArch
                 val mounts = steamLibraryMounts
@@ -2530,6 +2592,17 @@ class SessionService : Service() {
         private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.droiddeck.launcher.STOP_SESSION"
         const val ACTION_RESUME = "com.droiddeck.launcher.RESUME_SESSION"
+
+        /**
+         * Whether removing the task rooted at [rootActivity] is the user dismissing the session. The panels'
+         * tasks are not, and neither is AgentStartActivity's: it finishes at once, Android then removes its
+         * task, and a `resume` through it ended the session it had just reopened.
+         */
+        internal fun taskCarriesTheSession(rootActivity: String?): Boolean = rootActivity !in setOf(
+            com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
+            com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name,
+            com.droiddeck.launcher.agent.AgentStartActivity::class.java.name,
+        )
         const val ACTION_SUSPEND_NOW = "com.droiddeck.launcher.SUSPEND_NOW"
         private const val ACTION_PAUSE_NOW = "com.droiddeck.launcher.PAUSE_NOW"
         private const val ACTION_PIP_BEGIN = "com.droiddeck.launcher.PIP_BEGIN"

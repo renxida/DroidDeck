@@ -12,6 +12,7 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.Process
 import android.util.Base64
+import android.util.Log
 import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.frontend.GameLaunchLink
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -158,6 +159,7 @@ class AgentBridgeProvider : ContentProvider() {
             .put("steamUi", SessionState.steamUi ?: JSONObject.NULL)
             .put("steamUrl", SessionState.steamUrl ?: JSONObject.NULL)
             .put("suspended", SessionState.suspended)
+            .put("screen", SessionState.screenShown)
             .put("pip", SessionState.pipActive)
             .put("firstFrame", SessionState.firstFrameSeen)
             .apply { outputFields(SessionState.running, SessionState.outputSize).forEach { (key, value) -> put(key, value) } }
@@ -220,11 +222,16 @@ class AgentBridgeProvider : ContentProvider() {
     }
 
     private fun resume(context: Context): JSONObject {
-        if (!SessionState.running || !SessionState.suspended) {
+        val screen = SessionState.screenShown
+        if (!resumable(SessionState.running, SessionState.suspended, screen)) {
             return error("SESSION_NOT_SUSPENDED", "There is no suspended session to resume")
         }
-        SessionService.resume(context)
-        return JSONObject().put("ok", true).put("command", "resume")
+        if (SessionState.suspended) SessionService.resume(context)
+        // A session with no screen pauses again and shows nothing. Android may refuse an Activity started from
+        // here while the app is in the background; "screenOpen": false tells droiddeckctl to open it over adb.
+        if (!screen) runCatching { context.startActivity(sessionScreen(context)) }
+            .onFailure { Log.w("AgentBridge", "resume: could not open the session screen from the provider", it) }
+        return JSONObject().put("ok", true).put("command", "resume").put("screenOpen", screen)
     }
 
     private fun launch(context: Context, request: JSONObject): JSONObject {
@@ -300,6 +307,17 @@ class AgentBridgeProvider : ContentProvider() {
         const val RESULT_JSON = "json"
         const val EXTRA_REQUEST = "request"
         const val SCHEMA = 2
+
+        /** A running session can be resumed when it is suspended or has no screen on a display. */
+        internal fun resumable(running: Boolean, suspended: Boolean, screenShown: Boolean): Boolean =
+            running && (suspended || !screenShown)
+
+        /** The running session's screen, brought to the front or made again, as the notification does. */
+        fun sessionScreen(context: Context): android.content.Intent =
+            android.content.Intent(context, com.droiddeck.launcher.SessionActivity::class.java)
+                .setAction(SessionService.ACTION_RESUME)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
 
         /**
          * `output` is the running session's size. With no session SessionState still holds a size (1920x1080 until

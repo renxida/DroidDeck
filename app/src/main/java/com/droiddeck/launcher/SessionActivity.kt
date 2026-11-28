@@ -590,7 +590,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             finish()
             return
         }
+        SessionState.screenCreated()
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
+            com.droiddeck.launcher.session.BridgeDefault.apply(this, "session screen")
             val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
             SessionEvents.begin(this, mode, SessionPaths.label(mode, intent.getStringExtra(SessionService.EXTRA_PROGRAM)))
@@ -2078,9 +2080,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun run() {
                 if (!watching) return
                 if (::pip.isInitialized) pip.refresh()
-                if (SessionState.closeScreenForStop) {
+                if (SessionState.takeScreenClose()) {
                     // Stop tapped on the notification: close now, as the drawer's Stop does.
-                    SessionState.closeScreenForStop = false
                     Log.i(TAG, "closing the session screen: stop from the notification")
                     finish()
                     return
@@ -3995,6 +3996,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         else openDualScreenControls()
         startedScreens++
+        SessionState.screenShown = true
         SessionService.setActivityVisible(this, true, sessionActivityDisplayId)
         updateBottomGame()
     }
@@ -4009,7 +4011,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!screenIsOff()) closeSecondScreen(reset = false)
         startedScreens = (startedScreens - 1).coerceAtLeast(0)
         updateBottomGame()
-        if (startedScreens == 0) SessionService.setActivityVisible(this, false, sessionActivityDisplayId)
+        if (startedScreens == 0) {
+            SessionState.screenShown = false
+            SessionService.setActivityVisible(this, false, sessionActivityDisplayId)
+        }
         super.onStop()
     }
 

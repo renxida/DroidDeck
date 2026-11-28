@@ -19,6 +19,13 @@ class AgentStartActivity : Activity() {
             finish()
             return
         }
+        if (request.optBoolean("resume")) {
+            // droiddeckctl resume: the running session's screen, which the provider cannot always open itself.
+            if (com.droiddeck.launcher.session.SessionState.running) startActivity(AgentBridgeProvider.sessionScreen(this))
+            else Log.w(TAG, "resume: no session is running")
+            finish()
+            return
+        }
 
         Thread({
             try {

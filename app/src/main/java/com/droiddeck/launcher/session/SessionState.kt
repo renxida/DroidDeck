@@ -51,9 +51,30 @@ object SessionState {
 
     /** Set when Stop is tapped on the session notification: the session screen closes at once, as the
      *  drawer's Stop does, instead of showing the game until teardown ends (Cedar, Nov 15: "nothing seems
-     *  to happen"). */
+     *  to happen"). It belongs to that stop: with no screen open nothing takes it, so the end of the stop
+     *  and the next screen both drop it. */
     @Volatile
     var closeScreenForStop = false
+
+    /** The open session screen's poll: true once, when a stop asked it to close. */
+    fun takeScreenClose(): Boolean {
+        if (!closeScreenForStop) return false
+        closeScreenForStop = false
+        return true
+    }
+
+    /** A session screen was created. With no session running it is a new start's, not the one a stop closes. */
+    fun screenCreated() {
+        if (!running) closeScreenForStop = false
+    }
+
+    fun stopFinished() {
+        closeScreenForStop = false
+    }
+
+    /** Whether a session screen is on a display now (between its onStart and onStop). */
+    @Volatile
+    var screenShown = false
 
     @Volatile
     var running = false
