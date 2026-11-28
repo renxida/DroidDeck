@@ -29,7 +29,7 @@ Player controls and observations work over authorized ADB on any build: `state`,
 `thermal`, `displays`, `wake`, and `access`.
 
 **Setup > Diagnostics > Debugging tools** is off by default in every build, including debug builds.
-It enables `run`, `guest`, `cdp`, all `env` operations, `override`, and `prefs`. The
+It enables `run`, `guest`, `cdp`, all `env` operations, `override`, `prefs`, and `latency`. The
 toggle switches directly without a confirmation dialog. The bridge refuses to change it through `ui`
 or preference writes. The existing preference key, `setting-agent-commands` test tag, JSON command
 names, and `AGENT_COMMANDS_DISABLED` error code are unchanged. Refusals exit 7; `droiddeckctl access`
@@ -143,6 +143,7 @@ tools/droiddeckctl logs latest ./session-artifacts
 tools/droiddeckctl screenshot ./screen.png --display 4
 tools/droiddeckctl record ./clip.mp4 --seconds 8 --display 0
 tools/droiddeckctl pacing --seconds 30
+tools/droiddeckctl latency --input pad:down --input pad:up --region 0.05,0.40,0.30,0.25 --count 60
 tools/droiddeckctl thermal
 tools/droiddeckctl wait cool --below 38 --timeout 900
 tools/droiddeckctl displays
@@ -156,6 +157,31 @@ compositor has no layer of its own) and reports the frames that reached the pane
 the present-to-present histogram and the share of intervals off the usual cadence. A game's own fps
 counter counts frames handed over, not frames shown, so it can read 60 while one frame in four
 stays on screen for two refreshes.
+
+`latency` measures the time from an input to the picture that answers it, with no external hardware.
+It injects the `--input`s in turn (`pad:BUTTON`, `key:NAME` or `tap:X,Y`; each should undo the one
+before, such as `pad:down` then `pad:up` on a menu) with a random 0 to 16 ms added to `--gap`, and for
+each one the app's compositor follows the first game frame whose content changes inside `--region`
+(fractions of the game picture: x, y, width, height). It reports, in ms after the input's timestamp
+(taken just before the input is handed to the pad ring or the compositor):
+
+- `toScreen`: when that frame reached the panel (`endsAt: display`, from `VK_GOOGLE_display_timing`),
+  or when the compositor queued it (`endsAt: present`; add about one to two refreshes) on a device
+  whose driver has no display timing;
+- `toChangedFrame`: when the compositor received that frame from gamescope;
+- `toFirstFrame`: the first frame of any content after the input, which is what `latency.csv` records;
+- `framesToChange`: how many game frames it took (1 means the very next frame answered).
+
+Each is `n`, `minMs`, `p50Ms`, `p95Ms`, `p99Ms`, `maxMs`; use at least 50 samples. `statuses` counts
+the samples that did not answer: `no-change` (nothing changed in the region within 1 s: wrong region,
+or the input did nothing), `unreadable` (the game's buffers are not linear 32-bit dma-bufs or wl_shm,
+for example AFBC), `not-calibrated` (too few frames seen; retried). The region must not contain an
+animation: the compositor measures the region's own frame-to-frame difference (`noise`) and only
+counts a change over four times that; `smallestDelta` close to the threshold means the answer is
+barely visible in the region. Choose a region around a menu item whose highlight moves, and inputs
+that cannot start or change anything (a d-pad move on the main menu, a focus move in Steam). The
+times do not include the panel's own response or the touch controller; `screenrecord` or a 240 fps
+camera is the cross-check for those.
 
 `thermal` reports the battery temperature (`dumpsys battery`), the thermal status
 (`dumpsys thermalservice`, 0 NONE to 6 SHUTDOWN) and each CPU policy's `scaling_max_freq` against

@@ -82,6 +82,7 @@ int __android_log_print(int, const char *, const char *, ...);
         # send_buffer_release is a macro over send_buffer_release_at (with buffer tracing).
         callers = ('static void buf_trace_release(struct wl_resource *b, int line) { (void)b; (void)line; }\n'
                    + '#define send_buffer_release(b) send_buffer_release_at((b), __LINE__)\n'
+                   + '#define rp_armed() 0\n#define rp_frame(...) ((void)0)\n'
                    + '\n'.join(function(compositor, n) for n in ('buffer_release_blocked', 'send_buffer_release_at', 'take_shm', 'take_pixel')))
         harness = (Path(__file__).with_name('vk_terminal_callers_test.c')).read_text()
         probe = tmp / 'probe.c'
