@@ -297,6 +297,18 @@ bl_webhelper_layout() {
     echo "--use-gl=angle --use-angle=$BL_VKBRIDGE_CEF_ANGLE"
   fi
 }
+# 1 when Steam's browser UI draws on the GPU through the Mali bridge, 0 when in software.
+# BL_VKBRIDGE_CEF_GPU decides when set (0 software, anything else GPU); unset, a device with 8 GB of
+# RAM or less ($1, MemTotal in kB) draws it in software.
+bl_vkbridge_cef_gpu() {
+  if [ -n "${BL_VKBRIDGE_CEF_GPU:-}" ]; then
+    [ "$BL_VKBRIDGE_CEF_GPU" = 0 ] && echo 0 || echo 1
+  elif [ "${1:-0}" -gt 0 ] 2>/dev/null && [ "$1" -le 8388608 ]; then
+    echo 0
+  else
+    echo 1
+  fi
+}
 bl_now_ms() {
   if [ -n "${EPOCHREALTIME:-}" ]; then
     local t=${EPOCHREALTIME/[.,]/}
@@ -1560,15 +1572,17 @@ case $mode in
     [ "${steam_cef_gpu:-1}" = 1 ] || _bl_cef=(-cef-disable-gpu)
     if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
       # On the GPU the Steam UI held about 400 MB through the bridge (Mali-G76 MC4, 3 GB of RAM); with
-      # a game loading beside it, Android's low-memory killer took the whole session down.
-      if [ -z "${BL_VKBRIDGE_CEF_GPU:-}" ]; then
-        _bl_mem_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
-        if [ "${_bl_mem_kb:-0}" -gt 0 ] && [ "$_bl_mem_kb" -lt 4194304 ]; then
-          BL_VKBRIDGE_CEF_GPU=0
-          echo "== steam: $((_bl_mem_kb / 1024)) MB of RAM: the browser UI draws in software to leave games the memory"
-        fi
+      # a game loading beside it, Android's low-memory killer took the whole session down. On 8 GB
+      # (Pixel 10a) software costs the library nothing (it is composited in software either way) and
+      # leaves about 270 MB of GPU memory and 160 MB available to the game.
+      _bl_mem_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+      if [ -n "${BL_VKBRIDGE_CEF_GPU:-}" ]; then
+        echo "== steam: BL_VKBRIDGE_CEF_GPU=$BL_VKBRIDGE_CEF_GPU set by hand ($((${_bl_mem_kb:-0} / 1024)) MB of RAM)"
+      elif [ "$(bl_vkbridge_cef_gpu "${_bl_mem_kb:-0}")" = 0 ]; then
+        echo "== steam: $((_bl_mem_kb / 1024)) MB of RAM: the browser UI draws in software to leave games the memory"
       fi
-      if [ "${BL_VKBRIDGE_CEF_GPU:-1}" = 0 ]; then
+      BL_VKBRIDGE_CEF_GPU=$(bl_vkbridge_cef_gpu "${_bl_mem_kb:-0}")
+      if [ "$BL_VKBRIDGE_CEF_GPU" = 0 ]; then
         _bl_cef=(-cef-disable-gpu -cef-disable-gpu-compositing)
         echo "== steam: browser UI in software (Mali bridge)"
       elif [ "${_bl_cef[0]}" = -cef-force-gpu ]; then
