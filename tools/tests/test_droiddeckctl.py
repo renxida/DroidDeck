@@ -77,6 +77,14 @@ FAKE_ADB = textwrap.dedent('''\
     elif args[:1] == ["pull"]:
         entry["denied"] = True
         print(f"adb: error: failed to stat remote object '{args[1]}': Permission denied", file=sys.stderr)
+    elif args[:3] == ["shell", "am", "start"]:
+        request = json.loads(base64.b64decode(args[args.index("request") + 1]))
+        entry["request"] = request
+        if request.get("resume"):
+            if "screen_after_am" in config:
+                config["provider"]["state"] = config["screen_after_am"]
+                json.dump(config, open(config_path, "w"))
+            print("Status: ok")
     elif args[:2] == ["shell", "rm"] and config.get("fail_cleanup"):
         entry["denied"] = True
         print("adb: error: cleanup denied", file=sys.stderr)
@@ -286,6 +294,38 @@ class DroiddeckctlTest(FakeAdbTest):
         code, out = self.run_ctl("start", "steam")
         self.assertEqual(4, code)
         self.assertEqual("SESSION_ACTIVE", out["error"]["code"])
+
+    def test_resume_of_a_session_with_its_screen_open_only_asks_the_app(self):
+        self.configure({"resume": {"ok": True, "command": "resume", "screenOpen": True}})
+        code, out = self.run_ctl("resume")
+        self.assertEqual((0, True), (code, out["screenOpen"]))
+        self.assertFalse([c for c in self.calls() if c["args"][:2] == ["shell", "am"]])
+
+    def test_resume_opens_the_screen_of_a_session_left_without_one(self):
+        hidden, shown = state(phase="SUSPENDED"), state()
+        hidden["session"].update(running=True, suspended=True, screen=False)
+        shown["session"].update(screen=True)
+        self.configure({"resume": {"ok": True, "command": "resume", "screenOpen": False}, "state": hidden},
+                       screen_after_am=shown)
+        code, out = self.run_ctl("resume")
+        self.assertEqual((0, True), (code, out["screenOpened"]))
+        started = [c for c in self.calls() if c["args"][:3] == ["shell", "am", "start"]]
+        self.assertEqual([{"resume": True}], [c["request"] for c in started])
+        self.assertIn("agent.AgentStartActivity", " ".join(started[0]["args"]))
+
+    def test_resume_says_so_when_the_screen_does_not_open(self):
+        hidden = state(phase="SUSPENDED")
+        hidden["session"].update(running=True, suspended=True, screen=False)
+        self.configure({"resume": {"ok": True, "command": "resume", "screenOpen": False}, "state": hidden})
+        with unittest.mock.patch.object(ctl.time, "monotonic", side_effect=[0, 0, 20, 20, 20]):
+            code, out = self.run_ctl("resume")
+        self.assertEqual("RESUME_FAILED", out["error"]["code"])
+        self.assertIn("did not open", out["error"]["message"])
+
+    def test_resume_without_a_session_keeps_the_apps_answer(self):
+        self.configure({"resume": {"ok": False, "error": {"code": "SESSION_NOT_SUSPENDED", "message": "none"}}})
+        code, out = self.run_ctl("resume")
+        self.assertEqual("SESSION_NOT_SUSPENDED", out["error"]["code"])
 
     def test_wait_game_ignores_the_client(self):
         self.configure({"state": [state(focused=769), state(focused=752590, focusable=[752590])]})

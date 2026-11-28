@@ -2061,6 +2061,7 @@ class SessionService : Service() {
                     Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
                     return@post
                 }
+                SessionState.stopFinished()
                 SessionState.suspended = false
                 SessionState.resumeRequested = false
                 SessionState.resuming = false
