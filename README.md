@@ -7,7 +7,7 @@
 
 ## Lanner
 
-Lanner is a GPLv3 fork of [DroidDeck](https://github.com/Droid-Deck/DroidDeck), trimmed to running Steam and Proton games. It installs as `dev.renxida.kestrel` (its package id from when the fork was called Kestrel), so it can sit next to DroidDeck, and the two do not share data or settings. The runtime, drivers, input, HUD and nearly everything else here is the work of the DroidDeck developers and contributors; credit goes to them. The text below is upstream's README and still describes DroidDeck.
+Lanner is a GPLv3 fork of [DroidDeck](https://github.com/Droid-Deck/DroidDeck), trimmed to running Steam and Proton games. It installs as `chat.comb.lanner`, so it can sit next to DroidDeck, and the two do not share data or settings. The runtime, drivers, input, HUD and nearly everything else here is the work of the DroidDeck developers and contributors; credit goes to them. The text below is upstream's README and still describes DroidDeck.
 
 DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode through gamescope, Proton and FEX, with controllers, touch controls and a performance HUD.
 

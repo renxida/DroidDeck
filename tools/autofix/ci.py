@@ -22,7 +22,7 @@ import subprocess
 import concurrent.futures as cf
 import datetime as _dt
 
-REPO = "renxida/droiddeck"
+REPO = "familiar-of-cedar/lanner"
 MAX_LOGS_PER_RUN = 3
 TAIL = 12
 ENV_SPREAD = 3      # same signature on this many branches -> env

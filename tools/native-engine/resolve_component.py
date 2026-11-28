@@ -103,7 +103,7 @@ def main(argv=None):
     ap.add_argument("--wrapper", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--report")
-    ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "renxida/DroidDeck"))
+    ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "familiar-of-cedar/lanner"))
     ap.add_argument("--tag", help="accept only this release")
     a = ap.parse_args(argv)
     ng = runpy.run_path(a.wrapper)

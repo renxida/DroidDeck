@@ -31,7 +31,7 @@ else
   case $COMPONENT in native-engine-[0-9]*) ;; *) echo "component must be pinned, native-engine-N or file:PATH" >&2; exit 1 ;; esac
   C=$WORK/$COMPONENT
   rm -rf "$C" && mkdir -p "$C"
-  curl -fsSL -o "$WORK/c.tar.zst" "https://github.com/${GITHUB_REPOSITORY:-renxida/DroidDeck}/releases/download/$COMPONENT/native-engine.tar.zst"
+  curl -fsSL -o "$WORK/c.tar.zst" "https://github.com/${GITHUB_REPOSITORY:-familiar-of-cedar/lanner}/releases/download/$COMPONENT/native-engine.tar.zst"
   zstd -dc "$WORK/c.tar.zst" | tar -C "$C" -x
 fi
 if [ -e "$C/stubs" ]; then

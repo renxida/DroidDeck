@@ -68,7 +68,7 @@ import urllib.request
 
 # The published component. Built by .github/workflows/native-engine-build.yml (publish=true).
 COMPONENT = {"tag": "native-engine-126",
-             "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-126/native-engine.tar.zst",
+             "url": "https://github.com/familiar-of-cedar/lanner/releases/download/native-engine-126/native-engine.tar.zst",
              "sha256": "722423be6eb30202a430311c4afa37097d182535fcb5fec2c01e395c041a53e8"}
 # The component layout this wrapper understands. A release declares its own in component.json; CI's resolver
 # (tools/native-engine/resolve_component.py) only pins releases whose api matches.
@@ -78,7 +78,7 @@ COMPONENT_API = 1
 # tag. COMPONENT above is the fallback when the file is missing or unusable.
 PIN_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "share", "droiddeck",
                         "native-engine.json")
-COMPONENT_URL = re.compile(r"https://github\.com/renxida/DroidDeck/releases/download/(native-engine-\d+)/native-engine\.tar\.zst")
+COMPONENT_URL = re.compile(r"https://github\.com/familiar-of-cedar/lanner/releases/download/(native-engine-\d+)/native-engine\.tar\.zst")
 
 
 def pinned_component(path=PIN_FILE, fallback=None):

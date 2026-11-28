@@ -28,5 +28,5 @@ side. OK applies it.
 
 `Themes.INNER_GAMER` is a fixed RGB-style palette. It sits just above Gradient in the list.
 `Themes.innerGamer(hue)` builds the palette for one hue through `ThemeColors.palette`, so button
-text keeps its contrast at every hue. The app no longer cycles the hue: Kestrel has no animations.
+text keeps its contrast at every hue. The app no longer cycles the hue: Lanner has no animations.
 

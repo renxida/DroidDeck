@@ -64,7 +64,7 @@ class MemoryDetailTest {
         MemoryDetail.Snapshot(at, kind, MemoryDetail.meminfoFields(meminfo), listOf(zram0), null,
             mapOf("/sys/class/kgsl/kgsl/page_alloc" to 268435456L), 262144L, vmstat,
             MemoryDetail.parsePsi("some avg10=4.20 avg60=1.50 avg300=0.40 total=123456\nfull avg10=1.10 avg60=0.30 avg300=0.10 total=45678\n"),
-            MemoryDetail.AndroidMem(3822416, 15612844, 221184, false, listOf(MemoryDetail.OwnProc(100, "dev.renxida.kestrel", 100, 290000, 20000, 12000))),
+            MemoryDetail.AndroidMem(3822416, 15612844, 221184, false, listOf(MemoryDetail.OwnProc(100, "chat.comb.lanner", 100, 290000, 20000, 12000))),
             procs)
 
     @Test fun meminfoKeepsEveryFieldInOrder() {
@@ -159,13 +159,13 @@ class MemoryDetailTest {
             p(300, 200, "steam"), p(310, 300, "steamwebhelper"), p(400, 300, "wineserver"), p(410, 400, "SlayTheSpire2.e"),
             p(420, 410, "FEXInterpreter"), p(500, 200, "Xwayland"), p(600, 300, "reaper"), p(610, 600, "python3"))
         val info = mapOf(
-            100 to MemoryDetail.ProcInfo("dev.renxida.kestrel", false),
-            150 to MemoryDetail.ProcInfo("dev.renxida.kestrel:balloon", false),
+            100 to MemoryDetail.ProcInfo("chat.comb.lanner", false),
+            150 to MemoryDetail.ProcInfo("chat.comb.lanner:balloon", false),
             200 to MemoryDetail.ProcInfo("/data/app/x/lib/arm64/libproot.so", false),
             300 to MemoryDetail.ProcInfo("/root/.local/share/Steam/steam", false),
             610 to MemoryDetail.ProcInfo("python3", true),
         )
-        val groups = MemoryDetail.classify(procs, info, "dev.renxida.kestrel").associate { it.pid to it.group }
+        val groups = MemoryDetail.classify(procs, info, "chat.comb.lanner").associate { it.pid to it.group }
         assertEquals(MemoryDetail.APP, groups[100])
         assertEquals(MemoryDetail.APP, groups[150])
         assertEquals(MemoryDetail.PROOT, groups[200])
@@ -217,7 +217,7 @@ class MemoryDetailTest {
         Total PSS by process:
             356,201K: system (pid 1621)
             245,880K: com.android.systemui (pid 2310)
-            198,004K: dev.renxida.kestrel (pid 12001 / activities)
+            198,004K: chat.comb.lanner (pid 12001 / activities)
             150,442K: surfaceflinger (pid 1102)
             120,553K: com.google.android.gms.persistent (pid 3011)
              98,112K: com.android.launcher3 (pid 2900 / activities)
@@ -232,7 +232,7 @@ class MemoryDetailTest {
             410,118K: Persistent
                 245,880K: com.android.systemui (pid 2310)
             198,004K: Foreground
-                198,004K: dev.renxida.kestrel (pid 12001 / activities)
+                198,004K: chat.comb.lanner (pid 12001 / activities)
             612,300K: Cached
                  98,112K: com.android.launcher3 (pid 2900 / activities)
 
@@ -270,7 +270,7 @@ class MemoryDetailTest {
         assertEquals("pss", d.metric)
         assertEquals(5, d.processes.size)
         assertEquals(MemoryDetail.DumpsysProc("system", 1621, 356201), d.processes[0])
-        assertEquals(MemoryDetail.DumpsysProc("dev.renxida.kestrel", 12001, 198004), d.processes[2])
+        assertEquals(MemoryDetail.DumpsysProc("chat.comb.lanner", 12001, 198004), d.processes[2])
         assertEquals(listOf("Native" to 720431L, "System" to 356201L, "Persistent" to 410118L, "Foreground" to 198004L,
             "Cached" to 612300L), d.oom)
 

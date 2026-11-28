@@ -10,7 +10,7 @@ import java.util.Properties
  * can pick it up; nothing reads it except [TelemetryUploader] for the Authorization header.
  */
 object TelemetryUploadSettings {
-    const val DEFAULT_REPO = "renxida/kestrel-telemetry"
+    const val DEFAULT_REPO = "familiar-of-cedar/kestrel-telemetry"
     private val REPO = Regex("[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}")
     private val TOKEN = Regex("[A-Za-z0-9_]{20,255}")
     private const val SETTINGS = "settings.properties"

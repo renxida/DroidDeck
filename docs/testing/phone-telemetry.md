@@ -45,7 +45,7 @@ in the next session); an ANR's thread dump is saved beside it as `app-exit-<ms>-
 
 ## Automatic upload (one-time setup)
 
-1. On GitHub, create a private repository (default name `renxida/kestrel-telemetry`). It may stay
+1. On GitHub, create a private repository (default name `familiar-of-cedar/kestrel-telemetry`). It may stay
    empty: the first upload names no branch, so GitHub creates the default branch with that commit,
    and later uploads go to the default branch.
 2. Settings > Developer settings > Fine-grained personal access tokens > Generate: repository access

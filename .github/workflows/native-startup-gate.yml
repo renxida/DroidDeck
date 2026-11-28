@@ -91,7 +91,7 @@ env:
   GAME_ENV: tools/linuxfs/overlay/usr/local/bin/droiddeck-game-env
   PIN_FILE: tools/linuxfs/overlay/usr/local/share/droiddeck/native-engine.json
   # The release the phone skipped on Nov 15 (no Steam bridge): game-env-selftest-54 must see it refused.
-  SELFTEST_54: '{"tag": "native-engine-54", "url": "https://github.com/renxida/DroidDeck/releases/download/native-engine-54/native-engine.tar.zst", "sha256": "2d48de6b67c78992557bab42ee06311cae33a4db1281b8465a19e23c59f93b32", "api": 1}'
+  SELFTEST_54: '{"tag": "native-engine-54", "url": "https://github.com/familiar-of-cedar/lanner/releases/download/native-engine-54/native-engine.tar.zst", "sha256": "2d48de6b67c78992557bab42ee06311cae33a4db1281b8465a19e23c59f93b32", "api": 1}'
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_NOLOGO: '1'
 

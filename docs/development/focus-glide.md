@@ -1,6 +1,6 @@
 # Focus outline
 
-Kestrel has no animations, so focus is a static outline drawn on the focused control.
+Lanner has no animations, so focus is a static outline drawn on the focused control.
 Custom controls use `glideBorder` with their focus interaction state. Material controls use
 `Modifier.focusGlide(shape)` before their focus target. Match the control's shape, and keep
 selection borders separate from the focus outline. Filled primary buttons use

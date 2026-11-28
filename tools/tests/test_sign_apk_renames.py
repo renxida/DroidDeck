@@ -24,7 +24,7 @@ class SignApkRenamesTest(unittest.TestCase):
         self.assertEqual(set(), names - renamed, 'add these to the axml_rename call in tools/release/sign-apk.sh')
 
     def test_the_standard_variant_is_the_built_application_id(self):
-        self.assertEqual('dev.renxida.kestrel', PACKAGE)
+        self.assertEqual('chat.comb.lanner', PACKAGE)
         rows = [line.split() for line in (ROOT / 'tools/release/variants.txt').read_text().splitlines()
                 if line.strip() and not line.startswith('#')]
         self.assertIn(['standard', PACKAGE, '-'], rows)

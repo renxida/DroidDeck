@@ -3,10 +3,10 @@
 # in Wine's log (handle_syscall_fault pc=...) can be matched to a library afterwards.
 # On the phone, as the app (from Git Bash, with MSYS_NO_PATHCONV=1):
 #   adb push tools/venus/watch-maps.sh /data/local/tmp/
-#   adb shell "run-as dev.renxida.kestrel sh /data/local/tmp/watch-maps.sh 'Hollow Knight Silksong.exe'"
-# Runs 15 minutes. Then: adb exec-out "run-as dev.renxida.kestrel cat cache/game-maps.txt" > maps.txt
+#   adb shell "run-as chat.comb.lanner sh /data/local/tmp/watch-maps.sh 'Hollow Knight Silksong.exe'"
+# Runs 15 minutes. Then: adb exec-out "run-as chat.comb.lanner cat cache/game-maps.txt" > maps.txt
 name=${1:?process name, as ps shows it}
-cd /data/user/0/dev.renxida.kestrel || exit 1
+cd /data/user/0/chat.comb.lanner || exit 1
 rm -f cache/game-maps.txt
 i=0
 while [ $i -lt 900 ]; do
