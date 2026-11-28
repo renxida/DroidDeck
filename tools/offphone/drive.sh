@@ -264,12 +264,20 @@ if [ "$scenario" = steam-ui-restart ] && [ -n "$login" ]; then
     local end=$(( $(date +%s) + $1 )); shift
     while [ "$(date +%s)" -lt "$end" ]; do "$@" && return 0; sleep 2; done; return 1
   }
+  # A running session with no screen: Home leaves the session in a picture-in-picture window, and dismissing
+  # that window's task destroys the screen while the service keeps the session.
+  close_screen() {
+    adb shell input keyevent KEYCODE_HOME; sleep 4
+    local task; task=$(adb shell am stack list | tr -d '\r' | grep -m1 -E "taskId=[0-9]+: $pkg/.*SessionActivity" | sed -E 's/.*taskId=([0-9]+):.*/\1/')
+    [ -n "$task" ] && adb shell am stack remove "$task" >/dev/null 2>&1
+    sleep 4
+    echo "rig: screen closed (task ${task:-not found}): top $(top_activity), phase $(phase), running $(session_field running), screen $(session_field screen)"
+  }
   first=$(latest_dir)
-  adb shell input keyevent KEYCODE_HOME; sleep 4
-  echo "rig: before the stop: top $(top_activity), phase $(phase), screen $(session_field screen)"
+  close_screen
   if [ "$(session_field screen)" = false ]; then
     "$ctl" stop >/dev/null 2>&1; wait_idle 120 && rig_event stopped_without_screen
-  else echo "rig: the session screen is still up after Home; the stop would not be the one under test"; fi
+  else echo "rig: the session screen is still up; the stop would not be the one under test"; adb shell am stack list | head -40; fi
   plant_crash "$first"
 
   adb logcat -c; "$ctl" start steam >/dev/null 2>&1 || echo "rig: second start refused"
@@ -294,12 +302,11 @@ if [ "$scenario" = steam-ui-restart ] && [ -n "$login" ]; then
   echo "rig: third start: top $(top_activity), phase $(phase), screen $(session_field screen); $(app_log 'xwayland:')"
   [ -n "$(app_log 'drew no frame; glamor is back on')" ] && [ -z "$(app_log 'glamor off for this one')" ] && rig_event noglamor_guard_cleared
 
-  adb shell input keyevent KEYCODE_HOME; sleep 4
-  echo "rig: before resume: top $(top_activity), phase $(phase), screen $(session_field screen)"
-  "$ctl" resume > "$out/resume.json" 2>&1; echo "rig: resume: $(head -c 400 "$out/resume.json")"
+  close_screen
+  "$ctl" resume > "$out/resume.json" 2>"$out/resume.err"; echo "rig: resume: $(head -c 400 "$out/resume.json")"
   sleep 3
-  case "$(top_activity):$(session_field screen)" in
-    *SessionActivity*:true) rig_event resume_opened_screen ;;
+  case "$(top_activity):$(session_field screen):$(jq -r '.screenOpen' "$out/resume.json" 2>/dev/null)" in
+    *SessionActivity*:true:false) rig_event resume_opened_screen ;;
     *) echo "rig: after resume: top $(top_activity), screen $(session_field screen)" ;;
   esac
   adb logcat -d -v time 2>/dev/null | grep -E "SessionService|SessionActivity|AgentStart|BridgeDefault" | tail -n 400 > "$out/restart-logcat.txt"
