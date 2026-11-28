@@ -190,7 +190,7 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Performance overlay</string>
     <string name="mode_mangoapp_hint">Turn off if games crash or go black in Deck mode. Applies next session.</string>
-    <string name="mode_mangoapp_level_hint">Steam draws it, and keeps it hidden until you raise Performance Overlay Level in Steam\'s Quick Access menu (Performance).</string>
+    <string name="mode_mangoapp_level_hint">Steam shows it from Quick Access &gt; Performance: raise Performance Overlay Level there.</string>
     <string name="mode_return_after_game">Return to Lanner after a game</string>
     <string name="mode_return_after_game_hint">When a game you started from Lanner or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
     <string name="mode_shader_precache">Shader pre-caching</string>

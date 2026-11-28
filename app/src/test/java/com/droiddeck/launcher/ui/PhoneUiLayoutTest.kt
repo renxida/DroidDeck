@@ -78,6 +78,7 @@ class PhoneUiLayoutTest {
         compose.onNodeWithTag("setting-offline").assert(SemanticsMatcher.expectValue(StateDescription, context.getString(R.string.widgets_on)))
         compose.onNodeWithText(context.getString(R.string.setup_offline_on, "rad1enc3")).assertIsDisplayed()
         compose.onNodeWithTag("chips-scroll").assertIsDisplayed()
+        compose.onAllNodesWithTag("hint-more").onFirst().assert(SemanticsMatcher.expectValue(StateDescription, context.getString(R.string.widgets_hint_more)))
         screenshot("settings-steam")
     }
 
@@ -95,7 +96,7 @@ class PhoneUiLayoutTest {
         compose.onNodeWithText(hint).performScrollTo().performClick()
         val open = compose.onNodeWithText(hint).getUnclippedBoundsInRoot()
         assertTrue("the description grows when tapped", open.bottom - open.top > closed.bottom - closed.top)
-        compose.onNodeWithText(context.getString(R.string.widgets_hint_less)).assertExists()
+        compose.onNodeWithText(hint).assert(SemanticsMatcher.expectValue(StateDescription, context.getString(R.string.widgets_hint_less)))
         screenshot("settings-steam-description-open")
         compose.onNodeWithText(hint).performClick()
         val again = compose.onNodeWithText(hint).getUnclippedBoundsInRoot()

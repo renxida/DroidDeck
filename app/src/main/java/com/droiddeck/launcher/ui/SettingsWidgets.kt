@@ -29,6 +29,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.semantics.text
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.Canvas
@@ -449,26 +452,79 @@ fun SettingsGroup(title: String, compact: Boolean = false, detail: String? = nul
 
 internal const val HINT_LINES = 2
 
-/** A row's description: [HINT_LINES] lines until it is tapped or the row holds controller focus. */
+/**
+ * A row's description: [HINT_LINES] lines ending in More until it is tapped (then all of it, ending in Less) or the
+ * row holds controller focus (then all of it).
+ */
 @Composable
 private fun SettingHint(text: String, size: androidx.compose.ui.unit.TextUnit, focused: Boolean) {
     val colors = MaterialTheme.colorScheme
+    val link = androidx.compose.ui.text.SpanStyle(color = LocalPalette.current.signal, fontWeight = FontWeight.SemiBold)
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     var open by androidx.compose.runtime.saveable.rememberSaveable(text) { mutableStateOf(false) }
-    var clipped by remember(text) { mutableStateOf(false) }
-    val full = open || focused
+    var fit by remember(text) { mutableStateOf<HintFit?>(null) }
     val more = stringResource(R.string.widgets_hint_more)
     val less = stringResource(R.string.widgets_hint_less)
+    val cut = fit?.cut
+    val shown = when {
+        open -> hintWithLink(text, text.length, " ", less, link)
+        focused || cut == null -> androidx.compose.ui.text.AnnotatedString(text)
+        else -> hintWithLink(text, cut, HINT_ELLIPSIS, more, link)
+    }
     val src = remember { MutableInteractionSource() }
-    val tap = if (clipped || open) Modifier.focusProperties { canFocus = false }
-        .clickable(interactionSource = src, indication = null, onClickLabel = if (open) less else more) { open = !open }
+    val toggle = { open = !open }
+    val tap = if (cut != null || open) Modifier
+        .clearAndSetSemantics {
+            this.text = androidx.compose.ui.text.AnnotatedString(text)
+            this.testTag = "hint-more"
+            stateDescription = if (open) less else more
+            onClick(if (open) less else more) { toggle(); true }
+        }
+        .focusProperties { canFocus = false }
+        .clickable(interactionSource = src, indication = null, onClick = toggle)
     else Modifier
-    Text(text, fontSize = size, color = colors.onSurfaceVariant,
-        maxLines = if (full) Int.MAX_VALUE else HINT_LINES, overflow = TextOverflow.Ellipsis,
-        onTextLayout = { if (!full) clipped = it.hasVisualOverflow },
+    Text(shown, fontSize = size, color = colors.onSurfaceVariant,
+        maxLines = if (open || focused) Int.MAX_VALUE else HINT_LINES, overflow = TextOverflow.Ellipsis,
+        onTextLayout = { result ->
+            val width = result.layoutInput.constraints.maxWidth
+            if (fit?.width != width) fit = HintFit(width, hintCut(text, HINT_LINES, width) { candidate, lines ->
+                measurer.measure(
+                    candidate?.let { hintWithLink(text, it, HINT_ELLIPSIS, more, link) } ?: androidx.compose.ui.text.AnnotatedString(text),
+                    style = result.layoutInput.style, overflow = TextOverflow.Ellipsis, maxLines = lines,
+                    constraints = androidx.compose.ui.unit.Constraints(maxWidth = width),
+                ).let { it.hasVisualOverflow to it.getLineEnd(it.lineCount - 1, visibleEnd = true) }
+            })
+        },
         modifier = Modifier.padding(top = 2.dp).then(tap))
-    if (open || (clipped && !full)) Text(if (open) less else more, fontSize = size, fontWeight = FontWeight.SemiBold,
-        color = LocalPalette.current.signal, modifier = Modifier.testTag("hint-more").then(tap).padding(vertical = 2.dp))
 }
+
+private const val HINT_ELLIPSIS = "… "
+
+private class HintFit(val width: Int, val cut: Int?)
+
+private fun hintWithLink(text: String, cut: Int, joint: String, word: String, link: androidx.compose.ui.text.SpanStyle) =
+    androidx.compose.ui.text.buildAnnotatedString {
+        append(text.take(cut).trimEnd())
+        append(joint)
+        pushStyle(link)
+        append(word)
+        pop()
+    }
+
+/**
+ * How many characters of [text] fit in [lines] lines of [width] with the More link after them; null when all of it
+ * fits. [measure] lays out the text cut at a length (null: all of it) and says whether it overflows and where its last
+ * line ends.
+ */
+internal fun hintCut(text: String, lines: Int, width: Int, measure: (cut: Int?, lines: Int) -> Pair<Boolean, Int>): Int? {
+    val (overflows, end) = measure(null, lines)
+    if (!overflows || width <= 0) return null
+    var cut = end.coerceIn(0, text.length)
+    while (cut > 0 && measure(cut, lines).first) cut = (cut - HINT_CUT_STEP).coerceAtLeast(0)
+    return cut
+}
+
+private const val HINT_CUT_STEP = 2
 
 @Composable
 fun SettingsRow(

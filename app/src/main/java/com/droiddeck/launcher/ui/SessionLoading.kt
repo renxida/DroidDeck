@@ -75,6 +75,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.PlatformTextStyle
@@ -232,7 +235,13 @@ private fun EndedActions(onRetry: (() -> Unit)?, onRepair: (() -> Unit)?, onShar
     }
 }
 
-/** One segment per step: the steps done are solid, the running one shows its progress, the rest are empty. */
+private const val STEP_PULSE_LOW = 0.35f
+private const val STEP_PULSE_MS = 900
+
+/**
+ * One segment per step: the steps done are solid, the running one fills from the left with its progress, or pulses as
+ * a whole when it has none to show, and the rest are empty.
+ */
 @Composable
 private fun LoadSegments(count: Int, active: Int, percent: Int, modifier: Modifier = Modifier) {
     val pal = LocalPalette.current
@@ -247,9 +256,15 @@ private fun LoadSegments(count: Int, active: Int, percent: Int, modifier: Modifi
                 when {
                     i < active -> Box(segment.testTag("load-step-done").background(pal.signal))
                     i > active -> Box(segment.testTag("load-step-todo").background(colors.surfaceVariant))
-                    percent >= 0 -> LinearProgressIndicator(progress = { percent.coerceIn(0, 100) / 100f }, color = pal.signal,
-                        trackColor = running, modifier = segment.testTag("load-step-running"))
-                    else -> LinearProgressIndicator(color = pal.signal, trackColor = running, modifier = segment.testTag("load-step-running"))
+                    percent >= 0 -> Box(segment.testTag("load-step-running").background(running)) {
+                        Box(Modifier.fillMaxHeight().fillMaxWidth(percent.coerceIn(0, 100) / 100f).background(pal.signal))
+                    }
+                    else -> {
+                        val pulse = rememberInfiniteTransition(label = "step").animateFloat(
+                            STEP_PULSE_LOW, 1f, infiniteRepeatable(tween(STEP_PULSE_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "step",
+                        )
+                        Box(segment.testTag("load-step-running").graphicsLayer { alpha = pulse.value }.background(pal.signal))
+                    }
                 }
             }
         }
