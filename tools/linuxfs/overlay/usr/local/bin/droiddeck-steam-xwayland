@@ -22,8 +22,9 @@ case $display in
       soft=1
       for ((m = 0; m < n; m++)); do
         other=
-        read -r other 2>/dev/null < "$locks/.X$m-lock" || continue
-        if [ "$other" = "$owner" ]; then soft=0; why="the games' server (:$m is Steam's)"; break; fi
+        # A lock without a final newline still fills the variable; read's status says nothing here.
+        read -r other 2>/dev/null < "$locks/.X$m-lock" || true
+        if [ -n "$other" ] && [ "$other" = "$owner" ]; then soft=0; why="the games' server (:$m is Steam's)"; break; fi
       done
     fi
     ;;

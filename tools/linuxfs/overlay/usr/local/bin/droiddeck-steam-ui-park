@@ -236,12 +236,12 @@ def devtools_ready(port, timeout=2):
 class Park:
     def __init__(self, launch_dir, gate, cloud=None, pad=None, scan=scan, mem=meminfo, focus=focus,
                  ready=devtools_ready, kill=os.kill, clock=time.monotonic, wall=time.time, out=sys.stderr,
-                 dwell=DWELL_S, port=None):
+                 dwell=DWELL_S, port=None, hard=False):
         self.launch_dir, self.gate = launch_dir, gate
         self.cloud, self.pad = cloud, pad
         self.scan, self.mem, self.focus, self.ready, self.kill = scan, mem, focus, ready, kill
         self.clock, self.wall, self.out = clock, wall, out
-        self.dwell, self.port = dwell, port
+        self.dwell, self.port, self.hard = dwell, port, hard
         self.state = "idle"          # idle, stopping, parked, restoring, off
         self.mode = "auto"           # auto, park (asked), restore (asked)
         self.helpers, self.games = [], set()
@@ -361,17 +361,17 @@ class Park:
         self.stopped = {web_key(p) for p in self.helpers}
         self.close_gate()
         termed = 0
-        for browser in browsers:
+        for process in (self.helpers if self.hard else browsers):
             try:
-                self.kill(browser.pid, signal.SIGTERM)
+                self.kill(process.pid, signal.SIGKILL if self.hard else signal.SIGTERM)
                 termed += 1
             except OSError:
                 pass
         self.stop_at = now
         self.state = "stopping"
-        self.say("park_begin", "reason=%s games=%s browsers=%d termed=%d %s" % (
+        self.say("park_begin", "reason=%s games=%s browsers=%d signal=%s signalled=%d %s" % (
             "asked" if self.mode == "park" else "game_focused", ",".join(map(str, sorted(self.games))) or "-",
-            len(browsers), termed, self.before))
+            len(browsers), "KILL" if self.hard else "TERM", termed, self.before))
 
     def stopping(self, now):
         self.refresh(force=True)
@@ -486,7 +486,8 @@ def main(argv):
     dwell = os.environ.get("BL_STEAM_UI_PARK_DWELL_S", "")
     park = Park(launch_dir, gate, cloud=CloudLog(os.path.join(steam_root, "logs", "cloud_log.txt")),
                 pad=Pad(os.path.join(launch_dir, "dev", "fakeinput-rings"), exported=os.environ.get("FAKE_EVDEV_MEMFD_PATHS", "")),
-                dwell=int(dwell) if dwell.isdigit() else DWELL_S, port=int(port) if port.isdigit() else None)
+                dwell=int(dwell) if dwell.isdigit() else DWELL_S, port=int(port) if port.isdigit() else None,
+                hard=os.environ.get("BL_STEAM_UI_PARK_SIGNAL", "") == "KILL")
 
     def leave(*_):
         park.close()

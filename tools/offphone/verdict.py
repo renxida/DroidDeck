@@ -50,6 +50,10 @@ SCENARIOS.update({
     # the client's restart of it waits in droiddeck-steam-taskset, the client stays up for two minutes with no
     # helper, and a restore brings the sign-in screen back.
     "steam-ui-park": STEAM + ["park_ready", "ui_parked", "ui_held", "ui_stayed_parked", "ui_restored", "login_screen_again"],
+    "steam-ui-park-kill": STEAM + ["park_ready", "ui_parked", "ui_held", "ui_stayed_parked", "ui_restored", "login_screen_again"],
+    # Probes: what the client does when its web helper is ended at the sign-in screen with nothing held.
+    "steam-ui-helper-term": STEAM + ["helper_signalled", "helper_back", "client_survived", "login_screen_again"],
+    "steam-ui-helper-kill": STEAM + ["helper_signalled", "helper_back", "client_survived", "login_screen_again"],
     # Experiment steam-x-soft: Steam's X server without glamor still shows the interface (the app's own first
     # frame of it, steam_ui) and the session log says the switch took the right server.
     "steam-ui-x-soft": STEAM + ["x_soft_applied"],
@@ -62,6 +66,9 @@ DEADLINES = {
     "steam-ui-background": {"steam_ui": 210},
     "upgrade": {"steam_ui": 180},
     "steam-ui-park": {"steam_ui": 180},
+    "steam-ui-park-kill": {"steam_ui": 180},
+    "steam-ui-helper-term": {"steam_ui": 180},
+    "steam-ui-helper-kill": {"steam_ui": 180},
     "steam-ui-x-soft": {"steam_ui": 180},
 }
 

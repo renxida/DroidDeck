@@ -415,12 +415,12 @@ class GateHoldTest(unittest.TestCase):
 class XSoftTest(unittest.TestCase):
     """droiddeck-steam-xwayland takes glamor from the first X server of a gamescope only."""
 
-    def run_wrapper(self, root, display, locks):
+    def run_wrapper(self, root, display, locks, newline="\n"):
         real = root / "Xwayland-real"
         real.write_text("#!/bin/sh\nprintf '%s|%s\\n' \"${XWAYLAND_NO_GLAMOR:-}\" \"$*\"\n")
         real.chmod(0o755)
         for number, owner in locks.items():
-            (root / (".X%d-lock" % number)).write_text("%10d\n" % owner)
+            (root / (".X%d-lock" % number)).write_text(("%10d" + newline) % owner)
         notes = root / "notes"
         notes.mkdir(exist_ok=True)
         env = dict(os.environ, BL_XWAYLAND_REAL=str(real), BL_X_LOCK_DIR=str(root), BL_X_SOFT_DIR=str(notes))
@@ -440,6 +440,13 @@ class XSoftTest(unittest.TestCase):
             out, err, notes = self.run_wrapper(root, ":1", {0: 4242, 1: 4242})
             self.assertEqual(out, "|:1 -rootless -core -listenfd 40")
             self.assertTrue((notes / "glamor.1").exists())
+
+    def test_locks_without_a_final_newline_read_the_same(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out, _, _ = self.run_wrapper(Path(tmp), ":1", {0: 4242, 1: 4242}, newline="")
+            self.assertEqual(out, "|:1 -rootless -core -listenfd 40")
+            out, _, _ = self.run_wrapper(Path(tmp), ":0", {0: 4242, 1: 4242}, newline="")
+            self.assertEqual(out, "1|:0 -rootless -core -listenfd 40")
 
     def test_another_compositors_lower_display_does_not_count(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -19,6 +19,11 @@
 #                        park (no game runs here): the web helper must end, the client's restart of it must
 #                        wait in droiddeck-steam-taskset, the client must stay up for two minutes without it,
 #                        and a restore must bring the sign-in screen back.
+# steam-ui-park-kill     steam-ui-park with BL_STEAM_UI_PARK_SIGNAL=KILL: the helper is killed, not asked to end.
+# steam-ui-helper-term, steam-ui-helper-kill
+#                        Probes with no experiment on: at the sign-in screen the rig itself sends the web
+#                        helper's browser process SIGTERM, or all its processes SIGKILL, and watches for two
+#                        minutes whether the client stays up and starts a new helper.
 # steam-ui-x-soft        steam-ui with the steam-x-soft experiment on: Steam's X server runs without glamor and
 #                        the interface must still reach the screen and its sign-in page.
 # upgrade                The previous kestrel.apk installed and set up first (OLD_APK, already
@@ -35,7 +40,7 @@ ctl="$apptools/droiddeckctl"
 pkg=$("$apptools/app-id")
 fs=/data/user/0/$pkg/files/linuxfs
 case $scenario in
-  steam-ui|steam-ui-screen-cycle|steam-ui-background|upgrade|steam-ui-park|steam-ui-x-soft) base=steam-ui ;;
+  steam-ui|steam-ui-screen-cycle|steam-ui-background|upgrade|steam-ui-park|steam-ui-park-kill|steam-ui-x-soft|steam-ui-helper-term|steam-ui-helper-kill) base=steam-ui ;;
   stand-in-game|stand-in-background|stand-in-native) base=stand-in-game ;;
   *) echo "unknown scenario $scenario"; exit 2 ;;
 esac
@@ -82,6 +87,7 @@ XML
 }
 case $scenario in
   steam-ui-park) experiments_on steam-ui-park ;;
+  steam-ui-park-kill) experiments_on steam-ui-park; guest_env+=(BL_STEAM_UI_PARK_SIGNAL=KILL) ;;
   # The rig's Steam composites as the session's default does, not as an open driver pair's; the switch is
   # told to apply anyway.
   steam-ui-x-soft) experiments_on steam-x-soft; guest_env+=(BL_STEAM_X_SOFT=1) ;;
@@ -304,7 +310,28 @@ if [ "$scenario" = steam-ui-x-soft ] && [ -n "$login" ] && [ -n "$rigdir" ]; the
     echo "rig: Xwayland pid $p: $(adb shell "tr '\\0' ' ' < /proc/$p/cmdline | cut -c1-40") glamor off in its environment: $(adb shell "tr '\\0' '\\n' < /proc/$p/environ | grep -c '^XWAYLAND_NO_GLAMOR=1'" | tr -d '\r')"
   done
 fi
-if [ "$scenario" = steam-ui-park ] && [ -n "$login" ] && [ -n "$rigdir" ]; then
+case $scenario in steam-ui-helper-term|steam-ui-helper-kill)
+  if [ -n "$login" ] && [ -n "$rigdir" ]; then
+    steam_ps before
+    old=$(awk '/steamwebhelper/ && !/steamwebhelper\.sh/ && !/taskset/ { print $2 }' "$out/steam-ps-before.txt" | sort | tr '\n' ' ')
+    browser=$(awk '/steamwebhelper/ && !/steamwebhelper\.sh/ && !/taskset/ && !/--type=/ { print $2 }' "$out/steam-ps-before.txt" | tr '\n' ' ')
+    if [ "$scenario" = steam-ui-helper-term ]; then adb shell "kill -TERM $browser"; else adb shell "kill -KILL $old"; fi
+    echo "rig: signalled the web helper (browser $browser; all $old)"; rig_event helper_signalled; asked=$(date +%s)
+    survived=1; back=
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+      sleep 10; steam_ps "after-$((i * 10))s"
+      [ "$(client_count "after-$((i * 10))s")" -ge 1 ] || { survived=; echo "rig: the Steam client is gone $((i * 10))s after the signal"; break; }
+      new=$(awk '/steamwebhelper/ && !/steamwebhelper\.sh/ && !/taskset/ { print $2 }' "$out/steam-ps-after-$((i * 10))s.txt" | sort | tr '\n' ' ')
+      [ -n "$new" ] && [ "$new" != "$old" ] && [ -z "$back" ] && { back=1; rig_event helper_back; echo "rig: a new web helper $((i * 10))s after the signal"; }
+      if [ -n "$back" ] && "$ctl" cdp targets 2>/dev/null | jq -e '[.. | objects | .url? // empty | strings | test("/routes/login")] | any' >/dev/null 2>&1; then
+        rig_event login_screen_again; echo "rig: sign-in screen back $(( $(date +%s) - asked ))s after the signal"; break
+      fi
+    done
+    [ -n "$survived" ] && [ "$(phase)" = READY ] && rig_event client_survived
+    echo "::group::the session log after the signal"; adb shell "tail -n 60 ${rigdir%/}/session.log" | tr -d '\r' | cut -c1-300; echo "::endgroup::"
+  fi ;;
+esac
+if [ "${scenario#steam-ui-park}" != "$scenario" ] && [ -n "$login" ] && [ -n "$rigdir" ]; then
   sess=/data/user/0/$pkg/files/session
   uid=$(adb shell stat -c %u "$fs" | tr -d '\r')
   ask() { adb shell "printf '%s\n' $1 > $sess/steam-ui-park.tmp && chown $uid:$uid $sess/steam-ui-park.tmp && chmod 644 $sess/steam-ui-park.tmp && mv $sess/steam-ui-park.tmp $sess/steam-ui-park"; }
