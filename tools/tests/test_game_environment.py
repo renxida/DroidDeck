@@ -54,6 +54,11 @@ class FreeMemoryRequestTest(unittest.TestCase):
             self.assertEqual(MODULE["free_memory"](tmp, "2868840", wait=0.05, poll=0.01), "no answer in 0 s")
             token = (Path(tmp) / "free-memory").read_text().strip()
             self.assertRegex(token, r"^2868840-[0-9a-f]{16}$")
+        with tempfile.TemporaryDirectory() as tmp:
+            MODULE["free_memory"](tmp, "2868840", wait=0.05, poll=0.01, engine="native")
+            token, engine = (Path(tmp) / "free-memory").read_text().splitlines()
+            self.assertRegex(token, r"^2868840-[0-9a-f]{16}$")
+            self.assertEqual("engine=native", engine)
         self.assertEqual(MODULE["free_memory"]("", "2868840"), "no launch directory")
         self.assertEqual(MODULE["free_memory"]("/nonexistent/launch", "2868840"), "no launch directory")
 
@@ -3625,9 +3630,9 @@ class NativeEngineCheckTest(unittest.TestCase):
                 self.cmd, env, run=lambda args, **kw: order.append("run") or Done(), clock=lambda: next(times),
                 popen=lambda args, **kw: None, ng=ng,
                 before_run=lambda: MODULE["before_native_run"](
-                    notes, env, "42", free=lambda launch_dir, app_id: order.append("free " + app_id) or "method=none"))
+                    notes, env, "42", free=lambda launch_dir, app_id, engine=None: order.append("free %s %s" % (app_id, engine)) or "method=none"))
         self.assertEqual(0, rc)
-        self.assertEqual(["free 42", "run"], order)
+        self.assertEqual(["free 42 native", "run"], order)
         self.assertEqual([], notes)
         lines = err.getvalue().splitlines()
         self.assertEqual(["droiddeck-game-env: Godot 4.5.1, Forward+",
@@ -3644,7 +3649,7 @@ class NativeEngineCheckTest(unittest.TestCase):
 
     def test_free_memory_before_a_native_run_follows_its_switch_and_skips_a_prestarted_engine(self):
         asked = []
-        free = lambda launch_dir, app_id: asked.append(app_id) or "method=none"
+        free = lambda launch_dir, app_id, engine=None: asked.append(app_id) or "method=none"
         err = io.StringIO()
         with mock.patch("sys.stderr", err):
             MODULE["before_native_run"]([], {}, "42", free=free)

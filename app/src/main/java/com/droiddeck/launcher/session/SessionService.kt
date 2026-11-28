@@ -1778,12 +1778,15 @@ class SessionService : Service() {
     /** droiddeck-game-env asks before a game starts and waits for the answer with its token. */
     private fun freeMemoryForGame(dir: File, gen: Int) {
         val request = File(dir, FreeMemory.REQUEST)
-        val token = runCatching { request.readText().trim() }.getOrNull()?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,80}")) } ?: return
+        val asked = runCatching { request.readText() }.getOrNull()?.let(FreeMemory::parseRequest) ?: return
+        val token = asked.token
         request.delete()
         val app = applicationContext
         Thread({
             val summary = if (gen == sessionGen && SessionState.running && Experiments.FREE_MEMORY in Experiments.enabled(app)) {
-                runCatching { FreeMemory.run(app, FreeMemory.GAME_EXEC, FreeMemory.GAME_NEED_MB) }
+                runCatching {
+                    FreeMemory.run(app, FreeMemory.GAME_EXEC, FreeMemory.GAME_NEED_MB) { FreeMemory.wantedForGame(it, asked.native) }
+                }
                     .map(FreeMemory::summary)
                     .getOrElse { "failed" }
             } else "off"
