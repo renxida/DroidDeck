@@ -17,13 +17,14 @@
 #                        "Native engine skipped" or a fall back to Proton fails the run.
 # steam-ui-park          steam-ui with the steam-ui-park experiment on. At the sign-in screen the rig asks for a
 #                        park (no game runs here): the web helper must end, the client's restart of it must
-#                        wait in droiddeck-steam-taskset, the client must stay up for two minutes without it,
-#                        and a restore must bring the sign-in screen back.
+#                        wait in droiddeck-steam-taskset, and nothing may be left behind the gate afterwards.
+#                        Signed out, the client shuts down when its helper ends (see the probes), which ends
+#                        the park; a client that stays up is watched for two minutes and restored.
 # steam-ui-park-kill     steam-ui-park with BL_STEAM_UI_PARK_SIGNAL=KILL: the helper is killed, not asked to end.
 # steam-ui-helper-term, steam-ui-helper-kill
 #                        Probes with no experiment on: at the sign-in screen the rig itself sends the web
-#                        helper's browser process SIGTERM, or all its processes SIGKILL, and watches for two
-#                        minutes whether the client stays up and starts a new helper.
+#                        helper's browser process SIGTERM, or all its processes SIGKILL, and reports whether
+#                        the client stays up and starts a new helper. They record; either answer passes.
 # steam-ui-x-soft        steam-ui with the steam-x-soft experiment on: Steam's X server runs without glamor and
 #                        the interface must still reach the screen and its sign-in page.
 # upgrade                The previous kestrel.apk installed and set up first (OLD_APK, already
@@ -348,29 +349,39 @@ if [ "${scenario#steam-ui-park}" != "$scenario" ] && [ -n "$login" ] && [ -n "$r
   done
   echo "rig: gate files: $(adb shell "ls $sess | grep steam-ui" | tr -d '\r' | tr '\n' ' ')"
   echo "rig: parked $(( $(date +%s) - asked ))s after the request"
-  # Two minutes without its web helper: the client must stay up and must not get a helper past the gate.
+  # The signed-out client shuts down within seconds of its web helper ending, held or not (the
+  # steam-ui-helper-term and -kill probes show the same with no experiment on), so on this rig the park
+  # usually ends with the session. A client that stays up is watched for two minutes and then restored.
   stayed=1
   for i in 1 2 3 4; do
     sleep 30; steam_ps "parked-$((i * 30))s"
-    [ "$(client_count "parked-$((i * 30))s")" -ge 1 ] || { stayed=; echo "rig: the Steam client is gone"; }
-    [ "$(helper_count "parked-$((i * 30))s")" -eq 0 ] || { stayed=; echo "rig: a web helper is running while parked"; }
+    [ "$(client_count "parked-$((i * 30))s")" -ge 1 ] || { stayed=; echo "rig: the Steam client is gone $((i * 30))s into the park (signed out; see the probes)"; break; }
+    [ "$(helper_count "parked-$((i * 30))s")" -eq 0 ] || { stayed=; echo "rig: a web helper is running while parked"; break; }
   done
-  session_log_has 'event=steam_ui_park_hold_missed' && stayed=
-  session_log_has 'event=steam_ui_park_failed' && stayed=
-  [ "$(phase)" = READY ] || { stayed=; echo "rig: session phase $(phase) while parked"; }
-  [ -n "$stayed" ] && grep -q ui_held "$out/rig-events.jsonl" && rig_event ui_stayed_parked
-  ask restore; asked=$(date +%s)
-  if wait_log 'event=steam_ui_restored' 120; then rig_event ui_restored; fi
-  echo "rig: restored $(( $(date +%s) - asked ))s after the request"
-  for i in $(seq 1 30); do
-    t=$("$ctl" cdp targets 2>/dev/null)
-    if jq -e '[.. | objects | .url? // empty | strings | test("/routes/login")] | any' <<<"$t" >/dev/null 2>&1; then
-      echo "$t" > "$out/cdp-targets-restored.json"; rig_event login_screen_again
-      echo "rig: sign-in screen back $(( $(date +%s) - asked ))s after the restore request"; break
-    fi
-    sleep 3
-  done
-  steam_ps restored
+  session_log_has 'event=steam_ui_park_hold_missed' && { stayed=; echo "rig: the hold was missed"; }
+  session_log_has 'event=steam_ui_park_failed' && { stayed=; echo "rig: the park failed"; }
+  if [ -n "$stayed" ] && [ "$(phase)" = READY ]; then
+    rig_event ui_stayed_parked
+    ask restore; asked=$(date +%s)
+    if wait_log 'event=steam_ui_restored' 120; then rig_event ui_restored; fi
+    echo "rig: restored $(( $(date +%s) - asked ))s after the request"
+    for i in $(seq 1 30); do
+      t=$("$ctl" cdp targets 2>/dev/null)
+      if jq -e '[.. | objects | .url? // empty | strings | test("/routes/login")] | any' <<<"$t" >/dev/null 2>&1; then
+        echo "$t" > "$out/cdp-targets-restored.json"; rig_event login_screen_again
+        echo "rig: sign-in screen back $(( $(date +%s) - asked ))s after the restore request"; break
+      fi
+      sleep 3
+    done
+  else
+    wait_idle 60 || true
+  fi
+  # Whatever ended the park, nothing may be left waiting behind the gate.
+  sleep 3; steam_ps after
+  left=$(adb shell "ls $sess 2>/dev/null | grep steam-ui-gate" | tr -d '\r' | tr '\n' ' ')
+  waiting=$(grep -c 'droiddeck-steam/taskset' "$out/steam-ps-after.txt")
+  echo "rig: after the park: gate files '${left}', starts still waiting $waiting"
+  [ -z "$left" ] && [ "$waiting" -eq 0 ] && rig_event gate_released
   echo "::group::steam-ui-park lines in the session log"
   adb shell "grep -hE 'steam_ui_|steam-ui-park|steam: its interface' ${rigdir%/}/session.log" | tr -d '\r' | cut -c1-400
   echo "::endgroup::"

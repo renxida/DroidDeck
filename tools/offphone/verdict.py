@@ -47,13 +47,14 @@ SCENARIOS.update({
                         "standin_mainloop_ok"],
     "upgrade": ["upgrade_installed", "settings_kept", "runtime_kept"] + STEAM,
     # Experiment steam-ui-park at the sign-in screen: the web helper ends (droiddeck-steam-ui-park's own line),
-    # the client's restart of it waits in droiddeck-steam-taskset, the client stays up for two minutes with no
-    # helper, and a restore brings the sign-in screen back.
-    "steam-ui-park": STEAM + ["park_ready", "ui_parked", "ui_held", "ui_stayed_parked", "ui_restored", "login_screen_again"],
-    "steam-ui-park-kill": STEAM + ["park_ready", "ui_parked", "ui_held", "ui_stayed_parked", "ui_restored", "login_screen_again"],
-    # Probes: what the client does when its web helper is ended at the sign-in screen with nothing held.
-    "steam-ui-helper-term": STEAM + ["helper_signalled", "helper_back", "client_survived", "login_screen_again"],
-    "steam-ui-helper-kill": STEAM + ["helper_signalled", "helper_back", "client_survived", "login_screen_again"],
+    # the client's restart of it waits in droiddeck-steam-taskset, and afterwards no gate file or waiting start
+    # is left. A signed-out client shuts down when its helper ends, with or without the experiment (the two
+    # probes below record that), so staying parked and the restore (ui_stayed_parked, ui_restored,
+    # login_screen_again) are reported under other_stages when they happen and are not required here.
+    "steam-ui-park": STEAM + ["park_ready", "ui_parked", "ui_held", "gate_released"],
+    "steam-ui-park-kill": STEAM + ["park_ready", "ui_parked", "ui_held", "gate_released"],
+    "steam-ui-helper-term": STEAM + ["helper_signalled"],
+    "steam-ui-helper-kill": STEAM + ["helper_signalled"],
     # Experiment steam-x-soft: Steam's X server without glamor still shows the interface (the app's own first
     # frame of it, steam_ui) and the session log says the switch took the right server.
     "steam-ui-x-soft": STEAM + ["x_soft_applied"],

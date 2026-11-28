@@ -472,6 +472,7 @@ class Park:
     def close(self):
         if self.state in ("stopping", "parked"):
             self.say("restore_begin", "reason=controller_exit held=%d" % self.held())
+            self.state = "off"
         self.open_gate()
 
 

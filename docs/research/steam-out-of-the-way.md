@@ -196,7 +196,54 @@ itself lost; the second one works. A game that asks Steam for text input while p
 
 ## 5. What the off-phone rig proved
 
-RIG_RESULTS
+Runs of `.github/workflows/offphone-rig.yml` on this branch (redroid on `ubuntu-24.04-arm`, the real arm64
+Steam client build 1793740892 at its sign-in screen, GL on llvmpipe, nothing signed in, no game through
+Steam). GPU memory does not exist there (`gpu_mb=-1` in every line), so none of the savings were measured.
+
+**`steam-x-soft`** (scenario `steam-ui-x-soft`, run 46118945996, VERIFIED):
+
+- `== steam-x-soft: Xwayland :0 (Steam's interface) starts without glamor`, `Xwayland :1 keeps glamor: the
+  games' server (:0 is Steam's)`; read back from the two servers' environments: `XWAYLAND_NO_GLAMOR=1` in
+  `:0` only. The app recorded `steam.x_soft {applied: 1, display: ":0", game_display: ":1"}`.
+- Steam's interface still reached the screen and its sign-in page through the shared-memory path: the app's
+  own `steam.ui_first_frame` at 70.6 s and the sign-in page at 77.3 s (control run of the same build: 77.3 s
+  and 83.3 s), with 44 frame rows in `frames.csv` against the control's 42.
+- The first run (46116889411) took glamor from **both** servers: wlroots writes its lock files without a
+  final newline, `read` returned non-zero and the wrapper skipped the comparison. Fixed in efe11bd3, with a
+  test. A unit test with a newline had passed; the rig caught it.
+- Not shown: what the interface looks like (the rig's screenshot is black in the control too), its speed, or
+  any memory number that transfers. On the rig the control's glamor is already software.
+
+**`steam-ui-park`** (scenarios `steam-ui-park`, `steam-ui-park-kill`; probes `steam-ui-helper-term`,
+`steam-ui-helper-kill`), VERIFIED:
+
+- The controller starts with the session (`steam_ui_park_ready`), takes a request, ends the helper in 0.5 s
+  (`steam_ui_parked took_ms=507`, 4 processes and 1.67 to 1.83 GB resident to 0; the rig's helper is that
+  large because it renders in software), and the client's **immediate restart of the helper is caught by
+  the hold**: the marker `steam-ui-gate.held.<pid>` appeared within 2 to 6 s in all three runs (46116887446,
+  46118942793 with SIGTERM, 46118944403 with SIGKILL). So Valve's `steamwebhelper.sh` on this client does go
+  through `taskset` on the PATH, and the hold is in the start path.
+- When the session ended, the controller removed the gate on its way out (`restore_begin
+  reason=controller_exit held=1`).
+- **The rig cannot show a long park.** Signed out, this client shuts down within 10 s of its web helper
+  ending, **with or without the experiment**: the two probes, which have no experiment on and hold nothing,
+  lost the client the same way after SIGTERM (46117780338) and after SIGKILL (46117781935), with no new
+  helper. In the park runs the client's log says `Shutdown` and it exits 0 two to six seconds after the
+  helper ended. On the phone, signed in with a game running, the same SIGTERM was followed by a restart and
+  the game stayed up (section 1). So the signed-out state is what the rig can reach, and it is the wrong
+  state for this question: whether a **signed-in** client stays up for an hour with its helper held is
+  UNVERIFIED and is the first thing the phone plan checks, with no game running.
+- A consequence for the request file: `park` at the sign-in screen ends the session. The automatic path
+  cannot do that (it needs a running game), but do not ask for a park by hand before signing in.
+- Not exercised: the stand-in game does not run through Steam on the rig, so no game was in front, no focus,
+  dwell, button or cloud-sync path ran there. Those are covered by the unit tests
+  (`tools/tests/test_steam_ui_park.py`, 27 tests: the state machine over a fake clock and process table,
+  the cloud log, the pad rings, the real `droiddeck-steam-taskset` hold and the real Xwayland wrapper) and
+  by nothing else. No Steam API call was made through the bridge while parked; the rig signs in nowhere.
+
+Build APK run 46115957663 (commit 6a839213) was green with the switches off, including the rig's own
+`steam-ui`, `stand-in-game` and `stand-in-native` scenarios and the Android unit tests
+(`ExperimentsTest`, `GameExitWatchTest`).
 
 ## 6. Expected numbers on the 10a (arithmetic from the measured budget)
 
@@ -223,16 +270,20 @@ shows up as available. The load peak (`lmk_risk` at L+40 to 52 s in every Proton
 
 Confidence: high that `steam-x-soft` removes the X server's GPU memory if the session comes up at all; medium
 that the interface is as smooth as before and that nothing on Steam's display needed glamor; high that
-`steam-ui-park` returns 388 MB; medium that the client tolerates an hour without its helper (the rig held it
-for minutes, section 5).
+`steam-ui-park` returns 388 MB for as long as the helper is away; **low to medium that the signed-in client
+stays up with its helper held**, because the only client the rig could test (signed out) shuts down when its
+helper ends and the phone evidence covers a helper that was back within seconds. `steam-x-soft` is therefore
+the one to try first and the larger of the two.
 
 ## 7. What could go wrong
 
 1. `steam-x-soft`: Steam's interface is black, slow, or tears on this driver pair. Seen at once at the
    library screen. The switch is per session; off restores today's behaviour.
 2. `steam-x-soft`: the interface's commits while hidden cost the game frame time (section 3). Shows as P99.
-3. `steam-ui-park`: the client reacts to a missing helper over a long time in a way the rig's minutes did
-   not show: a native "not responding" window, a restart with other flags, or giving up. The controller
+3. `steam-ui-park`: the client reacts to a missing helper by shutting down, as the signed-out client does
+   on the rig within 10 s, or later by a native "not responding" window or a restart with other flags. A
+   client that shuts down takes the session and the game with it: this is the failure that matters, and it
+   is why the first phone check parks with no game running. The controller
    notices a helper it did not release (`park_hold_missed`) and a client that is gone ends the session as it
    does today; a native dialog over the game would be new. Watch for a second 769 window in
    `droiddeckctl focus` while parked.
@@ -268,7 +319,15 @@ $ctl quit 2868840; $ctl wait focused 769 --timeout 120; $ctl screenshot back.png
 $ctl stop; $ctl logs latest
 ```
 
-Runs, one session each, in this order: control, `steam-x-soft`, `steam-ui-park`, both, control again.
+Runs, one session each, in this order: control, `steam-x-soft`, the park pre-check, `steam-ui-park`, both,
+control again.
+
+**Park pre-check, before any game is risked** (switch on, signed in, offline, at the library, no game):
+`$ctl native -- sh -c 'echo park > /data/user/0/chat.comb.lanner/files/session/steam-ui-park'`, then watch
+`session.log` for five minutes. Pass: `steam_ui_parked`, `steam_ui_park_settled held=1`, no `steam exited`,
+`$ctl state` still READY, `gpu_mb` about 390 lower (540 if the X-server step repeats). Then `echo restore`
+the same way: `steam_ui_restored took_ms=` and the library back on screen. If the client exits here, the
+switch is not usable as built: stop, keep `steam-x-soft`, and read section 9 item 2 for what to try instead.
 
 | Check | Where | Pass |
 |---|---|---|
@@ -326,9 +385,11 @@ client; freezing instead of ending the helper.
    helper's 388 MB and one X-server step going away for one sample; the client simply restarted it.
 2. The X server's memory was taken for window contents in the earlier notes ("the pixmaps are Xwayland's
    own"). Its 141 MB steps say otherwise.
-3. The scratch directory and `git stash` are shared between worktrees of one repository. A log file name
+3. The rig's client is signed out, and a signed-out client quits when its web helper ends. Three rig runs
+   went into finding out that the park had not broken the client; the two probe scenarios now say so in one.
+4. The scratch directory and `git stash` are shared between worktrees of one repository. A log file name
    collided with another branch's, and a `git stash` / `git stash pop` pair in a clean worktree popped another
    branch's stash; it was put back with `git stash store` on the same commit within two minutes. Do not use
    `git stash` in these worktrees.
-4. `tools/ci/run-python-tests.sh` is not stable while other branches run it on the same machine:
+5. `tools/ci/run-python-tests.sh` is not stable while other branches run it on the same machine:
    `test_login1` timed out waiting for its bus in one run and passed alone.

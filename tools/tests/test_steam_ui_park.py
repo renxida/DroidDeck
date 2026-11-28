@@ -263,6 +263,8 @@ class ParkTest(unittest.TestCase):
         rig.park.close()
         self.assertFalse(rig.gate())
         self.assertIn("reason=controller_exit", rig.line("restore_begin"))
+        rig.park.close()
+        self.assertEqual(rig.events().count("restore_begin"), 1)
 
 
 class ProbeTest(unittest.TestCase):
