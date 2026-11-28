@@ -10,7 +10,7 @@ queues for measurements.
 | **Test director** | the forgespire session (lead) | The phone and its queue. Decides what runs next, integrates branches into a test build, merges what passes into `main`, reports results. Nothing else touches the phone. |
 | **Bench runner** | one forgespire agent at a time | Executes queue tickets on the phone with the standard bench (below). Never edits app code; files bugs back to the owning track. |
 | **Optimization tracks** | forgespire agents, one branch each | Code and off-phone CI only. Each track ships behind a default-off switch, with tests, a green CI build and a test ticket. |
-| **Research and review** | the server session (and its swarm) | Ranked ideas with evidence, design review of UI changes, review of notes and tickets, the project board. Its sandboxed runner on forgespire can take code-only tasks. |
+| **Coordinator, research and review** | the server session (and its swarm) | Priorities and no duplicate work, the Scoreboard, ranked ideas with evidence, design review, review of what merges, short reports to the owner. Its swarm and the sandboxed runner on forgespire staff code-only tracks. |
 | **Owner** | Cedar | Taste decisions, money, anything public, anything a backup cannot undo. |
 
 ## Tracks (one branch each)
@@ -43,7 +43,9 @@ Every measurement uses the same harness so numbers are comparable and a ticket c
 
 ## Tickets
 
-A track asks for phone time by adding a ticket to `docs/bench/QUEUE.md`:
+A track asks for phone time by opening a GitHub issue on `familiar-of-cedar/lanner` with the label `lab-request`
+(the pinned Scoreboard issue carries one row per tested arm; `docs/bench/QUEUE.md` holds only the running order).
+The issue body:
 
     ### <short name>
     - build: <branch @ commit, CI run id>   (or "current test build")
