@@ -16,6 +16,13 @@
  *            allocated below this layer, so they are an estimate from each image's format and extent.
  *            "bound" splits what the app has placed in that memory between images and buffers (each
  *            object's memory requirement at bind time); live minus bound is allocator slack.
+ *   pacing:  the time between presents (p50, p95, p99 and the longest, from 0.5 ms bins up to 128 ms) and
+ *            the p99 and longest time inside one vkQueuePresentKHR. A present that takes about as long as
+ *            the GPU needs for a frame means the window system below waits for the frame on this thread
+ *            (Mesa's software WSI does: wl_shm or MIT-SHM presents), so CPU and GPU work do not overlap.
+ * Each vkCreateSwapchainKHR prints one "droiddeck-vkcount: swapchain" line with what the game asked for
+ * (extent, format, present mode, minimum image count) and how many images it got; layers below (gamescope's
+ * WSI layer hands the driver MAILBOX) may change the mode, so this is the game's request.
  * The present, acquire and wait times are time the CPU spent blocked on the GPU or the compositor;
  * the rest of the frame interval is CPU work. Counters are relaxed atomics; nothing is held per call.
  * Block cap (experiment vk-blocks-64): with DROIDDECK_VK_BLOCK_MB set, a plain vkAllocateMemory (no dedicated,
@@ -78,6 +85,43 @@ static const char *const counter_names[] = {
 static uint64_t counters[C_COUNT];
 static void add(int counter, uint64_t value) { __atomic_fetch_add(&counters[counter], value, __ATOMIC_RELAXED); }
 static void bump(int counter) { add(counter, 1); }
+
+/* ---- present pacing: 0.5 ms bins, the last one takes everything longer ---- */
+
+#define PACE_BINS 257
+static uint64_t interval_bins[PACE_BINS], present_bins[PACE_BINS];
+static uint64_t interval_max_ns, present_max_ns, last_present_ns;
+static void bin_add(uint64_t *bins, uint64_t *max, uint64_t ns) {
+    uint64_t bin = ns / 500000u;
+    __atomic_fetch_add(&bins[bin < PACE_BINS ? bin : PACE_BINS - 1], 1, __ATOMIC_RELAXED);
+    uint64_t seen = __atomic_load_n(max, __ATOMIC_RELAXED);
+    while (ns > seen && !__atomic_compare_exchange_n(max, &seen, ns, 1, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) { }
+}
+/* The upper edge, in ms, of the bin holding the q-th of total samples. */
+static double bin_quantile(const uint64_t *bins, uint64_t total, double q) {
+    uint64_t want = (uint64_t)(q * (double)total), seen = 0;
+    if (want >= total) want = total ? total - 1 : 0;
+    for (int i = 0; i < PACE_BINS; i++) {
+        seen += bins[i];
+        if (seen > want) return (i + 1) * 0.5;
+    }
+    return PACE_BINS * 0.5;
+}
+static int pace_summary(char *out, size_t room) {
+    uint64_t intervals[PACE_BINS], presents[PACE_BINS], n_intervals = 0, n_presents = 0;
+    for (int i = 0; i < PACE_BINS; i++) {
+        n_intervals += intervals[i] = __atomic_exchange_n(&interval_bins[i], 0, __ATOMIC_RELAXED);
+        n_presents += presents[i] = __atomic_exchange_n(&present_bins[i], 0, __ATOMIC_RELAXED);
+    }
+    uint64_t interval_max = __atomic_exchange_n(&interval_max_ns, 0, __ATOMIC_RELAXED);
+    uint64_t present_max = __atomic_exchange_n(&present_max_ns, 0, __ATOMIC_RELAXED);
+    if (!n_intervals || !n_presents) return 0;
+    int n = snprintf(out, room, " | present interval ms: p50 %.1f p95 %.1f p99 %.1f max %.1f; in present: p99 %.1f max %.1f",
+                     bin_quantile(intervals, n_intervals, 0.50), bin_quantile(intervals, n_intervals, 0.95),
+                     bin_quantile(intervals, n_intervals, 0.99), interval_max / 1e6,
+                     bin_quantile(presents, n_presents, 0.99), present_max / 1e6);
+    return n > 0 && (size_t)n < room ? n : 0;
+}
 
 /* ---- memory gauges: what is held now, not per window ---- */
 
@@ -221,7 +265,7 @@ static void report(uint64_t now, const char *why) {
     pthread_mutex_unlock(&mem_lock);
     double seconds = (double)(now - window_start) / 1e9;
     double frames = snapshot[C_frames] ? (double)snapshot[C_frames] : 1.0;
-    char line[2200];
+    char line[2400];
     int n = snprintf(line, sizeof line,
         "droiddeck-vkcount: %s %.1fs %llu frames %.1f fps | per frame: %.1f submits %.1f cmdbufs %.0f draws "
         "(%.0f indirect) %.1f dispatches %.0f pipeline-binds %.0f set-binds %.0f push-consts %.1f passes "
@@ -247,6 +291,7 @@ static void report(uint64_t now, const char *why) {
         n += snprintf(line + n, sizeof line - n, ", blocks capped at %llu MB (%llu bigger refused)",
                       (unsigned long long)(block_cap >> 20),
                       (unsigned long long)__atomic_load_n(&blocks_refused, __ATOMIC_RELAXED));
+    n += pace_summary(line + n, sizeof line - n - 2);
     n += pass_summary(line + n, sizeof line - n - 2, frames);
     if (n >= (int)sizeof line - 1) n = (int)sizeof line - 2;
     line[n] = '\n';
@@ -279,7 +324,8 @@ static void frame_done(void) {
     X(CmdBindDescriptorSets) X(CmdPushConstants) X(CmdBeginRenderPass) X(CmdBeginRenderPass2) \
     X(CmdBeginRenderPass2KHR) X(CmdBeginRendering) X(CmdBeginRenderingKHR) X(CmdPipelineBarrier) \
     X(CmdPipelineBarrier2) X(CmdPipelineBarrier2KHR) X(CmdCopyBuffer) X(CmdCopyBufferToImage) X(CmdCopyImage) \
-    X(CmdBlitImage) X(CreateRenderPass) X(CreateRenderPass2) X(CreateRenderPass2KHR) X(DestroyRenderPass)
+    X(CmdBlitImage) X(CreateRenderPass) X(CreateRenderPass2) X(CreateRenderPass2KHR) X(DestroyRenderPass) \
+    X(CreateSwapchainKHR) X(GetSwapchainImagesKHR)
 
 struct device_data {
     dispatch_key key;
@@ -484,9 +530,48 @@ static void pace(void) {
 static VkResult VKAPI_CALL queue_present(VkQueue queue, const VkPresentInfoKHR *info) {
     NEXT(queue, QueuePresentKHR);
     VkResult result;
-    TIMED(C_present_ns, next_(queue, info));
+    uint64_t begin = now_ns();
+    result = next_(queue, info);
+    uint64_t end = now_ns();
+    add(C_present_ns, end - begin);
+    bin_add(present_bins, &present_max_ns, end - begin);
+    uint64_t last = __atomic_exchange_n(&last_present_ns, end, __ATOMIC_RELAXED);
+    if (last && end > last) bin_add(interval_bins, &interval_max_ns, end - last);
     frame_done();
     pace();
+    return result;
+}
+
+static const char *present_mode_name(VkPresentModeKHR mode) {
+    switch (mode) {
+    case VK_PRESENT_MODE_IMMEDIATE_KHR: return "IMMEDIATE";
+    case VK_PRESENT_MODE_MAILBOX_KHR: return "MAILBOX";
+    case VK_PRESENT_MODE_FIFO_KHR: return "FIFO";
+    case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED";
+    default: return "other";
+    }
+}
+
+static VkResult VKAPI_CALL create_swapchain(VkDevice device, const VkSwapchainCreateInfoKHR *info,
+                                            const VkAllocationCallbacks *allocator, VkSwapchainKHR *swapchain) {
+    NEXT(device, CreateSwapchainKHR);
+    VkResult result = next_(device, info, allocator, swapchain);
+    if (reports_off) return result;
+    uint32_t images = 0;
+    if (result == VK_SUCCESS && d_->GetSwapchainImagesKHR) d_->GetSwapchainImagesKHR(device, *swapchain, &images, NULL);
+    char line[256];
+    int n = snprintf(line, sizeof line,
+                     "droiddeck-vkcount: swapchain %ux%u format %d, present mode %s (%d), min images %u, got %u%s, result %d\n",
+                     info->imageExtent.width, info->imageExtent.height, (int)info->imageFormat,
+                     present_mode_name(info->presentMode), (int)info->presentMode, info->minImageCount, images,
+                     info->oldSwapchain ? ", replaces one" : "", (int)result);
+    if (n > 0 && n < (int)sizeof line) {
+        fputs(line, stderr);
+        pthread_mutex_lock(&lock);
+        if (extra) { fputs(line, extra); fflush(extra); }
+        pthread_mutex_unlock(&lock);
+    }
+    __atomic_store_n(&last_present_ns, 0, __ATOMIC_RELAXED);
     return result;
 }
 
@@ -910,6 +995,7 @@ static const struct hook { const char *name; PFN_vkVoidFunction function; } devi
     {"vkCreateRenderPass2", (PFN_vkVoidFunction)create_render_pass2},
     {"vkCreateRenderPass2KHR", (PFN_vkVoidFunction)create_render_pass2_khr},
     {"vkDestroyRenderPass", (PFN_vkVoidFunction)destroy_render_pass},
+    {"vkCreateSwapchainKHR", (PFN_vkVoidFunction)create_swapchain},
 };
 
 static PFN_vkVoidFunction device_hook(const char *name) {

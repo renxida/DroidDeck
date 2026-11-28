@@ -105,6 +105,9 @@ class GameExitWatchTest {
         val cores = "DROIDDECK_TIMELINE event=game_cores_reset app_id=2868840 from=0-6 to=2-6 action=repin threads=46 next_s=5 wall_ms=1700000174000"
         assertEquals("game.cores_reset" to mapOf("app_id" to "2868840", "from" to "0-6", "to" to "2-6", "action" to "repin",
             "threads" to "46", "next_s" to "5", "wall_ms" to "1700000174000"), GameExitWatch.relaunchEvent(cores))
+        val skipped = "DROIDDECK_TIMELINE event=game_experiment_skipped app_id=2868840 experiments=vk-count,vk-blocks-64 reason=no_powervr_runtime wall_ms=1700000001000"
+        assertEquals("game.experiment_skipped" to mapOf("app_id" to "2868840", "experiments" to "vk-count,vk-blocks-64",
+            "reason" to "no_powervr_runtime", "wall_ms" to "1700000001000"), GameExitWatch.relaunchEvent(skipped))
         watch.line("DROIDDECK_TIMELINE event=game_exec app_id=2868840 wall_ms=1000", 1_000)
         watch.line(failed, 41_000)
         watch.line(cores, 41_500)

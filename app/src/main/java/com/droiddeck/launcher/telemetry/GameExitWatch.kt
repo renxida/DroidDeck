@@ -169,6 +169,7 @@ class GameExitWatch(private val alive: (Int) -> Boolean) {
         private const val EXPLORER_FAILED = "DROIDDECK_TIMELINE event=game_explorer_failed "
         private const val RELAUNCH = "DROIDDECK_TIMELINE event=game_relaunch "
         private const val CORES_RESET = "DROIDDECK_TIMELINE event=game_cores_reset "
+        private const val EXPERIMENT_SKIPPED = "DROIDDECK_TIMELINE event=game_experiment_skipped "
 
         /**
          * The events.jsonl name and fields of droiddeck-game-env's lines that end no game: the explorer watchdog's
@@ -181,6 +182,7 @@ class GameExitWatch(private val alive: (Int) -> Boolean) {
                 text.startsWith(EXPLORER_FAILED) -> "game.explorer_failed"
                 text.startsWith(RELAUNCH) -> "game.relaunch"
                 text.startsWith(CORES_RESET) -> "game.cores_reset"
+                text.startsWith(EXPERIMENT_SKIPPED) -> "game.experiment_skipped"
                 else -> return null
             }
             return name to text.trim().split(' ').drop(2).mapNotNull {

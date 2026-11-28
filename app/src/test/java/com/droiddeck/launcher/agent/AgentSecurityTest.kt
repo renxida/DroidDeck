@@ -96,7 +96,7 @@ class AgentSecurityTest {
 
     @Test fun providerRefusesPrivilegedMethodsBeforePerformingThem() {
         val provider = Robolectric.buildContentProvider(AgentBridgeProvider::class.java).create().get()
-        for (method in listOf("guest", "cdp", "override", "prefs", "env")) {
+        for (method in listOf("guest", "cdp", "override", "prefs", "env", "latency")) {
             assertEquals(method, "AGENT_COMMANDS_DISABLED", call(provider, method).getJSONObject("error").getString("code"))
         }
         assertFalse(call(provider, "access").getBoolean("commands"))

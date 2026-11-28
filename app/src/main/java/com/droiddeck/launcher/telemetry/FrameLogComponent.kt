@@ -88,7 +88,10 @@ class FrameLogComponent(
                             exits.focus(info[0], engine, steam, System.currentTimeMillis())
                             if (out.info(now, engine, info[0], steam, info[1], info[2], info[3]) && focusEvents < MAX_FOCUS_EVENTS) {
                                 focusEvents++
-                                SessionEvents.record("frames.focus", mapOf("engine" to engine, "pid" to info[0], "steam" to steam))
+                                SessionEvents.record("frames.focus", mapOf("engine" to engine, "pid" to info[0], "steam" to steam,
+                                    "output" to "${info[1]}x${info[2]}@${info[3]}mHz",
+                                    "panelHz" to com.droiddeck.launcher.session.SessionState.refreshHz,
+                                    "path" to runCatching { com.droiddeck.launcher.wayland.WaylandCompositor.nativePresentPath() }.getOrNull()))
                             }
                         }
                         val n = HudFrames.nativePoll(handle, frametimes, times)
@@ -96,16 +99,18 @@ class FrameLogComponent(
                         if (inFront) com.droiddeck.launcher.session.LaunchInfo.gameFocused(System.currentTimeMillis())
                         if (n > 0) {
                             out.add(frametimes, times, n)
-                            if (inFront) com.droiddeck.launcher.session.LaunchInfo.gameFrame(wall((0 until n).maxOf { times[it] }))
                             lastFrameNs = now
-                            val first = wall(times[0])
-                            if (steam && !steamSeen) {
-                                steamSeen = true
-                                SessionEvents.record("steam.ui_first_frame", at = first)
-                            }
-                            if (inFront && !gameSeen && name != null) {
-                                gameSeen = true
-                                SessionEvents.record("game.first_frame", mapOf("engine" to engine, "pid" to info[0]), at = first)
+                            firstSince(times, n, t0Ns)?.let { firstNs ->
+                                if (inFront) com.droiddeck.launcher.session.LaunchInfo.gameFrame(wall((0 until n).maxOf { times[it] }))
+                                val first = wall(firstNs)
+                                if (steam && !steamSeen) {
+                                    steamSeen = true
+                                    SessionEvents.record("steam.ui_first_frame", at = first)
+                                }
+                                if (inFront && !gameSeen && name != null) {
+                                    gameSeen = true
+                                    SessionEvents.record("game.first_frame", mapOf("engine" to engine, "pid" to info[0]), at = first)
+                                }
                             }
                         } else if (now - lastFrameNs > STALE_NS) {
                             HudFrames.nativeClose(handle)
@@ -199,6 +204,16 @@ class FrameLogComponent(
         private const val EXIT_PERIOD_MS = 1_000L
         private const val EXPERIMENTS_LINE = "droiddeck-game-env: experiments: "
         private const val PENDING = "; saved but needs a new session: "
+
+        /**
+         * The earliest of the ring's [n] frame times later than [sinceNs], or null. The ring file outlives a session,
+         * so the first poll returns the previous session's last frames, which are no first frame of this one.
+         */
+        internal fun firstSince(timesNs: LongArray, n: Int, sinceNs: Long): Long? {
+            var first: Long? = null
+            for (i in 0 until n) if (timesNs[i] > sinceNs && (first == null || timesNs[i] < first)) first = timesNs[i]
+            return first
+        }
 
         /** droiddeck-game-env's per-launch line: the switches in effect, and any saved ones waiting for a new session. */
         internal fun experimentsFields(line: String): Map<String, String> {

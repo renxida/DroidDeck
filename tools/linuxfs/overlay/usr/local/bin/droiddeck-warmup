@@ -247,6 +247,7 @@ def fex_disk_cache(app_id, prefix, proton, env):
 PE_PAGE = 0x1000
 PE_ALIGN_MIN_BYTES = 64 << 20
 PE_ALIGN_DIR = ".droiddeck-aligned"
+PE_ALIGN_SPARE_BYTES = 512 << 20
 
 
 def _up(value, align=PE_PAGE):
@@ -415,7 +416,7 @@ def pe_align_copy(src, dst):
         os.replace(tmp, dst)
 
 
-def pe_aligned_exe(exe, min_bytes=PE_ALIGN_MIN_BYTES):
+def pe_aligned_exe(exe, min_bytes=PE_ALIGN_MIN_BYTES, statvfs=os.statvfs):
     """The path to launch instead of exe, made or remade as needed, and a line for the log; (None, line or None)
     when the original stays. The copy keeps the original's name, in a folder PE_ALIGN_DIR beside it that links to
     everything else in the game's folder, so the game finds its data and DLLs and its process keeps its name."""
@@ -436,9 +437,11 @@ def pe_aligned_exe(exe, min_bytes=PE_ALIGN_MIN_BYTES):
     except OSError:
         pass
     try:
-        free = os.statvfs(folder)
-        if free.f_bavail * free.f_frsize < info.st_size + (512 << 20):
-            return None, "aligned copy of %s not made: too little free space" % name
+        free = statvfs(folder)
+        have, need = free.f_bavail * free.f_frsize, info.st_size + PE_ALIGN_SPARE_BYTES
+        if have < need:
+            return None, "aligned copy of %s not made: too little free space (%.0f MB free, %.0f MB needed)" % (
+                name, have / 1048576, need / 1048576)
         started = time.monotonic()
         pe_align_copy(exe, copy)
         with open(stamp_path, "w") as f:

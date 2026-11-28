@@ -37,7 +37,7 @@ class FreeMemoryRequestTest(unittest.TestCase):
                         token = request.read_text().strip()
                         request.unlink()
                         staged = Path(tmp) / "free-memory-done.tmp"
-                        staged.write_text(token + " method=kill_background+balloon freedMb=1800 availableMb=4100\n")
+                        staged.write_text(token + " method=kill_background+balloon availableMb=1844->2335 swapUsedMb=923->1530\n")
                         os.replace(staged, Path(tmp) / "free-memory-done")
                         return
                     time.sleep(0.01)
@@ -46,7 +46,7 @@ class FreeMemoryRequestTest(unittest.TestCase):
             answering.start()
             answer = MODULE["free_memory"](tmp, "2868840", wait=5, poll=0.01)
             answering.join()
-            self.assertEqual(answer, "method=kill_background+balloon freedMb=1800 availableMb=4100")
+            self.assertEqual(answer, "method=kill_background+balloon availableMb=1844->2335 swapUsedMb=923->1530")
             self.assertFalse((Path(tmp) / "free-memory-done").exists())
 
     def test_without_an_answer_or_a_launch_directory_the_game_goes_on(self):
@@ -670,6 +670,36 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
                         self.assertNotIn("PROTON_ENABLE_WAYLAND", result)
                         self.assertNotIn("DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER", result)
                     self.assertEqual(env.get("WAYLAND_DISPLAY"), "")
+
+    def test_switches_that_are_on_but_do_nothing_in_this_launch_are_named_with_the_reason(self):
+        on = lambda *names: {MODULE["experiment_name"](name): "1" for name in names}
+        unapplied = MODULE["unapplied_experiments"]
+        mali = on("warmup", "fex-fast", "fex-trim", "vk-count", "vk-blocks-64", "pe-align", "free-memory")
+        self.assertEqual([("no_powervr_runtime", ["vk-count", "vk-blocks-64"])], unapplied(mali, device=True))
+        self.assertEqual([], unapplied(dict(mali, DROIDDECK_POWERVR_RUNTIME="/opt/powervr"), device=True))
+        self.assertEqual([], unapplied(on("godot-render", "free-memory"), device=True, fex="FEX-2611-79-g727948a", native=True))
+        self.assertEqual([("not_kestrel_fex", ["fex-trim"])], unapplied(mali, fex="FEX-2611-79-g727948a"))
+        self.assertEqual([], unapplied(mali, fex="FEX-Kestrel-727948a12-0123abcd"))
+        self.assertEqual([], unapplied(mali, fex=None))
+        self.assertEqual([("native_engine", ["warmup", "fex-fast", "fex-trim", "pe-align"])], unapplied(mali, native=True))
+        powervr = dict(on("dxvk-arm64ec", "vk-blocks-64", "dotnet-trace"), DROIDDECK_POWERVR_RUNTIME="/opt/powervr")
+        self.assertEqual([("native_engine", ["dotnet-trace", "dxvk-arm64ec"])], unapplied(powervr, native=True))
+        self.assertEqual([], unapplied({}, device=True, fex="FEX-2611", native=True))
+
+    def test_an_unapplied_switch_gets_one_log_line_and_one_timeline_line(self):
+        env = {MODULE["experiment_name"]("vk-blocks-64"): "1", MODULE["experiment_name"]("fex-smaps"): "1"}
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            MODULE["report_unapplied"]("2868840", env, device=True, fex="FEX-2611-79-g727948a")
+        lines = err.getvalue().splitlines()
+        self.assertEqual("droiddeck-game-env: experiments on but not applied: vk-blocks-64 (PowerVR system-driver path "
+                         "only; this device's graphics path has no PowerVR runtime)", lines[0])
+        self.assertRegex(lines[1], r"^DROIDDECK_TIMELINE event=game_experiment_skipped app_id=2868840 "
+                                   r"experiments=vk-blocks-64 reason=no_powervr_runtime wall_ms=\d+$")
+        self.assertEqual("droiddeck-game-env: experiments on but not applied: fex-smaps (only Kestrel's FEX reads them; "
+                         "this launch runs FEX-2611-79-g727948a)", lines[2])
+        self.assertIn("experiments=fex-smaps reason=not_kestrel_fex", lines[3])
+        self.assertEqual(4, len(lines))
 
     def test_vk_count_puts_its_layer_first_only_when_on_and_installed(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -3578,6 +3608,50 @@ class NativeEngineCheckTest(unittest.TestCase):
         self.assertTrue(kw["start_new_session"])
         self.assertNotIn("LD_PRELOAD", kw["env"])
         self.assertTrue(any("one runs after this session" in n for n in notes))
+
+    def test_the_native_run_is_preceded_by_the_launch_notes_and_the_free_memory_step(self):
+        order = []
+
+        class Done:
+            returncode = 0
+
+        ng = {"fresh_check": lambda folder, name=None: {"result": "pass"}, "CHECK_DIR": str(self.root / "check")}
+        times = iter([10.0, 910.0])
+        notes = ["Godot 4.5.1, Forward+", "textures: original textures this launch"]
+        env = dict(self.env, DROIDDECK_EXP_FREE_MEMORY="1")
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            rc, _ = MODULE["native_engine"](
+                self.cmd, env, run=lambda args, **kw: order.append("run") or Done(), clock=lambda: next(times),
+                popen=lambda args, **kw: None, ng=ng,
+                before_run=lambda: MODULE["before_native_run"](
+                    notes, env, "42", free=lambda launch_dir, app_id: order.append("free " + app_id) or "method=none"))
+        self.assertEqual(0, rc)
+        self.assertEqual(["free 42", "run"], order)
+        self.assertEqual([], notes)
+        lines = err.getvalue().splitlines()
+        self.assertEqual(["droiddeck-game-env: Godot 4.5.1, Forward+",
+                          "droiddeck-game-env: textures: original textures this launch",
+                          "droiddeck-game-env: free memory: method=none"], lines[-4:-1])
+        self.assertTrue(lines[-1].startswith("droiddeck-game-env: engine: native "))
+
+    def test_native_skipped_up_front_leaves_the_notes_and_the_free_memory_step_to_the_proton_launch(self):
+        called = []
+        MODULE["native_engine"](self.cmd, self.env, run=lambda args, **kw: called.append("run"), popen=lambda args, **kw: None,
+                                ng={"fresh_check": lambda folder, name=None: {"result": "fail"}, "CHECK_DIR": str(self.root)},
+                                before_run=lambda: called.append("before"))
+        self.assertEqual([], called)
+
+    def test_free_memory_before_a_native_run_follows_its_switch_and_skips_a_prestarted_engine(self):
+        asked = []
+        free = lambda launch_dir, app_id: asked.append(app_id) or "method=none"
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            MODULE["before_native_run"]([], {}, "42", free=free)
+            MODULE["before_native_run"]([], {"DROIDDECK_EXP_FREE_MEMORY": "1", "DROIDDECK_NATIVE_PRESTART": "1"}, "42", free=free)
+        self.assertEqual([], asked)
+        self.assertEqual("droiddeck-game-env: free memory: skipped, the native engine was started ahead of this launch\n",
+                         err.getvalue())
 
     def test_the_later_check_waits_for_the_launch_then_cleans_up(self):
         gone = subprocess.Popen(["true"])

@@ -77,8 +77,16 @@ internal object FreeMemory {
         val balloonAdj: Int? = null,
         val ms: Long = 0,
     ) {
-        val freedMb: Long? get() = if (before != null && after != null) headroomMb(after) - headroomMb(before) else null
+        /**
+         * MemAvailable + SwapFree after the step less before it. Negative is a real outcome: the balloon makes room by
+         * pushing other processes into zram, which takes more free swap than it adds available memory, and the
+         * session keeps growing while the step runs.
+         */
+        val headroomChangeMb: Long? get() = if (before != null && after != null) headroomMb(after) - headroomMb(before) else null
+        val availableChangeMb: Long? get() = if (before != null && after != null) (after.availableKb - before.availableKb) / 1024 else null
     }
+
+    const val CHANGE_NOTE = "after minus before; headroom is available + free swap, and falls when pages go to swap or the session grows during the step"
 
     fun headroomMb(d: MemoryReadout.Device) = (d.availableKb + d.swapFreeKb) / 1024
 
@@ -137,7 +145,8 @@ internal object FreeMemory {
     fun fields(r: Result): Map<String, Any?> = linkedMapOf(
         "reason" to r.reason,
         "method" to r.method,
-        "freedMb" to r.freedMb,
+        "availableChangeMb" to r.availableChangeMb,
+        "headroomChangeMb" to r.headroomChangeMb,
         "availableBeforeMb" to r.before?.availableKb?.div(1024),
         "availableAfterMb" to r.after?.availableKb?.div(1024),
         "swapUsedBeforeMb" to r.before?.swapUsedKb?.div(1024),
@@ -146,11 +155,18 @@ internal object FreeMemory {
         "balloonMs" to r.balloonMs,
         "balloonStop" to r.balloonStop,
         "packages" to r.packages,
-        "killFreedMb" to r.killFreedMb,
+        "killHeadroomChangeMb" to r.killFreedMb,
         "appAdj" to r.appAdj,
         "balloonAdj" to r.balloonAdj,
         "ms" to r.ms,
     )
+
+    /** For the game's wrapper, which prints it after "free memory: " in session.log. */
+    fun summary(r: Result): String {
+        fun span(before: Long?, after: Long?) = if (before == null || after == null) "-" else "${before / 1024}->${after / 1024}"
+        return "method=${r.method} availableMb=${span(r.before?.availableKb, r.after?.availableKb)} " +
+            "swapUsedMb=${span(r.before?.swapUsedKb, r.after?.swapUsedKb)}"
+    }
 
     fun line(r: Result): String = "DROIDDECK_FREE_MEMORY " + fields(r).entries.joinToString(" ") { (k, v) -> "$k=${v ?: "-"}" }
 
@@ -192,7 +208,7 @@ internal object FreeMemory {
         val line = line(r)
         Log.i(TAG, line)
         runCatching { SessionState.logFile?.appendText(line + "\n") }
-        SessionEvents.record("memory.freed", fields(r))
+        SessionEvents.record("memory.freed", fields(r) + ("changes" to CHANGE_NOTE))
     }
 
     private fun killBackground(context: Context): Int {

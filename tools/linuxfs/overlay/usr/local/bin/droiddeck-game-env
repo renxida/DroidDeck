@@ -85,7 +85,8 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
                "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
-               "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread")
+               "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread",
+               "present-dmabuf")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -187,6 +188,46 @@ def experiments_line(saved, session):
     if pending:
         line += "; saved but needs a new session: " + ", ".join(pending)
     return line
+
+
+# Applied only by system_graphics_launch and native_vulkan_env, which need the APK's PowerVR runtime.
+POWERVR_EXPERIMENTS = ("wayland-present", "vk-count", "hybris-index", "dxvk-arm64ec", "vk-blocks-64")
+# Environment settings only Kestrel's FEX reads (its patches 0006 to 0009).
+KESTREL_FEX_EXPERIMENTS = ("fex-code-buffer", "fex-sample", "fex-smaps", "fex-trim")
+# Wine, FEX and x64 .NET parts, all set up after the native engine has had its turn.
+PROTON_EXPERIMENTS = ("warmup", "pe-align", "dxvk-arm64ec", "wayland-present")
+PROTON_EXPERIMENT_PREFIXES = ("fex-", "dotnet-")
+UNAPPLIED = {
+    "no_powervr_runtime": "PowerVR system-driver path only; this device's graphics path has no PowerVR runtime",
+    "not_kestrel_fex": "only Kestrel's FEX reads them; this launch runs %s",
+    "native_engine": "Wine, FEX and x64 .NET only; this launch runs on the native engine",
+}
+
+
+def unapplied_experiments(env, device=False, fex=None, native=False):
+    """[(reason, [experiments])] for switches that are on and do nothing in this launch. Each check is asked for
+    where its answer is known: device (no PowerVR runtime) once the launch's switches are read, fex (the FEX
+    build's name) when Proton starts, native when the native engine does."""
+    on = experiments(env)
+    no_powervr = [] if env.get("DROIDDECK_POWERVR_RUNTIME") else [name for name in on if name in POWERVR_EXPERIMENTS]
+    found = []
+    if device:
+        found.append(("no_powervr_runtime", no_powervr))
+    if fex and not fex.startswith("FEX-Kestrel"):
+        found.append(("not_kestrel_fex", [name for name in on if name in KESTREL_FEX_EXPERIMENTS]))
+    if native:
+        found.append(("native_engine", [name for name in on if name not in no_powervr and (
+            name in PROTON_EXPERIMENTS or name.startswith(PROTON_EXPERIMENT_PREFIXES))]))
+    return [(reason, names) for reason, names in found if names]
+
+
+def report_unapplied(app_id, env, device=False, fex=None, native=False):
+    """One session.log line and one timeline line (the app's game.experiment_skipped event) per reason."""
+    for reason, names in unapplied_experiments(env, device, fex, native):
+        why = UNAPPLIED[reason] % fex if "%s" in UNAPPLIED[reason] else UNAPPLIED[reason]
+        print("droiddeck-game-env: experiments on but not applied: %s (%s)" % (",".join(names), why), file=sys.stderr)
+        print("DROIDDECK_TIMELINE event=game_experiment_skipped app_id=%s experiments=%s reason=%s wall_ms=%d"
+              % (app_id, ",".join(names), reason, int(time.time() * 1000)), file=sys.stderr, flush=True)
 
 
 def dotnet_fex(env):
@@ -2975,6 +3016,7 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
         if fex is None:
             fex = fex_build(proton)
         print(engine_line("proton", fex_name(fex), native_skipped), file=sys.stderr, flush=True)
+        report_unapplied(timeline_app_id, launch_env, fex=fex_name(fex))
     started = time.monotonic()
     if waited:
         if explorer:
@@ -3186,6 +3228,58 @@ def vk_count(env, layer_dir=VKCOUNT_DIR):
         if pacing:
             notes.append("present pacing: layer loaded, reports off")
     return "; ".join(notes)
+
+
+def kbase_panvk(env):
+    """The session's guest Vulkan driver is PanVK on Arm's kbase kernel interface (the open pair on a Mali)."""
+    driver = (env.get("BL_VK_DRIVER") or env.get("VK_DRIVER_FILES") or env.get("VK_ICD_FILENAMES") or "").lower()
+    return env.get("BL_OPEN_DRIVER") == "1" and env.get("BL_DRM_STANDIN") == "/dev/mali0" and "panvk" in driver
+
+
+def open_driver_present(env, layer_dir=VKCOUNT_DIR):
+    """(env, notes) for a game on an open driver pair (no PowerVR runtime: those launches set their layers in
+    powervr_vulkan_env).
+
+    Experiment present-dmabuf: PanVK on kbase starts Mesa's WSI as a software device unless PANVK_KBASE_DRI3 is set
+    (panvk-kbase-android kbase-common/006). A software device presents to Wayland through wl_shm: each
+    vkQueuePresentKHR copies the image to a buffer on the GPU, waits on the calling thread for the GPU to finish the
+    frame (wsi_common_queue_present, `if (wsi->sw) WaitForFences`), and copies the frame to the shm buffer with the
+    CPU; gamescope then uploads it again (patch 0927). PANVK_KBASE_DRI3=1 makes the swapchain images dma-bufs from
+    the dma-heap, handed to gamescope as they are. Linear by default (the app's compositor is known to take
+    linear); DROIDDECK_PRESENT_DMABUF_AFBC=1 leaves the driver's AFBC default.
+
+    Experiment vk-count on this path: the same layer and report as on PowerVR."""
+    if env.get("BL_OPEN_DRIVER") != "1" or env.get("DROIDDECK_POWERVR_RUNTIME"):
+        return env, []
+    result, notes = dict(env), []
+    if experiment(env, "present-dmabuf"):
+        if not kbase_panvk(env):
+            notes.append("present-dmabuf: the driver is not PanVK on kbase; presentation left as it is")
+        elif env.get("PANVK_KBASE_DRI3"):
+            notes.append("present-dmabuf: PANVK_KBASE_DRI3=%s kept" % env["PANVK_KBASE_DRI3"])
+        else:
+            result["PANVK_KBASE_DRI3"] = "1"
+            afbc = env.get("DROIDDECK_PRESENT_DMABUF_AFBC") == "1"
+            if not afbc:
+                words = [word for word in env.get("PANVK_DEBUG", "").split(",") if word]
+                if "wsi_no_afbc" not in words:
+                    result["PANVK_DEBUG"] = ",".join(words + ["wsi_no_afbc"])
+            notes.append("present-dmabuf: PanVK swapchain images are dma-bufs (%s), no CPU copy or GPU wait in present"
+                         % ("AFBC allowed" if afbc else "linear"))
+    if experiment(env, "vk-count"):
+        if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_vkcount.so")):
+            notes.append("vk-count: layer not installed at %s" % layer_dir)
+        elif "VK_LAYER_DROIDDECK_vkcount" not in env.get("VK_INSTANCE_LAYERS", "").split(":"):
+            layers = env.get("VK_INSTANCE_LAYERS")
+            result["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount" + (":" + layers if layers else "")
+            if env.get("VK_LAYER_PATH"):
+                result["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
+            else:
+                own = env.get("VK_ADD_LAYER_PATH")
+                result["VK_ADD_LAYER_PATH"] = layer_dir + (":" + own if own else "")
+            result.pop("DROIDDECK_VKCOUNT_SECONDS", None)
+            notes.append("vk-count: counting Vulkan calls per frame (open driver)")
+    return result, notes
 
 
 # winewayland.drv's wayland_process_init gives up, and the driver unloads, unless the compositor offers all of
@@ -3606,9 +3700,11 @@ def native_check(folder, exe, name, env, popen=subprocess.Popen, ng=None):
     return None, ["native-engine: no check of these game files yet; one runs after this session"]
 
 
-def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=subprocess.Popen, ng=None):
+def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=subprocess.Popen, ng=None,
+                  before_run=None):
     """Under native-engine, a Godot C# game (a data_*_windows_x86_64 folder next to the exe) runs on Kestrel's
-    own linux-arm64 engine. Returns the exit code to end with, or None to go on to Proton."""
+    own linux-arm64 engine. Returns the exit code to end with, or None to go on to Proton. before_run is called
+    once the engine is about to start: the run blocks until the game ends, and main() returns with its exit code."""
     if not experiment(env, "native-engine") or len(command) < 3:
         return None, []
     exe = os.path.abspath(command[2])
@@ -3638,7 +3734,12 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
             log = open(path, "a", encoding="utf-8")
         except OSError:
             log, path = None, None
+    report_unapplied(game_id(env) or "", env, native=True)
+    if before_run:
+        before_run()
     env, vulkan_notes = native_vulkan_env(env)
+    env, present_notes = open_driver_present(env)
+    vulkan_notes = vulkan_notes + present_notes
     print(engine_line("native", (ng.get("COMPONENT") or {}).get("tag") if ng else None), file=sys.stderr, flush=True)
     began = clock()
     try:
@@ -3661,6 +3762,22 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
     if rc != 0 and took < NATIVE_START_S:
         return None, notes + ["native-engine: exited with %d after %.0f s; starting on Proton" % (rc, took)]
     return rc, notes + ["native-engine: ran %.0f s natively, exit %d" % (took, rc)]
+
+
+def before_native_run(notes, env, app_id, free=free_memory):
+    """What a Proton launch does on its way to start(), for a launch that ends in native_engine()'s run: prints the
+    notes gathered so far (emptying the list, so a fallback to Proton does not print them again) and asks the app to
+    free memory. A prestarted engine is already loaded and waiting, so that launch is not held up for it."""
+    for note in notes:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
+    del notes[:]
+    if not experiment(env, "free-memory"):
+        return
+    if env.get("DROIDDECK_NATIVE_PRESTART") == "1":
+        summary = "skipped, the native engine was started ahead of this launch"
+    else:
+        summary = free(os.environ.get("BL_LAUNCH_DIR"), app_id)
+    print("droiddeck-game-env: free memory: " + summary, file=sys.stderr, flush=True)
 
 
 NATIVE_PRESTART = "--native-prestart"
@@ -3699,6 +3816,8 @@ def native_prestart(command, env, run=subprocess.run, ng=None):
     args = [sys.executable, NATIVE_GODOT, "prestart", "--fetch", "--game-dir", folder, "--exe", os.path.basename(exe),
             "--out", out, "--"] + list(command[3:])
     env, notes = native_vulkan_env(env)
+    env, present_notes = open_driver_present(env)
+    notes = notes + present_notes
     for note in notes:
         print("droiddeck-game-env: prestart: " + note, file=sys.stderr, flush=True)
     return run(args, env=env, stdin=subprocess.DEVNULL).returncode
@@ -3851,6 +3970,7 @@ def main():
             print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
         print("droiddeck-game-env: " + experiments_line(experiments(effective_env), steam_experiments),
               file=sys.stderr, flush=True)
+        report_unapplied(app_id, effective_env, device=True)
     phases = []
     if waiting:
         began = time.monotonic()
@@ -3904,7 +4024,8 @@ def main():
                         notes.append("Godot: cache and log check skipped (%s)" % error)
                     notes += native_inventory(command[2], effective_env)
                     notes += texture_pack(command[2], effective_env)
-                    native_rc, native_notes = native_engine(command, effective_env)
+                    native_rc, native_notes = native_engine(
+                        command, effective_env, before_run=lambda: before_native_run(notes, effective_env, app_id))
                     for note in native_notes:
                         print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
                     if native_rc is not None:
@@ -3982,6 +4103,10 @@ def main():
         # newest buffer, so the old ones can be freed. Other FEX builds ignore FEX_TRIMIDLETHREADS.
         env = dict(env, FEX_TRIMIDLETHREADS="30")
     env = game_logs(command, env, app_id)
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        env, present_notes = open_driver_present(env)
+        for note in present_notes:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)

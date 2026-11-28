@@ -81,6 +81,10 @@ class AgentBridgeProvider : ContentProvider() {
             .put("timeout", request.optDouble("timeout", 15.0)), timeoutMs(request, 15.0, 30_000))
         "input" -> AgentInput.handle(request)
         "ui" -> AgentUi.handle(request)
+        "latency" -> {
+            AgentAccess.requireCommands(context)
+            AgentLatency.handle(request)
+        }
         "guest" -> {
             AgentAccess.requireCommands(context)
             guest(context, JSONObject(request.toString()).put("kind", "exec"), timeoutMs(request, 30.0, 10_000))
@@ -156,7 +160,7 @@ class AgentBridgeProvider : ContentProvider() {
             .put("suspended", SessionState.suspended)
             .put("pip", SessionState.pipActive)
             .put("firstFrame", SessionState.firstFrameSeen)
-            .put("output", JSONArray().put(SessionState.outputSize.first).put(SessionState.outputSize.second))
+            .apply { outputFields(SessionState.running, SessionState.outputSize).forEach { (key, value) -> put(key, value) } }
             .put("refreshHz", SessionState.refreshHz.toDouble())
             .put("lastTransitionAt", SessionState.lastTransitionAt)
             .put("guestPid", SessionState.guestPid.takeIf { it > 1 } ?: JSONObject.NULL)
@@ -296,6 +300,17 @@ class AgentBridgeProvider : ContentProvider() {
         const val RESULT_JSON = "json"
         const val EXTRA_REQUEST = "request"
         const val SCHEMA = 2
+
+        /**
+         * `output` is the running session's size. With no session SessionState still holds a size (1920x1080 until
+         * the first session, then the last session's), which says nothing about the next one: it goes out as
+         * `outputPlaceholder`, and `output` is null.
+         */
+        internal fun outputFields(running: Boolean, size: Pair<Int, Int>): Map<String, Any> {
+            val value = JSONArray().put(size.first).put(size.second)
+            return linkedMapOf("output" to if (running) value else JSONObject.NULL,
+                "outputPlaceholder" to if (running) JSONObject.NULL else value)
+        }
         private const val LOG_EXPORT_RETENTION_MS = 24 * 60 * 60 * 1000L
         private val recoveryComplete = CountDownLatch(1)
 

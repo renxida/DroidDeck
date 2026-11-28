@@ -239,6 +239,13 @@ while [ $(( $(date +%s) - t0 )) -lt "$limit" ]; do
   sleep 5
 done
 sample_ps end
+# The input-to-response probe, on Steam's sign-in screen: Tab moves the focus ring and nothing is typed. This
+# shows that the probe arms, reads frames and returns rows; the times are a CPU renderer's and mean nothing.
+if [ -n "$login" ] && "$ctl" latency --help >/dev/null 2>&1; then
+  "$ctl" latency --input key:TAB --region 0.1,0.1,0.8,0.8 --count 12 --gap 500 --rows > "$out/latency.json" 2>"$out/latency.err" \
+    && rig_event latency_probe_ran || echo "rig: latency probe failed: $(head -c 400 "$out/latency.json" "$out/latency.err" 2>/dev/null)"
+  echo "rig: latency probe: $(jq -c '{samples, answered, statuses, endsAt, toScreen, toFirstFrame, framesToChange, noise, readable, displayTiming}' "$out/latency.json" 2>/dev/null)"
+fi
 [ -n "$perturbed" ] && echo "rig: at the end: top $(top_activity); on screen: $("$ctl" ui dump 2>/dev/null | jq -r '[.. | objects | .text? // empty | strings | select(length > 0)] | unique | join(" | ")' 2>/dev/null | head -c 600)"
 [ "$base" = steam-ui ] && [ -z "$login" ] && { "$ctl" cdp targets > "$out/cdp-targets.json" 2>&1 || true; }
 echo "rig: DevTools targets:"; jq -c '[.. | objects | select(.title? or .url?) | {title, url}]' "$out/cdp-targets.json" 2>/dev/null | head -c 3000; echo

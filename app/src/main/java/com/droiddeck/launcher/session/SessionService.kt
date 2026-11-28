@@ -1784,7 +1784,7 @@ class SessionService : Service() {
         Thread({
             val summary = if (gen == sessionGen && SessionState.running && Experiments.FREE_MEMORY in Experiments.enabled(app)) {
                 runCatching { FreeMemory.run(app, FreeMemory.GAME_EXEC, FreeMemory.GAME_NEED_MB) }
-                    .map { "method=${it.method} freedMb=${it.freedMb ?: "-"} availableMb=${it.after?.availableKb?.div(1024) ?: "-"}" }
+                    .map(FreeMemory::summary)
                     .getOrElse { "failed" }
             } else "off"
             val staged = File(dir, "${FreeMemory.DONE}.tmp")
@@ -2269,7 +2269,10 @@ class SessionService : Service() {
         SessionEvents.record("memory.lmk_risk", LmkRisk.fields(reading))
         AppCaches.drop(this, "lmk_risk")
         Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, R.string.session_memory_lmk_risk, Toast.LENGTH_LONG).show()
+            val text = if (LmkRisk.swapShort(reading))
+                getString(R.string.session_memory_lmk_risk_swap, reading.availableKb / 1024, reading.swapFreeKb / 1024)
+            else getString(R.string.session_memory_lmk_risk, reading.availableKb / 1024)
+            Toast.makeText(this, text, Toast.LENGTH_LONG).show()
         }
     }
 
