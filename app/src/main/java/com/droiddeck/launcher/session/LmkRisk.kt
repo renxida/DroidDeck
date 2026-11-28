@@ -50,14 +50,23 @@ object LmkRisk {
         }
     }
 
+    /** Whether swap itself is nearly full, or only capped by low available memory ([freeSwapKb]). */
+    fun swapShort(r: Reading): Boolean = r.swapTotalKb > 0 && r.swapFreeKb * 100 < r.swapTotalKb * SWAP_LOW_PERCENT
+
+    /** What is short at a warning: "memory_and_swap", or "memory" while swap still has room. */
+    fun short(r: Reading): String = if (swapShort(r)) "memory_and_swap" else "memory"
+
     fun line(r: Reading): String =
-        "DROIDDECK_LMK_RISK action=warn swapFreeMb=${freeSwapKb(r) / 1024} swapTotalMb=${r.swapTotalKb / 1024} " +
-            "availableMb=${r.availableKb / 1024} totalMb=${r.totalKb / 1024} " +
+        "DROIDDECK_LMK_RISK action=warn short=${short(r)} availableMb=${r.availableKb / 1024} totalMb=${r.totalKb / 1024} " +
+            "swapFreeMb=${r.swapFreeKb / 1024} swapTotalMb=${r.swapTotalKb / 1024} lmkdSwapFreeMb=${freeSwapKb(r) / 1024} " +
             "psiSomeAvg10=${r.psiSome ?: "-"} psiFullAvg10=${r.psiFull ?: "-"}"
 
+    /** swapFreeMb is SwapFree itself; lmkdSwapFreeMb is the capped figure the warning's rule compares with 10 % of swap. */
     fun fields(r: Reading): Map<String, Any?> = linkedMapOf(
-        "swapFreeMb" to freeSwapKb(r) / 1024,
+        "short" to short(r),
+        "swapFreeMb" to r.swapFreeKb / 1024,
         "swapTotalMb" to r.swapTotalKb / 1024,
+        "lmkdSwapFreeMb" to freeSwapKb(r) / 1024,
         "availableMb" to r.availableKb / 1024,
         "totalMb" to r.totalKb / 1024,
         "psiSomeAvg10" to r.psiSome,

@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import android.app.ActivityManager
 import android.content.Context
 import android.util.Log
 import androidx.annotation.StringRes
@@ -9,6 +10,7 @@ import com.droiddeck.launcher.R
  * Settings > Advanced > Experiments. Each id is the perf/ branch the change came from and reaches the
  * guest as DROIDDECK_EXP_<ID>=1. A fresh install starts with [defaults]; all off is main. Game-level parts follow the saved
  * switches at each game launch; Steam-side and app-side parts follow the switches the session started with.
+ * [byDevice] adds switches the device's memory calls for to whatever is saved, until a save leaves them out.
  */
 object Experiments {
     private const val TAG = "Experiments"
@@ -157,6 +159,27 @@ object Experiments {
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,
         QUICK_TAP, FEX_CODEGEN, FEX_FAST, FEX_STATS, FREE_MEMORY)
 
+    /** Devices with this much RAM or less run games with [PE_ALIGN] (docs/research/mali-10a-memory-1.md). */
+    const val LOW_MEMORY_BYTES = 8L shl 30
+
+    /** On by the device's total memory, not by a saved choice; 0 or less is an unknown size and adds nothing. */
+    fun byDevice(totalBytes: Long): Set<String> = if (totalBytes in 1..LOW_MEMORY_BYTES) setOf(PE_ALIGN) else emptySet()
+
+    private val deviceRuled = setOf(PE_ALIGN)
+
+    /** [saved] (null: nothing saved yet, so [defaults]) plus the device's own, less the ones a save switched [off]. */
+    fun resolve(saved: Set<String>?, off: Set<String>, totalBytes: Long): Set<String> =
+        ((saved ?: defaults) + (byDevice(totalBytes) - off)).filterTo(LinkedHashSet()) { it in ids }
+
+    internal var totalMemory: (Context) -> Long = { context ->
+        runCatching {
+            ActivityManager.MemoryInfo().also((context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)::getMemoryInfo).totalMem
+        }.getOrDefault(0L)
+    }
+
+    /** What a fresh install on this device runs with. */
+    fun fresh(context: Context): Set<String> = defaults + byDevice(totalMemory(context))
+
     fun envName(id: String) = "DROIDDECK_EXP_" + id.uppercase().replace('-', '_')
 
     fun env(on: Set<String>): Map<String, String> = ids.filter { it in on }.associate { envName(it) to "1" }
@@ -178,12 +201,15 @@ object Experiments {
 
     private fun prefs(context: Context) = context.getSharedPreferences("experiments", Context.MODE_PRIVATE)
 
-    fun enabled(context: Context): Set<String> =
-        (prefs(context).getStringSet("on", null) ?: defaults).filterTo(LinkedHashSet()) { it in ids }
+    fun enabled(context: Context): Set<String> {
+        val prefs = prefs(context)
+        return resolve(prefs.getStringSet("on", null), prefs.getStringSet("off", null).orEmpty(), totalMemory(context))
+    }
 
+    /** Saves [on] as the choice: a device-ruled switch left out of it stays off until a later save has it again. */
     fun set(context: Context, on: Set<String>) {
         val kept = on.filterTo(LinkedHashSet()) { it in ids }
-        prefs(context).edit().putStringSet("on", kept).apply()
+        prefs(context).edit().putStringSet("on", kept).putStringSet("off", deviceRuled - kept).apply()
         Log.i(TAG, "saved: ${line(kept)}" + (session?.let { "; this session started with: ${line(it)}" } ?: ""))
         runCatching { GameEnvironmentStore.publish(context) }
             .onFailure { Log.e(TAG, "Could not update game environment", it) }

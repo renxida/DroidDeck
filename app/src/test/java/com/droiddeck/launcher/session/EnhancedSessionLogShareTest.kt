@@ -296,6 +296,20 @@ class EnhancedSessionLogShareTest {
         SessionLogShare.clear(app)
     }
 
+    @Test fun theNativeEnginesLogKeepsItsName() {
+        val session = tmp.newFolder("2026-11-27-17-steam")
+        session.resolve("session.log").writeText("droiddeck-game-env: engine: native native-engine-134\n")
+        session.resolve("native-engine.log").writeText("droiddeck-native-godot: first frame after 5.1 s\n")
+
+        val names = EnhancedSessionLogShare.create(app, session).flatMap { zip ->
+            ZipFile(zip).use { archive -> archive.entries().toList().map { it.name } }
+        }
+
+        assertTrue(names.toString(), names.any { it.endsWith("/native-engine.log") })
+        assertFalse(names.toString(), names.any { it.endsWith("/entry-a3e4c0d4a821cf16.log") })
+        SessionLogShare.clear(app)
+    }
+
     @Test fun guestControlledAndControlCharacterNamesNeverEnterTheArchiveOrManifest() {
         val session = tmp.newFolder("2026-11-04-10-steam")
         session.resolve("private-window-title.log").writeText("safe diagnostic\n")

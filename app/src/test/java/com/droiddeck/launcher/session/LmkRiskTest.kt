@@ -47,8 +47,33 @@ class LmkRiskTest {
 
     @Test fun theLineIsGreppable() {
         val line = LmkRisk.line(reading())
-        assertTrue(line, line.startsWith("DROIDDECK_LMK_RISK action=warn swapFreeMb=512 swapTotalMb=8192 availableMb=2048 totalMb=12288 "))
+        assertTrue(line, line.startsWith("DROIDDECK_LMK_RISK action=warn short=memory_and_swap availableMb=2048 totalMb=12288 " +
+            "swapFreeMb=512 swapTotalMb=8192 lmkdSwapFreeMb=512 "))
         assertTrue(line, line.endsWith("psiSomeAvg10=25.0 psiFullAvg10=5.0"))
+    }
+
+    private fun pixel10a(availableMb: Long, swapFreeMb: Long) = LmkRisk.Reading(
+        totalKb = 7_571L * 1024, availableKb = availableMb * 1024, swapTotalKb = 3_785L * 1024,
+        swapFreeKb = swapFreeMb * 1024, psiSome = null, psiFull = null,
+    )
+
+    @Test fun theWarningSaysWhetherSwapIsShortToo() {
+        val roomInSwap = pixel10a(availableMb = 365, swapFreeMb = 1_261)
+        assertTrue(LmkRisk.atRisk(roomInSwap))
+        assertFalse(LmkRisk.swapShort(roomInSwap))
+        assertEquals("memory", LmkRisk.short(roomInSwap))
+        assertEquals(mapOf<String, Any?>("short" to "memory", "swapFreeMb" to 1_261L, "swapTotalMb" to 3_785L,
+            "lmkdSwapFreeMb" to 365L, "availableMb" to 365L, "totalMb" to 7_571L, "psiSomeAvg10" to null, "psiFullAvg10" to null),
+            LmkRisk.fields(roomInSwap))
+
+        val bothShort = pixel10a(availableMb = 52, swapFreeMb = 286)
+        assertTrue(LmkRisk.atRisk(bothShort))
+        assertTrue(LmkRisk.swapShort(bothShort))
+        assertEquals("memory_and_swap", LmkRisk.fields(bothShort)["short"])
+        assertEquals(286L, LmkRisk.fields(bothShort)["swapFreeMb"])
+        assertEquals(52L, LmkRisk.fields(bothShort)["lmkdSwapFreeMb"])
+        assertTrue(LmkRisk.line(bothShort).contains(" short=memory_and_swap availableMb=52 "))
+        assertFalse(LmkRisk.swapShort(pixel10a(availableMb = 52, swapFreeMb = 0).copy(swapTotalKb = 0)))
     }
 
     @Test fun theCacheLineCountsMegabytes() {

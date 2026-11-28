@@ -21,6 +21,7 @@ import java.io.File
 class ExperimentsTest {
     private lateinit var context: Context
     private lateinit var guest: File
+    private val deviceMemory = Experiments.totalMemory
 
     @Before fun setUp() {
         context = RuntimeEnvironment.getApplication()
@@ -33,6 +34,7 @@ class ExperimentsTest {
     @After fun tearDown() {
         context.getSharedPreferences("experiments", Context.MODE_PRIVATE).edit().clear().commit()
         Experiments.endSession()
+        Experiments.totalMemory = deviceMemory
     }
 
     private fun shared() = JSONObject(guest.readText()).getJSONObject("shared")
@@ -159,5 +161,70 @@ class ExperimentsTest {
         assertTrue(Experiments.on(context, Experiments.MEMORY))
         Experiments.endSession()
         assertFalse(Experiments.on(context, Experiments.MEMORY))
+    }
+
+    private val gb = 1L shl 30
+
+    @Test fun eightGigabytesOrLessTurnsPeAlignOn() {
+        assertEquals(setOf(Experiments.PE_ALIGN), Experiments.byDevice(7_752_904L * 1024))
+        assertEquals(setOf(Experiments.PE_ALIGN), Experiments.byDevice(8 * gb))
+        assertEquals(setOf(Experiments.PE_ALIGN), Experiments.byDevice(4 * gb))
+        assertEquals(emptySet<String>(), Experiments.byDevice(8 * gb + 1))
+        assertEquals(emptySet<String>(), Experiments.byDevice(11_600_000L * 1024))
+        assertEquals(emptySet<String>(), Experiments.byDevice(0))
+        assertEquals(emptySet<String>(), Experiments.byDevice(-1))
+    }
+
+    @Test fun theDeviceRuleAddsToASavedSetAndASavedChoiceWinsBothWays() {
+        val saved = setOf(Experiments.WARMUP, Experiments.SCHED)
+        assertEquals(Experiments.defaults + Experiments.PE_ALIGN, Experiments.resolve(null, emptySet(), 7 * gb))
+        assertEquals(saved + Experiments.PE_ALIGN, Experiments.resolve(saved, emptySet(), 7 * gb))
+        assertEquals(saved, Experiments.resolve(saved, setOf(Experiments.PE_ALIGN), 7 * gb))
+        assertEquals(saved, Experiments.resolve(saved, emptySet(), 12 * gb))
+        assertEquals(Experiments.defaults, Experiments.resolve(null, emptySet(), 12 * gb))
+        assertEquals(saved + Experiments.PE_ALIGN, Experiments.resolve(saved + Experiments.PE_ALIGN, emptySet(), 12 * gb))
+        assertEquals(saved + Experiments.PE_ALIGN, Experiments.resolve(saved + Experiments.PE_ALIGN, setOf(Experiments.PE_ALIGN), 7 * gb))
+    }
+
+    @Test fun anInstallWithSavedSwitchesGetsPeAlignOnASmallDeviceUntilItIsSwitchedOff() {
+        context.getSharedPreferences("experiments", Context.MODE_PRIVATE).edit()
+            .putStringSet("on", setOf(Experiments.WARMUP)).commit()
+        Experiments.totalMemory = { 7_752_904L * 1024 }
+        assertEquals(setOf(Experiments.WARMUP, Experiments.PE_ALIGN), Experiments.enabled(context))
+        assertEquals("warmup,pe-align", Experiments.line(Experiments.beginSession(context)))
+        Experiments.endSession()
+        GameEnvironmentStore.publish(context)
+        assertEquals("1", shared().getString("DROIDDECK_EXP_PE_ALIGN"))
+
+        Experiments.setOne(context, Experiments.SCHED, true)
+        assertEquals(setOf(Experiments.WARMUP, Experiments.SCHED, Experiments.PE_ALIGN), Experiments.enabled(context))
+
+        Experiments.setOne(context, Experiments.PE_ALIGN, false)
+        assertEquals(setOf(Experiments.WARMUP, Experiments.SCHED), Experiments.enabled(context))
+        assertFalse(shared().has("DROIDDECK_EXP_PE_ALIGN"))
+        Experiments.setOne(context, Experiments.FPS_30, true)
+        assertFalse(Experiments.PE_ALIGN in Experiments.enabled(context))
+
+        Experiments.setOne(context, Experiments.PE_ALIGN, true)
+        assertTrue(Experiments.PE_ALIGN in Experiments.enabled(context))
+    }
+
+    @Test fun aLargeDeviceKeepsItsSwitchesAsSaved() {
+        Experiments.totalMemory = { 12 * gb }
+        assertEquals(Experiments.defaults, Experiments.enabled(context))
+        assertEquals(Experiments.defaults, Experiments.fresh(context))
+        Experiments.set(context, setOf(Experiments.WARMUP))
+        assertEquals(setOf(Experiments.WARMUP), Experiments.enabled(context))
+        Experiments.setOne(context, Experiments.PE_ALIGN, true)
+        assertEquals(setOf(Experiments.WARMUP, Experiments.PE_ALIGN), Experiments.enabled(context))
+    }
+
+    @Test fun onASmallDeviceResetIsAllOffAndTurnEverythingOnIncludesPeAlign() {
+        Experiments.totalMemory = { 7 * gb }
+        assertEquals(Experiments.defaults + Experiments.PE_ALIGN, Experiments.enabled(context))
+        Experiments.set(context, emptySet())
+        assertEquals(emptySet<String>(), Experiments.enabled(context))
+        Experiments.set(context, Experiments.fresh(context))
+        assertEquals(Experiments.defaults + Experiments.PE_ALIGN, Experiments.enabled(context))
     }
 }

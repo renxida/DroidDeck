@@ -189,6 +189,46 @@ def experiments_line(saved, session):
     return line
 
 
+# Applied only by system_graphics_launch and native_vulkan_env, which need the APK's PowerVR runtime.
+POWERVR_EXPERIMENTS = ("wayland-present", "vk-count", "hybris-index", "dxvk-arm64ec", "vk-blocks-64")
+# Environment settings only Kestrel's FEX reads (its patches 0006 to 0009).
+KESTREL_FEX_EXPERIMENTS = ("fex-code-buffer", "fex-sample", "fex-smaps", "fex-trim")
+# Wine, FEX and x64 .NET parts, all set up after the native engine has had its turn.
+PROTON_EXPERIMENTS = ("warmup", "pe-align", "dxvk-arm64ec", "wayland-present")
+PROTON_EXPERIMENT_PREFIXES = ("fex-", "dotnet-")
+UNAPPLIED = {
+    "no_powervr_runtime": "PowerVR system-driver path only; this device's graphics path has no PowerVR runtime",
+    "not_kestrel_fex": "only Kestrel's FEX reads them; this launch runs %s",
+    "native_engine": "Wine, FEX and x64 .NET only; this launch runs on the native engine",
+}
+
+
+def unapplied_experiments(env, device=False, fex=None, native=False):
+    """[(reason, [experiments])] for switches that are on and do nothing in this launch. Each check is asked for
+    where its answer is known: device (no PowerVR runtime) once the launch's switches are read, fex (the FEX
+    build's name) when Proton starts, native when the native engine does."""
+    on = experiments(env)
+    no_powervr = [] if env.get("DROIDDECK_POWERVR_RUNTIME") else [name for name in on if name in POWERVR_EXPERIMENTS]
+    found = []
+    if device:
+        found.append(("no_powervr_runtime", no_powervr))
+    if fex and not fex.startswith("FEX-Kestrel"):
+        found.append(("not_kestrel_fex", [name for name in on if name in KESTREL_FEX_EXPERIMENTS]))
+    if native:
+        found.append(("native_engine", [name for name in on if name not in no_powervr and (
+            name in PROTON_EXPERIMENTS or name.startswith(PROTON_EXPERIMENT_PREFIXES))]))
+    return [(reason, names) for reason, names in found if names]
+
+
+def report_unapplied(app_id, env, device=False, fex=None, native=False):
+    """One session.log line and one timeline line (the app's game.experiment_skipped event) per reason."""
+    for reason, names in unapplied_experiments(env, device, fex, native):
+        why = UNAPPLIED[reason] % fex if "%s" in UNAPPLIED[reason] else UNAPPLIED[reason]
+        print("droiddeck-game-env: experiments on but not applied: %s (%s)" % (",".join(names), why), file=sys.stderr)
+        print("DROIDDECK_TIMELINE event=game_experiment_skipped app_id=%s experiments=%s reason=%s wall_ms=%d"
+              % (app_id, ",".join(names), reason, int(time.time() * 1000)), file=sys.stderr, flush=True)
+
+
 def dotnet_fex(env):
     for name, values, described in DOTNET_FEX_EXPERIMENTS:
         if experiment(env, name):
@@ -2975,6 +3015,7 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None, timeli
         if fex is None:
             fex = fex_build(proton)
         print(engine_line("proton", fex_name(fex), native_skipped), file=sys.stderr, flush=True)
+        report_unapplied(timeline_app_id, launch_env, fex=fex_name(fex))
     started = time.monotonic()
     if waited:
         if explorer:
@@ -3606,9 +3647,11 @@ def native_check(folder, exe, name, env, popen=subprocess.Popen, ng=None):
     return None, ["native-engine: no check of these game files yet; one runs after this session"]
 
 
-def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=subprocess.Popen, ng=None):
+def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=subprocess.Popen, ng=None,
+                  before_run=None):
     """Under native-engine, a Godot C# game (a data_*_windows_x86_64 folder next to the exe) runs on Kestrel's
-    own linux-arm64 engine. Returns the exit code to end with, or None to go on to Proton."""
+    own linux-arm64 engine. Returns the exit code to end with, or None to go on to Proton. before_run is called
+    once the engine is about to start: the run blocks until the game ends, and main() returns with its exit code."""
     if not experiment(env, "native-engine") or len(command) < 3:
         return None, []
     exe = os.path.abspath(command[2])
@@ -3638,6 +3681,9 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
             log = open(path, "a", encoding="utf-8")
         except OSError:
             log, path = None, None
+    report_unapplied(game_id(env) or "", env, native=True)
+    if before_run:
+        before_run()
     env, vulkan_notes = native_vulkan_env(env)
     print(engine_line("native", (ng.get("COMPONENT") or {}).get("tag") if ng else None), file=sys.stderr, flush=True)
     began = clock()
@@ -3661,6 +3707,22 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
     if rc != 0 and took < NATIVE_START_S:
         return None, notes + ["native-engine: exited with %d after %.0f s; starting on Proton" % (rc, took)]
     return rc, notes + ["native-engine: ran %.0f s natively, exit %d" % (took, rc)]
+
+
+def before_native_run(notes, env, app_id, free=free_memory):
+    """What a Proton launch does on its way to start(), for a launch that ends in native_engine()'s run: prints the
+    notes gathered so far (emptying the list, so a fallback to Proton does not print them again) and asks the app to
+    free memory. A prestarted engine is already loaded and waiting, so that launch is not held up for it."""
+    for note in notes:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
+    del notes[:]
+    if not experiment(env, "free-memory"):
+        return
+    if env.get("DROIDDECK_NATIVE_PRESTART") == "1":
+        summary = "skipped, the native engine was started ahead of this launch"
+    else:
+        summary = free(os.environ.get("BL_LAUNCH_DIR"), app_id)
+    print("droiddeck-game-env: free memory: " + summary, file=sys.stderr, flush=True)
 
 
 NATIVE_PRESTART = "--native-prestart"
@@ -3851,6 +3913,7 @@ def main():
             print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
         print("droiddeck-game-env: " + experiments_line(experiments(effective_env), steam_experiments),
               file=sys.stderr, flush=True)
+        report_unapplied(app_id, effective_env, device=True)
     phases = []
     if waiting:
         began = time.monotonic()
@@ -3904,7 +3967,8 @@ def main():
                         notes.append("Godot: cache and log check skipped (%s)" % error)
                     notes += native_inventory(command[2], effective_env)
                     notes += texture_pack(command[2], effective_env)
-                    native_rc, native_notes = native_engine(command, effective_env)
+                    native_rc, native_notes = native_engine(
+                        command, effective_env, before_run=lambda: before_native_run(notes, effective_env, app_id))
                     for note in native_notes:
                         print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
                     if native_rc is not None:

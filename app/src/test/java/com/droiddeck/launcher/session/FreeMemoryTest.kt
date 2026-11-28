@@ -118,9 +118,11 @@ class FreeMemoryTest {
             balloonPeakMb = 2_304, balloonMs = 4_200, balloonStop = "reclaimed", appAdj = 0, balloonAdj = 250, ms = 5_100,
         )
         val fields = FreeMemory.fields(result)
-        assertEquals(listOf("reason", "method", "freedMb", "availableBeforeMb", "availableAfterMb", "swapUsedBeforeMb", "swapUsedAfterMb",
-            "balloonPeakMb", "balloonMs", "balloonStop", "packages", "killFreedMb", "appAdj", "balloonAdj", "ms"), fields.keys.toList())
-        assertEquals(2_700L, fields["freedMb"])
+        assertEquals(listOf("reason", "method", "availableChangeMb", "headroomChangeMb", "availableBeforeMb", "availableAfterMb",
+            "swapUsedBeforeMb", "swapUsedAfterMb", "balloonPeakMb", "balloonMs", "balloonStop", "packages", "killHeadroomChangeMb",
+            "appAdj", "balloonAdj", "ms"), fields.keys.toList())
+        assertEquals(2_700L, fields["headroomChangeMb"])
+        assertEquals(1_500L, fields["availableChangeMb"])
         assertEquals(2_600L, fields["availableBeforeMb"])
         assertEquals(4_100L, fields["availableAfterMb"])
         assertEquals(4_200L, fields["swapUsedBeforeMb"])
@@ -128,10 +130,29 @@ class FreeMemoryTest {
         assertEquals(2_304, fields["balloonPeakMb"])
         assertEquals("reclaimed", fields["balloonStop"])
         assertEquals(412, fields["packages"])
-        assertTrue(FreeMemory.line(result).startsWith("DROIDDECK_FREE_MEMORY reason=session_start method=kill_background+balloon freedMb=2700 "))
+        assertTrue(FreeMemory.line(result).startsWith(
+            "DROIDDECK_FREE_MEMORY reason=session_start method=kill_background+balloon availableChangeMb=1500 headroomChangeMb=2700 "))
         val skipped = FreeMemory.Result(FreeMemory.GAME_EXEC, "none", 0, device(5_000, 1_000), device(5_000, 1_000), null)
-        assertEquals(0L, FreeMemory.fields(skipped)["freedMb"])
-        assertTrue(FreeMemory.line(skipped).contains(" balloonStop=- packages=0 killFreedMb=- "))
+        assertEquals(0L, FreeMemory.fields(skipped)["headroomChangeMb"])
+        assertTrue(FreeMemory.line(skipped).contains(" balloonStop=- packages=0 killHeadroomChangeMb=- "))
+    }
+
+    @Test fun headroomCanFallWhileAvailableMemoryRises() {
+        // Pixel 10a, game start, Nov 27: the balloon moved 607 MB into swap for 491 MB more available.
+        val swapTotal = 3_785L
+        val result = FreeMemory.Result(
+            reason = FreeMemory.GAME_EXEC, method = "kill_background+balloon", packages = 616,
+            before = device(1_844, swapTotal - 923, 7_571, swapTotal), after = device(2_335, swapTotal - 1_530, 7_571, swapTotal),
+            killFreedMb = -36,
+        )
+        val fields = FreeMemory.fields(result)
+        assertEquals(491L, fields["availableChangeMb"])
+        assertEquals(-116L, fields["headroomChangeMb"])
+        assertEquals(-36L, fields["killHeadroomChangeMb"])
+        assertFalse(fields.containsKey("freedMb"))
+        assertEquals("method=kill_background+balloon availableMb=1844->2335 swapUsedMb=923->1530", FreeMemory.summary(result))
+        assertEquals("method=none availableMb=- swapUsedMb=-",
+            FreeMemory.summary(FreeMemory.Result(FreeMemory.GAME_EXEC, "none", 0, null, null, null)))
     }
 
     @Test fun aKilledBalloonIsNotAnAbnormalExit() {
