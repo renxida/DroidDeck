@@ -1191,6 +1191,112 @@ def engine_env(env, icu=None, system_icu=None):
     return env
 
 
+# --- Engine-CPU switches (branch perf/engine-cpu; each off unless its variable is set) ---
+# DROIDDECK_NATIVE_DOTNET=<token,...> sets the .NET runtime's own variables for the engine (they beat the
+# runtimeconfig and whatever the session set before; docs.microsoft.com/dotnet/core/runtime-config):
+#   pgo / nopgo           DOTNET_TieredPGO=1 / 0 (the app's warmup profile already asks for 0 by default)
+#   notiered              DOTNET_TieredCompilation=0: optimised code at the first call, no tier-up later
+#   noquickjitloops       DOTNET_TC_QuickJitForLoops=0: methods with loops optimised at once (no OSR)
+#   callcountdelay=<ms>   DOTNET_TC_CallCountingDelayMs (default 100): how long tier-up waits after new tier-0 work
+#   concgc / noconcgc     DOTNET_gcConcurrent=1 / 0 (0: no background GC thread; gen0 may then grow past 6 MB)
+#   gen0=<MB>             DOTNET_GCgen0size (hex bytes), the gen0 budget's floor, 1 to 256
+#   conserve=<0-9>        DOTNET_GCConserveMemory
+# DROIDDECK_NATIVE_AUDIO_DRIVER=Dummy adds --audio-driver Dummy: Godot mixes into nothing, PulseAudio idles.
+DOTNET_FLAGS = {"pgo": ("DOTNET_TieredPGO", "1"), "nopgo": ("DOTNET_TieredPGO", "0"),
+                "notiered": ("DOTNET_TieredCompilation", "0"), "noquickjitloops": ("DOTNET_TC_QuickJitForLoops", "0"),
+                "concgc": ("DOTNET_gcConcurrent", "1"), "noconcgc": ("DOTNET_gcConcurrent", "0")}
+DOTNET_VALUES = {"callcountdelay": ("DOTNET_TC_CallCountingDelayMs", 0, 10000, str),
+                 "gen0": ("DOTNET_GCgen0size", 1, 256, lambda mb: "%x" % (mb << 20)),
+                 "conserve": ("DOTNET_GCConserveMemory", 0, 9, str)}
+DOTNET_SHOWN = ("TieredCompilation", "TieredPGO", "TC_QuickJitForLoops", "TC_CallCountingDelayMs", "ReadyToRun",
+                "gcConcurrent", "gcServer", "GCgen0size", "GCConserveMemory", "GCHeapHardLimit", "EnableWriteXorExecute")
+AUDIO_DRIVERS = ("Dummy", "PulseAudio", "ALSA")
+
+
+def dotnet_switches(env):
+    """(environment with DROIDDECK_NATIVE_DOTNET's variables set, log line or None)."""
+    text = env.get("DROIDDECK_NATIVE_DOTNET", "").strip()
+    if not text:
+        return env, None
+    env, done, bad = dict(env), [], []
+    for token in (t.strip().lower() for t in text.split(",") if t.strip()):
+        key, _, value = token.partition("=")
+        if token in DOTNET_FLAGS:
+            name, setting = DOTNET_FLAGS[token]
+        elif key in DOTNET_VALUES and value.isdigit() and DOTNET_VALUES[key][1] <= int(value) <= DOTNET_VALUES[key][2]:
+            name, low, high, form = DOTNET_VALUES[key]
+            setting = form(int(value))
+        else:
+            bad.append(token)
+            continue
+        before = env.get(name, env.get("COMPlus_" + name[len("DOTNET_"):]))
+        env.pop("COMPlus_" + name[len("DOTNET_"):], None)
+        env[name] = setting
+        done.append(f"{name}={setting}" + (f" (was {before})" if before is not None and before != setting else ""))
+    return env, ("native-dotnet: DROIDDECK_NATIVE_DOTNET set " + (", ".join(done) or "nothing")
+                 + (f"; ignored {', '.join(bad)}" if bad else ""))
+
+
+def cpu_caches(root="/sys/devices/system/cpu"):
+    """The cache sizes .NET's GC can read (it sizes gen0 from the largest), e.g. 'L1 64K, L2 512K, L3 8192K'."""
+    sizes = {}
+    try:
+        cpus = [n for n in os.listdir(root) if re.fullmatch(r"cpu[0-9]+", n)]
+    except OSError:
+        cpus = []
+    for cpu in cpus:
+        base = os.path.join(root, cpu, "cache")
+        try:
+            entries = os.listdir(base)
+        except OSError:
+            continue
+        for index in entries:
+            try:
+                with open(os.path.join(base, index, "level")) as f:
+                    level = int(f.read())
+                with open(os.path.join(base, index, "size")) as f:
+                    size = f.read().strip()
+            except (OSError, ValueError):
+                continue
+            kb = int(size[:-1]) * (1024 if size.endswith("M") else 1) if size[:-1].isdigit() else 0
+            sizes[level] = max(sizes.get(level, 0), kb)
+    return ", ".join(f"L{level} {kb}K" for level, kb in sorted(sizes.items())) or "none visible"
+
+
+def dotnet_line(env, runtimeconfig=None):
+    """One line with the .NET settings the engine starts with: DOTNET_/COMPlus_ variables, runtimeconfig switches,
+    and the CPU caches the GC can see."""
+    shown = []
+    for name in DOTNET_SHOWN:
+        for prefix in ("DOTNET_", "COMPlus_"):
+            if prefix + name in env:
+                shown.append(f"{prefix}{name}={env[prefix + name]}")
+    props = {}
+    if runtimeconfig:
+        try:
+            with open(runtimeconfig) as f:
+                props = json.load(f).get("runtimeOptions", {}).get("configProperties", {})
+        except (OSError, ValueError):
+            props = {}
+    knobs = {k: v for k, v in sorted(props.items()) if k.startswith(("System.GC.", "System.Runtime.Tiered"))}
+    return ("native-dotnet: env " + (" ".join(shown) or "(none)") + "; runtimeconfig "
+            + (" ".join(f"{k}={json.dumps(v)}" for k, v in knobs.items()) or "(no GC or tiering switches)")
+            + f"; cpu caches {cpu_caches()}")
+
+
+def audio_args(args, env):
+    """(engine arguments, log line or None) for DROIDDECK_NATIVE_AUDIO_DRIVER. Arguments that name one win."""
+    want = env.get("DROIDDECK_NATIVE_AUDIO_DRIVER", "").strip()
+    if not want:
+        return list(args), None
+    driver = next((d for d in AUDIO_DRIVERS if d.lower() == want.lower()), None)
+    if not driver:
+        return list(args), f"native-audio: DROIDDECK_NATIVE_AUDIO_DRIVER={want} ignored ({', '.join(AUDIO_DRIVERS)})"
+    if "--audio-driver" in args or "--headless" in args:
+        return list(args), "native-audio: the audio driver is left to the engine arguments"
+    return list(args) + ["--audio-driver", driver], f"native-audio: --audio-driver {driver} (DROIDDECK_NATIVE_AUDIO_DRIVER)"
+
+
 def die_with_parent():
     """In the engine's child process: it gets SIGKILL if this wrapper dies (Linux prctl PR_SET_PDEATHSIG)."""
     try:
@@ -1881,6 +1987,9 @@ def main(argv=None):
     if a.command == "compose":
         print(json.dumps(r))
         return 0
+    rest, audio_note = audio_args(rest, os.environ)
+    if audio_note:
+        log(audio_note)
     cmd = [r["engine"], "--main-pack", r["pack"], "--print-fps"] + rest
     log("run " + " ".join(cmd))
     os.chdir(os.path.abspath(a.game_dir))
@@ -1898,6 +2007,10 @@ def main(argv=None):
             log(f"ICU: {ICU['package']} from {icu} (app-local)")
     env = dict(engine_env(os.environ, icu, system_icu))
     env["DROIDDECK_NATIVE_GAME"] = "1"  # the app's telemetry counts this process (memory, swap, faults) as the game's
+    env, dotnet_note = dotnet_switches(env)
+    if dotnet_note:
+        log(dotnet_note)
+    log(dotnet_line(env, os.path.join(r["data"], f"{r['assembly']}.runtimeconfig.json")))
     if a.command == "prestart":  # the Steam client may not be up yet: no Steam probe; the game waits at its first call
         try:
             return prestart(line_buffered(cmd), env, hold, {"argv": key, "environ": dict(os.environ),

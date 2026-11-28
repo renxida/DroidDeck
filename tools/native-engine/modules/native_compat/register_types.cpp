@@ -9,6 +9,7 @@
 #include "render_census.h"
 
 #include "core/config/engine.h"
+#include "core/config/project_settings.h"
 #include "core/io/json.h"
 #include "core/io/logger.h"
 #include "core/io/resource_loader.h"
@@ -26,9 +27,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "servers/audio_server.h"
+#include "servers/display_server.h"
 #include "servers/rendering_server.h"
 
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+
 #ifdef __linux__
+#include <dirent.h>
 #include <errno.h>
 #include <sched.h>
 #include <stdlib.h>
@@ -121,6 +130,267 @@ static void apply_main_thread_hints() {
 	}
 }
 #endif
+// Engine-CPU switches (branch perf/engine-cpu). Each is off unless its variable is set, and logs what it did.
+//   DROIDDECK_NATIVE_THREAD_CPUS="main=7;rest=4-6;.NET BGC=0-3"
+//       per-thread CPU placement: "main" is the thread that runs frames, a name is a /proc comm prefix, "rest" is
+//       every other thread. Applied at the first frame and to new threads every 10 s; threads are moved once.
+//   DROIDDECK_NATIVE_SWAPCHAIN_IMAGES=2   rendering/rendering_device/vsync/swapchain_image_count (Godot's default 3)
+//   DROIDDECK_NATIVE_PHYSICS_TPS=<n>      physics ticks per second (default 60)
+//   DROIDDECK_NATIVE_PHYSICS_MAX_STEPS=<n> physics steps one frame may catch up on (default 8)
+//   DROIDDECK_NATIVE_RUNTIME_CENSUS=1     the census below even when no switch is set (for control arms)
+// When any of these, DROIDDECK_NATIVE_DOTNET, DROIDDECK_NATIVE_AUDIO_DRIVER or DROIDDECK_NATIVE_MAIN_CPUS is set,
+// a "native_compat: runtime" line at 20 s and 120 s reports what the engine really runs with: render thread
+// model, audio driver, vsync mode, swapchain images, max fps, physics, and threads by name with their CPUs.
+static bool env_set(const char *p_name) {
+	const char *v = getenv(p_name);
+	return v && *v;
+}
+
+static int env_int(const char *p_name, int p_min, int p_max) {
+	const char *v = getenv(p_name);
+	if (!v || !*v) {
+		return -1;
+	}
+	char *end = nullptr;
+	const long n = strtol(v, &end, 10);
+	if (*end || n < p_min || n > p_max) {
+		print_line(vformat("native_compat: %s=%s ignored (%d to %d)", p_name, v, p_min, p_max));
+		return -1;
+	}
+	return int(n);
+}
+
+static void engine_cpu_servers() {
+	const int images = env_int("DROIDDECK_NATIVE_SWAPCHAIN_IMAGES", 2, 4);
+	if (images > 0) {
+		ProjectSettings::get_singleton()->set_setting("rendering/rendering_device/vsync/swapchain_image_count", images);
+		print_line(vformat("native_compat: swapchain images %d (DROIDDECK_NATIVE_SWAPCHAIN_IMAGES)", images));
+	}
+}
+
+static void engine_cpu_scene() {
+	Engine *e = Engine::get_singleton();
+	const int tps = env_int("DROIDDECK_NATIVE_PHYSICS_TPS", 10, 240);
+	if (tps > 0) {
+		e->set_physics_ticks_per_second(tps);
+		print_line(vformat("native_compat: physics ticks per second %d (DROIDDECK_NATIVE_PHYSICS_TPS)", tps));
+	}
+	const int steps = env_int("DROIDDECK_NATIVE_PHYSICS_MAX_STEPS", 1, 8);
+	if (steps > 0) {
+		e->set_max_physics_steps_per_frame(steps);
+		print_line(vformat("native_compat: max physics steps per frame %d (DROIDDECK_NATIVE_PHYSICS_MAX_STEPS)", steps));
+	}
+}
+
+static bool engine_cpu_census_on() {
+	static const char *names[] = { "DROIDDECK_NATIVE_RUNTIME_CENSUS", "DROIDDECK_NATIVE_THREAD_CPUS",
+		"DROIDDECK_NATIVE_SWAPCHAIN_IMAGES", "DROIDDECK_NATIVE_PHYSICS_TPS", "DROIDDECK_NATIVE_PHYSICS_MAX_STEPS",
+		"DROIDDECK_NATIVE_DOTNET", "DROIDDECK_NATIVE_AUDIO_DRIVER", "DROIDDECK_NATIVE_MAIN_CPUS", "DROIDDECK_NATIVE_UCLAMP_MIN" };
+	for (const char *n : names) {
+		if (env_set(n)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+#ifdef __linux__
+struct ThreadRule {
+	std::string name; // "main", "rest" or a comm prefix
+	std::string cpus;
+	cpu_set_t set;
+};
+static std::vector<ThreadRule> thread_rules;
+static std::set<long> threads_placed;
+static uint64_t threads_next_ms = 0;
+
+static void thread_rules_parse() {
+	const char *v = getenv("DROIDDECK_NATIVE_THREAD_CPUS");
+	if (!v || !*v) {
+		return;
+	}
+	std::string text(v);
+	size_t at = 0;
+	while (at <= text.size()) {
+		size_t semi = text.find(';', at);
+		std::string rule = text.substr(at, semi == std::string::npos ? std::string::npos : semi - at);
+		at = semi == std::string::npos ? text.size() + 1 : semi + 1;
+		if (rule.empty()) {
+			continue;
+		}
+		const size_t eq = rule.rfind('=');
+		ThreadRule r;
+		if (eq == std::string::npos || eq == 0 || !parse_cpu_list(rule.c_str() + eq + 1, r.set)) {
+			print_line(vformat("native_compat: DROIDDECK_NATIVE_THREAD_CPUS rule '%s' not understood; skipped", rule.c_str()));
+			continue;
+		}
+		r.name = rule.substr(0, eq);
+		r.cpus = rule.substr(eq + 1);
+		thread_rules.push_back(r);
+	}
+	print_line(vformat("native_compat: thread placement from DROIDDECK_NATIVE_THREAD_CPUS, %d rules", int(thread_rules.size())));
+}
+
+static std::string thread_comm(long p_tid) {
+	char path[64];
+	snprintf(path, sizeof(path), "/proc/self/task/%ld/comm", p_tid);
+	FILE *f = fopen(path, "r");
+	if (!f) {
+		return std::string();
+	}
+	char buf[64] = {};
+	if (!fgets(buf, sizeof(buf), f)) {
+		buf[0] = 0;
+	}
+	fclose(f);
+	std::string s(buf);
+	while (!s.empty() && (s.back() == '\n' || s.back() == ' ')) {
+		s.pop_back();
+	}
+	return s;
+}
+
+static std::vector<long> thread_ids() {
+	std::vector<long> ids;
+	if (DIR *d = opendir("/proc/self/task")) {
+		while (struct dirent *e = readdir(d)) {
+			if (e->d_name[0] >= '0' && e->d_name[0] <= '9') {
+				ids.push_back(strtol(e->d_name, nullptr, 10));
+			}
+		}
+		closedir(d);
+	}
+	return ids;
+}
+
+static void threads_place(uint64_t p_now) {
+	if (thread_rules.empty() || p_now < threads_next_ms) {
+		return;
+	}
+	threads_next_ms = p_now + 10000;
+	const long main_tid = long(syscall(SYS_gettid));
+	std::map<std::string, int> moved;
+	int refused = 0;
+	for (long tid : thread_ids()) {
+		if (threads_placed.count(tid)) {
+			continue;
+		}
+		threads_placed.insert(tid);
+		const std::string comm = thread_comm(tid);
+		const ThreadRule *pick = nullptr, *rest = nullptr;
+		for (const ThreadRule &r : thread_rules) {
+			if (r.name == "rest") {
+				rest = &r;
+			} else if (r.name == "main" ? tid == main_tid : comm.compare(0, r.name.size(), r.name) == 0) {
+				pick = pick ? pick : &r;
+			}
+		}
+		pick = pick ? pick : rest;
+		if (!pick) {
+			continue;
+		}
+		if (sched_setaffinity(pid_t(tid), sizeof(pick->set), &pick->set) != 0) {
+			refused++;
+			continue;
+		}
+		moved[(pick->name == "main" || pick->name == "rest" ? pick->name : "'" + pick->name + "'") + "->" + pick->cpus]++;
+	}
+	if (moved.empty() && !refused) {
+		return;
+	}
+	String line = vformat("native_compat: threads placed at %.1f s:", p_now / 1000.0);
+	for (const auto &m : moved) {
+		line += vformat(" %d %s", m.second, m.first.c_str());
+	}
+	if (refused) {
+		line += vformat("; %d refused (errno %d)", refused, errno);
+	}
+	print_line(line);
+}
+
+static std::string thread_cpus_allowed(long p_tid) {
+	char path[64];
+	snprintf(path, sizeof(path), "/proc/self/task/%ld/status", p_tid);
+	FILE *f = fopen(path, "r");
+	if (!f) {
+		return "?";
+	}
+	char buf[256];
+	std::string out = "?";
+	while (fgets(buf, sizeof(buf), f)) {
+		if (strncmp(buf, "Cpus_allowed_list:", 18) == 0) {
+			out = buf + 18;
+			while (!out.empty() && (out.front() == '\t' || out.front() == ' ')) {
+				out.erase(0, 1);
+			}
+			while (!out.empty() && out.back() == '\n') {
+				out.pop_back();
+			}
+			break;
+		}
+	}
+	fclose(f);
+	return out;
+}
+#endif
+
+static bool census_on = false;
+static int census_done = 0;
+static const uint64_t census_at_ms[] = { 20000, 120000 };
+
+static void runtime_census(uint64_t p_now) {
+	if (!census_on || census_done >= 2 || p_now < census_at_ms[census_done]) {
+		return;
+	}
+	census_done++;
+	Engine *e = Engine::get_singleton();
+	String vsync = "?";
+	if (DisplayServer *ds = DisplayServer::get_singleton()) {
+		static const char *modes[] = { "disabled", "enabled", "adaptive", "mailbox" };
+		const int m = int(ds->window_get_vsync_mode(DisplayServer::MAIN_WINDOW_ID));
+		vsync = m >= 0 && m < 4 ? String(modes[m]) : itos(m);
+	}
+	String line = vformat("native_compat: runtime at %.0f s: render thread %s, audio %s, vsync %s, swapchain images %d, max fps %d, physics %d tps max %d steps",
+			p_now / 1000.0, OS::get_singleton()->is_separate_thread_rendering_enabled() ? "separate" : "main",
+			AudioServer::get_singleton() ? AudioServer::get_singleton()->get_driver_name() : String("?"), vsync,
+			int(GLOBAL_GET("rendering/rendering_device/vsync/swapchain_image_count")), e->get_max_fps(),
+			e->get_physics_ticks_per_second(), e->get_max_physics_steps_per_frame());
+#ifdef __linux__
+	// Threads by name (digits dropped, so pools count as one), with the CPU sets they may run on.
+	std::map<std::string, std::map<std::string, int>> by_name;
+	int total = 0;
+	for (long tid : thread_ids()) {
+		std::string comm = thread_comm(tid);
+		std::string key;
+		for (char c : comm) {
+			if (c < '0' || c > '9') {
+				key += c;
+			}
+		}
+		by_name[key.empty() ? "?" : key][thread_cpus_allowed(tid)]++;
+		total++;
+	}
+	line += vformat("; %d threads:", total);
+	for (const auto &n : by_name) {
+		for (const auto &c : n.second) {
+			line += vformat(" '%s' x%d [%s]", n.first.c_str(), c.second, c.first.c_str());
+		}
+	}
+#endif
+	print_line(line);
+}
+
+static void engine_cpu_frame() {
+	if (!census_on) {
+		return;
+	}
+	const uint64_t now = OS::get_singleton()->get_ticks_msec();
+#ifdef __linux__
+	threads_place(now);
+#endif
+	runtime_census(now);
+}
+
 static FmodServer *fmod_server = nullptr;
 
 // The sampling profiler (prof/prof.h), when DROIDDECK_NATIVE_PROF asks for it: reports go to the log each window.
@@ -252,6 +522,7 @@ static bool frame_from_tree = false;
 
 static void each_frame() {
 	boot_window_frame();
+	engine_cpu_frame();
 	prof_print(droiddeck_prof::tick());
 	census_frame();
 }
@@ -281,7 +552,11 @@ static void frame_hooks_start() {
 		census_thread = Thread::get_caller_id();
 	}
 	boot_window_start();
-	if (!droiddeck_prof::active() && !droiddeck_census::active() && !boot_on.load()) {
+	census_on = engine_cpu_census_on();
+#ifdef __linux__
+	thread_rules_parse();
+#endif
+	if (!droiddeck_prof::active() && !droiddeck_census::active() && !boot_on.load() && !census_on) {
 		return;
 	}
 	if (RenderingServer *rs = RenderingServer::get_singleton()) {
@@ -294,12 +569,16 @@ static void frame_hooks_start() {
 }
 
 void initialize_native_compat_module(ModuleInitializationLevel p_level) {
+	if (p_level == MODULE_INITIALIZATION_LEVEL_SERVERS) {
+		engine_cpu_servers(); // before the display server makes the swapchain
+	}
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
 #ifdef __linux__
 	apply_main_thread_hints();
 #endif
+	engine_cpu_scene();
 	frame_hooks_start();
 	GDREGISTER_CLASS(NativeSkeleton2D);
 	GDREGISTER_CLASS(NativeSoundBank);

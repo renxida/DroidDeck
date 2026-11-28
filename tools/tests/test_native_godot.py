@@ -1889,3 +1889,75 @@ class PrestartTest(unittest.TestCase):
         a, b = NG["prestart_dir"]("/x/a", "/c"), NG["prestart_dir"]("/x/b", "/c")
         self.assertNotEqual(a, b)
         self.assertEqual(a, NG["prestart_dir"]("/x/a/", "/c"))
+
+
+class EngineCpuSwitchTest(unittest.TestCase):
+    """perf/engine-cpu: DROIDDECK_NATIVE_DOTNET and DROIDDECK_NATIVE_AUDIO_DRIVER, each off unless set."""
+
+    def test_dotnet_unset_changes_nothing(self):
+        env = {"DOTNET_TieredPGO": "0"}
+        self.assertEqual((env, None), NG["dotnet_switches"](env))
+
+    def test_dotnet_tokens_set_runtime_variables(self):
+        env, line = NG["dotnet_switches"]({"DROIDDECK_NATIVE_DOTNET": "pgo, noconcgc,gen0=32,conserve=0,callcountdelay=0,bogus,gen0=999",
+                                           "DOTNET_TieredPGO": "0", "COMPlus_gcConcurrent": "1"})
+        self.assertEqual("1", env["DOTNET_TieredPGO"])
+        self.assertEqual("0", env["DOTNET_gcConcurrent"])
+        self.assertNotIn("COMPlus_gcConcurrent", env)
+        self.assertEqual("2000000", env["DOTNET_GCgen0size"])
+        self.assertEqual("0", env["DOTNET_GCConserveMemory"])
+        self.assertEqual("0", env["DOTNET_TC_CallCountingDelayMs"])
+        self.assertIn("DOTNET_TieredPGO=1 (was 0)", line)
+        self.assertIn("ignored bogus, gen0=999", line)
+
+    def test_dotnet_line_shows_env_runtimeconfig_and_caches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Path(tmp) / "g.runtimeconfig.json"
+            cfg.write_text(json.dumps({"runtimeOptions": {"configProperties": {
+                "System.GC.Concurrent": False, "System.Runtime.TieredPGO": True, "Other": 1}}}))
+            cache = Path(tmp) / "cpu" / "cpu7" / "cache"
+            for index, (level, size) in enumerate(((1, "64K"), (2, "2048K"), (3, "4M"))):
+                (cache / f"index{index}").mkdir(parents=True)
+                (cache / f"index{index}" / "level").write_text(f"{level}\n")
+                (cache / f"index{index}" / "size").write_text(size + "\n")
+            self.assertEqual("L1 64K, L2 2048K, L3 4096K", NG["cpu_caches"](str(Path(tmp) / "cpu")))
+            self.assertEqual("none visible", NG["cpu_caches"](str(Path(tmp) / "nothing")))
+            line = NG["dotnet_line"]({"DOTNET_TieredPGO": "0", "PATH": "/bin"}, str(cfg))
+        self.assertIn("env DOTNET_TieredPGO=0;", line)
+        self.assertIn('System.GC.Concurrent=false System.Runtime.TieredPGO=true;', line)
+        self.assertNotIn("Other", line)
+
+    def test_audio_driver(self):
+        f = NG["audio_args"]
+        self.assertEqual((["--x"], None), f(["--x"], {}))
+        args, line = f(["--x"], {"DROIDDECK_NATIVE_AUDIO_DRIVER": "dummy"})
+        self.assertEqual(["--x", "--audio-driver", "Dummy"], args)
+        self.assertIn("--audio-driver Dummy", line)
+        self.assertEqual(["--audio-driver", "ALSA"], f(["--audio-driver", "ALSA"], {"DROIDDECK_NATIVE_AUDIO_DRIVER": "Dummy"})[0])
+        self.assertIn("ignored", f([], {"DROIDDECK_NATIVE_AUDIO_DRIVER": "wasapi"})[1])
+
+    def test_run_applies_both(self):
+        game = NativeGodotTest("test_compose")
+        game.setUp()
+        self.addCleanup(game.doCleanups)
+        seen = []
+        g = NG["main"].__globals__
+        real = g["watch"]
+        g["watch"] = lambda args, env, **kw: seen.append((args, env)) or 0
+        old = {k: os.environ.get(k) for k in ("DROIDDECK_NATIVE_DOTNET", "DROIDDECK_NATIVE_AUDIO_DRIVER")}
+        os.environ.update(DROIDDECK_NATIVE_DOTNET="noconcgc", DROIDDECK_NATIVE_AUDIO_DRIVER="Dummy")
+        err = io.StringIO()
+        try:
+            with unittest.mock.patch("sys.stderr", err):
+                NG["main"](["run", "--game-dir", str(game.game), "--kit", str(game.kit), "--engine", str(game.engine),
+                            "--out", str(game.root / "launch"), "--exe", "SlayTheSpire2.exe"])
+        finally:
+            g["watch"] = real
+            for k, v in old.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+            os.chdir(Path(__file__).resolve().parent)
+        args, env = seen[0]
+        self.assertEqual(["--audio-driver", "Dummy"], args[-2:])
+        self.assertEqual("0", env["DOTNET_gcConcurrent"])
+        self.assertIn("native-dotnet: DROIDDECK_NATIVE_DOTNET set DOTNET_gcConcurrent=0", err.getvalue())
+        self.assertIn("runtimeconfig System.GC.Concurrent=true System.GC.Server=false", err.getvalue())
