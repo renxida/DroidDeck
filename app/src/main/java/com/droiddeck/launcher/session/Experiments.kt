@@ -92,6 +92,8 @@ object Experiments {
     /** Low-latency pad: Steam gets a report every millisecond only while the pad's state changes; an unchanged one
      *  goes out at the device's own rate (Deck 250 Hz, touch 125 Hz). */
     const val PAD_IDLE_REPORTS = "pad-idle-reports"
+    /** Game thread hints: while the game holds its pace and nothing is boosted, threads' CPU time is read every 5 s, not every second. */
+    const val HINTS_IDLE = "hints-idle"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -141,6 +143,7 @@ object Experiments {
         Switch(PE_ALIGN, R.string.exp_pe_align),
         Switch(PRESENT_DMABUF, R.string.exp_present_dmabuf),
         Switch(PAD_IDLE_REPORTS, R.string.exp_pad_idle_reports),
+        Switch(HINTS_IDLE, R.string.exp_hints_idle),
     )
 
     /** At most one of each group is on. */
@@ -162,7 +165,7 @@ object Experiments {
         DXVK_ARM64EC, COMPOSITE_TIMING, DOTNET_R2R, FEX_CODE_BUFFER, FEX_SAMPLE, DOTNET_R2R_GENERICS, DOTNET_R2R_BUBBLE,
         FPS_30, WEBHELPER_TRIM, FEX_SMAPS, GODOT_VERBOSE, TEX_ASTC, TEX_HALF, FEX_TRIM,
         FEX_CACHE_KEEP, PE_ALIGN, VK_BLOCKS_64, NATIVE_R2R, GODOT_RENDER_THREAD, PRESENT_DMABUF,
-        PAD_IDLE_REPORTS)
+        PAD_IDLE_REPORTS, HINTS_IDLE)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,

@@ -82,6 +82,7 @@ class ExperimentsTest {
             "godot-render-thread" to "DROIDDECK_EXP_GODOT_RENDER_THREAD",
             "present-dmabuf" to "DROIDDECK_EXP_PRESENT_DMABUF",
             "pad-idle-reports" to "DROIDDECK_EXP_PAD_IDLE_REPORTS",
+            "hints-idle" to "DROIDDECK_EXP_HINTS_IDLE",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())
