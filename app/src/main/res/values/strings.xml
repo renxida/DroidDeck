@@ -2169,6 +2169,7 @@
     <string name="exp_tex_half">Godot games: as above, and store textures over 1024 px at half resolution</string>
     <string name="exp_godot_verbose">Godot games: log every file the game loads, to see which fonts and textures it uses</string>
     <string name="exp_godot_render_thread">Godot games: draw on a separate render thread, so the graphics driver\'s work leaves the game\'s main thread</string>
+    <string name="exp_present_dmabuf">Mali (open driver): games hand finished frames to the compositor directly, without a copy through the CPU in every frame</string>
     <string name="exp_pe_align">Memory: run games from a copy of the .exe that Wine maps instead of copying (uses disk space)</string>
     <string name="exp_fex_cache_keep">Startup: keep FEX\'s translated code when switching FEX builds</string>
     <string name="exp_fex_trim">Memory: idle game threads give back FEX\'s cached code and lookups</string>

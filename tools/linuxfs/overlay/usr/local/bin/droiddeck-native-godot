@@ -1502,7 +1502,7 @@ PRESTART_DIR = os.path.join(CACHE, "prestart")
 # Read once when the engine starts (libraries, .NET, paths, display, driver, locale, our own switches): a launch
 # whose value differs needs a fresh engine.
 PRESTART_STARTUP_KEYS = re.compile(r"^(DROIDDECK_NATIVE_(?!PRESTART|FIRST_FRAME_S)|DROIDDECK_EXP_|DOTNET_|XDG_|HOME$|"
-                                   r"DISPLAY$|WAYLAND_DISPLAY$|GAMESCOPE_|ENABLE_GAMESCOPE|VK_|MESA_|HYBRIS_|GODOT_|"
+                                   r"DISPLAY$|WAYLAND_DISPLAY$|GAMESCOPE_|ENABLE_GAMESCOPE|VK_|MESA_|PANVK_|HYBRIS_|GODOT_|"
                                    r"LANG$|LC_)")
 # Applied late but read by the engine at start too (controller mappings, the loader's paths): logged by name.
 PRESTART_STALE_KEYS = re.compile(r"^(SDL_|LD_)")

@@ -85,7 +85,8 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "composite-timing", "dotnet-r2r", "fex-code-buffer",
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
                "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
-               "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread")
+               "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread",
+               "present-dmabuf")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -3188,6 +3189,58 @@ def vk_count(env, layer_dir=VKCOUNT_DIR):
     return "; ".join(notes)
 
 
+def kbase_panvk(env):
+    """The session's guest Vulkan driver is PanVK on Arm's kbase kernel interface (the open pair on a Mali)."""
+    driver = (env.get("BL_VK_DRIVER") or env.get("VK_DRIVER_FILES") or env.get("VK_ICD_FILENAMES") or "").lower()
+    return env.get("BL_OPEN_DRIVER") == "1" and env.get("BL_DRM_STANDIN") == "/dev/mali0" and "panvk" in driver
+
+
+def open_driver_present(env, layer_dir=VKCOUNT_DIR):
+    """(env, notes) for a game on an open driver pair (no PowerVR runtime: those launches set their layers in
+    powervr_vulkan_env).
+
+    Experiment present-dmabuf: PanVK on kbase starts Mesa's WSI as a software device unless PANVK_KBASE_DRI3 is set
+    (panvk-kbase-android kbase-common/006). A software device presents to Wayland through wl_shm: each
+    vkQueuePresentKHR copies the image to a buffer on the GPU, waits on the calling thread for the GPU to finish the
+    frame (wsi_common_queue_present, `if (wsi->sw) WaitForFences`), and copies the frame to the shm buffer with the
+    CPU; gamescope then uploads it again (patch 0927). PANVK_KBASE_DRI3=1 makes the swapchain images dma-bufs from
+    the dma-heap, handed to gamescope as they are. Linear by default (the app's compositor is known to take
+    linear); DROIDDECK_PRESENT_DMABUF_AFBC=1 leaves the driver's AFBC default.
+
+    Experiment vk-count on this path: the same layer and report as on PowerVR."""
+    if env.get("BL_OPEN_DRIVER") != "1" or env.get("DROIDDECK_POWERVR_RUNTIME"):
+        return env, []
+    result, notes = dict(env), []
+    if experiment(env, "present-dmabuf"):
+        if not kbase_panvk(env):
+            notes.append("present-dmabuf: the driver is not PanVK on kbase; presentation left as it is")
+        elif env.get("PANVK_KBASE_DRI3"):
+            notes.append("present-dmabuf: PANVK_KBASE_DRI3=%s kept" % env["PANVK_KBASE_DRI3"])
+        else:
+            result["PANVK_KBASE_DRI3"] = "1"
+            afbc = env.get("DROIDDECK_PRESENT_DMABUF_AFBC") == "1"
+            if not afbc:
+                words = [word for word in env.get("PANVK_DEBUG", "").split(",") if word]
+                if "wsi_no_afbc" not in words:
+                    result["PANVK_DEBUG"] = ",".join(words + ["wsi_no_afbc"])
+            notes.append("present-dmabuf: PanVK swapchain images are dma-bufs (%s), no CPU copy or GPU wait in present"
+                         % ("AFBC allowed" if afbc else "linear"))
+    if experiment(env, "vk-count"):
+        if not os.path.isfile(os.path.join(layer_dir, "libVkLayer_droiddeck_vkcount.so")):
+            notes.append("vk-count: layer not installed at %s" % layer_dir)
+        elif "VK_LAYER_DROIDDECK_vkcount" not in env.get("VK_INSTANCE_LAYERS", "").split(":"):
+            layers = env.get("VK_INSTANCE_LAYERS")
+            result["VK_INSTANCE_LAYERS"] = "VK_LAYER_DROIDDECK_vkcount" + (":" + layers if layers else "")
+            if env.get("VK_LAYER_PATH"):
+                result["VK_LAYER_PATH"] = layer_dir + ":" + env["VK_LAYER_PATH"]
+            else:
+                own = env.get("VK_ADD_LAYER_PATH")
+                result["VK_ADD_LAYER_PATH"] = layer_dir + (":" + own if own else "")
+            result.pop("DROIDDECK_VKCOUNT_SECONDS", None)
+            notes.append("vk-count: counting Vulkan calls per frame (open driver)")
+    return result, notes
+
+
 # winewayland.drv's wayland_process_init gives up, and the driver unloads, unless the compositor offers all of
 # these. Wine then has no display driver, and explorer.exe never starts (seen on gamescope, Nov 13: no
 # wl_subcompositor).
@@ -3639,6 +3692,8 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
         except OSError:
             log, path = None, None
     env, vulkan_notes = native_vulkan_env(env)
+    env, present_notes = open_driver_present(env)
+    vulkan_notes = vulkan_notes + present_notes
     print(engine_line("native", (ng.get("COMPONENT") or {}).get("tag") if ng else None), file=sys.stderr, flush=True)
     began = clock()
     try:
@@ -3699,6 +3754,8 @@ def native_prestart(command, env, run=subprocess.run, ng=None):
     args = [sys.executable, NATIVE_GODOT, "prestart", "--fetch", "--game-dir", folder, "--exe", os.path.basename(exe),
             "--out", out, "--"] + list(command[3:])
     env, notes = native_vulkan_env(env)
+    env, present_notes = open_driver_present(env)
+    notes = notes + present_notes
     for note in notes:
         print("droiddeck-game-env: prestart: " + note, file=sys.stderr, flush=True)
     return run(args, env=env, stdin=subprocess.DEVNULL).returncode
@@ -3982,6 +4039,10 @@ def main():
         # newest buffer, so the old ones can be freed. Other FEX builds ignore FEX_TRIMIDLETHREADS.
         env = dict(env, FEX_TRIMIDLETHREADS="30")
     env = game_logs(command, env, app_id)
+    if app_id and len(command) > 2 and command[1] == "waitforexitandrun":
+        env, present_notes = open_driver_present(env)
+        for note in present_notes:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)
