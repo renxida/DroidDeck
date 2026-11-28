@@ -1262,6 +1262,7 @@ class ScreenBench(Bench):
                 SCREEN_MARKER.unlink(missing_ok=True)
             pre = self.preflight()
             self.start_steam(pre)
+            self.launches = 0
             self.experiments = dict(pre.get("experiments") or {})
             self.apply_pushes()
             self.launch_game()
@@ -1469,6 +1470,8 @@ class ScreenBench(Bench):
 
     # ------------------------------------------------------------ run
     def stop_only(self) -> int:
+        self.dir = OUT_ROOT / ".screen-stop"
+        (self.dir / "shots").mkdir(parents=True, exist_ok=True)
         self.sync_clock()
         self.commands = bool(self.ctl("access").get("commands"))
         marker = self.load_marker()
