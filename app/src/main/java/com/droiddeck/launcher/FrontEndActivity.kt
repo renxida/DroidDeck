@@ -973,12 +973,12 @@ class FrontEndActivity : ComponentActivity() {
                         modeSheet = { mode, tab, extras -> ModeSheetHost(mode, tab, extras) },
                         onRuntime = { onRuntimeButton() },
                         onVkBridge = { on ->
-                            SessionPrefs.setVkBridge(this, on); SessionPrefs.setMaliFallbackByAuto(this, ""); vkBridge = on
+                            SessionPrefs.setVkBridge(this, on); SessionPrefs.maliRouteSetByHand(this, "Mali bridge", on); vkBridge = on
                             if (!on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
                         },
                         onVenus = { on ->
                             SessionPrefs.setVenus(this, on)
-                            SessionPrefs.setMaliFallbackByAuto(this, "")
+                            SessionPrefs.maliRouteSetByHand(this, "Mali (Venus)", on)
                             venus = on
                             if (on && !com.droiddeck.launcher.core.DeviceSupport.adreno()) Thread({
                                 com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }

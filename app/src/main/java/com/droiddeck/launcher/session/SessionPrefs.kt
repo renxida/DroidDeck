@@ -803,6 +803,17 @@ object SessionPrefs {
         prefs(context).edit().putString("maliFallbackByAuto", route).apply()
     }
 
+    /**
+     * A route button in Settings > Advanced was pressed. The route is the user's from here on, so the mark
+     * that lets Auto switch its own stand-in off once a driver pair is installed is cleared, for both routes.
+     */
+    fun maliRouteSetByHand(context: Context, route: String, on: Boolean) {
+        val standIn = maliFallbackByAuto(context)
+        setMaliFallbackByAuto(context, "")
+        android.util.Log.i("SessionPrefs", "route: $route switched ${if (on) "on" else "off"} by hand; Auto leaves the Mali route alone from now on" +
+            if (standIn.isNotEmpty()) " (cleared its stand-in mark, which was \"$standIn\")" else "")
+    }
+
     fun setVenus(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("venus", on).apply()
     }
