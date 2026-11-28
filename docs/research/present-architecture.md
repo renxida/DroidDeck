@@ -426,9 +426,12 @@ the picture and the `latency` status (`unreadable` is expected there).
 
 ### Plan C: cap and vote, after B passes
 
-Set the frame cap to 60 on the game's Environment page (`DROIDDECK_FPS_CAP=60`, with `one-limiter` on as by
-default). Do this on the native path: on Proton the existing cap code also writes `fps_limit` into the game's
-`settings.save`, which needs Cedar's go. Pass: `pacing` cadence 16 ms with under 5 % off-cadence, p99 ≤ 17 ms on
+The native path returns from `droiddeck-game-env` before `frame_cap` runs (VERIFIED: `native_engine()` is called
+first in `main()`), so the Environment page's frame cap does not reach it, and the game keeps its own
+`fps_limit` of 120. For this test use the counting layer's pacing instead: `vk-count` on (which now loads the
+layer on this path) and `droiddeckctl env set DROIDDECK_PACE_FPS=60` before the session. A cap that reaches
+the native path without `vk-count` is a small follow-up. On Proton the existing cap code also writes
+`fps_limit` into the game's `settings.save`, which needs Cedar's go. Pass: `pacing` cadence 16 ms with under 5 % off-cadence, p99 ≤ 17 ms on
 screen, `latency toScreen` p50 no more than 5 ms above Plan B's. Then Mobile renderer
 (`DROIDDECK_NATIVE_RENDERING_METHOD=mobile`) against Forward+ at the same cap: same checks plus GPU memory.
 
