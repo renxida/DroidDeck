@@ -84,6 +84,8 @@ public class FakeInputWriter {
     private static final int LATENCY_OFFSET = IMU_OFFSET + 48;
     public static final int LATENCY_CONTROLLER = 1;
     public static final int LATENCY_TOUCH = 2;
+    public static final int LATENCY_IDLE_REPORTS = 4;
+    private static volatile boolean idleReports;
     private static volatile int latency = 0;
     public static final int PAD_TYPE_DECK = 0;
     public static final int PAD_TYPE_STEAM = 1;
@@ -540,8 +542,17 @@ public class FakeInputWriter {
         }
     }
 
+    static int latencyFlags(boolean lowLatency, boolean idleReports) {
+        return (lowLatency ? LATENCY_CONTROLLER | LATENCY_TOUCH : 0) | (idleReports ? LATENCY_IDLE_REPORTS : 0);
+    }
+
+    /** Experiment pad-idle-reports, read by the Steam-side pad at each report; set before {@link #setLowLatency}. */
+    public static void setIdleReports(boolean enabled) {
+        idleReports = enabled;
+    }
+
     public static void setLowLatency(boolean enabled) {
-        int flags = enabled ? LATENCY_CONTROLLER | LATENCY_TOUCH : 0;
+        int flags = latencyFlags(enabled, idleReports);
         latency = flags;
         RingSlot ringSlot;
         synchronized (RING_LOCK) {

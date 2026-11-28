@@ -82,6 +82,9 @@ class ExperimentsTest {
             "godot-render-thread" to "DROIDDECK_EXP_GODOT_RENDER_THREAD",
             "present-dmabuf" to "DROIDDECK_EXP_PRESENT_DMABUF",
             "bridge-default" to "DROIDDECK_EXP_BRIDGE_DEFAULT",
+            "pad-idle-reports" to "DROIDDECK_EXP_PAD_IDLE_REPORTS",
+            "hints-idle" to "DROIDDECK_EXP_HINTS_IDLE",
+            "zram-game-late" to "DROIDDECK_EXP_ZRAM_GAME_LATE",
         )
         assertEquals(expected.keys.toList(), Experiments.ids)
         assertEquals(Experiments.ids.toSet(), (Experiments.toggles + Experiments.present + Experiments.fexOrder).map { it.id }.toSet())

@@ -50,4 +50,12 @@ class GameThreadHintsTest {
             GameThreadHints.boostLine(listOf("a/1 70%"), sessionMissing = true, fps = 30, paced = true))
         assertEquals("boosting nothing (game 60 fps)", GameThreadHints.boostLine(emptyList(), sessionMissing = true, fps = 60, paced = false))
     }
+
+    @Test fun `with hints-idle the scan slows to every five seconds only while nothing is boosted and nothing may be`() {
+        for (seconds in 1..6) assertTrue(GameThreadHints.scanDue(idleScan = false, boosted = false, resting = true, secondsSinceScan = seconds))
+        assertTrue(GameThreadHints.scanDue(idleScan = true, boosted = true, resting = true, secondsSinceScan = 1))
+        assertTrue(GameThreadHints.scanDue(idleScan = true, boosted = false, resting = false, secondsSinceScan = 1))
+        assertEquals(listOf(false, false, false, false, true),
+            (1..5).map { GameThreadHints.scanDue(idleScan = true, boosted = false, resting = true, secondsSinceScan = it) })
+    }
 }

@@ -86,15 +86,16 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
                "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
                "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread",
-               "present-dmabuf", "bridge-default")
+               "present-dmabuf", "bridge-default", "pad-idle-reports", "hints-idle", "zram-game-late")
 
 
 FREE_MEMORY_WAIT_S = 15
 
 
-def free_memory(launch_dir, app_id, wait=FREE_MEMORY_WAIT_S, poll=0.1):
+def free_memory(launch_dir, app_id, wait=FREE_MEMORY_WAIT_S, poll=0.1, engine=None):
     """Asks the app (SessionService, FreeMemory) to close other apps' background processes before the game starts and
-    waits for its answer, which starts with the request's token."""
+    waits for its answer, which starts with the request's token. `engine` ("native") goes on a second line: the app
+    then does the work only when memory would be short for that engine."""
     if not launch_dir or not os.path.isdir(launch_dir):
         return "no launch directory"
     token = "%s-%s" % (re.sub(r"[^A-Za-z0-9_]", "", str(app_id))[:40] or "game", os.urandom(8).hex())
@@ -102,7 +103,7 @@ def free_memory(launch_dir, app_id, wait=FREE_MEMORY_WAIT_S, poll=0.1):
     staged = os.path.join(launch_dir, "free-memory.tmp")
     try:
         with open(staged, "w", encoding="utf-8") as out:
-            out.write(token + "\n")
+            out.write(token + "\n" + ("engine=%s\n" % engine if engine else ""))
         os.replace(staged, os.path.join(launch_dir, "free-memory"))
     except OSError as error:
         return "not asked (%s)" % error
@@ -144,7 +145,7 @@ def without_experiments(env):
 # Their effect is fixed when the session starts (the app, droiddeck-session and Steam's scripts); memory is split:
 # its game part follows the saved switches and its app part the session's.
 SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap",
-                       "hybris-index-session", "composite-timing")
+                       "hybris-index-session", "composite-timing", "pad-idle-reports", "hints-idle", "zram-game-late")
 
 
 def test_experiments(env):
@@ -3767,7 +3768,8 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
 def before_native_run(notes, env, app_id, free=free_memory):
     """What a Proton launch does on its way to start(), for a launch that ends in native_engine()'s run: prints the
     notes gathered so far (emptying the list, so a fallback to Proton does not print them again) and asks the app to
-    free memory. A prestarted engine is already loaded and waiting, so that launch is not held up for it."""
+    free memory, which it does for a native launch only when memory would be short. A prestarted engine is already
+    loaded and waiting, so that launch is not held up for it."""
     for note in notes:
         print("droiddeck-game-env: " + note, file=sys.stderr)
     del notes[:]
@@ -3776,7 +3778,7 @@ def before_native_run(notes, env, app_id, free=free_memory):
     if env.get("DROIDDECK_NATIVE_PRESTART") == "1":
         summary = "skipped, the native engine was started ahead of this launch"
     else:
-        summary = free(os.environ.get("BL_LAUNCH_DIR"), app_id)
+        summary = free(os.environ.get("BL_LAUNCH_DIR"), app_id, engine="native")
     print("droiddeck-game-env: free memory: " + summary, file=sys.stderr, flush=True)
 
 

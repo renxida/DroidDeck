@@ -24,6 +24,7 @@ object GameThreadHints {
     private const val PACE_WINDOW_S = 3
     private const val PACE_LEAVE_S = 10
     private const val PACE_TOLERANCE = 0.08
+    private const val IDLE_SCAN_S = 5
 
     private val NOT_GAMES = setOf("steam", "steamwebhelper")
 
@@ -54,7 +55,8 @@ object GameThreadHints {
             ?: return "game thread hints: no PerformanceHintManager"
         val pm = context.getSystemService(PowerManager::class.java)
         worker?.interrupt()
-        worker = Thread({ run(hm, pm) }, "game-thread-hints").apply { isDaemon = true; start() }
+        val idleScan = Experiments.on(context, Experiments.HINTS_IDLE)
+        worker = Thread({ run(hm, pm, idleScan) }, "game-thread-hints").apply { isDaemon = true; start() }
         return "game thread hints: watching on ${Build.SOC_MANUFACTURER} ${Build.SOC_MODEL}, " + targetText() +
             ", preferred update rate ${hm.preferredUpdateRateNanos} ns"
     }
@@ -74,7 +76,14 @@ object GameThreadHints {
         worker = null
     }
 
-    private fun run(hm: PerformanceHintManager, pm: PowerManager) {
+    /**
+     * Experiment hints-idle: while nothing is boosted and nothing may be (the game holds its pace, or the device is
+     * saving power or hot), the scan of every thread's CPU time runs every [IDLE_SCAN_S] s instead of every second.
+     */
+    internal fun scanDue(idleScan: Boolean, boosted: Boolean, resting: Boolean, secondsSinceScan: Int): Boolean =
+        !idleScan || boosted || !resting || secondsSinceScan >= IDLE_SCAN_S
+
+    private fun run(hm: PerformanceHintManager, pm: PowerManager, idleScan: Boolean) {
         val scanner = Scanner()
         var session: PerformanceHintManager.Session? = null
         var boosted = emptySet<Int>()
@@ -82,16 +91,21 @@ object GameThreadHints {
         var pacedFor = 0
         var sessionTarget = 0L
         var tick = 0
+        var sinceScan = 0
         try {
             while (!Thread.currentThread().isInterrupted) {
                 if (tick++ % SCAN_EVERY == 0) {
-                    val busy = scanner.sample()
                     frames.addLast(WaylandCompositor.gameFrameCount())
                     if (frames.size > PACE_WINDOW_S + 1) frames.removeFirst()
                     val fps = (frames.last() - frames.first()).toDouble() / (frames.size - 1).coerceAtLeast(1)
                     val paced = frames.size > PACE_WINDOW_S && holdsPace(fps, SessionState.refreshHz.toDouble(), capFps)
                     pacedFor = if (paced) pacedFor + 1 else 0
                     val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL
+                    sinceScan++
+                    val busy = if (scanDue(idleScan, boosted.isNotEmpty(), spare || pacedFor >= PACE_LEAVE_S, sinceScan)) {
+                        sinceScan = 0
+                        scanner.sample()
+                    } else emptyMap()
                     val next = when {
                         spare || pacedFor >= PACE_LEAVE_S -> emptySet()
                         paced -> pick(boosted, busy.filterKeys { it in boosted })

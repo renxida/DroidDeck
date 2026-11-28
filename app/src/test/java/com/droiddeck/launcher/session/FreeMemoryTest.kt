@@ -36,6 +36,35 @@ class FreeMemoryTest {
         assertFalse(FreeMemory.wanted(null, FreeMemory.SESSION_NEED_MB))
     }
 
+    @Test fun aNativeLaunchRunsItOnlyWhenTheGameWouldLeaveTheDeviceShort() {
+        fun pixel10a(availableMb: Long, swapFreeMb: Long) = device(availableMb, swapFreeMb, totalMb = 7_571, swapTotalMb = 3_785)
+        val bridgeLaunch = pixel10a(2_689, 2_825)
+        assertTrue(FreeMemory.wantedForGame(bridgeLaunch, native = false))
+        assertFalse(FreeMemory.wantedForGame(bridgeLaunch, native = true))
+        val panvkLaunch = pixel10a(1_868, 2_758)
+        assertTrue(FreeMemory.wantedForGame(panvkLaunch, native = true))
+        assertTrue(FreeMemory.wantedForGame(pixel10a(2_689, 300), native = true))
+        assertFalse(FreeMemory.wantedForGame(pixel10a(3_500, 300), native = true))
+        assertFalse(FreeMemory.wantedForGame(null, native = true))
+    }
+
+    @Test fun withoutSwapANativeLaunchIsShortUnderFivePercentOfMemoryLeft() {
+        assertFalse(FreeMemory.shortAfter(device(2_200, 0, totalMb = 7_571, swapTotalMb = 0), FreeMemory.NATIVE_GAME_MB))
+        assertTrue(FreeMemory.shortAfter(device(1_900, 0, totalMb = 7_571, swapTotalMb = 0), FreeMemory.NATIVE_GAME_MB))
+    }
+
+    @Test fun theRequestCarriesItsTokenAndTheEngine() {
+        val proton = FreeMemory.parseRequest("2868840-0123456789abcdef\n")!!
+        assertEquals("2868840-0123456789abcdef", proton.token)
+        assertFalse(proton.native)
+        val native = FreeMemory.parseRequest("2868840-0123456789abcdef\nengine=native\n")!!
+        assertEquals("2868840-0123456789abcdef", native.token)
+        assertTrue(native.native)
+        assertFalse(FreeMemory.parseRequest("token\nengine=proton\n")!!.native)
+        assertNull(FreeMemory.parseRequest(""))
+        assertNull(FreeMemory.parseRequest("bad token\nengine=native\n"))
+    }
+
     @Test fun theBalloonFollowsOnlyWhenKillingBackgroundProcessesFreedLittle() {
         assertTrue(FreeMemory.needsBalloon(0, device(2_600, 1_700), FreeMemory.SESSION_NEED_MB))
         assertTrue(FreeMemory.needsBalloon(null, device(2_600, 1_700), FreeMemory.SESSION_NEED_MB))

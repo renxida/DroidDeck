@@ -1189,8 +1189,25 @@ struct DeckImu {
 static_assert(offsetof(DeckImu, pad_type) == FAKE_INPUT_RING_PAD_TYPE_OFFSET,
                 "DeckImu::pad_type matches FakeInputWriter and the ring reader");
 static_assert(offsetof(DeckImu, latency) == 48, "DeckImu::latency matches FakeInputWriter");
-static constexpr uint32_t LATENCY_CONTROLLER = 1, LATENCY_TOUCH = 2;
+static constexpr uint32_t LATENCY_CONTROLLER = 1, LATENCY_TOUCH = 2, LATENCY_IDLE_REPORTS = 4;
 static constexpr int LOW_LATENCY_REPORT_INTERVAL_US = 1000;
+
+/* Experiment pad-idle-reports: the low-latency loop still looks at the app's state every millisecond and sends a
+ * changed report at once, but a report equal to the last one sent waits for the device's own interval. */
+struct IdleGate {
+  uint64_t sent_us = 0;
+  size_t size = 0;
+  uint8_t last[64] = {};
+  bool send(const uint8_t *body, size_t length, uint64_t now_us, bool gated, uint64_t idle_us) {
+    if (length > sizeof(last)) return true;
+    if (gated && size == length && !memcmp(last, body, length) && now_us - sent_us < idle_us) return false;
+    memcpy(last, body, length);
+    size = length;
+    sent_us = now_us;
+    return true;
+  }
+};
+static constexpr int IDLE_GATE_SLACK_US = 500;
 static constexpr uint32_t DECK_EXTRA_L4 = 1, DECK_EXTRA_R4 = 2, DECK_EXTRA_L5 = 4,
                           DECK_EXTRA_R5 = 8, DECK_EXTRA_LPAD_TOUCH = 16,
                           DECK_EXTRA_RPAD_TOUCH = 32, DECK_EXTRA_LPAD_CLICK = 64,
@@ -1517,6 +1534,8 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
   uint32_t buttons = 0;
   int32_t axes[8] = {};
   DeckExtras extras;
+  IdleGate gate;
+  static constexpr int kPacketEnd = 8;
   while (live_pad_type() == PAD_TYPE_DECK) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
@@ -1524,10 +1543,14 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
     }
     read_deck_extras(*self, extras);
     uint8_t report[DECK_REPORT_BYTES];
-    build_deck_report(report, ++packet, buttons, axes, extras);
-    if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
-        errno != EAGAIN && errno != EWOULDBLOCK)
-      break;
+    build_deck_report(report, packet + 1, buttons, axes, extras);
+    if (gate.send(report + kPacketEnd, sizeof(report) - kPacketEnd, monotonic_us(), low_latency(LATENCY_IDLE_REPORTS),
+                  DECK_REPORT_INTERVAL_US - IDLE_GATE_SLACK_US)) {
+      packet++;
+      if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
+          errno != EAGAIN && errno != EWOULDBLOCK)
+        break;
+    }
     sleep_us(controller_report_interval_us(DECK_REPORT_INTERVAL_US));
   }
   syscall(SYS_close, self->peer);
@@ -2087,9 +2110,12 @@ __attribute__((visibility("hidden"))) static void *touch_report_thread(void *arg
   delete holder;
   TouchRingFile *ring = touch_ring();
   uint8_t report[TOUCH_REPORT_BYTES] = {};
+  IdleGate gate;
   while (touch_plugged()) {
     read_touch_report(ring, report);
-    if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
+    if (gate.send(report, sizeof(report), monotonic_us(), low_latency(LATENCY_IDLE_REPORTS),
+                  TOUCH_REPORT_INTERVAL_US - IDLE_GATE_SLACK_US) &&
+        send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
     sleep_us(low_latency(LATENCY_TOUCH) ? LOW_LATENCY_REPORT_INTERVAL_US : TOUCH_REPORT_INTERVAL_US);

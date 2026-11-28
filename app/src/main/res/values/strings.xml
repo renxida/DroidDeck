@@ -2175,6 +2175,9 @@
     <string name="exp_godot_render_thread">Godot games: draw on a separate render thread, so the graphics driver\'s work leaves the game\'s main thread</string>
     <string name="exp_bridge_default">Mali: use the Mali bridge (the phone\'s own driver) unless a route was set by hand; the open driver pair is its fallback</string>
     <string name="exp_present_dmabuf">Mali (open driver): games hand finished frames to the compositor directly, without a copy through the CPU in every frame</string>
+    <string name="exp_pad_idle_reports">Controller: with low latency on, Steam gets a report every millisecond only while the pad changes</string>
+    <string name="exp_hints_idle">Game thread hints: read threads\' CPU time every 5 s while the game holds its pace</string>
+    <string name="exp_zram_game_late">Memory: page out a running game\'s idle memory only under an eighth of memory available</string>
     <string name="exp_pe_align">Memory: run games from a copy of the .exe that Wine maps instead of copying (uses disk space)</string>
     <string name="exp_fex_cache_keep">Startup: keep FEX\'s translated code when switching FEX builds</string>
     <string name="exp_fex_trim">Memory: idle game threads give back FEX\'s cached code and lookups</string>

@@ -40,6 +40,8 @@ internal object FreeMemory {
 
     const val SESSION_NEED_MB = 4096
     const val GAME_NEED_MB = 3072
+    /** What Slay the Spire 2 on the native engine took from MemAvailable in a fight (1.36 GB on a Pixel 10a), rounded up. */
+    const val NATIVE_GAME_MB = 1536
     const val KILL_ENOUGH_MB = 500
     const val STEP_MB = 256
     const val MAX_MB = 4096
@@ -92,6 +94,29 @@ internal object FreeMemory {
 
     /** Whether a run is worth it: under [needMb] of MemAvailable. */
     fun wanted(device: MemoryReadout.Device?, needMb: Int): Boolean = device != null && device.availableKb / 1024 < needMb
+
+    /**
+     * Whether a game taking [gameMb] would leave the device where [LmkRisk] warns: free swap as lmkd counts it under
+     * its low mark, or under 5 % of memory available.
+     */
+    fun shortAfter(device: MemoryReadout.Device?, gameMb: Int): Boolean {
+        if (device == null) return false
+        val left = LmkRisk.Reading(device.totalKb, device.availableKb - gameMb * 1024L, device.swapTotalKb, device.swapFreeKb, null, null)
+        return LmkRisk.swapLow(left) || left.availableKb * 20 < left.totalKb
+    }
+
+    /** A native-engine launch loads far less than Proton, so it pays for the step only when [shortAfter] says so. */
+    fun wantedForGame(device: MemoryReadout.Device?, native: Boolean): Boolean =
+        wanted(device, GAME_NEED_MB) && (!native || shortAfter(device, NATIVE_GAME_MB))
+
+    class Request(val token: String, val native: Boolean)
+
+    /** droiddeck-game-env's request: its token, then "engine=native" on a line of its own for a native-engine launch. */
+    fun parseRequest(text: String): Request? {
+        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val token = lines.firstOrNull()?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{1,80}")) } ?: return null
+        return Request(token, "engine=native" in lines.drop(1))
+    }
 
     /** Every other installed package, leaving out this one and [keep] (the launcher and keyboard just restart). */
     fun candidates(installed: Collection<String>, own: String, keep: Set<String>): List<String> =
@@ -175,13 +200,18 @@ internal object FreeMemory {
         Thread({ runCatching { run(context, reason, needMb) }.onFailure { Log.w(TAG, "free memory failed", it) } }, "free-memory")
             .apply { start() }
 
-    fun run(context: Context, reason: String, needMb: Int): Result = synchronized(lock) {
+    fun run(
+        context: Context,
+        reason: String,
+        needMb: Int,
+        wanted: (MemoryReadout.Device?) -> Boolean = { wanted(it, needMb) },
+    ): Result = synchronized(lock) {
         val app = context.applicationContext
         val began = SystemClock.elapsedRealtime()
         quietUntil = Long.MAX_VALUE
         try {
             val before = MemoryReadout.device()
-            val result = if (!wanted(before, needMb)) {
+            val result = if (!wanted(before)) {
                 Result(reason, "none", 0, before, before, null)
             } else {
                 val packages = killBackground(app)
@@ -236,7 +266,7 @@ internal object FreeMemory {
 
     private fun sample(): Sample? {
         val d = MemoryReadout.device() ?: return null
-        val full = runCatching { parseFullStallUs(File("/proc/pressure/memory").readText()) }.getOrNull()
+        val full = MemoryPressure.shared.text()?.let(::parseFullStallUs)
         return Sample(d.availableKb, d.swapFreeKb, full)
     }
 
