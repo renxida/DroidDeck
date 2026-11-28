@@ -83,6 +83,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -446,16 +447,46 @@ fun SettingsGroup(title: String, compact: Boolean = false, detail: String? = nul
     }
 }
 
+internal const val HINT_LINES = 2
+
+/** A row's description: [HINT_LINES] lines until it is tapped or the row holds controller focus. */
 @Composable
-fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hintLines: Int? = null, stacked: Boolean = false, control: @Composable () -> Unit) {
+private fun SettingHint(text: String, size: androidx.compose.ui.unit.TextUnit, focused: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    var open by androidx.compose.runtime.saveable.rememberSaveable(text) { mutableStateOf(false) }
+    var clipped by remember(text) { mutableStateOf(false) }
+    val full = open || focused
+    val more = stringResource(R.string.widgets_hint_more)
+    val less = stringResource(R.string.widgets_hint_less)
+    val src = remember { MutableInteractionSource() }
+    val tap = if (clipped || open) Modifier.focusProperties { canFocus = false }
+        .clickable(interactionSource = src, indication = null, onClickLabel = if (open) less else more) { open = !open }
+    else Modifier
+    Text(text, fontSize = size, color = colors.onSurfaceVariant,
+        maxLines = if (full) Int.MAX_VALUE else HINT_LINES, overflow = TextOverflow.Ellipsis,
+        onTextLayout = { if (!full) clipped = it.hasVisualOverflow },
+        modifier = Modifier.padding(top = 2.dp).then(tap))
+    if (open || (clipped && !full)) Text(if (open) less else more, fontSize = size, fontWeight = FontWeight.SemiBold,
+        color = LocalPalette.current.signal, modifier = Modifier.testTag("hint-more").then(tap).padding(vertical = 2.dp))
+}
+
+@Composable
+fun SettingsRow(
+    label: String, hint: String?, highlighted: Boolean = false, hintLines: Int? = null, stacked: Boolean = false,
+    inline: Boolean = false, control: @Composable () -> Unit,
+) {
     val compact = LocalCompactSettings.current
+    val narrow = LocalNarrowPane.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val bg = if (highlighted) pal.signal.copy(alpha = 0.10f) else Color.Transparent
+    var focused by remember { mutableStateOf(false) }
+    val watchFocus = Modifier.onFocusChanged { focused = it.hasFocus }
     val hintText: @Composable (androidx.compose.ui.unit.TextUnit) -> Unit = { size ->
-        Text(hint ?: "", fontSize = size, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp),
+        if (compact || hintLines != null) Text(hint ?: "", fontSize = size, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp),
             lineHeight = if (compact) 14.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
             minLines = hintLines ?: 1, maxLines = hintLines ?: Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
+        else SettingHint(hint ?: "", size, focused)
     }
     if (compact && !stacked) Column(
         modifier = Modifier.fillMaxWidth().background(bg).padding(horizontal = 10.dp, vertical = 6.dp),
@@ -466,8 +497,8 @@ fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hint
             control()
         }
         if (hint != null || hintLines != null) hintText(11.sp)
-    } else if (stacked || LocalNarrowPane.current) Column(
-        modifier = Modifier.fillMaxWidth().background(bg).padding(
+    } else if (stacked || (narrow && !inline)) Column(
+        modifier = Modifier.fillMaxWidth().background(bg).then(watchFocus).padding(
             horizontal = if (compact) 10.dp else 14.dp,
             vertical = if (compact) 6.dp else 12.dp),
     ) {
@@ -476,9 +507,17 @@ fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hint
             fontWeight = FontWeight.SemiBold, color = colors.onBackground)
         if (hint != null || hintLines != null) hintText(if (compact) 11.sp else 13.sp)
         Box(Modifier.padding(top = if (compact) 6.dp else 8.dp)) { control() }
+    } else if (narrow) Row(
+        modifier = Modifier.fillMaxWidth().background(bg).then(watchFocus).padding(start = 14.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(top = 14.dp, bottom = 10.dp, end = 12.dp)) {
+            Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+            if (hint != null || hintLines != null) hintText(13.sp)
+        }
+        control()
     } else Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().background(bg).padding(horizontal = 14.dp, vertical = 11.dp),
+        modifier = Modifier.fillMaxWidth().background(bg).then(watchFocus).padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
@@ -535,7 +574,7 @@ fun UncertainMark(description: String) {
 
 @Composable
 fun ToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked: Boolean, enabled: Boolean = true, chipModifier: Modifier = Modifier, onChange: (Boolean) -> Unit) =
-    SettingsRow(label, hint) {
+    SettingsRow(label, hint, inline = true) {
         ToggleSwitch(checked, enabled, label, chipModifier.testTag("setting-$key")) { host.open = null; onChange(it) }
     }
 

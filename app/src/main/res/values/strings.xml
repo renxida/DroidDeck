@@ -919,6 +919,8 @@
     <string name="widgets_none">None</string>
     <string name="widgets_n_of_m">%1$d of %2$d</string>
     <string name="widgets_off">Off</string>
+    <string name="widgets_hint_more">More</string>
+    <string name="widgets_hint_less">Less</string>
     <string name="screen_bottom">Bottom screen</string>
     <string name="game_env_applies">Applies on the next game launch. A game\'s profile overrides the shared one.</string>
     <string name="game_env_other">Another game by app ID…</string>
