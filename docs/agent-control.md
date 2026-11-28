@@ -211,6 +211,10 @@ Automator show them:
 | `tab-<n>` | a segmented tab strip, by position |
 | `about-build`, `about-build-copy` | Settings › Advanced › About: the installed build line (app, commit, time, engine) and its Copy button |
 | `self-update` | the update line above the rail, only while an update is checked, downloaded or waiting |
+| `hint-more` | a setting's description cut at two lines: More, or Less once opened (the description itself can be tapped too) |
+| `chips-scroll` | Settings' row of tab chips, when it scrolls sideways |
+| `boot-memory`, `boot-details`, `boot-details-lines` | the loading screen: the memory line, the Details button and the launch lines it opens |
+| `load-step-done`, `load-step-running`, `load-step-todo` | the loading screen's step bar, one segment per step |
 | `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-games`, `-session` | the session drawer's pages |
 | `drawer-stop`, `drawer-stop-confirm`, `drawer-stop-cancel` | stopping a session from the drawer |
 

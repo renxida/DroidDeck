@@ -620,6 +620,8 @@ jobs:
             app/build/unit-tests.log
             app/build/test-results/testReleaseUnitTest/
             app/build/reports/tests/testReleaseUnitTest/
+            app/build/reports/phone-ui/
+            app/build/reports/input-ui/
           if-no-files-found: ignore
           retention-days: 14
 
