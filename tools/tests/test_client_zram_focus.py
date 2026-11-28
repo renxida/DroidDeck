@@ -50,6 +50,27 @@ tick 60 0 0
         self.assertEqual('', result.stderr)
         self.assertEqual(['refocus:-1', 'send:1', 'send:0'], result.stdout.splitlines())
 
+    def critical(self, available_mb, psi=0, late=False):
+        result = run_bash(function_source('bl_memory_critical') + '''
+_bl_mem_total=$((7571 * 1024)) _bl_tier_headroom=$((7571 * 1024 / 4)) _bl_available=$((%d * 1024)) _bl_psi=%d
+bl_memory_critical && echo critical || echo fine
+''' % (available_mb, psi), env={'DROIDDECK_EXP_ZRAM_GAME_LATE': '1'} if late else {})
+        self.assertEqual('', result.stderr)
+        return result.stdout.strip()
+
+    def test_a_running_game_is_paged_out_under_a_quarter_of_memory_available(self):
+        self.assertEqual('critical', self.critical(1693))
+        self.assertEqual('fine', self.critical(1900))
+        self.assertEqual('critical', self.critical(2500, psi=1))
+        self.assertEqual('fine', self.critical(2900, psi=1))
+
+    def test_with_zram_game_late_only_under_an_eighth(self):
+        self.assertEqual('fine', self.critical(1693, late=True))
+        self.assertEqual('fine', self.critical(950, late=True))
+        self.assertEqual('critical', self.critical(940, late=True))
+        self.assertEqual('critical', self.critical(1400, psi=1, late=True))
+        self.assertEqual('fine', self.critical(1693, psi=1, late=True))
+
     def monitor_harness(self):
         source = SCRIPT.read_text()
         start = source.index('          bl_zram_scan\n          bl_memory_read\n')

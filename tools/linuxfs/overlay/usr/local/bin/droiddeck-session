@@ -902,10 +902,15 @@ case $mode in
             _bl_pressure_backoff=30
           fi
         }
+        # Experiment zram-game-late: the mark for paging out a running game is half as high. With a quarter of an
+        # 8 GB phone as the mark, a fight with 1.6 GB available was paged out and read straight back, and the frames
+        # after each page-out took 180 to 230 ms (docs/research/own-overhead-1.md).
         bl_memory_critical() {
+          local _mark=$_bl_tier_headroom
+          [ "${DROIDDECK_EXP_ZRAM_GAME_LATE:-}" != 1 ] || _mark=$((_bl_tier_headroom / 2))
           [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_available" -ge 0 ] &&
-            { [ "$_bl_available" -lt "$_bl_tier_headroom" ] ||
-              { [ "$_bl_psi" -ge 1 ] && [ "$_bl_available" -lt $((_bl_tier_headroom * 3 / 2)) ]; }; }
+            { [ "$_bl_available" -lt "$_mark" ] ||
+              { [ "$_bl_psi" -ge 1 ] && [ "$_bl_available" -lt $((_mark * 3 / 2)) ]; }; }
         }
         bl_low_ram() {
           [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_mem_total" -le $((13 * 1024 * 1024)) ]
