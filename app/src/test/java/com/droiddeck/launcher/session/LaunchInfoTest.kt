@@ -136,4 +136,13 @@ class LaunchInfoTest {
         assertEquals(1, roomy.size)
         assertEquals("memory 5000 MB free", LaunchInfo.memory(MemoryReadout.Device(12_000 * mb, 5000 * mb, 0, 0)).single())
     }
+
+    @Test fun onlyMemoryLinesStayOnTheLoadingScreen() {
+        val mb = 1024L
+        val memory = LaunchInfo.memory(MemoryReadout.Device(12_000 * mb, 2563 * mb, 5781 * mb, 293 * mb))
+        assertEquals(2, memory.size)
+        assertTrue(memory.all(LaunchInfo::isMemoryLine))
+        for (line in listOf("on     warmup,memory", "fex    no Proton follows Auto", "config fixed · remote", "remote ping"))
+            assertFalse(line, LaunchInfo.isMemoryLine(line))
+    }
 }

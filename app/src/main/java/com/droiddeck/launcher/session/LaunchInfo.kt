@@ -147,12 +147,18 @@ object LaunchInfo {
      */
     internal fun memory(d: MemoryReadout.Device): List<String> {
         val mb = 1024L
-        val out = arrayListOf("memory " + "${d.availableKb / mb} MB free" +
+        val out = arrayListOf(MEMORY + "${d.availableKb / mb} MB free" +
             (if (d.swapTotalKb > 0) " · swap ${d.swapUsedKb / mb} of ${d.swapTotalKb / mb} MB used" else ""))
         val low = d.availableKb / mb < LOW_AVAILABLE_MB || (d.swapTotalKb > 0 && d.swapFreeKb < d.swapTotalKb * LOW_SWAP_FREE_SHARE)
-        if (low) out += "       low on memory: closing other apps will help"
+        if (low) out += MEMORY_NOTE + ": closing other apps will help"
         return out
     }
+
+    private const val MEMORY = "memory "
+    private const val MEMORY_NOTE = "       low on memory"
+
+    /** Whether [line] is one of [memory]'s: the loading screen keeps those in view and folds the others under Details. */
+    fun isMemoryLine(line: String): Boolean = line.startsWith(MEMORY) || line.startsWith(MEMORY_NOTE)
 
     /** Flavour text: one line, chosen by [seed] so it holds still for a whole launch. */
     fun flavor(seed: Long): String = FLAVOR[Math.floorMod(seed, FLAVOR.size.toLong()).toInt()]

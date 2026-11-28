@@ -72,6 +72,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.PlatformTextStyle
@@ -229,14 +232,27 @@ private fun EndedActions(onRetry: (() -> Unit)?, onRepair: (() -> Unit)?, onShar
     }
 }
 
+/** One segment per step: the steps done are solid, the running one shows its progress, the rest are empty. */
 @Composable
 private fun LoadSegments(count: Int, active: Int, percent: Int, modifier: Modifier = Modifier) {
     val pal = LocalPalette.current
+    val colors = MaterialTheme.colorScheme
     val stepDescription = stringResource(R.string.load_step, active + 1, count)
+    val running = pal.signal.copy(alpha = 0.3f)
     Column(modifier = modifier.widthIn(max = 320.dp).semantics { contentDescription = stepDescription }) {
-        Text(stepDescription, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp))
-        if (percent >= 0) LinearProgressIndicator(progress = { percent.coerceIn(0, 100) / 100f }, color = pal.signal, modifier = Modifier.fillMaxWidth().height(4.dp))
-        else LinearProgressIndicator(color = pal.signal, modifier = Modifier.fillMaxWidth().height(4.dp))
+        Text(stepDescription, fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            repeat(count) { i ->
+                val segment = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp))
+                when {
+                    i < active -> Box(segment.testTag("load-step-done").background(pal.signal))
+                    i > active -> Box(segment.testTag("load-step-todo").background(colors.surfaceVariant))
+                    percent >= 0 -> LinearProgressIndicator(progress = { percent.coerceIn(0, 100) / 100f }, color = pal.signal,
+                        trackColor = running, modifier = segment.testTag("load-step-running"))
+                    else -> LinearProgressIndicator(color = pal.signal, trackColor = running, modifier = segment.testTag("load-step-running"))
+                }
+            }
+        }
     }
 }
 
@@ -266,21 +282,53 @@ private fun CancelHint(onCancel: () -> Unit, modifier: Modifier = Modifier) {
 
 /**
  * This launch's engine and build (the first [LaunchInfo.BOOT_LINES] lines, a little larger and brighter so they read at
- * a glance), then its remote settings and the rest in small monospace lines (see [com.droiddeck.launcher.session.LaunchInfo]).
+ * a glance) and the memory at launch. Its remote settings, switches and the rest (see
+ * [com.droiddeck.launcher.session.LaunchInfo]) are small monospace lines behind Details, closed until tapped.
  */
 @Composable
 fun LaunchInfoBlock(lines: List<String>, modifier: Modifier = Modifier) {
     val ink = MaterialTheme.colorScheme.onSurfaceVariant
+    val (memory, details) = lines.drop(LaunchInfo.BOOT_LINES).partition(LaunchInfo::isMemoryLine)
+    var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.widthIn(max = 600.dp)) {
         Text(
             lines.take(LaunchInfo.BOOT_LINES).joinToString("\n"), fontSize = 13.sp, lineHeight = 18.sp,
             color = ink.copy(alpha = 0.95f), textAlign = TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis,
         )
-        if (lines.size > LaunchInfo.BOOT_LINES) Text(
-            lines.drop(LaunchInfo.BOOT_LINES).joinToString("\n"), fontSize = 11.sp, lineHeight = 14.sp, fontFamily = FontFamily.Monospace,
-            color = ink.copy(alpha = 0.75f), maxLines = 10, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp),
+        if (memory.isNotEmpty()) Text(
+            memory.joinToString("\n") { it.trim() }, fontSize = 11.sp, lineHeight = 14.sp, fontFamily = FontFamily.Monospace,
+            color = ink.copy(alpha = 0.75f), textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp).testTag("boot-memory"),
         )
+        if (details.isNotEmpty()) {
+            DetailsToggle(open) { open = !open }
+            if (open) Text(
+                details.joinToString("\n"), fontSize = 11.sp, lineHeight = 14.sp, fontFamily = FontFamily.Monospace,
+                color = ink.copy(alpha = 0.75f), maxLines = 10, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("boot-details-lines"),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailsToggle(open: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val src = remember { MutableInteractionSource() }
+    val hot = src.collectIsHoveredAsState().value || src.collectIsFocusedAsState().value
+    val shape = RoundedCornerShape(22.dp)
+    val state = stringResource(if (open) R.string.widgets_on else R.string.widgets_off)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.padding(top = 2.dp).testTag("boot-details").heightIn(min = 44.dp).clip(shape)
+            .background(if (hot) colors.onBackground.copy(alpha = 0.08f) else Color.Transparent)
+            .glideBorder(hot, shape, LocalPalette.current.signal)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
+            .semantics { stateDescription = state }
+            .padding(horizontal = 12.dp),
+    ) {
+        Text(stringResource(R.string.setup_details), fontSize = 12.sp, color = colors.onSurfaceVariant)
+        Text("▾", fontSize = 10.sp, color = colors.onSurfaceVariant, modifier = Modifier.rotate(if (open) 180f else 0f))
     }
 }
 
