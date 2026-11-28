@@ -671,6 +671,36 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
                         self.assertNotIn("DISABLE_WINE_WAYLAND_STEAM_OVERLAY_LAYER", result)
                     self.assertEqual(env.get("WAYLAND_DISPLAY"), "")
 
+    def test_switches_that_are_on_but_do_nothing_in_this_launch_are_named_with_the_reason(self):
+        on = lambda *names: {MODULE["experiment_name"](name): "1" for name in names}
+        unapplied = MODULE["unapplied_experiments"]
+        mali = on("warmup", "fex-fast", "fex-trim", "vk-count", "vk-blocks-64", "pe-align", "free-memory")
+        self.assertEqual([("no_powervr_runtime", ["vk-count", "vk-blocks-64"])], unapplied(mali, device=True))
+        self.assertEqual([], unapplied(dict(mali, DROIDDECK_POWERVR_RUNTIME="/opt/powervr"), device=True))
+        self.assertEqual([], unapplied(on("godot-render", "free-memory"), device=True, fex="FEX-2611-79-g727948a", native=True))
+        self.assertEqual([("not_kestrel_fex", ["fex-trim"])], unapplied(mali, fex="FEX-2611-79-g727948a"))
+        self.assertEqual([], unapplied(mali, fex="FEX-Kestrel-727948a12-0123abcd"))
+        self.assertEqual([], unapplied(mali, fex=None))
+        self.assertEqual([("native_engine", ["warmup", "fex-fast", "fex-trim", "pe-align"])], unapplied(mali, native=True))
+        powervr = dict(on("dxvk-arm64ec", "vk-blocks-64", "dotnet-trace"), DROIDDECK_POWERVR_RUNTIME="/opt/powervr")
+        self.assertEqual([("native_engine", ["dotnet-trace", "dxvk-arm64ec"])], unapplied(powervr, native=True))
+        self.assertEqual([], unapplied({}, device=True, fex="FEX-2611", native=True))
+
+    def test_an_unapplied_switch_gets_one_log_line_and_one_timeline_line(self):
+        env = {MODULE["experiment_name"]("vk-blocks-64"): "1", MODULE["experiment_name"]("fex-smaps"): "1"}
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            MODULE["report_unapplied"]("2868840", env, device=True, fex="FEX-2611-79-g727948a")
+        lines = err.getvalue().splitlines()
+        self.assertEqual("droiddeck-game-env: experiments on but not applied: vk-blocks-64 (PowerVR system-driver path "
+                         "only; this device's graphics path has no PowerVR runtime)", lines[0])
+        self.assertRegex(lines[1], r"^DROIDDECK_TIMELINE event=game_experiment_skipped app_id=2868840 "
+                                   r"experiments=vk-blocks-64 reason=no_powervr_runtime wall_ms=\d+$")
+        self.assertEqual("droiddeck-game-env: experiments on but not applied: fex-smaps (only Kestrel's FEX reads them; "
+                         "this launch runs FEX-2611-79-g727948a)", lines[2])
+        self.assertIn("experiments=fex-smaps reason=not_kestrel_fex", lines[3])
+        self.assertEqual(4, len(lines))
+
     def test_vk_count_puts_its_layer_first_only_when_on_and_installed(self):
         with tempfile.TemporaryDirectory() as tmp:
             layer_dir = Path(tmp) / "vkcount"
