@@ -266,6 +266,16 @@ class ParkTest(unittest.TestCase):
         rig.park.close()
         self.assertEqual(rig.events().count("restore_begin"), 1)
 
+    def test_markers_of_starts_that_are_gone_are_not_counted_and_are_removed(self):
+        rig = self.rig
+        gone = subprocess.Popen(["true"])
+        gone.wait()
+        (rig.tmp / ("steam-ui-gate.held.%d" % gone.pid)).write_text("")
+        (rig.tmp / ("steam-ui-gate.held.%d" % os.getpid())).write_text("")
+        self.assertEqual(rig.park.held(), 1)
+        self.assertFalse((rig.tmp / ("steam-ui-gate.held.%d" % gone.pid)).exists())
+        self.assertTrue((rig.tmp / ("steam-ui-gate.held.%d" % os.getpid())).exists())
+
 
 class ProbeTest(unittest.TestCase):
     def test_scan_finds_helpers_and_running_games(self):

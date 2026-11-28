@@ -378,9 +378,10 @@ if [ "${scenario#steam-ui-park}" != "$scenario" ] && [ -n "$login" ] && [ -n "$r
   fi
   # Whatever ended the park, nothing may be left waiting behind the gate.
   sleep 3; steam_ps after
-  left=$(adb shell "ls $sess 2>/dev/null | grep steam-ui-gate" | tr -d '\r' | tr '\n' ' ')
+  # A start that was killed with the session leaves its marker file; the next session clears those.
+  left=$(adb shell "ls $sess 2>/dev/null | grep -x steam-ui-gate" | tr -d '\r' | tr '\n' ' ')
   waiting=$(grep -c 'droiddeck-steam/taskset' "$out/steam-ps-after.txt")
-  echo "rig: after the park: gate files '${left}', starts still waiting $waiting"
+  echo "rig: after the park: gate '${left}', starts still waiting $waiting, markers: $(adb shell "ls $sess 2>/dev/null | grep steam-ui-gate.held" | tr -d '\r' | tr '\n' ' ')"
   [ -z "$left" ] && [ "$waiting" -eq 0 ] && rig_event gate_released
   echo "::group::steam-ui-park lines in the session log"
   adb shell "grep -hE 'steam_ui_|steam-ui-park|steam: its interface' ${rigdir%/}/session.log" | tr -d '\r' | cut -c1-400

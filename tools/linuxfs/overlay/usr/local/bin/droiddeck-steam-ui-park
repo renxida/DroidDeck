@@ -268,11 +268,25 @@ class Park:
         return " ".join("%s%s=%d" % (prefix, name, value) for name, value in values)
 
     def held(self):
+        """How many web helper starts are waiting behind the gate; markers of starts that are gone are removed."""
         directory, name = os.path.split(self.gate)
+        count = 0
         try:
-            return sum(1 for entry in os.listdir(directory) if entry.startswith(name + ".held."))
+            entries = os.listdir(directory)
         except OSError:
             return 0
+        for entry in entries:
+            pid = entry[len(name) + 6:] if entry.startswith(name + ".held.") else ""
+            if not pid.isdigit():
+                continue
+            if os.path.isdir("/proc/%s" % pid):
+                count += 1
+            else:
+                try:
+                    os.unlink(os.path.join(directory, entry))
+                except OSError:
+                    pass
+        return count
 
     def close_gate(self):
         staged = self.gate + ".tmp"
@@ -474,6 +488,7 @@ class Park:
             self.say("restore_begin", "reason=controller_exit held=%d" % self.held())
             self.state = "off"
         self.open_gate()
+        self.held()
 
 
 def main(argv):
