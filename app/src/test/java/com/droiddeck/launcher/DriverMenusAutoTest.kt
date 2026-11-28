@@ -117,4 +117,40 @@ class DriverMenusAutoTest {
         menus.refreshDrivers()
         assertTrue(menus.tpUbwcRestartRequired())
     }
+
+    /** How a fresh Mali install ended up on PanVK with vkBridge=false stored and nobody having pressed anything. */
+    @Test fun aPairInstalledUnderAutoSwitchesTheDefaultOnBridgeOff() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setVkBridge(activity, true)
+        SessionPrefs.setMaliFallbackByAuto(activity, "bridge")
+        ReflectionHelpers.callInstanceMethod<Unit>(DriverMenus(activity, Handler(Looper.getMainLooper())), "endMaliFallback")
+        assertEquals(false, SessionPrefs.vkBridgeStored(activity))
+        assertEquals("", SessionPrefs.maliFallbackByAuto(activity))
+        assertEquals("", SessionPrefs.maliRouteBy(activity))
+    }
+
+    @Test fun withBridgeDefaultOnAnInstalledPairLeavesTheBridgeAsTheRoute() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val (mali, usable) = com.droiddeck.launcher.session.BridgeDefault.mali to com.droiddeck.launcher.session.BridgeDefault.bridgeUsable
+        try {
+            com.droiddeck.launcher.session.BridgeDefault.mali = { true }
+            com.droiddeck.launcher.session.BridgeDefault.bridgeUsable = { true }
+            com.droiddeck.launcher.session.Experiments.setOne(activity, com.droiddeck.launcher.session.Experiments.BRIDGE_DEFAULT, true)
+            SessionPrefs.setVkBridge(activity, true)
+            SessionPrefs.setMaliFallbackByAuto(activity, "bridge")
+            val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
+            ReflectionHelpers.callInstanceMethod<Unit>(menus, "endMaliFallback")
+            assertEquals(true, SessionPrefs.vkBridgeStored(activity))
+            assertEquals(com.droiddeck.launcher.session.BridgeDefault.AUTO, SessionPrefs.maliRouteBy(activity))
+
+            SessionPrefs.setBridgeAutoFailed(activity, com.droiddeck.launcher.session.BridgeDefault.FAILED_DRAW)
+            SessionPrefs.setMaliFallbackByAuto(activity, "bridge")
+            ReflectionHelpers.callInstanceMethod<Unit>(menus, "endMaliFallback")
+            assertEquals("a bridge that failed here still gives way to the pair", false, SessionPrefs.vkBridgeStored(activity))
+        } finally {
+            com.droiddeck.launcher.session.BridgeDefault.mali = mali
+            com.droiddeck.launcher.session.BridgeDefault.bridgeUsable = usable
+            com.droiddeck.launcher.session.Experiments.setOne(activity, com.droiddeck.launcher.session.Experiments.BRIDGE_DEFAULT, false)
+        }
+    }
 }

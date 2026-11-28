@@ -20,4 +20,9 @@ public abstract class SessionPart {
     public int suspendPid() {
         return -1;
     }
+
+    /** True for a server the guest's programs draw through: it stops once the guest is gone. */
+    public boolean stopsAfterGuest() {
+        return false;
+    }
 }

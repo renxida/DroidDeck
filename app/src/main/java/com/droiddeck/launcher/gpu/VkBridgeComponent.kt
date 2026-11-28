@@ -48,12 +48,21 @@ class VkBridgeComponent(private val socket: File, private val logFile: File) : S
     }
 
     override fun stop() {
+        kill()
+        if (!VkBridgeNative.serving) socket.delete()
+    }
+
+    /** Ends the server process and leaves the socket path, which a newer session's server may own. */
+    fun kill() {
         if (pid > 0) {
             Process.killProcess(pid)
             pid = -1
         }
-        if (!VkBridgeNative.serving) socket.delete()
     }
+
+    // Xwayland and gamescope draw through this server until they exit. Killed first, they got
+    // VK_ERROR_DEVICE_LOST during teardown and Xwayland segfaulted in glamor (1 stop in 6 on a Pixel 10a).
+    override fun stopsAfterGuest(): Boolean = true
 
     override fun suspendPid(): Int = pid
 

@@ -12,6 +12,7 @@ about the phone's own GPU driver, heat or memory should show up here first.
 | `steam-ui-screen-cycle` | `login_screen` | `steam-ui` with the screen turned off and on three times during Steam's start; the UI must still appear within 180 s |
 | `steam-ui-background` | `login_screen` | `steam-ui` with the app sent home for 30 s during Steam's start, then reopened from its launcher icon, which must bring the running session back (`returned_to_session`). Landing on the home screen instead is logged as `landed_on_home` and fails the run; the rig still presses Open Steam so the rest is measured. Also fails if the app restarts the session |
 | `stand-in-background` | `standin_exit_clean` | `stand-in-game` with the app sent home for 20 s once Steam is ready, then the same return-by-icon check; the game runs 1200 frames here so it is still running when the rig comes back |
+| `steam-ui-restart` | `resume_opened_screen` | `steam-ui`, then start after stop: a stop sent with no session screen open, a second start that must keep its screen (and starts without glamor, because the rig plants an Xwayland crash in the first session's log), stopped before its first frame, a third start that must log that glamor is back, reach READY, and a `resume` that must reopen the screen once it is closed again (the screen is closed by dismissing the picture-in-picture task Home leaves). It shows the app's decisions and the screen's lifecycle; whether Steam draws without glamor on a real GPU route it cannot show (GL is llvmpipe here) |
 | `upgrade` | `login_screen` | the latest release's `kestrel.apk` installed first, then the APK under test over it (`adb install -r`); a setting and the installed runtime must survive, then `steam-ui` |
 
 Outputs per scenario (artifact `rig-<scenario>`, and printed to the job log):
@@ -25,7 +26,7 @@ The stand-in's stdout markers (`FIRST_FRAME`, `MAINLOOP_OK`) don't reach any log
 `all` runs `steam-ui` alone and warns.
 
 The job fails unless the target stage was reached in the first session the rig started, and within any deadline (`steam_ui` 180 s, 210 s when backgrounded, counted from the rig's start command). Dispatch inputs: `apk_run_id` (a build.yml run)
-or `ref` (its newest green build), `scenario` (`all` = the first two, `regressions` = the other four, `everything`, or one scenario name; a push to `ci/offphone-probe` runs `everything`), `guest_vulkan`.
+or `ref` (its newest green build), `scenario` (`all` = the first two, `regressions` = the other five, `everything`, or one scenario name; a push to `ci/offphone-probe` runs `everything`), `guest_vulkan`.
 Other workflows can `uses: ./.github/workflows/offphone-rig.yml` with the same inputs. Pushes to
 `autofix/**` run it against that commit's own build.yml APK.
 

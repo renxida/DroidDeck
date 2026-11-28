@@ -478,6 +478,7 @@ class FrontEndActivity : ComponentActivity() {
     private var steamGpuDrawing by mutableStateOf(false)
     private var bridgeFellBack by mutableStateOf(false)
     private var bridgeFellBackMemory by mutableStateOf(false)
+    private var bridgeAutoFailed by mutableStateOf("")
     private var clearCachedApps by mutableStateOf(false)
     private var adbPaired by mutableStateOf(false)
     private var memoryHud by mutableStateOf(SessionPrefs.MEMORY_HUD_OFF)
@@ -886,7 +887,7 @@ class FrontEndActivity : ComponentActivity() {
                         enhancedDiagnosticsArmed = enhancedDiagnosticsArmed,
                         gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
-                        graphicsLogs = graphicsLogs, steamGpuDrawing = steamGpuDrawing, bridgeFellBack = bridgeFellBack, bridgeFellBackMemory = bridgeFellBackMemory,
+                        graphicsLogs = graphicsLogs, steamGpuDrawing = steamGpuDrawing, bridgeFellBack = bridgeFellBack, bridgeFellBackMemory = bridgeFellBackMemory, bridgeAutoFailed = bridgeAutoFailed,
                         buildWatermark = buildWatermark,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         tpUbwcMode = drivers.tpUbwcModeForDevice(), tpUbwcRestartRequired = drivers.tpUbwcRestartRequired(), canRestartApp = !runtimeChangesBlocked(),
@@ -973,12 +974,13 @@ class FrontEndActivity : ComponentActivity() {
                         modeSheet = { mode, tab, extras -> ModeSheetHost(mode, tab, extras) },
                         onRuntime = { onRuntimeButton() },
                         onVkBridge = { on ->
-                            SessionPrefs.setVkBridge(this, on); SessionPrefs.setMaliFallbackByAuto(this, ""); vkBridge = on
+                            SessionPrefs.setVkBridge(this, on); SessionPrefs.maliRouteSetByHand(this, "Mali bridge", on); vkBridge = on; bridgeAutoFailed = ""
                             if (!on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
                         },
                         onVenus = { on ->
                             SessionPrefs.setVenus(this, on)
-                            SessionPrefs.setMaliFallbackByAuto(this, "")
+                            SessionPrefs.maliRouteSetByHand(this, "Mali (Venus)", on)
+                            bridgeAutoFailed = ""
                             venus = on
                             if (on && !com.droiddeck.launcher.core.DeviceSupport.adreno()) Thread({
                                 com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
@@ -2137,7 +2139,10 @@ class FrontEndActivity : ComponentActivity() {
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
+        if (!SessionState.running && com.droiddeck.launcher.session.BridgeDefault.apply(this, "launcher"))
+            com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
         vkBridge = SessionPrefs.vkBridge(this)
+        venus = SessionPrefs.venus(this)
         vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
         bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
@@ -2154,6 +2159,7 @@ class FrontEndActivity : ComponentActivity() {
         steamGpuDrawing = SessionPrefs.steamGpuCompositing(this)
         bridgeFellBack = SessionPrefs.bridgeFellBack(this)
         bridgeFellBackMemory = SessionPrefs.bridgeFellBackForMemory(this)
+        bridgeAutoFailed = SessionPrefs.bridgeAutoFailed(this)
         clearCachedApps = SessionPrefs.clearCachedApps(this)
         adbPaired = WirelessAdbFix.hasSavedPairing(this)
         memoryHud = SessionPrefs.memoryHud(this)

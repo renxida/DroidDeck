@@ -91,6 +91,9 @@ object GraphicsReport {
         appendLine("frame generation: " + runCatching { com.droiddeck.launcher.gpu.FrameGen.mode(context).toString() }.getOrDefault("?") +
             " (engine=off means it is switched off in Play settings; a driver that fails LSFG's gates logs \"device gates\" below)")
         appendLine("mali bridge setting: " + SessionPrefs.vkBridge(context) + ", in use: " + DeviceSupport.vkBridge(context))
+        if (DeviceSupport.mali()) appendLine("mali route set by: " + SessionPrefs.maliRouteBy(context).ifEmpty { "(not recorded)" } +
+            ", bridge-default: " + (if (BridgeDefault.on(context)) "on" else "off") +
+            SessionPrefs.bridgeAutoFailed(context).let { if (it.isEmpty()) "" else ", bridge gave way to the pair: $it" })
         val standIn = runCatching { com.droiddeck.launcher.runtime.LinuxRuntime.gpuStandIn(context) }.getOrNull()
         appendLine("render node for the guest: " + (standIn?.let { node ->
             com.droiddeck.launcher.runtime.LinuxRuntime.deviceNumbers(node)?.let { n -> "/dev/dri/renderD${n.substringAfter(':')} -> $node ($n)" } ?: node
@@ -188,6 +191,10 @@ object GraphicsReport {
             val fellBack = fallbackLines?.firstOrNull()
             val fallbackReason = fallbackLines?.getOrNull(1).orEmpty()
             runCatching { SessionPrefs.setBridgeFellBack(appContext ?: return@runCatching, fellBack != null, fallbackReason) }
+            if (fellBack != null) runCatching {
+                BridgeDefault.bridgeFailed(appContext ?: return@runCatching,
+                    if (fallbackReason == BridgeDefault.FAILED_MEMORY) BridgeDefault.FAILED_MEMORY else BridgeDefault.FAILED_DRAW)
+            }
             val limits = File(dir, "limits.txt").takeIf { it.isFile }?.readText()?.trim()
             val audio = File(dir, "audio.log").takeIf { it.isFile }?.readText().orEmpty()
             report.appendText(buildString {

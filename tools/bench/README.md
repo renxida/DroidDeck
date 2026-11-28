@@ -59,16 +59,22 @@ top menu entry is not where Continue sits.
 
 From L+100 s: focus the top menu entry with the d-pad (checked), A (Continue), wait for the hand. Then the
 latency probe (`pad:right` / `pad:left` moves the focus between the first two cards; nothing is played), the
-cross-check when asked for, then the script in `scenarios/fight.json`:
+cross-check when asked for, then the script in `scenarios/fight.json`. On game v0.114.0 the saved run deals
+Strike, Defend, Strike, Bash, Defend (v0.111.1 dealt Bash and four Strikes from the same save, so the script was
+rewritten on Nov 28; it still plays 9 cards, 7 of them attacks, and ends on 8 HP):
 
 | Turn | Inputs | Enemy after |
 |---|---|---|
-| 1 | right; Strike, Strike, Strike (each: A, A on the Nibbit); Y (End Turn): the Nibbit attacks for 12 | 39, 33, 27 |
-| 2 | right x3; Strike; Defend, Defend; Y: the Nibbit attacks for 6 and gains block | 21 |
-| 3 | Strike, Strike, Strike; Y: the Nibbit buffs | 20, 14, 8 |
+| 1 | Strike (A, A on the Nibbit); right, Strike; left, Defend; Y (End Turn): the Nibbit attacks for 12 | 39, 33 |
+| 2 | right, Strike, Strike; right, Strike; Y: the Nibbit attacks for 6 and gains block | 27, 21, 15 |
+| 3 | Strike, Strike; right, Defend; Y: the Nibbit buffs | 14, 8 |
 
-After a step the bench takes one screenshot and checks the enemy's health bar against the script (and, after
-each End Turn, that a new hand was dealt). A mismatch aborts the run. Then Start, Save and Quit, and the game's
+After a card is played the focus stays on the same position in the hand. When that card is Bash or a Defend in
+the middle of the hand, its tooltip covers the enemy's health bar, so the script only checks the bar after the
+steps that leave it visible (39, 33 after End Turn 1, 27, 14 and the final 8).
+
+After a step that names a value the bench takes one screenshot and checks the enemy's health bar against the
+script (and, after each End Turn, that a new hand was dealt). A mismatch aborts the run. Then Start, Save and Quit, and the game's
 Quit.
 
 **Animation windows.** For a card: from its first A being sent until `settle_ms` (2 s) after its second A

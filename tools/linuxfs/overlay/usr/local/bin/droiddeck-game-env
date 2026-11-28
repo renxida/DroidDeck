@@ -86,7 +86,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
                "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
                "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread",
-               "present-dmabuf")
+               "present-dmabuf", "bridge-default")
 
 
 FREE_MEMORY_WAIT_S = 15

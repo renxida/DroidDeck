@@ -64,7 +64,9 @@ and the run scripts in `scripts/` (the earlier campaigns' scripts with the chang
   panel does; gamescope's Xwayland output is 1616x720@120.
 - `SessionPrefs.vkBridge` defaults to on for a Mali GPU in source, yet this phone had it stored as off when the
   campaign started (the baseline note's `graphics-report.txt` already said "bridge false"). What wrote that was
-  not determined.
+  not determined. (Found Nov 28, in source: Auto. `DriverMenus.ensureAuto` marks the default-on bridge as its
+  own stand-in, `maliFallbackByAuto=bridge`, and `endMaliFallback` switches the stand-in off once the PanVK pair
+  is installed. The experiment `bridge-default` changes that; see `BridgeDefault.kt`.)
 
 ## 2. Method
 

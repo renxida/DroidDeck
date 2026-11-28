@@ -198,11 +198,14 @@ mode except the desktop).
 `state` returns `schema`, `build`, `appVersion`, `runtime {installed, version}`,
 `agent {guest, guestFocus, commands}` and `session`:
 
-- `id`, `phase`, `running`, `mode`, `program`, `steamUi`, `steamUrl`, `suspended`, `pip`,
+- `id`, `phase`, `running`, `mode`, `program`, `steamUi`, `steamUrl`, `suspended`, `screen`, `pip`,
   `firstFrame`, `output` [w, h], `outputPlaceholder`, `refreshHz`, `lastTransitionAt`, `guestPid`, `installing`.
   `output` is the running session's size and null when no session runs; then `outputPlaceholder` has the
   size the app still holds (1920x1080 before the first session, the last session's after), which is not
   what the next session will use.
+  `screen` is whether the session's screen is on a display. `resume` also covers a running session that has
+  none (stopped from the notification's side, or closed): it opens the screen again, through
+  `AgentStartActivity` when Android will not let the app do it from the background.
 - `logDir`, `eventsFile`, `artifactsAvailable`, `artifactsComplete`, `failure {code, message, status}`
 - `focus`: gamescope's focus as the guest agent last published it, or null:
   `focusedApp`, `focusedWindow`, `focusableApps`, `baselayerAppIds`, `seq`, `t`.

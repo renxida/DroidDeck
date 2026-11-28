@@ -789,6 +789,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("memoryKillNotice", on).apply()
     }
 
+    fun noGlamorUndrawn(context: Context): Boolean = prefs(context).getBoolean("noGlamorUndrawn", false)
+
+    fun setNoGlamorUndrawn(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("noGlamorUndrawn", on).commit()
+    }
+
     fun maliFallbackByAuto(context: Context): String = prefs(context).getString("maliFallbackByAuto", "").orEmpty()
 
     fun maliFallbackKnown(context: Context): Boolean = prefs(context).contains("maliFallbackByAuto")
@@ -797,12 +803,52 @@ object SessionPrefs {
         prefs(context).edit().putString("maliFallbackByAuto", route).apply()
     }
 
+    /**
+     * A route button in Settings > Advanced was pressed. The route is the user's from here on, so the mark
+     * that lets Auto switch its own stand-in off once a driver pair is installed is cleared, for both routes.
+     */
+    fun maliRouteSetByHand(context: Context, route: String, on: Boolean) {
+        val standIn = maliFallbackByAuto(context)
+        setMaliFallbackByAuto(context, "")
+        BridgeDefault.setByHand(context)
+        android.util.Log.i("SessionPrefs", "route: $route switched ${if (on) "on" else "off"} by hand; Auto leaves the Mali route alone from now on" +
+            if (standIn.isNotEmpty()) " (cleared its stand-in mark, which was \"$standIn\")" else "")
+    }
+
     fun setVenus(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("venus", on).apply()
     }
 
     fun setVkBridge(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("vkBridge", on).putBoolean("bridgeFellBack", false).apply()
+    }
+
+    /** null when the switch was never stored: [vkBridge] then answers by the GPU. */
+    fun vkBridgeStored(context: Context): Boolean? =
+        if (prefs(context).contains("vkBridge")) prefs(context).getBoolean("vkBridge", false) else null
+
+    fun restoreVkBridge(context: Context, stored: Boolean?) {
+        if (stored == null) prefs(context).edit().remove("vkBridge").apply() else setVkBridge(context, stored)
+    }
+
+    /** Who set the Mali route: [BridgeDefault.USER], [BridgeDefault.AUTO], or "" from builds that did not record it. */
+    fun maliRouteBy(context: Context): String = prefs(context).getString("maliRouteBy", "").orEmpty()
+
+    fun setMaliRouteBy(context: Context, by: String) {
+        prefs(context).edit().apply { if (by.isEmpty()) remove("maliRouteBy") else putString("maliRouteBy", by) }.apply()
+    }
+
+    /** Why the automatically chosen bridge gave way to the driver pair on this phone ("" if it did not). */
+    fun bridgeAutoFailed(context: Context): String = prefs(context).getString("bridgeAutoFailed", "").orEmpty()
+
+    fun setBridgeAutoFailed(context: Context, reason: String) {
+        prefs(context).edit().putString("bridgeAutoFailed", reason).apply()
+    }
+
+    fun bridgeDefaultUndo(context: Context): String = prefs(context).getString("bridgeDefaultUndo", "").orEmpty()
+
+    fun setBridgeDefaultUndo(context: Context, saved: String) {
+        prefs(context).edit().putString("bridgeDefaultUndo", saved).apply()
     }
 
     @JvmStatic

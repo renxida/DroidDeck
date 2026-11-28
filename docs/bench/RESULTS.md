@@ -40,3 +40,8 @@ the fight before the one row here (`docs/research/mali-10a-fight-1.md`, section 
 | 2026-11-28 | 21a1157 | Native, panvk, `present-dmabuf` | fight | 59.7 | 28.7 | 59.6 | 29.6 | 29.5 / 6.7 | 84.5 / 100.5 ms (n=60) | 522 MB | 2988 MB + 391 MB dma-buf | `fight-native-panvk-dmabuf-3` |
 | 2026-11-28 | 21a1157 | Native, bridge | fight | 85.9 | 26.4 | 85.7 | 28.2 | 28.0 / 9.3 | 74.7 / 95.2 ms (n=67) | 1584 MB | 1301 MB + 866 MB dma-buf | `fight-native-bridge-cap120` |
 | 2026-11-28 | 21a1157 | Native, bridge, `vk-blocks-64`, `DROIDDECK_NATIVE_PROF=1000`, `DROIDDECK_NATIVE_PROF_HITCH_MS=33` | fight | 59.1 | 33.6 | 59.0 | 35.6 | 40.1 / 13.4 | 90.3 / 112.9 ms (n=60) | 1777 MB | 1178 MB + 856 MB dma-buf | `fight-native-bridge-prof` |
+| 2026-11-28 | c56cc02 | Native, bridge | fight | 58.8 | 34.6 | 58.5 | 35.7 | 49.4 / 8.0 | 85.8 / 134.3 ms (n=50) | 1319 MB | 1171 MB + 1234 MB dma-buf | `lab2-fight-native-bridge-1` |
+| 2026-11-28 | c56cc02 | Native, bridge | fight | 58.6 | 38.1 | 58.4 | 40.1 | 54.9 / 12.0 | 89.8 / 116.6 ms (n=50) | 1627 MB | 1126 MB + 983 MB dma-buf | `lab2-fight-native-bridge-2` |
+| 2026-11-28 | c56cc02 | Proton, bridge | fight | 52.5 | 114.2 | 51.2 | 122.2 | 161.7 / 85.6 | 94.8 / 149.4 ms (n=50) | 475 MB | 1072 MB + 1002 MB dma-buf | `lab2-fight-proton-bridge-1` |
+| 2026-11-28 | c56cc02 | Native, panvk, `present-dmabuf` | fight | 59.7 | 29.0 | 59.7 | 30.5 | 32.1 / 8.0 | 83.3 / 101.5 ms (n=50) | 520 MB | 2810 MB + 448 MB dma-buf | `lab2-fight-native-panvk-dmabuf-1` |
+| 2026-11-28 | c56cc02 | Native, bridge | menu | 60.0 | 21.3 | n/a | n/a | n/a | 81.1 / 132.7 ms (n=50) | 1795 MB | 1155 MB + 999 MB dma-buf | `lab2-menu-native-bridge-1` |

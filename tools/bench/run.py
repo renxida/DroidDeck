@@ -236,6 +236,24 @@ class Bench:
             raise Abort("the route buttons are not in Settings > Advanced")
         return bridge.group(1) == "on", venus.group(1) == "on"
 
+    ROUTE_OWNER_KEYS = ("maliRouteBy", "bridgeDefaultUndo")
+
+    def route_owner(self) -> dict[str, str] | None:
+        if not self.commands:
+            return None
+        values = self.ctl("prefs", "get", "session").get("values") or {}
+        return {key: values[key] for key in self.ROUTE_OWNER_KEYS if isinstance(values.get(key), str)}
+
+    def restore_route_owner(self) -> None:
+        """A route button press marks the route as set by hand, and bridge-default then stops managing it
+        (BridgeDefault.setByHand). Put the owner marks back after the bench has restored the route itself."""
+        before = getattr(self, "route_owner_before", None)
+        if not before or self.route_owner() == before:
+            return
+        for key, value in before.items():
+            self.ctl("prefs", "set", "session", key, value, "--type", "string", check=True)
+        self.log(f"route owner marks restored: {before}")
+
     def set_route(self, want: tuple[bool, bool]) -> tuple[bool, bool]:
         have = self.route_state(self.open_settings("Advanced"))
         first = have
@@ -298,6 +316,7 @@ class Bench:
         if game_sound != "Off" or boot_sound != "Off":
             raise Abort(f"sound: game sound {game_sound}, boot-movie sound {boot_sound}: rule 2, not starting")
 
+        self.route_owner_before = self.route_owner()
         self.route_before = self.set_route(ROUTES[args.route])
         if self.route_before != ROUTES[args.route]:
             self.log(f"route: bridge={self.route_before[0]} venus={self.route_before[1]} -> {args.route}")
@@ -742,6 +761,7 @@ class Bench:
                     self.set_switch(tag, state_before, remember=False)
                 if self.route_before is not None:
                     self.set_route(self.route_before)
+                    self.restore_route_owner()
                 self.checks["config_restored"] = True
             except Abort as error:
                 self.checks["config_restored"] = False

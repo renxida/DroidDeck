@@ -15,6 +15,12 @@
 #                        phone: droiddeck-game-env must start it on the native engine this APK embeds
 #                        (Steam preflight on, Steam's client installed) and it must run to its last frame.
 #                        "Native engine skipped" or a fall back to Proton fails the run.
+# steam-ui-restart       steam-ui, then the two session bugs of Nov 27 (docs/research/mali-10a-gpu-1.md section 6):
+#                        a stop sent with no session screen open, a second start that must keep its screen,
+#                        started without glamor because the rig planted an Xwayland crash in the first
+#                        session's log and stopped before its first frame, and a third start that must log
+#                        the guard line, start with glamor and reach Steam's UI; then resume must reopen a
+#                        closed session screen.
 # upgrade                The previous kestrel.apk installed and set up first (OLD_APK, already
 #                        installed by the caller), then this APK (NEW_APK) installed over it: a
 #                        setting must survive, then steam-ui.
@@ -29,7 +35,7 @@ ctl="$apptools/droiddeckctl"
 pkg=$("$apptools/app-id")
 fs=/data/user/0/$pkg/files/linuxfs
 case $scenario in
-  steam-ui|steam-ui-screen-cycle|steam-ui-background|upgrade) base=steam-ui ;;
+  steam-ui|steam-ui-screen-cycle|steam-ui-background|steam-ui-restart|upgrade) base=steam-ui ;;
   stand-in-game|stand-in-background|stand-in-native) base=stand-in-game ;;
   *) echo "unknown scenario $scenario"; exit 2 ;;
 esac
@@ -245,6 +251,67 @@ if [ -n "$login" ] && "$ctl" latency --help >/dev/null 2>&1; then
   "$ctl" latency --input key:TAB --region 0.1,0.1,0.8,0.8 --count 12 --gap 500 --rows > "$out/latency.json" 2>"$out/latency.err" \
     && rig_event latency_probe_ran || echo "rig: latency probe failed: $(head -c 400 "$out/latency.json" "$out/latency.err" 2>/dev/null)"
   echo "rig: latency probe: $(jq -c '{samples, answered, statuses, endsAt, toScreen, toFirstFrame, framesToChange, noise, readable, displayTiming}' "$out/latency.json" 2>/dev/null)"
+fi
+if [ "$scenario" = steam-ui-restart ] && [ -n "$login" ]; then
+  session_field() { "$ctl" state 2>/dev/null | jq -r ".session.$1"; }
+  app_log() { adb logcat -d -v brief 2>/dev/null | tr -d '\r' | grep -F "$1" | tail -1; }
+  # An Xwayland crash while the session ran: ahead of the "== session: stopping" line the app wrote at stop.
+  plant_crash() { # session folder
+    adb shell "f=${1%/}/session.log; { echo '(EE) Segmentation fault at address 0x0 (Xwayland; planted by the rig)'; cat \$f 2>/dev/null; true; } > \$f.rig && cat \$f.rig > \$f && rm \$f.rig"
+    echo "rig: planted an Xwayland crash in ${1%/}/session.log; stop line: $(adb shell "grep -c '^== session: stopping' ${1%/}/session.log" | tr -d '\r')"
+  }
+  wait_for() { # seconds, command...
+    local end=$(( $(date +%s) + $1 )); shift
+    while [ "$(date +%s)" -lt "$end" ]; do "$@" && return 0; sleep 2; done; return 1
+  }
+  # A running session with no screen: Home leaves the session in a picture-in-picture window, and dismissing
+  # that window's task destroys the screen while the service keeps the session.
+  close_screen() {
+    adb shell input keyevent KEYCODE_HOME; sleep 4
+    local task; task=$(adb shell am stack list | tr -d '\r' | grep -m1 -E "taskId=[0-9]+: $pkg/.*SessionActivity" | sed -E 's/.*taskId=([0-9]+):.*/\1/')
+    [ -n "$task" ] && adb shell am stack remove "$task" >/dev/null 2>&1
+    sleep 4
+    echo "rig: screen closed (task ${task:-not found}): top $(top_activity), phase $(phase), running $(session_field running), screen $(session_field screen)"
+  }
+  first=$(latest_dir)
+  close_screen
+  if [ "$(session_field screen)" = false ]; then
+    "$ctl" stop >/dev/null 2>&1; wait_idle 120 && rig_event stopped_without_screen
+  else echo "rig: the session screen is still up; the stop would not be the one under test"; adb shell am stack list | head -40; fi
+  plant_crash "$first"
+
+  adb logcat -c; "$ctl" start steam >/dev/null 2>&1 || echo "rig: second start refused"
+  applied() { [ -n "$(app_log 'glamor off for this one')" ]; }
+  wait_for 90 applied && rig_event noglamor_applied
+  # Read once and stop at once: the guard needs a session that ends before its first frame.
+  st=$("$ctl" state 2>/dev/null); top=$(top_activity); second=$(latest_dir)
+  "$ctl" stop >/dev/null 2>&1; wait_idle 120 || true
+  echo "rig: second start: top $top, $(jq -c '.session | {phase, screen, suspended, firstFrame}' <<<"$st"); $(app_log 'xwayland:')"
+  case "$top:$(jq -r '.session.screen' <<<"$st"):$(jq -r '.session.phase' <<<"$st")" in
+    *SessionActivity*:true:SUSPENDED) echo "rig: the second start is suspended" ;;
+    *SessionActivity*:true:*) rig_event restart_kept_its_screen ;;
+    *) echo "rig: the second start lost its screen: $(app_log 'closing the session screen')" ;;
+  esac
+  [ "$(jq -r '.session.firstFrame' <<<"$st")" = false ] && rig_event stopped_before_first_frame \
+    || echo "rig: the second session drew before the rig stopped it; the guard has nothing to clear"
+  plant_crash "$second"
+
+  adb logcat -c; "$ctl" start steam >/dev/null 2>&1 || echo "rig: third start refused"
+  ready() { [ "$(phase)" = READY ]; }
+  wait_for 300 ready && [ "$(session_field screen)" = true ] && rig_event restart_ready
+  echo "rig: third start: top $(top_activity), phase $(phase), screen $(session_field screen); $(app_log 'xwayland:')"
+  [ -n "$(app_log 'drew no frame; glamor is back on')" ] && [ -z "$(app_log 'glamor off for this one')" ] && rig_event noglamor_guard_cleared
+
+  close_screen
+  "$ctl" resume > "$out/resume.json" 2>"$out/resume.err"; echo "rig: resume: $(head -c 400 "$out/resume.json")"
+  sleep 3
+  st=$("$ctl" state 2>/dev/null); top=$(top_activity)
+  echo "rig: after resume: top $top, $(jq -c '.session | {phase, running, screen, suspended, pip}' <<<"$st")"
+  # The session must still run and have its screen again; whether that screen is in front is logged beside it.
+  [ "$(jq -r '.session.running' <<<"$st"):$(jq -r '.session.screen' <<<"$st"):$(jq -r '.screenOpen' "$out/resume.json" 2>/dev/null)" = true:true:false ] \
+    && rig_event resume_opened_screen
+  case $top in *SessionActivity*) rig_event resume_screen_in_front ;; esac
+  adb logcat -d -v time 2>/dev/null | grep -E "SessionService|SessionActivity|AgentStart|BridgeDefault" | tail -n 400 > "$out/restart-logcat.txt"
 fi
 [ -n "$perturbed" ] && echo "rig: at the end: top $(top_activity); on screen: $("$ctl" ui dump 2>/dev/null | jq -r '[.. | objects | .text? // empty | strings | select(length > 0)] | unique | join(" | ")' 2>/dev/null | head -c 600)"
 [ "$base" = steam-ui ] && [ -z "$login" ] && { "$ctl" cdp targets > "$out/cdp-targets.json" 2>&1 || true; }
