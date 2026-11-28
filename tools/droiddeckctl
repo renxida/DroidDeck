@@ -581,23 +581,33 @@ def start_session(adb: str, serial: str, request: dict) -> dict:
     return confirm_start(adb, serial, request, current["session"])
 
 
-def resume_session(adb: str, serial: str, timeout: float = 15) -> dict:
+def resume_session(adb: str, serial: str, timeout: float = 15, grace: float = 3) -> dict:
     """Resume the session; when its screen is closed, open it the way `start` opens one (a visible Activity)."""
     response = checked(provider_call(adb, serial, "resume"), "RESUME_FAILED")
     if response.get("screenOpen", True):
         return response
+
+    def screen_within(seconds: float) -> bool:
+        deadline = time.monotonic() + seconds
+        while True:
+            session = get_state(adb, serial).get("session", {})
+            if session.get("screen"):
+                return True
+            if not session.get("running"):
+                raise ControlError("The session ended before its screen opened", "RESUME_FAILED")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(0.25, remaining))
+
+    # The app opens the screen itself when Android lets it. A second launch on top of that one would
+    # send the fresh screen to picture-in-picture, so the Activity over adb is only for when it did not.
+    if screen_within(grace):
+        return dict(response, screenOpened=True, openedBy="app")
     start_agent_activity(adb, serial, {"resume": True})
-    deadline = time.monotonic() + timeout
-    while True:
-        session = get_state(adb, serial).get("session", {})
-        if session.get("screen"):
-            return dict(response, screenOpened=True)
-        if not session.get("running"):
-            raise ControlError("The session ended before its screen opened", "RESUME_FAILED")
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise ControlError("The session is running but its screen did not open", "RESUME_FAILED")
-        time.sleep(min(0.25, remaining))
+    if screen_within(timeout):
+        return dict(response, screenOpened=True, openedBy="adb")
+    raise ControlError("The session is running but its screen did not open", "RESUME_FAILED")
 
 
 def unpack_logs(archive: Path, destination: Path, session_id: str) -> None:

@@ -305,10 +305,12 @@ if [ "$scenario" = steam-ui-restart ] && [ -n "$login" ]; then
   close_screen
   "$ctl" resume > "$out/resume.json" 2>"$out/resume.err"; echo "rig: resume: $(head -c 400 "$out/resume.json")"
   sleep 3
-  case "$(top_activity):$(session_field screen):$(jq -r '.screenOpen' "$out/resume.json" 2>/dev/null)" in
-    *SessionActivity*:true:false) rig_event resume_opened_screen ;;
-    *) echo "rig: after resume: top $(top_activity), screen $(session_field screen)" ;;
-  esac
+  st=$("$ctl" state 2>/dev/null); top=$(top_activity)
+  echo "rig: after resume: top $top, $(jq -c '.session | {phase, running, screen, suspended, pip}' <<<"$st")"
+  # The session must still run and have its screen again; whether that screen is in front is logged beside it.
+  [ "$(jq -r '.session.running' <<<"$st"):$(jq -r '.session.screen' <<<"$st"):$(jq -r '.screenOpen' "$out/resume.json" 2>/dev/null)" = true:true:false ] \
+    && rig_event resume_opened_screen
+  case $top in *SessionActivity*) rig_event resume_screen_in_front ;; esac
   adb logcat -d -v time 2>/dev/null | grep -E "SessionService|SessionActivity|AgentStart|BridgeDefault" | tail -n 400 > "$out/restart-logcat.txt"
 fi
 [ -n "$perturbed" ] && echo "rig: at the end: top $(top_activity); on screen: $("$ctl" ui dump 2>/dev/null | jq -r '[.. | objects | .text? // empty | strings | select(length > 0)] | unique | join(" | ")' 2>/dev/null | head -c 600)"

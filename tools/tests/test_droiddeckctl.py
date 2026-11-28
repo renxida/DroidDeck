@@ -307,20 +307,42 @@ class DroiddeckctlTest(FakeAdbTest):
         shown["session"].update(screen=True)
         self.configure({"resume": {"ok": True, "command": "resume", "screenOpen": False}, "state": hidden},
                        screen_after_am=shown)
-        code, out = self.run_ctl("resume")
-        self.assertEqual((0, True), (code, out["screenOpened"]))
+        with unittest.mock.patch.object(ctl.time, "sleep"), \
+                unittest.mock.patch.object(ctl.time, "monotonic", side_effect=[0, 5, 5, 5]):
+            code, out = self.run_ctl("resume")
+        self.assertEqual((0, True, "adb"), (code, out["screenOpened"], out["openedBy"]))
         started = [c for c in self.calls() if c["args"][:3] == ["shell", "am", "start"]]
         self.assertEqual([{"resume": True}], [c["request"] for c in started])
         self.assertIn("agent.AgentStartActivity", " ".join(started[0]["args"]))
+
+    def test_resume_leaves_a_screen_the_app_opened_itself_alone(self):
+        hidden, shown = state(phase="SUSPENDED"), state()
+        hidden["session"].update(running=True, suspended=True, screen=False)
+        shown["session"].update(screen=True)
+        self.configure({"resume": {"ok": True, "command": "resume", "screenOpen": False}, "state": [hidden, shown]})
+        with unittest.mock.patch.object(ctl.time, "sleep"):
+            code, out = self.run_ctl("resume")
+        self.assertEqual((0, True, "app"), (code, out["screenOpened"], out["openedBy"]))
+        self.assertFalse([c for c in self.calls() if c["args"][:2] == ["shell", "am"]])
 
     def test_resume_says_so_when_the_screen_does_not_open(self):
         hidden = state(phase="SUSPENDED")
         hidden["session"].update(running=True, suspended=True, screen=False)
         self.configure({"resume": {"ok": True, "command": "resume", "screenOpen": False}, "state": hidden})
-        with unittest.mock.patch.object(ctl.time, "monotonic", side_effect=[0, 0, 20, 20, 20]):
+        with unittest.mock.patch.object(ctl.time, "sleep"), \
+                unittest.mock.patch.object(ctl.time, "monotonic", side_effect=[0, 5, 5, 30]):
             code, out = self.run_ctl("resume")
         self.assertEqual("RESUME_FAILED", out["error"]["code"])
         self.assertIn("did not open", out["error"]["message"])
+
+    def test_resume_reports_a_session_that_ended_meanwhile(self):
+        hidden, ended = state(phase="SUSPENDED"), state(phase="IDLE")
+        hidden["session"].update(running=True, suspended=True, screen=False)
+        self.configure({"resume": {"ok": True, "command": "resume", "screenOpen": False}, "state": [hidden, ended]})
+        with unittest.mock.patch.object(ctl.time, "sleep"):
+            code, out = self.run_ctl("resume")
+        self.assertEqual("RESUME_FAILED", out["error"]["code"])
+        self.assertIn("ended", out["error"]["message"])
 
     def test_resume_without_a_session_keeps_the_apps_answer(self):
         self.configure({"resume": {"ok": False, "error": {"code": "SESSION_NOT_SUSPENDED", "message": "none"}}})
