@@ -83,6 +83,8 @@ int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n);
 
 /* Screen swapchain presents and, with VK_GOOGLE_display_timing, their ids and display times (compositor thread). */
 int vkp_display_timing(void);
+/* The screen swapchain in a few words, for the session's present-path line. */
+void vkp_describe_output(char *out, size_t n);
 unsigned vkp_present_count(void);
 uint32_t vkp_last_present_id(void);
 int vkp_swap_pending(void);

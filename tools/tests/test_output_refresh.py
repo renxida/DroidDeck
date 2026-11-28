@@ -71,6 +71,8 @@ static void send_toplevel_configure(struct surface *s) { (void)s; resizes++; }
 #define pointer_delta(...) ((void)0)
 #define deliver_touch(m) ((void)0)
 #define input_mark_read(m) ((void)0)
+#define response_input_read(m) ((void)0)
+#define rp_arm(x, y, w, h) ((void)0)
 #define deliver_pointer(m) (pointers++)
 static void on_vsync(int64_t ns) { assert(ns > 0); ticks++; }
 static void vk_present_set_scale_mode(int mode, int alignment) {

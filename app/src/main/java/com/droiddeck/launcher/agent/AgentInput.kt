@@ -27,6 +27,20 @@ object AgentInput {
         }.put("ok", true).put("command", "input").put("type", request.optString("type"))
     }
 
+    /** One edge of a pad button, key or touch, with no hold: the response probe times the press itself. */
+    fun edge(request: JSONObject, down: Boolean) {
+        val action = if (down) "down" else "up"
+        when (val type = request.optString("type")) {
+            "pad" -> pad(JSONObject(request.toString()).put("action", action))
+            "key" -> key(JSONObject(request.toString()).put("action", action))
+            "tap" -> {
+                val (x, y) = point(request, "x", "y")
+                WaylandCompositor.nativeSendTouch(if (down) 0 else 2, TOUCH_ID, x, y)
+            }
+            else -> throw AgentException("INVALID_INPUT", "The latency probe takes pad, key or tap inputs, not '$type'")
+        }
+    }
+
     private fun key(request: JSONObject): JSONObject {
         val name = request.optString("key")
         val code = KEYS[name.uppercase()] ?: name.toIntOrNull()

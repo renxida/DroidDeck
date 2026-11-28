@@ -57,8 +57,12 @@ class VkCountLayerTest(unittest.TestCase):
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
             self.assertIn("ok", ran.stdout)
             lines = log.read_text().splitlines()
-            self.assertEqual(len(lines), 1, lines)
-            line = lines[0]
+            self.assertEqual(len(lines), 2, lines)
+            self.assertRegex(lines[0], r"^droiddeck-vkcount: swapchain \d+x\d+ format \d+, present mode FIFO \(2\), "
+                                       r"min images 3, got [3-9]\d*, result 0$")
+            line = lines[1]
+            self.assertRegex(line, r"\| present interval ms: p50 [0-9.]+ p95 [0-9.]+ p99 [0-9.]+ max [0-9.]+; "
+                                   r"in present: p99 [0-9.]+ max [0-9.]+ \|")
             self.assertTrue(line.startswith("droiddeck-vkcount: final "), line)
             for part in ("60 frames", "1.0 submits", "1.0 cmdbufs", "1.0 barriers", "5.0 copies", "allocations 2",
                          "memory 8.0 MB live", "peak 12.0 MB", "in 1 allocations,", "bound 1.0 MB in 1 images and 0.0 MB in 2 buffers",
@@ -85,7 +89,7 @@ class VkCountLayerTest(unittest.TestCase):
             ran = subprocess.run([str(program)], env=env, capture_output=True, text=True, timeout=60)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
             self.assertIn("blocks ok", ran.stdout)
-            line = log.read_text().splitlines()[0]
+            line = log.read_text().splitlines()[-1]
             for part in ("memory 8.0 MB live", "peak 20.0 MB", "blocks capped at 8 MB (1 bigger refused)"):
                 self.assertIn(part, line)
 

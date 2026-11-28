@@ -81,6 +81,10 @@ class AgentBridgeProvider : ContentProvider() {
             .put("timeout", request.optDouble("timeout", 15.0)), timeoutMs(request, 15.0, 30_000))
         "input" -> AgentInput.handle(request)
         "ui" -> AgentUi.handle(request)
+        "latency" -> {
+            AgentAccess.requireCommands(context)
+            AgentLatency.handle(request)
+        }
         "guest" -> {
             AgentAccess.requireCommands(context)
             guest(context, JSONObject(request.toString()).put("kind", "exec"), timeoutMs(request, 30.0, 10_000))

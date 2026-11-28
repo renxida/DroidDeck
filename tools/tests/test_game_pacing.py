@@ -215,6 +215,55 @@ class FrameCapTest(unittest.TestCase):
                          (["--render-thread", "separate", "--", "--render-thread", "safe"], "Godot render thread: separate"))
         self.assertEqual(thread(["--max-fps", "30"], {}), (["--max-fps", "30"], None))
 
+    def test_present_dmabuf_turns_panvk_on_kbase_off_the_software_window_system(self):
+        present = MODULE["open_driver_present"]
+        kbase = {"BL_OPEN_DRIVER": "1", "BL_DRM_STANDIN": "/dev/mali0",
+                 "BL_VK_DRIVER": "/data/drivers/PanVK-Mali-kbase_Linux_glibc_/icd.json"}
+        on = dict(kbase, DROIDDECK_EXP_PRESENT_DMABUF="1")
+        self.assertEqual(present(kbase), (kbase, []))
+        env, notes = present(on)
+        self.assertEqual((env["PANVK_KBASE_DRI3"], env["PANVK_DEBUG"]), ("1", "wsi_no_afbc"))
+        self.assertEqual(notes, ["present-dmabuf: PanVK swapchain images are dma-bufs (linear), no CPU copy or GPU "
+                                 "wait in present"])
+        self.assertNotIn("PANVK_KBASE_DRI3", on)
+        env, _ = present(dict(on, PANVK_DEBUG="startup"))
+        self.assertEqual(env["PANVK_DEBUG"], "startup,wsi_no_afbc")
+        env, notes = present(dict(on, DROIDDECK_PRESENT_DMABUF_AFBC="1", PANVK_DEBUG="startup"))
+        self.assertEqual((env["PANVK_KBASE_DRI3"], env["PANVK_DEBUG"]), ("1", "startup"))
+        self.assertIn("AFBC allowed", notes[0])
+        env, notes = present(dict(on, PANVK_KBASE_DRI3="0"))
+        self.assertEqual((env["PANVK_KBASE_DRI3"], notes), ("0", ["present-dmabuf: PANVK_KBASE_DRI3=0 kept"]))
+
+    def test_present_dmabuf_leaves_other_drivers_alone(self):
+        present = MODULE["open_driver_present"]
+        on = {"DROIDDECK_EXP_PRESENT_DMABUF": "1", "DROIDDECK_EXP_VK_COUNT": "1"}
+        for env in (dict(on), dict(on, BL_OPEN_DRIVER="1", BL_VK_DRIVER="/d/RADV-Xclipse/icd.json"),
+                    dict(on, BL_OPEN_DRIVER="1", BL_DRM_STANDIN="/dev/mali0", BL_VK_DRIVER="/d/PanVK-Mali-kbase/icd.json",
+                         DROIDDECK_POWERVR_RUNTIME="/powervr")):
+            result, notes = present(env, "/nowhere")
+            self.assertNotIn("PANVK_KBASE_DRI3", result)
+            self.assertNotIn("VK_INSTANCE_LAYERS", result)
+        _, notes = present(dict(on, BL_OPEN_DRIVER="1", BL_VK_DRIVER="/d/RADV-Xclipse/icd.json"), "/nowhere")
+        self.assertEqual(notes, ["present-dmabuf: the driver is not PanVK on kbase; presentation left as it is",
+                                 "vk-count: layer not installed at /nowhere"])
+
+    def test_vk_count_reaches_a_game_on_an_open_driver(self):
+        present = MODULE["open_driver_present"]
+        with tempfile.TemporaryDirectory() as layer_dir:
+            Path(layer_dir, "libVkLayer_droiddeck_vkcount.so").write_bytes(b"x")
+            base = {"BL_OPEN_DRIVER": "1", "DROIDDECK_EXP_VK_COUNT": "1", "DROIDDECK_VKCOUNT_SECONDS": "0"}
+            env, notes = present(base, layer_dir)
+            self.assertEqual((env["VK_INSTANCE_LAYERS"], env["VK_ADD_LAYER_PATH"]), ("VK_LAYER_DROIDDECK_vkcount", layer_dir))
+            self.assertNotIn("VK_LAYER_PATH", env)
+            self.assertNotIn("DROIDDECK_VKCOUNT_SECONDS", env)
+            self.assertEqual(notes, ["vk-count: counting Vulkan calls per frame (open driver)"])
+            env, _ = present(dict(base, VK_INSTANCE_LAYERS="VK_LAYER_VALVE_rpo", VK_LAYER_PATH="/layers"), layer_dir)
+            self.assertEqual((env["VK_INSTANCE_LAYERS"], env["VK_LAYER_PATH"]),
+                             ("VK_LAYER_DROIDDECK_vkcount:VK_LAYER_VALVE_rpo", layer_dir + ":/layers"))
+            self.assertNotIn("VK_ADD_LAYER_PATH", env)
+            again, notes = present(env, layer_dir)
+            self.assertEqual((again["VK_INSTANCE_LAYERS"], notes), (env["VK_INSTANCE_LAYERS"], []))
+
     def test_a_capped_game_gets_three_gamescope_swapchain_images_not_eight(self):
         env = {"DROIDDECK_FPS_CAP": "60", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8"}
         _, note = self.cap([str(self.godot)], env)

@@ -421,6 +421,107 @@ def pacing(adb: str, serial: str, seconds: float) -> dict:
     return {"ok": True, "command": "pacing", "seconds": round(elapsed, 1), **summary}
 
 
+LATENCY_BATCH = 10
+
+
+def latency_input(spec: str) -> dict:
+    """pad:BUTTON, key:NAME or tap:X,Y (fractions of the game picture)."""
+    kind, _, value = spec.partition(":")
+    if kind == "pad" and value:
+        return {"type": "pad", "button": value}
+    if kind == "key" and value:
+        return {"type": "key", "key": value}
+    if kind == "tap":
+        try:
+            x, y = (float(part) for part in value.split(","))
+        except ValueError:
+            x = y = -1.0
+        if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
+            return {"type": "tap", "x": x, "y": y, "space": "fraction"}
+    raise ControlError(f"'{spec}' is not pad:BUTTON, key:NAME or tap:X,Y with X and Y between 0 and 1", "INVALID_INPUT")
+
+
+def latency_region(spec: str) -> list[float]:
+    try:
+        region = [float(part) for part in spec.split(",")]
+    except ValueError:
+        region = []
+    if len(region) != 4 or min(region) < 0 or region[2] <= 0 or region[3] <= 0 \
+            or region[0] + region[2] > 1.0001 or region[1] + region[3] > 1.0001:
+        raise ControlError("--region is X,Y,WIDTH,HEIGHT as fractions of the game picture, inside it", "INVALID_INPUT")
+    return region
+
+
+def latency_percentiles(values: list[float]) -> dict | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+
+    def at(share: float) -> float:
+        return round(ordered[min(len(ordered) - 1, int(share * len(ordered)))] / 1000.0, 1)
+    return {"n": len(ordered), "minMs": round(ordered[0] / 1000.0, 1), "p50Ms": at(0.50), "p95Ms": at(0.95),
+            "p99Ms": at(0.99), "maxMs": round(ordered[-1] / 1000.0, 1)}
+
+
+def latency_summary(rows: list[dict], display_timing: bool) -> dict:
+    """Times are microseconds after the input's own timestamp (taken just before it was injected).
+    toScreen ends at the panel's reported present time when the swapchain gives one, at the compositor's
+    vkQueuePresentKHR otherwise; toChangedFrame ends when the compositor received the first frame whose
+    watched region changed; toFirstFrame is the first frame of any content after the input."""
+    good = [row for row in rows if row.get("status") == "ok" and row.get("changeUs") is not None]
+    end = [row["displayUs"] if row.get("displayUs") is not None else row.get("presentUs") for row in good]
+    statuses: dict[str, int] = {}
+    for row in rows:
+        statuses[row.get("status", "unknown")] = statuses.get(row.get("status", "unknown"), 0) + 1
+    by_input: dict[str, list[float]] = {}
+    for row, value in zip(good, end):
+        if value is not None:
+            by_input.setdefault(row.get("input", "?"), []).append(value)
+    refresh = [row["refreshUs"] for row in good if row.get("refreshUs")]
+    return {
+        "samples": len(rows),
+        "answered": len(good),
+        "statuses": statuses,
+        "endsAt": "display" if display_timing and any(row.get("displayUs") is not None for row in good) else "present",
+        "toScreen": latency_percentiles([value for value in end if value is not None]),
+        "toChangedFrame": latency_percentiles([row["changeUs"] for row in good]),
+        "toFirstFrame": latency_percentiles([row["firstFrameUs"] for row in good if row.get("firstFrameUs") is not None]),
+        "framesToChange": latency_percentiles([row["frames"] * 1000.0 for row in good if row.get("frames")]),
+        "byInput": {name: latency_percentiles(values) for name, values in sorted(by_input.items())},
+        "refreshMs": round(sum(refresh) / len(refresh) / 1000.0, 2) if refresh else None,
+        "noise": max((row.get("noise") or 0 for row in rows), default=0),
+        "smallestDelta": min((row["delta"] for row in good if row.get("delta")), default=None),
+    }
+
+
+def latency(adb: str, serial: str, args: argparse.Namespace) -> dict:
+    require_commands(adb, serial)
+    inputs = [latency_input(spec) for spec in args.input]
+    region = latency_region(args.region)
+    count = max(1, min(1000, args.count))
+    rows: list[dict] = []
+    first = 0
+    last: dict = {}
+    while len(rows) < count:
+        batch = min(LATENCY_BATCH, count - len(rows))
+        last = checked(provider_call(adb, serial, "latency", request={
+            "region": region, "inputs": inputs, "count": batch, "gapMs": args.gap, "holdMs": args.hold, "first": first,
+        }, timeout=60 + batch * (args.gap + args.hold + 1700) / 1000.0), "LATENCY_FAILED")
+        got = last.get("rows") or []
+        if not got:
+            raise ControlError("The probe returned no rows: is a game frame on screen, and is the region inside it?",
+                               "NO_FRAMES")
+        rows.extend(got)
+        first = int(last.get("next", 0))
+    summary = latency_summary(rows, bool(last.get("displayTiming")))
+    result = {"ok": True, "command": "latency", "region": region, "inputs": args.input,
+              "displayTiming": bool(last.get("displayTiming")), "refreshHz": last.get("refreshHz"),
+              "readable": last.get("readable"), **summary}
+    if args.rows:
+        result["rows"] = rows
+    return result
+
+
 THERMAL_STATUS = ["NONE", "LIGHT", "MODERATE", "SEVERE", "CRITICAL", "EMERGENCY", "SHUTDOWN"]
 CPUFREQ = "/sys/devices/system/cpu/cpufreq"
 
@@ -876,6 +977,9 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
     if command == "pacing":
         return add_serial(pacing(adb, serial, args.seconds), serial)
 
+    if command == "latency":
+        return add_serial(latency(adb, serial, args), serial)
+
     if command == "thermal":
         return add_serial(thermal(adb, serial), serial)
 
@@ -1057,6 +1161,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     pace = commands.add_parser("pacing", help="frames that reached the screen and their intervals (SurfaceFlinger)")
     pace.add_argument("--seconds", type=float, default=30)
+
+    lat = commands.add_parser(
+        "latency", help="input-to-screen latency: injects inputs and times the first frame that answers each",
+        description="Injects the inputs in turn (each should undo the one before, e.g. pad:down pad:up) and follows "
+                    "the first game frame whose content changes in --region to the screen. Needs Debugging tools.")
+    lat.add_argument("--input", action="append", required=True, metavar="SPEC",
+                     help="pad:BUTTON, key:NAME or tap:X,Y (fractions of the game picture); repeat to alternate")
+    lat.add_argument("--region", required=True, metavar="X,Y,W,H",
+                     help="the part of the game picture that answers, as fractions; keep animations out of it")
+    lat.add_argument("--count", type=int, default=60)
+    lat.add_argument("--gap", type=int, default=400, help="ms between inputs (a random 0-16 ms is added)")
+    lat.add_argument("--hold", type=int, default=60, help="ms an input stays pressed after its answer")
+    lat.add_argument("--rows", action="store_true", help="include every sample in the output")
 
     commands.add_parser("thermal", help="battery temperature, thermal status and CPU frequency caps")
     commands.add_parser("displays", help="the device's displays and their capture ids")

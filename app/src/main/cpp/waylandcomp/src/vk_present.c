@@ -2976,6 +2976,12 @@ void vkp_pass_abort(void) {
 
 int vkp_display_timing(void) { return g_display_timing; }
 
+void vkp_describe_output(char *out, size_t n) {
+    snprintf(out, n, "%ux%u, %u buffers, FIFO, %s, display timing %s", g_extent.width, g_extent.height, g_nimg,
+             g_present_mode == 1 ? "two frames in flight" : g_present_mode == 2 ? "layer fence" : "one frame in flight",
+             g_display_timing ? "on" : "off");
+}
+
 unsigned vkp_present_count(void) { return g_present_count; }
 
 uint32_t vkp_last_present_id(void) { return g_display_timing ? g_present_id : 0; }
