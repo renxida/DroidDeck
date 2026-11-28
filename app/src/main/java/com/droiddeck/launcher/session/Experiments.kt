@@ -89,6 +89,9 @@ object Experiments {
     /** PanVK on kbase: swapchain images go to gamescope as dma-bufs instead of through wl_shm with a CPU copy
      *  and a wait for the GPU in every present. */
     const val PRESENT_DMABUF = "present-dmabuf"
+    /** Low-latency pad: Steam gets a report every millisecond only while the pad's state changes; an unchanged one
+     *  goes out at the device's own rate (Deck 250 Hz, touch 125 Hz). */
+    const val PAD_IDLE_REPORTS = "pad-idle-reports"
 
     class Switch(val id: String, @StringRes val label: Int)
 
@@ -137,6 +140,7 @@ object Experiments {
         Switch(FEX_CACHE_KEEP, R.string.exp_fex_cache_keep),
         Switch(PE_ALIGN, R.string.exp_pe_align),
         Switch(PRESENT_DMABUF, R.string.exp_present_dmabuf),
+        Switch(PAD_IDLE_REPORTS, R.string.exp_pad_idle_reports),
     )
 
     /** At most one of each group is on. */
@@ -157,7 +161,8 @@ object Experiments {
         NATIVE_INVENTORY, FREE_MEMORY, HYBRIS_INDEX, FEX_L1, HYBRIS_INDEX_SESSION, NATIVE_ENGINE,
         DXVK_ARM64EC, COMPOSITE_TIMING, DOTNET_R2R, FEX_CODE_BUFFER, FEX_SAMPLE, DOTNET_R2R_GENERICS, DOTNET_R2R_BUBBLE,
         FPS_30, WEBHELPER_TRIM, FEX_SMAPS, GODOT_VERBOSE, TEX_ASTC, TEX_HALF, FEX_TRIM,
-        FEX_CACHE_KEEP, PE_ALIGN, VK_BLOCKS_64, NATIVE_R2R, GODOT_RENDER_THREAD, PRESENT_DMABUF)
+        FEX_CACHE_KEEP, PE_ALIGN, VK_BLOCKS_64, NATIVE_R2R, GODOT_RENDER_THREAD, PRESENT_DMABUF,
+        PAD_IDLE_REPORTS)
 
     /** A fresh install and "Turn everything on": all but layer-fence (two-frames instead) and the frame cap. */
     val defaults = setOf(GODOT_RENDER, WARMUP, LAUNCH, COMPAT_QUIET, MEMORY, ADPF_ALL, TWO_FRAMES, ONE_LIMITER, NATIVE_HZ,

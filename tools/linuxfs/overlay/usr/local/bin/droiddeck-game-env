@@ -86,7 +86,7 @@ EXPERIMENTS = ("godot-render", "warmup", "all", "compat-quiet", "memory", "adpf-
                "fex-sample", "dotnet-r2r-generics", "dotnet-r2r-bubble", "fps-30", "webhelper-trim",
                "fex-smaps", "godot-verbose", "tex-astc", "tex-half", "fex-trim",
                "fex-cache-keep", "pe-align", "vk-blocks-64", "native-r2r", "godot-render-thread",
-               "present-dmabuf")
+               "present-dmabuf", "pad-idle-reports")
 
 
 FREE_MEMORY_WAIT_S = 15
@@ -145,7 +145,7 @@ def without_experiments(env):
 # Their effect is fixed when the session starts (the app, droiddeck-session and Steam's scripts); memory is split:
 # its game part follows the saved switches and its app part the session's.
 SESSION_EXPERIMENTS = ("all", "compat-quiet", "adpf-all", "two-frames", "layer-fence", "quick-tap",
-                       "hybris-index-session", "composite-timing")
+                       "hybris-index-session", "composite-timing", "pad-idle-reports")
 
 
 def test_experiments(env):
