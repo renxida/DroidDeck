@@ -124,4 +124,22 @@ class MemoryReadoutTest {
         ), later)
         assertEquals(MemoryLog.PROCESS_HEADER.split(',').size, later[0].split(',').size)
     }
+
+    @Test fun gpuMemoryComesFromKgslOrFromMeminfosGpuLine() {
+        val pixel10a = "MemTotal:        7752904 kB\nCmaFree:            1076 kB\nGpu:             3183680 kB\n" +
+            "Zram:            1242804 kB\nION_heap:         413092 kB\n"
+        assertEquals(3_183_680L, MemoryReadout.parseMeminfoGpuKb(pixel10a))
+        assertEquals(null, MemoryReadout.parseMeminfoGpuKb("MemTotal:        7752904 kB\nGpuOther:  5 kB\n"))
+        assertEquals(3_183_680L to MemoryReadout.GPU_MEMINFO, MemoryReadout.gpuReading(null, pixel10a))
+        assertEquals(2_048L to MemoryReadout.GPU_KGSL, MemoryReadout.gpuReading("2097152\n", pixel10a))
+        assertEquals(3_183_680L to MemoryReadout.GPU_MEMINFO, MemoryReadout.gpuReading("unreadable", pixel10a))
+        assertEquals(null, MemoryReadout.gpuReading(null, "MemTotal:        7752904 kB\n"))
+        assertEquals(null, MemoryReadout.gpuReading(null, null))
+    }
+
+    @Test fun theLogSaysOnceWhereGpuMemoryComesFromOrWhyItIsEmpty() {
+        assertEquals("DROIDDECK_GPU_MEMORY source=/proc/meminfo:Gpu", MemoryLog.gpuSourceLine(MemoryReadout.GPU_MEMINFO))
+        assertEquals("DROIDDECK_GPU_MEMORY source=none gpu_mb stays empty: no /sys/class/kgsl/kgsl/page_alloc and no Gpu: line in /proc/meminfo",
+            MemoryLog.gpuSourceLine(null))
+    }
 }

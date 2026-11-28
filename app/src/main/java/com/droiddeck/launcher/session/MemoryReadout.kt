@@ -143,9 +143,24 @@ internal object MemoryReadout {
         return stat.substring(close + 2).split(' ').getOrNull(1)?.toIntOrNull()
     }
 
-    private fun gpuKb(): Long? = runCatching {
-        File("/sys/class/kgsl/kgsl/page_alloc").readText().trim().split(Regex("\\s+"))[0].toLong() / 1024
-    }.getOrNull()
+    internal const val GPU_KGSL = "/sys/class/kgsl/kgsl/page_alloc"
+    internal const val GPU_MEMINFO = "/proc/meminfo:Gpu"
+
+    /** The kernel's own GPU total in /proc/meminfo: Pixel kernels with the Mali kbase driver list one, most others none. */
+    fun parseMeminfoGpuKb(text: String): Long? =
+        Regex("""(?m)^Gpu:\s+(\d+) kB""").find(text)?.groupValues?.get(1)?.toLongOrNull()
+
+    /** (kB, where it was read) from the first source that answers: Adreno's kgsl total, then /proc/meminfo. */
+    fun gpuReading(kgsl: String?, meminfo: String?): Pair<Long, String>? =
+        kgsl?.trim()?.split(Regex("\\s+"))?.firstOrNull()?.toLongOrNull()?.let { it / 1024 to GPU_KGSL }
+            ?: meminfo?.let(::parseMeminfoGpuKb)?.let { it to GPU_MEMINFO }
+
+    fun gpu(): Pair<Long, String>? = gpuReading(
+        runCatching { File(GPU_KGSL).readText() }.getOrNull(),
+        runCatching { File("/proc/meminfo").readText() }.getOrNull(),
+    )
+
+    private fun gpuKb(): Long? = gpu()?.first
 }
 
 object MemoryLog {
@@ -159,6 +174,10 @@ object MemoryLog {
             "swap ${device.swapUsedKb / 1024}/${device.swapTotalKb / 1024} MB | game ${split.gameKb / 1024}, " +
             "droiddeck ${split.droiddeckKb / 1024}, android ${MemoryReadout.androidKb(device, split) / 1024}, " +
             "gpu ${split.gpuKb?.div(1024) ?: "?"} MB"
+
+    internal fun gpuSourceLine(source: String?): String =
+        if (source != null) "DROIDDECK_GPU_MEMORY source=$source"
+        else "DROIDDECK_GPU_MEMORY source=none gpu_mb stays empty: no ${MemoryReadout.GPU_KGSL} and no Gpu: line in /proc/meminfo"
 
     internal const val CSV_HEADER = "t_wall_ms,used_mb,available_mb,swap_used_mb,game_mb,droiddeck_mb,app_mb,gpu_mb,game_swap_mb,droiddeck_swap_mb,top_process,top_mb," +
         "game_majflt_s,droiddeck_majflt_s,swapin_mb_s,swapout_mb_s"
@@ -235,6 +254,7 @@ object MemoryLog {
                     smapsOut.write(SmapsRollup.HEADER + "\n"); smapsOut.flush()
                     android.util.Log.i(TAG, "DROIDDECK_SMAPS_LOG file=${SmapsRollup.FILE} every_s=${PERIOD_MS * PROCESS_EVERY / 1000}")
                 }
+                android.util.Log.i(TAG, gpuSourceLine(MemoryReadout.gpu()?.second))
                 var sample = 0L
                 while (!Thread.currentThread().isInterrupted) {
                     runCatching {
