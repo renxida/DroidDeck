@@ -444,11 +444,17 @@ after ten overlay open/close cycles no black frame in a 240 fps `record`.
 
 ## 8. What CI proved
 
-See the branch's Build APK run and the off-phone rig run named in the hand-off report: unit tests for the
-probe core, the vkcount layer on lavapipe (swapchain line and pacing percentiles), game-env's switches, the
-`latency` subcommand against a fake adb, the Kotlin experiment list; and on the rig, that the probe arms,
-reads frames and returns rows on a CPU renderer (its times mean nothing there). CI cannot show that
-`present-dmabuf` works: the rig's guest driver is lavapipe, not PanVK on kbase.
+Build APK on the branch (run 46117020226 for f1f9142d, and the run for the branch head): the Python and
+native regression tests (the probe core on synthetic frames, the vkcount layer on lavapipe with its
+swapchain line and pacing percentiles, game-env's switches, the `latency` subcommand against a fake adb),
+the Android unit tests (the experiment list, the bridge refusing `latency` without Debugging tools), the
+native-engine startup gate, and the off-phone rig's three scenarios. In the rig's `steam-ui` scenario the
+probe ran on Steam's sign-in screen with `key:TAB` and the whole picture as its region: it armed, read
+gamescope's frames through the dma-buf mapping (`readable: true`), and returned 12 rows (3 `ok`, 9
+`no-change`, noise 466 because that region holds the screen's animation). That shows the chain from
+`droiddeckctl` to the compositor and back works; its times are a CPU renderer's and mean nothing, and the
+`ok` rows there are the animation, not Tab. CI cannot show that `present-dmabuf` works: the rig's guest
+driver is lavapipe, not PanVK on kbase.
 
 ## Sources
 

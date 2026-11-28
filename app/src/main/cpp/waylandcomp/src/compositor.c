@@ -3798,6 +3798,7 @@ static void present_path_note(unsigned copy_scenes, unsigned zero_copy, unsigned
     if (!s || !s->buf_w) return;
     char line[320], output[128], frames[96];
     const struct dmabuf_buffer *b = s == g_hud_surface ? s->dmabuf_buf : NULL;
+    if (s == g_hud_surface && !b) return;
     if (b)
         snprintf(frames, sizeof(frames), "%dx%d %c%c%c%c %s dma-buf", b->width, b->height, b->format & 0xff,
                  (b->format >> 8) & 0xff, (b->format >> 16) & 0xff, (b->format >> 24) & 0xff,
