@@ -1,0 +1,170 @@
+{
+ "about": "Continue the saved bench run (Ironclad, seed KW6PMT0GVE5V, floor 1, Nibbit 45 HP) and play three turns. The run is saved at the start of the fight and Save and Quit does not advance it, so every run plays the same fight. The enemy ends on 8 HP: the fight is never won.",
+ "profile_icon": "blue",
+ "continue_focus_y": [
+  722,
+  746
+ ],
+ "start_enemy_hp": 1.0,
+ "hp_tolerance": 0.035,
+ "hand_glow_min": 0.011,
+ "steps": [
+  {
+   "kind": "focus",
+   "name": "focus right",
+   "pads": [
+    "right"
+   ],
+   "settle_ms": 0,
+   "pause_ms": 400
+  },
+  {
+   "kind": "card",
+   "name": "Strike",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000,
+   "expect_enemy_hp": 0.867
+  },
+  {
+   "kind": "card",
+   "name": "Strike",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000,
+   "expect_enemy_hp": 0.733
+  },
+  {
+   "kind": "card",
+   "name": "Strike",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000,
+   "expect_enemy_hp": 0.6
+  },
+  {
+   "kind": "end_turn",
+   "name": "End Turn 1",
+   "pads": [
+    "y"
+   ],
+   "settle_ms": 6000,
+   "expect_hand": true
+  },
+  {
+   "kind": "focus",
+   "name": "focus right",
+   "pads": [
+    "right"
+   ],
+   "settle_ms": 0,
+   "pause_ms": 400
+  },
+  {
+   "kind": "focus",
+   "name": "focus right",
+   "pads": [
+    "right"
+   ],
+   "settle_ms": 0,
+   "pause_ms": 400
+  },
+  {
+   "kind": "focus",
+   "name": "focus right",
+   "pads": [
+    "right"
+   ],
+   "settle_ms": 0,
+   "pause_ms": 400
+  },
+  {
+   "kind": "card",
+   "name": "Strike",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000
+  },
+  {
+   "kind": "card",
+   "name": "Defend",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000
+  },
+  {
+   "kind": "card",
+   "name": "Defend",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000
+  },
+  {
+   "kind": "end_turn",
+   "name": "End Turn 2",
+   "pads": [
+    "y"
+   ],
+   "settle_ms": 6000,
+   "expect_hand": true
+  },
+  {
+   "kind": "card",
+   "name": "Strike",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000
+  },
+  {
+   "kind": "card",
+   "name": "Strike",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000
+  },
+  {
+   "kind": "card",
+   "name": "Strike",
+   "pads": [
+    "a",
+    "a"
+   ],
+   "between_ms": 800,
+   "settle_ms": 2000
+  },
+  {
+   "kind": "end_turn",
+   "name": "End Turn 3",
+   "pads": [
+    "y"
+   ],
+   "settle_ms": 6000,
+   "expect_hand": true,
+   "expect_enemy_hp": 0.178
+  }
+ ]
+}
