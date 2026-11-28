@@ -789,6 +789,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("memoryKillNotice", on).apply()
     }
 
+    fun noGlamorUndrawn(context: Context): Boolean = prefs(context).getBoolean("noGlamorUndrawn", false)
+
+    fun setNoGlamorUndrawn(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("noGlamorUndrawn", on).commit()
+    }
+
     fun maliFallbackByAuto(context: Context): String = prefs(context).getString("maliFallbackByAuto", "").orEmpty()
 
     fun maliFallbackKnown(context: Context): Boolean = prefs(context).contains("maliFallbackByAuto")

@@ -437,13 +437,32 @@ class SessionService : Service() {
         return a.toInt() < major || (a.toInt() == major && b.toInt() < minor)
     }
 
-    /** Whether the newest finished session's log shows Xwayland itself crashing. */
+    /** Whether the newest finished session's log shows Xwayland itself crashing while the session ran. */
     private fun lastXwaylandCrashed(): Boolean = runCatching {
         val last = SessionPaths.sessionFolders(this).filter { it != SessionPaths.current() }.lastOrNull() ?: return false
         val log = File(last, "session.log").takeIf { it.isFile } ?: return false
-        log.useLines { lines -> lines.any { it.contains("(EE) Segmentation fault") } } &&
-            log.useLines { lines -> lines.any { it.contains("X11 I/O error") || it.contains("Xwayland", ignoreCase = true) } }
+        log.useLines { XwaylandFallback.crashedBeforeStop(it) }
     }.getOrDefault(false)
+
+    private fun xwaylandFallback(guest: MutableList<String>, bridge: Boolean, venus: Boolean) {
+        val route = when {
+            bridge -> XwaylandFallback.Route.BRIDGE
+            venus -> XwaylandFallback.Route.VENUS
+            com.droiddeck.launcher.core.DeviceSupport.openDriverActive(this) -> XwaylandFallback.Route.OPEN_PAIR
+            else -> XwaylandFallback.Route.OTHER
+        }
+        XwaylandFallback.onFirstFrame = null
+        val undrawn = SessionPrefs.noGlamorUndrawn(this)
+        if (undrawn) SessionPrefs.setNoGlamorUndrawn(this, false)
+        val decision = XwaylandFallback.decide(
+            com.droiddeck.launcher.core.DeviceSupport.adreno(), route, lastXwaylandCrashed(), undrawn)
+        XwaylandFallback.line(decision, route)?.let { Log.w(TAG, it) }
+        if (decision != XwaylandFallback.Decision.APPLY) return
+        guest.add(XwaylandFallback.ENV)
+        SessionPrefs.setNoGlamorUndrawn(this, true)
+        val app = applicationContext
+        XwaylandFallback.onFirstFrame = { SessionPrefs.setNoGlamorUndrawn(app, false) }
+    }
 
     private fun tuDebugOverride(): String? = File(Environment.getExternalStorageDirectory(), TU_DEBUG_SWITCH)
         .takeIf { it.isFile }?.let { FileUtils.readString(it)?.trim() }?.takeIf { it.isNotEmpty() }
@@ -974,10 +993,7 @@ class SessionService : Service() {
         }
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
-        if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
-            guest.add("XWAYLAND_NO_GLAMOR=1")
-            Log.w(TAG, "xwayland: the last session's Xwayland crashed; glamor off for this one (XWAYLAND_NO_GLAMOR=1)")
-        }
+        xwaylandFallback(guest, bridge, venus)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) guest.add("BL_RAISE_NOFILE=1")
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             val kernel = System.getProperty("os.version").orEmpty()
@@ -2151,15 +2167,29 @@ class SessionService : Service() {
         suspendController = null
         if (ended != null) {
             VacDiagnostics.snapshot(this, ended)
+            runCatching { File(ended, "session.log").appendText(XwaylandFallback.stopLine(status) + "\n") }
         }
-        components.reversed().forEach {
+        val (stopNow, stopAfterGuest) = SessionStopOrder.split(components)
+        components.clear()
+        stopNow.forEach {
             try {
                 it.stop()
             } catch (e: Exception) {
                 Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
             }
         }
-        components.clear()
+        val stopGuestServers = {
+            // A session that started meanwhile owns the bridge's socket path now.
+            val superseded = stoppedGen != sessionGen || SessionState.running
+            stopAfterGuest.forEach {
+                try {
+                    if (superseded && it is com.droiddeck.launcher.gpu.VkBridgeComponent) it.kill() else it.stop()
+                } catch (e: Exception) {
+                    Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
+                }
+            }
+            if (stopAfterGuest.isNotEmpty()) Log.i(TAG, "stopped after the guest: " + stopAfterGuest.joinToString { it.javaClass.simpleName })
+        }
         val collectEnded = {
             if (ended != null) Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
         }
@@ -2173,10 +2203,12 @@ class SessionService : Service() {
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
+                    stopGuestServers()
                     pruneSystemVulkanRuntime()
                     finishSessionStop(status, stoppedGen, collectEnded)
                 }, "session-teardown").start()
             } else {
+                stopGuestServers()
                 Thread({ pruneSystemVulkanRuntime() }, "system-vulkan-prune").start()
                 Thread({
                     finishSessionStop(status, stoppedGen, collectEnded)

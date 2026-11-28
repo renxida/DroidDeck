@@ -89,6 +89,7 @@ object SessionEvents {
     fun firstFrame() {
         SessionState.firstFrameSeen = true
         record("frame.first")
+        XwaylandFallback.firstFrame()
         markReadyIfPossible()
     }
 
