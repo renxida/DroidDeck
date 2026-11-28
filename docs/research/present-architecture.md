@@ -339,7 +339,7 @@ Design: `docs/agent-control.md` has the usage. In short:
 
 - **Injection.** The app injects each input itself (`AgentLatency`), on the same code paths as
   `droiddeckctl input`: a pad button through `PadBridge` and the pad ring, a key or touch through the
-  compositor's input pipe. The timestamp is `SystemClock.uptimeNanos()` taken just before the input is
+  compositor's input pipe. The timestamp is `System.nanoTime()` taken just before the input is
   handed over (CLOCK_MONOTONIC, the clock of every later stage). A random 0 to 16 ms is added between inputs
   so they do not lock to the refresh.
 - **Detection.** `response_probe.c` in Lanner's compositor. Each new game frame's watched region is reduced

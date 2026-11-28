@@ -40,7 +40,7 @@ object AgentLatency {
                 attempts++
                 Thread.sleep(gapMs + Random.nextLong(0, 17))
                 val input = inputs[(first + done) % inputs.size]
-                val eventNs = SystemClock.uptimeNanos()
+                val eventNs = System.nanoTime()
                 AgentInput.edge(input, true)
                 WaylandCompositor.nativeResponseInput(kind(input), eventNs)
                 val row = await(1_600)
