@@ -86,4 +86,11 @@ class StopScreenCloseTest {
         assertEquals(com.droiddeck.launcher.SessionActivity::class.java.name, intent.component?.className)
         assertTrue(intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
     }
+
+    @Test fun theAgentsStartActivityFinishingDoesNotEndTheSession() {
+        assertFalse(SessionService.taskCarriesTheSession(com.droiddeck.launcher.agent.AgentStartActivity::class.java.name))
+        assertFalse(SessionService.taskCarriesTheSession(com.droiddeck.launcher.ui.DualScreenActivity::class.java.name))
+        assertTrue(SessionService.taskCarriesTheSession(com.droiddeck.launcher.SessionActivity::class.java.name))
+        assertTrue(SessionService.taskCarriesTheSession(null))
+    }
 }

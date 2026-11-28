@@ -2251,9 +2251,7 @@ class SessionService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (rootIntent?.component?.className in setOf(
-                com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
-                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
+        if (!taskCarriesTheSession(rootIntent?.component?.className)) return
         if (pipTask) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false
@@ -2594,6 +2592,17 @@ class SessionService : Service() {
         private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.droiddeck.launcher.STOP_SESSION"
         const val ACTION_RESUME = "com.droiddeck.launcher.RESUME_SESSION"
+
+        /**
+         * Whether removing the task rooted at [rootActivity] is the user dismissing the session. The panels'
+         * tasks are not, and neither is AgentStartActivity's: it finishes at once, Android then removes its
+         * task, and a `resume` through it ended the session it had just reopened.
+         */
+        internal fun taskCarriesTheSession(rootActivity: String?): Boolean = rootActivity !in setOf(
+            com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
+            com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name,
+            com.droiddeck.launcher.agent.AgentStartActivity::class.java.name,
+        )
         const val ACTION_SUSPEND_NOW = "com.droiddeck.launcher.SUSPEND_NOW"
         private const val ACTION_PAUSE_NOW = "com.droiddeck.launcher.PAUSE_NOW"
         private const val ACTION_PIP_BEGIN = "com.droiddeck.launcher.PIP_BEGIN"
