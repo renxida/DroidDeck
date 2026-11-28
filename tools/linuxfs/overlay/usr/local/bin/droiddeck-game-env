@@ -3647,9 +3647,11 @@ def native_check(folder, exe, name, env, popen=subprocess.Popen, ng=None):
     return None, ["native-engine: no check of these game files yet; one runs after this session"]
 
 
-def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=subprocess.Popen, ng=None):
+def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=subprocess.Popen, ng=None,
+                  before_run=None):
     """Under native-engine, a Godot C# game (a data_*_windows_x86_64 folder next to the exe) runs on Kestrel's
-    own linux-arm64 engine. Returns the exit code to end with, or None to go on to Proton."""
+    own linux-arm64 engine. Returns the exit code to end with, or None to go on to Proton. before_run is called
+    once the engine is about to start: the run blocks until the game ends, and main() returns with its exit code."""
     if not experiment(env, "native-engine") or len(command) < 3:
         return None, []
     exe = os.path.abspath(command[2])
@@ -3680,6 +3682,8 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
         except OSError:
             log, path = None, None
     report_unapplied(game_id(env) or "", env, native=True)
+    if before_run:
+        before_run()
     env, vulkan_notes = native_vulkan_env(env)
     print(engine_line("native", (ng.get("COMPONENT") or {}).get("tag") if ng else None), file=sys.stderr, flush=True)
     began = clock()
@@ -3703,6 +3707,22 @@ def native_engine(command, env, run=subprocess.run, clock=time.monotonic, popen=
     if rc != 0 and took < NATIVE_START_S:
         return None, notes + ["native-engine: exited with %d after %.0f s; starting on Proton" % (rc, took)]
     return rc, notes + ["native-engine: ran %.0f s natively, exit %d" % (took, rc)]
+
+
+def before_native_run(notes, env, app_id, free=free_memory):
+    """What a Proton launch does on its way to start(), for a launch that ends in native_engine()'s run: prints the
+    notes gathered so far (emptying the list, so a fallback to Proton does not print them again) and asks the app to
+    free memory. A prestarted engine is already loaded and waiting, so that launch is not held up for it."""
+    for note in notes:
+        print("droiddeck-game-env: " + note, file=sys.stderr)
+    del notes[:]
+    if not experiment(env, "free-memory"):
+        return
+    if env.get("DROIDDECK_NATIVE_PRESTART") == "1":
+        summary = "skipped, the native engine was started ahead of this launch"
+    else:
+        summary = free(os.environ.get("BL_LAUNCH_DIR"), app_id)
+    print("droiddeck-game-env: free memory: " + summary, file=sys.stderr, flush=True)
 
 
 NATIVE_PRESTART = "--native-prestart"
@@ -3947,7 +3967,8 @@ def main():
                         notes.append("Godot: cache and log check skipped (%s)" % error)
                     notes += native_inventory(command[2], effective_env)
                     notes += texture_pack(command[2], effective_env)
-                    native_rc, native_notes = native_engine(command, effective_env)
+                    native_rc, native_notes = native_engine(
+                        command, effective_env, before_run=lambda: before_native_run(notes, effective_env, app_id))
                     for note in native_notes:
                         print("droiddeck-game-env: " + note, file=sys.stderr, flush=True)
                     if native_rc is not None:
