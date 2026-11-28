@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/prctl.h>
 #include <sys/resource.h>
 #include <android/log.h>
 #include <android/native_window_jni.h>
@@ -112,7 +113,11 @@ static JNIEnv *thread_env(void) {
     if (!g_jvm) return NULL;
     JNIEnv *env = NULL;
     if ((*g_jvm)->GetEnv(g_jvm, (void **)&env, JNI_VERSION_1_6) != JNI_OK) {
-        if ((*g_jvm)->AttachCurrentThread(g_jvm, &env, NULL) != JNI_OK) return NULL;
+        /* Attaching without a name renames the thread "Thread-N" in top and in traces. */
+        char name[16] = "";
+        JavaVMAttachArgs args = { JNI_VERSION_1_6, name, NULL };
+        if (prctl(PR_GET_NAME, name) != 0 || !name[0]) args.name = NULL;
+        if ((*g_jvm)->AttachCurrentThread(g_jvm, &env, &args) != JNI_OK) return NULL;
         t_attached = 1;
     }
     return t_env = env;
