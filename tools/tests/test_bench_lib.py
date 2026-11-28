@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import re
 import struct
 import sys
 import unittest
@@ -234,6 +235,267 @@ class SummaryTest(unittest.TestCase):
         fallen = self.summary()
         fallen["engine"]["path"] = "proton"
         self.assertIn("(ran: proton)", benchlib.results_row(fallen))
+
+
+class PhasesTest(unittest.TestCase):
+    def test_phases_book_wall_time_and_the_two_kinds_of_sleep(self):
+        now = [100.0]
+        log = benchlib.PhaseLog(clock=lambda: now[0])
+        log.begin("preflight")
+        now[0] += 40
+        log.slept(10)
+        log.begin("fight", rep=1)
+        now[0] += 53
+        log.slept(45)
+        log.slept(3, fixed=False)
+        log.begin("fight", rep=2)
+        now[0] += 52
+        block = log.block()
+        self.assertEqual(benchlib.validate_phases(block), [])
+        self.assertEqual((block["total_s"], block["fixed_sleep_s"], block["poll_sleep_s"]), (145.0, 55.0, 3.0))
+        self.assertEqual(block["by_name"]["fight"], {"count": 2, "seconds": 105.0, "fixed_sleep_s": 45.0, "poll_sleep_s": 3.0})
+        self.assertEqual(block["items"][1], {"name": "fight", "rep": 1, "start_s": 40.0, "seconds": 53.0, "fixed_sleep_s": 45.0,
+                                             "poll_sleep_s": 3.0})
+        json.dumps(block)
+
+    def test_broken_phase_blocks_are_named(self):
+        self.assertEqual(benchlib.validate_phases(None), ["phases is not an object"])
+        self.assertIn("phases.items missing", benchlib.validate_phases({"total_s": 1}))
+        block = {"total_s": 1, "fixed_sleep_s": 9, "poll_sleep_s": 0, "by_name": {},
+                 "items": [{"name": "x", "rep": None, "start_s": 0, "seconds": 1, "fixed_sleep_s": 9, "poll_sleep_s": 0}]}
+        self.assertEqual(benchlib.validate_phases(block), ["phases.items[0] slept longer than it lasted"])
+
+
+class LevelsTest(unittest.TestCase):
+    EXPERIMENTS_KT = Path(__file__).resolve().parents[2] / "app/src/main/java/com/droiddeck/launcher/session/Experiments.kt"
+    GAME_ENV = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-game-env"
+
+    def test_every_experiment_of_the_app_has_a_level(self):
+        source = self.EXPERIMENTS_KT.read_text()
+        names = dict(re.findall(r'const val (\w+) = "([a-z0-9-]+)"', source))
+        listed = re.search(r"val ids = listOf\((.*?)\)", source, re.S).group(1)
+        ids = {names[word] for word in re.findall(r"\b[A-Z][A-Z0-9_]+\b", listed)}
+        self.assertEqual(ids, set(benchlib.EXPERIMENT_LEVEL))
+        self.assertEqual(set(benchlib.EXPERIMENT_LEVEL.values()), {"session", "launch"})
+
+    def test_what_the_guest_calls_session_level_is_session_level_here(self):
+        block = re.search(r"SESSION_EXPERIMENTS = [({\[](.*?)[)}\]]", self.GAME_ENV.read_text(), re.S).group(1)
+        guest = set(re.findall(r'"([a-z0-9-]+)"', block))
+        self.assertGreaterEqual(len(guest), 8)
+        for name in guest:
+            self.assertEqual(benchlib.apply_level(name), "session", name)
+
+    def test_the_switches_the_bench_has_used(self):
+        level = benchlib.apply_level
+        self.assertEqual([level(name) for name in ("native-engine", "present-dmabuf", "vk-count", "vk-blocks-64", "pe-align")], ["launch"] * 5)
+        self.assertEqual([level(name) for name in ("pad-idle-reports", "hints-idle", "zram-game-late", "bridge-default")], ["session"] * 4)
+        self.assertEqual(level("setting-exp-hints-idle"), "session")
+        self.assertEqual(level("something-new"), "session")
+        self.assertEqual((benchlib.OTHER_LEVEL["route"], benchlib.OTHER_LEVEL["env"], benchlib.OTHER_LEVEL["push"]), ("session", "session", "launch"))
+
+    def current(self, **changes):
+        base = {"path": "native", "route": "bridge", "env": [], "pushes": {}, "game_running": True,
+                "switches": {"native-engine": "On", "present-dmabuf": "Off", "zram-game-late": "Off"}, "baseline": {}}
+        base.update(changes)
+        return base
+
+    def wanted(self, **changes):
+        base = {"path": "native", "route": "bridge", "env": [], "pushes": {}, "switches": {"native-engine": "On"}}
+        base.update(changes)
+        return base
+
+    def test_plans(self):
+        plan = benchlib.plan_change
+        self.assertEqual(plan(None, self.wanted())[0], "session")
+        self.assertEqual(plan(self.current(), self.wanted()), ("none", []))
+        self.assertEqual(plan(self.current(game_running=False), self.wanted())[0], "launch")
+        self.assertEqual(plan(self.current(), self.wanted(switches={"native-engine": "On", "present-dmabuf": "On"})),
+                         ("launch", ["launch: present-dmabuf Off -> On"]))
+        self.assertEqual(plan(self.current(), self.wanted(path="proton", switches={"native-engine": "Off"}))[0], "launch")
+        self.assertEqual(plan(self.current(), self.wanted(switches={"native-engine": "On", "zram-game-late": "On"}))[0], "session")
+        self.assertEqual(plan(self.current(), self.wanted(route="panvk"))[0], "session")
+        self.assertEqual(plan(self.current(), self.wanted(env=["VKBRIDGE_STATS=10"]))[0], "session")
+        self.assertEqual(plan(self.current(), self.wanted(pushes={"/opt/x.so": "ab"}))[0], "launch")
+        self.assertEqual(plan(self.current(), self.wanted(switches={"native-engine": "On", "unknown-one": "On"}))[0], "session")
+
+    def test_a_switch_an_earlier_arm_set_goes_back_to_its_baseline(self):
+        current = self.current(switches={"native-engine": "On", "present-dmabuf": "On", "zram-game-late": "On"},
+                               baseline={"setting-exp-present-dmabuf": "Off", "setting-exp-zram-game-late": "Off"})
+        level, reasons = benchlib.plan_change(current, self.wanted(switches={"native-engine": "On", "present-dmabuf": "On"}))
+        self.assertEqual((level, reasons), ("session", ["session: zram-game-late On -> Off"]))
+        level, reasons = benchlib.plan_change(current, self.wanted(switches={"native-engine": "On", "zram-game-late": "On"}))
+        self.assertEqual((level, reasons), ("launch", ["launch: present-dmabuf On -> Off"]))
+
+    def test_arms(self):
+        arm = benchlib.parse_arm("zram-game-late, -hints-idle VKBRIDGE_STATS=10 route:panvk path:proton")
+        self.assertEqual(arm, {"on": ["zram-game-late"], "off": ["hints-idle"], "env": ["VKBRIDGE_STATS=10"], "path": "proton", "route": "panvk"})
+        self.assertEqual(benchlib.parse_arm(""), {"on": [], "off": [], "env": [], "path": None, "route": None})
+        for bad in ("Zram", "route:zink", "a -a", "x;y"):
+            with self.assertRaises(ValueError):
+                benchlib.parse_arm(bad)
+
+
+class PushAndScriptTest(unittest.TestCase):
+    def test_push_targets(self):
+        ok = benchlib.push_target_problem
+        self.assertIsNone(ok("/opt/droiddeck-native-godot/lib/libgodot.so"))
+        self.assertIsNone(ok("/usr/local/bin/droiddeck-game-env"))
+        for bad in ("relative/file", "/opt/a b", "/opt/../root/x", "/opt/dir/", "/opt/$(id)", "/opt//x",
+                    "/root/.local/share/Steam/steamapps/common/Slay the Spire 2/x.pck",
+                    "/root/.local/share/Steam/steamapps/common/Game/data.pck",
+                    "/root/.local/share/SlayTheSpire2/steam/1/profile3/saves/current_run.save",
+                    "/root/.local/share/Steam/userdata/1/2868840/remote/profile1/saves/progress.save",
+                    "/root/.local/share/Steam/userdata/1/2868840/remotecache.vdf",
+                    "/root/.local/share/Steam/steamapps/compatdata/2868840/pfx/drive_c/x.dll", "/opt/x.so.bench-orig"):
+            self.assertIsNotNone(ok(bad), bad)
+        self.assertEqual(benchlib.parse_push("./build/libgodot.so:/opt/e/libgodot.so"), ("./build/libgodot.so", "/opt/e/libgodot.so"))
+        for bad in ("nocolon", ":/opt/x", "a:", "a:/root/.local/share/SlayTheSpire2/x"):
+            with self.assertRaises(ValueError):
+                benchlib.parse_push(bad)
+
+    def steps(self):
+        return json.loads((Path(__file__).resolve().parents[1] / "bench/scenarios/fight.json").read_text())["steps"]
+
+    def test_turns(self):
+        steps = self.steps()
+        self.assertEqual(benchlib.truncate_steps(steps, 0), steps)
+        one = benchlib.truncate_steps(steps, 1)
+        self.assertEqual((len(one), one[-1]["name"]), (6, "End Turn 1"))
+        self.assertEqual(len(benchlib.truncate_steps(steps, 3)), len(steps))
+        with self.assertRaises(ValueError):
+            benchlib.truncate_steps(steps, 4)
+
+    def test_the_script_is_about_as_long_as_the_fights_measured(self):
+        self.assertTrue(50 <= benchlib.script_seconds(self.steps()) <= 56)
+        self.assertTrue(15 <= benchlib.script_seconds(benchlib.truncate_steps(self.steps(), 1)) <= 19)
+
+    def test_offline_evidence(self):
+        good = ["steam_offline=true", "[2026-11-28 02:41:40] [ None ] Start offline - 0\n[2026-11-28 04:59:28] [ None ] Start offline - 1",
+                "[2026-11-28 03:10:00] User is offline\n[2026-11-28 04:59:38] User is offline"]
+        self.assertTrue(benchlib.offline_evidence(good, "2026-11-28 04:59:37")["ok"])
+        self.assertTrue(benchlib.offline_evidence(good)["ok"])
+        stale = benchlib.offline_evidence(good, "2026-11-28 05:30:00")
+        self.assertFalse(stale["ok"])
+        self.assertIn("older than the game launch", stale["problems"][0])
+        self.assertEqual(benchlib.offline_evidence(["steam_offline=false"] + good[1:])["problems"], ["steam_offline=false"])
+        online = benchlib.offline_evidence([good[0], "[2026-11-28 05:00:00] [ None ] Start offline - 0", good[2]])
+        self.assertEqual(online["problems"], ["Steam's last 'Start offline' line: 0"])
+        self.assertEqual(len(benchlib.offline_evidence([])["problems"]), 3)
+
+    def test_reps_must_be_the_same_fight(self):
+        rep = lambda index, cards, checks: {"index": index, "cards": cards, "monster_moves": [["NIBBIT", "BUTT"]], "enemy_hp_checks": checks}
+        same = [rep(1, ["STRIKE", "DEFEND"], [0.867, 0.733]), rep(2, ["STRIKE", "DEFEND"], [0.864, 0.729])]
+        self.assertEqual(benchlib.reps_identical(same), [])
+        self.assertEqual(benchlib.reps_identical([]), [])
+        other_hand = benchlib.reps_identical([same[0], rep(2, ["BASH", "DEFEND"], [0.867, 0.733])])
+        self.assertEqual(len(other_hand), 1)
+        self.assertIn("rep 2: cards", other_hand[0])
+        self.assertIn("health checks", benchlib.reps_identical([same[0], rep(2, ["STRIKE", "DEFEND"], [0.6, 0.733])])[0])
+        self.assertIn("health checks", benchlib.reps_identical([same[0], rep(2, ["STRIKE", "DEFEND"], [0.867])])[0])
+        proton = [{"index": 1, "enemy_hp_checks": [0.867]}, {"index": 2, "enemy_hp_checks": [0.867]}]
+        self.assertEqual(benchlib.reps_identical(proton), [])
+
+
+class RepeatsTest(unittest.TestCase):
+    def test_spread(self):
+        self.assertEqual(benchlib.spread([36.1, 40.0, 35.7, 40.1]),
+                         {"n": 4, "mean": 37.975, "median": 38.05, "sd": 2.402, "min": 35.7, "max": 40.1, "range": 4.4})
+        self.assertEqual(benchlib.spread([5, None])["sd"], None)
+        self.assertEqual(benchlib.spread([])["n"], 0)
+
+    def test_pooled_sd_is_within_groups_only(self):
+        self.assertEqual(benchlib.pooled_sd([[36.0, 40.0], [136.0, 140.0], [7.0]]), (2.828, 2))
+        self.assertEqual(benchlib.pooled_sd([[1.0]]), (None, 0))
+
+    def test_bootstrap_interval_is_deterministic_and_known(self):
+        a = [[36.1], [40.0], [35.7], [40.1]]
+        b = [[30.5], [29.6], [30.5], [30.5]]
+        first = benchlib.bootstrap_diff_ci(a, b)
+        self.assertEqual(first, benchlib.bootstrap_diff_ci(a, b))
+        self.assertEqual(first["diff"], -7.7)
+        self.assertEqual((first["pairs"], first["seed"], first["draws"], first["level"]), (4, benchlib.CONFIRM_SEED, 10000, 0.95))
+        self.assertTrue(first["excludes_zero"])
+        self.assertTrue(-10.4 <= first["low"] < first["diff"] < first["high"] <= -5.2)
+        self.assertNotEqual(benchlib.bootstrap_diff_ci(a, b, seed=7, draws=200)["low"], None)
+
+    def test_bootstrap_limits_stay_inside_the_pair_differences(self):
+        interval = benchlib.bootstrap_diff_ci([[10.0], [10.0], [10.0]], [[11.0], [9.0], [12.0]])
+        self.assertEqual((interval["low"], interval["high"]), (-1.0, 2.0))
+        self.assertFalse(interval["excludes_zero"])
+
+    def test_one_pair_of_single_values_cannot_exclude_zero(self):
+        interval = benchlib.bootstrap_diff_ci([[36.0]], [[30.0]])
+        self.assertTrue(interval["degenerate"])
+        self.assertFalse(interval["excludes_zero"])
+        self.assertEqual(interval["diff"], -6.0)
+
+    def test_repetitions_inside_a_pair_are_resampled(self):
+        interval = benchlib.bootstrap_diff_ci([[36.0, 37.0, 38.0]], [[30.0, 31.0, 29.0]])
+        self.assertEqual(interval["diff"], -7.0)
+        self.assertFalse(interval["degenerate"])
+        self.assertTrue(interval["excludes_zero"])
+        with self.assertRaises(ValueError):
+            benchlib.bootstrap_diff_ci([[1.0]], [[]])
+        with self.assertRaises(ValueError):
+            benchlib.bootstrap_diff_ci([[1.0], [2.0]], [[1.0]])
+
+    def test_detectable_differences(self):
+        self.assertEqual(benchlib.detectable(2.0, 1), {"pairs": 1, "se": 2.83, "excludes_zero_from": 5.54, "power80_from": 7.92})
+        self.assertEqual(benchlib.detectable(2.0, 6)["excludes_zero_from"], 2.26)
+
+    def test_stopping_rule(self):
+        decide = benchlib.confirm_decision
+        clear = {"diff": -7.0, "excludes_zero": True}
+        small = {"diff": -1.0, "excludes_zero": True}
+        none = {"diff": -0.5, "excludes_zero": False}
+        self.assertEqual(decide(clear, 2, 3, 6, 2.0)["why"], "fewer than min pairs")
+        stop = decide(clear, 3, 3, 6, 2.0)
+        self.assertEqual((stop["stop"], stop["verdict"], stop["beyond_noise_floor"]), (True, "different", True))
+        self.assertEqual(decide(small, 3, 3, 6, 2.0), {"stop": False, "why": "inside the earlier noise floor", "verdict": None,
+                                                       "beyond_noise_floor": False})
+        self.assertEqual(decide(small, 3, 3, 6, None)["verdict"], "different")
+        self.assertEqual(decide(small, 6, 3, 6, 2.0)["verdict"], "interval excludes 0 but the difference is inside the earlier noise floor")
+        self.assertEqual(decide(none, 5, 3, 6, 2.0)["stop"], False)
+        self.assertEqual((decide(none, 6, 3, 6, 2.0)["why"], decide(none, 6, 3, 6, 2.0)["verdict"]), ("max pairs", "no difference shown"))
+
+    GROUPS = {"anim_p99_ms": [[36.1, 40.0], [35.7, 40.1], [37.2, 36.0]], "anim_fps": [[58.7, 58.6], [58.5, 58.4], [58.5, 58.3]],
+              "over50_per_min": [[10.7, 17.4], [8.0, 12.0], [13.4, 16.0]], "mem_available_mb": [[1633, 1644], [1319, 1627], [1153, 802]]}
+
+    def test_noise_floor_line(self):
+        line = benchlib.noise_floor_line("2026-11-28", "d1ddd2bde", "native, bridge", "full-mode repeats", self.GROUPS, "lab-1 to lab-3")
+        self.assertEqual(line, "- noise-floor | 2026-11-28 | d1ddd2b | native, bridge | full-mode repeats | n=6 in 3 groups (df 3) | "
+                               "anim p99 sd 2.45 ms | fps sd 0.1 | over-50 sd 3.36 /min | MemAvailable sd 191 MB | p99 seen from 6.8 / 3.9 / 2.8 ms with 1 / 3 / 6 pairs | `lab-1 to lab-3`")
+        self.assertIn("p99 floor n/a", benchlib.noise_floor_line("d", "b", "c", "s", {"anim_p99_ms": [[1.0]]}, "n"))
+
+    def test_noise_lines_go_above_the_standard_rows(self):
+        text = "# Bench results\n\nintro\n\n## Standard bench rows\n\n| a |\n|---|\n| row |\n"
+        once = benchlib.insert_noise_line(text, "- noise-floor | one")
+        twice = benchlib.insert_noise_line(once, "- noise-floor | two")
+        self.assertTrue(twice.endswith("| row |\n"))
+        self.assertLess(twice.index("- noise-floor | one"), twice.index("- noise-floor | two"))
+        self.assertLess(twice.index("- noise-floor | two"), twice.index(benchlib.NOISE_MARK))
+        self.assertLess(twice.index(benchlib.NOISE_MARK), twice.index("## Standard bench rows"))
+        self.assertEqual(twice.count("## Noise floor"), 1)
+        self.assertIn("- noise-floor | x", benchlib.insert_noise_line("no headings\n", "- noise-floor | x"))
+
+    def test_rep_metrics_and_mode_schemas(self):
+        stats = benchlib.frame_stats([16.0] * 100, 2000)
+        rep = {"index": 1, "rep_in_launch": 1, "warmup": False, "frames": {"animation": stats}, "steps": [], "window_ms": [0, 1],
+               "memory": {"MemAvailable_mb": 1500}}
+        self.assertEqual(benchlib.rep_metrics(rep), {"anim_p99_ms": 16.0, "anim_fps": 50.0, "over50_per_min": 0.0, "mem_available_mb": 1500})
+        phases = benchlib.PhaseLog(clock=lambda: 0.0).block()
+        screen = {"mode": "screen", "phases": phases, "reps": [rep], "reuse": {}, "pushed_files": [], "identical": {},
+                  "spread": {metric: benchlib.spread([1.0]) for metric in benchlib.CONFIRM_METRICS}}
+        self.assertEqual(benchlib.validate_screen(screen), [])
+        del screen["reps"][0]["window_ms"]
+        del screen["spread"]["anim_fps"]
+        self.assertEqual(benchlib.validate_screen(screen), ["reps[0].window_ms missing", "spread.anim_fps missing"])
+        confirm = {"schema": 1, "mode": "confirm", "name": "n", "started_utc": "t", "a": {}, "b": {}, "pairs": 3, "values": {},
+                   "intervals": {metric: None for metric in benchlib.CONFIRM_METRICS}, "decision": {}, "spread": {}, "seed": 1,
+                   "share": {}, "ok": True, "notes": []}
+        self.assertEqual(benchlib.validate_confirm(confirm), [])
+        del confirm["intervals"]["anim_p99_ms"]
+        self.assertEqual(benchlib.validate_confirm(confirm), ["intervals.anim_p99_ms missing"])
 
 
 if __name__ == "__main__":

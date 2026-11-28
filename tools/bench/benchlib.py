@@ -2,9 +2,13 @@
 features on raw RGBA buffers and the summary schema. No adb here, so tools/tests covers it in CI."""
 from __future__ import annotations
 
+import datetime
 import json
+import math
+import random
 import re
 import struct
+import time
 import zlib
 
 SCHEMA_VERSION = 1
@@ -539,3 +543,427 @@ def results_row(summary: dict) -> str:
         f"`{summary['name']}`",
     ]
     return "| " + " | ".join(cells) + " |"
+
+
+# ---------------------------------------------------------------- phases (where a run's wall time goes)
+
+class PhaseLog:
+    """Wall time per named phase of a run. A phase runs from its begin() to the next begin() or end(). Sleeps
+    are booked by the caller: fixed ones (a wait of a set length whatever the phone does) and poll ones (the
+    pause between two looks at something the harness is waiting for)."""
+
+    def __init__(self, clock=time.monotonic):
+        self.clock = clock
+        self.t0 = clock()
+        self.items: list[dict] = []
+        self.current: dict | None = None
+
+    def begin(self, name: str, rep: int | None = None) -> None:
+        self.end()
+        self.current = {"name": name, "rep": rep, "start_s": round(self.clock() - self.t0, 2), "seconds": None,
+                        "fixed_sleep_s": 0.0, "poll_sleep_s": 0.0}
+
+    def end(self) -> None:
+        if self.current is not None:
+            item = self.current
+            item["seconds"] = round(self.clock() - self.t0 - item["start_s"], 2)
+            item["fixed_sleep_s"] = round(item["fixed_sleep_s"], 2)
+            item["poll_sleep_s"] = round(item["poll_sleep_s"], 2)
+            self.items.append(item)
+            self.current = None
+
+    def slept(self, seconds: float, fixed: bool = True) -> None:
+        if self.current is not None and seconds > 0:
+            self.current["fixed_sleep_s" if fixed else "poll_sleep_s"] += seconds
+
+    def block(self) -> dict:
+        self.end()
+        by_name: dict[str, dict] = {}
+        for item in self.items:
+            entry = by_name.setdefault(item["name"], {"count": 0, "seconds": 0.0, "fixed_sleep_s": 0.0, "poll_sleep_s": 0.0})
+            entry["count"] += 1
+            for key in ("seconds", "fixed_sleep_s", "poll_sleep_s"):
+                entry[key] = round(entry[key] + item[key], 2)
+        return {"total_s": round(self.clock() - self.t0, 2),
+                "fixed_sleep_s": round(sum(item["fixed_sleep_s"] for item in self.items), 2),
+                "poll_sleep_s": round(sum(item["poll_sleep_s"] for item in self.items), 2),
+                "by_name": by_name, "items": self.items}
+
+
+PHASE_ITEM_KEYS = ("name", "rep", "start_s", "seconds", "fixed_sleep_s", "poll_sleep_s")
+
+
+def validate_phases(block) -> list[str]:
+    if not isinstance(block, dict):
+        return ["phases is not an object"]
+    problems = [f"phases.{key} missing" for key in ("total_s", "fixed_sleep_s", "poll_sleep_s", "by_name", "items") if key not in block]
+    for index, item in enumerate(block.get("items") or []):
+        problems += [f"phases.items[{index}].{key} missing" for key in PHASE_ITEM_KEYS if key not in item]
+        if not problems and item["fixed_sleep_s"] + item["poll_sleep_s"] > item["seconds"] + 0.5:
+            problems.append(f"phases.items[{index}] slept longer than it lasted")
+    return problems
+
+
+# ---------------------------------------------------------------- what a switch change costs
+
+SESSION, LAUNCH, NONE = "session", "launch", "none"
+LEVEL_ORDER = {NONE: 0, LAUNCH: 1, SESSION: 2}
+
+# When a saved experiment takes effect: "session" is read when the session starts (Experiments.session, the
+# session's own env, droiddeck-session), "launch" is read by droiddeck-game-env at every game launch. A switch with
+# parts at both levels is "session". None is re-read by a running game. docs/research/bench-devloop-1.md has the
+# source line for each.
+EXPERIMENT_LEVEL = {
+    "godot-render": LAUNCH, "warmup": SESSION, "all": SESSION, "compat-quiet": SESSION, "memory": SESSION,
+    "adpf-all": SESSION, "two-frames": SESSION, "layer-fence": SESSION, "sched": LAUNCH, "one-limiter": LAUNCH,
+    "native-hz": LAUNCH, "quick-tap": SESSION, "fex-codegen": LAUNCH, "fex-memcpy-tso": LAUNCH,
+    "fex-vector-tso": LAUNCH, "fex-tso": LAUNCH, "fex-fast": LAUNCH, "dotnet-trace": LAUNCH, "dotnet-gen0": LAUNCH,
+    "dotnet-gc-stock": LAUNCH, "fex-kestrel": SESSION, "fex-stats": SESSION, "wayland-present": LAUNCH,
+    "vk-count": LAUNCH, "native-inventory": LAUNCH, "free-memory": SESSION, "hybris-index": LAUNCH, "fex-l1": LAUNCH,
+    "hybris-index-session": SESSION, "native-engine": LAUNCH, "dxvk-arm64ec": LAUNCH, "composite-timing": SESSION,
+    "dotnet-r2r": LAUNCH, "fex-code-buffer": LAUNCH, "fex-sample": SESSION, "dotnet-r2r-generics": LAUNCH,
+    "dotnet-r2r-bubble": LAUNCH, "fps-30": LAUNCH, "webhelper-trim": LAUNCH, "fex-smaps": SESSION,
+    "godot-verbose": LAUNCH, "godot-render-thread": LAUNCH, "tex-astc": LAUNCH, "tex-half": LAUNCH,
+    "fex-trim": LAUNCH, "fex-cache-keep": LAUNCH, "pe-align": LAUNCH, "vk-blocks-64": LAUNCH, "native-r2r": LAUNCH,
+    "present-dmabuf": LAUNCH, "bridge-default": SESSION, "pad-idle-reports": SESSION, "hints-idle": SESSION,
+    "zram-game-late": SESSION,
+}
+# The route buttons and env lines (droiddeckctl env set) are read when the session starts; a pushed file
+# replaces something a game process has mapped, so it needs that process gone.
+OTHER_LEVEL = {"route": SESSION, "env": SESSION, "path": LAUNCH, "push": LAUNCH}
+
+
+def switch_id(tag: str) -> str:
+    return tag[len("setting-exp-"):] if tag.startswith("setting-exp-") else tag
+
+
+def apply_level(tag: str) -> str:
+    """A switch the table does not know is treated as session-level: the expensive, always-correct answer."""
+    return EXPERIMENT_LEVEL.get(switch_id(tag), SESSION)
+
+
+def plan_change(current: dict | None, wanted: dict) -> tuple[str, list[str]]:
+    """What must be restarted to get from the configuration that is running to the one asked for.
+    Both are {"path", "route", "switches": {id: "On"|"Off"}, "env": [lines], "pushes": {guest path: sha256},
+    "game_running": bool}; current also has "baseline": {id: state before the bench touched it}. A switch
+    the current run set and the wanted one does not mention goes back to its baseline."""
+    if current is None:
+        return SESSION, ["no session of this mode's own is running"]
+    reasons: list[tuple[str, str]] = []
+    if current.get("route") != wanted.get("route"):
+        reasons.append((OTHER_LEVEL["route"], f"route {current.get('route')} -> {wanted.get('route')}"))
+    if sorted(current.get("env") or []) != sorted(wanted.get("env") or []):
+        reasons.append((OTHER_LEVEL["env"], "env lines differ"))
+    if current.get("path") != wanted.get("path"):
+        reasons.append((OTHER_LEVEL["path"], f"path {current.get('path')} -> {wanted.get('path')}"))
+    have = {switch_id(tag): state for tag, state in (current.get("switches") or {}).items()}
+    baseline = {switch_id(tag): state for tag, state in (current.get("baseline") or {}).items()}
+    want = {switch_id(tag): state for tag, state in (wanted.get("switches") or {}).items()}
+    for tag in sorted(set(have) | set(want)):
+        target = want.get(tag, baseline.get(tag, have.get(tag)))
+        now = have.get(tag, baseline.get(tag))
+        if tag in want and tag not in have and tag not in baseline:
+            reasons.append((apply_level(tag), f"{tag} -> {target} (state unknown)"))
+        elif target != now:
+            reasons.append((apply_level(tag), f"{tag} {now} -> {target}"))
+    if (current.get("pushes") or {}) != (wanted.get("pushes") or {}):
+        reasons.append((OTHER_LEVEL["push"], "pushed files differ"))
+    if not current.get("game_running"):
+        reasons.append((LAUNCH, "the game is not running"))
+    level = max((item[0] for item in reasons), key=LEVEL_ORDER.get, default=NONE)
+    return level, [f"{item[0]}: {item[1]}" for item in reasons]
+
+
+def parse_arm(text: str) -> dict:
+    """An arm of --mode confirm: words separated by spaces or commas. `tag` turns an experiment on, `-tag` off,
+    `KEY=VALUE` is a session env line, `path:native|proton` and `route:panvk|bridge|venus` replace --path/--route."""
+    arm: dict = {"on": [], "off": [], "env": [], "path": None, "route": None}
+    for word in re.split(r"[\s,]+", text.strip()):
+        if not word:
+            continue
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", word):
+            arm["env"].append(word)
+        elif word.startswith("path:") and word[5:] in ("native", "proton"):
+            arm["path"] = word[5:]
+        elif word.startswith("route:") and word[6:] in ("panvk", "bridge", "venus"):
+            arm["route"] = word[6:]
+        elif re.fullmatch(r"-[a-z0-9][a-z0-9-]*", word):
+            arm["off"].append(word[1:])
+        elif re.fullmatch(r"[a-z0-9][a-z0-9-]*", word):
+            arm["on"].append(word)
+        else:
+            raise ValueError(f"cannot read arm word {word!r}")
+    both = set(arm["on"]) & set(arm["off"])
+    if both:
+        raise ValueError(f"both on and off: {sorted(both)}")
+    return arm
+
+
+# ---------------------------------------------------------------- pushed files, script length, checks
+
+PUSH_FORBIDDEN = ("/steamapps/", "/userdata/", "/compatdata/", "slaythespire", "/remote/", "/saves/", ".save",
+                  "remotecache", "/pfx/", ".vdf", ".bench-orig")
+
+
+def push_target_problem(path: str) -> str | None:
+    """Why a guest path may not be replaced by --push-file, or None. Engine and overlay files only: nothing
+    under Steam's library, its userdata, a Wine prefix or the game's own data folder."""
+    if not re.fullmatch(r"/[A-Za-z0-9._+/-]+", path) or path.endswith("/"):
+        return "not a plain absolute file path"
+    if any(part in ("", ".", "..") for part in path.split("/")[1:]):
+        return "has an empty, '.' or '..' part"
+    lowered = path.lower()
+    for word in PUSH_FORBIDDEN:
+        if word in lowered:
+            return f"looks like a game or save file ({word})"
+    return None
+
+
+def parse_push(spec: str) -> tuple[str, str]:
+    local, sep, guest = spec.rpartition(":")
+    if not sep or not local or not guest:
+        raise ValueError(f"--push-file takes LOCAL:GUEST_PATH, not {spec!r}")
+    problem = push_target_problem(guest)
+    if problem:
+        raise ValueError(f"--push-file {guest}: {problem}")
+    return local, guest
+
+
+def truncate_steps(steps: list[dict], turns: int | None) -> list[dict]:
+    """The script up to and including its Nth End Turn (None or 0: all of it)."""
+    if not turns:
+        return list(steps)
+    out = []
+    seen = 0
+    for step in steps:
+        out.append(step)
+        if step.get("kind") == "end_turn":
+            seen += 1
+            if seen == turns:
+                return out
+    if seen < turns:
+        raise ValueError(f"the script has {seen} turns, not {turns}")
+    return out
+
+
+def script_seconds(steps: list[dict], press_s: float = 0.1, check_s: float = 0.9) -> float:
+    """About how long the scripted steps take to play (presses, settle times, check screenshots)."""
+    total = 0.0
+    for step in steps:
+        pads = len(step.get("pads", []))
+        total += pads * press_s + max(0, pads - 1) * step.get("between_ms", 0) / 1000.0
+        total += (step.get("settle_ms", 0) + step.get("pause_ms", 0)) / 1000.0
+        if step.get("expect_enemy_hp") is not None or step.get("expect_hand"):
+            total += check_s
+    return round(total, 1)
+
+
+def offline_evidence(texts: list[str], launched_local: str | None = None, slack_s: int = 120) -> dict:
+    """From a pulled session archive: Lanner's own setting line (`steam_offline=true`), Steam's last `Start offline - N`
+    and its `[date time] User is offline` lines, the last of which must not be older than the game launch
+    (launched_local, the phone's `date '+%F %T'` at the launch request; Steam's logs keep earlier sessions)."""
+    joined = "\n".join(texts)
+    setting = re.findall(r"^steam_offline=(\w+)", joined, re.M)
+    start = re.findall(r"Start offline - (\d)", joined)
+    users = sorted(re.findall(r"\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\] User is offline", joined))
+    problems = []
+    if not setting or setting[-1] != "true":
+        problems.append(f"steam_offline={setting[-1] if setting else 'missing'}")
+    if not start or start[-1] != "1":
+        problems.append(f"Steam's last 'Start offline' line: {start[-1] if start else 'none'}")
+    if not users:
+        problems.append("no 'User is offline' line")
+    elif launched_local:
+        limit = datetime.datetime.strptime(launched_local, "%Y-%m-%d %H:%M:%S") - datetime.timedelta(seconds=slack_s)
+        if datetime.datetime.strptime(users[-1], "%Y-%m-%d %H:%M:%S") < limit:
+            problems.append(f"the last 'User is offline' line ({users[-1]}) is older than the game launch ({launched_local})")
+    return {"setting": setting[-1] if setting else None, "start_offline_last": start[-1] if start else None,
+            "user_is_offline_last": users[-1] if users else None, "launched_local": launched_local,
+            "ok": not problems, "problems": problems}
+
+
+def reps_identical(reps: list[dict]) -> list[str]:
+    """Every repetition must have played the same fight: the same cards in the same order, the same enemy
+    moves and the same health checks. Returns what differs from the first repetition."""
+    problems = []
+    if not reps:
+        return problems
+    first = reps[0]
+    for rep in reps[1:]:
+        for key in ("cards", "monster_moves"):
+            if first.get(key) is not None and rep.get(key) is not None and rep[key] != first[key]:
+                problems.append(f"rep {rep.get('index')}: {key} {rep[key]} differ from rep {first.get('index')}: {first[key]}")
+        a, b = first.get("enemy_hp_checks") or [], rep.get("enemy_hp_checks") or []
+        if len(a) != len(b) or any((x is None) != (y is None) or (x is not None and abs(x - y) > 0.035) for x, y in zip(a, b)):
+            problems.append(f"rep {rep.get('index')}: enemy health checks {b} differ from {a}")
+    return problems
+
+
+# ---------------------------------------------------------------- repeats: spread and A/B intervals
+
+CONFIRM_SEED = 20261128
+CONFIRM_METRICS = ("anim_p99_ms", "anim_fps", "over50_per_min", "mem_available_mb")
+
+
+def spread(values: list[float]) -> dict:
+    values = [float(value) for value in values if value is not None]
+    if not values:
+        return {"n": 0, "mean": None, "median": None, "sd": None, "min": None, "max": None, "range": None}
+    ordered = sorted(values)
+    count = len(ordered)
+    centre = sum(ordered) / count
+    middle = ordered[count // 2] if count % 2 else (ordered[count // 2 - 1] + ordered[count // 2]) / 2.0
+    sd = math.sqrt(sum((value - centre) ** 2 for value in ordered) / (count - 1)) if count > 1 else None
+    return {"n": count, "mean": round(centre, 3), "median": round(middle, 3), "sd": None if sd is None else round(sd, 3),
+            "min": ordered[0], "max": ordered[-1], "range": round(ordered[-1] - ordered[0], 3)}
+
+
+def pooled_sd(groups: list[list[float]]) -> tuple[float | None, int]:
+    """Standard deviation within groups of same-configuration repeats, and its degrees of freedom."""
+    total = 0.0
+    freedom = 0
+    for group in groups:
+        group = [value for value in group if value is not None]
+        if len(group) < 2:
+            continue
+        centre = sum(group) / len(group)
+        total += sum((value - centre) ** 2 for value in group)
+        freedom += len(group) - 1
+    return (round(math.sqrt(total / freedom), 3) if freedom else None), freedom
+
+
+def bootstrap_diff_ci(a_pairs: list[list[float]], b_pairs: list[list[float]], seed: int = CONFIRM_SEED,
+                      draws: int = 10000, level: float = 0.95) -> dict:
+    """B minus A over interleaved pairs: a_pairs[i] and b_pairs[i] are the repetitions of pair i. Two-stage
+    percentile bootstrap (pairs with replacement, then each arm's repetitions inside a drawn pair), from a
+    fixed seed so the same values always give the same interval. With one repetition per arm it is the
+    paired bootstrap of the per-pair differences."""
+    if len(a_pairs) != len(b_pairs) or not a_pairs or any(not a or not b for a, b in zip(a_pairs, b_pairs)):
+        raise ValueError("every pair needs at least one value in each arm")
+    centre = lambda values: sum(values) / len(values)
+    count = len(a_pairs)
+    point = centre([centre(b) - centre(a) for a, b in zip(a_pairs, b_pairs)])
+    generator = random.Random(seed)
+    results = []
+    for _ in range(draws):
+        total = 0.0
+        for _pair in range(count):
+            index = generator.randrange(count)
+            a, b = a_pairs[index], b_pairs[index]
+            total += (centre([b[generator.randrange(len(b))] for _ in b]) - centre([a[generator.randrange(len(a))] for _ in a]))
+        results.append(total / count)
+    results.sort()
+    tail = (1.0 - level) / 2.0
+    low = results[int(tail * draws)]
+    high = results[min(draws - 1, int((1.0 - tail) * draws))]
+    degenerate = results[0] == results[-1]
+    return {"diff": round(point, 3), "low": round(low, 3), "high": round(high, 3), "level": level, "pairs": count,
+            "reps": [len(a) for a in a_pairs], "seed": seed, "draws": draws, "degenerate": degenerate,
+            "excludes_zero": (not degenerate) and (low > 0 or high < 0)}
+
+
+def detectable(sd: float, pairs: int) -> dict:
+    """What B minus A must be for `pairs` interleaved pairs to see it, given the run-to-run standard deviation of
+    one arm: the difference a 95 % interval just excludes 0 at, and the one found four times in five.
+    Repetitions inside a launch are not counted as extra pairs (how much they help is not known yet)."""
+    error = sd * math.sqrt(2.0 / pairs)
+    return {"pairs": pairs, "se": round(error, 2), "excludes_zero_from": round(1.96 * error, 2),
+            "power80_from": round(2.8 * error, 2)}
+
+
+def confirm_decision(interval: dict, pairs: int, min_pairs: int, max_pairs: int, floor_sd: float | None) -> dict:
+    """The stopping rule of --mode confirm on the animation-window p99 difference: stop as "different" when the
+    interval excludes 0, from min_pairs on, and the difference also clears what the earlier noise floor
+    (floor_sd, one arm's run-to-run standard deviation) allows for that many pairs; otherwise go on to
+    max_pairs. The second condition is there because a bootstrap interval over three to six values that is
+    looked at after every pair excludes 0 by chance about one time in three."""
+    beyond = None
+    if floor_sd is not None:
+        beyond = abs(interval["diff"]) >= detectable(floor_sd, pairs)["excludes_zero_from"]
+    if interval["excludes_zero"] and pairs >= min_pairs and beyond in (True, None):
+        return {"stop": True, "why": "interval excludes 0", "verdict": "different", "beyond_noise_floor": beyond}
+    if pairs >= max_pairs:
+        verdict = "no difference shown"
+        if interval["excludes_zero"]:
+            verdict = "interval excludes 0 but the difference is inside the earlier noise floor"
+        return {"stop": True, "why": "max pairs", "verdict": verdict, "beyond_noise_floor": beyond}
+    why = "interval includes 0"
+    if interval["excludes_zero"]:
+        why = "fewer than min pairs" if pairs < min_pairs else "inside the earlier noise floor"
+    return {"stop": False, "why": why, "verdict": None, "beyond_noise_floor": beyond}
+
+
+NOISE_MARK = "<!-- noise-floor lines are added above this line -->"
+NOISE_PREFIX = "- noise-floor"
+
+
+def noise_floor_line(date: str, build: str, config: str, source: str, groups: dict[str, list[list[float]]], note: str) -> str:
+    """One line of RESULTS.md's "Noise floor" list. groups is {metric: [[same-configuration repeats], ...]} for
+    CONFIRM_METRICS; the line gives each metric's pooled standard deviation and what one, three and six
+    pairs can see in the animation p99."""
+    cells = [NOISE_PREFIX, date, str(build)[:7], config, source]
+    units = {"anim_p99_ms": "anim p99 sd {} ms", "anim_fps": "fps sd {}", "over50_per_min": "over-50 sd {} /min",
+             "mem_available_mb": "MemAvailable sd {} MB"}
+    p99_sd, freedom = pooled_sd(groups.get("anim_p99_ms") or [])
+    repeats = sum(len(group) for group in groups.get("anim_p99_ms") or [])
+    cells.append(f"n={repeats} in {len(groups.get('anim_p99_ms') or [])} groups (df {freedom})")
+    for metric in CONFIRM_METRICS:
+        value, _ = pooled_sd(groups.get(metric) or [])
+        cells.append(units[metric].format("n/a" if value is None else (round(value) if metric == "mem_available_mb" else round(value, 2))))
+    if p99_sd:
+        cells.append("p99 seen from " + " / ".join(f"{detectable(p99_sd, pairs)['excludes_zero_from']:.1f}" for pairs in (1, 3, 6)) +
+                     " ms with 1 / 3 / 6 pairs")
+    else:
+        cells.append("p99 floor n/a")
+    cells.append(f"`{note}`")
+    return " | ".join(cells)
+
+
+def insert_noise_line(text: str, line: str) -> str:
+    """RESULTS.md with the line added to its noise-floor list (the list is created before the standard rows'
+    heading when it is not there, so run.py's appended table rows stay at the end of the file)."""
+    if NOISE_MARK in text:
+        return text.replace(NOISE_MARK, line + "\n" + NOISE_MARK, 1)
+    section = ("## Noise floor\n\nRun-to-run spread of same-configuration repeats (format in `tools/bench/README.md`).\n\n"
+               + line + "\n" + NOISE_MARK + "\n\n")
+    heading = "## Standard bench rows"
+    if heading in text:
+        return text.replace(heading, section + heading, 1)
+    return text.rstrip("\n") + "\n\n" + section
+
+
+def rep_metrics(rep: dict) -> dict:
+    animation = (rep.get("frames") or {}).get("animation") or {}
+    return {"anim_p99_ms": animation.get("p99"), "anim_fps": animation.get("fps") or None,
+            "over50_per_min": animation.get("over50_per_min"),
+            "mem_available_mb": (rep.get("memory") or {}).get("MemAvailable_mb")}
+
+
+def validate_screen(summary: dict) -> list[str]:
+    """The keys --mode screen adds to a schema-1 summary."""
+    problems = validate_phases(summary.get("phases"))
+    if summary.get("mode") != "screen":
+        problems.append("mode")
+    if not isinstance(summary.get("reps"), list):
+        return problems + ["reps missing"]
+    for index, rep in enumerate(summary["reps"]):
+        problems += [f"reps[{index}].{key} missing" for key in ("index", "rep_in_launch", "warmup", "frames", "steps", "window_ms") if key not in rep]
+    if not isinstance(summary.get("spread"), dict):
+        problems.append("spread missing")
+    else:
+        problems += [f"spread.{metric} missing" for metric in CONFIRM_METRICS if metric not in summary["spread"]]
+    for key in ("reuse", "pushed_files", "identical"):
+        if key not in summary:
+            problems.append(f"{key} missing")
+    return problems
+
+
+def validate_confirm(summary: dict) -> list[str]:
+    problems = [f"missing {key}" for key in ("schema", "mode", "name", "started_utc", "a", "b", "pairs", "values", "intervals",
+                                              "decision", "spread", "seed", "share", "ok", "notes") if key not in summary]
+    if summary.get("mode") != "confirm":
+        problems.append("mode")
+    for metric in CONFIRM_METRICS:
+        if metric not in (summary.get("intervals") or {}):
+            problems.append(f"intervals.{metric} missing")
+    return problems

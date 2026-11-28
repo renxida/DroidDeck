@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
 import datetime
 import glob
+import hashlib
 import json
 import os
 import re
@@ -61,6 +63,10 @@ class Abort(Exception):
     pass
 
 
+class SettingsUnreachable(Abort):
+    pass
+
+
 class Bench:
     def __init__(self, args: argparse.Namespace):
         self.args = args
@@ -76,6 +82,7 @@ class Bench:
         self.commands = False
         self.shot_index = 0
         self.log_file = None
+        self.phases = benchlib.PhaseLog(time.monotonic)
 
     # ------------------------------------------------------------ plumbing
     def log(self, text: str) -> None:
@@ -84,6 +91,14 @@ class Bench:
         if self.log_file:
             self.log_file.write(line + "\n")
             self.log_file.flush()
+
+    def nap(self, seconds: float, fixed: bool = True) -> None:
+        if seconds > 0:
+            time.sleep(seconds)
+            self.phases.slept(seconds, fixed)
+
+    def phase(self, name: str, rep: int | None = None) -> None:
+        self.phases.begin(name, rep)
 
     def adb(self, *command: str, timeout: float = 120, binary: bool = False):
         result = subprocess.run(["adb", "-s", self.serial, *command], capture_output=True, timeout=timeout)
@@ -131,7 +146,7 @@ class Bench:
     def sleep_until(self, phone_ms: int) -> None:
         delay = (phone_ms - self.now_ms()) / 1000.0
         if delay > 0:
-            time.sleep(delay)
+            self.nap(delay)
 
     def pads(self, buttons: list[str], between_ms: int = 0) -> list[tuple[int, int]]:
         """Pad presses through the agent bridge's broadcast receiver (`cmd activity broadcast` starts no
@@ -199,10 +214,10 @@ class Bench:
 
     def open_settings(self, *tabs: str) -> list[dict]:
         self.ctl("ui", "click", "rail-setup", check=True)
-        time.sleep(1.0)
+        self.nap(1.0)
         for tab in tabs:
             self.ctl("ui", "click", "--match", tab, "--index", "0", check=True)
-            time.sleep(1.0)
+            self.nap(1.0)
         return self.ui()
 
     @staticmethod
@@ -220,7 +235,7 @@ class Bench:
         if have == want:
             return
         self.ctl("ui", "click", tag, check=True)
-        time.sleep(1.0)
+        self.nap(1.0)
         now = self.tag_state(self.ui(), tag)
         if now != want:
             raise Abort(f"switch {tag} stayed {now}, wanted {want}")
@@ -264,7 +279,7 @@ class Bench:
                 self.ctl("ui", "click", "--match", f"Mali (Venus): {'on' if have[1] else 'off'}", check=True)
             elif have[0] != want[0]:
                 self.ctl("ui", "click", "--match", f"Mali bridge: {'on' if have[0] else 'off'}", check=True)
-            time.sleep(1.0)
+            self.nap(1.0)
             have = self.route_state(self.ui())
         if have != want:
             raise Abort(f"route is bridge={have[0]} venus={have[1]}, wanted bridge={want[0]} venus={want[1]}")
@@ -292,6 +307,7 @@ class Bench:
 
     def preflight(self) -> dict:
         args = self.args
+        self.phase("preflight")
         self.owner_check()
         state = self.ctl("state", check=True)
         if state["session"]["phase"] != "IDLE":
@@ -308,7 +324,7 @@ class Bench:
         steam = self.open_settings("Steam")
         offline = self.tag_state(steam, "setting-offline")
         self.ctl("ui", "click", "--match", "Sound", "--index", "0", check=True)
-        time.sleep(1.0)
+        self.nap(1.0)
         boot_sound = self.tag_state(self.ui(), "setting-boot-movie-sound")
         game_sound = self.tag_state(self.open_settings("Audio"), "setting-game-sound")
         if offline != "On":
@@ -340,12 +356,14 @@ class Bench:
             for line in args.env:
                 self.ctl("env", "set", line, check=True)
 
+        self.phase("memory-wait")
         waited = 0
         memory = self.meminfo()
         while memory["MemAvailable"] < 2560 and waited < 180:
-            time.sleep(5)
+            self.nap(5, fixed=False)
             waited += 5
             memory = self.meminfo()
+        self.phase("preflight")
         thermal = self.ctl("thermal")
         battery = self.sh("dumpsys battery")
         level = re.search(r"level: (\d+)", battery)
@@ -372,6 +390,7 @@ class Bench:
 
     # ------------------------------------------------------------ session
     def start_steam(self, pre: dict) -> None:
+        self.phase("steam-start")
         self.background("logcat-lmk.txt", ["adb", "-s", self.serial, "logcat", "-v", "epoch", "-T", "1", "-s", "lowmemorykiller:*"])
         started = time.time()
         answer = self.ctl("start", "steam", "--wait", "--timeout", "240", timeout=300)
@@ -379,9 +398,10 @@ class Bench:
             raise Abort(f"start steam failed: {json.dumps(answer)[:300]}")
         pre["start_to_ready_s"] = round(time.time() - started, 1)
         self.session_id = (answer.get("session") or {}).get("id") or self.ctl("state")["session"]["id"]
+        self.phase("offline-check")
         icon = 0
         for attempt in range(6):
-            time.sleep(6)
+            self.nap(6, fixed=False)
             layout = self.screen(f"steam-{attempt}")
             icon = layout.steam_offline_icon()
             if icon >= 40:
@@ -403,6 +423,7 @@ class Bench:
         self.background("sampler.txt", ["adb", "-s", self.serial, "shell", loop])
 
     def launch(self) -> int:
+        self.phase("launch-to-menu")
         self.owner_check()
         self.start_samplers()
         self.marks["launch"] = self.phone_ms()
@@ -416,17 +437,17 @@ class Bench:
         deadline = time.time() + timeout_s
         prompts = 0
         while time.time() < deadline:
-            time.sleep(4)
+            self.nap(4, fixed=False)
             layout = self.screen("load")
             if layout.early_access_prompt():
                 prompts += 1
                 self.tap(*EARLY_ACCESS_PROCEED)
                 self.log("answered the game's 'What's Early Access?' notice (Proceed)")
                 self.checks["early_access_prompts"] = prompts
-                time.sleep(3)
+                self.nap(3)
                 continue
             if layout.main_menu():
-                time.sleep(2)
+                self.nap(2)
                 layout = self.screen("menu")
                 if layout.main_menu() and not layout.early_access_prompt():
                     self.marks["menu"] = self.phone_ms()
@@ -437,18 +458,18 @@ class Bench:
     def focus_menu(self, where: str) -> int | None:
         """Move the pad focus to the top or the bottom entry of the main menu; returns its reference y."""
         self.pad("down")
-        time.sleep(0.5)
+        self.nap(0.5)
         last = self.screen("focus").menu_focus_y()
         if last is None:
             self.pad("down")
-            time.sleep(0.5)
+            self.nap(0.5)
             last = self.screen("focus").menu_focus_y()
         if last is None:
             raise Abort("no focused entry on the main menu after a d-pad press")
         button = "up" if where == "top" else "down"
         for _ in range(8):
             self.pad(button)
-            time.sleep(0.5)
+            self.nap(0.5)
             now = self.screen("focus").menu_focus_y()
             if now is None:
                 raise Abort("lost the main menu while moving the focus")
@@ -456,7 +477,7 @@ class Bench:
             if moved <= 2:
                 if moved < -2:
                     self.pad("down" if button == "up" else "up")
-                    time.sleep(0.5)
+                    self.nap(0.5)
                     now = self.screen("focus").menu_focus_y()
                 return now
             last = now
@@ -495,11 +516,11 @@ class Bench:
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             started = time.time()
             for at, (x0, x1) in ((3.0, (220, 470)), (6.0, (470, 220))):
-                time.sleep(max(0.0, started + at - time.time()))
+                self.nap(max(0.0, started + at - time.time()))
                 flicks.append(time.time() - started)
                 self.sh(f"input swipe {x0} 760 {x1} 760 {XCHECK_FLICK_MS}")
             recorder.wait(timeout=30)
-            time.sleep(1.0)
+            self.nap(1.0)
             subprocess.run(["adb", "-s", self.serial, "pull", remote, str(local)], capture_output=True, timeout=120)
         finally:
             self.sh(f"settings put system show_touches {before if before in ('0', '1') else '0'}; rm -f {remote}")
@@ -584,73 +605,33 @@ class Bench:
         launch = self.marks["launch"]
         layout = self.wait_menu()
         self.checks["profile_icon"] = layout.profile_icon()
+        self.phase("fixed-wait")
         self.sleep_until(launch + MENU_START_S * 1000)
+        self.phase("capture-start")
         self.owner_check()
         self.screen("window-start")
         self.marks["splits_start"] = self.engine_split_count()
         self.top_start(MENU_WINDOW_S)
         self.perfetto_start(40)
         self.pacing_start(MENU_WINDOW_S)
+        self.phase("menu-window")
         self.marks["window_start"] = self.phone_ms()
-        time.sleep(MENU_WINDOW_S)
+        self.nap(MENU_WINDOW_S)
         self.marks["window_end"] = self.phone_ms()
+        self.phase("capture-finish")
         self.marks["splits_end"] = self.engine_split_count()
         self.pacing_result = self.pacing_finish()
         self.trace = self.perfetto_finish()
         self.screen("window-end")
         self.thermal_end = self.ctl("thermal")
+        self.phase("latency")
         self.focus_menu("top")
         self.screen("latency-region")
         self.latency_result = self.latency("menu", self.args.menu_region, "pad:down", "pad:up")
         self.quit_game()
 
-    def scenario_fight(self) -> None:
-        script = json.loads((HERE / "scenarios" / "fight.json").read_text())
-        launch = self.marks["launch"]
-        layout = self.wait_menu()
-        icon = layout.profile_icon()
-        self.checks["profile_icon"] = icon
-        if icon != script["profile_icon"]:
-            raise Abort(f"the game is on the {icon} profile, not the bench profile ({script['profile_icon']}): not touching it")
-        self.sleep_until(launch + FIGHT_START_S * 1000)
-        self.owner_check()
-        y = self.focus_menu("top")
-        low, high = script["continue_focus_y"]
-        if not low <= y <= high:
-            raise Abort(f"the top menu entry is at y={y}, not where Continue sits ({low}-{high}): no saved bench run on this profile?")
-        self.pad("a")
-        self.log("Continue pressed")
-        deadline = time.time() + 60
-        while True:
-            time.sleep(3)
-            layout = self.screen("combat-wait")
-            glow, hp = layout.hand_glow(), layout.enemy_hp()
-            if glow >= script["hand_glow_min"] and hp is not None:
-                break
-            if time.time() > deadline:
-                raise Abort(f"the fight did not come up (hand glow {glow}, enemy bar {hp})")
-        if abs(hp - script["start_enemy_hp"]) > script["hp_tolerance"]:
-            raise Abort(f"the fight is not at its start: enemy bar {hp}, expected {script['start_enemy_hp']}")
-        self.log(f"combat ready: enemy bar {hp}, hand glow {glow}")
-        self.marks["combat_ready"] = self.phone_ms()
-        time.sleep(3)
-
-        self.screen("latency-region")
-        self.latency_result = self.latency("fight", self.args.fight_region, "pad:right", "pad:left")
-        self.xcheck_result = self.xcheck("fight")
-        time.sleep(1.0)
-        layout = self.screen("after-latency")
-        if layout.enemy_hp() is None or abs(layout.enemy_hp() - script["start_enemy_hp"]) > script["hp_tolerance"]:
-            raise Abort("the latency presses changed the fight")
-
-        estimate = int(sum(len(step.get("pads", [])) * 0.5 + step.get("settle_ms", 0) / 1000.0 + step.get("pause_ms", 0) / 1000.0 + 1.2
-                           for step in script["steps"])) + 6
-        self.marks["splits_start"] = self.engine_split_count()
-        self.top_start(estimate)
-        self.perfetto_start(min(60, estimate))
-        self.pacing_start(estimate)
-        time.sleep(1.5)
-        self.marks["window_start"] = self.phone_ms()
+    def play_script(self, script: dict) -> None:
+        """Send the scripted steps, checking the enemy's health bar and the hand where the script names them."""
         for index, step in enumerate(script["steps"]):
             record = {"index": index, "kind": step["kind"], "name": step.get("name"), "settle_ms": step.get("settle_ms", 0),
                       "presses": []}
@@ -673,7 +654,7 @@ class Bench:
                 retries = 0
                 while not as_expected() and retries < 4:
                     retries += 1
-                    time.sleep(1.5)
+                    self.nap(1.5, fixed=False)
                     layout = self.screen(f"step-{index:02d}-late{retries}")
                     record["enemy_hp"] = layout.enemy_hp()
                     record["hand_glow"] = layout.hand_glow()
@@ -686,21 +667,78 @@ class Bench:
                                 f"hand glow {record['hand_glow']}")
             self.steps.append(record)
             self.log(f"step {index} {step['kind']} {step.get('name') or ''}: enemy {record.get('enemy_hp')} hand {record.get('hand_glow')}")
+
+    def scenario_fight(self) -> None:
+        script = json.loads((HERE / "scenarios" / "fight.json").read_text())
+        launch = self.marks["launch"]
+        layout = self.wait_menu()
+        icon = layout.profile_icon()
+        self.checks["profile_icon"] = icon
+        if icon != script["profile_icon"]:
+            raise Abort(f"the game is on the {icon} profile, not the bench profile ({script['profile_icon']}): not touching it")
+        self.phase("fixed-wait")
+        self.sleep_until(launch + FIGHT_START_S * 1000)
+        self.phase("continue")
+        self.owner_check()
+        y = self.focus_menu("top")
+        low, high = script["continue_focus_y"]
+        if not low <= y <= high:
+            raise Abort(f"the top menu entry is at y={y}, not where Continue sits ({low}-{high}): no saved bench run on this profile?")
+        self.pad("a")
+        self.log("Continue pressed")
+        self.phase("fight-ready")
+        deadline = time.time() + 60
+        while True:
+            self.nap(3, fixed=False)
+            layout = self.screen("combat-wait")
+            glow, hp = layout.hand_glow(), layout.enemy_hp()
+            if glow >= script["hand_glow_min"] and hp is not None:
+                break
+            if time.time() > deadline:
+                raise Abort(f"the fight did not come up (hand glow {glow}, enemy bar {hp})")
+        if abs(hp - script["start_enemy_hp"]) > script["hp_tolerance"]:
+            raise Abort(f"the fight is not at its start: enemy bar {hp}, expected {script['start_enemy_hp']}")
+        self.log(f"combat ready: enemy bar {hp}, hand glow {glow}")
+        self.marks["combat_ready"] = self.phone_ms()
+        self.phase("latency")
+        self.nap(3)
+
+        self.screen("latency-region")
+        self.latency_result = self.latency("fight", self.args.fight_region, "pad:right", "pad:left")
+        self.xcheck_result = self.xcheck("fight")
+        self.nap(1.0)
+        layout = self.screen("after-latency")
+        if layout.enemy_hp() is None or abs(layout.enemy_hp() - script["start_enemy_hp"]) > script["hp_tolerance"]:
+            raise Abort("the latency presses changed the fight")
+
+        self.phase("capture-start")
+        estimate = int(sum(len(step.get("pads", [])) * 0.5 + step.get("settle_ms", 0) / 1000.0 + step.get("pause_ms", 0) / 1000.0 + 1.2
+                           for step in script["steps"])) + 6
+        self.marks["splits_start"] = self.engine_split_count()
+        self.top_start(estimate)
+        self.perfetto_start(min(60, estimate))
+        self.pacing_start(estimate)
+        self.nap(1.5)
+        self.phase("fight")
+        self.marks["window_start"] = self.phone_ms()
+        self.play_script(script)
         self.marks["window_end"] = self.phone_ms()
+        self.phase("capture-finish")
         self.marks["splits_end"] = self.engine_split_count()
         self.thermal_end = self.ctl("thermal")
         self.pacing_result = self.pacing_finish()
         self.trace = self.perfetto_finish()
         self.checks["script_completed"] = True
 
+        self.phase("save-and-quit")
         self.pad("start")
-        time.sleep(1.5)
+        self.nap(1.5)
         paused = self.screen("paused")
         if paused.hand_glow() > 0.003 or paused.main_menu():
             raise Abort("the pause menu did not open")
         for _ in range(3):
             self.pad("down")
-            time.sleep(0.4)
+            self.nap(0.4)
         self.screen("save-and-quit-focused")
         self.pad("a")
         self.log("Save and Quit pressed")
@@ -708,15 +746,16 @@ class Bench:
         while not self.screen("back-to-menu").main_menu():
             if time.time() > deadline:
                 raise Abort("Save and Quit did not return to the main menu")
-            time.sleep(3)
+            self.nap(3, fixed=False)
         self.quit_game()
 
     def quit_game(self) -> None:
         """Quit through the game's own menu: bottom entry, then Yes."""
+        self.phase("quit-game")
         self.focus_menu("bottom")
         self.screen("quit-focused")
         self.pad("a")
-        time.sleep(2)
+        self.nap(2)
         if not self.screen("quit-confirm").dimmed():
             self.notes.append("no quit confirmation seen")
         self.pad("a")
@@ -724,7 +763,7 @@ class Bench:
         deadline = time.time() + 45
         gone = False
         while time.time() < deadline:
-            time.sleep(3)
+            self.nap(3, fixed=False)
             focus = (self.ctl("state").get("session") or {}).get("focus") or {}
             if str(focus.get("focusedApp")) != APP_ID and int(APP_ID) not in (focus.get("focusableApps") or []):
                 gone = True
@@ -734,23 +773,26 @@ class Bench:
             self.notes.append("the game did not exit from its menu within 45 s; used droiddeckctl quit")
             self.ctl("quit", APP_ID, "--timeout", "60")
         self.log(f"game quit through its menu: {gone}")
-        time.sleep(6)
+        self.nap(6)
 
     # ------------------------------------------------------------ teardown and analysis
     def teardown(self) -> None:
+        self.phase("stop-session")
         state = self.ctl("state")
         phase = (state.get("session") or {}).get("phase")
         if phase not in ("IDLE", None):
             focus = (state.get("session") or {}).get("focus") or {}
             if str(focus.get("focusedApp")) == APP_ID:
                 self.ctl("quit", APP_ID, "--timeout", "60")
-                time.sleep(8)
+                self.nap(8)
             self.ctl("stop", "--timeout", "120", timeout=180)
             self.ctl("wait", "idle", "--timeout", "120", timeout=180)
         self.stop_background()
+        self.phase("log-pull")
         logs = self.dir / "logs"
         if not logs.exists():
             self.ctl("logs", "latest", str(logs), timeout=300)
+        self.phase("restore-config")
         if self.commands:
             self.ctl("env", "clear", "all")
             listing = self.ctl("env", "list")
@@ -936,8 +978,10 @@ class Bench:
         except Exception as error:
             self.notes.append(f"teardown: {type(error).__name__}: {error}")
             self.stop_background()
+        self.phase("analysis")
         summary = self.summarize(pre, failure)
-        problems = benchlib.validate_summary(summary)
+        summary["phases"] = self.phases.block()
+        problems = benchlib.validate_summary(summary) + benchlib.validate_phases(summary["phases"])
         if problems:
             summary["notes"].append(f"schema problems: {problems}")
         (self.dir / "summary.json").write_text(json.dumps(summary, indent=1))
@@ -950,6 +994,664 @@ class Bench:
         self.log(f"done: ok={failure is None} overall fps {overall.get('fps')} p99 {overall.get('p99')} | animation fps "
                  f"{animation.get('fps')} p99 {animation.get('p99')} | engine {summary['engine'].get('path')} | {self.dir}/summary.json")
         return 0 if failure is None else 1
+
+
+SCREEN_MARKER = OUT_ROOT / ".screen-session.json"
+GAME_LOG = "/root/.local/share/SlayTheSpire2/logs/godot.log"
+
+
+class ScreenBench(Bench):
+    """--mode screen: Continue, the scripted fight, Save and Quit, N times in one game launch, in a session and
+    a game that stay up between arms and invocations when the configuration asked for allows it."""
+
+    def __init__(self, args: argparse.Namespace):
+        super().__init__(args)
+        self.script = json.loads((HERE / "scenarios" / "fight.json").read_text())
+        self.script["steps"] = benchlib.truncate_steps(self.script["steps"], args.turns)
+        self.reps: list[dict] = []
+        self.reuse: dict = {}
+        self.pushed: list[dict] = []
+        self.experiments: dict = {}
+        self.launches = 0
+        self.rep_in_launch = 0
+        self.launched_local: str | None = None
+        self.sampling = False
+        self.lmk_stream = False
+        self.offline: dict | None = None
+        self.restored_files: list[dict] = []
+        self.ours = False
+
+    # ------------------------------------------------------------ what is asked for, what is running
+    def tag(self, name: str) -> str:
+        return name if name.startswith("setting-") else f"setting-exp-{name}"
+
+    def wanted(self) -> dict:
+        args = self.args
+        switches = {"native-engine": "On" if args.path == "native" else "Off"}
+        switches.update({benchlib.switch_id(self.tag(name)): "On" for name in args.switch})
+        switches.update({benchlib.switch_id(self.tag(name)): "Off" for name in args.switch_off})
+        pushes = {}
+        for spec in ([] if args.restore_pushed else args.push_file):
+            local, guest = benchlib.parse_push(spec)
+            pushes[guest] = hashlib.sha256(Path(local).read_bytes()).hexdigest()
+        return {"path": args.path, "route": args.route, "switches": switches, "env": list(args.env), "pushes": pushes}
+
+    def load_marker(self) -> dict | None:
+        try:
+            return json.loads(SCREEN_MARKER.read_text())
+        except (OSError, ValueError):
+            return None
+
+    def save_marker(self, pre: dict) -> None:
+        baseline: dict[str, str] = {}
+        for tag, state in self.restore:
+            baseline.setdefault(tag, state)
+        marker = {
+            "written_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "by": self.args.name,
+            "session_id": getattr(self, "session_id", None), "build_commit": getattr(self, "build", {}).get("commit"),
+            "path": self.args.path, "route": self.args.route, "env": list(self.args.env), "switches": self.experiments,
+            "baseline": baseline, "route_before": list(self.route_before) if self.route_before else None,
+            "route_owner_before": getattr(self, "route_owner_before", None),
+            "pushes": {item["guest_path"]: item["sha256_pushed"] for item in self.pushed}, "pushed": self.pushed,
+            "launches": self.launches, "rep_in_launch": self.rep_in_launch, "launched_local": self.launched_local,
+            "preflight": pre,
+        }
+        SCREEN_MARKER.write_text(json.dumps(marker, indent=1))
+
+    def adopt(self, marker: dict) -> None:
+        self.restore = [(tag, state) for tag, state in (marker.get("baseline") or {}).items()]
+        self.route_before = tuple(marker["route_before"]) if marker.get("route_before") else None
+        self.route_owner_before = marker.get("route_owner_before")
+        self.pushed = list(marker.get("pushed") or [])
+        self.experiments = dict(marker.get("switches") or {})
+        self.launches = int(marker.get("launches") or 0)
+        self.rep_in_launch = int(marker.get("rep_in_launch") or 0)
+        self.launched_local = marker.get("launched_local")
+
+    def game_running(self, state: dict | None = None) -> bool:
+        focus = ((state or self.ctl("state")).get("session") or {}).get("focus") or {}
+        return str(focus.get("focusedApp")) == APP_ID or int(APP_ID) in (focus.get("focusableApps") or [])
+
+    # ------------------------------------------------------------ the rules, re-checked while a session is up
+    def cheap_checks(self) -> dict:
+        self.owner_check()
+        self.sh("cmd media_session volume --stream 3 --set 0")
+        volume = re.search(r"volume is (\d+)", self.sh("cmd media_session volume --stream 3 --get"))
+        if not volume or volume.group(1) != "0":
+            raise Abort("media volume is not 0")
+        values = self.ctl("prefs", "get", "session", check=True).get("values") or {}
+        if values.get("steam_offline") is not True:
+            raise Abort(f"Offline mode is {values.get('steam_offline')}: rule 1, stopping")
+        if values.get("gameSound", False) is not False or values.get("bootMovieSound", True) is not False:
+            raise Abort(f"sound: game sound {values.get('gameSound')}, boot-movie sound {values.get('bootMovieSound', True)}: rule 2, stopping")
+        thermal = self.ctl("thermal")
+        status = thermal.get("status")
+        if isinstance(status, int) and status >= self.args.max_thermal_status:
+            raise Abort(f"thermal status {status} (battery {thermal.get('batteryC')} C): at or over --max-thermal-status")
+        return {"offline_setting": True, "game_sound": False, "boot_movie_sound": False, "media_volume": 0,
+                "battery_c": thermal.get("batteryC"), "thermal_status": status,
+                "capped": [name for name, value in (thermal.get("cpu") or {}).items() if value.get("capped")]}
+
+    def inside(self, script: str, timeout: int = 120) -> str:
+        """A shell script in the container: through the guest agent while a session is up, without proot otherwise."""
+        running = (self.ctl("state").get("session") or {}).get("phase") == "READY"
+        answer = self.ctl("guest" if running else "native", "--timeout", str(timeout), "--", "/bin/sh", "-c", script, check=True)
+        if answer.get("exitCode") != 0:
+            raise Abort(f"container command failed ({answer.get('exitCode')}): {((answer.get('stderr') or {}).get('text') or '')[-300:]}")
+        return (answer.get("stdout") or {}).get("text", "")
+
+    # ------------------------------------------------------------ pushed files
+    def adb_push(self, local: str, remote: str) -> str | None:
+        pushed = subprocess.run(["adb", "-s", self.serial, "push", local, remote], capture_output=True, timeout=600)
+        return None if pushed.returncode == 0 else pushed.stderr.decode(errors="replace")[-200:] or "failed"
+
+    def restore_pushed(self) -> None:
+        for item in list(self.pushed):
+            target = item["guest_path"]
+            out = self.inside(f'set -e; T={target}; test -f "$T.bench-orig"; mv -f "$T.bench-orig" "$T"; sha256sum "$T"')
+            now = out.split()[0] if out.split() else None
+            if now != item["sha256_original"]:
+                raise Abort(f"{target} was put back but its hash is {now}, not the original {item['sha256_original']}")
+            self.pushed.remove(item)
+            self.restored_files.append(dict(item, restored=True))
+            self.log(f"restored {target} ({now[:12]})")
+
+    def apply_pushes(self) -> None:
+        wanted = [] if self.args.restore_pushed else [benchlib.parse_push(spec) for spec in self.args.push_file]
+        if not wanted and not self.pushed:
+            return
+        self.phase("push-files")
+        self.restore_pushed()
+        inbox = self.ctl("access", check=True).get("inbox")
+        if wanted and not inbox:
+            raise Abort("the app did not name its inbox folder")
+        for index, (local, target) in enumerate(wanted):
+            digest = hashlib.sha256(Path(local).read_bytes()).hexdigest()
+            staged = f"{inbox}/bench-push-{index}"
+            self.sh(f"mkdir -p {inbox}")
+            problem = self.adb_push(local, staged)
+            if problem:
+                raise Abort(f"adb push {local} failed: {problem}")
+            out = self.inside(f'set -e; T={target}; S={staged}; test -f "$T"; test ! -e "$T.bench-orig"; cp -p "$T" "$T.bench-orig"; '
+                              f'cp "$S" "$T.bench-new"; chmod --reference="$T" "$T.bench-new"; mv -f "$T.bench-new" "$T"; rm -f "$S"; '
+                              f'sha256sum "$T.bench-orig" "$T"', timeout=300)
+            hashes = re.findall(r"^([0-9a-f]{64}) ", out, re.M)
+            record = {"local": str(local), "guest_path": target, "backup": target + ".bench-orig",
+                      "sha256_original": hashes[0] if hashes else None, "sha256_pushed": hashes[1] if len(hashes) > 1 else None,
+                      "sha256_local": digest}
+            self.pushed.append(record)
+            if record["sha256_pushed"] != digest:
+                self.restore_pushed()
+                raise Abort(f"{target} does not have the pushed file's hash after the copy")
+            self.log(f"pushed {local} -> {target} ({digest[:12]}, original {str(record['sha256_original'])[:12]})")
+
+    # ------------------------------------------------------------ getting to the main menu
+    def restore_config(self) -> None:
+        for tag, state_before in reversed(self.restore):
+            self.set_switch(tag, state_before, remember=False)
+        if self.route_before is not None:
+            self.set_route(self.route_before)
+            self.restore_route_owner()
+        self.restore = []
+        self.route_before = None
+
+    def at_main_menu(self) -> bool:
+        return self.screen("where").main_menu()
+
+    def leave_game(self) -> None:
+        if not self.game_running():
+            return
+        try:
+            if not self.at_main_menu():
+                raise Abort("the game is not at its main menu")
+            self.quit_game()
+        except Abort as error:
+            self.notes.append(f"game ended with droiddeckctl quit, not its menu: {error}")
+            self.ctl("quit", APP_ID, "--timeout", "60")
+            self.nap(8)
+
+    def end_session(self) -> None:
+        self.phase("stop-session")
+        if self.pushed:
+            self.restore_pushed()
+        self.leave_game()
+        self.ctl("stop", "--timeout", "120", timeout=180)
+        self.ctl("wait", "idle", "--timeout", "120", timeout=180)
+        self.ctl("env", "clear", "all")
+        self.restore_config()
+        SCREEN_MARKER.unlink(missing_ok=True)
+
+    def start_streams(self) -> None:
+        if not self.lmk_stream:
+            self.background("logcat-lmk.txt", ["adb", "-s", self.serial, "logcat", "-v", "epoch", "-T", "1", "-s", "lowmemorykiller:*"])
+            self.lmk_stream = True
+        if not self.sampling:
+            self.start_samplers()
+            self.sampling = True
+
+    def start_steam(self, pre: dict) -> None:
+        super().start_steam(pre)
+        self.lmk_stream = True
+
+    def launch_game(self) -> None:
+        self.phase("launch-to-menu")
+        self.owner_check()
+        self.start_streams()
+        self.launched_local = self.sh("date '+%F %T'").strip()
+        self.marks["launch"] = self.phone_ms()
+        self.ctl("launch", APP_ID, check=True)
+        self.launches += 1
+        self.rep_in_launch = 0
+        self.log("game launch requested")
+        icon = self.wait_menu().profile_icon()
+        self.checks["profile_icon"] = icon
+        if icon != self.script["profile_icon"]:
+            raise Abort(f"the game is on the {icon} profile, not the bench profile ({self.script['profile_icon']}): not touching it")
+
+    def read_experiments(self) -> None:
+        nodes = self.open_settings("Advanced")
+        self.experiments = {node["tag"][len("setting-exp-"):]: (node.get("state") or node.get("text"))
+                            for node in nodes if str(node.get("tag") or "").startswith("setting-exp-")}
+
+    def attach(self) -> dict:
+        """Bring the phone to the game's main menu in the wanted configuration, restarting as little as the
+        switch table allows. Returns the preflight header."""
+        args = self.args
+        self.phase("attach")
+        self.owner_check()
+        state = self.ctl("state", check=True)
+        session = state["session"]
+        self.build = {"label": state.get("build"), "commit": state.get("apkCommit"), "app_version": state.get("appVersion"),
+                      "runtime": (state.get("runtime") or {}).get("version")}
+        self.commands = bool(self.ctl("access").get("commands"))
+        if not self.commands:
+            raise Abort("Debugging tools are off: --mode screen needs them for the per-rep checks, env lines and --push-file "
+                        "(tap Setup > Diagnostics on the phone)")
+        marker = self.load_marker()
+        current = None
+        if session["phase"] == "IDLE":
+            if marker:
+                self.adopt(marker)
+                self.launches = self.rep_in_launch = 0
+        elif (session["phase"] == "READY" and session.get("mode") == "steam" and marker
+              and marker.get("session_id") == session.get("id") and marker.get("build_commit") == state.get("apkCommit")):
+            self.adopt(marker)
+            self.session_id = session.get("id")
+            current = {key: marker.get(key) for key in ("path", "route", "env", "switches", "baseline", "pushes")}
+            current["game_running"] = self.game_running(state)
+        else:
+            raise Abort(f"session is {session['phase']} (id {session.get('id')}) and --mode screen did not start it: not touching it; "
+                        "stop it, or use --stop if an earlier screen run left it")
+        self.ours = True
+        wanted = self.wanted()
+        level, reasons = benchlib.plan_change(current, wanted)
+        if args.restart and level != benchlib.SESSION:
+            level, reasons = benchlib.SESSION, reasons + ["session: --restart"]
+        pre: dict = {}
+        if level == benchlib.LAUNCH:
+            try:
+                pre = self.relaunch(marker, wanted)
+            except SettingsUnreachable as error:
+                reasons.append(f"session: Lanner's settings could not be used with the session up ({str(error)[:120]})")
+                level = benchlib.SESSION
+        if level == benchlib.SESSION:
+            if session["phase"] != "IDLE" or current is not None:
+                self.end_session()
+            elif marker:
+                self.restore_config()
+                SCREEN_MARKER.unlink(missing_ok=True)
+            pre = self.preflight()
+            self.start_steam(pre)
+            self.experiments = dict(pre.get("experiments") or {})
+            self.apply_pushes()
+            self.launch_game()
+        elif level == benchlib.NONE:
+            pre = dict((marker or {}).get("preflight") or {}, reused="session and game")
+            self.sh("; ".join(f"am force-stop {app}" for app in OTHER_APPS))
+            self.start_streams()
+            layout = self.screen("reuse")
+            if not layout.main_menu() or layout.profile_icon() != self.script["profile_icon"]:
+                raise Abort("the game kept from the last run is not at its main menu on the bench profile")
+        self.reuse = {"level": level, "reasons": reasons, "session_id": getattr(self, "session_id", None),
+                      "launches_in_session": self.launches}
+        self.log(f"attach: restart level {level} ({'; '.join(reasons) or 'same configuration'})")
+        return pre
+
+    def relaunch(self, marker: dict, wanted: dict) -> dict:
+        """Same session, new game process: for switches droiddeck-game-env reads at each launch, and pushed files."""
+        self.sh("; ".join(f"am force-stop {app}" for app in OTHER_APPS))
+        self.cheap_checks()
+        self.leave_game()
+        baseline = {benchlib.switch_id(tag): state for tag, state in self.restore}
+        targets = dict(wanted["switches"])
+        for name, state in self.experiments.items():
+            if name not in targets and name in baseline and baseline[name] != state:
+                targets[name] = baseline[name]
+        changed = [name for name, state in targets.items() if self.experiments.get(name) != state]
+        if changed:
+            try:
+                for name in changed:
+                    self.set_switch(self.tag(name), targets[name])
+                self.read_experiments()
+            except Abort as error:
+                raise SettingsUnreachable(str(error)) from error
+            self.ctl("resume")
+            self.nap(2)
+        self.apply_pushes()
+        self.launch_game()
+        return dict((marker or {}).get("preflight") or {}, reused="session")
+
+    # ------------------------------------------------------------ one repetition
+    def game_counts(self) -> list[int] | None:
+        if self.args.path != "native":
+            return None
+        out = self.guest(f'for w in "frame split" "playing card" "performing move"; do grep -c "$w" {GAME_LOG}; done')
+        try:
+            counts = [int(value) for value in out.split()]
+        except (AttributeError, ValueError):
+            return None
+        return counts if len(counts) == 3 else None
+
+    def wait_screen(self, label: str, done, timeout_s: float, every_s: float = 1.0):
+        deadline = time.time() + timeout_s
+        while True:
+            layout = self.screen(label)
+            if done(layout):
+                return layout
+            if time.time() > deadline:
+                return None
+            self.nap(every_s, fixed=False)
+
+    def rep(self, index: int, warmup: bool) -> None:
+        script, args = self.script, self.args
+        self.rep_in_launch += 1
+        self.phase("rep-checks", index)
+        checks = self.cheap_checks()
+        layout = self.screen("rep-menu")
+        if not layout.main_menu() or layout.profile_icon() != script["profile_icon"]:
+            raise Abort(f"rep {index}: not at the main menu on the bench profile (badge {layout.profile_icon()})")
+        self.phase("continue", index)
+        y = self.focus_menu("top")
+        low, high = script["continue_focus_y"]
+        if not low <= y <= high:
+            raise Abort(f"rep {index}: the top menu entry is at y={y}, not where Continue sits ({low}-{high})")
+        self.pad("a")
+        self.phase("fight-ready", index)
+        ready = self.wait_screen("combat-wait", lambda shot: shot.hand_glow() >= script["hand_glow_min"] and shot.enemy_hp() is not None, 60)
+        if ready is None:
+            raise Abort(f"rep {index}: the fight did not come up within 60 s")
+        hp = ready.enemy_hp()
+        if abs(hp - script["start_enemy_hp"]) > script["hp_tolerance"]:
+            raise Abort(f"rep {index}: the fight is not at its start (enemy bar {hp}): Save and Quit did not put it back")
+        glow = [ready.hand_glow()]
+
+        def steady(shot) -> bool:
+            glow.append(shot.hand_glow())
+            return abs(glow[-1] - glow[-2]) <= 0.002
+        self.nap(1.0, fixed=False)
+        if self.wait_screen("hand-steady", steady, 10) is None:
+            self.notes.append(f"rep {index}: the hand was still moving 10 s after it showed")
+        self.log(f"rep {index}: combat ready, enemy bar {hp}, hand glow {glow[-1]}")
+        latency = None
+        if args.latency_count:
+            self.phase("latency", index)
+            latency = self.latency(f"fight-rep{index}", args.fight_region, "pad:right", "pad:left")
+            self.nap(1.0)
+            after = self.screen("after-latency").enemy_hp()
+            if after is None or abs(after - script["start_enemy_hp"]) > script["hp_tolerance"]:
+                raise Abort("the latency presses changed the fight")
+        self.phase("capture-start", index)
+        seconds = int(benchlib.script_seconds(script["steps"])) + 8
+        before = self.game_counts()
+        if args.with_cpu:
+            self.background(f"top-threads-rep{index}.txt", ["adb", "-s", self.serial, "shell",
+                            f"top -H -b -d 5 -n {max(3, seconds // 5 + 1)} -m 70 -s 3 -o PID,TID,%CPU,CMD,NAME"])
+        if args.with_perfetto:
+            self.perfetto_start(min(60, seconds))
+        if args.with_pacing:
+            self.pacing_start(seconds)
+        self.nap(1.5)
+        self.steps = []
+        self.phase("fight", index)
+        start = self.phone_ms()
+        self.play_script(script)
+        end = self.phone_ms()
+        self.phase("capture-finish", index)
+        after_counts = self.game_counts()
+        thermal = self.ctl("thermal")
+        record = {"index": index, "launch": self.launches, "rep_in_launch": self.rep_in_launch, "cold": self.rep_in_launch == 1,
+                  "warmup": warmup, "checks": checks, "enemy_hp_start": hp, "window_ms": [start, end], "steps": self.steps,
+                  "counts": [before, after_counts], "latency": latency,
+                  "thermal_end": {"battery_c": thermal.get("batteryC"), "status": thermal.get("status")}}
+        if args.with_pacing:
+            record["pacing"] = self.pacing_finish()
+        if args.with_perfetto:
+            trace = self.perfetto_finish()
+            if trace:
+                kept = self.dir / f"trace-rep{index}.pftrace"
+                os.replace(trace, kept)
+                record["trace"] = str(kept)
+        self.reps.append(record)
+        self.phase("save-and-quit", index)
+        self.pad("start")
+        self.nap(1.5)
+        paused = self.screen("paused")
+        if paused.hand_glow() > 0.003 or paused.main_menu():
+            raise Abort("the pause menu did not open")
+        for _ in range(3):
+            self.pad("down")
+            self.nap(0.4)
+        self.screen("save-and-quit-focused")
+        self.pad("a")
+        if self.wait_screen("back-to-menu", lambda shot: shot.main_menu(), 40) is None:
+            raise Abort("Save and Quit did not return to the main menu")
+        self.log(f"rep {index}{' (warm-up)' if warmup else ''}: played, back at the main menu")
+
+    # ------------------------------------------------------------ results
+    def archive_texts(self) -> list[str]:
+        texts = []
+        for path in sorted(glob.glob(str(self.dir / "logs" / "**" / "*"), recursive=True)):
+            if os.path.isfile(path) and os.path.getsize(path) < 16 * 1024 * 1024:
+                with open(path, errors="replace") as handle:
+                    text = handle.read()
+                lines = [line for line in text.splitlines() if "offline" in line]
+                if lines:
+                    texts.append("\n".join(lines))
+        return texts
+
+    def summarize_screen(self, pre: dict, failure: str | None) -> dict:
+        measured = [rep for rep in self.reps if not rep["warmup"]]
+        self.steps = [step for rep in measured for step in rep["steps"]]
+        if measured:
+            self.marks["window_start"], self.marks["window_end"] = measured[0]["window_ms"][0], measured[-1]["window_ms"][1]
+            first, last = measured[0]["counts"][0], measured[-1]["counts"][1]
+            self.marks["splits_start"], self.marks["splits_end"] = (first[0] if first else None), (last[0] if last else None)
+        summary = self.summarize(pre, failure)
+        read = lambda path: path.read_text(errors="replace") if path and path.exists() else ""
+        frames = benchlib.parse_frames(read(self.find_log("frames.csv")))
+        samples = benchlib.parse_sampler(read(self.dir / "sampler.txt"))
+        game_log = benchlib.count_game_log(read(self.find_containing("native_compat: frame split"))) if self.args.path == "native" else {}
+        if measured:
+            summary["frames"]["overall"] = benchlib.window_stats(frames, [tuple(rep["window_ms"]) for rep in measured])
+        for rep in self.reps:
+            start, end = rep["window_ms"]
+            rep["frames"] = {"overall": benchlib.window_stats(frames, [(start, end)]),
+                             "animation": benchlib.window_stats(frames, benchlib.animation_windows(rep["steps"])),
+                             "card_plays": benchlib.window_stats(frames, benchlib.animation_windows(rep["steps"], ("card",))),
+                             "enemy_turns": benchlib.window_stats(frames, benchlib.animation_windows(rep["steps"], ("end_turn",)))}
+            rep["memory"] = benchlib.sampler_summary(samples, start, end)
+            rep["enemy_hp_checks"] = [step["enemy_hp"] for step in rep["steps"] if "enemy_hp" in step]
+            before, after = rep["counts"]
+            if before and after and game_log:
+                rep["cards"] = game_log["cards"][before[1]:after[1]]
+                rep["monster_moves"] = [list(move) for move in game_log["monster_moves"][before[2]:after[2]]]
+            if self.args.with_cpu:
+                rows = benchlib.parse_top(read(self.dir / f"top-threads-rep{rep['index']}.txt"))
+                rep["cpu_top_processes"] = {name: value for name, value in benchlib.top_by_process(rows).items() if value >= 0.5}
+        differences = benchlib.reps_identical(self.reps)
+        values = [benchlib.rep_metrics(rep) for rep in measured]
+        warm = [benchlib.rep_metrics(rep) for rep in measured if not rep["cold"]]
+        summary.update({
+            "mode": "screen", "turns": self.args.turns or None, "reps": self.reps,
+            "spread": {metric: benchlib.spread([value[metric] for value in values]) for metric in benchlib.CONFIRM_METRICS},
+            "spread_warm": {metric: benchlib.spread([value[metric] for value in warm]) for metric in benchlib.CONFIRM_METRICS},
+            "identical": {"ok": not differences, "problems": differences,
+                          "basis": "enemy bar full at each start, the scripted health checks, and on the native engine the cards and enemy moves the game logged"},
+            "reuse": self.reuse, "pushed_files": self.pushed + self.restored_files,
+            "offline_evidence": self.offline,
+            "left_running": bool(failure is None and not self.args.stop_after),
+        })
+        empty = [rep["index"] for rep in measured if not rep["frames"]["animation"]["n"]]
+        if empty or differences:
+            summary["ok"] = False
+            summary["failure"] = summary["failure"] or (f"no frames for reps {empty}" if empty else f"the reps were not the same fight: {differences[0]}")
+        return summary
+
+    # ------------------------------------------------------------ run
+    def stop_only(self) -> int:
+        self.sync_clock()
+        self.commands = bool(self.ctl("access").get("commands"))
+        marker = self.load_marker()
+        if not marker:
+            print("no kept screen session is recorded: nothing to stop", file=sys.stderr)
+            return 0
+        self.adopt(marker)
+        state = self.ctl("state", check=True)["session"]
+        if state["phase"] not in ("IDLE", "READY") or (state["phase"] == "READY" and state.get("id") != marker.get("session_id")):
+            print(f"session is {state['phase']} (id {state.get('id')}), not the one the last screen run kept: not touching it", file=sys.stderr)
+            return 1
+        try:
+            if state["phase"] == "READY":
+                self.owner_check()
+                self.end_session()
+            else:
+                if self.pushed:
+                    self.restore_pushed()
+                self.restore_config()
+                SCREEN_MARKER.unlink(missing_ok=True)
+        except Abort as error:
+            print(f"ABORT: {error}", file=sys.stderr)
+            return 1
+        (OUT_ROOT / ".last-run-end").write_text(str(time.time() + self.clock_offset_ms / 1000.0))
+        print("kept session stopped, switches, route and pushed files put back")
+        return 0
+
+    def run(self) -> int:
+        if self.dir.exists() and any(self.dir.iterdir()):
+            print(f"{self.dir} already has files: pick another --name", file=sys.stderr)
+            return 2
+        (self.dir / "shots").mkdir(parents=True)
+        self.log_file = open(self.dir / "run.log", "w")
+        self.started_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.sync_clock()
+        pre: dict = {}
+        failure = None
+        try:
+            pre = self.attach()
+            total = self.args.warmup_reps + self.args.reps
+            for index in range(1, total + 1):
+                self.rep(index, warmup=index <= self.args.warmup_reps)
+            if not self.args.stop_after:
+                self.phase("log-pull")
+                self.ctl("logs", "latest", str(self.dir / "logs"), timeout=300, check=True)
+                self.offline = benchlib.offline_evidence(self.archive_texts(), self.launched_local)
+                if not self.offline["ok"]:
+                    raise Abort(f"offline evidence in the session's logs: {self.offline['problems']}: rule 1")
+        except Abort as error:
+            failure = str(error)
+            self.log(f"ABORT: {failure}")
+            try:
+                self.screen("abort")
+            except Exception:
+                pass
+        except Exception as error:  # the phone must still be put back
+            failure = f"{type(error).__name__}: {error}"
+            self.log(f"ERROR: {failure}")
+        try:
+            if not self.ours:
+                self.notes.append("nothing on the phone was changed or stopped")
+                self.stop_background()
+            elif failure is not None or self.args.stop_after:
+                try:
+                    if self.pushed:
+                        self.restore_pushed()
+                    if failure is None:
+                        self.leave_game()
+                except Exception as error:
+                    self.notes.append(f"before teardown: {type(error).__name__}: {error}")
+                if (self.dir / "logs").exists():
+                    os.replace(self.dir / "logs", self.dir / "logs-live")
+                self.teardown()
+                SCREEN_MARKER.unlink(missing_ok=True)
+                if self.offline is None:
+                    self.offline = benchlib.offline_evidence(self.archive_texts(), self.launched_local)
+            else:
+                self.stop_background()
+                self.save_marker(pre)
+                (OUT_ROOT / ".last-run-end").write_text(str(time.time() + self.clock_offset_ms / 1000.0))
+        except Exception as error:
+            self.notes.append(f"teardown: {type(error).__name__}: {error}")
+            self.stop_background()
+        self.phase("analysis")
+        summary = self.summarize_screen(pre, failure)
+        summary["phases"] = self.phases.block()
+        problems = benchlib.validate_summary(summary) + benchlib.validate_screen(summary)
+        if problems:
+            summary["notes"].append(f"schema problems: {problems}")
+        (self.dir / "summary.json").write_text(json.dumps(summary, indent=1))
+        spread = summary["spread"]
+        self.log(f"done: ok={summary['ok']} reps {spread['anim_p99_ms']['n']} | animation p99 median {spread['anim_p99_ms']['median']} "
+                 f"(range {spread['anim_p99_ms']['min']}-{spread['anim_p99_ms']['max']}) fps {spread['anim_fps']['median']} | "
+                 f"restart level {self.reuse.get('level')} | left running {summary['left_running']} | {self.dir}/summary.json")
+        return 0 if summary["ok"] else 1
+
+
+def run_confirm(args: argparse.Namespace) -> int:
+    """--mode confirm: A and B in turn, each a screen-mode arm, until the interval on the animation p99 difference
+    excludes 0 (and clears the earlier noise floor) or --max-pairs."""
+    top = OUT_ROOT / args.name
+    if top.exists() and any(top.iterdir()):
+        print(f"{top} already has files: pick another --name", file=sys.stderr)
+        return 2
+    top.mkdir(parents=True, exist_ok=True)
+    arms = {"a": benchlib.parse_arm(args.a), "b": benchlib.parse_arm(args.b)}
+    started = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    values: dict = {metric: {"a": [], "b": []} for metric in benchlib.CONFIRM_METRICS}
+    runs, share, notes = [], [], []
+    intervals: dict = {}
+    decision: dict = {"stop": False, "verdict": None, "why": "no pair completed"}
+    failure = None
+    build = None
+    pairs = 0
+    for pair in range(1, args.max_pairs + 1):
+        for key in ("a", "b"):
+            arm = arms[key]
+            arm_args = copy.copy(args)
+            arm_args.mode, arm_args.name = "screen", f"{args.name}/p{pair:02d}-{key}"
+            arm_args.switch, arm_args.switch_off = list(args.switch) + arm["on"], list(args.switch_off) + arm["off"]
+            arm_args.env = list(args.env) + arm["env"]
+            arm_args.path, arm_args.route = arm["path"] or args.path, arm["route"] or args.route
+            arm_args.stop_after, arm_args.no_results_row = False, True
+            code = ScreenBench(arm_args).run()
+            summary = json.loads((OUT_ROOT / arm_args.name / "summary.json").read_text())
+            runs.append(arm_args.name)
+            if code != 0:
+                failure = f"{arm_args.name}: {summary.get('failure')}"
+                break
+            build = summary["build"].get("commit")
+            share.append(summary["reuse"]["level"])
+            measured = [benchlib.rep_metrics(rep) for rep in summary["reps"] if not rep["warmup"]]
+            for metric in benchlib.CONFIRM_METRICS:
+                values[metric][key].append([value[metric] for value in measured])
+        if failure:
+            break
+        pairs = pair
+        for metric in benchlib.CONFIRM_METRICS:
+            a, b = values[metric]["a"], values[metric]["b"]
+            if all(value is not None for group in a + b for value in group):
+                intervals[metric] = benchlib.bootstrap_diff_ci(a, b, seed=args.seed)
+            else:
+                intervals[metric] = None
+        if intervals["anim_p99_ms"] is None:
+            failure = "an arm has no animation p99"
+            break
+        decision = benchlib.confirm_decision(intervals["anim_p99_ms"], pair, args.min_pairs, args.max_pairs, args.noise_sd)
+        ci = intervals["anim_p99_ms"]
+        print(f"pair {pair}: animation p99 B-A {ci['diff']} ms [{ci['low']}, {ci['high']}] -> "
+              f"{'stop: ' + str(decision['verdict']) if decision['stop'] else 'go on: ' + decision['why']}", flush=True)
+        if decision["stop"]:
+            break
+    left_running = bool(args.keep_running and failure is None)
+    if failure is None and not args.keep_running:
+        stop_args = copy.copy(args)
+        stop_args.mode, stop_args.name = "screen", f"{args.name}/stop"
+        if ScreenBench(stop_args).stop_only() != 0:
+            notes.append("the kept session could not be stopped at the end: run --mode screen --stop")
+            left_running = True
+    flat = lambda groups: [value for group in groups for value in group]
+    summary = {
+        "schema": benchlib.SCHEMA_VERSION, "mode": "confirm", "name": args.name, "started_utc": started,
+        "scenario": args.scenario, "path": args.path, "route": args.route, "build": build, "turns": args.turns or None,
+        "a": dict(arms["a"], text=args.a), "b": dict(arms["b"], text=args.b),
+        "ok": failure is None, "failure": failure, "pairs": pairs, "reps_per_arm": args.reps, "runs": runs,
+        "share": {"levels": share, "what": "restart level of each arm in order: none = same game launch, launch = same session, session = new session"},
+        "values": values, "intervals": intervals, "seed": args.seed, "noise_sd_ms": args.noise_sd,
+        "min_pairs": args.min_pairs, "max_pairs": args.max_pairs, "decision": decision,
+        "spread": {metric: {key: benchlib.spread(flat(values[metric][key])) for key in ("a", "b")} for metric in benchlib.CONFIRM_METRICS},
+        "left_running": left_running, "notes": notes,
+    }
+    problems = benchlib.validate_confirm(summary)
+    if problems:
+        summary["notes"].append(f"schema problems: {problems}")
+    (top / "summary.json").write_text(json.dumps(summary, indent=1))
+    if failure is None and pairs and not args.no_results_row:
+        groups = {metric: [flat(values[metric]["a"]), flat(values[metric]["b"])] for metric in benchlib.CONFIRM_METRICS}
+        config = f"{args.path}, {args.route}, A `{args.a or 'as is'}` / B `{args.b or 'as is'}`"
+        line = benchlib.noise_floor_line(started[:10], build or "?", config, f"confirm, {pairs} pairs x {args.reps} reps", groups, args.name)
+        results = REPO / "docs/bench/RESULTS.md"
+        results.write_text(benchlib.insert_noise_line(results.read_text(), line))
+    print(f"confirm: ok={failure is None} pairs {pairs} verdict {decision.get('verdict')} | {top}/summary.json", flush=True)
+    return 0 if failure is None else 1
 
 
 def main() -> int:
@@ -968,10 +1670,65 @@ def main() -> int:
     parser.add_argument("--xcheck", action="store_true", help="fight: also record the screen during two real flicks (needs ffmpeg here)")
     parser.add_argument("--keep-config", action="store_true", help="leave the route and switches as this run set them")
     parser.add_argument("--no-results-row", action="store_true")
+    parser.add_argument("--mode", choices=("full", "screen", "confirm"), default="full",
+                        help="full: one launch, one measured window, everything captured (the default). screen: repeat the fight in a "
+                             "kept session. confirm: A/B pairs of screen arms with a stopping rule")
+    parser.add_argument("--reps", type=int, default=3, help="screen/confirm: measured fights per arm")
+    parser.add_argument("--warmup-reps", type=int, default=0, help="screen/confirm: unmeasured fights before them")
+    parser.add_argument("--turns", type=int, default=0, help="screen/confirm: play only the first N turns of the script (0: all)")
+    parser.add_argument("--with-latency", type=int, default=0, metavar="N", help="screen/confirm: latency probe of N presses in every rep")
+    parser.add_argument("--with-cpu", action="store_true", help="screen/confirm: top -H through every rep")
+    parser.add_argument("--with-perfetto", action="store_true", help="screen/confirm: a Perfetto trace of every rep")
+    parser.add_argument("--with-pacing", action="store_true", help="screen/confirm: droiddeckctl pacing over every rep")
+    parser.add_argument("--push-file", action="append", default=[], metavar="LOCAL:GUEST_PATH",
+                        help="screen: replace an engine or overlay file in the container before the launch (original kept beside it)")
+    parser.add_argument("--restore-pushed", action="store_true", help="screen: put back every file an earlier --push-file replaced")
+    parser.add_argument("--stop-after", action="store_true", help="screen: end the game and the session afterwards and restore the switches")
+    parser.add_argument("--stop", action="store_true", help="screen: only end what an earlier screen run kept running")
+    parser.add_argument("--restart", action="store_true", help="screen: start a new session even when the kept one would do")
+    parser.add_argument("--max-thermal-status", type=int, default=2, help="screen/confirm: stop when the thermal status reaches this")
+    parser.add_argument("--a", default="", help="confirm: arm A, e.g. \"\" or \"zram-game-late -hints-idle KEY=VALUE route:panvk\"")
+    parser.add_argument("--b", default="", help="confirm: arm B")
+    parser.add_argument("--max-pairs", type=int, default=6)
+    parser.add_argument("--min-pairs", type=int, default=3)
+    parser.add_argument("--noise-sd", type=float, default=2.0,
+                        help="confirm: run-to-run sd of one arm's animation p99 in ms from earlier repeats (docs/bench/RESULTS.md); 0 turns that check off")
+    parser.add_argument("--seed", type=int, default=benchlib.CONFIRM_SEED)
+    parser.add_argument("--keep-running", action="store_true", help="confirm: leave the last arm's session up")
     args = parser.parse_args()
     if not args.serial:
         parser.error("--serial or ANDROID_SERIAL is required")
-    return Bench(args).run()
+    if args.mode == "full":
+        if args.push_file or args.restore_pushed or args.stop or args.a or args.b:
+            parser.error("--push-file, --restore-pushed, --stop, --a and --b need --mode screen or confirm")
+        return Bench(args).run()
+    if args.scenario != "fight":
+        parser.error(f"--mode {args.mode} is for --scenario fight")
+    if args.push_file and args.restore_pushed:
+        parser.error("--push-file and --restore-pushed do not go together")
+    try:
+        for spec in args.push_file:
+            local, _guest = benchlib.parse_push(spec)
+            if not Path(local).is_file():
+                parser.error(f"--push-file: no such file {local}")
+        benchlib.truncate_steps(json.loads((HERE / "scenarios" / "fight.json").read_text())["steps"], args.turns)
+        if args.mode == "confirm":
+            benchlib.parse_arm(args.a), benchlib.parse_arm(args.b)
+    except ValueError as error:
+        parser.error(str(error))
+    args.latency_count = args.with_latency
+    args.noise_sd = args.noise_sd or None
+    if args.mode == "confirm":
+        if args.push_file or args.restore_pushed or args.stop:
+            parser.error("--mode confirm takes switches and env lines, not pushed files")
+        if args.reps < 1 or args.min_pairs < 2 or args.max_pairs < args.min_pairs:
+            parser.error("--reps at least 1, --min-pairs at least 2, --max-pairs at least --min-pairs")
+        return run_confirm(args)
+    if args.stop:
+        return ScreenBench(args).stop_only()
+    if args.reps < 1 and not args.restore_pushed:
+        parser.error("--reps must be at least 1")
+    return ScreenBench(args).run()
 
 
 if __name__ == "__main__":
