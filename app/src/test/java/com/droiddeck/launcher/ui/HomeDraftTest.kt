@@ -64,7 +64,7 @@ class HomeDraftTest {
     @Test fun withNothingKnownTheCardShowsTheColourBlockAndOnlyMemory() {
         show(game)
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("home-ready").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("home-card-art").assertDoesNotExist()
+        compose.onNodeWithTag("home-card-art", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("home-last-played").assertDoesNotExist()
         compose.onNodeWithTag("home-last-session").assertDoesNotExist()
         screenshot("home-draft")
@@ -80,7 +80,7 @@ class HomeDraftTest {
         sessionWithGameFrames(File(context.filesDir, "logs/2026-11-27-01-steam"))
         val playedAt = System.currentTimeMillis() / 1000 - 2 * 3600
         show(Library.SteamGame(game.appId, game.name, null, "", lastPlayed = playedAt))
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("home-card-art").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("home-card-art", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("home-last-session").fetchSemanticsNodes().isNotEmpty() }
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("home-ready").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("home-last-played").assertIsDisplayed()
