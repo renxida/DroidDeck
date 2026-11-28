@@ -593,6 +593,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     onRequestWirelessAdb = requestWirelessAdbFix,
                     onPairWirelessDebugging = startGuidedPairing,
                 )
+                SelfUpdateBar()
         }
 
         }

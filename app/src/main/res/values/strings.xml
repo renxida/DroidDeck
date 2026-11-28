@@ -190,6 +190,7 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Performance overlay</string>
     <string name="mode_mangoapp_hint">Turn off if games crash or go black in Deck mode. Applies next session.</string>
+    <string name="mode_mangoapp_level_hint">Steam shows it from Quick Access &gt; Performance: raise Performance Overlay Level there.</string>
     <string name="mode_return_after_game">Return to Lanner after a game</string>
     <string name="mode_return_after_game_hint">When a game you started from Lanner or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
     <string name="mode_shader_precache">Shader pre-caching</string>
@@ -699,6 +700,8 @@
     <string name="setup_reset_settings_partial">Settings were reset, but some parts could not be. The logs have the details.</string>
     <string name="setup_offline">Offline mode</string>
     <string name="setup_sign_in_first">Sign in to Steam first</string>
+    <string name="setup_offline_on">Games run offline · signed in as %1$s</string>
+    <string name="setup_offline_on_unnamed">Games run offline</string>
     <string name="setup_language">Language</string>
     <string name="setup_language_hint">Steam uses it too, from the next time it starts.</string>
     <string name="setup_language_system">System default (%1$s)</string>
@@ -919,6 +922,8 @@
     <string name="widgets_none">None</string>
     <string name="widgets_n_of_m">%1$d of %2$d</string>
     <string name="widgets_off">Off</string>
+    <string name="widgets_hint_more">More</string>
+    <string name="widgets_hint_less">Less</string>
     <string name="screen_bottom">Bottom screen</string>
     <string name="game_env_applies">Applies on the next game launch. A game\'s profile overrides the shared one.</string>
     <string name="game_env_other">Another game by app ID…</string>
@@ -2269,6 +2274,7 @@
     <string name="self_update_ready_named">Update ready: %1$s</string>
     <string name="self_update_installing_named">Installing %1$s…</string>
     <string name="version_line_installed">Lanner %1$s</string>
+    <string name="setup_about_build">Build</string>
     <string name="remote_control">Remote control</string>
     <string name="remote_control_hint">Takes commands from the remote folder of your telemetry repository: start a game, send input, take a screenshot, read logs. Shell commands also need Debugging tools.</string>
     <string name="kadb_install">Install updates over Wireless debugging</string>

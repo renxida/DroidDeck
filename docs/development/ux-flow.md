@@ -53,7 +53,8 @@ Rail: **Home** and **Settings** (plus **Resume** while a session runs).
   - Storage: game storage and libraries, usage and clean-up.
   - Advanced: system checks (GPU, runtime, child-process limit, Steam account, Venus/bridge
     switches), Steam integration, Components link, launcher look/device/art/download options,
-    Diagnostics (logs, share/save/delete session logs, debug toggles, reset) and Memory.
+    Diagnostics (logs, share/save/delete session logs, debug toggles, reset), Memory and About
+    (the installed build line, selectable, with Copy).
 - **Components** (from Advanced or the GPU drivers link): GPU drivers, Proton, DXVK, VKD3D, FEX.
 
 ## What the cuts left pointless

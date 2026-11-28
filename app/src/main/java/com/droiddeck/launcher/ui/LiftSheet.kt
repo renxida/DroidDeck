@@ -97,6 +97,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.core.animateFloat
@@ -151,7 +152,7 @@ internal fun SheetChips(
         val equal = !width.isSpecified && maxWidth / labels.size.coerceAtLeast(1) >= 96.dp
         val least = if (width.isSpecified) maxOf(width, 64.dp) else 64.dp
         val scroll = rememberScrollState()
-        Box(if (equal) Modifier.fillMaxWidth() else Modifier.horizontalScroll(scroll).padding(3.dp)) {
+        Box(if (equal) Modifier.fillMaxWidth() else Modifier.testTag("chips-scroll").scrollEdgeFade(scroll).horizontalScroll(scroll).padding(3.dp)) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(ChipGap),
                 modifier = (if (equal) Modifier.fillMaxWidth() else Modifier)
@@ -169,6 +170,23 @@ internal fun SheetChips(
         }
     }
 }
+
+/** Fades the row out at an edge that has more chips beyond it. */
+private fun Modifier.scrollEdgeFade(scroll: androidx.compose.foundation.ScrollState): Modifier = this
+    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val fade = 32.dp.toPx().coerceAtMost(size.width / 4)
+        if (scroll.canScrollBackward) drawRect(
+            androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = fade),
+            size = androidx.compose.ui.geometry.Size(fade, size.height), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+        )
+        if (scroll.canScrollForward) drawRect(
+            androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
+            topLeft = androidx.compose.ui.geometry.Offset(size.width - fade, 0f),
+            size = androidx.compose.ui.geometry.Size(fade, size.height), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+        )
+    }
 
 @Composable
 private fun SheetChip(label: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {

@@ -1250,7 +1250,6 @@ class FrontEndActivity : ComponentActivity() {
                     ),
                     page = page,
                 )
-                com.droiddeck.launcher.ui.SelfUpdateBar()
                 showNonAdreno?.let { release ->
                     ConfirmDialog(
                         title = androidx.compose.ui.res.stringResource(R.string.main_non_adreno_title),

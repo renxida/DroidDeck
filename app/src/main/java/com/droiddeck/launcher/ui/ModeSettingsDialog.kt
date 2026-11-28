@@ -438,7 +438,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         SettingsGroup(stringResource(R.string.mode_client)) {
             ToggleRow(
                 host, "mangoapp", stringResource(R.string.mode_mangoapp),
-                stringResource(R.string.mode_mangoapp_hint),
+                stringResource(R.string.mode_mangoapp_level_hint) + " " + stringResource(R.string.mode_mangoapp_hint),
                 s.mangoapp, onChange = a.onMangoapp,
             )
             if (s.returnAfterGame != null) ToggleRow(

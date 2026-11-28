@@ -9,8 +9,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * The front screen's version line: which app build is installed, when it was made and which native engine it
- * carries, and, while an update waits, which build that is. Pure formatting here so it can be tested on the JVM.
+ * The version line in Settings (About): which app build is installed, when it was made and which native engine it
+ * carries, and, on the front screen while an update waits, which build that is. Pure formatting here so it can be
+ * tested on the JVM.
  */
 internal object VersionLine {
     private const val ENGINE_ASSET = "linuxfs/usr/local/share/droiddeck/native-engine.json"
